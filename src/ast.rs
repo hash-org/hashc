@@ -7,10 +7,16 @@ use num::BigInt;
 
 use crate::modules::ModuleIdx;
 
+/// Represents an abstract syntax tree node.
+///
+/// Contains an inner type, as well as begin and end positions in the input.
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct AstNode<T> {
+    /// The actual value contained within this node.
     pub body: Box<T>,
-    pub pos: (u32, u32),
+    /// Position of the node in the input.
+    pub pos: (usize, usize),
+    /// Module that this node is part of. Index into `Modules`.
     pub module: ModuleIdx,
 }
 
@@ -31,77 +37,101 @@ impl<T> Deref for AstNode<T> {
     }
 }
 
+/// Node for an intrinsic identifier.
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub struct IntrinsicKey {
+    /// The name of the intrinsic (without the "#").
     pub name: &'static str,
 }
 
+/// Node for a single name/symbol.
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub struct Name {
-    pub symbol: &'static str,
+    // The name of the symbol.
+    pub string: &'static str,
 }
 
+/// Node for a namespaced name, i.e. access name.
 #[derive(Debug, Clone)]
 pub struct AccessName {
+    /// The list of names that make up the access name.
     pub names: Vec<AstNode<Name>>,
 }
 
+/// Node for a concrete/"named" type.
 #[derive(Debug, Clone)]
 pub struct NamedType {
+    /// The name of the type.
     pub name: AstNode<AccessName>,
+    /// The type arguments of the type, if any.
     pub type_args: Vec<AstNode<Type>>,
 }
 
+/// Node for a type variable.
 #[derive(Debug, Clone)]
 pub struct TypeVar {
+    /// The name of the type variable.
     pub name: AstNode<Name>,
 }
 
+/// Node for a type.
 #[derive(Debug, Clone)]
 pub enum Type {
+    /// A concrete/"named" type.
     Named(NamedType),
+    /// A type variable.
     TypeVar(TypeVar),
+    /// The existential type ("?").
     Existential,
+    /// The type infer operator.
     Infer,
 }
 
+/// Node for a set literal, i.e. {1, 2, 3}.
 #[derive(Debug, Clone)]
 pub struct SetLiteral {
+    /// The elements of the set literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
+/// Node for a list literal, i.e. [1, 2, 3].
 #[derive(Debug, Clone)]
 pub struct ListLiteral {
+    /// The elements of the list literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
+/// Node for a tuple literal, i.e. (1, 'A', "foo").
 #[derive(Debug, Clone)]
 pub struct TupleLiteral {
+    /// The elements of the tuple literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
+/// Node for a map literal, i.e. {"foo": 1, "bar": 2}.
 #[derive(Debug, Clone)]
 pub struct MapLiteral {
+    /// The elements of the map literal (key-value pairs).
     pub elements: Vec<AstNode<(Expression, Expression)>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructLiteralEntry {
-    name: AstNode<Name>,
-    value: AstNode<Expression>,
+    pub name: AstNode<Name>,
+    pub value: AstNode<Expression>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructLiteral {
-    name: AstNode<AccessName>,
-    type_args: Vec<AstNode<Type>>,
-    entries: Vec<AstNode<StructLiteralEntry>>,
+    pub name: AstNode<AccessName>,
+    pub type_args: Vec<AstNode<Type>>,
+    pub entries: Vec<AstNode<StructLiteralEntry>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FunctionDefArg {
-    name: AstNode<Name>,
-    ty: Option<AstNode<Type>>,
+    pub name: AstNode<Name>,
+    pub ty: Option<AstNode<Type>>,
 }
 
 #[derive(Debug, Clone)]
