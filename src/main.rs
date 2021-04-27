@@ -1,4 +1,12 @@
-use clap::{AppSettings, Clap, crate_version};
+mod pest_parser;
+
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
+
+use pest::Parser;
+use crate::pest_parser::{HashParser, Rule};
+use clap::{crate_version, AppSettings, Clap};
 
 /// This doc string acts as a help message when the user runs '--help'
 /// as do all doc strings on fields
@@ -12,7 +20,7 @@ use clap::{AppSettings, Clap, crate_version};
 #[clap(setting = AppSettings::ColorNever)]
 struct CompilerOptions {
     ///  Include a directory into runtime. The current directory is included by default
-    #[clap(short, long, multiple_values=true)]
+    #[clap(short, long, multiple_values = true)]
     includes: Vec<String>,
 
     /// Execute the passed script directly without launching interactive mode
@@ -26,9 +34,7 @@ struct CompilerOptions {
 
 fn main() {
     let opts: CompilerOptions = CompilerOptions::parse();
-
     println!("Stack_size is {}", opts.stack_size);
-
 
     for path in opts.includes.into_iter() {
         println!("Running with {}", path);
@@ -38,4 +44,10 @@ fn main() {
         Some(path) => println!("Are we executing -> {}", path),
         None => println!("Running withing interactive mode!"),
     }
+
+    // parse some shit
+    // let result = HashParser::parse(Rule::statement, "struct Dog /* cats are cooler */ = {hair:str, age:int, paw_size:float};");
+    let result = HashParser::parse(Rule::statement, "enum Dogs /* cats are cooler */ = {Puppy,  Woofster(str), Michael(int, str)};");
+    println!("{:?}", result);
+
 }

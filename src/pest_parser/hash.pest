@@ -1,0 +1,204 @@
+///
+/// Hash language grammar for parsing
+///
+/// All rights reserved 2021 (c) The Hash Language authors
+///
+
+
+/// comments
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | "//" ~ (!"\n" ~ ANY)* }
+
+/// whitespace
+WHITESPACE = _{" "}
+
+/// Boolean Literal
+truel  = { "true" }
+falsel = { "false" }
+bool  = { truel | falsel }
+
+/// Integer literal
+digit = _{ '0'..'9' }
+int   =  { digit ~ (digit | "_")* }
+
+/// Float literal
+float = {
+    int ~ "." ~ int? ~ exp? |
+    int ~ exp
+}
+
+plus  = { "+" }
+minus = { "-" }
+exp   = { ^"e" ~ (plus | minus)? ~ int }
+
+/// String literal
+string = { "\"" ~ (raw_string | escape)* ~ "\"" }
+raw_string = { (!("\\" | "\"") ~ ANY)+ }
+
+hex = _{ '0'..'9' | 'a'..'f' | 'A'..'F' }
+unicode_hex = { hex{1, 6} }
+
+predefined = { "n" | "r" | "t" | "\\" | "0" | "\"" | "'" }
+byte       = { "x" ~ hex{2} }
+unicode    = { "u" ~ "{" ~ unicode_hex ~ "}" }
+escape     = { "\\" ~ (predefined | byte | unicode) }
+
+/// Character literals
+char = { "'" ~ (escape | ANY) ~ "'" }
+
+/// Identifier
+ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
+ident      =  {
+    ('a'..'z' | 'A'..'Z') ~ ident_char* |
+    "_" ~ ident_char+
+}
+
+
+/// Operators, all of the operators that are used within hash
+ref_eq_op = { "===" }
+comp_op = { "==" }
+neq_op = {"!="}
+arrow_op = { "=>" }
+eq_op = { "=" }
+
+increment_op = { "+=" }
+decrement_op = { "-=" }
+mul_inplace_op = { "*=" }
+div_inplace_op = { "/=" }
+mod_inplace_op = { "%=" }
+
+andl_inplace_op = {"&&="}
+orl_inplace_op = {"||="}
+
+andb_inplace_op = {"&="}
+orb_inplace_op = {"|="}
+xor_inplace_op = {"^="}
+
+geq_op = {">="}
+leq_op = {"<="}
+
+add_op = {"+"}
+sub_op = {"-"}
+div_op = {"/"}
+mul_op = {"*"}
+not_op = {"!"}
+mod_op = {"%"}
+notb_op = {"~"}
+andb_op = {"&"}
+orb_op = {"|"}
+xor_op = {"^"}
+
+qmark_op = {"?"}
+namespace_op = {"::"}
+
+map_sep_op = {":"}
+spread_op = {"..."}
+dot_op = {"."}
+semi = {";"}
+comma = {","}
+
+// operators map
+operators = {
+    "===" | "==" | "=" |
+    "=>" | "<=" | ">=" |
+    "&&" | "||" |
+    "&&=" | "||=" |
+    "+=" | "-=" | "*=" | "/=" | "%=" | "!=" |
+    "+" | "-" | "*" | "/" | "%" | "!" |
+    "&=" | "^=" | "|=" |
+    "&" | "^" | "|" |
+    "?" | "::" | ":" | "..." | "." | ";" | ","
+}
+
+
+/// Keyword map
+keyword = {
+    "if" | "else" | "match" | 
+    "let" | "struct" | "enum" | "trait" |
+    "loop" | "while" | "for" | "in" |
+    "break" | "continue" | "return" |
+    "import" | "as" | "where"
+}
+
+/// Brackets map
+bracket = {
+    "(" | ")" | "{" | "}" |
+    "[" | "]" | "<" | ">"
+}
+
+/// pattern
+pattern = { ident }
+
+/// Block
+block = { "loop" ~ block }
+
+/// Expression
+literal = {
+    string |
+    int |
+    float |
+    char
+}
+
+expr = {literal}
+
+/// Type parser
+type_t = { ident } // TODO: is this even right?
+
+/// assign just expects some identifier, followed by an equals and then an expression
+assign = {ident ~ "=" ~ expr}
+let_st = {"let" ~ pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
+
+
+/// AST representatio of a struct which includes the name of the struct with a
+/// ForAll to specify any bounds or and generic arguments to the struct, with
+/// zero or more struct fields. An example for a struct would be:
+///
+/// struct Name = <T,Q> where eq<T> => { ... };
+///        ^^^^    ^──────^^─┬──^        ^^^
+/// Name of struct        For all       fields
+struct_field = {ident ~ ":" ~ type_t ~ ("=" ~ expr)? }
+struct_def = {"struct" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (struct_field?  ~ ("," ~ struct_field)*)? ~ "}" }
+
+
+/// AST representation for an enum, An enum is constrcuted by a the keyword 'enum'
+/// follwed by an idenfier name, a for-all declaratation, followed by some enum fields.
+/// An enumeration can be made of zero or more enum fields, an example declaration of
+/// For example, a declaration of an enun would be:
+///
+/// enum Name = <T,Q> where eq<T> => { ... };
+///      ^^^^    ^──────^^─┬──^        ^^^
+/// Name of enum        bound       fields
+enum_field = {ident ~ ("(" ~ (type_t? ~ ("," ~ type_t)*) ~ ")")? }
+enum_def = {"enum" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (enum_field?  ~ ("," ~ enum_field)*)? ~ "}" }
+
+
+
+/// AST representation of a trait statement. A trait statement
+/// is essentially a function with no body, with a for-all node and
+/// some genetic type arguments. For example,
+///
+/// trait eq<T> = (T, T) => bool;
+///     ┌─^^ ^─┐   ^─ ─ ─ ─ ─ ─ ─ ┐
+///   name   Generic type args    Function type definition
+trait_def = {"trait" ~ ident ~ ("=" ~ bound ~ "=>") ~ type_t} //TODO: make a trait
+
+
+bound = {"(" ~ type_t+ ~ ")" ~ "=>"}
+
+/// Statement
+statement = {
+    (let_st |
+    block |
+    expr |
+    "return" ~ expr |
+    "break" |
+    "continue" |
+    assign |
+    struct_def |
+    enum_def |
+    trait_def) ~ ";"
+}
+
+/// Module
+module = _{ SOI ~ "\n"* ~ (statement ~ "\n"+) * ~ statement? ~ EOI }
+
