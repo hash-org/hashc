@@ -1,5 +1,6 @@
 mod ast;
 mod modules;
+// mod typecheck;
 
 use clap::{AppSettings, Clap, crate_version};
 

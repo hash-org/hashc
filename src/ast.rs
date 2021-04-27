@@ -20,10 +20,7 @@ pub struct AstNode<T> {
     pub module: ModuleIdx,
 }
 
-impl<T> Hash for AstNode<T>
-where
-    T: Hash,
-{
+impl<T: Hash> Hash for AstNode<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.body.hash(state);
     }
@@ -31,7 +28,6 @@ where
 
 impl<T> Deref for AstNode<T> {
     type Target = T;
-
     fn deref(&self) -> &Self::Target {
         &self.body
     }
@@ -51,7 +47,7 @@ pub struct Name {
     pub string: &'static str,
 }
 
-/// Node for a namespaced name, i.e. access name.
+/// Node for a namespaced name, i.e.. access name.
 #[derive(Debug, Clone)]
 pub struct AccessName {
     /// The list of names that make up the access name.
@@ -81,62 +77,79 @@ pub enum Type {
     Named(NamedType),
     /// A type variable.
     TypeVar(TypeVar),
-    /// The existential type ("?").
+    /// The existential type (`?`).
     Existential,
     /// The type infer operator.
     Infer,
 }
 
-/// Node for a set literal, i.e. {1, 2, 3}.
+/// Node for a set literal, e.g. `{1, 2, 3}`.
 #[derive(Debug, Clone)]
 pub struct SetLiteral {
     /// The elements of the set literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
-/// Node for a list literal, i.e. [1, 2, 3].
+/// Node for a list literal, e.g. `[1, 2, 3]`.
 #[derive(Debug, Clone)]
 pub struct ListLiteral {
     /// The elements of the list literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
-/// Node for a tuple literal, i.e. (1, 'A', "foo").
+/// Node for a tuple literal, e.g. `(1, 'A', "foo")`.
 #[derive(Debug, Clone)]
 pub struct TupleLiteral {
     /// The elements of the tuple literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
-/// Node for a map literal, i.e. {"foo": 1, "bar": 2}.
+/// Node for a map literal, e.g. `{"foo": 1, "bar": 2}`.
 #[derive(Debug, Clone)]
 pub struct MapLiteral {
     /// The elements of the map literal (key-value pairs).
     pub elements: Vec<AstNode<(Expression, Expression)>>,
 }
 
+/// Node for a struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
 #[derive(Debug, Clone)]
 pub struct StructLiteralEntry {
+    /// The name of the struct field.
     pub name: AstNode<Name>,
+    /// The value given to the struct field.
     pub value: AstNode<Expression>,
 }
 
+/// Node for a struct literal, e.g. `Dog { name = "Adam", age = 12 }`
 #[derive(Debug, Clone)]
 pub struct StructLiteral {
+    /// The name of the struct literal.
     pub name: AstNode<AccessName>,
+    /// Type arguments to the struct literal, if any.
     pub type_args: Vec<AstNode<Type>>,
+    /// The fields (entries) of the struct literal.
     pub entries: Vec<AstNode<StructLiteralEntry>>,
 }
 
+/// Node for a function definition argument.
 #[derive(Debug, Clone)]
 pub struct FunctionDefArg {
+    /// The name of the argument.
     pub name: AstNode<Name>,
+    /// The type of the argument, if any.
+    ///
+    /// Will be inferred if `None`.
     pub ty: Option<AstNode<Type>>,
 }
 
+/// Node for a function definition.
 #[derive(Debug, Clone)]
 pub struct FunctionDef {
+    /// The arguments of the function definition.
     pub args: Vec<AstNode<FunctionDefArg>>,
+    /// The return type of the function definition.
+    ///
+    /// Will be inferred if `None`.
     pub return_ty: Option<AstNode<Type>>,
     pub fn_body: AstNode<Expression>,
 }
