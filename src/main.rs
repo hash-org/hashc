@@ -1,3 +1,6 @@
+mod ast;
+mod modules;
+
 use clap::{AppSettings, Clap, crate_version};
 
 /// This doc string acts as a help message when the user runs '--help'
@@ -28,7 +31,6 @@ fn main() {
     let opts: CompilerOptions = CompilerOptions::parse();
 
     println!("Stack_size is {}", opts.stack_size);
-
 
     for path in opts.includes.into_iter() {
         println!("Running with {}", path);
