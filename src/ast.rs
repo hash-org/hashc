@@ -1,3 +1,4 @@
+//! Frontent-agnostic Hash abstract syntax tree type definitions.
 #![allow(dead_code)]
 
 use crate::modules::ModuleIdx;
@@ -18,12 +19,14 @@ pub struct AstNode<T> {
     pub module: ModuleIdx,
 }
 
+/// [AstNode] hashes as its inner `body` type.
 impl<T: Hash> Hash for AstNode<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.body.hash(state);
     }
 }
 
+/// [AstNode] dereferences to its inner `body` type.
 impl<T> Deref for AstNode<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -31,28 +34,28 @@ impl<T> Deref for AstNode<T> {
     }
 }
 
-/// Node for an intrinsic identifier.
+/// An intrinsic identifier.
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub struct IntrinsicKey {
     /// The name of the intrinsic (without the "#").
     pub name: &'static str,
 }
 
-/// Node for a single name/symbol.
+/// A single name/symbol.
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub struct Name {
     // The name of the symbol.
     pub string: &'static str,
 }
 
-/// Node for a namespaced name, i.e.. access name.
+/// A namespaced name, i.e. access name.
 #[derive(Debug, Clone)]
 pub struct AccessName {
     /// The list of names that make up the access name.
     pub names: Vec<AstNode<Name>>,
 }
 
-/// Node for a concrete/"named" type.
+/// A concrete/"named" type.
 #[derive(Debug, Clone)]
 pub struct NamedType {
     /// The name of the type.
@@ -61,14 +64,14 @@ pub struct NamedType {
     pub type_args: Vec<AstNode<Type>>,
 }
 
-/// Node for a type variable.
+/// A type variable.
 #[derive(Debug, Clone)]
 pub struct TypeVar {
     /// The name of the type variable.
     pub name: AstNode<Name>,
 }
 
-/// Node for a type.
+/// A type.
 #[derive(Debug, Clone)]
 pub enum Type {
     /// A concrete/"named" type.
@@ -81,35 +84,35 @@ pub enum Type {
     Infer,
 }
 
-/// Node for a set literal, e.g. `{1, 2, 3}`.
+/// A set literal, e.g. `{1, 2, 3}`.
 #[derive(Debug, Clone)]
 pub struct SetLiteral {
     /// The elements of the set literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
-/// Node for a list literal, e.g. `[1, 2, 3]`.
+/// A list literal, e.g. `[1, 2, 3]`.
 #[derive(Debug, Clone)]
 pub struct ListLiteral {
     /// The elements of the list literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
-/// Node for a tuple literal, e.g. `(1, 'A', "foo")`.
+/// A tuple literal, e.g. `(1, 'A', "foo")`.
 #[derive(Debug, Clone)]
 pub struct TupleLiteral {
     /// The elements of the tuple literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
-/// Node for a map literal, e.g. `{"foo": 1, "bar": 2}`.
+/// A map literal, e.g. `{"foo": 1, "bar": 2}`.
 #[derive(Debug, Clone)]
 pub struct MapLiteral {
     /// The elements of the map literal (key-value pairs).
     pub elements: Vec<(AstNode<Expression>, AstNode<Expression>)>,
 }
 
-/// Node for a struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
+/// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
 #[derive(Debug, Clone)]
 pub struct StructLiteralEntry {
     /// The name of the struct field.
@@ -118,7 +121,7 @@ pub struct StructLiteralEntry {
     pub value: AstNode<Expression>,
 }
 
-/// Node for a struct literal, e.g. `Dog { name = "Adam", age = 12 }`
+/// A struct literal, e.g. `Dog { name = "Adam", age = 12 }`
 #[derive(Debug, Clone)]
 pub struct StructLiteral {
     /// The name of the struct literal.
@@ -129,7 +132,7 @@ pub struct StructLiteral {
     pub entries: Vec<AstNode<StructLiteralEntry>>,
 }
 
-/// Node for a function definition argument.
+/// A function definition argument.
 #[derive(Debug, Clone)]
 pub struct FunctionDefArg {
     /// The name of the argument.
@@ -140,7 +143,7 @@ pub struct FunctionDefArg {
     pub ty: Option<AstNode<Type>>,
 }
 
-/// Node for a function definition.
+/// A function definition.
 #[derive(Debug, Clone)]
 pub struct FunctionDef {
     /// The arguments of the function definition.
@@ -153,7 +156,7 @@ pub struct FunctionDef {
     pub fn_body: AstNode<Expression>,
 }
 
-/// Node for a literal.
+/// A literal.
 #[derive(Debug, Clone)]
 pub enum Literal {
     /// A string literal.
