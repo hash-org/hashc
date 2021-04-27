@@ -1,4 +1,4 @@
-//! Frontent-agnostic Hash abstract syntax tree type definitions.
+//! Frontend-agnostic Hash abstract syntax tree type definitions.
 #![allow(dead_code)]
 
 use crate::modules::ModuleIdx;
