@@ -47,7 +47,9 @@ fn main() {
 
     // parse some shit
     // let result = HashParser::parse(Rule::statement, "struct Dog /* cats are cooler */ = {hair:str, age:int, paw_size:float};");
-    let result = HashParser::parse(Rule::statement, "enum Dogs /* cats are cooler */ = {Puppy,  Woofster(str), Michael(int, str)};");
+    // let result = HashParser::parse(Rule::statement, "enum Dogs /* cats are cooler */ = {Puppy,  Woofster(str), Michael(int, str)};");
+    // let result = HashParser::parse(Rule::type_t, "(int, str) => bool");
+    let result = HashParser::parse(Rule::statement, "trait str = <Y> => (Y) => bool;").unwrap_or_else(|e| panic!("{}", e));
     println!("{:?}", result);
 
 }

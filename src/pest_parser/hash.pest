@@ -45,12 +45,32 @@ escape     = { "\\" ~ (predefined | byte | unicode) }
 /// Character literals
 char = { "'" ~ (escape | ANY) ~ "'" }
 
+/// Bracketed literals
+list_literal = {"[" ~ expr ~ (comma ~ expr)* ~ comma? ~ "]"}
+set_literal = {"{" ~ (comma | expr ~ comma | (expr ~ (comma ~ expr)* ~ comma?)) ~ "}"}
+map_entry = {expr ~ ":" ~ expr}
+map_literal = {"{" ~ (":" | map_entry ~ comma | (map_entry ~ (comma ~ map_entry)* ~ comma?)) ~ "}"}
+tuple_literal = {"(" ~ (comma | expr ~ comma | (expr ~ (comma ~ expr)* ~ comma?)) ~ ")"}
+
 /// Identifier
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
 ident      =  {
     ('a'..'z' | 'A'..'Z') ~ ident_char* |
     "_" ~ ident_char+
 }
+
+/// AST representation of Function parameters when specifying the types of arguments
+/// on the righthand side of the (=) equals operator. Function parameters must have a name
+/// and can specify a type of the parameter. If the type is not specified, it will be
+/// inferred at type checking, For example a func parameter is:
+///
+/// let x = (s: int) => ...
+///          ^^^^^^
+///        this is the function param
+///
+function_param = {ident ~ (":" ~ type_t)?} // @@Future: Add support for default funciton arguments
+
+function_literal = {"(" ~ (function_param ~ ("," ~ function_param)*)? ~ ")" ~ (":" ~ type_t)? ~ ("=>" ~ expr)? }
 
 
 /// Operators, all of the operators that are used within hash
@@ -66,6 +86,8 @@ mul_inplace_op = { "*=" }
 div_inplace_op = { "/=" }
 mod_inplace_op = { "%=" }
 
+andl_op = {"&&"}
+orl_op = {"||"}
 andl_inplace_op = {"&&="}
 orl_inplace_op = {"||="}
 
@@ -85,7 +107,9 @@ mod_op = {"%"}
 notb_op = {"~"}
 andb_op = {"&"}
 orb_op = {"|"}
-xor_op = {"^"}
+xorb_op = {"^"}
+shl_op = {"<<"}
+shr_op = {">>"}
 
 qmark_op = {"?"}
 namespace_op = {"::"}
@@ -95,6 +119,35 @@ spread_op = {"..."}
 dot_op = {"."}
 semi = {";"}
 comma = {","}
+
+bit_shift_op = {shl_op | shr_op}
+bit_mod_op = {andb_op | orb_op | xorb_op}
+logicalb_op = {andl_op | orb_op}
+eqneq_op = {ref_eq_op | comp_op | neq_op}
+muldiv_op = {mul_op | div_op}
+addsub_op = {add_op | sub_op}
+
+/// Since we use the '<' & '>' as syntax for type arguments, the grammars
+/// for the mathematical relations are called *_angle_br
+relational_op = {leq_op | geq_op | left_angle_br | right_angle_br}
+
+unary_operator = {
+    not_op |
+    notb_op |
+    add_op |
+    sub_op
+}
+
+binary_operator = {
+    eqneq_op |
+    as_op |
+    muldiv_op |
+    addsub_op |
+    bit_shift_op |
+    bit_mod_op |
+    relational_op
+}
+// ternary_operator = {}
 
 // operators map
 operators = {
@@ -110,7 +163,7 @@ operators = {
 }
 
 
-/// Keyword map
+/// Keyword map and keyword parsing
 keyword = {
     "if" | "else" | "match" | 
     "let" | "struct" | "enum" | "trait" |
@@ -119,30 +172,59 @@ keyword = {
     "import" | "as" | "where"
 }
 
+as_op = {"as"}
+
+
 /// Brackets map
 bracket = {
     "(" | ")" | "{" | "}" |
     "[" | "]" | "<" | ">"
 }
 
-/// pattern
-pattern = { ident }
+left_angle_br = { "<" }
+right_angle_br = { ">" }
 
-/// Block
-block = { "loop" ~ block }
 
-/// Expression
-literal = {
-    string |
-    int |
-    float |
-    char
+/// Type parsers that annotate the types of more complicated types such as 
+/// set, map, tuple, functions, etc.
+set_type = _{"{" ~ type_t ~ "}"}
+map_type = _{"{" ~ type_t ~ ":" ~ type_t ~ "}"}
+list_type = _{"[" ~ type_t ~ "]"}
+tuple_type = _{"(" ~ (type_t ~ ("," ~ type_t)*) | (",") ~ ")"}
+function_type = _{"(" ~ (type_t ~ (comma ~ type_t)*)? ~ ")" ~ "=>" ~ type_t}
+existential_type = {"?"}
+infer_type = {"_"}
+
+type_var = {'A'..'Z'}
+
+named_type = {
+    infer_type |
+    type_var |
+    access_name ~ type_args?
+
 }
 
-expr = {literal}
+/// Name of an identifier.
+name = {ident}
 
-/// Type parser
-type_t = { ident } // TODO: is this even right?
+/// Name which might be nested within namespaces (e.g. a::b::c) where 'a', 'b' are
+/// namespaces, and 'c' is the actual name.
+access_name = {name ~ ("::" ~ name)*}
+
+/// Types
+type_t = { 
+    function_type |
+    tuple_type |
+    list_type |
+    set_type |
+    map_type |
+    existential_type |
+    named_type
+ }
+
+/// Import statement
+import = {"import" ~ "(" ~ string ~ ")"} // @@Improvement: in the future change this to an expression
+
 
 /// assign just expects some identifier, followed by an equals and then an expression
 assign = {ident ~ "=" ~ expr}
@@ -157,19 +239,19 @@ let_st = {"let" ~ pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
 ///        ^^^^    ^──────^^─┬──^        ^^^
 /// Name of struct        For all       fields
 struct_field = {ident ~ ":" ~ type_t ~ ("=" ~ expr)? }
-struct_def = {"struct" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (struct_field?  ~ ("," ~ struct_field)*)? ~ "}" }
+struct_def = {"struct" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (struct_field?  ~ (comma ~ struct_field)*)? ~ "}" }
 
 
 /// AST representation for an enum, An enum is constrcuted by a the keyword 'enum'
-/// follwed by an idenfier name, a for-all declaratation, followed by some enum fields.
+/// follwed by an identifier name, a for-all declaratation, followed by some enum fields.
 /// An enumeration can be made of zero or more enum fields, an example declaration of
 /// For example, a declaration of an enun would be:
 ///
 /// enum Name = <T,Q> where eq<T> => { ... };
 ///      ^^^^    ^──────^^─┬──^        ^^^
 /// Name of enum        bound       fields
-enum_field = {ident ~ ("(" ~ (type_t? ~ ("," ~ type_t)*) ~ ")")? }
-enum_def = {"enum" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (enum_field?  ~ ("," ~ enum_field)*)? ~ "}" }
+enum_field = {ident ~ ("(" ~ (type_t? ~ (comma ~ type_t)*) ~ ")")? }
+enum_def = {"enum" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (enum_field?  ~ (comma ~ enum_field)*)? ~ "}" }
 
 
 
@@ -177,26 +259,139 @@ enum_def = {"enum" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (enum_field?  ~ (","
 /// is essentially a function with no body, with a for-all node and
 /// some genetic type arguments. For example,
 ///
-/// trait eq<T> = (T, T) => bool;
+/// trait eq = <T> => (T, T) => bool;
 ///     ┌─^^ ^─┐   ^─ ─ ─ ─ ─ ─ ─ ┐
 ///   name   Generic type args    Function type definition
-trait_def = {"trait" ~ ident ~ ("=" ~ bound ~ "=>") ~ type_t} //TODO: make a trait
+trait_def = {"trait" ~ ident ~ "=" ~ trait_bound ~ "=>" ~ type_t}
+
+bound = {ident ~ type_args}
+type_args = {"<" ~ type_var ~ (comma ~ type_var)* ~ ">"}
+trait_bound = {type_args ~ ("where" ~ (bound ~ (comma ~ bound)?))?}
+
+/// Intrinsic parsing, prefixed by '#' some identifier.
+intrinsic = {"#" ~ ident}
+
+/// Parse a property access (period followed by a name)
+property_access = {ident ~ "."}
 
 
-bound = {"(" ~ type_t+ ~ ")" ~ "=>"}
+/// AST representation for a funtction call with the potential for specifying
+/// generic arguments and a list of actual arguments to the function. For example:
+///
+/// function_call<int, str>(some, arguments, for, func);
+///              ^^^^^^^^^^ ^---------^-------^-----^
+///           Type arguments to call        Function call arguments
+function_call = {ident ~ type_args? ~ "(" ~ expr* ~ ")"} // TODO: fix lr
+
+/// AST representation of a block, which can either be a 'Match' statement,
+/// a 'Loop' statement or a 'Body' statement which is a list of 'Statements'
+/// followed by a potential return.
+loop_statement = {"loop" ~ block}
+
+while_statement = {"while" ~ expr ~ body_block}
+
+for_statement = {"for" ~ exhaustive_pattern ~ "in" ~ body_block}
+
+/// patterns sub grammars 
+struct_pattern = {ident ~ "{" ~ (ident ~ (comma ~ ident)*)? ~ "}"}
+
+namespace_pattern = {"{" ~ (name ~ (comma ~ name)*)? ~ "}"}
+
+enum_pattern = {ident ~ "(" ~ pattern ~ (comma ~ pattern)* ~ ")" }
+
+exhaustive_pattern = {
+    struct_pattern |
+    ident |
+    namespace_pattern |
+    ("(" ~ (name ~ (comma ~ name)*)? ~ ")") // tuple pattern
+}
+
+signle_pattern = { 
+    "(" ~ pattern ~ ")" |
+    enum_pattern |
+    exhaustive_pattern |
+    literal
+}
+
+/// The pattern grammar
+pattern = {signle_pattern ~ ("if" ~ unary_expr)? ~ ("|" ~ pattern)?}
+
+/// Conditional if expression grammar
+if_statement = {"if" ~ expr ~ block ~ ("else" ~ (if_statement | block))?}
+
+/// Conditional match expression grammar
+match_case  = {pattern ~ "=>" ~ expr}
+match_statement = {"match" ~ expr ~ "{" ~ (match_case ~ semi)* ~ "}"}
+
+/// Body block grammar, body blocks can be used within any kind
+/// of expression to denote a body of a particular expression.
+/// The expression at the end is used as a implicit 'return' statement
+/// from the given body block.
+body_block = { "{" ~  statement* ~ expr? ~ "}" }
+
+/// Block
+block = { 
+    if_statement |
+    match_statement |
+    for_statement |
+    while_statement | 
+    loop_statement |
+    body_block
+}
+
+/// AST representation for a literal within the language.  For more information
+/// on the syntax of various literal constructs, check out the wiki page at:
+/// https://feds01.github.io/hash/types.html
+literal = {
+    string |
+    int |
+    float |
+    char |
+    list_literal |
+    tuple_literal |
+    map_literal |
+    set_literal |
+    function_literal
+}
+
+/// AST representation of some logical operation involving a 
+/// unary or a binary expression
+binary_expr = {binary_operator ~ expr*} // TODO: fix LR
+unary_expr = {unary_operator ~ expr}
+
+// PRECEDENCE!
+logical_expr = {
+    binary_expr |
+    unary_expr
+}
+
+/// AST represenation for an Expression which is a single part of a statement.
+/// An 'Expression' can be with other 'Expresion's to be combined into a statement.
+expr = {
+    literal |
+    logical_expr | 
+    function_call |
+    intrinsic |
+    access_name | // variable
+    property_access |
+    block |
+    import
+}
+
+
 
 /// Statement
 statement = {
     (let_st |
     block |
-    expr |
-    "return" ~ expr |
+    "return" ~ expr? |
     "break" |
     "continue" |
-    assign |
     struct_def |
     enum_def |
-    trait_def) ~ ";"
+    trait_def |
+    assign |
+    expr ) ~ ";"
 }
 
 /// Module
