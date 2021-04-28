@@ -89,21 +89,17 @@ decrement_op    = { "-=" }
 mul_inplace_op  = { "*=" }
 div_inplace_op  = { "/=" }
 mod_inplace_op  = { "%=" }
-
-andl_op         = {"&&"}
-orl_op          = {"||"}
 andl_inplace_op = {"&&="}
 orl_inplace_op  = {"||="}
-
 andb_inplace_op = {"&="}
 orb_inplace_op  = {"|="}
 xor_inplace_op  = {"^="}
 
+andl_op         = {"&&"}
+orl_op          = {"||"}
 shl_op          = {"<<"}
 shr_op          = {">>"}
 exp_op          = {"**"}
-
-
 geq_op          = {">="}
 leq_op          = {"<="}
 
@@ -127,29 +123,30 @@ dot_op          = {"."}
 semi            = {";"}
 comma           = {","}
 
-bit_shift_op = {shl_op | shr_op}
-bit_mod_op   = {andb_op | orb_op | xorb_op}
-logicalb_op  = {andl_op | orb_op}
-eqneq_op     = {ref_eq_op | comp_op | neq_op}
-muldiv_op    = {mul_op | div_op}
-addsub_op    = {add_op | sub_op}
+bit_shift_op = _{shl_op | shr_op}
+bit_mod_op   = _{andb_op | orb_op | xorb_op}
+logical_op   = _{andl_op | orl_op}
+eqneq_op     = _{ref_eq_op | comp_op | neq_op}
+muldiv_op    = _{mul_op | div_op}
+addsub_op    = _{add_op | sub_op}
 
 /// Since we use the '<' & '>' as syntax for type arguments, the grammars
 /// for the mathematical relations are called *_angle_br
-relational_op = {leq_op | geq_op | left_angle_br | right_angle_br}
+relational_op = _{leq_op | geq_op | left_angle_br | right_angle_br}
 
-unary_operator = {
+unary_operator = _{
     not_op |
     notb_op |
     add_op |
     sub_op
 }
 
-binary_operator = {
+binary_operator = _{
     eqneq_op |
     as_op |
     muldiv_op |
     addsub_op |
+    logical_op |
     bit_shift_op |
     bit_mod_op |
     relational_op
@@ -288,7 +285,16 @@ property_access = {ident ~ "."}
 /// function_call<int, str>(some, arguments, for, func);
 ///              ^^^^^^^^^^ ^---------^-------^-----^
 ///           Type arguments to call        Function call arguments
-function_call = {/*expr ~ (instead of ident)*/ ident ~ type_args? ~ "(" ~ expr* ~ ")"} // TODO: fix lr
+function_call = {callable_expr ~ type_args? ~ "(" ~ expr? ~ (comma ~ expr)* ~ ")"}
+
+callable_expr = {
+    "(" ~ function_call ~ ")"  | // @@Cleanup: find a way around having to add braces to expr
+    intrinsic |
+    access_name |
+    property_access |
+    block
+}
+
 
 /// AST representation of a block, which can either be a 'Match' statement,
 /// a 'Loop' statement or a 'Body' statement which is a list of 'Statements'
@@ -357,23 +363,18 @@ literal = {
     function_literal
 }
 
+
 /// AST representation of some logical operation involving a 
 /// unary or a binary expression
-binary_expr = {/*expr ~ */ binary_operator ~ expr*} // TODO: fix LR
+binary_expr = {expr_inner ~ (binary_operator ~ expr_inner)+ }
 unary_expr = {unary_operator ~ expr}
-
-// PRECEDENCE!
-logical_expr = {
-    binary_expr |
-    unary_expr
-}
 
 /// AST represenation for an Expression which is a single part of a statement.
 /// An 'Expression' can be with other 'Expresion's to be combined into a statement.
-expr = {
+expr_inner = {
     literal |
-    logical_expr | 
     function_call |
+    unary_expr |
     intrinsic |
     access_name | // variable
     property_access |
@@ -381,11 +382,12 @@ expr = {
     import
 }
 
-
+// Since pest dissalows grammars that use LR, this is a work around
+expr = _{binary_expr | expr_inner}
 
 /// Statement
 statement = {
-    (let_st |
+    (decl |
     block |
     "return" ~ expr? |
     "break" |
