@@ -18,10 +18,10 @@ bool  = { truel | falsel }
 
 /// Integer literal
 digit = _{ '0'..'9' }
-int   =  { digit ~ (digit | "_")* }
+int   =  @{ digit ~ (digit | "_")* }
 
 /// Float literal
-float = {
+float = @{
     int ~ "." ~ int? ~ exp? |
     int ~ exp
 }
@@ -31,7 +31,7 @@ minus = { "-" }
 exp   = { ^"e" ~ (plus | minus)? ~ int }
 
 /// String literal
-string = { "\"" ~ (raw_string | escape)* ~ "\"" }
+string = @{ "\"" ~ (raw_string | escape)* ~ "\"" }
 raw_string = { (!("\\" | "\"") ~ ANY)+ }
 
 hex = _{ '0'..'9' | 'a'..'f' | 'A'..'F' }
@@ -43,7 +43,7 @@ unicode    = { "u" ~ "{" ~ unicode_hex ~ "}" }
 escape     = { "\\" ~ (predefined | byte | unicode) }
 
 /// Character literals
-char = { "'" ~ (escape | ANY) ~ "'" }
+char = @{ "'" ~ (escape | ANY) ~ "'" }
 
 /// Bracketed literals
 list_literal = {"[" ~ expr ~ (comma ~ expr)* ~ comma? ~ "]"}
@@ -54,7 +54,7 @@ tuple_literal = {"(" ~ (comma | expr ~ comma | (expr ~ (comma ~ expr)* ~ comma?)
 
 /// Identifier
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
-ident      =  {
+ident      =  @{
     ('a'..'z' | 'A'..'Z') ~ ident_char* |
     "_" ~ ident_char+
 }
