@@ -50,7 +50,7 @@ fn main() {
     // let result = HashParser::parse(Rule::statement, "enum Dogs /* cats are cooler */ = {Puppy,  Woofster(str), Michael(int, str)};");
     // let result = HashParser::parse(Rule::type_t, "(int, str) => bool");
     // let result = HashParser::parse(Rule::statement, "trait str = <Y> => (Y) => bool;").unwrap_or_else(|e| panic!("{}", e));
-    let result = HashParser::parse(Rule::statement, "let _if = 2 && 3;").unwrap_or_else(|e| panic!("{}", e));
+    let result = HashParser::parse(Rule::statement, "let s = -2;").unwrap_or_else(|e| panic!("{}", e));
     println!("{:?}", result);
 
 }

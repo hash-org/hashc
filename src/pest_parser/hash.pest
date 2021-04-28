@@ -134,21 +134,35 @@ addsub_op    = _{add_op | sub_op}
 /// for the mathematical relations are called *_angle_br
 relational_op = _{leq_op | geq_op | left_angle_br | right_angle_br}
 
+assignment_operator = _{
+    eq_op           |
+    increment_op    |  
+    decrement_op    |
+    mul_inplace_op  |
+    div_inplace_op  |
+    mod_inplace_op  |
+    andl_inplace_op |
+    orl_inplace_op  |
+    andb_inplace_op |
+    orb_inplace_op  |
+    xor_inplace_op
+}
+
 unary_operator = _{
-    not_op |
+    not_op  |
     notb_op |
-    add_op |
+    add_op  |
     sub_op
 }
 
 binary_operator = _{
-    eqneq_op |
-    as_op |
-    muldiv_op |
-    addsub_op |
-    logical_op |
+    eqneq_op     |
+    as_op        |
+    muldiv_op    |
+    addsub_op    |
+    logical_op   |
     bit_shift_op |
-    bit_mod_op |
+    bit_mod_op   |
     relational_op
 }
 // ternary_operator = {}
@@ -173,7 +187,8 @@ keywords = {
     "let" | "struct" | "enum" | "trait" |
     "loop" | "while" | "for" | "in" |
     "break" | "continue" | "return" |
-    "import" | "as" | "where"
+    "import" | 
+    "as" | "where"
 }
 
 as_op = {"as"}
@@ -185,7 +200,8 @@ bracket = {
     "[" | "]" | "<" | ">"
 }
 
-left_angle_br = { "<" }
+// Specific bracket matchers
+left_angle_br  = { "<" }
 right_angle_br = { ">" }
 
 
@@ -203,7 +219,7 @@ type_var = {'A'..'Z'}
 
 named_type = {
     infer_type |
-    type_var |
+    type_var   |
     access_name ~ type_args?
 
 }
@@ -217,11 +233,11 @@ access_name = {name ~ ("::" ~ name)*}
 
 /// Types
 type_t = { 
-    function_type |
-    tuple_type |
-    list_type |
-    set_type |
-    map_type |
+    function_type    |
+    tuple_type       |
+    list_type        |
+    set_type         |
+    map_type         |
     existential_type |
     named_type
  }
@@ -231,7 +247,7 @@ import = {"import" ~ "(" ~ string ~ ")"} // @@Improvement: in the future change 
 
 
 /// assign just expects some identifier, followed by an equals and then an expression
-assign = {ident ~ "=" ~ expr}
+assign = {ident ~ assignment_operator ~ expr}
 decl   = {"let" ~ pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
 
 
@@ -289,9 +305,9 @@ function_call = {callable_expr ~ type_args? ~ "(" ~ expr? ~ (comma ~ expr)* ~ ")
 
 callable_expr = {
     "(" ~ function_call ~ ")"  | // @@Cleanup: find a way around having to add braces to expr
-    intrinsic |
-    access_name |
-    property_access |
+    intrinsic                  |
+    access_name                |
+    property_access            |
     block
 }
 
@@ -309,27 +325,30 @@ namespace_pattern = {"{" ~ (name ~ (comma ~ name)*)? ~ "}"}
 enum_pattern      = {ident ~ "(" ~ pattern ~ (comma ~ pattern)* ~ ")" }
 
 exhaustive_pattern = {
-    struct_pattern |
-    ident |
+    struct_pattern    |
+    ident             |
     namespace_pattern |
     ("(" ~ (name ~ (comma ~ name)*)? ~ ")") // tuple pattern
 }
 
-signle_pattern = { 
-    "(" ~ pattern ~ ")" |
-    enum_pattern |
+
+braced_pattern = { "(" ~ pattern ~ ")" }
+
+single_pattern = { 
+    braced_pattern     |
+    enum_pattern       |
     exhaustive_pattern |
     literal
 }
 
 /// The pattern grammar
-pattern = {signle_pattern ~ ("if" ~ unary_expr)? ~ ("|" ~ pattern)?}
+pattern = {single_pattern ~ ("if" ~ unary_expr)? ~ ("|" ~ pattern)?}
 
 /// Conditional if expression grammar
 if_statement = {"if" ~ expr ~ block ~ ("else" ~ (if_statement | block))?}
 
 /// Conditional match expression grammar
-match_case  = {pattern ~ "=>" ~ expr}
+match_case      = {pattern ~ "=>" ~ expr}
 match_statement = {"match" ~ expr ~ "{" ~ (match_case ~ semi)* ~ "}"}
 
 /// Body block grammar, body blocks can be used within any kind
@@ -340,11 +359,11 @@ body_block = { "{" ~  statement* ~ expr? ~ "}" }
 
 /// Block
 block = { 
-    if_statement |
+    if_statement    |
     match_statement |
-    for_statement |
+    for_statement   |
     while_statement | 
-    loop_statement |
+    loop_statement  |
     body_block
 }
 
@@ -352,14 +371,14 @@ block = {
 /// on the syntax of various literal constructs, check out the wiki page at:
 /// https://feds01.github.io/hash/types.html
 literal = {
-    string |
-    int |
-    float |
-    char |
-    list_literal |
+    string        |
+    int           |
+    float         |
+    char          |
+    list_literal  |
     tuple_literal |
-    map_literal |
-    set_literal |
+    map_literal   |
+    set_literal   |
     function_literal
 }
 
@@ -372,30 +391,35 @@ unary_expr = {unary_operator ~ expr}
 /// AST represenation for an Expression which is a single part of a statement.
 /// An 'Expression' can be with other 'Expresion's to be combined into a statement.
 expr_inner = {
-    literal |
-    function_call |
-    unary_expr |
-    intrinsic |
-    access_name | // variable
+    literal         |
+    function_call   |
+    unary_expr      |
+    intrinsic       |
+    access_name     | // variable
     property_access |
-    block |
+    block           |
     import
 }
 
 // Since pest dissalows grammars that use LR, this is a work around
 expr = _{binary_expr | expr_inner}
 
+
+return_statement   = { "return" ~ expr? }
+break_statement    = { "break" }
+continue_statement = { "continue" }
+
 /// Statement
 statement = {
-    (decl |
-    block |
-    "return" ~ expr? |
-    "break" |
-    "continue" |
-    struct_def |
-    enum_def |
-    trait_def |
-    assign |
+    (decl              |
+    block              |
+    return_statement   |
+    break_statement    |
+    continue_statement |
+    struct_def         |
+    enum_def           |
+    trait_def          |
+    assign             |
     expr ) ~ ";"
 }
 
