@@ -10,7 +10,6 @@ use clap::{crate_version, AppSettings, Clap};
 use error::{report_error, ErrorType};
 use pest::Parser;
 use std::{fs, process::exit};
-// use std::fmt;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -56,7 +55,6 @@ fn main() {
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
             Ok(c) => {
-
                 // Resolve the module path
                 let contents = fs::read_to_string(c.to_str().expect("failed to convert"))
                     .unwrap_or_else(|e| {
