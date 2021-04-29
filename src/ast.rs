@@ -1,4 +1,6 @@
 //! Frontend-agnostic Hash abstract syntax tree type definitions.
+// 
+// All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
 use crate::modules::ModuleIdx;
