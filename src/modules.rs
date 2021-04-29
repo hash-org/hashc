@@ -1,6 +1,7 @@
 //! Module-related containers and utilities.
-// 
+//
 // All rights reserved 2021 (c) The Hash Language authors
+#![allow(dead_code)]
 
 /// A module identifier which is an index into [Modules].
 pub type ModuleIdx = usize;
