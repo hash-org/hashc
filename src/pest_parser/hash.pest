@@ -49,7 +49,7 @@ escape     = { "\\" ~ (predefined | byte | unicode) }
 char = @{ "'" ~ (escape | ANY) ~ "'" }
 
 /// Bracketed literals
-list_literal  = {"[" ~ expr ~ (comma ~ expr)* ~ comma? ~ "]"}
+list_literal  = {"[" ~ ("]" | expr ~ (comma ~ expr)* ~ comma? ~ "]")}
 set_literal   = {"{" ~ (comma ~ &"}" | expr ~ comma ~ &"}" | (expr ~ (comma ~ expr)* ~ comma?)) ~ "}"}
 tuple_literal = {"(" ~ (comma ~ &")" | expr ~ comma ~ &")" | (expr ~ (comma ~ expr)* ~ comma?)) ~ ")"}
 
@@ -58,11 +58,10 @@ map_literal   = {"{" ~ (":" ~ !"}" | (map_entry ~ (comma ~ map_entry)* ~ comma?)
 
 
 /// Identifier
-ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
-ident      =  @{ /*!keywords ~ */ (
-    ('a'..'z' | 'A'..'Z') ~ ident_char* |
-    "_" ~ ident_char+)
-}
+ident      = @{ /*!(keywords ~ !alpha_num) ~ */("_" | alpha) ~ ("_" | alpha_num)* } // @@Cleanup '!keywords' doesn't work as expected, we have to check that there is a non-ident char after the keywords match
+// ident      = @{("_" | alpha) ~ ("_" | alpha_num)* } // @@Cleanup '!keywords' doesn't work as expected, we have to check that there is a non-ident char after the keywords match
+alpha      = _{ 'a'..'z' | 'A'..'Z' }
+alpha_num  = _{ alpha | '0'..'9' }
 
 /// AST representation of Function parameters when specifying the types of arguments
 /// on the righthand side of the (=) equals operator. Function parameters must have a name
@@ -75,6 +74,16 @@ ident      =  @{ /*!keywords ~ */ (
 ///
 function_param   = {ident ~ (":" ~ type_t)?} // @@Future: Add support for default funciton arguments
 function_literal = {"(" ~ (function_param ~ (comma ~ function_param)*)? ~ ")" ~ (":" ~ type_t)? ~ ("=>" ~ expr) }
+
+/// Grammar for a Struct literal, an access-name, folowed by curly braces and within
+/// some number of fields being set to some value. For example:
+///
+/// MyStruct {
+///     field=3,
+///     baz="hello",
+/// }
+struct_literal_field = {ident ~ eq_op ~ expr} 
+struct_literal = {access_name ~ type_args? ~ "{" ~ ("}" | struct_literal_field? ~ (comma ~ struct_literal_field)* ~ comma? ~ "}")}
 
 
 /// Operators, all of the operators that are used within hash
@@ -156,8 +165,8 @@ unary_operator = _{
 }
 
 binary_operator = _{
+    dot_op       | // this is for infix function calls: <expr>.<expr1> where expr1 one could be a function call or a property access  
     eqneq_op     |
-    as_op        |
     muldiv_op    |
     addsub_op    |
     logical_op   |
@@ -209,7 +218,7 @@ right_angle_br = { ">" }
 set_type         = _{"{" ~ type_t ~ "}"}
 map_type         = _{"{" ~ type_t ~ ":" ~ type_t ~ "}"}
 list_type        = _{"[" ~ type_t ~ "]"}
-tuple_type       = _{"(" ~ (type_t ~ ("," ~ type_t)*) | (",") ~ ")"}
+tuple_type       = _{"(" ~ (comma ~ &")" | type_t ~ comma ~ &")" | type_t ~ (comma ~ type_t)*) ~ ")"}
 function_type    = _{"(" ~ (type_t ~ (comma ~ type_t)*)? ~ ")" ~ "=>" ~ type_t}
 existential_type = _{"?"}
 infer_type       = _{"_"}
@@ -240,8 +249,8 @@ import = {"import" ~ "(" ~ string ~ ")"} // @@Improvement: in the future change 
 
 
 /// assign just expects some identifier, followed by an equals and then an expression
-assign = {ident ~ assignment_operator ~ expr}
-decl   = {"let" ~ exhaustive_pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
+assign = {property_access ~ assignment_operator ~ expr}
+decl   = {"let" ~ exhaustive_pattern ~ trait_bound? ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
 
 
 /// Grammar representation of a struct which includes the name of the struct with a
@@ -252,7 +261,7 @@ decl   = {"let" ~ exhaustive_pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
 ///        ^^^^    ^──────^^─┬──^        ^^^
 /// Name of struct        For all       fields
 struct_field = {ident ~ ":" ~ type_t ~ ("=" ~ expr)?}
-struct_def   = {"struct" ~ ident  ~ ("=" ~ trait_bound)? ~ "=>" ~ "{" ~ (struct_field?  ~ (comma ~ struct_field)*)? ~ comma? ~ "}" }
+struct_def   = {"struct" ~ ident  ~ "=" ~ (trait_bound ~ "=>")? ~ "{" ~ (struct_field?  ~ (comma ~ struct_field)*)? ~ comma? ~ "}" }
 
 
 /// Grammar representation for an enum, An enum is constrcuted by a the keyword 'enum'
@@ -264,7 +273,7 @@ struct_def   = {"struct" ~ ident  ~ ("=" ~ trait_bound)? ~ "=>" ~ "{" ~ (struct_
 ///      ^^^^    ^──────^^─┬──^        ^^^
 /// Name of enum        bound       fields
 enum_field = {ident ~ ("(" ~ (type_t ~ (comma ~ type_t)*)? ~ ")")? }
-enum_def   = {"enum" ~ ident  ~ ("=" ~ trait_bound)? ~ "=>" ~ "{" ~ (enum_field?  ~ (comma ~ enum_field)*)? ~ comma? ~ "}" }
+enum_def   = {"enum" ~ ident  ~ "=" ~ (trait_bound ~ "=>")? ~ "{" ~ (enum_field?  ~ (comma ~ enum_field)*)? ~ comma? ~ "}" }
 
 
 
@@ -279,13 +288,15 @@ trait_def   = {"trait" ~ ident ~ "=" ~ trait_bound ~ "=>" ~ type_t}
 
 bound       = {ident ~ type_args}
 type_args   = {"<" ~ type_t ~ (comma ~ type_t)* ~ ">"}
-trait_bound = {type_args ~ ("where" ~ (bound ~ (comma ~ bound)?))?}
+trait_bound = {type_args ~ ("where" ~ (bound ~ (comma ~ bound)*))?}
 
-/// Intrinsic parsing, prefixed by '#' some identifier.
-intrinsic = {"#" ~ ident}
+/// Intrinsic parsing, prefixed by '#' some identifier. There must be no spaces between
+/// the '#' and the ident, hence this grammar is atomic.
+intrinsic = @{"#" ~ ident}
 
 /// Parse a property access (period followed by a name)
-property_access = {ident ~ "."}
+index           = {"[" ~ expr ~ "]"}
+property_access = {ident ~ index? ~ ("." ~ (ident ~ index?))*} // @@Cleanup: probably don't want to check for infix function calls here
 
 
 /// Grammar representation for a funtction call with the potential for specifying
@@ -298,18 +309,18 @@ function_call = {callable_expr ~ type_args? ~ "(" ~ expr? ~ (comma ~ expr)* ~ ")
 
 /// Callable expr is used as a workaround for pest-LR limitation
 callable_expr = {
-    "(" ~ function_call ~ ")"  | // @@Cleanup: find a way around having to add braces to expr
-    intrinsic                  |
-    access_name                |
-    property_access            |
-    block
+    block                     |
+    intrinsic                 |
+    property_access           |
+    "(" ~ function_call ~ ")" | // @@Cleanup: find a way around having to add braces to expr
+    access_name               
 }
 
 
 /// Loop constructs
 loop_statement  = {"loop" ~ block}
 while_statement = {"while" ~ expr ~ body_block}
-for_statement   = {"for" ~ exhaustive_pattern ~ "in" ~ body_block}
+for_statement   = {"for" ~ exhaustive_pattern ~ "in" ~ expr ~ body_block}
 
 /// patterns sub grammars 
 struct_pattern    = {ident ~ "{" ~ (ident ~ (comma ~ ident)*)? ~ "}"}
@@ -372,7 +383,8 @@ literal = {
     float            |
     int              |
     char             |
-    function_literal |
+    function_literal | // this could also be an enum literal
+    struct_literal   |
     list_literal     |
     tuple_literal    |
     map_literal      |
@@ -389,19 +401,18 @@ unary_expr = {unary_operator ~ expr}
 /// The 'inner' part is a workaround for not being able to use LR grammars.
 expr_inner = {
     literal         |
+    block           |
     function_call   |
     unary_expr      |
     intrinsic       |
-    access_name     | // variable
     property_access |
-    block           |
-    import
+    access_name // variable
 }
 
 /// Grammar for an expression, can either be a binary expression which refers
 /// to two expressions joined by a binary operator, or a single expression
 /// that can be some other variant of an expression.
-expr = _{binary_expr | expr_inner}
+expr = _{binary_expr | expr_inner ~ (as_op ~ type_t)? | import}
 
 
 return_statement   = { "return" ~ expr? }
@@ -410,8 +421,8 @@ continue_statement = { "continue" }
 
 /// Statement
 statement = _{
+    block |
     (decl              |
-    block              |
     return_statement   |
     break_statement    |
     continue_statement |

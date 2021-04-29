@@ -1,5 +1,6 @@
 
 let some_var: int = 3;
+let conv<T, str> = (x) => "<unknown>";
 
 // I'm a line comment
 struct MyStruct = <T> => {
@@ -32,19 +33,20 @@ let other_func = (t: str) => {
         "three" => 3;
         "four" | "five" if var => 4.5;
         _ => -1;
-    };
+    }
 };
 
 trait conv = <T, E> => (T) => E;
 
-//let conv<int, str> = (num) => #intinsic_conv_int_to_str(num);
+let conv<int, str> = (num) => #intinsic_conv_int_to_str(num);
+let push<A> where eq<A> = (arr, item) => #intrinsic_list_add(arr, item);
 
 // if statements!
 if (var == 23 || other_var == "value") {
     print("some var");
 } else {
     print("not some var");
-};
+}
 
 
 let a = [1,2,3,4,5,6,7,8,9,];
@@ -53,4 +55,4 @@ let c = {1,2,3,4,5,6,7,};
 let d = (1,2,3,4,5);
 
 // Import
-let num = import("num");
+let num = import("num);

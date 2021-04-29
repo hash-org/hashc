@@ -1,3 +1,4 @@
+mod error;
 mod pest_parser;
 
 extern crate pest;
@@ -6,8 +7,9 @@ extern crate pest_derive;
 
 use crate::pest_parser::{HashParser, Rule};
 use clap::{crate_version, AppSettings, Clap};
+use error::{report_error, ErrorType};
 use pest::Parser;
-use std::fs;
+use std::{fs, process::exit};
 // use std::fmt;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
@@ -33,31 +35,45 @@ struct CompilerOptions {
     /// Set the maximum stack size for the current running instance.
     #[clap(short, long, default_value = "10000")]
     stack_size: u32,
+
+    /// Run the compiler in debug mode
+    #[clap(short, long)]
+    debug: bool,
 }
 
 fn main() {
     let opts: CompilerOptions = CompilerOptions::parse();
-    println!("Stack_size is {}", opts.stack_size);
 
-    for path in opts.includes.into_iter() {
-        println!("Running with {}", path);
+    // print recieved cmdargs, if debug is specified
+    if opts.debug {
+        println!("Stack_size is {}", opts.stack_size);
+
+        for path in opts.includes.into_iter() {
+            println!("Running with {}", path);
+        }
     }
 
     match opts.execute {
-        Some(path) => {
-            match fs::canonicalize(&path) {
-                Ok(c) => {
-                    let contents = fs::read_to_string(c.to_str().expect("failed to convert"))
-                        .expect(&format!("Couldn't read file '{}'", path.clone()));
+        Some(path) => match fs::canonicalize(&path) {
+            Ok(c) => {
 
+                // Resolve the module path
+                let contents = fs::read_to_string(c.to_str().expect("failed to convert"))
+                    .unwrap_or_else(|e| {
+                        report_error(
+                            ErrorType::IoError,
+                            format!("Couldn't read file '{}'\n{}", path, e),
+                        );
+                        exit(-1);
+                    });
 
-                    let _ =
-                       HashParser::parse(Rule::module, &contents).unwrap_or_else(|e| panic!("{}", e));
-                   //println!("{:?}", result);
-                },
-                Err(e) => println!("Failed to find module path '{}'. ", e)
+                // parse the given module
+                let _ = HashParser::parse(Rule::module, &contents).unwrap_or_else(|e| {
+                    report_error(ErrorType::ParseError, format!("{}{}", path, e));
+                    exit(-1);
+                });
             }
-
+            Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
         None => println!("Running withing interactive mode!"),
     }
