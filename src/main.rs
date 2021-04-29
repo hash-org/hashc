@@ -1,16 +1,7 @@
-mod pest_parser;
+use clap::{AppSettings, Clap, crate_version};
 
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
-
-use crate::pest_parser::{HashParser, Rule};
-use clap::{crate_version, AppSettings, Clap};
-use pest::Parser;
-
-/// CompilerOptions is a structural representation of what arguments the compiler
-/// can take when running. Compiler options are well documented on the wiki page:
-/// https://hash-org.github.io/hash-arxiv/interpreter-options.html
+/// This doc string acts as a help message when the user runs '--help'
+/// as do all doc strings on fields
 #[derive(Clap)]
 #[clap(
     name = "Hash Interpreter",
@@ -21,7 +12,7 @@ use pest::Parser;
 #[clap(setting = AppSettings::ColorNever)]
 struct CompilerOptions {
     ///  Include a directory into runtime. The current directory is included by default
-    #[clap(short, long, multiple_values = true)]
+    #[clap(short, long, multiple_values=true)]
     includes: Vec<String>,
 
     /// Execute the passed script directly without launching interactive mode
@@ -35,7 +26,9 @@ struct CompilerOptions {
 
 fn main() {
     let opts: CompilerOptions = CompilerOptions::parse();
+
     println!("Stack_size is {}", opts.stack_size);
+
 
     for path in opts.includes.into_iter() {
         println!("Running with {}", path);
@@ -45,8 +38,4 @@ fn main() {
         Some(path) => println!("Are we executing -> {}", path),
         None => println!("Running withing interactive mode!"),
     }
-
-    let result =
-        HashParser::parse(Rule::statement, "let s = -2;").unwrap_or_else(|e| panic!("{}", e));
-    println!("{:?}", result);
 }
