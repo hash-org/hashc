@@ -1,11 +1,14 @@
+//! Main module.
+// 
+// All rights reserved 2021 (c) The Hash Language authors
+mod ast;
+mod modules;
 mod error;
 mod pest_parser;
 
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
+use clap::{AppSettings, Clap, crate_version};
 
-use crate::pest_parser::{HashParser, Rule};
+use crate::pest_parser::{HashParser};
 use clap::{crate_version, AppSettings, Clap};
 use error::{report_error, ErrorType};
 use pest::Parser;
@@ -24,7 +27,7 @@ use std::{fs, process::exit};
 #[clap(setting = AppSettings::ColorNever)]
 struct CompilerOptions {
     ///  Include a directory into runtime. The current directory is included by default
-    #[clap(short, long, multiple_values = true)]
+    #[clap(short, long, multiple_values=true)]
     includes: Vec<String>,
 
     /// Execute the passed script directly without launching interactive mode
