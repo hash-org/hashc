@@ -50,16 +50,16 @@ char = @{ "'" ~ (escape | ANY) ~ "'" }
 
 /// Bracketed literals
 list_literal  = {"[" ~ expr ~ (comma ~ expr)* ~ comma? ~ "]"}
-set_literal   = {"{" ~ (comma | expr ~ comma | (expr ~ (comma ~ expr)* ~ comma?)) ~ "}"}
-tuple_literal = {"(" ~ (comma | expr ~ comma | (expr ~ (comma ~ expr)* ~ comma?)) ~ ")"}
+set_literal   = {"{" ~ (comma ~ &"}" | expr ~ comma ~ &"}" | (expr ~ (comma ~ expr)* ~ comma?)) ~ "}"}
+tuple_literal = {"(" ~ (comma ~ &")" | expr ~ comma ~ &")" | (expr ~ (comma ~ expr)* ~ comma?)) ~ ")"}
 
 map_entry     = {expr ~ ":" ~ expr}
-map_literal   = {"{" ~ (":" | map_entry ~ comma | (map_entry ~ (comma ~ map_entry)* ~ comma?)) ~ "}"}
+map_literal   = {"{" ~ (":" ~ !"}" | (map_entry ~ (comma ~ map_entry)* ~ comma?)) ~ "}"}
 
 
 /// Identifier
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
-ident      =  @{ !keywords ~ (
+ident      =  @{ /*!keywords ~ */ (
     ('a'..'z' | 'A'..'Z') ~ ident_char* |
     "_" ~ ident_char+)
 }
@@ -74,7 +74,7 @@ ident      =  @{ !keywords ~ (
 ///        this is the function param
 ///
 function_param   = {ident ~ (":" ~ type_t)?} // @@Future: Add support for default funciton arguments
-function_literal = {"(" ~ (function_param ~ ("," ~ function_param)*)? ~ ")" ~ (":" ~ type_t)? ~ ("=>" ~ expr)? }
+function_literal = {"(" ~ (function_param ~ (comma ~ function_param)*)? ~ ")" ~ (":" ~ type_t)? ~ ("=>" ~ expr) }
 
 
 /// Operators, all of the operators that are used within hash
@@ -184,7 +184,7 @@ as_op = {"as"}
 
 
 /// Keyword map and keyword parsing
-keywords = {
+keywords = !{
     "if" | "else" | "match" | 
     "let" | "struct" | "enum" | "trait" |
     "loop" | "while" | "for" | "in" |
@@ -194,7 +194,7 @@ keywords = {
 }
 
 /// Brackets map
-bracket = {
+bracket = !{
     "(" | ")" | "{" | "}" |
     "[" | "]" | "<" | ">"
 }
@@ -214,29 +214,25 @@ function_type    = _{"(" ~ (type_t ~ (comma ~ type_t)*)? ~ ")" ~ "=>" ~ type_t}
 existential_type = _{"?"}
 infer_type       = _{"_"}
 
-type_var = {'A'..'Z'}
-
 named_type = {
     infer_type |
-    type_var   |
-    access_name ~ type_args?
-
+    access_name ~ type_args? // this also handles type variables
 }
 
 /// Name which might be nested within namespaces (e.g. a::b::c) where 'a', 'b' are
 /// namespaces, and 'c' is the actual name.
 name        = {ident}
-access_name = {name ~ ("::" ~ name)*}
+access_name = {ident ~ ("::" ~ ident)*}
 
 /// Types
 type_t = { 
+    named_type       |
     function_type    |
     tuple_type       |
     list_type        |
     set_type         |
     map_type         |
-    existential_type |
-    named_type
+    existential_type
  }
 
 /// Import statement
@@ -245,7 +241,7 @@ import = {"import" ~ "(" ~ string ~ ")"} // @@Improvement: in the future change 
 
 /// assign just expects some identifier, followed by an equals and then an expression
 assign = {ident ~ assignment_operator ~ expr}
-decl   = {"let" ~ pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
+decl   = {"let" ~ exhaustive_pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
 
 
 /// Grammar representation of a struct which includes the name of the struct with a
@@ -255,8 +251,8 @@ decl   = {"let" ~ pattern ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
 /// struct Name = <T,Q> where eq<T> => { ... };
 ///        ^^^^    ^──────^^─┬──^        ^^^
 /// Name of struct        For all       fields
-struct_field = {ident ~ ":" ~ type_t ~ ("=" ~ expr)? }
-struct_def   = {"struct" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (struct_field?  ~ (comma ~ struct_field)*)? ~ "}" }
+struct_field = {ident ~ ":" ~ type_t ~ ("=" ~ expr)?}
+struct_def   = {"struct" ~ ident  ~ ("=" ~ trait_bound)? ~ "=>" ~ "{" ~ (struct_field?  ~ (comma ~ struct_field)*)? ~ comma? ~ "}" }
 
 
 /// Grammar representation for an enum, An enum is constrcuted by a the keyword 'enum'
@@ -267,8 +263,8 @@ struct_def   = {"struct" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (struct_field?
 /// enum Name = <T,Q> where eq<T> => { ... };
 ///      ^^^^    ^──────^^─┬──^        ^^^
 /// Name of enum        bound       fields
-enum_field = {ident ~ ("(" ~ (type_t? ~ (comma ~ type_t)*) ~ ")")? }
-enum_def   = {"enum" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (enum_field?  ~ (comma ~ enum_field)*)? ~ "}" }
+enum_field = {ident ~ ("(" ~ (type_t ~ (comma ~ type_t)*)? ~ ")")? }
+enum_def   = {"enum" ~ ident  ~ ("=" ~ trait_bound)? ~ "=>" ~ "{" ~ (enum_field?  ~ (comma ~ enum_field)*)? ~ comma? ~ "}" }
 
 
 
@@ -282,7 +278,7 @@ enum_def   = {"enum" ~ ident  ~ ("=>" ~ bound)? ~ "=" ~ "{" ~ (enum_field?  ~ (c
 trait_def   = {"trait" ~ ident ~ "=" ~ trait_bound ~ "=>" ~ type_t}
 
 bound       = {ident ~ type_args}
-type_args   = {"<" ~ type_var ~ (comma ~ type_var)* ~ ">"}
+type_args   = {"<" ~ type_t ~ (comma ~ type_t)* ~ ">"}
 trait_bound = {type_args ~ ("where" ~ (bound ~ (comma ~ bound)?))?}
 
 /// Intrinsic parsing, prefixed by '#' some identifier.
@@ -323,14 +319,15 @@ enum_pattern      = {ident ~ "(" ~ pattern ~ (comma ~ pattern)* ~ ")" }
 /// Exhaustive patterns are those that are guaranteed to have a finite
 /// number of variants (level 1)
 exhaustive_pattern = {
-    struct_pattern    |
     ident             | // binding pattern
+    struct_pattern    |
     namespace_pattern |
     ("(" ~ (name ~ (comma ~ name)*)? ~ ")") // tuple pattern
 }
 
 
-braced_pattern = { "(" ~ pattern ~ ")" }
+braced_pattern = _{ "(" ~ pattern ~ ")" }
+ignore_pattern = _{"_"}
 
 /// Single pattern combinator is used as a combinator for match
 /// statements where multiple patterns can be specified for a 
@@ -339,11 +336,12 @@ single_pattern = {
     braced_pattern     |
     enum_pattern       |
     exhaustive_pattern |
+    ignore_pattern     |
     literal
 }
 
 /// The pattern grammar
-pattern = {single_pattern ~ ("if" ~ unary_expr)? ~ ("|" ~ pattern)?}
+pattern = {single_pattern ~ ("if" ~ expr)? ~ ("|" ~ pattern)?}
 
 /// Conditional if expression grammar
 if_statement = {"if" ~ expr ~ block ~ ("else" ~ (if_statement | block))?}
@@ -370,15 +368,15 @@ block = {
 
 /// Grammar representation for a literals
 literal = {
-    string        |
-    int           |
-    float         |
-    char          |
-    list_literal  |
-    tuple_literal |
-    map_literal   |
-    set_literal   |
-    function_literal
+    string           |
+    float            |
+    int              |
+    char             |
+    function_literal |
+    list_literal     |
+    tuple_literal    |
+    map_literal      |
+    set_literal   
 }
 
 
@@ -411,7 +409,7 @@ break_statement    = { "break" }
 continue_statement = { "continue" }
 
 /// Statement
-statement = {
+statement = _{
     (decl              |
     block              |
     return_statement   |
@@ -425,5 +423,5 @@ statement = {
 }
 
 /// Module grammar
-module = _{ SOI ~ "\n"* ~ (statement ~ "\n"+) * ~ statement? ~ EOI }
+module = _{ SOI ~ statement* ~ EOI }
 
