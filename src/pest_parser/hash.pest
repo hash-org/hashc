@@ -1,5 +1,4 @@
-///
-/// Hash language grammar for parsing
+//! Hash language grammar for parsing
 ///
 /// All rights reserved 2021 (c) The Hash Language authors
 ///

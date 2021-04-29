@@ -1,3 +1,7 @@
+//! Compiler error reporting
+//
+// All rights reserved 2021 (c) The Hash Language authors
+
 use std::process::exit;
 
 /// Error message prefix
