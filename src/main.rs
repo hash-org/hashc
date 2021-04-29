@@ -52,7 +52,7 @@ fn main() {
     if opts.debug {
         println!("Stack_size is {}", opts.stack_size);
 
-        for path in opts.includes.into_iter() {
+        for path in opts.includes.iter() {
             println!("Running with {}", path);
         }
     }
@@ -61,14 +61,13 @@ fn main() {
         Some(path) => match fs::canonicalize(&path) {
             Ok(c) => {
                 // Resolve the module path
-                let contents = fs::read_to_string(c.to_str().expect("failed to convert"))
-                    .unwrap_or_else(|e| {
-                        report_error(
-                            ErrorType::IoError,
-                            format!("Couldn't read file '{}'\n{}", path, e),
-                        );
-                        exit(-1);
-                    });
+                let contents = fs::read_to_string(&c).unwrap_or_else(|e| {
+                    report_error(
+                        ErrorType::IoError,
+                        format!("Couldn't read file '{}'\n{}", path, e),
+                    );
+                    exit(-1);
+                });
 
                 // parse the given module
                 let _ = HashParser::parse(Rule::module, &contents).unwrap_or_else(|e| {
