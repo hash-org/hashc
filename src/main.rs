@@ -1,13 +1,24 @@
 //! Main module.
-// 
+//
 // All rights reserved 2021 (c) The Hash Language authors
 mod ast;
+mod error;
 mod modules;
+mod pest_parser;
 
-use clap::{AppSettings, Clap, crate_version};
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
 
-/// This doc string acts as a help message when the user runs '--help'
-/// as do all doc strings on fields
+use crate::pest_parser::{HashParser, Rule};
+use clap::{crate_version, AppSettings, Clap};
+use error::{report_error, ErrorType};
+use pest::Parser;
+use std::{fs, process::exit};
+
+/// CompilerOptions is a structural representation of what arguments the compiler
+/// can take when running. Compiler options are well documented on the wiki page:
+/// https://hash-org.github.io/hash-arxiv/interpreter-options.html
 #[derive(Clap)]
 #[clap(
     name = "Hash Interpreter",
@@ -18,7 +29,7 @@ use clap::{AppSettings, Clap, crate_version};
 #[clap(setting = AppSettings::ColorNever)]
 struct CompilerOptions {
     ///  Include a directory into runtime. The current directory is included by default
-    #[clap(short, long, multiple_values=true)]
+    #[clap(short, long, multiple_values = true)]
     includes: Vec<String>,
 
     /// Execute the passed script directly without launching interactive mode
@@ -28,19 +39,44 @@ struct CompilerOptions {
     /// Set the maximum stack size for the current running instance.
     #[clap(short, long, default_value = "10000")]
     stack_size: u32,
+
+    /// Run the compiler in debug mode
+    #[clap(short, long)]
+    debug: bool,
 }
 
 fn main() {
     let opts: CompilerOptions = CompilerOptions::parse();
 
-    println!("Stack_size is {}", opts.stack_size);
+    // print recieved cmdargs, if debug is specified
+    if opts.debug {
+        println!("Stack_size is {}", opts.stack_size);
 
-    for path in opts.includes.into_iter() {
-        println!("Running with {}", path);
+        for path in opts.includes.iter() {
+            println!("Running with {}", path);
+        }
     }
 
     match opts.execute {
-        Some(path) => println!("Are we executing -> {}", path),
+        Some(path) => match fs::canonicalize(&path) {
+            Ok(c) => {
+                // Resolve the module path
+                let contents = fs::read_to_string(&c).unwrap_or_else(|e| {
+                    report_error(
+                        ErrorType::IoError,
+                        format!("Couldn't read file '{}'\n{}", path, e),
+                    );
+                    exit(-1);
+                });
+
+                // parse the given module
+                let _ = HashParser::parse(Rule::module, &contents).unwrap_or_else(|e| {
+                    report_error(ErrorType::ParseError, format!("{}{}", path, e));
+                    exit(-1);
+                });
+            }
+            Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
+        },
         None => println!("Running withing interactive mode!"),
     }
 }
