@@ -1,0 +1,257 @@
+//
+// The Hash programming language standard library sources.
+//
+// Module: "prelude"
+// Description: Critical runtime module that is imported into any Hash
+// runtime by default. This module defines all the bindings between the
+// compiler interals and the program runtime.
+//
+// All rights reserved 2021 (c) The Hash Language authors
+//
+
+// Output a line to standard output
+let print = (msg: str): void => #intrinsic_print(msg);
+
+// Read a line from standard input
+let input: () => str = () => #intrinsic_input();
+
+// Panic
+// Kill the process and exit with a message.
+let panic = (msg: str): never => #intrinsic_panic(msg);
+
+// Unreachable case filling
+// For when you do a match case and need to provide a '_' case
+// you should use the 'unreachable' function
+let unreachable = (): never => panic("Reached unreachable case!");
+
+// Convert type A to type B
+trait conv = <A, B> => (A) => B;
+
+// we provide a number of implementations for converting types
+
+// Blanket to string
+let conv<T, str> = (x) => "<unknown>";
+
+let conv<int,float>    = (num) => #intrinsic_conv_to_float(num);
+let conv<float, float> = (num) => num; // @Cleanup: maybe a better way to do this rather than explicitly providing an implementation
+let conv<str, Result<float, str>> = (s) => #intrinsic_conv_to_float(s);
+
+let conv<int, Result<char, str>> = (num) => #intrinsic_conv_to_char(num);
+let conv<char, char> = (ch) => ch;
+
+let conv<char, int>  = (ch) => #intrinsic_conv_to_int(ch);
+let conv<float, int> = (num) => #intrinsic_conv_to_int(num);
+let conv<int, int>   = (num) => num; // @Cleanup: maybe a better way to do this rather than explicitly providing an implementation
+let conv<str, Result<int, str>> = (s) => #intrinsic_conv_to_int(s);
+
+let conv<bool, str> = (x: bool) => match x {
+    true => "true";
+    false => "false";
+};
+let conv<int, str>   = (num) => #intrinsic_conv_to_str(num);
+let conv<float, str> = (num) => #intrinsic_conv_to_str(num);
+let conv<char, str>  = (ch) => #intrinsic_conv_to_str(ch);
+let conv<void, str>  = (v) => ""; // @Cleanup: Is this really needed?
+let conv<str, str> = (s) => s;
+//let conv<() => T,  str> = (val) => #intrinsic_conv_to_str(val);
+
+let conv<{A:B}, str> where hash<A>, eq<A>, conv<A, str>, conv<B, str> = (map) => #intrinsic_conv_map_to_str(map, (a) => conv<A, str>(a), (a) => conv<B, str>(a));
+let conv<{A}, str> where hash<A>, eq<A>, conv<A, str>  = (set) => #intrinsic_conv_bracketted_to_str(set, (a) => conv<A, str>(a)); 
+let conv<[A], str> where conv<A, str>   = (arr) => #intrinsic_conv_bracketted_to_str(arr, (a) => conv<A, str>(a)); //@@Cleanup: variables should support generic args 
+
+// Tuples conv: @@TODO
+
+// Trait to get the size of an item, such as a bracktted type or a string
+trait size = <A> => (A) => int;
+
+let size<[T]> = (arr) => #intrinsic_size(arr);
+let size<str> = (str) => #intrinsic_size(str);
+let size<{T}> where eq<T>, hash<T> = (set) => #intrinsic_size(set);
+let size<{K:V}> where eq<K>, hash<K> = (map) => #intrinsic_size(map);
+
+// Primitives that are injected even before the prelude is injected 
+//enum bool = {
+//   true,
+//   false,
+//};
+
+// Represents an optional value.
+// enum Option = <T> => {
+//   Some(T),
+//   None,
+// };
+
+// Represents the result of a fallible operation.
+// enum Result = <T, E> => {
+//   Ok(T),
+//   Err(E),
+// };
+
+// Hash a value into a 64-bit integer
+// trait hash = <A> => (A) => int;
+
+let hash<int>   = (num) => #intrinsic_hash(num);
+let hash<float> = (num) => #intrinsic_hash(num);
+let hash<char>  = (ch) => #intrinsic_hash(ch);
+let hash<str>   = (string) => #intrinsic_hash(string);
+
+// Add operator (+)
+// Implemented for all numeric primitives, strings, lists.
+trait add = <T> => (T, T) => T;
+let add<int>   = (left, right) => #intrinsic_add(left, right);
+let add<float> = (left, right) => #intrinsic_add(left, right);
+let add<str>   = (left, right) => #intrinsic_add(left, right); 
+let add<[A]>   = (left, right) => #intrinsic_add(left, right);
+
+// adding sets and maps together
+// let add<{A:B}> where eq<A>, hash<A> = (left, right) => #intrinsic_map_add(left, right, (a) => hash<A>(a));
+// let add<{A}> where eq<A>, hash<A>  = (left, right) => #intrinsic_set_add(left, right, (a) => hash<A>(a));
+
+// The following are implemented for all numeric primitives:
+
+// Subtract operator (-)
+trait sub = <T> => (T, T) => T;
+let sub<int>   = (left, right) => #intrinsic_sub(left, right);
+let sub<float> = (left, right) => #intrinsic_sub(left, right);
+
+// Multiply operator (*)
+trait mul = <T> => (T, T) => T;
+let mul<int>   = (left, right) => #intrinsic_mul(left, right);
+let mul<float> = (left, right) => #intrinsic_mul(left, right);
+
+// Divide operator (/)
+trait div = <T> => (T, T) => T;
+let div<int>   = (left, right) => #intrinsic_div(left, right);
+let div<float> = (left, right) => #intrinsic_div(left, right);
+
+// Modulus operator (%)
+trait mod = <T> => (T, T) => T;
+let mod<int>   = (left, right) => #intrinsic_mod(left, right);
+let mod<float> = (left, right) => #intrinsic_mod(left, right);
+
+// Negation
+trait neg = <T> => (T) => T;
+let neg<int>   = (x) => #intrinsic_neg(x);
+let neg<float> = (x) => #intrinsic_neg(x);
+
+// Bitwise operations
+trait bit_shr = <T> => (T, T) => T;
+trait bit_shl = <T> => (T, T) => T;
+trait bit_not = <T> => (T) => T;
+trait bit_and = <T> => (T, T) => T;
+trait bit_or  = <T> => (T, T) => T;
+trait bit_xor = <T> => (T, T) => T;
+
+let bit_shr<int> = (a, b) => #intrinsic_bit_shr(a, b);
+let bit_shl<int> = (a, b) => #intrinsic_bit_shl(a, b);
+let bit_not<int> = (b) => #intrinsic_bit_not(b);
+let bit_and<int> = (a, b) => #intrinsic_bit_and(b);
+let bit_or<int>  = (b, b) => #intrinsic_bit_or(b);
+let bit_xor<int> = (b, b) => #intrinsic_bit_xor(b);
+
+// Equality
+// trait eq = <T> => (T, T) => bool;
+let eq<int> = (a, b) => #intrinsic_eq(a, b);
+let eq<char> = (a, b) => #intrinsic_eq(a, b);
+let eq<float> = (a, b) => #intrinsic_eq(a, b);
+let eq<str> = (a, b) => #intrinsic_eq(a, b);
+let eq<[A]> where eq<A> = (a, b) => #intrinsic_eq_bracketted(a, b, (x, y) => eq<A>(x, y));
+
+// TODO: I think these are still flaky
+let eq<{A}> where eq<A>, hash<A> = (a, b) => #intrinsic_eq_bracketted(a, b, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
+let eq<{A:B}> where eq<A>, hash<A>, eq<B> = (a, b) => #intrinsic_eq_map(a, b, (a) => hash<A>(a), (x, y) => eq<A>(x, y), (x, y) => eq<B>(x, y));
+
+
+// Ordering
+// Implemented for numeric primitives and strings.
+enum Ordering = { Lt, Eq, Gt, };
+let eq<Ordering> = (a: Ordering, b: Ordering) => match (a, b) {
+    (Eq, Eq) => true;
+    (Lt, Lt) => true;
+    (Gt, Gt) => true;
+    _ => false;
+};
+let _int_to_ord: (int) => Ordering = (i: int) => match i {
+    0 => Eq;
+    1 => Lt; 
+    x if (x == -1) => Gt;
+};
+trait ord = <T> => (T, T) => Ordering;
+let ord<int> = (a, b) => _int_to_ord(#intrinsic_ord(a, b));
+let ord<char> = (a, b) => _int_to_ord(#intrinsic_ord(a, b));
+let ord<float> = (a, b) => _int_to_ord(#intrinsic_ord(a, b));
+let ord<str> = (a, b) => _int_to_ord(#intrinsic_ord(a, b));
+
+
+// Reference equality
+// Automatically implemented for all types.
+trait ref_eq = <T> => (T, T) => bool;
+let ref_eq<A> = (a, b) => #intrinsic_ref_eq(a, b);
+
+// Indexing
+// Implemented for maps and lists.
+trait index = <T, I, O> => (T, I) => O;
+trait index_mut = <T, I, O> => (T, I, O) => void;
+
+let index<[T], int, T> = (arr: [T], index: int): T => #intrinsic_index_get(arr, index); 
+let index<{A:B}, A, B> where hash<A>, eq<A> = (map, index): B => #intrinsic_index_map_get(map, index); 
+
+let index_mut<[A], int, A> = (arr, index, val): void => #intrinsic_index_mut(arr, index, val); 
+let index_mut<{A:B}, A, B> where hash<A>, eq<A> = (map, index, val): void => #intrinsic_index_map_mut(map, index, val); 
+
+// append an item to a list
+trait push = <A> => ([A], A) => void;
+let push<A> where eq<A> = (arr, item) => #intrinsic_list_push(arr, item);
+trait push_front = <A> => ([A], A) => void;
+let push_front<A> where eq<A> = (arr, item) => #intrinsic_list_push_front(arr, item);
+
+// pop an item from a list
+trait pop = <A> => ([A]) => A;
+let pop<A> where eq<A> = (arr) => #intrinsic_list_pop(arr);
+
+// insert an into a list at a given index
+trait list_insert = <A> => ([A], A, int) => void;
+let list_insert<A> = (arr, item, idx) => #intrinsic_list_insert(arr, item, idx);
+
+// Operations on the bracketted types like insertion/removal
+trait index_remove = <T, I> => (T, I) => void;
+let index_remove<[A], int>   = (arr, index) => #intrinsic_list_remove(arr, index);
+
+// checking if items exist within a bracketted type
+trait contains = <B, A> => (B, A) => bool;
+
+let contains<[A], A> where eq<A> = (arr, item) => #intrinsic_contains(arr, item);
+
+let contains<{A}, A> where eq<A>, hash<A> = (arr, item) => #intrinsic_bracketted_contains(arr, item, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
+
+let contains<{A:B}, A> where eq<A>, hash<A> = (arr, item) => #intrinsic_bracketted_contains(arr, item, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
+
+// Delete a key from a map, and return its value.
+trait remove = <C, A, B> => (C, A) => B;
+
+let remove<[A], A, A> where eq<A> = (arr, key) => #intrinsic_list_remove(arr, key, (x, y) => eq<A>(x, y));
+
+let remove<{A:B}, A, B> where eq<A>, hash<A> = (map, key) => #intrinsic_bracketted_remove(map, key,  (a) => hash<A>(a), (x, y) => eq<A>(x, y));
+
+let remove<{A}, A, A> where eq<A>, hash<A> = (set, key) => #intrinsic_bracketted_remove(set, key,  (a) => hash<A>(a), (x, y) => eq<A>(x, y));
+
+// Index a map a key, returning a value if the key exists
+trait try_get = <A, B> where eq<A>, hash<A> => ({A:B}, A) => Option<B>; //TODO: should we add this?
+let try_get<A, B> where eq<A>, hash<A>;
+
+
+// Enum primitive conv
+let conv<Result<A, B>, str> where conv<A, str>, conv<B, str> = (res: Result<A, B>) => { match res { Ok(a) => "Ok(" + conv<A, str>(a) + ")"; Err(b) => "Err(" + conv<B, str>(b) + ")"; } };
+// 
+// let conv<Option<A>, str> where conv<A, str> = (opt: Option<A>) => {
+//     match opt {
+//         Some(a) => "Some(" + conv<A, str>(a) + ")";
+//         None => "None";
+//     }
+// };
+
+// Index a string, returning a character
+let index<str, int, char> = (string, idx) => #intrinsic_index_get(string, idx);
+
+// Slice a string at [begin, end)
+let slice: (str, int, int) => str = (string, start, end) => #intrinsic_slice(string, start, end);

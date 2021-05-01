@@ -1,0 +1,10 @@
+//
+// The Hash programming language standard library sources.
+//
+// Module: "str"
+// Description: String internals that can be imported to enchance
+// operations with strings and add basic functionality when it comes
+// to mutating/manipulating strings.
+//
+// All rights reserved 2021 (c) The Hash Language authors
+//
