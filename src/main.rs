@@ -56,7 +56,6 @@ fn main() {
             println!("Running with {}", path);
         }
     }
-
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
             Ok(c) => {
