@@ -79,9 +79,11 @@ let num = import("num");
 // A character
 let ch: char = 'c';
 
-let cool_str: str = "I have e\scape \u{9FFF}\u0009 codes\n\n";
+let cool_str: str = "I have e\tcape codes\n\n";
 
 let other_val = 100_000_000e1;
 let hex_val: int = 0x12A12;
+let bin_val = 0b1010100001010;
+let oct_val = 0o1272170;
 let fl_val: float = 6e-3;
 let flag = false;
