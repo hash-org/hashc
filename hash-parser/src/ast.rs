@@ -3,7 +3,7 @@
 // All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
-use crate::modules::ModuleIdx;
+use crate::{location::Location, modules::ModuleIdx};
 use num::BigInt;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -16,7 +16,7 @@ pub struct AstNode<T> {
     /// The actual value contained within this node.
     pub body: Box<T>,
     /// Position of the node in the input.
-    pub pos: (usize, usize),
+    pub pos: Location,
     /// Module that this node is part of. Index into [`Modules`](crate::modules::Modules).
     pub module: ModuleIdx,
 }

@@ -117,10 +117,25 @@ name = "hash"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hash-parser",
+]
+
+[[package]]
+name = "hash-backend"
+version = "0.1.0"
+
+[[package]]
+name = "hash-parser"
+version = "0.1.0"
+dependencies = [
  "num",
  "pest",
  "pest_derive",
 ]
+
+[[package]]
+name = "hash-typechecker"
+version = "0.1.0"
 
 [[package]]
 name = "hashbrown"

@@ -4,5 +4,5 @@
 
 /// Language parser, created via [pest]
 #[derive(Parser)]
-#[grammar = "pest_parser/hash.pest"] // relative to src
+#[grammar = "hash.pest"] // relative to src
 pub struct HashParser;

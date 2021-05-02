@@ -1,24 +1,7 @@
-[package]
-name = "hash"
-version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-clap = "3.0.0-beta.2"
-pest = "2.1"
-pest_derive = "2.1"
-num = "0.4"
-
-[profile.release]
-opt-level = 3
-debug = false
-debug-assertions = false
-overflow-checks = false
-lto = true
-panic = 'unwind'
-incremental = false
-codegen-units = 16
-rpath = false
+[workspace]
+members = [
+  "hash-parser",
+  "hash-backend",
+  "hash-typecheck",
+  "hash"
+]

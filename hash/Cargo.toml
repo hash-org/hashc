@@ -1,0 +1,11 @@
+[package]
+name = "hash"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2018"
+
+
+[dependencies]
+clap = "3.0.0-beta.2"
+
+hash-parser = {path = "../hash-parser" } # @@TODO: remove this when the typchecker is ready since it will be the one who uses this!
