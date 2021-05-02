@@ -8,9 +8,12 @@ use std::fmt;
 /// Error message prefix
 const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 
-/// Hash parserError
+/// Hash ParseError enum represnting the variants of possible errors.
 #[derive(Debug, Clone)]
 pub enum ParseError {
+    IoError {
+        filename: String,
+    },
     Parsing {
         positives: Vec<Rule>,
         negatives: Vec<Rule>,
@@ -22,6 +25,7 @@ pub enum ParseError {
     },
 }
 
+/// Convert a [pest::error::Error] into a [ParseError]
 impl<'a> From<pest::error::Error<Rule>> for ParseError {
     fn from(pest: pest::error::Error<Rule>) -> Self {
         match pest.variant {
@@ -42,6 +46,7 @@ impl<'a> From<pest::error::Error<Rule>> for ParseError {
     }
 }
 
+/// Format trait implementation for a ParseError
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)

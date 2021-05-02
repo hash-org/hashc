@@ -1,6 +1,6 @@
 //! Hash compiler module for converting from tokens to an AST tree
-///
-/// All rights reserved 2021 (c) The Hash Language authors
+//
+// All rights reserved 2021 (c) The Hash Language authors
 use crate::ast::*;
 use crate::error::ParseError;
 use crate::grammar::{HashParser, Rule};

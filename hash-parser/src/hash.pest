@@ -1,8 +1,6 @@
 //! Hash language grammar for parsing
-///
-/// All rights reserved 2021 (c) The Hash Language authors
-///
-
+//
+// All rights reserved 2021 (c) The Hash Language authors
 
 /// comments
 COMMENT = _{ line_comment | block_comment }
