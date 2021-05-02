@@ -4,6 +4,7 @@
 mod error;
 
 use clap::{crate_version, AppSettings, Clap};
+use hash_backend::interpreter;
 use hash_parser::parse;
 use std::{fs, process::exit};
 
@@ -66,6 +67,8 @@ fn main() {
             }
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
-        None => println!("Running withing interactive mode!"),
+        None => {
+            interpreter::start_interactive();
+        },
     }
 }

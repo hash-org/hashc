@@ -117,12 +117,16 @@ name = "hash"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hash-backend",
  "hash-parser",
 ]
 
 [[package]]
 name = "hash-backend"
 version = "0.1.0"
+dependencies = [
+ "hash-parser",
+]
 
 [[package]]
 name = "hash-parser"
