@@ -2,7 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::interpreter::error::{InterpreterError, report_interp_error};
+use crate::interpreter::error::{report_interp_error, InterpreterError};
 
 #[derive(Debug, Clone)]
 pub enum InteractiveCommand {
@@ -18,7 +18,6 @@ pub enum InteractiveCommand {
 }
 
 impl InteractiveCommand {
-
     /// Attempt to convert a string into an interactive command
     pub fn from(input: &str) -> Option<InteractiveCommand> {
         match input {
@@ -43,19 +42,28 @@ impl InteractiveCommand {
     pub fn report_error(input: &str) {
         let mut args = input.split_ascii_whitespace();
 
-        let command = args.next().unwrap_or_else(|| panic!("Unable to report error for interactive command"));
+        let command = args
+            .next()
+            .unwrap_or_else(|| panic!("Unable to report error for interactive command"));
 
         match command {
-            ":c" | ":cls" | ":clear" | ":v" | ":q" => {
-                report_interp_error(InterpreterError::ArgumentError, &format!("Command '{}' does not take any arguments.", command))
-            }
+            ":c" | ":cls" | ":clear" | ":v" | ":q" => report_interp_error(
+                InterpreterError::ArgumentError,
+                &format!("Command '{}' does not take any arguments.", command),
+            ),
             ":t" => {
                 match args.next() {
                     Some(_) => unreachable!(), // if it did include a whitespace prior, it should of been caught in InteractiveCommand::from
-                    None =>  report_interp_error(InterpreterError::ArgumentError, &format!("Command '{}' requires one argument.", command)),
+                    None => report_interp_error(
+                        InterpreterError::ArgumentError,
+                        &format!("Command '{}' requires one argument.", command),
+                    ),
                 }
             }
-            _ => report_interp_error(InterpreterError::ArgumentError, &format!("Unkown command '{}'.", command)),
+            _ => report_interp_error(
+                InterpreterError::ArgumentError,
+                &format!("Unkown command '{}'.", command),
+            ),
         }
     }
 }

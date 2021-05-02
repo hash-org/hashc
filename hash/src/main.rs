@@ -69,6 +69,6 @@ fn main() {
         },
         None => {
             interpreter::start_interactive();
-        },
+        }
     }
 }

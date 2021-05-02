@@ -24,7 +24,7 @@ pub fn print_version() {
 }
 
 pub fn start_interactive() -> ! {
-    // firstly setup the vm here and any prior resource
+    // firstly setup the vm here and any prior resources that are need to start the pipeline
     // ...
 
     // Display the version on start-up

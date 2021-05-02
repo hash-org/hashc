@@ -10,11 +10,11 @@ pub enum InterpreterError {
 /// Error message prefix
 const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 
-/// Function that is used by the interpeter ro report interpreter errors 
+/// Function that is used by the interpeter ro report interpreter errors
 pub fn report_interp_error(err: InterpreterError, msg: &str) {
     match err {
         InterpreterError::ArgumentError => {
             println!("{}: {}", ERR, msg);
-        },
+        }
     };
 }
