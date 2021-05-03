@@ -32,7 +32,7 @@ pub struct Modules {
 
 impl Modules {
     /// Get the module at the given index.
-    pub fn get_module<'a>(&'a self, idx: ModuleIdx) -> Module<'a> {
+    pub fn get_module(&self, idx: ModuleIdx) -> Module<'_> {
         Module { idx, modules: self }
     }
 }

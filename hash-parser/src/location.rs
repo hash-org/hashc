@@ -5,7 +5,7 @@ use crate::grammar::Rule;
 use std::fmt;
 
 /// Enum representing a location of a token within the source.
-#[derive(Debug, Eq, Clone, PartialEq)]
+#[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
 pub enum Location {
     Pos(usize),
     Span(usize, usize),
@@ -35,22 +35,22 @@ impl From<pest::error::InputLocation> for Location {
 }
 
 /// Convert a [pest::Position] into a [Location]
-impl<'a> From<pest::Position<'a>> for Location {
-    fn from(pest: pest::Position<'a>) -> Location {
+impl<'a> From<pest::Position<'_>> for Location {
+    fn from(pest: pest::Position<'_>) -> Location {
         Location::Pos(pest.pos())
     }
 }
 
 /// Convert a [pest::Span] into a [Location]
-impl<'a> From<pest::Span<'a>> for Location {
-    fn from(pest: pest::Span<'a>) -> Location {
+impl<'a> From<pest::Span<'_>> for Location {
+    fn from(pest: pest::Span<'_>) -> Location {
         Location::Span(pest.start(), pest.end())
     }
 }
 
 /// Implementation for converting a [pest::iterators::Pair] into a [Location]
-impl<'a> From<pest::iterators::Pair<'a, Rule>> for Location {
-    fn from(pair: pest::iterators::Pair<'a, Rule>) -> Location {
+impl<'a> From<pest::iterators::Pair<'_, Rule>> for Location {
+    fn from(pair: pest::iterators::Pair<'_, Rule>) -> Location {
         Location::from(pair.as_span())
     }
 }
