@@ -1,0 +1,338 @@
+//
+// The Hash programming language standard library sources.
+//
+// Module: "iter"
+// Description:
+//
+// All rights reserved 2021 (c) The Hash Language authors
+//
+
+// Collect into some type C
+trait collect = <I, C> => (I) => C;
+
+// Get the next item of an iterator.
+// I is the iterator type.
+// T is the element type.
+// When next returns None, the iterator has ended iteration.
+trait next = <I, T> => (I) => Option<T>;
+
+// Collect iterator of values into a list
+let collect<I, [A]> where next<I, A>;
+
+struct RangeIterator = <I> => {
+    current: I,
+    final: I,
+    step: I,
+};
+
+// Ranges, take some initial bound, max bound and then finally a step
+trait range = <I> => (I, I, I) => RangeIterator<I>;
+
+// create a range iterator for a range of integers
+let range<int> = (min: int, max: int, step: int) => {
+    if (max <= min || ((min + step) >= max)) {         
+        return RangeIterator<int>{current=min, final=min, step=0}; // essentially no iterations occur
+    }
+
+    // check here if the step is negative and the max isn't, we also
+    // return a iterator that has 'zero' iterations
+    if ((step < 0) && (max > 0)) {
+        return RangeIterator<int>{current=min, final=min, step=0}; // essentially no iterations occur
+    }
+
+    RangeIterator<int> {
+        current=min,
+        final=max,
+        step=step,
+    }
+};
+
+// Turn a container of type C into an iterator of type I
+trait iter = <C, I> => (C) => I;
+
+// Turn a list into an iterator
+struct ListIterator = <A> => { list: [A], idx: int, };
+let iter<[A], ListIterator<A>> = (list) => {
+    ListIterator<A> {
+        list=list,
+        idx=0,
+    }
+};
+
+let next<ListIterator<A>, A> = (iterator: ListIterator<A>) => {
+    if (iterator.idx == iterator.list.size() - 1) {
+        None
+    } else {
+        let idx = iterator.idx;
+        iterator.idx += 1;
+
+        Some(iterator.list[idx])
+    }
+};
+
+// Turn a string into a character iterator
+struct CharIterator = {
+    idx: int,
+    string: str,
+};
+
+
+// The character iterator.
+let next<CharIterator, char> = (iterator: CharIterator) => {
+    if (iterator.idx == iterator.string.size() - 1) {
+        None
+    }
+
+    let idx = iterator.idx;
+    iterator.idx += 1;
+
+    Some(iterator.string[idx])
+};
+
+let iter<str, CharIterator> = (string) => {
+    CharIterator {
+        string=string,
+        idx=0,
+    }
+};
+
+// Turn a map into a tuple iterator
+struct MapIterator = <A, B> => { 
+    keys: [A],
+    original: {A: B},
+    idx: int,
+};
+
+// Implementation for the map iterator 
+let next<MapIterator<A, B>, (A, B)> = (iterator) => {
+    if (iterator.idx == iterator.keys.size() - 1) {
+        None
+    }
+
+    let idx = iterator.idx;
+    iterator.idx += 1;
+
+    Some(map[iterator.map[idx]]);
+};
+
+let iter<{A:B}, MapIterator<A, B>> = (map) => {
+    // essentially iterate over the keys of a map and just convert into a list of keys
+
+    MapIterator<A, B> {
+        keys=#intrinsic_get_keys(map),
+        map=map,
+        idx=0,
+    }
+};
+
+// Turn a set into a list iterator
+struct SetIterator = <A, B> => { set: [A], idx: int, };
+
+// Implementation for the map iterator 
+let next<SetIterator<A>, A> = (iterator) => {
+    if (iterator.idx == iterator.map.size() - 1) {
+        None
+    }
+
+    let idx = iterator.idx;
+    iterator.idx += 1;
+
+    Some(set[idx]);
+};
+
+// Create a set iterator from an iterator
+let iter<{A}, SetIterator<A>> = (set) => {
+    // essentially iterate over the keys of a set and just convert into a list of keys
+    Setterator<A> {
+        map=#intrinsic_get_keys(set),
+        idx=0,
+    }
+};
+
+
+// Skip n elements.
+struct Skip = <I> => { inner: I, skip: int, current: int, };
+trait skip = <I> => (I, int) => Skip<I>;
+
+let skip<I> where next<I, ?> = (skipper, skips) => {
+    // check if the number of skips that are performed will exceed the iterator
+    // in this case we can just return None
+    Skip {
+        inner=skipper,
+        skip=skips,
+        current=0,
+    }
+};
+
+let next<Skip<I>, T> where next<I, T> = (skipper) => {
+    let {inner, current, skip} = skipper;
+
+    if (skip > current) {
+        // increment the count within the inner iterator and set the 'current' value
+        // within the skipper
+        inner.idx += skip - current;
+    }
+
+    next(inner)
+};
+
+// First n elements.
+struct First = <I> => {
+    elements: I,
+    current: int,
+    end: int,
+};
+
+trait first = <I> => (I, int) => First<I>;
+
+let first<I> where next<I, ?> = (iterator, count) => {
+    // call next 'count' many times and collect the items into the first few items
+    let elements = [];
+
+    while (count > 0) {
+        match next(iterator) {
+            Some(k) => {elements.append(k);};
+            None => {break;};
+        }
+         
+        count-= 1;
+    }
+
+
+    First {
+        elements=elements,
+        current=0,
+        end=0,
+    }
+}; 
+
+let next<First<I>, T> where next<I, T> = (iterator) => {
+    if (iterator.current == iterator.end) {
+        None
+    } else {
+        let idx = iterator.current;
+        iterator.current+=1;
+        Some(iterator.elements[idx])
+    }
+};
+
+trait last = <I, T> => (I, int) => ListIterator<T>;
+let last<I, T> where next<I, T> = (iterator, count) => {
+    let elements = [];
+
+    // loop through the whole iterator up until the end and the collect the terms
+    for i in iterator {
+        elements.push(i);
+    }
+
+    let to_keep = [];
+    for x in range(0, elements.size()) {
+        if (elements.size() - x <= count) {
+            to_keep.push(elements[x]);
+        }
+    }
+    return to_keep.iter();
+};
+
+let last<ListIterator<T>, T> = (iterator, count) => {
+    let to_keep = [];
+    for x in range(iterator.idx, iterator.list.size()) {
+        if (literator.list.size() - x <= count) {
+            to_keep.push(iterator.list[x]);
+        }
+    }
+    return to_keep.iter();
+};
+
+// Get the nth element.
+trait nth = <I, T> => (I, int) => Option<T>;
+let nth<I, T> where next<I, T> = (iterator, idx) => {
+    let count = 0;
+    let result;
+
+    while (count < idx) {
+        result = next(iterator);
+
+        match result {
+            Some(k) => {continue;};
+            None => {return None;};
+        }
+        count+=1;
+    }
+
+    result
+};
+
+
+trait reverse = <I, T> => (I) => ListIterator<T>;
+let reverse<I, T> where next<I, T> = (iterator) => {
+    let elements = [];
+
+    for item in iterator {
+        elements.push_front(item);
+    }
+
+    elements.iter()
+};
+
+// Enumerate the iterator.
+struct Enumerate = <I> => {
+    idx: int,
+    item: I,
+};
+
+trait enumerate = <I> => (I) => Enumerate<I>;
+let enumerate<I> where next<I, ?> = (iterator) => {
+    Enumerate {
+        idx=0,
+        item=iterator,
+    }
+}; 
+
+let next<Enumerate<I>, (int, T)> where next<I, T> = (iterator) => {
+    match next(iterator.item) {
+        Some(k) => { 
+            let idx = iterator.idx;
+            iterator.idx += 1;
+            Some(idx, k)
+        };
+        None => {None;};
+    }
+};
+
+// Zip two iterators.
+struct Zip = <A, B> => {
+    first: A,
+    second: B,
+};
+
+trait zip = <A, B> => (A, B) => Zip<A, B>;
+
+let zip<A, B> where next<A, ?>, next<B, ?> = (left_iter, right_iter) => {
+    Zip {
+        a=left_iter,
+        b=right_iter,
+    }
+};
+
+// Get the next element from the zip iterator
+let next<Zip<A, B>, (X, Y)> where next<A, X>, next<B, Y> = (zipper) => {
+    let left_result = next(zipper.first);
+    let right_result = next(zipper.right);
+
+    match (left_result, right_result) {
+        (Some(k), Some(t)) => Some((k, t));
+        _ => None;
+    }
+};
+
+// Collect iterator of tuples into a map
+let collect<I, {A:B}> where eq<A>, hash<A>, next<I, (A, B)> = (iterator) => {
+    let new_map: {A:B} = {};
+
+    for (a, b) in iterator {
+        new_map[a] = b;
+    }
+
+    new_map
+};

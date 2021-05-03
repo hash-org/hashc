@@ -1,8 +1,6 @@
 //! Hash language grammar for parsing
-///
-/// All rights reserved 2021 (c) The Hash Language authors
-///
-
+//
+// All rights reserved 2021 (c) The Hash Language authors
 
 /// comments
 COMMENT = _{ line_comment | block_comment }
@@ -21,6 +19,15 @@ bool       = { bool_true | bool_false }
 /// Integer literal
 digit = _{ '0'..'9' }
 int   =  @{ digit ~ (digit | "_")* }
+integer_literal = {hex_literal | octal_literal | bin_literal | int}
+
+/// Hexedecimal/Binary/Octal integer literals
+octal_digit = _{'0'..'7'}
+octal_literal = @{"0o" ~ octal_digit+}
+
+hex_literal = @{"0x" ~ hex+}
+
+bin_literal = @{"0b" ~ ('0'..'1')+}
 
 /// Float literal
 float = @{
@@ -380,7 +387,7 @@ block = {
 literal = {
     string           |
     float            |
-    int              |
+    integer_literal  |
     char             |
     function_literal | // this could also be an enum literal
     struct_literal   |

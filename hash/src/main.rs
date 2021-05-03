@@ -1,20 +1,13 @@
 //! Main module.
 //
 // All rights reserved 2021 (c) The Hash Language authors
-mod ast;
 mod error;
-mod modules;
-mod pest_parser;
 
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
-
-use crate::pest_parser::{HashParser, Rule};
 use clap::{crate_version, AppSettings, Clap};
-use error::{report_error, ErrorType};
-use pest::Parser;
+use hash_parser::parse;
 use std::{fs, process::exit};
+
+use crate::error::{report_error, ErrorType};
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -56,7 +49,6 @@ fn main() {
             println!("Running with {}", path);
         }
     }
-
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
             Ok(c) => {
@@ -70,10 +62,7 @@ fn main() {
                 });
 
                 // parse the given module
-                let _ = HashParser::parse(Rule::module, &contents).unwrap_or_else(|e| {
-                    report_error(ErrorType::ParseError, format!("{}{}", path, e));
-                    exit(-1);
-                });
+                let _ = parse::module(&contents);
             }
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },

@@ -6,7 +6,8 @@ let conv<T, str> = (x) => "<unknown>";
 struct MyStruct = <T> => {
     field: T,
     other_field: int,
-    default_field: float = 6.0,
+    default_field: float = 6.0e2,
+    a_flag: bool,
 };
 
 
@@ -18,6 +19,7 @@ enum MyEnum = <T, Y> => {
     MyVariant(T),
     OtherVariant(int, Y),
     InnerVariant(MyEnum<int, str>, str),
+    PointVariant(Point<int>),
     EmptyVariant,
 };
 
@@ -34,7 +36,12 @@ let other_func = (t: str) => {
         "four" | "five" if var => 4.5;
         _ => -1;
     }
+
+    return alpha;
 };
+
+// re-assignment
+var=2;
 
 trait conv = <T, E> => (T) => E;
 
@@ -48,6 +55,18 @@ if (var == 23 || other_var == "value") {
     print("not some var");
 }
 
+// Struct literal
+let d: Point<int> = Point<int> {
+    x=2,
+    y=3,
+};
+
+// another struct literal
+let d: Dog = Dog {
+    name="Adam",
+    age=12.0
+};
+
 
 let a = [1,2,3,4,5,6,7,8,9,];
 let b: {int: char} = {1: '2', 3: '5'};
@@ -55,4 +74,16 @@ let c = {1,2,3,4,5,6,7,};
 let d = (1,2,3,4,5);
 
 // Import
-let num = import("num);
+let num = import("num");
+
+// A character
+let ch: char = 'c';
+
+let cool_str: str = "I have e\tcape codes\n\n";
+
+let other_val = 100_000_000e1;
+let hex_val: int = 0x12A12;
+let bin_val = 0b1010100001010;
+let oct_val = 0o1272170;
+let fl_val: float = 6e-3;
+let flag = false;

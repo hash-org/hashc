@@ -3,30 +3,30 @@
 // All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
-use crate::modules::ModuleIdx;
+use crate::{location::Location, modules::ModuleIdx};
 use num::BigInt;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::ops::Deref;
 
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
 pub struct AstNode<T> {
     /// The actual value contained within this node.
     pub body: Box<T>,
     /// Position of the node in the input.
-    pub pos: (usize, usize),
+    pub pos: Location,
     /// Module that this node is part of. Index into [`Modules`](crate::modules::Modules).
     pub module: ModuleIdx,
 }
 
 /// [AstNode] hashes as its inner `body` type.
-impl<T: Hash> Hash for AstNode<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.body.hash(state);
-    }
-}
+// impl<T: Hash> Hash for AstNode<T> {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.body.hash(state);
+//     }
+// }
 
 /// [AstNode] dereferences to its inner `body` type.
 impl<T> Deref for AstNode<T> {

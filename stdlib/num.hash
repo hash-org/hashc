@@ -1,0 +1,66 @@
+//
+// The Hash programming language standard library sources.
+//
+// Module: "num"
+// Description: Numerical and mathematical standard library functions.
+//
+// All rights reserved 2021 (c) The Hash Language authors
+//
+
+// PI
+let pi: float = 3.141592653589793;
+
+// Euler's Number
+let exp = 2.718281828459045;
+
+// Exponentiation
+trait pow = <T> => (T, T) => T;
+let pow<int>   = (base, exponent) => #intrinsic_pow(base, exponent);
+let pow<float> = (base, exponent) => #intrinsic_pow(base, exponent);
+
+// Trigonometry
+trait sin = <T> => (T) => T;
+trait cos = <T> => (T) => T;
+trait tan = <T> => (T) => T;
+trait asin = <T> => (T) => T;
+trait acos = <T> => (T) => T;
+trait atan = <T> => (T) => T;
+trait sinh = <T> => (T) => T;
+trait cosh = <T> => (T) => T;
+trait tanh = <T> => (T) => T;
+trait asinh = <T> => (T) => T;
+trait acosh = <T> => (T) => T;
+trait atanh = <T> => (T) => T;
+
+let sin<float>   = (num) => #intrinsic_sin(num);
+let cos<float>   = (num) => #intrinsic_cos(num);
+let tan<float>   = (num) => #intrinsic_tan(num);
+let asin<float>  = (num) => #intrinsic_asin(num);
+let acos<float>  = (num) => #intrinsic_acos(num);
+let atan<float>  = (num) => #intrinsic_atan(num);
+let sinh<float>  = (num) => #intrinsic_sinh(num);
+let cosh<float>  = (num) => #intrinsic_cosh(num);
+let tanh<float>  = (num) => #intrinsic_tanh(num);
+let asinh<float> = (num) => #intrinsic_asinh(num);
+let acosh<float> = (num) => #intrinsic_acosh(num);
+let atanh<float> = (num) => #intrinsic_atanh(num);
+
+// Logarithm (value, base)
+trait log = <T> => (T, T) => T;
+let log<float> = (num) => #intrinsic_log(num);
+
+// Square root (may be faster than pow(conv(x), 0.5))
+trait sqrt = <T> => (T) => T;
+let sqrt<float> = (num) => #intrinsic_sqrt(num);
+
+// Convert degrees to radians
+let to_rad: (float) => float = (deg) => (pi/180.0)*deg;
+
+// Convert radians to degrees
+let to_deg: (float) => float = (rad) => (180.0/pi)*rad;
+
+// complex numbers
+struct Complex = <I> where add<I>, sub<I>, mul<I>, sub<I> => {
+    a: I,
+    b: I,
+};
