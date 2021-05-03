@@ -11,16 +11,40 @@ env:
 
 jobs:
   build_and_test:
-    name: Hash
+    name: Unit, Style, and Lint Testing
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout source code
+        uses: actions/checkout@v2
+      - name: Install Rust Stable
+        uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-      - uses: actions-rs/cargo@v1
+          toolchain: 1.51.0 # Pinned warnings
+          components: rustfmt, clippy
+      - name: Cargo Build
+        uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --all-features
+          args: --all --verbose
+      - name: Cargo Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all --verbose
+      - name: Cargo Doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --all --verbose
+      - name: Cargo Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all -- -D warnings
+      - name: Cargo Fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
 
