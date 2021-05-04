@@ -6,6 +6,7 @@ mod error;
 use clap::{crate_version, AppSettings, Clap};
 use hash_backend::interpreter;
 use hash_parser::parse;
+
 use std::{fs, process::exit};
 
 use crate::error::{report_error, ErrorType};
@@ -68,7 +69,7 @@ fn main() {
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
         None => {
-            interpreter::start_interactive();
+            interpreter::init();
         }
     }
 }

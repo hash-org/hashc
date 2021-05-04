@@ -35,13 +35,12 @@ pub fn statement(source: &str) -> Result<AstNode<Statement>, ParseError> {
 
             let temp = rules
                 .get(0)
-                .unwrap_or_else(|| panic!("Couldn't convert nodes into positions"))
-                .clone();
+                .unwrap_or_else(|| panic!("Couldn't convert nodes into positions"));
 
             // @@Incomplete: actully convert the item into an ast-node
             Ok(AstNode::<Statement> {
                 body: Box::new(Statement::Continue),
-                pos: temp,
+                pos: *temp,
                 module: 0,
             })
         }

@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 hash-parser = {path = "../hash-parser" } 
+rustyline = "8.0.0"
