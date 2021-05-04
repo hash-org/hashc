@@ -11,7 +11,7 @@ use std::ops::Deref;
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
-#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+#[derive(PartialEq, Hash, Debug, Clone)]
 pub struct AstNode<T> {
     /// The actual value contained within this node.
     pub body: Box<T>,
@@ -19,6 +19,16 @@ pub struct AstNode<T> {
     pub pos: Location,
     /// Module that this node is part of. Index into [`Modules`](crate::modules::Modules).
     pub module: ModuleIdx,
+}
+
+/// Trait to convert some type into an [AstNode].
+///
+/// e.g. Used to convert pest rules into [AstNode]s.
+pub trait IntoAstNode<T>
+where
+    Self: Sized,
+{
+    fn into_ast(self) -> AstNode<T>;
 }
 
 /// [AstNode] hashes as its inner `body` type.
@@ -37,28 +47,28 @@ impl<T> Deref for AstNode<T> {
 }
 
 /// An intrinsic identifier.
-#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Hash, PartialEq, Clone, Debug)]
 pub struct IntrinsicKey {
     /// The name of the intrinsic (without the "#").
-    pub name: &'static str,
+    pub name: String,
 }
 
 /// A single name/symbol.
-#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Hash, PartialEq, Clone, Debug)]
 pub struct Name {
     // The name of the symbol.
-    pub string: &'static str,
+    pub string: String,
 }
 
 /// A namespaced name, i.e. access name.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AccessName {
     /// The list of names that make up the access name.
     pub names: Vec<AstNode<Name>>,
 }
 
 /// A concrete/"named" type.
-#[derive(Debug, Clone)]
+#[derive(Debug,  PartialEq, Clone)]
 pub struct NamedType {
     /// The name of the type.
     pub name: AstNode<AccessName>,
@@ -67,14 +77,14 @@ pub struct NamedType {
 }
 
 /// A type variable.
-#[derive(Debug, Clone)]
+#[derive(Debug,  PartialEq, Clone)]
 pub struct TypeVar {
     /// The name of the type variable.
     pub name: AstNode<Name>,
 }
 
 /// A type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     /// A concrete/"named" type.
     Named(NamedType),
@@ -87,35 +97,35 @@ pub enum Type {
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SetLiteral {
     /// The elements of the set literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
 /// A list literal, e.g. `[1, 2, 3]`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ListLiteral {
     /// The elements of the list literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
 /// A tuple literal, e.g. `(1, 'A', "foo")`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TupleLiteral {
     /// The elements of the tuple literal.
     pub elements: Vec<AstNode<Expression>>,
 }
 
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MapLiteral {
     /// The elements of the map literal (key-value pairs).
     pub elements: Vec<(AstNode<Expression>, AstNode<Expression>)>,
 }
 
 /// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructLiteralEntry {
     /// The name of the struct field.
     pub name: AstNode<Name>,
@@ -124,7 +134,7 @@ pub struct StructLiteralEntry {
 }
 
 /// A struct literal, e.g. `Dog { name = "Adam", age = 12 }`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructLiteral {
     /// The name of the struct literal.
     pub name: AstNode<AccessName>,
@@ -135,7 +145,7 @@ pub struct StructLiteral {
 }
 
 /// A function definition argument.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefArg {
     /// The name of the argument.
     pub name: AstNode<Name>,
@@ -146,7 +156,7 @@ pub struct FunctionDefArg {
 }
 
 /// A function definition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDef {
     /// The arguments of the function definition.
     pub args: Vec<AstNode<FunctionDefArg>>,
@@ -159,7 +169,7 @@ pub struct FunctionDef {
 }
 
 /// A literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     /// A string literal.
     Str(String),
@@ -184,7 +194,7 @@ pub enum Literal {
 }
 
 /// An alternative pattern, e.g. `Red | Blue`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrPattern {
     /// The first pattern in the "or".
     pub a: AstNode<Pattern>,
@@ -193,7 +203,7 @@ pub struct OrPattern {
 }
 
 /// A conditional pattern, e.g. `x if x == 42`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IfPattern {
     /// The pattern part of the conditional.
     pub pattern: AstNode<Pattern>,
@@ -202,7 +212,7 @@ pub struct IfPattern {
 }
 
 /// An enum pattern, e.g. `Some((x, y))`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumPattern {
     /// The name of the enum variant.
     pub name: AstNode<AccessName>,
@@ -213,7 +223,7 @@ pub struct EnumPattern {
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
 ///
 /// Used in struct and namespace patterns.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DestructuringPattern {
     /// The name of the field.
     pub name: AstNode<Name>,
@@ -222,7 +232,7 @@ pub struct DestructuringPattern {
 }
 
 /// A struct pattern, e.g. `Dog { name = "Frank"; age; }`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructPattern {
     /// The name of the struct.
     pub name: AstNode<AccessName>,
@@ -231,21 +241,21 @@ pub struct StructPattern {
 }
 
 /// A namespace pattern, e.g. `{ fgets; fputs; }`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NamespacePattern {
     /// The entries of the namespace, as [DestructuringPattern] entries.
     pub patterns: Vec<AstNode<DestructuringPattern>>,
 }
 
 /// A tuple pattern, e.g. `(1, 2, x)`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TuplePattern {
     /// The element of the tuple, as patterns.
     pub elements: Vec<AstNode<Pattern>>,
 }
 
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiteralPattern {
     /// A string literal pattern.
     Str(String),
@@ -258,7 +268,7 @@ pub enum LiteralPattern {
 }
 
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     /// An enum pattern.
     Enum(EnumPattern),
@@ -281,7 +291,7 @@ pub enum Pattern {
 }
 
 /// A trait bound, e.g. "where eq<T>"
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TraitBound {
     /// The name of the trait.
     pub name: AstNode<AccessName>,
@@ -292,7 +302,7 @@ pub struct TraitBound {
 /// A bound, e.g. "<T, U> where conv<U, T>".
 ///
 /// Used in struct, enum, trait definitions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bound {
     /// The type arguments of the bound.
     pub type_args: Vec<AstNode<Type>>,
@@ -301,7 +311,7 @@ pub struct Bound {
 }
 
 /// A let statement, e.g. `let x = 3;`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LetStatement {
     /// The pattern to bind the right-hand side to.
     pub pattern: AstNode<Pattern>,
@@ -312,7 +322,7 @@ pub struct LetStatement {
 }
 
 /// An assign statement, e.g. `x = 4;`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AssignStatement {
     /// The left-hand side of the assignment.
     ///
@@ -325,7 +335,7 @@ pub struct AssignStatement {
 }
 
 /// A field of a struct definition, e.g. "name: str".
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructDefEntry {
     /// The name of the struct field.
     pub name: AstNode<Name>,
@@ -338,7 +348,7 @@ pub struct StructDefEntry {
 }
 
 /// A struct definition, e.g. `struct Foo = { bar: int; };`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructDef {
     /// The name of the struct.
     pub name: AstNode<Name>,
@@ -349,7 +359,7 @@ pub struct StructDef {
 }
 
 /// A variant of an enum definition, e.g. `Some(T)`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumDefEntry {
     /// The name of the enum variant.
     pub name: AstNode<Name>,
@@ -358,7 +368,7 @@ pub struct EnumDefEntry {
 }
 
 /// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumDef {
     /// The name of the enum.
     pub name: AstNode<Name>,
@@ -369,7 +379,7 @@ pub struct EnumDef {
 }
 
 /// A trait definition, e.g. `trait add = <T> => (T, T) => T;`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TraitDef {
     /// The name of the trait.
     pub name: AstNode<Name>,
@@ -380,7 +390,7 @@ pub struct TraitDef {
 }
 
 /// A statement.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     /// An expression statement, e.g. `my_func();`
     Expr(AstNode<Expression>),
@@ -407,7 +417,7 @@ pub enum Statement {
 }
 
 /// A branch/"case" of a `match` block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MatchCase {
     /// The pattern of the `match` case.
     pub pattern: AstNode<Pattern>,
@@ -418,7 +428,7 @@ pub struct MatchCase {
 }
 
 /// A `match` block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MatchBlock {
     /// The expression to match on.
     pub subject: AstNode<Expression>,
@@ -427,7 +437,7 @@ pub struct MatchBlock {
 }
 
 /// A body block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BodyBlock {
     /// Zero or more statements.
     pub statements: Vec<AstNode<Statement>>,
@@ -436,7 +446,7 @@ pub struct BodyBlock {
 }
 
 /// A block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Block {
     /// A match block.
     Match(MatchBlock),
@@ -449,14 +459,14 @@ pub enum Block {
 }
 
 /// Function call arguments.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionCallArgs {
     /// Each argument of the function call, as an expression.
     pub entries: Vec<AstNode<Expression>>,
 }
 
 /// A function call expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionCallExpr {
     /// An expression which evaluates to a function value.
     pub subject: AstNode<Expression>,
@@ -467,7 +477,7 @@ pub struct FunctionCallExpr {
 /// A logical operator.
 ///
 /// These are treated differently from all other operators due to short-circuiting.
-#[derive(Debug, Clone, Eq, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum LogicalOp {
     /// The logical-and operator.
     And,
@@ -476,7 +486,7 @@ pub enum LogicalOp {
 }
 
 /// A logical operation expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LogicalOpExpr {
     /// The operator of the logical operation.
     pub op: AstNode<LogicalOp>,
@@ -487,7 +497,7 @@ pub struct LogicalOpExpr {
 }
 
 /// A property access exprssion.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PropertyAccessExpr {
     /// An expression which evaluates to a struct or tuple value.
     pub subject: AstNode<Expression>,
@@ -496,7 +506,7 @@ pub struct PropertyAccessExpr {
 }
 
 /// A typed expression, e.g. `foo as int`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypedExpr {
     /// The annotated type of the expression.
     pub ty: AstNode<Type>,
@@ -508,7 +518,7 @@ pub struct TypedExpr {
 type ImportPath = String;
 
 /// A variable expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VariableExpr {
     /// The name of the variable.
     pub name: AstNode<AccessName>,
@@ -517,7 +527,7 @@ pub struct VariableExpr {
 }
 
 /// An expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     /// A function call.
     FunctionCall(FunctionCallExpr),
@@ -542,7 +552,7 @@ pub enum Expression {
 /// A module.
 ///
 /// Represents a parsed `.hash` file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     /// The contents of the module, as a list of statements.
     pub contents: Vec<AstNode<Statement>>,

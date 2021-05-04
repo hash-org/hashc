@@ -10,3 +10,4 @@ pub mod grammar;
 pub mod location;
 pub mod modules;
 pub mod parse;
+pub mod emit;
