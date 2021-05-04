@@ -38,12 +38,8 @@ pub fn init() {
                 rl.add_history_entry(line.as_str());
                 execute(line.as_str());
             }
-            Err(ReadlineError::Interrupted) => {
-                println!("^C");
-                break;
-            }
-            Err(ReadlineError::Eof) => {
-                println!("^D"); // we like don't even need this event since it's interactive
+            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                println!("Exiting!");
                 break;
             }
             Err(err) => {
