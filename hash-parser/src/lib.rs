@@ -5,6 +5,7 @@
 extern crate pest;
 
 pub mod ast;
+pub mod emit;
 pub mod error;
 pub mod grammar;
 pub mod location;
