@@ -68,7 +68,7 @@ pub struct AccessName {
 }
 
 /// A concrete/"named" type.
-#[derive(Debug,  PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NamedType {
     /// The name of the type.
     pub name: AstNode<AccessName>,
@@ -77,7 +77,7 @@ pub struct NamedType {
 }
 
 /// A type variable.
-#[derive(Debug,  PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeVar {
     /// The name of the type variable.
     pub name: AstNode<Name>,

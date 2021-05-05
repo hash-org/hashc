@@ -17,6 +17,7 @@ impl AstBuilder {
         }
     }
 
+    #[allow(dead_code)] // @Fixme: temporary to prevent warnings.
     pub fn from_node<T>(node: &ast::AstNode<T>) -> AstBuilder {
         AstBuilder {
             pos: node.pos,
@@ -50,10 +51,7 @@ impl ast::IntoAstNode<ast::AccessName> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::AccessName> {
         match self.as_rule() {
             Rule::access_name => AstBuilder::from_pair(&self).node(ast::AccessName {
-                names: self
-                    .into_inner()
-                    .map(|p| p.into_ast())
-                    .collect(),
+                names: self.into_inner().map(|p| p.into_ast()).collect(),
             }),
             _ => unreachable!(),
         }
