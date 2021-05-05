@@ -248,13 +248,13 @@ fn_type = { fn_type_args ~ arrow_op ~ any_type }
 
 /// Special types
 existential_type = { question_op }
-infer_type       = { underscore_op }
+infer_type = { underscore_op }
 
 /// Type arguments
-type_args   = { angular_left ~ any_type ~ (comma_op ~ any_type)* ~ angular_right }
+type_args = { angular_left ~ any_type ~ (comma_op ~ any_type)* ~ angular_right }
 trait_bound = { access_name ~ type_args? }
-where_traits = {where_kw ~ trait_bound }
-bound       = { type_args ~ where_traits? }
+where_traits = { where_kw ~ trait_bound }
+bound = { type_args ~ where_traits? }
 
 /// Named type
 named_type = { access_name ~ type_args? } // this also handles type variables
@@ -342,7 +342,7 @@ binding_pattern = { name }
 /// Struct pattern
 struct_pattern_field = { name ~ (eq_op ~ pattern)? }
 struct_pattern_fields = { curly_left ~ (struct_pattern_field ~ (comma_op ~ struct_pattern_field)*)? ~ curly_right }
-struct_pattern    = { access_name ~ struct_pattern_fields }
+struct_pattern = { access_name ~ struct_pattern_fields }
 
 /// Enum pattern
 enum_pattern_args = { paren_left ~ pattern ~ (comma_op ~ pattern)* ~ paren_right }
@@ -430,16 +430,16 @@ assign_st = { expr ~ assign_op ~ expr }
 
 /// Struct definition
 struct_def_field = { name ~ colon_op ~ any_type ~ (eq_op ~ expr)? }
-struct_def_fields = { curly_left ~ (struct_def_field?  ~ (comma_op ~ struct_def_field)*)? ~ comma_op? ~ curly_right }
+struct_def_fields = { curly_left ~ (struct_def_field? ~ (comma_op ~ struct_def_field)*)? ~ comma_op? ~ curly_right }
 struct_def = { struct_kw ~ name ~ eq_op ~ (trait_bound ~ arrow_op)? ~ struct_def_fields }
 
 /// Enum definition
 enum_field = { name ~ (paren_left ~ (any_type ~ (comma_op ~ any_type)*)? ~ paren_right)? }
-enum_fields = { curly_left ~ (enum_field?  ~ (comma_op ~ enum_field)*)? ~ comma_op? ~ curly_right }
-enum_def   = { enum_kw ~ name  ~ eq_op ~ (bound ~ arrow_op)? ~ enum_fields }
+enum_fields = { curly_left ~ (enum_field? ~ (comma_op ~ enum_field)*)? ~ comma_op? ~ curly_right }
+enum_def = { enum_kw ~ name ~ eq_op ~ (bound ~ arrow_op)? ~ enum_fields }
 
 /// Trait definition
-trait_def   = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
+trait_def = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
 
 /// Semicolon-ending statement
 semi_st = _{
