@@ -45,21 +45,17 @@ impl InteractiveCommand {
 
                         match command {
                             ":c" | ":cls" | ":clear" | ":v" | ":q" => {
-                                Err(InterpreterError::ZeroArguments(format!("{}", command)))
+                                Err(InterpreterError::ZeroArguments(command.to_string()))
                             }
                             ":t" => {
                                 match args.next() {
                                     Some(_) => unreachable!(), // if it did include a whitespace prior, it should of been caught in InteractiveCommand::from
-                                    None => Err(InterpreterError::ArgumentMismatchError(format!(
-                                        "{}",
-                                        command
-                                    ))),
+                                    None => Err(InterpreterError::ArgumentMismatchError(
+                                        command.to_string(),
+                                    )),
                                 }
                             }
-                            _ => Err(InterpreterError::UnrecognisedCommand(format!(
-                                "{}",
-                                command
-                            ))),
+                            _ => Err(InterpreterError::UnrecognisedCommand(command.to_string())),
                         }
                     }
                     Some(expr) => Ok(InteractiveCommand::Type(expr.to_string())),

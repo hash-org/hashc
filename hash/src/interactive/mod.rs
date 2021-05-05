@@ -5,8 +5,8 @@
 mod command;
 mod error;
 
-use error::{report_interp_error, InterpreterError};
 use command::InteractiveCommand;
+use error::{report_interp_error, InterpreterError};
 use hash_parser::parse;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
