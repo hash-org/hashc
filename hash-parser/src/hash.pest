@@ -382,7 +382,11 @@ pattern = { compound_pattern ~ (if_kw ~ expr)? }
 
 /// Body block
 /// Zero or one statements followed by zero or one expression.
-body_block = { curly_left ~ statement* ~ expr? ~ curly_right } // @Broken: statement parsing needs to be non-greedy
+//
+// Quirk: the expression might not get parsed if it is a block, because it will
+// get parsed as a statement. Correct transformation should happen during AST
+// translation.
+body_block = { curly_left ~ statement* ~ expr? ~ curly_right }
 
 /// If-else block
 else_block = { else_kw ~ body_block }
