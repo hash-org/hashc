@@ -2,7 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::interpreter::error::{report_interp_error, InterpreterError};
+use crate::interpreter::error::InterpreterError;
 
 #[derive(Debug, Clone)]
 pub enum InteractiveCommand {
@@ -15,55 +15,56 @@ pub enum InteractiveCommand {
     Type(String),
     /// Just prints the version of the current interactive mode
     Version,
+
+    /// A string representing a statement that will be executed
+    Code(String),
 }
 
 impl InteractiveCommand {
     /// Attempt to convert a string into an interactive command
-    pub fn from(input: &str) -> Option<InteractiveCommand> {
-        match input {
-            ":q" => Some(InteractiveCommand::Quit),
-            ":c" | ":cls" | ":clear" => Some(InteractiveCommand::Clear),
-            ":v" => Some(InteractiveCommand::Version),
-            _ => {
-                if input.len() > 3 {
-                    let (command, arg) = input.split_at(3);
-                    // check here if it begins with either a ':t' or a ':p' and then take an expression
-                    if command == ":t " {
-                        return Some(InteractiveCommand::Type(String::from(arg)));
-                    }
-                }
-
-                None
-            }
+    pub fn from(input: &str) -> Result<InteractiveCommand, InterpreterError> {
+        if !input.starts_with(':') {
+            // @@Efficiency: redudant copying here!
+            return Ok(InteractiveCommand::Code(input.to_string()));
         }
-    }
 
-    /// Function used to report an error for a given string
-    pub fn report_error(input: &str) {
-        let mut args = input.split_ascii_whitespace();
+        match input {
+            ":q" => Ok(InteractiveCommand::Quit),
+            ":c" | ":cls" | ":clear" => Ok(InteractiveCommand::Clear),
+            ":v" => Ok(InteractiveCommand::Version),
+            _ => {
+                let arg = input.strip_prefix(":t ");
 
-        let command = args
-            .next()
-            .unwrap_or_else(|| panic!("Unable to report error for interactive command"));
+                match arg {
+                    None => {
+                        let mut args = input.split_ascii_whitespace();
 
-        match command {
-            ":c" | ":cls" | ":clear" | ":v" | ":q" => report_interp_error(
-                InterpreterError::ArgumentError,
-                &format!("Command '{}' does not take any arguments.", command),
-            ),
-            ":t" => {
-                match args.next() {
-                    Some(_) => unreachable!(), // if it did include a whitespace prior, it should of been caught in InteractiveCommand::from
-                    None => report_interp_error(
-                        InterpreterError::ArgumentError,
-                        &format!("Command '{}' requires one argument.", command),
-                    ),
+                        let command = args.next().unwrap_or_else(|| {
+                            panic!("Unable to report error for interactive command")
+                        });
+
+                        match command {
+                            ":c" | ":cls" | ":clear" | ":v" | ":q" => {
+                                Err(InterpreterError::ZeroArguments(format!("{}", command)))
+                            }
+                            ":t" => {
+                                match args.next() {
+                                    Some(_) => unreachable!(), // if it did include a whitespace prior, it should of been caught in InteractiveCommand::from
+                                    None => Err(InterpreterError::ArgumentMismatchError(format!(
+                                        "{}",
+                                        command
+                                    ))),
+                                }
+                            }
+                            _ => Err(InterpreterError::UnrecognisedCommand(format!(
+                                "{}",
+                                command
+                            ))),
+                        }
+                    }
+                    Some(expr) => Ok(InteractiveCommand::Type(expr.to_string())),
                 }
             }
-            _ => report_interp_error(
-                InterpreterError::ArgumentError,
-                &format!("Unkown command '{}'.", command),
-            ),
         }
     }
 }

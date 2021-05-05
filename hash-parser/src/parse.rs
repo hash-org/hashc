@@ -24,26 +24,24 @@ pub fn module(source: &str) -> Result<Module, ParseError> {
 /// Function to parse an individual statement. This function is primarily used for the interactive
 /// mode where only statements are accepted.
 pub fn statement(source: &str) -> Result<AstNode<Statement>, ParseError> {
-    let result = HashParser::parse(Rule::statement, source);
+    let result = HashParser::parse(Rule::statement, source)?;
 
-    match result {
-        Ok(pairs) => {
-            let rules: Vec<Location> = pairs
-                .take_while(|pair| pair.as_rule() != Rule::EOI)
-                .map(Location::from)
-                .collect();
+    // @Temp: this is only temporary to display the parsed result for testing
+    println!("{:?}", result);
 
-            let temp = rules
-                .get(0)
-                .unwrap_or_else(|| panic!("Couldn't convert nodes into positions"));
+    let rules: Vec<Location> = result
+        .take_while(|pair| pair.as_rule() != Rule::EOI)
+        .map(Location::from)
+        .collect();
 
-            // @@Incomplete: actully convert the item into an ast-node
-            Ok(AstNode::<Statement> {
-                body: Box::new(Statement::Continue),
-                pos: *temp,
-                module: 0,
-            })
-        }
-        Err(err) => Err(ParseError::from(err)),
-    }
+    let temp = rules
+        .get(0)
+        .unwrap_or_else(|| panic!("Couldn't convert nodes into positions")); // @@Incomplete: maybe use an internal_panic function here?
+
+    // @@Incomplete: actully convert the item into an ast-node
+    Ok(AstNode::<Statement> {
+        body: Box::new(Statement::Continue),
+        pos: *temp,
+        module: 0,
+    })
 }

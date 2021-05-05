@@ -5,13 +5,12 @@
 mod command;
 mod error;
 
+use crate::interpreter::error::{report_interp_error, InterpreterError};
+use command::InteractiveCommand;
 use hash_parser::parse;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
-
 use std::process::exit;
-
-use command::InteractiveCommand;
 
 /// Interactive backend version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -20,6 +19,12 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[inline(always)]
 pub fn print_version() {
     println!("Version {}", VERSION);
+}
+
+/// Function that is called on a graceful interpreter exit
+pub fn goodbye() {
+    println!("Goodbye!");
+    exit(0)
 }
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
@@ -43,7 +48,7 @@ pub fn init() {
                 break;
             }
             Err(err) => {
-                println!("Error: {:?}", err);
+                report_interp_error(InterpreterError::InternalError(format!("{:?}", err)));
                 break;
             }
         }
@@ -56,36 +61,27 @@ fn execute(input: &str) {
         return;
     }
 
-    // check here if it is an 'interactive command', as in prefixed with a ':' and then some string
-    if let Some(k) = InteractiveCommand::from(&input) {
-        match k {
-            InteractiveCommand::Quit => {
-                println!("Goodbye!");
-                exit(0)
+    let command = InteractiveCommand::from(&input);
+
+    match command {
+        Ok(InteractiveCommand::Quit) => goodbye(),
+        Ok(InteractiveCommand::Clear) => {
+            // check if this is either a unix/windows system and then execute
+            // the appropriate clearing command
+            if cfg!(target_os = "windows") {
+                std::process::Command::new("cls").status().unwrap();
+            } else {
+                std::process::Command::new("clear").status().unwrap();
             }
-            InteractiveCommand::Version => print_version(),
-            InteractiveCommand::Clear => {
-                // check if this is either a unix/windows system and then execute
-                // the appropriate clearing command
-                if cfg!(target_os = "windows") {
-                    std::process::Command::new("cls").status().unwrap();
-                } else {
-                    std::process::Command::new("clear").status().unwrap();
-                }
-            }
-            InteractiveCommand::Type(expr) => println!("typeof({})", expr),
         }
+        Ok(InteractiveCommand::Version) => print_version(),
+        Ok(InteractiveCommand::Code(expr)) => {
+            // parse the input
+            let _ = parse::statement(&expr);
 
-        // skip parsing anything if it's an interactive command
-        return;
-    } else if input.starts_with(':') {
-        // now let's get the right error reporting here
-        InteractiveCommand::report_error(&input);
-        return;
+            // Typecheck and execute...
+        }
+        Ok(InteractiveCommand::Type(expr)) => println!("typeof({})", expr),
+        Err(e) => report_interp_error(e),
     }
-
-    // parse the input
-    let _ = parse::statement(&input);
-
-    // Typecheck and execute...
 }
