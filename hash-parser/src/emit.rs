@@ -52,11 +52,7 @@ impl ast::IntoAstNode<ast::AccessName> for HashPair<'_> {
             Rule::access_name => AstBuilder::from_pair(&self).node(ast::AccessName {
                 names: self
                     .into_inner()
-                    .map(|p| {
-                        AstBuilder::from_pair(&p).node(ast::Name {
-                            string: p.as_str().to_owned(),
-                        })
-                    })
+                    .map(|p| p.into_ast())
                     .collect(),
             }),
             _ => unreachable!(),
@@ -78,7 +74,7 @@ fn single_access_name(ab: &AstBuilder, name: &str) -> ast::AstNode<ast::AccessNa
 impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::Type> {
         match self.as_rule() {
-            Rule::type_t => {
+            Rule::any_type => {
                 let ab = AstBuilder::from_pair(&self);
                 let in_type = self.into_inner().next().unwrap();
                 match in_type.as_rule() {
@@ -94,44 +90,29 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
 
                         ab.node(ast::Type::Named(ast::NamedType { name, type_args }))
                     }
-                    Rule::function_type => {
+                    Rule::fn_type => {
                         let mut in_func = in_type.into_inner();
 
-                        let _ = in_func.next().unwrap();
-
-                        let mut args = in_func.next().unwrap().into_inner();
-                        let first = args.next().unwrap();
-                        let rest = args.next().unwrap().into_inner().map(|p| {
-                            let mut it = p.into_inner();
-                            let _ = it.next().unwrap();
-                            it.next().unwrap()
-                        });
-                        let args = iter::once(first).chain(rest);
-
-                        let _ = in_func.next().unwrap();
-                        let ret = in_func.next().unwrap();
-                        let _ = in_func.next().unwrap();
+                        let args = in_func.next().unwrap().into_inner().map(|p| p.into_ast());
+                        let ret = in_func.next().unwrap().into_ast();
 
                         let args_ret = args.chain(iter::once(ret));
                         ab.node(ast::Type::Named(ast::NamedType {
                             name: single_access_name(&ab, FUNCTION_TYPE_NAME),
-                            type_args: args_ret.map(|a| a.into_ast()).collect(),
+                            type_args: args_ret.collect(),
                         }))
                     }
                     Rule::tuple_type => {
-                        let mut inner = in_type.into_inner();
-                        let _ = inner.next().unwrap();
-                        let inner_type = inner.next().unwrap();
-                        let _ = inner.next().unwrap();
+                        let inner = in_type.into_inner().map(|p| p.into_ast());
 
                         ab.node(ast::Type::Named(ast::NamedType {
                             name: single_access_name(&ab, TUPLE_TYPE_NAME),
-                            type_args: vec![inner_type.into_ast()],
+                            type_args: inner.collect(),
                         }))
                     }
-                    Rule::list_type => unreachable!(),
-                    Rule::set_type => unreachable!(),
-                    Rule::map_type => unreachable!(),
+                    Rule::list_type => unimplemented!(),
+                    Rule::set_type => unimplemented!(),
+                    Rule::map_type => unimplemented!(),
                     Rule::existential_type => ab.node(ast::Type::Existential),
                     _ => unreachable!(),
                 }
@@ -205,14 +186,6 @@ mod tests {
                 module: 0,
             },
             parse_input::<AccessName>(Rule::access_name, "iter::next::Then"),
-        );
-    }
-
-    #[test]
-    fn test_type() {
-        println!(
-            "{:#?}",
-            parse_input::<ast::Type>(Rule::type_t, "std::prelude::Option<?, _, (T) => U>")
         );
     }
 }

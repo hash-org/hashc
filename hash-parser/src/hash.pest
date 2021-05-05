@@ -406,19 +406,18 @@ block = {
     match_block   |
     loop_block    |
     while_block   |
-    loop_block    |
     body_block
 }
 
 /// ---- Statements ----
 
 /// Break, return, continue
-return_statement   = { return_kw ~ expr? }
-break_statement    = { break_kw }
-continue_statement = { continue_kw }
+return_st = { return_kw ~ expr? }
+break_st = { break_kw }
+continue_st = { continue_kw }
 
 /// Block statement
-block_statement = { block }
+block_st = { block }
 
 /// Let statement
 let_st = { let_kw ~ single_pattern ~ bound? ~ (colon_op ~ any_type)? ~ (eq_op ~ expr)?}
@@ -443,12 +442,12 @@ enum_def   = { enum_kw ~ name  ~ eq_op ~ (bound ~ arrow_op)? ~ enum_fields }
 trait_def   = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
 
 /// Semicolon-ending statement
-semi_statement = _{
-    ( let_st | assign_st | struct_def | enum_def | trait_def | expr_st ) ~ semi_op
+semi_st = _{
+    ( break_st | return_st | continue_st | let_st | assign_st | struct_def | enum_def | trait_def | expr_st ) ~ semi_op
 }
 
 /// Statement
-statement = { block_statement | semi_statement }
+statement = { block_st | semi_st }
 
 /// ---- Module (entry point) ----
 module = _{ SOI ~ statement* ~ EOI }

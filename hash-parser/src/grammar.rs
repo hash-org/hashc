@@ -13,17 +13,3 @@ mod derived {
 }
 
 pub use derived::{HashParser, Rule};
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pest::Parser;
-
-    #[test]
-    fn test_pest() {
-        let rule = Rule::fn_literal;
-        let input = r#"(x: int) => { return 3; }"#;
-        let result = HashParser::parse(rule, input).unwrap();
-        println!("{:#?}", result);
-    }
-}
