@@ -10,7 +10,7 @@ block_comment = _{"/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 /// Whitespace
 WHITESPACE = _{ (" " | "\t" | "\r" | "\n")+ }
 
-/// Keywords
+/// ---- Keywords ----
 if_kw = _{ "if" }
 else_kw = _{ "else" }
 match_kw = _{ "match" }
@@ -29,11 +29,26 @@ import_kw = _{ "import" }
 as_kw = _{ "as" }
 where_kw = _{ "where" }
 keyword = {
-    if_kw | else_kw | match_kw | let_kw | struct_kw | enum_kw | trait_kw | loop_kw | while_kw |
-    for_kw | in_kw | break_kw | continue_kw | return_kw | import_kw | as_kw | where_kw 
+    if_kw       |
+    else_kw     |
+    match_kw    |
+    let_kw      |
+    struct_kw   |
+    enum_kw     |
+    trait_kw    |
+    loop_kw     |
+    while_kw    |
+    for_kw      |
+    in_kw       |
+    break_kw    |
+    continue_kw |
+    return_kw   |
+    import_kw   |
+    as_kw       |
+    where_kw
 }
 
-/// Silent operators
+/// ---- Silent operators ----
 comma_op = _{ "," }
 dot_op = _{ "." }
 colon_op = _{ ":" }
@@ -44,8 +59,9 @@ arrow_op = _{ "=>" }
 eq_op = _{ "=" }
 spread_op = _{ "..." }
 question_op = _{ "?" }
+pipe_op = _{ "|" }
 
-/// Brackets
+/// ---- Brackets ----
 curly_left = _{ "{" }
 curly_right = _{ "}" }
 paren_left = _{ "(" }
@@ -55,32 +71,43 @@ square_right = _{ "]" }
 angular_left = _{ "<" }
 angular_right = _{ ">" }
 
+/// ---- Names ----
+
+/// Identifier
+ident_first_char = _{ "_" | ASCII_ALPHA }
+ident_char = _{ "_" | ASCII_ALPHANUMERIC }
+ident = @{ ident_first_char ~ ident_char* }
+
+/// Name and access name
+keyword_ident = @{ keyword ~ !ident_char } // Used to prevent keywords being used as identifiers.
+name = { !keyword_ident ~ ident }
+access_name = { name ~ (namespace_op ~ name)* }
+
+/// ---- Literals ----
+
 /// Integer literals
 integer_literal = { hex_literal | octal_literal | bin_literal | decimal_literal }
 digit_sep = _{ "_" }
 
+/// Decimal
 decimal_digit = ${ ASCII_DIGIT }
 decimal_prefix = _{ "0d" }
 decimal_literal = ${ decimal_prefix? ~ decimal_digit ~ (decimal_digit | digit_sep)* }
 
+/// Octal
 octal_digit = ${ ASCII_OCT_DIGIT }
 octal_prefix = _{ "0o" }
 octal_literal = ${ octal_prefix ~ octal_digit ~ (octal_digit | digit_sep)* }
 
+/// Hexadecimal
 hex_digit = ${ ASCII_HEX_DIGIT }
 hex_prefix = _{ "0x" }
 hex_literal = ${ hex_prefix ~ hex_digit ~ (hex_digit | digit_sep)* }
 
+/// Binary
 bin_digit = ${ ASCII_BIN_DIGIT }
 bin_prefix = _{ "0b" }
 bin_literal = ${ bin_prefix ~ bin_digit ~ (bin_digit | digit_sep)* }
-
-/// Identifier
-ident = @{ "_"* ~ ASCII_ALPHA ~ ("_" | ASCII_ALPHANUMERIC)* }
-
-/// Name and access name
-name = { ident }
-access_name = { name ~ (namespace_op ~ name)* }
 
 /// Float literal
 float_period = _{ "." }
@@ -112,14 +139,14 @@ escape = ${ escape_prefix ~ (predefined | byte | unicode) }
 /// Bracketed literals
 list_literal = { square_left ~ (square_right | expr ~ (comma_op ~ expr)* ~ comma_op? ~ square_right)}
 set_literal = { curly_left ~ (comma_op ~ &curly_right | expr ~ comma_op ~ &curly_right | (expr ~ (comma_op ~ expr)* ~ comma_op?)) ~ curly_right }
-tuple_literal = { paren_left ~ (comma_op ~ &paren_right | expr ~ comma_op ~ &paren_right | (expr ~ (comma_op ~ expr)* ~ comma_op?)) ~ paren_right}
+tuple_literal = { paren_left ~ (comma_op ~ &paren_right | expr ~ comma_op ~ &paren_right | (expr ~ (comma_op ~ expr)* ~ comma_op?)) ~ paren_right }
 map_entry = { expr ~ colon_op ~ expr }
-map_literal = { curly_left ~ (colon_op ~ &curly_right) | (map_entry ~ (comma_op ~ map_entry)* ~ comma_op?) ~ curly_right ) }
+map_literal = { curly_left ~ ((colon_op ~ &curly_right) | (map_entry ~ (comma_op ~ map_entry)* ~ comma_op?)) ~ curly_right }
 
 /// Function literal
-fn_param = { name ~ (colon_op ~ type_t)? }
+fn_param = { name ~ (colon_op ~ any_type)? }
 fn_params = { paren_left ~ (fn_param ~ (comma_op ~ fn_param)*)? ~ paren_right }
-fn_return_ty = { colon_op ~ type_t }
+fn_return_ty = { colon_op ~ any_type }
 fn_body = { arrow_op ~ expr }
 fn_literal = { fn_params ~ fn_return_ty? ~ fn_body }
 
@@ -127,7 +154,7 @@ fn_literal = { fn_params ~ fn_return_ty? ~ fn_body }
 struct_literal_field = { name ~ eq_op ~ expr }
 struct_literal = { access_name ~ type_args? ~ curly_left ~ (curly_right | struct_literal_field? ~ (comma_op ~ struct_literal_field)* ~ comma_op? ~ curly_right) }
 
-/// Operators
+/// ---- Operators ----
 
 /// Assignment operators
 assign_eq_op = { "=" } // Differs from eq_op --- it is not hidden.
@@ -141,7 +168,19 @@ orl_eq_op = { "||=" }
 andb_eq_op = { "&=" }
 orb_eq_op = { "|=" }
 xorb_eq_op = { "^=" }
-assign_op = { assign_eq_op | add_eq_op | sub_eq_op | mul_eq_op | div_eq_op | mod_eq_op | andl_eq_op | orl_eq_op | andb_eq_op | orb_eq_op | xorb_eq_op }
+assign_op = { 
+    assign_eq_op |
+    add_eq_op    |
+    sub_eq_op    |
+    mul_eq_op    |
+    div_eq_op    |
+    mod_eq_op    |
+    andl_eq_op   |
+    orl_eq_op    |
+    andb_eq_op   |
+    orb_eq_op    |
+    xorb_eq_op 
+}
 
 /// Binary operators
 triple_eq_op = { "===" }
@@ -165,241 +204,252 @@ leq_op = { "<=" }
 andb_op = { "&" }
 orb_op = { "|" }
 xorb_op = { "^" }
+binary_op = { 
+    triple_eq_op  |
+    double_eq_op  |
+    neq_op        |
+    double_neq_op |
+    add_op        |
+    sub_op        |
+    mul_op        |
+    div_op        |
+    mod_op        |
+    andl_op       |
+    orl_op        |
+    shl_op        |
+    shr_op        |
+    exp_op        |
+    gt_op         |
+    lt_op         |
+    geq_op        |
+    leq_op        |
+    andb_op       |
+    orb_op        |
+    xorb_op       
+}
+
+/// Unary operators
 not_op = { "!" }
 notb_op = { "~" }
 neg_op = { "-" }
-
-/// Operator groups
-eq_neq_op = { triple_eq_op | double_eq_op | double_neq_op | neq_op }
-add_sub_op = { add_op | sub_op }
-mul_div_op = { mul_op | div_op | mod_op }
-rel_op = { leq_op | geq_op | lt_op | gt_op }
 unary_op = { not_op | notb_op | neg_op }
 
-/// Types
-type_t = { 
-    named_type |
-    infer_type |
-    function_type |
-    tuple_type |
-    list_type |
-    set_type |
-    map_type |
-    existential_type
-}
+/// ---- Types ----
 
 /// Literal types
-set_type = { curly_left ~ type_t ~ curly_right }
-map_type = { curly_left ~ type_t ~ colon_op ~ type_t curly_right }
-list_type = { square_left ~ type_t ~ square_right }
-tuple_type = { paren_left ~ (comma_op ~ &paren_right | type_t ~ comma_op ~ &paren_right | type_t ~ (comma_op ~ type_t)*) ~ paren_right }
+set_type = { curly_left ~ any_type ~ curly_right }
+map_type = { curly_left ~ any_type ~ colon_op ~ any_type ~ curly_right }
+list_type = { square_left ~ any_type ~ square_right }
+tuple_type = { paren_left ~ (comma_op ~ &paren_right | any_type ~ comma_op ~ &paren_right | any_type ~ (comma_op ~ any_type)*) ~ paren_right }
 
 /// Function type
-fn_type_args = { left_paren ~ (type_t ~ (comma_op ~ type_t)*)? ~ right_paren }
-fn_type = { fn_type_args ~ arrow_op ~ type_t }
+fn_type_args = { paren_left ~ (any_type ~ (comma_op ~ any_type)*)? ~ paren_right }
+fn_type = { fn_type_args ~ arrow_op ~ any_type }
 
 /// Special types
 existential_type = { question_op }
 infer_type       = { underscore_op }
 
 /// Type arguments
-type_args   = { angular_left ~ type_t ~ (comma_op ~ type_t)* ~ angular_right }
+type_args   = { angular_left ~ any_type ~ (comma_op ~ any_type)* ~ angular_right }
 trait_bound = { access_name ~ type_args? }
-bound       = { type_args ~ (where_kw ~ trait_bound+)? }
+where_traits = {where_kw ~ trait_bound }
+bound       = { type_args ~ where_traits? }
 
 /// Named type
 named_type = { access_name ~ type_args? } // this also handles type variables
 
-/// Statements
-
-/// Import statement
-import_st = { import_kw ~ paren_left ~ string_literal ~ paren_right }
-
-/// Assignment statement
-assign_st = { expr ~ assignment_operator ~ expr }
-
-/// Let statement
-let_st   = { let_kw ~ exhaustive_pattern ~ trait_bound? ~ (":" ~ type_t)? ~ ("=" ~ expr)?}
-
-
-/// Grammar representation of a struct which includes the name of the struct with a
-/// ForAll to specify any bounds or and generic arguments to the struct, with
-/// zero or more struct fields. An example for a struct would be:
-///
-/// struct Name = <T,Q> where eq<T> => { ... };
-///        ^^^^    ^──────^^─┬──^        ^^^
-/// Name of struct        For all       fields
-
-/// Struct definition
-struct_def_field = { name ~ type_annot_op ~ type_t ~ (struct_field_assign ~ expr)? }
-struct_def = { struct_kw ~ name ~ eq_op ~ (trait_bound ~ arrow_op)? ~ "{" ~ (struct_field?  ~ (comma ~ struct_field)*)? ~ comma? ~ "}" }
-
-
-/// Grammar representation for an enum, An enum is constrcuted by a the keyword 'enum'
-/// follwed by an identifier name, a for-all declaratation, followed by some enum fields.
-/// An enumeration can be made of zero or more enum fields, an example declaration of
-/// For example, a declaration of an enun would be:
-///
-/// enum Name = <T,Q> where eq<T> => { ... };
-///      ^^^^    ^──────^^─┬──^        ^^^
-/// Name of enum        bound       fields
-enum_field = {ident ~ ("(" ~ (type_t ~ (comma ~ type_t)*)? ~ ")")? }
-enum_def   = {"enum" ~ ident  ~ "=" ~ (trait_bound ~ "=>")? ~ "{" ~ (enum_field?  ~ (comma ~ enum_field)*)? ~ comma? ~ "}" }
-
-
-
-/// Grammar representation of a trait statement. A trait statement
-/// is essentially a function with no body, with a for-all node and
-/// some genetic type arguments. For example,
-///
-/// trait eq = <T> => (T, T) => bool;
-///     ┌─^^ ^─┐   ^─ ─ ─ ─ ─ ─ ─ ┐
-///   name   Generic type args    Function type definition
-trait_def   = {"trait" ~ ident ~ "=" ~ trait_bound ~ "=>" ~ type_t}
-
-/// Intrinsic parsing, prefixed by '#' some identifier. There must be no spaces between
-/// the '#' and the ident, hence this grammar is atomic.
-intrinsic = @{"#" ~ ident}
-
-/// Parse a property access (period followed by a name)
-index           = {"[" ~ expr ~ "]"}
-property_access = {ident ~ index? ~ ("." ~ (ident ~ index?))*} // @@Cleanup: probably don't want to check for infix function calls here
-
-
-/// Grammar representation for a funtction call with the potential for specifying
-/// generic arguments and a list of actual arguments to the function. For example:
-///
-/// function_call<int, str>(some, arguments, for, func);
-///              ^^^^^^^^^^ ^---------^-------^-----^
-///           Type arguments to call        Function call arguments
-function_call = {callable_expr ~ type_args? ~ "(" ~ expr? ~ (comma ~ expr)* ~ ")"}
-
-/// Callable expr is used as a workaround for pest-LR limitation
-callable_expr = {
-    block                     |
-    intrinsic                 |
-    property_access           |
-    "(" ~ function_call ~ ")" | // @@Cleanup: find a way around having to add braces to expr
-    access_name               
+/// Any type
+any_type = { 
+    named_type |
+    infer_type |
+    fn_type    |
+    tuple_type |
+    list_type  |
+    set_type   |
+    map_type   |
+    existential_type
 }
 
+/// ---- Expressions ----
 
-/// Loop constructs
-loop_statement  = {"loop" ~ block}
-while_statement = {"while" ~ expr ~ body_block}
-for_statement   = {"for" ~ exhaustive_pattern ~ "in" ~ expr ~ body_block}
+/// Intrinsic expression (#identifier)
+intrinsic_expr = @{ "#" ~ name }
 
-/// patterns sub grammars 
-struct_pattern    = {ident ~ "{" ~ (ident ~ (comma ~ ident)*)? ~ "}"}
-namespace_pattern = {"{" ~ (name ~ (comma ~ name)*)? ~ "}"}
-enum_pattern      = {ident ~ "(" ~ pattern ~ (comma ~ pattern)* ~ ")" }
+/// Import expression
+import_expr = { import_kw ~ paren_left ~ string_literal ~ paren_right }
 
-/// Exhaustive patterns are those that are guaranteed to have a finite
-/// number of variants (level 1)
-exhaustive_pattern = {
-    ident             | // binding pattern
-    struct_pattern    |
-    namespace_pattern |
-    ("(" ~ (name ~ (comma ~ name)*)? ~ ")") // tuple pattern
+/// Variable
+variable_expr = { access_name }
+
+/// Parenthesised expression
+paren_expr = { paren_left ~ expr ~ paren_right }
+
+/// Literal expression
+literal_expr = {
+    string_literal  |
+    float_literal   |
+    integer_literal |
+    char_literal    |
+    fn_literal      |
+    struct_literal  |
+    list_literal    |
+    tuple_literal   |
+    map_literal     |
+    set_literal 
 }
 
-
-braced_pattern = _{ "(" ~ pattern ~ ")" }
-ignore_pattern = _{"_"}
-
-/// Single pattern combinator is used as a combinator for match
-/// statements where multiple patterns can be specified for a 
-/// switch case. 
-single_pattern = { 
-    braced_pattern     |
-    enum_pattern       |
-    exhaustive_pattern |
-    ignore_pattern     |
-    literal
+/// Expression which can be the subject of a function call/prop-access/index.
+subject_expr = {
+    import_expr   |
+    literal_expr  |
+    variable_expr |
+    paren_expr
 }
 
-/// The pattern grammar
-pattern = {single_pattern ~ ("if" ~ expr)? ~ ("|" ~ pattern)?}
+/// Index
+index_arg = { square_left ~ expr ~ square_right }
 
-/// Conditional if expression grammar
-if_statement = {"if" ~ expr ~ block ~ ("else" ~ (if_statement | block))?}
+/// Function call
+fn_args = { paren_left ~ expr? ~ (comma_op ~ expr)* ~ paren_right }
 
-/// Conditional match expression grammar
-match_case      = {pattern ~ "=>" ~ expr}
-match_statement = {"match" ~ expr ~ "{" ~ (match_case ~ semi)* ~ "}"}
+/// Property access
+property_access = { dot_op ~ name }
 
-/// Body block grammar, body blocks can be used within any kind
-/// of expression to denote a body of a particular expression.
-/// The expression at the end is used as a implicit 'return' statement
-/// from the given body block.
-body_block = { "{" ~  statement* ~ expr? ~ "}" }
+/// Single term expression
+single_expr = { subject_expr ~ (property_access | fn_args | index_arg)* }
+
+/// Unary expression
+unary_expr = { unary_op ~ unary_expr | single_expr }
+
+/// Typed expression (as)
+typed_expr = { unary_expr ~ ( as_kw ~ any_type )? }
+
+/// Binary expression
+binary_expr = { typed_expr ~ ( binary_op ~ typed_expr )* }
+
+/// Block expression
+block_expr = { block }
+
+/// Any expression
+expr = { block_expr | binary_expr }
+
+/// ---- Patterns ----
+
+/// Binding pattern
+binding_pattern = { name }
+
+/// Struct pattern
+struct_pattern_field = { name ~ (eq_op ~ pattern)? }
+struct_pattern_fields = { curly_left ~ (struct_pattern_field ~ (comma_op ~ struct_pattern_field)*)? ~ curly_right }
+struct_pattern    = { access_name ~ struct_pattern_fields }
+
+/// Enum pattern
+enum_pattern_args = { paren_left ~ pattern ~ (comma_op ~ pattern)* ~ paren_right }
+enum_pattern = { access_name ~ enum_pattern_args }
+
+/// Namespace pattern
+namespace_pattern_field = { name ~ (eq_op ~ pattern)? }
+namespace_pattern = { curly_left ~ (namespace_pattern_field ~ (comma_op ~ namespace_pattern_field)*)? ~ curly_right }
+
+/// Tuple pattern
+tuple_pattern = { paren_left ~ (comma_op ~ &paren_right | pattern ~ comma_op ~ &paren_right | (pattern ~ (comma_op ~ pattern)* ~ comma_op?)) ~ paren_right }
+
+/// Ignore pattern
+ignore_pattern = { underscore_op }
+
+/// Grouped pattern (1 | 2)
+grouped_pattern = { paren_left ~ pattern ~ paren_right }
+
+/// Single pattern (used in binding positions)
+single_pattern = {
+    ignore_pattern  |
+    binding_pattern |
+    enum_pattern    |
+    struct_pattern  |
+    tuple_pattern   |
+    grouped_pattern |
+    namespace_pattern 
+}
+
+/// Compound pattern (matches a series of single patterns)
+compound_pattern = { single_pattern ~ (pipe_op ~ single_pattern)* }
+
+/// Any pattern (includes optional if condition)
+pattern = { compound_pattern ~ (if_kw ~ expr)? }
+
+/// ---- Blocks ----
+
+/// Body block
+/// Zero or one statements followed by zero or one expression.
+body_block = { curly_left ~ statement* ~ expr? ~ curly_right } // @Broken: statement parsing needs to be non-greedy
+
+/// If-else block
+else_block = { else_kw ~ body_block }
+else_if_block = { else_kw ~ if_block }
+if_block = { if_kw ~ expr ~ body_block }
+if_else_block = { if_block ~ else_if_block* ~ else_block? }
+
+/// Match block
+match_case = { pattern ~ arrow_op ~ expr }
+match_cases = { curly_left ~ (match_case ~ semi_op)* ~ curly_right }
+match_block = { match_kw ~ expr ~ match_cases }
+
+/// Loop blocks
+loop_block = { loop_kw ~ body_block }
+while_block = { while_kw ~ expr ~ body_block}
+for_block = { for_kw ~ single_pattern ~ in_kw ~ expr ~ body_block}
 
 /// Block
 block = { 
-    if_statement    |
-    match_statement |
-    for_statement   |
-    while_statement | 
-    loop_statement  |
+    if_else_block |
+    match_block   |
+    loop_block    |
+    while_block   |
+    loop_block    |
     body_block
 }
 
-/// Grammar representation for a literals
-literal = {
-    string_literal   |
-    float_literal    |
-    integer_literal  |
-    char_literal     |
-    fn_literal       |
-    struct_literal   |
-    list_literal     |
-    tuple_literal    |
-    map_literal      |
-    set_literal   
+/// ---- Statements ----
+
+/// Break, return, continue
+return_statement   = { return_kw ~ expr? }
+break_statement    = { break_kw }
+continue_statement = { continue_kw }
+
+/// Block statement
+block_statement = { block }
+
+/// Let statement
+let_st = { let_kw ~ single_pattern ~ bound? ~ (colon_op ~ any_type)? ~ (eq_op ~ expr)?}
+
+/// Expression statement
+expr_st = { expr }
+
+/// Assignment statement
+assign_st = { expr ~ assign_op ~ expr }
+
+/// Struct definition
+struct_def_field = { name ~ colon_op ~ any_type ~ (eq_op ~ expr)? }
+struct_def_fields = { curly_left ~ (struct_def_field?  ~ (comma_op ~ struct_def_field)*)? ~ comma_op? ~ curly_right }
+struct_def = { struct_kw ~ name ~ eq_op ~ (trait_bound ~ arrow_op)? ~ struct_def_fields }
+
+/// Enum definition
+enum_field = { name ~ (paren_left ~ (any_type ~ (comma_op ~ any_type)*)? ~ paren_right)? }
+enum_fields = { curly_left ~ (enum_field?  ~ (comma_op ~ enum_field)*)? ~ comma_op? ~ curly_right }
+enum_def   = { enum_kw ~ name  ~ eq_op ~ (bound ~ arrow_op)? ~ enum_fields }
+
+/// Trait definition
+trait_def   = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
+
+/// Semicolon-ending statement
+semi_statement = _{
+    ( let_st | assign_st | struct_def | enum_def | trait_def | expr_st ) ~ semi_op
 }
-
-
-/// Grammar representation of some logical operation involving a 
-/// unary or a binary expression
-binary_expr = {expr_inner ~ (binary_operator ~ expr_inner)+ }
-unary_expr = {unary_operator ~ expr}
-
-/// Grammar represenation for an expression which is a single part of a statement.
-/// The 'inner' part is a workaround for not being able to use LR grammars.
-expr_inner = {
-    literal         |
-    block           |
-    function_call   |
-    unary_expr      |
-    intrinsic       |
-    property_access |
-    access_name // variable
-}
-
-/// Grammar for an expression, can either be a binary expression which refers
-/// to two expressions joined by a binary operator, or a single expression
-/// that can be some other variant of an expression.
-expr = _{binary_expr | expr_inner ~ (as_op ~ type_t)? | import}
-
-
-return_statement   = { "return" ~ expr? }
-break_statement    = { "break" }
-continue_statement = { "continue" }
 
 /// Statement
-statement = _{
-    block |
-    (decl              |
-    return_statement   |
-    break_statement    |
-    continue_statement |
-    struct_def         |
-    enum_def           |
-    trait_def          |
-    assign             |
-    expr ) ~ ";"
-}
+statement = { block_statement | semi_statement }
 
-/// Module grammar
+/// ---- Module (entry point) ----
 module = _{ SOI ~ statement* ~ EOI }
 
