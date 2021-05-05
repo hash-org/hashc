@@ -2,7 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::interpreter::error::InterpreterError;
+use crate::interactive::error::InterpreterError;
 
 #[derive(Debug, Clone)]
 pub enum InteractiveCommand {

@@ -179,6 +179,8 @@ dependencies = [
  "clap",
  "hash-backend",
  "hash-parser",
+ "rustyline",
+ "thiserror",
 ]
 
 [[package]]
@@ -186,8 +188,6 @@ name = "hash-backend"
 version = "0.1.0"
 dependencies = [
  "hash-parser",
- "rustyline",
- "thiserror",
 ]
 
 [[package]]

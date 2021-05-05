@@ -2,9 +2,9 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 mod error;
+mod interactive;
 
 use clap::{crate_version, AppSettings, Clap};
-use hash_backend::interpreter;
 use hash_parser::parse;
 
 use std::{fs, process::exit};
@@ -69,7 +69,7 @@ fn main() {
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
         None => {
-            interpreter::init();
+            interactive::init();
         }
     }
 }

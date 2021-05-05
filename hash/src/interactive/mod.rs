@@ -5,7 +5,7 @@
 mod command;
 mod error;
 
-use crate::interpreter::error::{report_interp_error, InterpreterError};
+use error::{report_interp_error, InterpreterError};
 use command::InteractiveCommand;
 use hash_parser::parse;
 use rustyline::error::ReadlineError;
