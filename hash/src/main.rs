@@ -2,9 +2,11 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 mod error;
+mod interactive;
 
 use clap::{crate_version, AppSettings, Clap};
 use hash_parser::parse;
+
 use std::{fs, process::exit};
 
 use crate::error::{report_error, ErrorType};
@@ -66,6 +68,8 @@ fn main() {
             }
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
-        None => println!("Running withing interactive mode!"),
+        None => {
+            interactive::init();
+        }
     }
 }
