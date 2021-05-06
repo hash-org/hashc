@@ -90,30 +90,30 @@ integer_literal = { hex_literal | octal_literal | bin_literal | decimal_literal 
 digit_sep = _{ "_" }
 
 /// Decimal
-decimal_digit = ${ ASCII_DIGIT }
+decimal_digit = _{ ASCII_DIGIT }
 decimal_prefix = _{ "0d" }
-decimal_literal = ${ decimal_prefix? ~ decimal_digit ~ (decimal_digit | digit_sep)* }
+decimal_literal = ${ decimal_prefix? ~ decimal_digit ~ (decimal_digit | digit_sep)* ~ float_exp? }
 
 /// Octal
-octal_digit = ${ ASCII_OCT_DIGIT }
+octal_digit = _{ ASCII_OCT_DIGIT }
 octal_prefix = _{ "0o" }
 octal_literal = ${ octal_prefix ~ octal_digit ~ (octal_digit | digit_sep)* }
 
 /// Hexadecimal
-hex_digit = ${ ASCII_HEX_DIGIT }
+hex_digit = _{ ASCII_HEX_DIGIT }
 hex_prefix = _{ "0x" }
 hex_literal = ${ hex_prefix ~ hex_digit ~ (hex_digit | digit_sep)* }
 
 /// Binary
-bin_digit = ${ ASCII_BIN_DIGIT }
+bin_digit = _{ ASCII_BIN_DIGIT }
 bin_prefix = _{ "0b" }
 bin_literal = ${ bin_prefix ~ bin_digit ~ (bin_digit | digit_sep)* }
 
 /// Float literal
 float_period = _{ "." }
-float_part = ${ decimal_digit+ }
+float_part = @{ decimal_digit ~ (decimal_digit | digit_sep)* }
 float_exp_e = _{ "e" }
-float_exp = ${ float_exp_e ~ (add_op | sub_op)? ~ float_part }
+float_exp = @{ float_exp_e ~ (add_op | sub_op)? ~ float_part }
 float_literal = ${ float_part ~ float_period ~ float_part ~ float_exp? }
 
 /// String literal

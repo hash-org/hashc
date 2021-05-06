@@ -87,3 +87,6 @@ let bin_val = 0b1010100001010;
 let oct_val = 0o1272170;
 let fl_val: float = 6e-3;
 let flag = false;
+
+// library imports with specific symbol extraction and symbol renaming
+let {i = func, b = func_ext} = import("mylib");
