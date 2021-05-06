@@ -76,7 +76,7 @@ angular_right = _{ ">" }
 /// Identifier
 ident_first_char = _{ "_" | ASCII_ALPHA }
 ident_char = _{ "_" | ASCII_ALPHANUMERIC }
-ident = @{ ident_first_char ~ ident_char* }
+ident = @{ !( "_" ~ !ident_first_char ) ~ ident_first_char ~ ident_char* }
 
 /// Name and access name
 keyword_ident = @{ keyword ~ !ident_char } // Used to prevent keywords being used as identifiers.
@@ -152,7 +152,7 @@ fn_literal = { fn_params ~ fn_return_ty? ~ fn_body }
 
 /// Struct literal
 struct_literal_field = { name ~ eq_op ~ expr }
-struct_literal = { access_name ~ type_args? ~ curly_left ~ (curly_right | struct_literal_field? ~ (comma_op ~ struct_literal_field)* ~ comma_op? ~ curly_right) }
+struct_literal = { access_name ~ type_args? ~ curly_left ~ (struct_literal_field ~ (comma_op ~ struct_literal_field)* ~ comma_op?)* ~ curly_right }
 
 /// ---- Operators ----
 
@@ -185,8 +185,8 @@ assign_op = {
 /// Binary operators
 triple_eq_op = { "===" }
 double_eq_op = { "==" }
-neq_op = { "!=" }
 double_neq_op = { "!==" }
+neq_op = { "!=" }
 add_op = { "+" }
 sub_op = { "-" }
 mul_op = { "*" }
@@ -207,8 +207,8 @@ xorb_op = { "^" }
 binary_op = { 
     triple_eq_op  |
     double_eq_op  |
-    neq_op        |
     double_neq_op |
+    neq_op        |
     add_op        |
     sub_op        |
     mul_op        |
@@ -219,10 +219,10 @@ binary_op = {
     shl_op        |
     shr_op        |
     exp_op        |
-    gt_op         |
-    lt_op         |
     geq_op        |
     leq_op        |
+    gt_op         |
+    lt_op         |
     andb_op       |
     orb_op        |
     xorb_op       
@@ -253,7 +253,7 @@ infer_type = { underscore_op }
 /// Type arguments
 type_args = { angular_left ~ any_type ~ (comma_op ~ any_type)* ~ angular_right }
 trait_bound = { access_name ~ type_args? }
-where_traits = { where_kw ~ trait_bound }
+where_traits = { where_kw ~ trait_bound ~ (comma_op ~ trait_bound)* }
 bound = { type_args ~ where_traits? }
 
 /// Named type
@@ -280,7 +280,7 @@ intrinsic_expr = @{ "#" ~ name }
 import_expr = { import_kw ~ paren_left ~ string_literal ~ paren_right }
 
 /// Variable
-variable_expr = { access_name }
+variable_expr = { access_name ~ type_args? }
 
 /// Parenthesised expression
 paren_expr = { paren_left ~ expr ~ paren_right }
@@ -292,7 +292,6 @@ literal_expr = {
     integer_literal |
     char_literal    |
     fn_literal      |
-    struct_literal  |
     list_literal    |
     tuple_literal   |
     map_literal     |
@@ -301,9 +300,10 @@ literal_expr = {
 
 /// Expression which can be the subject of a function call/prop-access/index.
 subject_expr = {
-    import_expr   |
-    literal_expr  |
-    variable_expr |
+    intrinsic_expr |
+    import_expr    |
+    literal_expr   |
+    variable_expr  |
     paren_expr
 }
 
@@ -331,8 +331,13 @@ binary_expr = { typed_expr ~ ( binary_op ~ typed_expr )* }
 /// Block expression
 block_expr = { block }
 
+/// Struct literal
+/// Placed outside of other literals to prevent blocks being parsed as struct
+/// expressions.
+struct_expr = { struct_literal }
+
 /// Any expression
-expr = { block_expr | binary_expr }
+expr = { block_expr | ( &struct_literal ~ struct_literal ) | binary_expr }
 
 /// ---- Patterns ----
 
@@ -361,14 +366,24 @@ ignore_pattern = { underscore_op }
 /// Grouped pattern (1 | 2)
 grouped_pattern = { paren_left ~ pattern ~ paren_right }
 
+/// Literal pattern
+literal_pattern = {
+    string_literal  |
+    float_literal   |
+    integer_literal |
+    char_literal    
+}
+
 /// Single pattern (used in binding positions)
 single_pattern = {
-    ignore_pattern  |
-    binding_pattern |
     enum_pattern    |
+    binding_pattern |
+    ignore_pattern  |
     struct_pattern  |
+    literal_pattern |
     tuple_pattern   |
     grouped_pattern |
+    literal_pattern |
     namespace_pattern 
 }
 
@@ -410,6 +425,7 @@ block = {
     match_block   |
     loop_block    |
     while_block   |
+    for_block     |
     body_block
 }
 
@@ -426,16 +442,13 @@ block_st = { block }
 /// Let statement
 let_st = { let_kw ~ single_pattern ~ bound? ~ (colon_op ~ any_type)? ~ (eq_op ~ expr)?}
 
-/// Expression statement
-expr_st = { expr }
-
-/// Assignment statement
-assign_st = { expr ~ assign_op ~ expr }
+/// Assignment or expression statement
+expr_or_assign_st = { expr ~ (assign_op ~ expr)? }
 
 /// Struct definition
 struct_def_field = { name ~ colon_op ~ any_type ~ (eq_op ~ expr)? }
 struct_def_fields = { curly_left ~ (struct_def_field? ~ (comma_op ~ struct_def_field)*)? ~ comma_op? ~ curly_right }
-struct_def = { struct_kw ~ name ~ eq_op ~ (trait_bound ~ arrow_op)? ~ struct_def_fields }
+struct_def = { struct_kw ~ name ~ eq_op ~ (bound ~ arrow_op)? ~ struct_def_fields }
 
 /// Enum definition
 enum_field = { name ~ (paren_left ~ (any_type ~ (comma_op ~ any_type)*)? ~ paren_right)? }
@@ -447,7 +460,7 @@ trait_def = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
 
 /// Semicolon-ending statement
 semi_st = _{
-    ( break_st | return_st | continue_st | let_st | assign_st | struct_def | enum_def | trait_def | expr_st ) ~ semi_op
+    ( break_st | return_st | continue_st | let_st | expr_or_assign_st | struct_def | enum_def | trait_def ) ~ semi_op
 }
 
 /// Statement
