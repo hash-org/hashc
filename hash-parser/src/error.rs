@@ -25,8 +25,8 @@ pub enum ParseError {
     },
     ImportError {
         import_name: String,
-        location: Location
-    }
+        location: Location,
+    },
 }
 
 /// Convert a [pest::error::Error] into a [ParseError]

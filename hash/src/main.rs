@@ -2,7 +2,6 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 mod error;
-mod path;
 mod interactive;
 
 use clap::{crate_version, AppSettings, Clap};
@@ -10,7 +9,7 @@ use hash_parser::parse;
 
 use std::{fs, process::exit};
 
-use crate::{error::{report_error, ErrorType}};
+use crate::error::{report_error, ErrorType};
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -52,7 +51,7 @@ fn main() {
             println!("Running with {}", path);
         }
     }
-    
+
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
             Ok(c) => {

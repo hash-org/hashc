@@ -1,6 +1,12 @@
 use std::iter;
 
-use crate::{ast, grammar::Rule, location::Location, modules::ModuleIdx};
+// use crate::ast::IntoAstNode;
+use crate::{
+    ast::{self},
+    grammar::Rule,
+    location::Location,
+    modules::ModuleIdx,
+};
 
 struct AstBuilder {
     pos: Location,
@@ -17,7 +23,7 @@ impl AstBuilder {
         }
     }
 
-    #[allow(dead_code)] // @Fixme: temporary to prevent warnings.
+    #[allow(dead_code)] // @FIXME: temporary to prevent warnings.
     pub fn from_node<T>(node: &ast::AstNode<T>) -> AstBuilder {
         AstBuilder {
             pos: node.pos,
@@ -60,6 +66,9 @@ impl ast::IntoAstNode<ast::AccessName> for HashPair<'_> {
 
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
+const LIST_TYPE_NAME: &str = "List";
+const SET_TYPE_NAME: &str = "Set";
+const MAP_TYPE_NAME: &str = "Map";
 
 fn single_access_name(ab: &AstBuilder, name: &str) -> ast::AstNode<ast::AccessName> {
     ab.node(ast::AccessName {
@@ -108,14 +117,92 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                             type_args: inner.collect(),
                         }))
                     }
-                    Rule::list_type => unimplemented!(),
-                    Rule::set_type => unimplemented!(),
-                    Rule::map_type => unimplemented!(),
+                    Rule::list_type => {
+                        let inner = in_type.into_inner().map(|p| p.into_ast());
+
+                        // list type should only have one type
+                        // assert_eq!(inner.size_hint().0, 1);
+
+                        ab.node(ast::Type::Named(ast::NamedType {
+                            name: single_access_name(&ab, LIST_TYPE_NAME),
+                            type_args: inner.collect(),
+                        }))
+                    }
+                    Rule::set_type => {
+                        let inner = in_type.into_inner().map(|p| p.into_ast());
+
+                        // set type should only have one type
+                        // assert_eq!(inner.size_hint().0, 1);
+
+                        ab.node(ast::Type::Named(ast::NamedType {
+                            name: single_access_name(&ab, SET_TYPE_NAME),
+                            type_args: inner.collect(),
+                        }))
+                    }
+                    Rule::map_type => {
+                        let inner = in_type.into_inner().map(|p| p.into_ast());
+
+                        // map type should only have a type for a key and a value
+                        // assert_eq!(inner.size_hint().0, 2);
+
+                        ab.node(ast::Type::Named(ast::NamedType {
+                            name: single_access_name(&ab, MAP_TYPE_NAME),
+                            type_args: inner.collect(),
+                        }))
+                    }
                     Rule::existential_type => ab.node(ast::Type::Existential),
                     _ => unreachable!(),
                 }
             }
             _ => unreachable!(),
+        }
+    }
+}
+
+impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
+    fn into_ast(self) -> ast::AstNode<ast::Literal> {
+        match self.as_rule() {
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl ast::IntoAstNode<ast::LiteralPattern> for HashPair<'_> {
+    fn into_ast(self) -> ast::AstNode<ast::LiteralPattern> {
+        match self.as_rule() {
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl ast::IntoAstNode<ast::Pattern> for HashPair<'_> {
+    fn into_ast(self) -> ast::AstNode<ast::Pattern> {
+        match self.as_rule() {
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl ast::IntoAstNode<ast::Expression> for HashPair<'_> {
+    fn into_ast(self) -> ast::AstNode<ast::Expression> {
+        match self.as_rule() {
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl ast::IntoAstNode<ast::Block> for HashPair<'_> {
+    fn into_ast(self) -> ast::AstNode<ast::Block> {
+        match self.as_rule() {
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl ast::IntoAstNode<ast::Statement> for HashPair<'_> {
+    fn into_ast(self) -> ast::AstNode<ast::Statement> {
+        match self.as_rule() {
+            _ => unimplemented!(),
         }
     }
 }

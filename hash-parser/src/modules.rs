@@ -143,10 +143,10 @@ impl Modules {
 
             // @@Copied
             let path = String::from(path.to_str().unwrap());
-            return Err(ParseError::ImportError {
+            Err(ParseError::ImportError {
                 import_name: path,
                 location,
-            });
+            })
         } else {
             // we don't need to anything if the given raw_path already has a extension '.hash',
             // since we don't dissalow someone to import a module and reference the module with
