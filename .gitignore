@@ -1,1 +1,4 @@
 /target
+
+# any local files that are marked as ignore
+*.old
