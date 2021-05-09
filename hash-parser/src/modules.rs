@@ -21,6 +21,9 @@ pub type ModuleIdx = usize;
 /// is located at.
 static BUILD_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
+/// Name of the prelude module
+static PRELUDE: &str = "prelude";
+
 /// Represents a single module.
 pub struct Module<'a> {
     idx: usize,
@@ -78,15 +81,16 @@ impl Modules {
 
                             // Special case, don't add prelude to the module list since we don't want to allow
                             // it to be imported under the normal standard library imports.
-                            if file_name == "prelude" {
+                            if file_name == PRELUDE {
                                 continue;
                             }
 
                             // This shouldn't happen but if there is a file which does not have a hash extension, we shouldn't add it
-                            match path.extension() {
-                                Some(k) if k == "hash" => paths.push(PathBuf::from(file_name)),
-                                _ => {}
+                            if path.extension().unwrap_or_default() != "hash" {
+                                continue;
                             }
+
+                            paths.push(PathBuf::from(file_name));
                         }
                     }
                     Err(e) => panic!("Unable to read standard library folder: {}", e),
@@ -99,28 +103,30 @@ impl Modules {
 
     pub fn resolve_path(
         &self,
-        path: &Path,
-        wd: &Path,
+        path: impl AsRef<Path>,
+        wd: impl AsRef<Path>,
         location: Location,
     ) -> Result<PathBuf, ParseError> {
-        let stdlib_path = Path::new(BUILD_DIR).join("..").join("stdlib");
-        let modules = self.get_stdlib_modules(stdlib_path.as_path());
+        let path = path.as_ref();
+        let wd = wd.as_ref();
+
+        let stdlib_path: PathBuf = [BUILD_DIR, "..", "stdlib"].iter().collect();
+        let modules = self.get_stdlib_modules(stdlib_path);
 
         // check if the given path is equal to any of the standard library paths
-        if modules.iter().any(|i| i.clone() == *path) {
+        if modules.contains(&path.to_path_buf()) {
             return Ok(path.to_path_buf());
         }
 
         // otherwise, we have to resolve the module path based on the working directory
         let work_dir = wd.canonicalize().unwrap();
-        let mut raw_path = work_dir.join(path);
+        let raw_path = work_dir.join(path);
 
         // check if that path exists, if not it does return it as an error
         if !raw_path.exists() {
             // @@Copied
-            let path = String::from(path.to_str().unwrap());
             return Err(ParseError::ImportError {
-                import_name: path,
+                import_name: path.to_path_buf(),
                 location,
             });
         }
@@ -137,14 +143,14 @@ impl Modules {
             }
 
             // ok now check if the user is referencing a module instead of the dir
-            if raw_path.set_extension("hash") && raw_path.exists() {
-                return Ok(raw_path);
+            let raw_path_hash = raw_path.with_extension("hash");
+            if raw_path_hash.exists() {
+                return Ok(raw_path_hash);
             }
 
             // @@Copied
-            let path = String::from(path.to_str().unwrap());
             Err(ParseError::ImportError {
-                import_name: path,
+                import_name: path.to_path_buf(),
                 location,
             })
         } else {
@@ -160,14 +166,14 @@ impl Modules {
                 Some(k) if k == "hash" => Ok(raw_path),
                 _ => {
                     // add hash extension regardless and check if the path exists...
-                    // @Correctness: set_extension replaces the previous extension, is this the kind of behaviour we want...
-                    if raw_path.set_extension("hash") && raw_path.exists() {
-                        Ok(raw_path)
+                    let raw_path_hash = raw_path.with_extension("hash");
+
+                    // Only try to check this route if the provided file did not already have an extension
+                    if raw_path.extension().is_none() && raw_path_hash.exists() {
+                        Ok(raw_path_hash)
                     } else {
-                        // @@Copied
-                        let path = String::from(path.to_str().unwrap());
                         Err(ParseError::ImportError {
-                            import_name: path,
+                            import_name: path.to_path_buf(),
                             location,
                         })
                     }

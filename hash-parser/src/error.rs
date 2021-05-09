@@ -3,7 +3,7 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 use crate::{grammar::Rule, location::Location};
-use std::fmt;
+use std::{fmt, path::PathBuf};
 
 /// Error message prefix
 const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
@@ -24,7 +24,7 @@ pub enum ParseError {
         location: Location,
     },
     ImportError {
-        import_name: String,
+        import_name: PathBuf,
         location: Location,
     },
 }

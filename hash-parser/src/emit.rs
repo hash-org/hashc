@@ -121,7 +121,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         let inner = in_type.into_inner().map(|p| p.into_ast());
 
                         // list type should only have one type
-                        // assert_eq!(inner.size_hint().0, 1);
+                        debug_assert_eq!(inner.size_hint().0, 1);
 
                         ab.node(ast::Type::Named(ast::NamedType {
                             name: single_access_name(&ab, LIST_TYPE_NAME),
@@ -132,7 +132,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         let inner = in_type.into_inner().map(|p| p.into_ast());
 
                         // set type should only have one type
-                        // assert_eq!(inner.size_hint().0, 1);
+                        debug_assert_eq!(inner.size_hint().0, 1);
 
                         ab.node(ast::Type::Named(ast::NamedType {
                             name: single_access_name(&ab, SET_TYPE_NAME),
@@ -143,7 +143,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         let inner = in_type.into_inner().map(|p| p.into_ast());
 
                         // map type should only have a type for a key and a value
-                        // assert_eq!(inner.size_hint().0, 2);
+                        debug_assert_eq!(inner.size_hint().0, 2);
 
                         ab.node(ast::Type::Named(ast::NamedType {
                             name: single_access_name(&ab, MAP_TYPE_NAME),
