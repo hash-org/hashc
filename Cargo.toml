@@ -5,3 +5,6 @@ members = [
   "hash-typecheck",
   "hash"
 ]
+
+[profile.release]
+debug=true
