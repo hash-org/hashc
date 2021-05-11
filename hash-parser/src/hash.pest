@@ -89,11 +89,6 @@ access_name = { name ~ (namespace_op ~ name)* }
 integer_literal = { hex_literal | octal_literal | bin_literal | decimal_literal }
 digit_sep = _{ "_" }
 
-/// Decimal
-decimal_digit = _{ ASCII_DIGIT }
-decimal_prefix = _{ "0d" }
-decimal_literal = ${ decimal_prefix? ~ decimal_digit ~ (decimal_digit | digit_sep)* ~ float_exp? }
-
 /// Octal
 octal_digit = _{ ASCII_OCT_DIGIT }
 octal_prefix = _{ "0o" }
@@ -109,12 +104,19 @@ bin_digit = _{ ASCII_BIN_DIGIT }
 bin_prefix = _{ "0b" }
 bin_literal = ${ bin_prefix ~ bin_digit ~ (bin_digit | digit_sep)* }
 
+/// Shared definitions between decimal and float
+num_part = @{ decimal_digit ~ (decimal_digit | digit_sep)* }
+exp      = _{ "e" }
+exp_part =  ${ exp ~ (add_op | sub_op)? ~ num_part }
+
+/// Decimal
+decimal_digit = _{ ASCII_DIGIT }
+decimal_prefix = _{ "0d" }
+decimal_literal = ${ decimal_prefix? ~ num_part ~ exp_part? }
+
 /// Float literal
 float_period = _{ "." }
-float_part = @{ decimal_digit ~ (decimal_digit | digit_sep)* }
-float_exp_e = _{ "e" }
-float_exp = @{ float_exp_e ~ (add_op | sub_op)? ~ float_part }
-float_literal = ${ float_part ~ float_period ~ float_part ~ float_exp? }
+float_literal = ${ num_part ~ float_period ~ num_part ~ exp_part? }
 
 /// String literal
 string_quote = _{ "\"" }

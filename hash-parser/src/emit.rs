@@ -1,12 +1,9 @@
 use std::iter;
 
+use num::BigInt;
+
 // use crate::ast::IntoAstNode;
-use crate::{
-    ast::{self},
-    grammar::Rule,
-    location::Location,
-    modules::ModuleIdx,
-};
+use crate::{ast, grammar::Rule, location::Location, modules::ModuleIdx};
 
 struct AstBuilder {
     pos: Location,
@@ -93,7 +90,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         let type_args = in_named
                             .next()
                             .map(|n| n.into_inner().map(|p| p.into_ast()).collect())
-                            .unwrap_or(vec![]);
+                            .unwrap_or_default();
 
                         ab.node(ast::Type::Named(ast::NamedType { name, type_args }))
                     }
@@ -162,48 +159,186 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
 impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::Literal> {
         match self.as_rule() {
-            _ => unimplemented!(),
+            Rule::literal_expr => {
+                let ab = AstBuilder::from_pair(&self);
+                let in_expr = self.into_inner().next().unwrap();
+                match in_expr.as_rule() {
+                    Rule::integer_literal => {
+                        let inner = in_expr.into_inner().next().unwrap();
+                        // this could be binary, hex, octal or decimal...
+                        match inner.as_rule() {
+                            Rule::decimal_literal => {
+                                // check if there is a float exp component since we allow this, although if the specified exponent is
+                                // float, we'll cast the result to decimal...
+                                let mut components = inner.into_inner();
+                                let num = components.next().unwrap();
+
+                                let val = BigInt::parse_bytes(num.as_str().as_bytes(), 10).unwrap();
+
+                                // @@Correctness: maybe this shouldn't happen and we should make a
+                                //                float from the given number?
+                                if let Some(l) = components.next() {
+                                    let exp = u32::from_str_radix(l.as_str(), 10).unwrap();
+                                    val.pow(exp);
+                                }
+
+                                ab.node(ast::Literal::Int(val))
+                            }
+                            Rule::hex_literal => {
+                                let val =
+                                    BigInt::parse_bytes(inner.as_str().as_bytes(), 16).unwrap();
+                                ab.node(ast::Literal::Int(val))
+                            }
+                            Rule::octal_literal => {
+                                let val =
+                                    BigInt::parse_bytes(inner.as_str().as_bytes(), 8).unwrap();
+                                ab.node(ast::Literal::Int(val))
+                            }
+                            Rule::bin_literal => {
+                                let val =
+                                    BigInt::parse_bytes(inner.as_str().as_bytes(), 2).unwrap();
+                                ab.node(ast::Literal::Int(val))
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    Rule::float_literal => unimplemented!(),
+                    Rule::char_literal => {
+                        let c: char = in_expr.as_span().as_str().chars().next().unwrap();
+                        ab.node(ast::Literal::Char(c))
+                    }
+                    Rule::string_literal => {
+                        let s = String::from(in_expr.as_span().as_str());
+                        ab.node(ast::Literal::Str(s))
+                    }
+                    Rule::list_literal => {
+                        // since list literals are just a bunch of expressions, we just call
+                        // into_ast() on each member and collect at the end
+                        let elements = in_expr.into_inner().map(|p| p.into_ast()).collect();
+
+                        ab.node(ast::Literal::List(ast::ListLiteral { elements }))
+                    }
+                    Rule::set_literal => {
+                        // since set literals are just a bunch of expressions, we just call
+                        // into_ast() on each member and collect at the end
+                        let elements = in_expr.into_inner().map(|p| p.into_ast()).collect();
+
+                        ab.node(ast::Literal::Set(ast::SetLiteral { elements }))
+                    }
+                    Rule::tuple_literal => {
+                        // since tuple literals are just a bunch of expressions, we just call
+                        // into_ast() on each member and collect at the end
+                        let elements = in_expr.into_inner().map(|p| p.into_ast()).collect();
+
+                        ab.node(ast::Literal::Tuple(ast::TupleLiteral { elements }))
+                    }
+                    Rule::map_literal => {
+                        // A map is made of a vector of 'map_entries' rules, which are just two
+                        // expressions.
+                        let elements = in_expr
+                            .into_inner()
+                            .map(|p| {
+                                let mut items = p.into_inner().map(|pi| pi.into_ast());
+
+                                (items.next().unwrap(), items.next().unwrap())
+                            })
+                            .collect();
+
+                        ab.node(ast::Literal::Map(ast::MapLiteral { elements }))
+                    }
+                    Rule::fn_literal => {
+                        // we're looking for a number of function arguments, an optional return and
+                        // a function body which is just an expression.
+                        let mut components = in_expr.into_inner();
+
+                        // firstly, take care of the function parameters...
+                        let args = components
+                            .next()
+                            .unwrap()
+                            .into_inner()
+                            .map(|param| {
+                                let mut param_components = param.into_inner();
+
+                                // get the name of identifier
+                                let name = param_components.next().unwrap().into_ast();
+
+                                // if no type is specified for the param, we just set it to none
+                                let ty = param_components.next().map(|t| t.into_ast());
+
+                                ab.node(ast::FunctionDefArg { name, ty })
+                            })
+                            .collect();
+
+                        // now check here if the next rule is either a type or a expression,
+                        // if it is a type, we expect that there are two more rules to follow
+                        // since function literals cannot be without a fn_body
+                        let fn_type_or_body = components.next().unwrap();
+
+                        let (return_ty, fn_body) = match fn_type_or_body.as_rule() {
+                            Rule::any_type => {
+                                let body = components.next().unwrap();
+                                (Some(fn_type_or_body.into_ast()), body.into_ast())
+                            }
+                            Rule::expr => (None, fn_type_or_body.into_ast()),
+                            _ => unreachable!(),
+                        };
+
+                        ab.node(ast::Literal::Function(ast::FunctionDef {
+                            args,
+                            return_ty,
+                            fn_body,
+                        }))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
         }
     }
 }
 
 impl ast::IntoAstNode<ast::LiteralPattern> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::LiteralPattern> {
-        match self.as_rule() {
-            _ => unimplemented!(),
-        }
+        // match self.as_rule() {
+        //
+        // }
+        unimplemented!()
     }
 }
 
 impl ast::IntoAstNode<ast::Pattern> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::Pattern> {
-        match self.as_rule() {
-            _ => unimplemented!(),
-        }
+        // match self.as_rule() {
+        //
+        // }
+        unimplemented!()
     }
 }
 
 impl ast::IntoAstNode<ast::Expression> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::Expression> {
-        match self.as_rule() {
-            _ => unimplemented!(),
-        }
+        // match self.as_rule() {
+        //
+        // }
+        unimplemented!()
     }
 }
 
 impl ast::IntoAstNode<ast::Block> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::Block> {
-        match self.as_rule() {
-            _ => unimplemented!(),
-        }
+        // match self.as_rule() {
+        //
+        // }
+        unimplemented!()
     }
 }
 
 impl ast::IntoAstNode<ast::Statement> for HashPair<'_> {
     fn into_ast(self) -> ast::AstNode<ast::Statement> {
-        match self.as_rule() {
-            _ => unimplemented!(),
-        }
+        // match self.as_rule() {
+        //
+        // }
+        unimplemented!()
     }
 }
 
