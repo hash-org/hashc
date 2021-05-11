@@ -540,7 +540,7 @@ pub enum Expression {
     /// A property access.
     PropertyAccess(PropertyAccessExpr),
     /// A literal.
-    LiteralExpr(Literal),
+    LiteralExpr(AstNode<Literal>),
     /// A typed expression.
     Typed(TypedExpr),
     /// A block.

@@ -2,8 +2,8 @@ use std::iter;
 
 use num::BigInt;
 
-// use crate::ast::IntoAstNode;
-use crate::{ast, grammar::Rule, location::Location, modules::ModuleIdx};
+// use crate::IntoAstNode;
+use crate::{ast::*, grammar::Rule, location::Location, modules::ModuleIdx};
 
 struct AstBuilder {
     pos: Location,
@@ -21,15 +21,15 @@ impl AstBuilder {
     }
 
     #[allow(dead_code)] // @FIXME: temporary to prevent warnings.
-    pub fn from_node<T>(node: &ast::AstNode<T>) -> AstBuilder {
+    pub fn from_node<T>(node: &AstNode<T>) -> AstBuilder {
         AstBuilder {
             pos: node.pos,
             module: node.module,
         }
     }
 
-    pub fn node<T>(&self, inner: T) -> ast::AstNode<T> {
-        ast::AstNode {
+    pub fn node<T>(&self, inner: T) -> AstNode<T> {
+        AstNode {
             body: Box::new(inner),
             pos: self.pos,
             module: self.module,
@@ -39,10 +39,10 @@ impl AstBuilder {
 
 type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
-impl ast::IntoAstNode<ast::Name> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Name> {
+impl IntoAstNode<Name> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Name> {
         match self.as_rule() {
-            Rule::name => AstBuilder::from_pair(&self).node(ast::Name {
+            Rule::name => AstBuilder::from_pair(&self).node(Name {
                 string: self.as_str().to_owned(),
             }),
             _ => unreachable!(),
@@ -50,10 +50,10 @@ impl ast::IntoAstNode<ast::Name> for HashPair<'_> {
     }
 }
 
-impl ast::IntoAstNode<ast::AccessName> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::AccessName> {
+impl IntoAstNode<AccessName> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<AccessName> {
         match self.as_rule() {
-            Rule::access_name => AstBuilder::from_pair(&self).node(ast::AccessName {
+            Rule::access_name => AstBuilder::from_pair(&self).node(AccessName {
                 names: self.into_inner().map(|p| p.into_ast()).collect(),
             }),
             _ => unreachable!(),
@@ -67,22 +67,22 @@ const LIST_TYPE_NAME: &str = "List";
 const SET_TYPE_NAME: &str = "Set";
 const MAP_TYPE_NAME: &str = "Map";
 
-fn single_access_name(ab: &AstBuilder, name: &str) -> ast::AstNode<ast::AccessName> {
-    ab.node(ast::AccessName {
-        names: vec![ab.node(ast::Name {
+fn single_access_name(ab: &AstBuilder, name: &str) -> AstNode<AccessName> {
+    ab.node(AccessName {
+        names: vec![ab.node(Name {
             string: name.to_owned(),
         })],
     })
 }
 
-impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Type> {
+impl IntoAstNode<Type> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Type> {
         match self.as_rule() {
             Rule::any_type => {
                 let ab = AstBuilder::from_pair(&self);
                 let in_type = self.into_inner().next().unwrap();
                 match in_type.as_rule() {
-                    Rule::infer_type => ab.node(ast::Type::Infer),
+                    Rule::infer_type => ab.node(Type::Infer),
                     Rule::named_type => {
                         let mut in_named = in_type.into_inner();
 
@@ -92,7 +92,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                             .map(|n| n.into_inner().map(|p| p.into_ast()).collect())
                             .unwrap_or_default();
 
-                        ab.node(ast::Type::Named(ast::NamedType { name, type_args }))
+                        ab.node(Type::Named(NamedType { name, type_args }))
                     }
                     Rule::fn_type => {
                         let mut in_func = in_type.into_inner();
@@ -101,7 +101,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         let ret = in_func.next().unwrap().into_ast();
 
                         let args_ret = args.chain(iter::once(ret));
-                        ab.node(ast::Type::Named(ast::NamedType {
+                        ab.node(Type::Named(NamedType {
                             name: single_access_name(&ab, FUNCTION_TYPE_NAME),
                             type_args: args_ret.collect(),
                         }))
@@ -109,7 +109,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                     Rule::tuple_type => {
                         let inner = in_type.into_inner().map(|p| p.into_ast());
 
-                        ab.node(ast::Type::Named(ast::NamedType {
+                        ab.node(Type::Named(NamedType {
                             name: single_access_name(&ab, TUPLE_TYPE_NAME),
                             type_args: inner.collect(),
                         }))
@@ -120,7 +120,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         // list type should only have one type
                         debug_assert_eq!(inner.size_hint().0, 1);
 
-                        ab.node(ast::Type::Named(ast::NamedType {
+                        ab.node(Type::Named(NamedType {
                             name: single_access_name(&ab, LIST_TYPE_NAME),
                             type_args: inner.collect(),
                         }))
@@ -131,7 +131,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         // set type should only have one type
                         debug_assert_eq!(inner.size_hint().0, 1);
 
-                        ab.node(ast::Type::Named(ast::NamedType {
+                        ab.node(Type::Named(NamedType {
                             name: single_access_name(&ab, SET_TYPE_NAME),
                             type_args: inner.collect(),
                         }))
@@ -142,12 +142,12 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         // map type should only have a type for a key and a value
                         debug_assert_eq!(inner.size_hint().0, 2);
 
-                        ab.node(ast::Type::Named(ast::NamedType {
+                        ab.node(Type::Named(NamedType {
                             name: single_access_name(&ab, MAP_TYPE_NAME),
                             type_args: inner.collect(),
                         }))
                     }
-                    Rule::existential_type => ab.node(ast::Type::Existential),
+                    Rule::existential_type => ab.node(Type::Existential),
                     _ => unreachable!(),
                 }
             }
@@ -156,8 +156,8 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
     }
 }
 
-impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Literal> {
+impl IntoAstNode<Literal> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Literal> {
         match self.as_rule() {
             Rule::literal_expr => {
                 let ab = AstBuilder::from_pair(&self);
@@ -182,22 +182,22 @@ impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
                                     val.pow(exp);
                                 }
 
-                                ab.node(ast::Literal::Int(val))
+                                ab.node(Literal::Int(val))
                             }
                             Rule::hex_literal => {
                                 let val =
                                     BigInt::parse_bytes(inner.as_str().as_bytes(), 16).unwrap();
-                                ab.node(ast::Literal::Int(val))
+                                ab.node(Literal::Int(val))
                             }
                             Rule::octal_literal => {
                                 let val =
                                     BigInt::parse_bytes(inner.as_str().as_bytes(), 8).unwrap();
-                                ab.node(ast::Literal::Int(val))
+                                ab.node(Literal::Int(val))
                             }
                             Rule::bin_literal => {
                                 let val =
                                     BigInt::parse_bytes(inner.as_str().as_bytes(), 2).unwrap();
-                                ab.node(ast::Literal::Int(val))
+                                ab.node(Literal::Int(val))
                             }
                             _ => unreachable!(),
                         }
@@ -205,32 +205,32 @@ impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
                     Rule::float_literal => unimplemented!(),
                     Rule::char_literal => {
                         let c: char = in_expr.as_span().as_str().chars().next().unwrap();
-                        ab.node(ast::Literal::Char(c))
+                        ab.node(Literal::Char(c))
                     }
                     Rule::string_literal => {
                         let s = String::from(in_expr.as_span().as_str());
-                        ab.node(ast::Literal::Str(s))
+                        ab.node(Literal::Str(s))
                     }
                     Rule::list_literal => {
                         // since list literals are just a bunch of expressions, we just call
                         // into_ast() on each member and collect at the end
                         let elements = in_expr.into_inner().map(|p| p.into_ast()).collect();
 
-                        ab.node(ast::Literal::List(ast::ListLiteral { elements }))
+                        ab.node(Literal::List(ListLiteral { elements }))
                     }
                     Rule::set_literal => {
                         // since set literals are just a bunch of expressions, we just call
                         // into_ast() on each member and collect at the end
                         let elements = in_expr.into_inner().map(|p| p.into_ast()).collect();
 
-                        ab.node(ast::Literal::Set(ast::SetLiteral { elements }))
+                        ab.node(Literal::Set(SetLiteral { elements }))
                     }
                     Rule::tuple_literal => {
                         // since tuple literals are just a bunch of expressions, we just call
                         // into_ast() on each member and collect at the end
                         let elements = in_expr.into_inner().map(|p| p.into_ast()).collect();
 
-                        ab.node(ast::Literal::Tuple(ast::TupleLiteral { elements }))
+                        ab.node(Literal::Tuple(TupleLiteral { elements }))
                     }
                     Rule::map_literal => {
                         // A map is made of a vector of 'map_entries' rules, which are just two
@@ -244,7 +244,7 @@ impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
                             })
                             .collect();
 
-                        ab.node(ast::Literal::Map(ast::MapLiteral { elements }))
+                        ab.node(Literal::Map(MapLiteral { elements }))
                     }
                     Rule::fn_literal => {
                         // we're looking for a number of function arguments, an optional return and
@@ -265,7 +265,7 @@ impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
                                 // if no type is specified for the param, we just set it to none
                                 let ty = param_components.next().map(|t| t.into_ast());
 
-                                ab.node(ast::FunctionDefArg { name, ty })
+                                ab.node(FunctionDefArg { name, ty })
                             })
                             .collect();
 
@@ -283,7 +283,7 @@ impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
                             _ => unreachable!(),
                         };
 
-                        ab.node(ast::Literal::Function(ast::FunctionDef {
+                        ab.node(Literal::Function(FunctionDef {
                             args,
                             return_ty,
                             fn_body,
@@ -297,8 +297,8 @@ impl ast::IntoAstNode<ast::Literal> for HashPair<'_> {
     }
 }
 
-impl ast::IntoAstNode<ast::LiteralPattern> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::LiteralPattern> {
+impl IntoAstNode<LiteralPattern> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<LiteralPattern> {
         // match self.as_rule() {
         //
         // }
@@ -306,8 +306,8 @@ impl ast::IntoAstNode<ast::LiteralPattern> for HashPair<'_> {
     }
 }
 
-impl ast::IntoAstNode<ast::Pattern> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Pattern> {
+impl IntoAstNode<Pattern> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Pattern> {
         // match self.as_rule() {
         //
         // }
@@ -315,8 +315,30 @@ impl ast::IntoAstNode<ast::Pattern> for HashPair<'_> {
     }
 }
 
-impl ast::IntoAstNode<ast::Expression> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Expression> {
+impl IntoAstNode<Expression> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Expression> {
+        match self.as_rule() {
+            Rule::expr => {
+                let ab = AstBuilder::from_pair(&self);
+                let expr = self.into_inner().next().unwrap();
+
+                match expr.as_rule() {
+                    Rule::block => ab.node(Expression::Block(expr.into_ast())),
+                    Rule::struct_literal => ab.node(Expression::LiteralExpr(expr.into_ast())),
+                    Rule::binary_expr => {
+                        // now this is a bitch because we have o
+                        unimplemented!()
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl IntoAstNode<Block> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Block> {
         // match self.as_rule() {
         //
         // }
@@ -324,27 +346,53 @@ impl ast::IntoAstNode<ast::Expression> for HashPair<'_> {
     }
 }
 
-impl ast::IntoAstNode<ast::Block> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Block> {
-        // match self.as_rule() {
-        //
-        // }
-        unimplemented!()
-    }
-}
+impl IntoAstNode<Statement> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<Statement> {
+        match self.as_rule() {
+            Rule::statement => {
+                let ab = AstBuilder::from_pair(&self);
+                let statement = self.into_inner().next().unwrap();
 
-impl ast::IntoAstNode<ast::Statement> for HashPair<'_> {
-    fn into_ast(self) -> ast::AstNode<ast::Statement> {
-        // match self.as_rule() {
-        //
-        // }
-        unimplemented!()
+                // since we have block statements and semi statements, we can check here
+                // to see which path it is, if this is a block statement, we just call
+                // into_ast() since there is an implementation for block convetsions
+                match statement.as_rule() {
+                    Rule::block_st => statement.into_ast(),
+                    Rule::break_st => ab.node(Statement::Break),
+                    Rule::continue_st => ab.node(Statement::Continue),
+                    Rule::return_st => unimplemented!(),
+                    Rule::let_st => unimplemented!(),
+                    Rule::expr_or_assign_st => {
+                        let mut items = statement.into_inner().map(|p| p.into_ast());
+                        let lhs = items.next().unwrap();
+
+                        // if no rhs is present, this is just an singular expression instead of an
+                        // assignment
+                        match items.next() {
+                            Some(rhs) => ab.node(Statement::Assign(AssignStatement { lhs, rhs })),
+                            None => ab.node(Statement::Expr(lhs)),
+                        }
+                    }
+                    Rule::struct_def => {
+                        unimplemented!()
+                    }
+                    Rule::enum_def => {
+                        unimplemented!()
+                    }
+                    Rule::trait_def => {
+                        unimplemented!()
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{AccessName, AstNode, IntoAstNode, Name};
+    use crate::ast::*;
     use crate::grammar;
     use pest::Parser;
 

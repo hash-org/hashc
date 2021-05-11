@@ -77,7 +77,8 @@ fn execute(input: &str) {
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
             // parse the input
-            let _ = parse::statement(&expr);
+            let statement = parse::statement(&expr);
+            println!("{:#?}", statement);
 
             // Typecheck and execute...
         }

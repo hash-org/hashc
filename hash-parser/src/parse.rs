@@ -1,9 +1,9 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //
 // All rights reserved 2021 (c) The Hash Language authors
+use crate::ast::*;
 use crate::error::ParseError;
 use crate::grammar::{HashParser, Rule};
-use crate::{ast::*, location::Location};
 
 // use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -24,24 +24,11 @@ pub fn module(source: &str) -> Result<Module, ParseError> {
 /// Function to parse an individual statement. This function is primarily used for the interactive
 /// mode where only statements are accepted.
 pub fn statement(source: &str) -> Result<AstNode<Statement>, ParseError> {
-    let result = HashParser::parse(Rule::statement, source)?;
+    let mut result = HashParser::parse(Rule::statement, source)?;
 
     // @Temp: this is only temporary to display the parsed result for testing
     println!("{:?}", result);
 
-    let rules: Vec<Location> = result
-        .take_while(|pair| pair.as_rule() != Rule::EOI)
-        .map(Location::from)
-        .collect();
-
-    let temp = rules
-        .get(0)
-        .unwrap_or_else(|| panic!("Couldn't convert nodes into positions")); // @@Incomplete: maybe use an internal_panic function here?
-
-    // @@Incomplete: actully convert the item into an ast-node
-    Ok(AstNode::<Statement> {
-        body: Box::new(Statement::Continue),
-        pos: *temp,
-        module: 0,
-    })
+    let body: AstNode<Statement> = result.next().unwrap().into_ast();
+    Ok(body)
 }

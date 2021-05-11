@@ -53,7 +53,7 @@ enum SubCmd {
 #[derive(Clap)]
 struct AstGen {
     /// Input file to generate AST from
-    #[clap(required=true)]
+    #[clap(required = true)]
     filename: String,
 
     /// Run the AST generation in debug mode
@@ -64,7 +64,7 @@ struct AstGen {
 #[derive(Clap)]
 struct IrGen {
     /// Input file to generate IR from
-    #[clap(required=true)]
+    #[clap(required = true)]
     filename: String,
 
     /// Run the IR generation in debug mode
@@ -84,12 +84,15 @@ fn main() {
         }
     }
 
-
     // check here if we are operating in a special mode...
     if let Some(mode) = opts.mode {
         match mode {
-            SubCmd::AstGen(a) => println!("Generating ast for: {} with debug={}", a.filename, a.debug),
-            SubCmd::IrGen(i) => println!("Generating ir for: {} with debug={}", i.filename, i.debug),
+            SubCmd::AstGen(a) => {
+                println!("Generating ast for: {} with debug={}", a.filename, a.debug)
+            }
+            SubCmd::IrGen(i) => {
+                println!("Generating ir for: {} with debug={}", i.filename, i.debug)
+            }
         }
 
         return;
