@@ -38,6 +38,38 @@ struct CompilerOptions {
     /// Run the compiler in debug mode
     #[clap(short, long)]
     debug: bool,
+
+    #[clap(subcommand)]
+    mode: Option<SubCmd>,
+}
+
+#[derive(Clap)]
+enum SubCmd {
+    AstGen(AstGen),
+    IrGen(IrGen),
+}
+
+/// Generate AST from given input file
+#[derive(Clap)]
+struct AstGen {
+    /// Input file to generate AST from
+    #[clap(required=true)]
+    filename: String,
+
+    /// Run the AST generation in debug mode
+    #[clap(short, long)]
+    debug: bool,
+}
+/// Generate IR from the given input file
+#[derive(Clap)]
+struct IrGen {
+    /// Input file to generate IR from
+    #[clap(required=true)]
+    filename: String,
+
+    /// Run the IR generation in debug mode
+    #[clap(short, long)]
+    debug: bool,
 }
 
 fn main() {
@@ -50,6 +82,17 @@ fn main() {
         for path in opts.includes.iter() {
             println!("Running with {}", path);
         }
+    }
+
+
+    // check here if we are operating in a special mode...
+    if let Some(mode) = opts.mode {
+        match mode {
+            SubCmd::AstGen(a) => println!("Generating ast for: {} with debug={}", a.filename, a.debug),
+            SubCmd::IrGen(i) => println!("Generating ir for: {} with debug={}", i.filename, i.debug),
+        }
+
+        return;
     }
 
     match opts.execute {
