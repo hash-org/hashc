@@ -193,7 +193,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                                 // @@Correctness: maybe this shouldn't happen and we should make a
                                 //                float from the given number?
                                 if let Some(l) = components.next() {
-                                    let exp = u32::from_str_radix(l.as_str(), 10).unwrap();
+                                    let exp = l.as_str().parse::<u32>().unwrap();
                                     val.pow(exp);
                                 }
 
@@ -453,7 +453,7 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                 // can be zero or more accessors, we need continue looking at each rule until there
                 // are no more accessors. If there is an accessor, we pattern match for the type,
                 // transform the old 'subject' and continue
-                while let Some(accessor) = expr.next() {
+                for accessor in expr {
                     subject = match accessor.as_rule() {
                         Rule::property_access => {
                             ab.node(Expression::PropertyAccess(PropertyAccessExpr {
