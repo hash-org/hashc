@@ -319,6 +319,11 @@ pub struct LetStatement {
     ///
     /// Used for trait implementations.
     pub bound: Option<AstNode<Bound>>,
+
+    /// Any value that is assigned to the statement, simply
+    /// an expression. Since it is optional, it will be set
+    /// to none if there is no expression.
+    pub value: Option<AstNode<Expression>>,
 }
 
 /// An assign statement, e.g. `x = 4;`.

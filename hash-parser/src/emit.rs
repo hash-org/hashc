@@ -418,8 +418,21 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                 let subject_rule = subject_expr.as_rule();
 
                 let mut subject = match subject_rule {
-                    Rule::intrinsic_expr => unimplemented!(),
-                    Rule::import_expr => unimplemented!(),
+                    Rule::intrinsic_expr => ab.node(Expression::Intrinsic(IntrinsicKey {
+                        // @@Correctness: Currently, we preserve the '#' prefix for the intrinsic when
+                        // working with the key, is this correct or should we throw away the '#'?
+                        name: String::from(subject_expr.as_str()), // @@Redundant: Another uneccessary copy here??
+                    })),
+                    Rule::import_expr => {
+                        // we only care about the string literal here
+                        let import_path = subject_expr.into_inner().next().unwrap();
+                        let s = String::from(import_path.as_span().as_str());
+
+                        // get the string, but then convert into an AstNode using the string literal ast info
+                        ab.node(Expression::Import(
+                            AstBuilder::from_pair(&import_path).node(s),
+                        ))
+                    }
                     Rule::literal_expr => ab.node(Expression::LiteralExpr(subject_expr.into_ast())),
                     Rule::variable_expr => {
                         // so since this is going to be an access_name, which is a list of 'ident' rules,
