@@ -415,8 +415,9 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                 // an index, property_access or func args. So, we firstly convert the
                 // subject into an ast_node and then deal with a potential 'accessor'...
                 let subject_expr = expr.next().unwrap().into_inner().next().unwrap();
+                let subject_rule = subject_expr.as_rule();
 
-                let subject = match subject_expr.as_rule() {
+                let mut subject = match subject_rule {
                     Rule::intrinsic_expr => unimplemented!(),
                     Rule::import_expr => unimplemented!(),
                     Rule::literal_expr => ab.node(Expression::LiteralExpr(subject_expr.into_ast())),
@@ -445,18 +446,68 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                         }
                     }
                     Rule::paren_expr => subject_expr.into_ast(),
-                    k => {
-                        println!("got_rule={:?}", k);
-                        unreachable!()
-                    }
+                    k => panic!("unexpected rule within expr: {:?}", k),
                 };
 
+                // now let's check if there is an 'accessor' node with the subject. Since there
+                // can be zero or more accessors, we need continue looking at each rule until there
+                // are no more accessors. If there is an accessor, we pattern match for the type,
+                // transform the old 'subject' and continue
+                while let Some(accessor) = expr.next() {
+                    subject = match accessor.as_rule() {
+                        Rule::property_access => {
+                            ab.node(Expression::PropertyAccess(PropertyAccessExpr {
+                                subject,
+
+                                // it's safe to unwrap here since property access will always
+                                // provide the ident rule as the first one, otherwise it is a parsing error
+                                property: accessor.into_inner().next().unwrap().into_ast(),
+                            }))
+                        }
+                        Rule::fn_args => {
+                            // if it is func args, we need convert the 'subject' which is going
+                            // to be a VariableExpr into a FunctionCallExpr
+                            ab.node(Expression::FunctionCall(FunctionCallExpr {
+                                subject,
+                                args: AstBuilder::from_pair(&accessor).node(FunctionCallArgs {
+                                    entries: accessor.into_inner().map(|p| p.into_ast()).collect(),
+                                }),
+                            }))
+                        }
+                        // we need to convert this into a 'index' function call on the
+                        // current variable
+                        Rule::index_arg => {
+                            // if subject isn't a variable, how tf did we end up here
+                            debug_assert_eq!(subject_rule, Rule::variable_expr);
+
+                            // this is the expression within the brackets.
+                            let index_expr = accessor.into_inner().next().unwrap().into_ast();
+
+                            // @@Cutnpase: move this into a seprate function for transpilling built-in functions
+                            ab.node(Expression::FunctionCall(FunctionCallExpr {
+                                subject: ab.node(Expression::Variable(VariableExpr {
+                                    name: ab.node(AccessName {
+                                        names: vec![ab.node(Name {
+                                            string: String::from("index"),
+                                        })],
+                                    }),
+                                    type_args: vec![],
+                                })),
+                                args: ab.node(FunctionCallArgs {
+                                    entries: vec![subject, index_expr],
+                                }),
+                            }))
+                        }
+                        k => panic!("unexpected rule within variable expr: {:?}", k),
+                    };
+                }
+
+                // since there can be zero or more 'accessor' rules, we are sure that the current
+                // subject has been transformed as required, essentially nesting each form of
+                // accessor in each other
                 subject
             }
-            k => {
-                println!("got_rule={:?}", k);
-                unreachable!()
-            }
+            k => panic!("unexpected rule within expr: {:?}", k),
         }
     }
 }
