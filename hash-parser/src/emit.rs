@@ -548,7 +548,15 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     Rule::block_st => statement.into_ast(),
                     Rule::break_st => ab.node(Statement::Break),
                     Rule::continue_st => ab.node(Statement::Continue),
-                    Rule::return_st => unimplemented!(),
+                    Rule::return_st => {
+                        let ret_expr = statement.into_inner().next();
+
+                        if let Some(node) = ret_expr {
+                            ab.node(Statement::Return(Some(node.into_ast())))
+                        } else {
+                            ab.node(Statement::Return(None))
+                        }
+                    }
                     Rule::let_st => unimplemented!(),
                     Rule::expr_or_assign_st => {
                         let mut items = statement.into_inner().map(|p| p.into_ast());
