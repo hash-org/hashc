@@ -80,7 +80,7 @@ ident = @{ !( "_" ~ !ident_first_char ) ~ ident_first_char ~ ident_char* }
 
 /// Name and access name
 keyword_ident = @{ keyword ~ !ident_char } // Used to prevent keywords being used as identifiers.
-name = { !keyword_ident ~ ident }
+name = _{ !keyword_ident ~ ident }
 access_name = { name ~ (namespace_op ~ name)* }
 
 /// ---- Literals ----
@@ -233,8 +233,9 @@ binary_op = {
 /// Unary operators
 not_op = { "!" }
 notb_op = { "~" }
+pos_op = {"+"}
 neg_op = { "-" }
-unary_op = { not_op | notb_op | neg_op }
+unary_op = { not_op | notb_op | neg_op | pos_op }
 
 /// ---- Types ----
 

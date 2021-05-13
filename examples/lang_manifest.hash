@@ -11,6 +11,12 @@ struct MyStruct = <T> => {
 };
 
 
+enum Either = <T, A> => {
+  Left(T),
+  Right(T)
+};
+
+
 /* I am a multi block comment which has multiple lines and 
    can be use as documentation comments for functions, structs, enums,
    etc.

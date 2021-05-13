@@ -27,7 +27,7 @@ pub fn statement(source: &str) -> Result<AstNode<Statement>, ParseError> {
     let mut result = HashParser::parse(Rule::statement, source)?;
 
     // @Temp: this is only temporary to display the parsed result for testing
-    println!("{:?}", result);
+    println!("{:#?}", result);
 
     let body: AstNode<Statement> = result.next().unwrap().into_ast();
     Ok(body)

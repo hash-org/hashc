@@ -1,11 +1,11 @@
-use std::iter;
+use std::{iter, vec};
 
 use num::BigInt;
 
 // use crate::IntoAstNode;
-use crate::{ast::*, grammar::Rule, location::Location, modules::ModuleIdx};
+use crate::{ast::*, grammar::Rule, location::Location, modules::ModuleIdx, precedence::climb};
 
-struct AstBuilder {
+pub struct AstBuilder {
     pos: Location,
     module: ModuleIdx,
 }
@@ -35,6 +35,21 @@ impl AstBuilder {
             module: self.module,
         }
     }
+
+    pub fn node_from_pair<T>(
+        &self,
+        inner: T,
+        pair: &pest::iterators::Pair<'_, Rule>,
+    ) -> AstNode<T> {
+        let span = pair.as_span();
+        let pos = Location::Span(span.start(), span.end());
+
+        AstNode {
+            body: Box::new(inner),
+            pos,
+            module: self.module,
+        }
+    }
 }
 
 type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
@@ -42,7 +57,7 @@ type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 impl IntoAstNode<Name> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Name> {
         match self.as_rule() {
-            Rule::name => AstBuilder::from_pair(&self).node(Name {
+            Rule::ident => AstBuilder::from_pair(&self).node(Name {
                 string: self.as_str().to_owned(),
             }),
             _ => unreachable!(),
@@ -282,7 +297,6 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                             Rule::expr => (None, fn_type_or_body.into_ast()),
                             _ => unreachable!(),
                         };
-
                         ab.node(Literal::Function(FunctionDef {
                             args,
                             return_ty,
@@ -317,22 +331,132 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
 
 impl IntoAstNode<Expression> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Expression> {
+        let ab = AstBuilder::from_pair(&self);
+
         match self.as_rule() {
             Rule::expr => {
-                let ab = AstBuilder::from_pair(&self);
                 let expr = self.into_inner().next().unwrap();
 
                 match expr.as_rule() {
                     Rule::block => ab.node(Expression::Block(expr.into_ast())),
                     Rule::struct_literal => ab.node(Expression::LiteralExpr(expr.into_ast())),
                     Rule::binary_expr => {
-                        // now this is a bitch because we have o
-                        unimplemented!()
+                        let mut items = expr.clone().into_inner();
+
+                        // if this is an actual binary expr, we need to check if the second token is a
+                        // binary_op and the invoke prec_climber.
+                        let lhs = items.next().unwrap();
+
+                        match items.next() {
+                            Some(_) => climb(expr),
+                            None => lhs.into_ast(),
+                        }
                     }
+
                     _ => unreachable!(),
                 }
             }
-            _ => unreachable!(),
+            Rule::typed_expr => {
+                let expr = self.into_inner().next().unwrap();
+                let mut items = expr.into_inner();
+
+                // the next is a unary expression...
+                let inner = items.next().unwrap();
+
+                // check if this expression has a type...
+                match items.next() {
+                    Some(ty) => ab.node(Expression::Typed(TypedExpr {
+                        ty: ty.into_ast(), // convert the type into an AstNode
+                        expr: inner.into_ast(),
+                    })),
+                    None => inner.into_ast(),
+                }
+            }
+            Rule::unary_expr => {
+                let mut expr = self.into_inner();
+                // check the first token to is if it is a unary expression, if so we
+                // need convert this into the appropriate function call...
+                let op_or_single_expr = expr.next().unwrap();
+
+                match op_or_single_expr.as_rule() {
+                    Rule::unary_op => {
+                        let operator = op_or_single_expr.into_inner().next().unwrap();
+
+                        let fn_call = String::from(match operator.as_rule() {
+                            Rule::notb_op => "notb",
+                            Rule::not_op => "not",
+                            Rule::neg_op => "neg",
+                            Rule::pos_op => "pos",
+                            _ => unreachable!(),
+                        });
+
+                        // get the internal operand of the unary operator
+                        let operand = expr.next().unwrap();
+
+                        ab.node(Expression::FunctionCall(FunctionCallExpr {
+                            subject: ab.node(Expression::Variable(VariableExpr {
+                                name: ab.node(AccessName {
+                                    names: vec![ab.node(Name { string: fn_call })],
+                                }),
+                                type_args: vec![],
+                            })),
+                            args: ab.node(FunctionCallArgs {
+                                entries: vec![operand.into_ast()],
+                            }),
+                        }))
+                    }
+                    _ => op_or_single_expr.into_ast(),
+                }
+            }
+            Rule::single_expr => {
+                let mut expr = self.into_inner();
+
+                // a single expression is made of a 'subject' and then an accessor like a
+                // an index, property_access or func args. So, we firstly convert the
+                // subject into an ast_node and then deal with a potential 'accessor'...
+                let subject_expr = expr.next().unwrap().into_inner().next().unwrap();
+
+                let subject = match subject_expr.as_rule() {
+                    Rule::intrinsic_expr => unimplemented!(),
+                    Rule::import_expr => unimplemented!(),
+                    Rule::literal_expr => ab.node(Expression::LiteralExpr(subject_expr.into_ast())),
+                    Rule::variable_expr => {
+                        // so since this is going to be an access_name, which is a list of 'ident' rules,
+                        // we can directly convert this into a VariableExpr
+                        let mut var_expr = subject_expr.into_inner();
+
+                        let access_name = var_expr.next().unwrap();
+
+                        // is this even correct?
+                        let names: Vec<AstNode<Name>> =
+                            access_name.into_inner().map(|n| n.into_ast()).collect();
+
+                        // check for type args...
+                        if let Some(ty) = var_expr.next() {
+                            ab.node(Expression::Variable(VariableExpr {
+                                name: ab.node(AccessName { names }),
+                                type_args: ty.into_inner().map(|p| p.into_ast()).collect(),
+                            }))
+                        } else {
+                            ab.node(Expression::Variable(VariableExpr {
+                                name: ab.node(AccessName { names }),
+                                type_args: vec![],
+                            }))
+                        }
+                    }
+                    Rule::paren_expr => subject_expr.into_ast(),
+                    k => {
+                        println!("got_rule={:?}", k);
+                        unreachable!()
+                    }
+                };
+
+                subject
+            }
+            k => {
+                println!("got_rule={:?}", k);
+                unreachable!()
+            }
         }
     }
 }
@@ -369,7 +493,14 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         // if no rhs is present, this is just an singular expression instead of an
                         // assignment
                         match items.next() {
-                            Some(rhs) => ab.node(Statement::Assign(AssignStatement { lhs, rhs })),
+                            Some(_op) => {
+                                // TODO: we need to convert the operator into just a singular one since we
+                                // should transpile expressions that use a 're-assignment' operator into
+                                // a plain one, for example, `a += 2` should end up as `a = a + 2`...
+
+                                let rhs = items.next().unwrap();
+                                ab.node(Statement::Assign(AssignStatement { lhs, rhs }))
+                            }
                             None => ab.node(Statement::Expr(lhs)),
                         }
                     }

@@ -4,10 +4,15 @@
 
 extern crate pest;
 
+#[macro_use]
+extern crate lazy_static;
+
 pub mod ast;
 pub mod emit;
 pub mod error;
-pub mod grammar;
-pub mod location;
-pub mod modules;
 pub mod parse;
+
+mod grammar;
+mod location;
+mod modules;
+mod precedence;
