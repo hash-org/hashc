@@ -386,12 +386,11 @@ single_pattern = {
     literal_pattern |
     tuple_pattern   |
     grouped_pattern |
-    literal_pattern |
     namespace_pattern 
 }
 
 /// Compound pattern (matches a series of single patterns)
-compound_pattern = { single_pattern ~ (pipe_op ~ single_pattern)* }
+compound_pattern = _{ single_pattern ~ (pipe_op ~ single_pattern)* }
 
 /// Any pattern (includes optional if condition)
 pattern = { compound_pattern ~ (if_kw ~ expr)? }

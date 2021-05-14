@@ -322,10 +322,31 @@ impl IntoAstNode<LiteralPattern> for HashPair<'_> {
 
 impl IntoAstNode<Pattern> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Pattern> {
-        // match self.as_rule() {
-        //
-        // }
-        unimplemented!()
+        let ab = AstBuilder::from_pair(&self);
+
+        match self.as_rule() {
+            Rule::pattern => unimplemented!(),
+            Rule::single_pattern => {
+                let pat = self.into_inner().next().unwrap();
+
+                match pat.as_rule() {
+                    Rule::enum_pattern => unimplemented!(),
+                    Rule::binding_pattern => {
+                        let name = pat.into_inner().next().unwrap().into_ast();
+                        ab.node(Pattern::Binding(name))
+                    }
+                    Rule::ignore_pattern => unimplemented!(),
+                    Rule::struct_pattern => unimplemented!(),
+                    Rule::literal_pattern => unimplemented!(),
+                    Rule::tuple_pattern => unimplemented!(),
+                    Rule::grouped_pattern => unimplemented!(),
+                    Rule::namespace_pattern => unimplemented!(),
+                    k => panic!("unexpected rule within single_pattern: {:?}", k),
+                }
+            }
+            Rule::compound_pattern => unimplemented!(),
+            k => panic!("unexpected rule within expr: {:?}", k),
+        }
     }
 }
 
@@ -557,7 +578,28 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                             ab.node(Statement::Return(None))
                         }
                     }
-                    Rule::let_st => unimplemented!(),
+                    Rule::let_st => {
+                        // the first rule will be the pattern which can be automatically converted, whereas
+                        // then we have a trait bound and finally an optional expression which is used as an
+                        // assignment to the let statement
+                        let mut components = statement.into_inner();
+
+                        let pattern = components.next().unwrap().into_ast();
+
+                        // FIXME: bounds! bounds! bounds! developers!! developers!! developers!!
+                        // let bound = {...}
+
+                        let value = match components.next() {
+                            Some(expr) => Some(expr.into_ast()),
+                            None => None,
+                        };
+
+                        ab.node(Statement::Let(LetStatement {
+                            pattern,
+                            bound: None, // @Incomplete: add bound support
+                            value,
+                        }))
+                    }
                     Rule::expr_or_assign_st => {
                         let mut items = statement.into_inner().map(|p| p.into_ast());
                         let lhs = items.next().unwrap();
