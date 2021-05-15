@@ -788,10 +788,7 @@ impl IntoAstNode<Block> for HashPair<'_> {
             }
             Rule::body_block => {
                 ab.node(Block::Body(BodyBlock {
-                    statements: self
-                        .into_inner()
-                        .map(|p| p.into_ast())
-                        .collect(),
+                    statements: self.into_inner().map(|p| p.into_ast()).collect(),
                     // @@FIXME: since the tokeniser cannot tell the difference betweeen a statment and an expression (what is returned), we need to do it here...
                     expr: None,
                 }))
@@ -874,7 +871,7 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     _ => unreachable!(),
                 }
             }
-            // This rule must be present here because body_block's are made of a 
+            // This rule must be present here because body_block's are made of a
             // arbitrary number of statements, and an optional final expression.
             // So, when we convert the body_blocks' into ast, we don't know if the
             // last item is a statement or expression...
