@@ -83,6 +83,52 @@ impl IntoAstNode<Name> for HashPair<'_> {
     }
 }
 
+impl IntoAstNode<StructDefEntry> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<StructDefEntry> {
+        match self.as_rule() {
+            Rule::struct_def_field => {
+                let ab = AstBuilder::from_pair(&self);
+                let mut components = self.into_inner();
+
+                let name = components.next().unwrap().into_ast();
+                let next_node = components.next();
+
+                let (ty, default) = match next_node {
+                    Some(pair) => match pair.as_rule() {
+                        Rule::any_type => (
+                            Some(pair.into_ast()),
+                            components.next().map(|p| p.into_ast()),
+                        ),
+                        Rule::expr => (None, Some(pair.into_ast())),
+                        k => panic!("unexpected rule within literal_pattern: {:?}", k),
+                    },
+                    None => (None, None),
+                };
+
+                ab.node(StructDefEntry { name, ty, default })
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl IntoAstNode<EnumDefEntry> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<EnumDefEntry> {
+        match self.as_rule() {
+            Rule::enum_field => {
+                let ab = AstBuilder::from_pair(&self);
+                let mut components = self.into_inner();
+
+                let name = components.next().unwrap().into_ast();
+                let args = components.map(|p| p.into_ast()).collect();
+
+                ab.node(EnumDefEntry { name, args })
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl IntoAstNode<Bound> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Bound> {
         match self.as_rule() {
@@ -265,13 +311,6 @@ impl IntoAstNode<Literal> for HashPair<'_> {
 
                         let val = BigInt::parse_bytes(num.as_str().as_bytes(), 10).unwrap();
 
-                        // @@Correctness: maybe this shouldn't happen and we should make a
-                        //                float from the given number?
-                        if let Some(l) = components.next() {
-                            let exp = l.as_str().parse::<u32>().unwrap();
-                            val.pow(exp);
-                        }
-
                         ab.node(Literal::Int(val))
                     }
                     Rule::hex_literal => {
@@ -289,7 +328,40 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                     _ => unreachable!(),
                 }
             }
-            Rule::float_literal => unimplemented!(),
+            Rule::float_literal => {
+                let mut components = self.into_inner();
+
+                // float_literal is made of three parts, the integer part, fractical part
+                // and an optional exponent part...
+                let float = components.next().unwrap();
+
+                let mut value: f64 = float
+                    .as_str()
+                    .parse()
+                    .unwrap_or_else(|_| panic!("Invalid float")); // @@Incomplete: change this to report an ast error!
+
+                // apply exponent if any
+                value = match components.next() {
+                    Some(pair) => {
+                        // since it might also have a -/+ sign, we need join it with the exponent int literal...
+                        // @@Speed: is this a good way of joining strings...?
+                        let str_val = pair
+                            .into_inner()
+                            .map(|p| p.as_str())
+                            .collect::<Vec<&str>>()
+                            .join("");
+
+                        let exponent: i32 = str_val
+                            .parse()
+                            .unwrap_or_else(|_| panic!("Invalid float exp: {}", str_val)); // @@Incomplete: change this to report an ast error!
+
+                        value.powi(exponent)
+                    }
+                    None => value,
+                };
+
+                ab.node(Literal::Float(value))
+            }
             Rule::char_literal => {
                 let c: char = self.as_span().as_str().chars().next().unwrap();
                 ab.node(Literal::Char(c))
@@ -1010,31 +1082,84 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         }))
                     }
                     Rule::expr_or_assign_st => {
-                        let mut items = statement.into_inner().map(|p| p.into_ast());
-                        let lhs = items.next().unwrap();
+                        let mut components = statement.into_inner().map(|p| p.into_ast());
+                        let lhs = components.next().unwrap();
 
                         // if no rhs is present, this is just an singular expression instead of an
                         // assignment
-                        match items.next() {
+                        match components.next() {
                             Some(_op) => {
                                 // TODO: we need to convert the operator into just a singular one since we
                                 // should transpile expressions that use a 're-assignment' operator into
                                 // a plain one, for example, `a += 2` should end up as `a = a + 2`...
 
-                                let rhs = items.next().unwrap();
+                                let rhs = components.next().unwrap();
                                 ab.node(Statement::Assign(AssignStatement { lhs, rhs }))
                             }
                             None => ab.node(Statement::Expr(lhs)),
                         }
                     }
                     Rule::struct_def => {
-                        unimplemented!()
+                        let mut components = statement.into_inner();
+                        let name = components.next().unwrap().into_ast();
+
+                        let bound_or_fields = components.next().unwrap();
+                        let mut entries = vec![];
+
+                        let bound = match bound_or_fields.as_rule() {
+                            Rule::bound => Some(bound_or_fields.into_ast()),
+                            Rule::struct_def_fields => {
+                                entries =
+                                    bound_or_fields.into_inner().map(|p| p.into_ast()).collect();
+
+                                None
+                            }
+                            k => panic!("Unexpected rule within struct_def: {:?}", k),
+                        };
+
+                        ab.node(Statement::StructDef(StructDef {
+                            name,
+                            bound,
+                            entries,
+                        }))
                     }
                     Rule::enum_def => {
-                        unimplemented!()
+                        let mut components = statement.into_inner();
+                        let name = components.next().unwrap().into_ast();
+
+                        let bound_or_fields = components.next().unwrap();
+                        let mut entries = vec![];
+
+                        let bound = match bound_or_fields.as_rule() {
+                            Rule::bound => Some(bound_or_fields.into_ast()),
+                            Rule::struct_def_fields => {
+                                entries =
+                                    bound_or_fields.into_inner().map(|p| p.into_ast()).collect();
+
+                                None
+                            }
+                            k => panic!("Unexpected rule within enum_def: {:?}", k),
+                        };
+
+                        ab.node(Statement::EnumDef(EnumDef {
+                            name,
+                            bound,
+                            entries,
+                        }))
                     }
                     Rule::trait_def => {
-                        unimplemented!()
+                        let mut components = statement.into_inner();
+                        let name = components.next().unwrap().into_ast();
+                        let bound = components.next().unwrap().into_ast();
+
+                        // @@Incomplete: ensure that this is a function_type!!
+                        let trait_type = components.next().unwrap().into_ast();
+
+                        ab.node(Statement::TraitDef(TraitDef {
+                            name,
+                            bound,
+                            trait_type,
+                        }))
                     }
                     _ => unreachable!(),
                 }

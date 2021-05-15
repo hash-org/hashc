@@ -107,16 +107,18 @@ bin_literal = ${ bin_prefix ~ bin_digit ~ (bin_digit | digit_sep)* }
 /// Shared definitions between decimal and float
 num_part = @{ decimal_digit ~ (decimal_digit | digit_sep)* }
 exp      = _{ "e" }
-exp_part =  ${ exp ~ (add_op | sub_op)? ~ num_part }
+sign     = _{add_op | sub_op}
+exp_part =  ${ exp ~ sign? ~ num_part }
 
 /// Decimal
 decimal_digit = _{ ASCII_DIGIT }
 decimal_prefix = _{ "0d" }
-decimal_literal = ${ decimal_prefix? ~ num_part ~ exp_part? }
+decimal_literal = ${ decimal_prefix? ~ num_part }
 
 /// Float literal
 float_period = _{ "." }
-float_literal = ${ num_part ~ float_period ~ num_part ~ exp_part? }
+float_component = ${num_part ~ float_period ~ num_part}
+float_literal = ${ float_component ~ exp_part? }
 
 /// String literal
 string_quote = _{ "\"" }

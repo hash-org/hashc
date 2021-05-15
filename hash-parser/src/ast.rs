@@ -358,7 +358,7 @@ pub struct StructDef {
     /// The name of the struct.
     pub name: AstNode<Name>,
     /// The bound of the struct.
-    pub bound: AstNode<Bound>,
+    pub bound: Option<AstNode<Bound>>,
     /// The fields of the struct, in the form of [StructDefEntry].
     pub entries: Vec<AstNode<StructDefEntry>>,
 }
@@ -378,7 +378,7 @@ pub struct EnumDef {
     /// The name of the enum.
     pub name: AstNode<Name>,
     /// The bounds of the enum.
-    pub bound: AstNode<Bound>,
+    pub bound: Option<AstNode<Bound>>,
     /// The variants of the enum, in the form of [EnumDefEntry].
     pub entries: Vec<AstNode<EnumDefEntry>>,
 }
