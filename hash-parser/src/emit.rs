@@ -2,8 +2,27 @@ use std::{iter, vec};
 
 use num::BigInt;
 
-// use crate::IntoAstNode;
 use crate::{ast::*, grammar::Rule, location::Location, modules::ModuleIdx, precedence::climb};
+
+/// Utility for creating a boolean in enum representation
+fn make_boolean(variant: bool, ab: &AstBuilder) -> AstNode<AccessName> {
+    let name_ref = String::from(match variant {
+        false => "false",
+        true => "true",
+    });
+
+    ab.node(AccessName {
+        names: vec![ab.node(Name { string: name_ref })],
+    })
+}
+
+/// Utility finction for creating a variable from a given name.
+fn make_variable(name: AstNode<AccessName>, ab: &AstBuilder) -> AstNode<Expression> {
+    ab.node(Expression::Variable(VariableExpr {
+        name,
+        type_args: vec![],
+    }))
+}
 
 pub struct AstBuilder {
     pos: Location,
@@ -628,15 +647,7 @@ impl IntoAstNode<Block> for HashPair<'_> {
                         }
 
                         ab.node(Block::Match(MatchBlock {
-                            subject: ab.node(Expression::Variable(VariableExpr {
-                                // @Improvement: maybe a function to make a boolean for transpilation purposes...
-                                name: ab.node(AccessName {
-                                    names: vec![ab.node(Name {
-                                        string: String::from("true"),
-                                    })],
-                                }),
-                                type_args: vec![],
-                            })),
+                            subject: make_variable(make_boolean(true, &ab), &ab),
                             cases,
                         }))
                     }
@@ -676,8 +687,101 @@ impl IntoAstNode<Block> for HashPair<'_> {
 
                         ab.node(Block::Loop(body_block))
                     }
-                    Rule::for_block => unimplemented!(),
-                    Rule::while_block => unimplemented!(),
+                    Rule::for_block => {
+                        let mut for_block = block.into_inner();
+
+                        let pattern: AstNode<Pattern> = for_block.next().unwrap().into_ast();
+                        let pat_builder = AstBuilder::from_node(&pattern);
+
+                        let iterator: AstNode<Expression> = for_block.next().unwrap().into_ast();
+                        let iter_builder = AstBuilder::from_node(&iterator);
+
+                        let body: AstNode<Block> = for_block.next().unwrap().into_ast();
+                        let body_builder = AstBuilder::from_node(&body);
+
+                        ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
+                            subject: iter_builder.node(Expression::FunctionCall(
+                                FunctionCallExpr {
+                                    subject: iter_builder.node(Expression::Variable(
+                                        VariableExpr {
+                                            name: iter_builder.node(AccessName {
+                                                names: vec![iter_builder.node(Name {
+                                                    string: String::from("next"),
+                                                })],
+                                            }),
+                                            type_args: vec![],
+                                        },
+                                    )),
+                                    args: iter_builder.node(FunctionCallArgs {
+                                        entries: vec![iterator],
+                                    }),
+                                },
+                            )),
+                            cases: vec![
+                                body_builder.node(MatchCase {
+                                    pattern: pat_builder.node(Pattern::Enum(EnumPattern {
+                                        name: iter_builder.node(AccessName {
+                                            names: vec![iter_builder.node(Name {
+                                                string: String::from("Some"),
+                                            })],
+                                        }),
+                                        args: vec![pattern],
+                                    })),
+                                    expr: body_builder.node(Expression::Block(body)),
+                                }),
+                                body_builder.node(MatchCase {
+                                    pattern: pat_builder.node(Pattern::Enum(EnumPattern {
+                                        name: iter_builder.node(AccessName {
+                                            names: vec![iter_builder.node(Name {
+                                                string: String::from("None"),
+                                            })],
+                                        }),
+                                        args: vec![],
+                                    })),
+                                    expr: body_builder.node(Expression::Block(body_builder.node(
+                                        Block::Body(BodyBlock {
+                                            statements: vec![body_builder.node(Statement::Break)],
+                                            expr: None,
+                                        }),
+                                    ))),
+                                }),
+                            ],
+                        }))))
+                    }
+                    Rule::while_block => {
+                        let mut while_block = block.into_inner();
+
+                        let condition: AstNode<Expression> = while_block.next().unwrap().into_ast();
+                        let condition_builder = AstBuilder::from_node(&condition);
+
+                        let body: AstNode<Block> = while_block.next().unwrap().into_ast();
+                        let body_builder = AstBuilder::from_node(&body);
+
+                        ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
+                            subject: condition,
+                            cases: vec![
+                                body_builder.node(MatchCase {
+                                    pattern: condition_builder.node(Pattern::Enum(EnumPattern {
+                                        name: make_boolean(true, &condition_builder),
+                                        args: vec![],
+                                    })),
+                                    expr: body_builder.node(Expression::Block(body)),
+                                }),
+                                body_builder.node(MatchCase {
+                                    pattern: condition_builder.node(Pattern::Enum(EnumPattern {
+                                        name: make_boolean(false, &condition_builder),
+                                        args: vec![],
+                                    })),
+                                    expr: body_builder.node(Expression::Block(body_builder.node(
+                                        Block::Body(BodyBlock {
+                                            statements: vec![body_builder.node(Statement::Break)],
+                                            expr: None,
+                                        }),
+                                    ))),
+                                }),
+                            ],
+                        }))))
+                    }
                     Rule::body_block => block.into_ast(),
                     k => panic!("unexpected rule within block variant: {:?}", k),
                 }
