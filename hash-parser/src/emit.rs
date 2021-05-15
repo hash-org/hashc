@@ -640,8 +640,42 @@ impl IntoAstNode<Block> for HashPair<'_> {
                             cases,
                         }))
                     }
-                    Rule::match_block => unimplemented!(),
-                    Rule::loop_block => unimplemented!(),
+                    Rule::match_block => {
+                        let mut match_block = block.into_inner();
+
+                        // firstly get the expresion condition from the match block, the
+                        // next rule will be a bunch of match_case rules which can be
+                        // converted into ast using the pattern and block implementations...
+                        let subject = match_block.next().unwrap().into_ast();
+                        let match_cases = match_block.next().unwrap();
+
+                        let mut cases = vec![];
+
+                        for case in match_cases.into_inner() {
+                            let case_builder = AstBuilder::from_pair(&case);
+
+                            let ast_case = match case.as_rule() {
+                                Rule::match_case => {
+                                    let mut components = case.into_inner();
+
+                                    let pattern = components.next().unwrap().into_ast();
+                                    let expr = components.next().unwrap().into_ast();
+
+                                    case_builder.node(MatchCase { pattern, expr })
+                                }
+                                k => panic!("unexpected rule within match_case: {:?}", k),
+                            };
+
+                            cases.push(ast_case);
+                        }
+
+                        ab.node(Block::Match(MatchBlock { subject, cases }))
+                    }
+                    Rule::loop_block => {
+                        let body_block = block.into_inner().next().unwrap().into_ast();
+
+                        ab.node(Block::Loop(body_block))
+                    }
                     Rule::for_block => unimplemented!(),
                     Rule::while_block => unimplemented!(),
                     Rule::body_block => block.into_ast(),
@@ -698,10 +732,7 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         // FIXME: bounds! bounds! bounds! developers!! developers!! developers!!
                         // let bound = {...}
 
-                        let value = match components.next() {
-                            Some(expr) => Some(expr.into_ast()),
-                            None => None,
-                        };
+                        let value = components.next().map(|expr| expr.into_ast());
 
                         ab.node(Statement::Let(LetStatement {
                             pattern,
