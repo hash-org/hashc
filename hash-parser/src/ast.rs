@@ -228,7 +228,7 @@ pub struct DestructuringPattern {
     /// The name of the field.
     pub name: AstNode<Name>,
     /// The pattern to match the field's value with.
-    pub patterns: AstNode<Pattern>,
+    pub pattern: AstNode<Pattern>,
 }
 
 /// A struct pattern, e.g. `Dog { name = "Frank"; age; }`

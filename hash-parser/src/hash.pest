@@ -357,7 +357,7 @@ enum_pattern_args = { paren_left ~ pattern ~ (comma_op ~ pattern)* ~ paren_right
 enum_pattern = { access_name ~ enum_pattern_args }
 
 /// Namespace pattern
-namespace_pattern_field = { name ~ (eq_op ~ pattern)? }
+namespace_pattern_field = { name ~ (colon_op ~ pattern)? }
 namespace_pattern = { curly_left ~ (namespace_pattern_field ~ (comma_op ~ namespace_pattern_field)*)? ~ curly_right }
 
 /// Tuple pattern
