@@ -446,7 +446,8 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                     })),
                     Rule::import_expr => {
                         // we only care about the string literal here
-                        let import_path = subject_expr.into_inner().next().unwrap();
+                        let import_call = subject_expr.into_inner().next().unwrap();
+                        let import_path = import_call.into_inner().next().unwrap();
                         let s = String::from(import_path.as_span().as_str());
 
                         // get the string, but then convert into an AstNode using the string literal ast info
@@ -548,25 +549,133 @@ impl IntoAstNode<Expression> for HashPair<'_> {
 
 impl IntoAstNode<Block> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Block> {
-        // match self.as_rule() {
-        //
-        // }
-        unimplemented!()
+        let ab = AstBuilder::from_pair(&self);
+
+        match self.as_rule() {
+            Rule::block => {
+                let block = self.into_inner().next().unwrap();
+
+                match block.as_rule() {
+                    Rule::if_else_block => {
+                        // we transpile if-else blocks into match blocks in order to simplify
+                        // the typechecking process and optimisation effors.
+                        // Firstly, since we always want to check each case, we convert the
+                        // if statement into a series of and-patterns, where the right handside
+                        // pattern is the condition to execute the branch...
+                        //
+                        // For example:
+                        // >>> if a {a_branch} else if b {b_branch} else {c_branch}
+                        // will be transpiled into...
+                        // >>> match true {
+                        //      _ if a => a_branch
+                        //      _ if b => b_branch
+                        //      _ => c_branch
+                        //     }
+                        //
+                        // Adittionally, if no 'else' clause is specified, we fill it with an
+                        // empty block since an if-block could be assigned to any variable and therefore
+                        // we need to know the outcome of all branches for typechecking.
+                        let mut cases: Vec<AstNode<MatchCase>> = vec![];
+                        let mut append_else = true;
+
+                        for if_condition in block.into_inner() {
+                            let block_builder = AstBuilder::from_pair(&if_condition);
+
+                            let pattern = match if_condition.as_rule() {
+                                Rule::if_block => {
+                                    let mut components = if_condition.into_inner();
+
+                                    // get the clause and block from the if-block components
+                                    let clause = components.next().unwrap().into_ast();
+                                    let block = components.next().unwrap().into_ast();
+
+                                    block_builder.node(MatchCase {
+                                        pattern: block_builder.node(Pattern::If(IfPattern {
+                                            pattern: block_builder.node(Pattern::Ignore),
+                                            condition: clause,
+                                        })),
+                                        expr: AstBuilder::from_node(&block)
+                                            .node(Expression::Block(block)),
+                                    })
+                                }
+                                Rule::else_block => {
+                                    append_else = false;
+
+                                    let block =
+                                        if_condition.into_inner().next().unwrap().into_ast();
+
+                                    block_builder.node(MatchCase {
+                                        pattern: block_builder.node(Pattern::Ignore),
+                                        expr: AstBuilder::from_node(&block)
+                                            .node(Expression::Block(block)),
+                                    })
+                                }
+                                k => panic!("unexpected rule within if-else-block: {:?}", k),
+                            };
+
+                            cases.push(pattern)
+                        }
+
+                        // if no else-block was provided, we need to add one manually
+                        if append_else {
+                            cases.push(ab.node(MatchCase {
+                                pattern: ab.node(Pattern::Ignore),
+                                expr: ab.node(Expression::Block(ab.node(Block::Body(BodyBlock {
+                                    statements: vec![],
+                                    expr: None,
+                                })))),
+                            }))
+                        }
+
+                        ab.node(Block::Match(MatchBlock {
+                            subject: ab.node(Expression::Variable(VariableExpr {
+                                // @Improvement: maybe a function to make a boolean for transpilation purposes...
+                                name: ab.node(AccessName {
+                                    names: vec![ab.node(Name {
+                                        string: String::from("true"),
+                                    })],
+                                }),
+                                type_args: vec![],
+                            })),
+                            cases,
+                        }))
+                    }
+                    Rule::match_block => unimplemented!(),
+                    Rule::loop_block => unimplemented!(),
+                    Rule::for_block => unimplemented!(),
+                    Rule::while_block => unimplemented!(),
+                    Rule::body_block => block.into_ast(),
+                    k => panic!("unexpected rule within block variant: {:?}", k),
+                }
+            }
+            Rule::body_block => {
+                ab.node(Block::Body(BodyBlock {
+                    statements: self
+                        .into_inner()
+                        .map(|p| AstBuilder::from_pair(&p).node(Statement::Expr(p.into_ast())))
+                        .collect(),
+                    // @@FIXME: since the tokeniser cannot tell the difference betweeen a statment and an expression (what is returned), we need to do it here...
+                    expr: None,
+                }))
+            }
+            k => panic!("unexpected rule within block: {:?}", k),
+        }
     }
 }
 
 impl IntoAstNode<Statement> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Statement> {
+        let ab = AstBuilder::from_pair(&self);
+
         match self.as_rule() {
             Rule::statement => {
-                let ab = AstBuilder::from_pair(&self);
                 let statement = self.into_inner().next().unwrap();
 
                 // since we have block statements and semi statements, we can check here
                 // to see which path it is, if this is a block statement, we just call
                 // into_ast() since there is an implementation for block convetsions
                 match statement.as_rule() {
-                    Rule::block_st => statement.into_ast(),
+                    Rule::block => ab.node(Statement::Block(statement.into_ast())),
                     Rule::break_st => ab.node(Statement::Break),
                     Rule::continue_st => ab.node(Statement::Continue),
                     Rule::return_st => {
@@ -630,7 +739,8 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     _ => unreachable!(),
                 }
             }
-            _ => unreachable!(),
+            // Rule::block_st => ab.node(Statement::Block(self.into_ast())),
+            k => panic!("unexpected rule within statement: {:?}", k),
         }
     }
 }
