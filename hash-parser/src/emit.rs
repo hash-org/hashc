@@ -35,11 +35,10 @@ impl AstBuilder {
         let pos = Location::Span(span.start(), span.end());
         AstBuilder {
             pos,
-            module: 0, // @Todo
+            module: 0, // @TODO: add multiple module support
         }
     }
 
-    #[allow(dead_code)] // @FIXME: temporary to prevent warnings.
     pub fn from_node<T>(node: &AstNode<T>) -> AstBuilder {
         AstBuilder {
             pos: node.pos,
@@ -87,7 +86,54 @@ impl IntoAstNode<Name> for HashPair<'_> {
 impl IntoAstNode<Bound> for HashPair<'_> {
     fn into_ast(self) -> AstNode<Bound> {
         match self.as_rule() {
-            Rule::bound => unimplemented!(),
+            Rule::bound => {
+                let ab = AstBuilder::from_pair(&self);
+                let mut components = self.into_inner();
+
+                // firsly convert the type args by just iterating the inner component
+                // of the type_args rule...
+                let type_args: Vec<AstNode<Type>> = components
+                    .next()
+                    .unwrap()
+                    .into_inner()
+                    .map(|p| p.into_ast())
+                    .collect();
+
+                // check if there are any trait_bounds attached with this bound
+                let trait_bounds = match components.next() {
+                    Some(pair) => pair.into_inner().map(|p| p.into_ast()).collect(),
+                    None => vec![],
+                };
+
+                ab.node(Bound {
+                    type_args,
+                    trait_bounds,
+                })
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl IntoAstNode<TraitBound> for HashPair<'_> {
+    fn into_ast(self) -> AstNode<TraitBound> {
+        match self.as_rule() {
+            Rule::trait_bound => {
+                let ab = AstBuilder::from_pair(&self);
+                let mut components = self.into_inner();
+
+                // convert the access_name rule into a AstNode, each trait bound is guaranteed
+                // to have an access name, so it's safe to unwrap here...
+                let name = components.next().unwrap().into_ast();
+
+                // convert any type args the trait bound contains
+                let type_args = match components.next() {
+                    Some(pair) => pair.into_inner().map(|p| p.into_ast()).collect(),
+                    None => vec![],
+                };
+
+                ab.node(TraitBound { name, type_args })
+            }
             _ => unreachable!(),
         }
     }
