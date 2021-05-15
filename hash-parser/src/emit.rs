@@ -393,7 +393,7 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                         }
                     }
 
-                    _ => unreachable!(),
+                    k => panic!("unexpected rule within inner_expr: {:?}", k),
                 }
             }
             Rule::typed_expr => {
@@ -790,7 +790,7 @@ impl IntoAstNode<Block> for HashPair<'_> {
                 ab.node(Block::Body(BodyBlock {
                     statements: self
                         .into_inner()
-                        .map(|p| AstBuilder::from_pair(&p).node(Statement::Expr(p.into_ast())))
+                        .map(|p| p.into_ast())
                         .collect(),
                     // @@FIXME: since the tokeniser cannot tell the difference betweeen a statment and an expression (what is returned), we need to do it here...
                     expr: None,
@@ -874,7 +874,11 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     _ => unreachable!(),
                 }
             }
-            // Rule::block_st => ab.node(Statement::Block(self.into_ast())),
+            // This rule must be present here because body_block's are made of a 
+            // arbitrary number of statements, and an optional final expression.
+            // So, when we convert the body_blocks' into ast, we don't know if the
+            // last item is a statement or expression...
+            Rule::expr => ab.node(Statement::Expr(self.into_ast())),
             k => panic!("unexpected rule within statement: {:?}", k),
         }
     }

@@ -332,7 +332,7 @@ typed_expr = { unary_expr ~ ( as_kw ~ any_type )? }
 binary_expr = { typed_expr ~ ( binary_op ~ typed_expr )* }
 
 /// Block expression
-block_expr = { block }
+block_expr = _{ block }
 
 /// Struct literal
 /// Placed outside of other literals to prevent blocks being parsed as struct
