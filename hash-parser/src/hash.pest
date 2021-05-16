@@ -153,7 +153,7 @@ map_literal = { curly_left ~ ((colon_op ~ &curly_right) | (map_entry ~ (comma_op
 /// Function literal
 fn_param = { name ~ (colon_op ~ any_type)? }
 fn_params = { paren_left ~ (fn_param ~ (comma_op ~ fn_param)*)? ~ paren_right }
-fn_return_ty = { colon_op ~ any_type }
+fn_return_ty = _{ colon_op ~ any_type }
 fn_body = { arrow_op ~ expr }
 fn_literal = { fn_params ~ fn_return_ty? ~ fn_body }
 

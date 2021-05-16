@@ -890,46 +890,45 @@ impl IntoAstNode<Block> for HashPair<'_> {
                         // Adittionally, if no 'else' clause is specified, we fill it with an
                         // empty block since an if-block could be assigned to any variable and therefore
                         // we need to know the outcome of all branches for typechecking.
-                        let mut cases: Vec<AstNode<MatchCase>> = vec![];
                         let mut append_else = true;
+                        let mut cases: Vec<AstNode<MatchCase>> = block
+                            .into_inner()
+                            .map(|if_condition| {
+                                let block_builder = AstBuilder::from_pair(&if_condition);
 
-                        for if_condition in block.into_inner() {
-                            let block_builder = AstBuilder::from_pair(&if_condition);
+                                match if_condition.as_rule() {
+                                    Rule::if_block => {
+                                        let mut components = if_condition.into_inner();
 
-                            let pattern = match if_condition.as_rule() {
-                                Rule::if_block => {
-                                    let mut components = if_condition.into_inner();
+                                        // get the clause and block from the if-block components
+                                        let clause = components.next().unwrap().into_ast();
+                                        let block = components.next().unwrap().into_ast();
 
-                                    // get the clause and block from the if-block components
-                                    let clause = components.next().unwrap().into_ast();
-                                    let block = components.next().unwrap().into_ast();
+                                        block_builder.node(MatchCase {
+                                            pattern: block_builder.node(Pattern::If(IfPattern {
+                                                pattern: block_builder.node(Pattern::Ignore),
+                                                condition: clause,
+                                            })),
+                                            expr: AstBuilder::from_node(&block)
+                                                .node(Expression::Block(block)),
+                                        })
+                                    }
+                                    Rule::else_block => {
+                                        append_else = false;
 
-                                    block_builder.node(MatchCase {
-                                        pattern: block_builder.node(Pattern::If(IfPattern {
+                                        let block =
+                                            if_condition.into_inner().next().unwrap().into_ast();
+
+                                        block_builder.node(MatchCase {
                                             pattern: block_builder.node(Pattern::Ignore),
-                                            condition: clause,
-                                        })),
-                                        expr: AstBuilder::from_node(&block)
-                                            .node(Expression::Block(block)),
-                                    })
+                                            expr: AstBuilder::from_node(&block)
+                                                .node(Expression::Block(block)),
+                                        })
+                                    }
+                                    k => panic!("unexpected rule within if-else-block: {:?}", k),
                                 }
-                                Rule::else_block => {
-                                    append_else = false;
-
-                                    let block =
-                                        if_condition.into_inner().next().unwrap().into_ast();
-
-                                    block_builder.node(MatchCase {
-                                        pattern: block_builder.node(Pattern::Ignore),
-                                        expr: AstBuilder::from_node(&block)
-                                            .node(Expression::Block(block)),
-                                    })
-                                }
-                                k => panic!("unexpected rule within if-else-block: {:?}", k),
-                            };
-
-                            cases.push(pattern)
-                        }
+                            })
+                            .collect();
 
                         // if no else-block was provided, we need to add one manually
                         if append_else {
@@ -956,25 +955,24 @@ impl IntoAstNode<Block> for HashPair<'_> {
                         let subject = match_block.next().unwrap().into_ast();
                         let match_cases = match_block.next().unwrap();
 
-                        let mut cases = vec![];
+                        let cases = match_cases
+                            .into_inner()
+                            .map(|case| {
+                                let case_builder = AstBuilder::from_pair(&case);
 
-                        for case in match_cases.into_inner() {
-                            let case_builder = AstBuilder::from_pair(&case);
+                                match case.as_rule() {
+                                    Rule::match_case => {
+                                        let mut components = case.into_inner();
 
-                            let ast_case = match case.as_rule() {
-                                Rule::match_case => {
-                                    let mut components = case.into_inner();
+                                        let pattern = components.next().unwrap().into_ast();
+                                        let expr = components.next().unwrap().into_ast();
 
-                                    let pattern = components.next().unwrap().into_ast();
-                                    let expr = components.next().unwrap().into_ast();
-
-                                    case_builder.node(MatchCase { pattern, expr })
+                                        case_builder.node(MatchCase { pattern, expr })
+                                    }
+                                    k => panic!("unexpected rule within match_case: {:?}", k),
                                 }
-                                k => panic!("unexpected rule within match_case: {:?}", k),
-                            };
-
-                            cases.push(ast_case);
-                        }
+                            })
+                            .collect();
 
                         ab.node(Block::Match(MatchBlock { subject, cases }))
                     }
@@ -1244,19 +1242,25 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         let name = components.next().unwrap().into_ast();
 
                         let bound_or_fields = components.next().unwrap();
-                        let mut entries = vec![];
+                        let (bound, entries) = match bound_or_fields.as_rule() {
+                            Rule::bound => (
+                                Some(bound_or_fields.into_ast()),
+                                // It's guaranteed to have zero or more struct def fields and so it is
+                                // safe to unwrap the following rule after the bound...
+                                components
+                                    .next()
+                                    .unwrap()
+                                    .into_inner()
+                                    .map(|p| p.into_ast())
+                                    .collect(),
+                            ),
 
-                        let bound = match bound_or_fields.as_rule() {
-                            Rule::bound => Some(bound_or_fields.into_ast()),
-                            Rule::struct_def_fields => {
-                                entries =
-                                    bound_or_fields.into_inner().map(|p| p.into_ast()).collect();
-
-                                None
-                            }
+                            Rule::struct_def_fields => (
+                                None,
+                                bound_or_fields.into_inner().map(|p| p.into_ast()).collect(),
+                            ),
                             k => panic!("Unexpected rule within struct_def: {:?}", k),
                         };
-
                         ab.node(Statement::StructDef(StructDef {
                             name,
                             bound,
@@ -1268,16 +1272,22 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         let name = components.next().unwrap().into_ast();
 
                         let bound_or_fields = components.next().unwrap();
-                        let mut entries = vec![];
-
-                        let bound = match bound_or_fields.as_rule() {
-                            Rule::bound => Some(bound_or_fields.into_ast()),
-                            Rule::struct_def_fields => {
-                                entries =
-                                    bound_or_fields.into_inner().map(|p| p.into_ast()).collect();
-
-                                None
-                            }
+                        let (bound, entries) = match bound_or_fields.as_rule() {
+                            Rule::bound => (
+                                Some(bound_or_fields.into_ast()),
+                                components
+                                    .next()
+                                    .unwrap()
+                                    .into_inner()
+                                    .map(|p| p.into_ast())
+                                    .collect(),
+                            ),
+                            // It's guaranteed to have zero or more enum def fields and so it is
+                            // safe to unwrap the following rule after the bound...
+                            Rule::enum_fields => (
+                                None,
+                                bound_or_fields.into_inner().map(|p| p.into_ast()).collect(),
+                            ),
                             k => panic!("Unexpected rule within enum_def: {:?}", k),
                         };
 

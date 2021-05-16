@@ -1,4 +1,6 @@
 //! Hash compiler module for converting from tokens to an AST tree
+use std::time::Instant;
+
 //
 // All rights reserved 2021 (c) The Hash Language authors
 use crate::ast::*;
@@ -9,14 +11,21 @@ use crate::grammar::{HashParser, Rule};
 use pest::Parser;
 
 pub fn module(source: &str) -> Result<Module, ParseError> {
+    let before = Instant::now();
+
     let result = HashParser::parse(Rule::module, source);
+    println!("tokenise: {:.2?}", before.elapsed());
 
     match result {
         Ok(pairs) => {
+            let after_token = Instant::now();
+
             let contents = pairs
                 .take_while(|p| p.as_rule() != Rule::EOI)
                 .map(|p| p.into_ast())
                 .collect();
+
+            println!("ast: {:.2?}", after_token.elapsed());
 
             Ok(Module { contents })
         }
