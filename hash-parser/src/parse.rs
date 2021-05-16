@@ -12,10 +12,13 @@ pub fn module(source: &str) -> Result<Module, ParseError> {
     let result = HashParser::parse(Rule::module, source);
 
     match result {
-        Ok(_pairs) => {
-            // @@Incomplete: here is where we do all the ast-ification
-            let vec = Vec::new();
-            Ok(Module { contents: vec })
+        Ok(pairs) => {
+            let contents = pairs
+                .take_while(|p| p.as_rule() != Rule::EOI)
+                .map(|p| p.into_ast())
+                .collect();
+
+            Ok(Module { contents })
         }
         Err(err) => Err(ParseError::from(err)),
     }

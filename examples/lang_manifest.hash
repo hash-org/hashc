@@ -87,11 +87,11 @@ let ch: char = 'c';
 
 let cool_str: str = "I have e\tcape codes\n\n";
 
-let other_val = 100_000_000e1;
+// let other_val = 100_000_000e1;
 let hex_val: int = 0x12A12;
 let bin_val = 0b1010100001010;
 let oct_val = 0o1272170;
-let fl_val: float = 6e-3;
+let fl_val: float = 6.0e-3;
 let flag = false;
 
 // library imports with specific symbol extraction and symbol renaming

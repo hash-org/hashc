@@ -92,17 +92,20 @@ digit_sep = _{ "_" }
 /// Octal
 octal_digit = _{ ASCII_OCT_DIGIT }
 octal_prefix = _{ "0o" }
-octal_literal = ${ octal_prefix ~ octal_digit ~ (octal_digit | digit_sep)* }
+octal_value = ${octal_digit ~ (octal_digit | digit_sep)*}
+octal_literal = ${ octal_prefix ~ octal_value }
 
 /// Hexadecimal
 hex_digit = _{ ASCII_HEX_DIGIT }
 hex_prefix = _{ "0x" }
-hex_literal = ${ hex_prefix ~ hex_digit ~ (hex_digit | digit_sep)* }
+hex_value = ${hex_digit ~ (hex_digit | digit_sep)*}
+hex_literal = ${ hex_prefix ~ hex_value }
 
 /// Binary
 bin_digit = _{ ASCII_BIN_DIGIT }
 bin_prefix = _{ "0b" }
-bin_literal = ${ bin_prefix ~ bin_digit ~ (bin_digit | digit_sep)* }
+bin_value = ${bin_digit ~ (bin_digit | digit_sep)* }
+bin_literal = ${ bin_prefix ~ bin_value }
 
 /// Shared definitions between decimal and float
 num_part = @{ decimal_digit ~ (decimal_digit | digit_sep)* }
@@ -156,7 +159,8 @@ fn_literal = { fn_params ~ fn_return_ty? ~ fn_body }
 
 /// Struct literal
 struct_literal_field = { name ~ eq_op ~ expr }
-struct_literal = { access_name ~ type_args? ~ curly_left ~ (struct_literal_field ~ (comma_op ~ struct_literal_field)* ~ comma_op?)* ~ curly_right }
+struct_literal_fields = {curly_left ~ (struct_literal_field ~ (comma_op ~ struct_literal_field)* ~ comma_op?)* ~ curly_right }
+struct_literal = { access_name ~ type_args? ~ struct_literal_fields }
 
 /// ---- Operators ----
 

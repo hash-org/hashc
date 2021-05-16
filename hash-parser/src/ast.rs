@@ -315,6 +315,10 @@ pub struct Bound {
 pub struct LetStatement {
     /// The pattern to bind the right-hand side to.
     pub pattern: AstNode<Pattern>,
+
+    /// Any associated type with the expression
+    pub ty: Option<AstNode<Type>>,
+
     /// The bound of the let, if any.
     ///
     /// Used for trait implementations.
