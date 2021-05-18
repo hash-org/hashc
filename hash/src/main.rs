@@ -5,9 +5,7 @@ mod error;
 mod interactive;
 
 use clap::{crate_version, AppSettings, Clap};
-use hash_parser::parse;
-
-use std::{fs, process::exit};
+use std::fs;
 
 use crate::error::{report_error, ErrorType};
 
@@ -100,18 +98,9 @@ fn main() {
 
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
-            Ok(c) => {
-                // Resolve the module path
-                let contents = fs::read_to_string(&c).unwrap_or_else(|e| {
-                    report_error(
-                        ErrorType::IoError,
-                        format!("Couldn't read file '{}'\n{}", path, e),
-                    );
-                    exit(-1);
-                });
-
-                // parse the given module
-                let _ = parse::module(&contents);
+            Ok(_) => {
+                // convert the CompilerOptions into ParserOptions and then invoke parse...
+                unimplemented!()
             }
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },

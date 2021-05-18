@@ -4,11 +4,12 @@
 #![allow(dead_code)]
 
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
 
-use crate::{error::ParseError, location::Location};
+use crate::{ast, error::ParseError, location::Location};
 
 /// A module identifier which is an index into [Modules].
 pub type ModuleIdx = usize;
@@ -26,35 +27,70 @@ static PRELUDE: &str = "prelude";
 
 /// Represents a single module.
 pub struct Module<'a> {
-    idx: usize,
+    index: ModuleIdx,
     modules: &'a Modules,
 }
 
 impl Module<'_> {
     /// Get the content (source text) of the module.
     pub fn content(&self) -> &str {
-        self.modules.contents[self.idx].as_ref()
+        self.modules.contents[self.index].as_ref()
     }
 
     /// Get the filename (full path) of the module.
-    pub fn filename(&self) -> &str {
-        self.modules.filenames[self.idx].as_ref()
+    pub fn filename(&self) -> &PathBuf {
+        &self.modules.filenames[self.index]
     }
 }
 
 /// Represents a set of loaded modules.
 pub struct Modules {
-    filenames: Vec<String>,
+    pub map: HashMap<PathBuf, ModuleIdx>,
+    filenames: Vec<PathBuf>,
+    modules: Vec<ast::Module>,
     contents: Vec<String>,
+    deps: Vec<Vec<ModuleIdx>>,
 }
 
 /// @Incomplete: This will have to change given the fact that we  want to generate this information at compile time.
 ///              Ideally, we want [`Self::get_stdlib_modules()`] to only generate a vector of pathbufs and the use
 ///              that to resolve module paths.
 impl Modules {
+    /// Create a new [Modules] object
+    pub fn new() -> Modules {
+        Modules {
+            map: HashMap::new(),
+            modules: vec![],
+            deps: vec![],
+            filenames: vec![],
+            contents: vec![],
+        }
+    }
+
+    /// Function to add a new module, provided that it is succesfully converted.
+    pub fn add(&self, _module: Result<Module, ParseError>) -> Modules {
+        unimplemented!()
+    }
+
+    pub fn add_module(
+        &mut self,
+        _node: ast::Module,
+        _filename: PathBuf,
+        _contents: String,
+    ) -> ModuleIdx {
+        unimplemented!()
+    }
+
+    pub fn add_module_deps(&mut self, _module: ModuleIdx, _deps: impl Iterator<Item = ModuleIdx>) {
+        unimplemented!()
+    }
+
     /// Get the module at the given index.
-    pub fn get_module(&self, idx: ModuleIdx) -> Module<'_> {
-        Module { idx, modules: self }
+    pub fn get_module(&self, index: ModuleIdx) -> Module<'_> {
+        Module {
+            index,
+            modules: self,
+        }
     }
 
     /// Function that builds a module map of the standard library that is shipped

@@ -1161,8 +1161,8 @@ impl IntoAstNode<Statement> for HashPair<'_> {
 
                         ab.node(Statement::Let(LetStatement {
                             pattern,
-                            bound,
                             ty,
+                            bound,
                             value,
                         }))
                     }
@@ -1336,7 +1336,7 @@ mod tests {
     where
         for<'a> HashPair<'a>: IntoAstNode<T>,
     {
-        let mut result = grammar::HashParser::parse(rule, input).unwrap();
+        let mut result = grammar::HashGrammar::parse(rule, input).unwrap();
         let parsed: AstNode<T> = result.next().unwrap().into_ast();
         parsed
     }

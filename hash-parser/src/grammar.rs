@@ -9,7 +9,7 @@ mod derived {
 
     #[derive(Parser)]
     #[grammar = "hash.pest"] // relative to src
-    pub struct HashParser;
+    pub struct HashGrammar;
 }
 
-pub use derived::{HashParser, Rule};
+pub use derived::{HashGrammar, Rule};

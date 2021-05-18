@@ -16,6 +16,10 @@ enum Either = <T, A> => {
   Right(T)
 };
 
+/* Multi line - 
+    /* nested comment */
+    */
+
 
 /* I am a multi block comment which has multiple lines and 
    can be use as documentation comments for functions, structs, enums,

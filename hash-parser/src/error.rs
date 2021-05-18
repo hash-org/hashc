@@ -12,7 +12,8 @@ const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 #[derive(Debug, Clone)]
 pub enum ParseError {
     IoError {
-        filename: String,
+        filename: PathBuf,
+        err: String,
     },
     Parsing {
         positives: Vec<Rule>,
