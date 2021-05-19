@@ -7,7 +7,7 @@ mod error;
 
 use command::InteractiveCommand;
 use error::{report_interp_error, InterpreterError};
-use hash_parser::parse::{HashParser, ParserOptions};
+use hash_parser::parse::{ParserOptions, SeqParser};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::process::exit;
@@ -67,7 +67,7 @@ fn execute(input: &str) {
     let opts = ParserOptions {
         ..ParserOptions::default()
     };
-    let parser = HashParser::new(None, &opts);
+    let parser = SeqParser::new(&opts);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),

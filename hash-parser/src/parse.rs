@@ -1,17 +1,13 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::error::ParseError;
 use crate::grammar::{HashGrammar, Rule};
 use crate::{
     ast::{self, *},
-    modules::ModuleIdx,
+    modules::{self, ModuleIdx},
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use crate::{error::ParseError, modules::Modules};
+use std::{fs, path::PathBuf, time::Instant};
 
 extern crate pretty_env_logger;
 
@@ -42,6 +38,7 @@ pub enum ParserMessage {
         filename: PathBuf,
         contents: String,
     },
+    Error(ParseError),
 }
 
 /// Default implementation for the [ParserOptions] struct.
@@ -54,36 +51,47 @@ impl Default for ParserOptions {
         }
     }
 }
+
 #[allow(dead_code)]
 pub struct ParsedModule {
     node: ast::Module,
     contents: String,
 }
 
+trait HashParser {
+    fn add_module_import(&mut self) -> ModuleIdx;
+
+    fn parse_statement(&mut self) -> AstNode<Statement> {
+        unimplemented!()
+    }
+}
+
 #[allow(dead_code)]
-pub struct HashParser<'a> {
-    channel: Option<Sender<ParserMessage>>,
+pub struct ParParser<'a> {
+    sender: Sender<ParserMessage>,
     opts: &'a ParserOptions,
 }
 
-impl HashParser<'_> {
-    /// Create a new instance of a hash parser
-    pub fn new(s: Option<Sender<ParserMessage>>, opts: &ParserOptions) -> HashParser {
-        HashParser { channel: s, opts }
+impl ParParser<'_> {
+    pub fn new(sender: Sender<ParserMessage>, opts: &ParserOptions) -> ParParser {
+        ParParser { sender, opts }
     }
 
-    pub fn parse_file(&self, filename: impl AsRef<Path>) -> Result<ParsedModule, ParseError> {
-        debug!("Parsing file: {}", filename.as_ref().to_str().unwrap());
+    pub fn parse_file(&self, filename: PathBuf) {
+        debug!("Parsing file: {}", filename.to_str().unwrap());
 
         // load the file in...
-        let source = fs::read_to_string(filename.as_ref());
+        let source = fs::read_to_string(&filename);
 
         // check if reading the filed failed, if so return an error
         if let Err(err) = source {
-            return Err(ParseError::IoError {
-                filename: filename.as_ref().to_path_buf(),
-                err: err.to_string(),
-            });
+            return self
+                .sender
+                .send(ParserMessage::Error(ParseError::IoError {
+                    filename,
+                    err: err.to_string(),
+                }))
+                .unwrap();
         }
 
         let source = source.unwrap();
@@ -106,10 +114,77 @@ impl HashParser<'_> {
 
                 debug!("ast: {:.2?}", after_token.elapsed());
 
-                Ok(ParsedModule {
-                    contents: source,
-                    node: ast::Module { contents },
-                })
+                self.sender
+                    .send(ParserMessage::ParsedModule {
+                        node: ast::Module { contents },
+                        filename,
+                        contents: source,
+                    })
+                    .unwrap()
+            }
+            Err(err) => self
+                .sender
+                .send(ParserMessage::Error(ParseError::from(err)))
+                .unwrap(),
+        }
+    }
+}
+
+impl HashParser for ParParser<'_> {
+    fn add_module_import(&mut self) -> ModuleIdx {
+        unimplemented!()
+    }
+}
+
+#[allow(dead_code)]
+pub struct SeqParser<'a> {
+    opts: &'a ParserOptions,
+}
+
+impl SeqParser<'_> {
+    pub fn new(opts: &ParserOptions) -> SeqParser {
+        SeqParser { opts }
+    }
+
+    pub fn parse_file(&self, filename: PathBuf) -> Result<modules::Modules, ParseError> {
+        debug!("Parsing file: {}", filename.to_str().unwrap());
+
+        // load the file in...
+        let source = fs::read_to_string(&filename);
+
+        // check if reading the filed failed, if so return an error
+        if let Err(err) = source {
+            return Err(ParseError::IoError {
+                filename,
+                err: err.to_string(),
+            });
+        }
+
+        let source = source.unwrap();
+
+        // record the time of parsing and emit for debug purposes.
+        let init = Instant::now();
+        let result = HashGrammar::parse(Rule::module, &source);
+        debug!("pest_grammar: {:.2?}", init.elapsed());
+
+        // create the modules object
+        let mut modules = Modules::new();
+
+        // now continue onto the ast-emit part
+        match result {
+            Ok(pairs) => {
+                let after_token = Instant::now();
+
+                // take rules from the grammar until we reach EOF
+                let contents = pairs
+                    .take_while(|p| p.as_rule() != Rule::EOI)
+                    .map(|p| p.into_ast())
+                    .collect();
+
+                debug!("ast: {:.2?}", after_token.elapsed());
+                modules.add_module(Module { contents }, filename, source);
+
+                Ok(modules)
             }
             Err(err) => Err(ParseError::from(err)),
         }
@@ -124,5 +199,11 @@ impl HashParser<'_> {
         // ast emit had a reason for failure since it might not always be a bug...
         let body: AstNode<Statement> = result.next().unwrap().into_ast();
         Ok(body)
+    }
+}
+
+impl HashParser for SeqParser<'_> {
+    fn add_module_import(&mut self) -> ModuleIdx {
+        unimplemented!()
     }
 }

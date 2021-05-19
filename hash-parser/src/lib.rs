@@ -3,7 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use std::{
-    path::Path,
+    path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -15,7 +15,7 @@ use error::ParseError;
 use modules::Modules;
 use parse::ParserOptions;
 
-use crate::parse::{HashParser, ParserMessage};
+use crate::parse::{ParParser, ParserMessage, SeqParser};
 
 extern crate pest;
 
@@ -43,7 +43,7 @@ pub struct ParseInfo {
 type ParseResult = Result<ParseInfo, ParseError>;
 
 /// Main function to parse a input file
-pub fn parse(filename: impl AsRef<Path> + Send, opts: &ParserOptions) -> ParseResult {
+pub fn parse(filename: PathBuf, opts: &ParserOptions) -> ParseResult {
     // create the logger for the parser...
     pretty_env_logger::init();
 
@@ -72,7 +72,7 @@ pub fn parse(filename: impl AsRef<Path> + Send, opts: &ParserOptions) -> ParseRe
             pool.scope(|scope| {
                 // spawn the initial job
                 scope.spawn(|_| {
-                    let _data = HashParser::new(Some(s.clone()), opts).parse_file(filename);
+                    let _data = ParParser::new(s.clone(), opts).parse_file(filename);
                 });
 
                 // start the reciever and listen for any messages from the jobs, continue looping until all of the module
@@ -86,7 +86,7 @@ pub fn parse(filename: impl AsRef<Path> + Send, opts: &ParserOptions) -> ParseRe
                             if !modules.map.contains_key(&filename) {
                                 scope.spawn(|_| {
                                     let _data =
-                                        HashParser::new(Some(s.clone()), opts).parse_file(filename);
+                                        ParParser::new(s.clone(), opts).parse_file(filename);
                                 });
                             } else {
                                 continue;
@@ -101,6 +101,12 @@ pub fn parse(filename: impl AsRef<Path> + Send, opts: &ParserOptions) -> ParseRe
                             job_counter.fetch_add(1, Ordering::SeqCst);
                             // add the module to the modules list.
                             modules.add_module(node, filename, contents);
+                        }
+                        Ok(ParserMessage::Error(e)) => {
+                            // stop all the jobs and report the error
+                            println!("{:#?}", e);
+
+                            break; // @@Incomplete: we shouldn't break here, we should join the thread pool!
                         }
                         Err(_) => unreachable!(),
                     }
@@ -117,6 +123,8 @@ pub fn parse(filename: impl AsRef<Path> + Send, opts: &ParserOptions) -> ParseRe
         }
         _ => {
             // single threaded mode!
+            let _parser = SeqParser::new(opts);
+
             unimplemented!()
         }
     }

@@ -52,6 +52,12 @@ pub struct Modules {
     deps: Vec<Vec<ModuleIdx>>,
 }
 
+impl Default for Modules {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// @Incomplete: This will have to change given the fact that we  want to generate this information at compile time.
 ///              Ideally, we want [`Self::get_stdlib_modules()`] to only generate a vector of pathbufs and the use
 ///              that to resolve module paths.
