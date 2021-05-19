@@ -130,7 +130,7 @@ string_literal = ${ string_quote ~ (raw_string | escape)* ~ string_quote }
 
 /// Character literal
 char_quote = _{ "'" }
-char_literal = ${ char_quote ~ (escape | ANY) ~ char_quote }
+char_literal = @{ char_quote ~ (escape | ANY) ~ char_quote }
 
 /// Escaping utilities
 predefined = { "n" | "r" | "t" | "\\" | "0" | "\"" | "'" }

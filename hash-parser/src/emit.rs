@@ -30,6 +30,10 @@ fn make_variable(name: AstNode<AccessName>, ab: &AstBuilder) -> AstNode<Expressi
     }))
 }
 
+/// A wrapper around AstNode to build [AstNode]s with the same information as the builder
+/// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
+/// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
+/// or a [pest::iterators::Pair].
 pub struct AstBuilder {
     pos: Location,
     module: ModuleIdx,
@@ -41,10 +45,11 @@ impl AstBuilder {
         let pos = Location::Span(span.start(), span.end());
         AstBuilder {
             pos,
-            module: 0, // @TODO: add multiple module support
+            module: 0, // we assume that the pair rue
         }
     }
 
+    /// Create an [AstBuilder] from an [AstNode]
     pub fn from_node<T>(node: &AstNode<T>) -> AstBuilder {
         AstBuilder {
             pos: node.pos,
@@ -52,6 +57,7 @@ impl AstBuilder {
         }
     }
 
+    /// Create a new [AstNode] from the information provided by the [AstBuilder]
     pub fn node<T>(&self, inner: T) -> AstNode<T> {
         AstNode {
             body: Box::new(inner),
@@ -60,11 +66,14 @@ impl AstBuilder {
         }
     }
 
+    /// Create a new [AstNode] from a [pest::iterators::Pair] with the information
+    /// provided by the [AstBuilder]
     pub fn node_from_pair<T>(
         &self,
         inner: T,
         pair: &pest::iterators::Pair<'_, Rule>,
     ) -> AstNode<T> {
+        // ignore information from the AstBuilder about positions and just use the rule
         let span = pair.as_span();
         let pos = Location::Span(span.start(), span.end());
 
@@ -394,11 +403,12 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                 ab.node(Literal::Float(value))
             }
             Rule::char_literal => {
-                let c: char = self.as_span().as_str().chars().next().unwrap();
+                // we need to get the second character in the literal because the first one will be the character quote, since pest includes them in the span
+                let c: char = self.as_str().chars().nth(1).unwrap();
                 ab.node(Literal::Char(c))
             }
             Rule::string_literal => {
-                let s = String::from(self.as_span().as_str());
+                let s = String::from(self.into_inner().next().unwrap().as_str());
                 ab.node(Literal::Str(s))
             }
             Rule::list_literal => {
