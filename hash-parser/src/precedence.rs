@@ -2,8 +2,8 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::grammar::Rule;
 use crate::{ast::*, emit::AstBuilder};
+use crate::{grammar::Rule, modules::ModuleResolver};
 
 use pest::{
     iterators::Pair,
@@ -81,6 +81,10 @@ fn build_binary(
     }))
 }
 
-pub fn climb(pair: Pair<'_, Rule>) -> AstNode<Expression> {
-    PREC_CLIMBER.climb(pair.into_inner(), |pair| pair.into_ast(), build_binary)
+pub fn climb(pair: Pair<'_, Rule>, resolver: &ModuleResolver) -> AstNode<Expression> {
+    PREC_CLIMBER.climb(
+        pair.into_inner(),
+        |pair| pair.into_ast(resolver),
+        build_binary,
+    )
 }

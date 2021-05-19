@@ -3,7 +3,10 @@
 // All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
-use crate::{location::Location, modules::ModuleIdx};
+use crate::{
+    location::Location,
+    modules::{ModuleIdx, ModuleResolver},
+};
 use num::BigInt;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -24,11 +27,8 @@ pub struct AstNode<T> {
 /// Trait to convert some type into an [AstNode].
 ///
 /// e.g. Used to convert pest rules into [AstNode]s.
-pub trait IntoAstNode<T>
-where
-    Self: Sized,
-{
-    fn into_ast(self) -> AstNode<T>;
+pub trait IntoAstNode<T> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<T>;
 }
 
 /// [AstNode] hashes as its inner `body` type.

@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -24,6 +25,29 @@ static BUILD_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 /// Name of the prelude module
 static PRELUDE: &str = "prelude";
+
+/// Represents an object that is responsible for resolving any module imports
+pub struct ModuleResolver {
+    map: RefCell<HashMap<PathBuf, ModuleIdx>>,
+}
+
+impl ModuleResolver {
+    // @@TODO: we should probably pass a modules object into here too
+    pub fn new() -> ModuleResolver {
+        ModuleResolver {
+            map: RefCell::new(HashMap::new()),
+        }
+    }
+    pub fn add_module(&self, _filename: impl AsRef<Path>) {
+        unimplemented!()
+    }
+}
+
+impl Default for ModuleResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Represents a single module.
 pub struct Module<'a> {

@@ -2,7 +2,13 @@ use std::{iter, vec};
 
 use num::BigInt;
 
-use crate::{ast::*, grammar::Rule, location::Location, modules::ModuleIdx, precedence::climb};
+use crate::{
+    ast::*,
+    grammar::Rule,
+    location::Location,
+    modules::{ModuleIdx, ModuleResolver},
+    precedence::climb,
+};
 
 /// Utility for creating a boolean in enum representation
 fn make_boolean(variant: bool, ab: &AstBuilder) -> AstNode<AccessName> {
@@ -73,7 +79,7 @@ impl AstBuilder {
 type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
 impl IntoAstNode<Name> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Name> {
+    fn into_ast(self, _resolver: &ModuleResolver) -> AstNode<Name> {
         match self.as_rule() {
             Rule::ident => AstBuilder::from_pair(&self).node(Name {
                 string: self.as_str().to_owned(),
@@ -84,22 +90,22 @@ impl IntoAstNode<Name> for HashPair<'_> {
 }
 
 impl IntoAstNode<StructDefEntry> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<StructDefEntry> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<StructDefEntry> {
         match self.as_rule() {
             Rule::struct_def_field => {
                 let ab = AstBuilder::from_pair(&self);
                 let mut components = self.into_inner();
 
-                let name = components.next().unwrap().into_ast();
+                let name = components.next().unwrap().into_ast(resolver);
                 let next_node = components.next();
 
                 let (ty, default) = match next_node {
                     Some(pair) => match pair.as_rule() {
                         Rule::any_type => (
-                            Some(pair.into_ast()),
-                            components.next().map(|p| p.into_ast()),
+                            Some(pair.into_ast(resolver)),
+                            components.next().map(|p| p.into_ast(resolver)),
                         ),
-                        Rule::expr => (None, Some(pair.into_ast())),
+                        Rule::expr => (None, Some(pair.into_ast(resolver))),
                         k => panic!("unexpected rule within literal_pattern: {:?}", k),
                     },
                     None => (None, None),
@@ -113,14 +119,14 @@ impl IntoAstNode<StructDefEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<StructLiteralEntry> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<StructLiteralEntry> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<StructLiteralEntry> {
         match self.as_rule() {
             Rule::struct_literal_field => {
                 let ab = AstBuilder::from_pair(&self);
                 let mut components = self.into_inner();
 
-                let name = components.next().unwrap().into_ast();
-                let value = components.next().unwrap().into_ast();
+                let name = components.next().unwrap().into_ast(resolver);
+                let value = components.next().unwrap().into_ast(resolver);
 
                 ab.node(StructLiteralEntry { name, value })
             }
@@ -130,14 +136,14 @@ impl IntoAstNode<StructLiteralEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<EnumDefEntry> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<EnumDefEntry> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<EnumDefEntry> {
         match self.as_rule() {
             Rule::enum_field => {
                 let ab = AstBuilder::from_pair(&self);
                 let mut components = self.into_inner();
 
-                let name = components.next().unwrap().into_ast();
-                let args = components.map(|p| p.into_ast()).collect();
+                let name = components.next().unwrap().into_ast(resolver);
+                let args = components.map(|p| p.into_ast(resolver)).collect();
 
                 ab.node(EnumDefEntry { name, args })
             }
@@ -147,7 +153,7 @@ impl IntoAstNode<EnumDefEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<Bound> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Bound> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Bound> {
         match self.as_rule() {
             Rule::bound => {
                 let ab = AstBuilder::from_pair(&self);
@@ -159,12 +165,12 @@ impl IntoAstNode<Bound> for HashPair<'_> {
                     .next()
                     .unwrap()
                     .into_inner()
-                    .map(|p| p.into_ast())
+                    .map(|p| p.into_ast(resolver))
                     .collect();
 
                 // check if there are any trait_bounds attached with this bound
                 let trait_bounds = match components.next() {
-                    Some(pair) => pair.into_inner().map(|p| p.into_ast()).collect(),
+                    Some(pair) => pair.into_inner().map(|p| p.into_ast(resolver)).collect(),
                     None => vec![],
                 };
 
@@ -179,7 +185,7 @@ impl IntoAstNode<Bound> for HashPair<'_> {
 }
 
 impl IntoAstNode<TraitBound> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<TraitBound> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<TraitBound> {
         match self.as_rule() {
             Rule::trait_bound => {
                 let ab = AstBuilder::from_pair(&self);
@@ -187,11 +193,11 @@ impl IntoAstNode<TraitBound> for HashPair<'_> {
 
                 // convert the access_name rule into a AstNode, each trait bound is guaranteed
                 // to have an access name, so it's safe to unwrap here...
-                let name = components.next().unwrap().into_ast();
+                let name = components.next().unwrap().into_ast(resolver);
 
                 // convert any type args the trait bound contains
                 let type_args = match components.next() {
-                    Some(pair) => pair.into_inner().map(|p| p.into_ast()).collect(),
+                    Some(pair) => pair.into_inner().map(|p| p.into_ast(resolver)).collect(),
                     None => vec![],
                 };
 
@@ -203,10 +209,10 @@ impl IntoAstNode<TraitBound> for HashPair<'_> {
 }
 
 impl IntoAstNode<AccessName> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<AccessName> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<AccessName> {
         match self.as_rule() {
             Rule::access_name => AstBuilder::from_pair(&self).node(AccessName {
-                names: self.into_inner().map(|p| p.into_ast()).collect(),
+                names: self.into_inner().map(|p| p.into_ast(resolver)).collect(),
             }),
             _ => unreachable!(),
         }
@@ -228,7 +234,7 @@ fn single_access_name(ab: &AstBuilder, name: &str) -> AstNode<AccessName> {
 }
 
 impl IntoAstNode<Type> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Type> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Type> {
         match self.as_rule() {
             Rule::any_type => {
                 let ab = AstBuilder::from_pair(&self);
@@ -238,10 +244,10 @@ impl IntoAstNode<Type> for HashPair<'_> {
                     Rule::named_type => {
                         let mut in_named = in_type.into_inner();
 
-                        let name = in_named.next().unwrap().into_ast();
+                        let name = in_named.next().unwrap().into_ast(resolver);
                         let type_args = in_named
                             .next()
-                            .map(|n| n.into_inner().map(|p| p.into_ast()).collect())
+                            .map(|n| n.into_inner().map(|p| p.into_ast(resolver)).collect())
                             .unwrap_or_default();
 
                         ab.node(Type::Named(NamedType { name, type_args }))
@@ -249,8 +255,12 @@ impl IntoAstNode<Type> for HashPair<'_> {
                     Rule::fn_type => {
                         let mut in_func = in_type.into_inner();
 
-                        let args = in_func.next().unwrap().into_inner().map(|p| p.into_ast());
-                        let ret = in_func.next().unwrap().into_ast();
+                        let args = in_func
+                            .next()
+                            .unwrap()
+                            .into_inner()
+                            .map(|p| p.into_ast(resolver));
+                        let ret = in_func.next().unwrap().into_ast(resolver);
 
                         let args_ret = args.chain(iter::once(ret));
                         ab.node(Type::Named(NamedType {
@@ -259,7 +269,7 @@ impl IntoAstNode<Type> for HashPair<'_> {
                         }))
                     }
                     Rule::tuple_type => {
-                        let inner = in_type.into_inner().map(|p| p.into_ast());
+                        let inner = in_type.into_inner().map(|p| p.into_ast(resolver));
 
                         ab.node(Type::Named(NamedType {
                             name: single_access_name(&ab, TUPLE_TYPE_NAME),
@@ -267,7 +277,7 @@ impl IntoAstNode<Type> for HashPair<'_> {
                         }))
                     }
                     Rule::list_type => {
-                        let inner = in_type.into_inner().map(|p| p.into_ast());
+                        let inner = in_type.into_inner().map(|p| p.into_ast(resolver));
 
                         // list type should only have one type
                         debug_assert_eq!(inner.size_hint().0, 1);
@@ -278,7 +288,7 @@ impl IntoAstNode<Type> for HashPair<'_> {
                         }))
                     }
                     Rule::set_type => {
-                        let inner = in_type.into_inner().map(|p| p.into_ast());
+                        let inner = in_type.into_inner().map(|p| p.into_ast(resolver));
 
                         // set type should only have one type
                         debug_assert_eq!(inner.size_hint().0, 1);
@@ -290,7 +300,7 @@ impl IntoAstNode<Type> for HashPair<'_> {
                     }
                     Rule::map_type => {
                         let inner: Vec<AstNode<Type>> =
-                            in_type.into_inner().map(|p| p.into_ast()).collect();
+                            in_type.into_inner().map(|p| p.into_ast(resolver)).collect();
 
                         // map type should only have a type for a key and a value
                         debug_assert_eq!(inner.len(), 2);
@@ -310,13 +320,13 @@ impl IntoAstNode<Type> for HashPair<'_> {
 }
 
 impl IntoAstNode<Literal> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Literal> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Literal> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
             // If the literal is wrapped in a literal_expr, we unwrap it and then just convert
             // the internal contents of it using the same implementation...
-            Rule::literal_expr => self.into_inner().next().unwrap().into_ast(),
+            Rule::literal_expr => self.into_inner().next().unwrap().into_ast(resolver),
             Rule::integer_literal => {
                 let inner = self.into_inner().next().unwrap();
                 // this could be binary, hex, octal or decimal...
@@ -393,22 +403,22 @@ impl IntoAstNode<Literal> for HashPair<'_> {
             }
             Rule::list_literal => {
                 // since list literals are just a bunch of expressions, we just call
-                // into_ast() on each member and collect at the end
-                let elements = self.into_inner().map(|p| p.into_ast()).collect();
+                // into_ast(resolver) on each member and collect at the end
+                let elements = self.into_inner().map(|p| p.into_ast(resolver)).collect();
 
                 ab.node(Literal::List(ListLiteral { elements }))
             }
             Rule::set_literal => {
                 // since set literals are just a bunch of expressions, we just call
-                // into_ast() on each member and collect at the end
-                let elements = self.into_inner().map(|p| p.into_ast()).collect();
+                // into_ast(resolver) on each member and collect at the end
+                let elements = self.into_inner().map(|p| p.into_ast(resolver)).collect();
 
                 ab.node(Literal::Set(SetLiteral { elements }))
             }
             Rule::tuple_literal => {
                 // since tuple literals are just a bunch of expressions, we just call
-                // into_ast() on each member and collect at the end
-                let elements = self.into_inner().map(|p| p.into_ast()).collect();
+                // into_ast(resolver) on each member and collect at the end
+                let elements = self.into_inner().map(|p| p.into_ast(resolver)).collect();
 
                 ab.node(Literal::Tuple(TupleLiteral { elements }))
             }
@@ -418,7 +428,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                 let elements = self
                     .into_inner()
                     .map(|p| {
-                        let mut items = p.into_inner().map(|pi| pi.into_ast());
+                        let mut items = p.into_inner().map(|pi| pi.into_ast(resolver));
 
                         (items.next().unwrap(), items.next().unwrap())
                     })
@@ -440,10 +450,10 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                         let mut param_components = param.into_inner();
 
                         // get the name of identifier
-                        let name = param_components.next().unwrap().into_ast();
+                        let name = param_components.next().unwrap().into_ast(resolver);
 
                         // if no type is specified for the param, we just set it to none
-                        let ty = param_components.next().map(|t| t.into_ast());
+                        let ty = param_components.next().map(|t| t.into_ast(resolver));
 
                         ab.node(FunctionDefArg { name, ty })
                     })
@@ -457,9 +467,12 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                 let (return_ty, fn_body) = match fn_type_or_body.as_rule() {
                     Rule::any_type => {
                         let body = components.next().unwrap();
-                        (Some(fn_type_or_body.into_ast()), body.into_ast())
+                        (
+                            Some(fn_type_or_body.into_ast(resolver)),
+                            body.into_ast(resolver),
+                        )
                     }
-                    Rule::fn_body => (None, fn_type_or_body.into_ast()),
+                    Rule::fn_body => (None, fn_type_or_body.into_ast(resolver)),
                     k => panic!("unexpected rule within fn_literal: {:?}", k),
                 };
                 ab.node(Literal::Function(FunctionDef {
@@ -472,7 +485,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                 let mut components = self.into_inner();
 
                 // first sort out the name of the struct
-                let name = components.next().unwrap().into_ast();
+                let name = components.next().unwrap().into_ast(resolver);
 
                 // now check if the next rule is either type_args or struct_fields...
                 let type_args_or_fields = components.next().unwrap();
@@ -482,7 +495,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                         // convert the type args into ast nodes...
                         let type_args = type_args_or_fields
                             .into_inner()
-                            .map(|p| p.into_ast())
+                            .map(|p| p.into_ast(resolver))
                             .collect();
 
                         // convert the struct fields into ast nodes...
@@ -490,7 +503,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                             .next()
                             .unwrap()
                             .into_inner()
-                            .map(|p| p.into_ast())
+                            .map(|p| p.into_ast(resolver))
                             .collect();
 
                         (type_args, fields)
@@ -499,7 +512,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
                         vec![],
                         type_args_or_fields
                             .into_inner()
-                            .map(|p| p.into_ast())
+                            .map(|p| p.into_ast(resolver))
                             .collect(),
                     ),
                     k => panic!("unexpected rule within struct_literal: {:?}", k),
@@ -517,14 +530,14 @@ impl IntoAstNode<Literal> for HashPair<'_> {
 }
 
 impl IntoAstNode<LiteralPattern> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<LiteralPattern> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<LiteralPattern> {
         match self.as_rule() {
             Rule::literal_pattern => {
                 let pat = self.into_inner().next().unwrap();
 
                 // we prematurely convert the first node into a Literal, and then
                 // pattern match on the literal, converting into a Literal pattern
-                let node: AstNode<Literal> = pat.into_ast();
+                let node: AstNode<Literal> = pat.into_ast(resolver);
                 let builder = AstBuilder::from_node(&node);
 
                 // essentially cast the literal into a literal_pattern
@@ -545,11 +558,11 @@ impl IntoAstNode<LiteralPattern> for HashPair<'_> {
 }
 
 impl IntoAstNode<Pattern> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Pattern> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Pattern> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
-            Rule::pattern => self.into_inner().next().unwrap().into_ast(),
+            Rule::pattern => self.into_inner().next().unwrap().into_ast(resolver),
             Rule::single_pattern => {
                 let pat = self.into_inner().next().unwrap();
 
@@ -557,12 +570,12 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
                     Rule::enum_pattern => {
                         let mut components = pat.into_inner();
 
-                        let name = components.next().unwrap().into_ast();
+                        let name = components.next().unwrap().into_ast(resolver);
                         let args = components
                             .next()
                             .unwrap()
                             .into_inner()
-                            .map(|p| p.into_ast())
+                            .map(|p| p.into_ast(resolver))
                             .collect();
 
                         ab.node(Pattern::Enum(EnumPattern { name, args }))
@@ -570,7 +583,7 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
                     Rule::struct_pattern => {
                         let mut components = pat.into_inner();
 
-                        let name = components.next().unwrap().into_ast();
+                        let name = components.next().unwrap().into_ast(resolver);
 
                         // If there is no binding part of the destructuring pattern, as in if
                         // no pattern on the right-handside, we use the name of the field as a
@@ -582,10 +595,10 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
                             .map(|p| {
                                 let mut field = p.into_inner();
 
-                                let name: AstNode<Name> = field.next().unwrap().into_ast();
+                                let name: AstNode<Name> = field.next().unwrap().into_ast(resolver);
 
                                 let pattern = match field.next() {
-                                    Some(pat) => pat.into_ast(),
+                                    Some(pat) => pat.into_ast(resolver),
                                     None => AstBuilder::from_node(&name)
                                         .node(Pattern::Binding(name.clone())),
                                 };
@@ -603,10 +616,10 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
                             .map(|p| {
                                 let mut field = p.into_inner();
 
-                                let name: AstNode<Name> = field.next().unwrap().into_ast();
+                                let name: AstNode<Name> = field.next().unwrap().into_ast(resolver);
 
                                 let pattern = match field.next() {
-                                    Some(pat) => pat.into_ast(),
+                                    Some(pat) => pat.into_ast(resolver),
                                     None => AstBuilder::from_node(&name)
                                         .node(Pattern::Binding(name.clone())),
                                 };
@@ -619,18 +632,20 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
                         ab.node(Pattern::Namespace(NamespacePattern { patterns }))
                     }
                     Rule::binding_pattern => {
-                        let name = pat.into_inner().next().unwrap().into_ast();
+                        let name = pat.into_inner().next().unwrap().into_ast(resolver);
                         ab.node(Pattern::Binding(name))
                     }
                     Rule::ignore_pattern => ab.node(Pattern::Ignore),
                     // @@Cleanup: is this right, can we avoid this by just using another AstNode here?
-                    Rule::literal_pattern => ab.node(Pattern::Literal(*pat.into_ast().body)),
+                    Rule::literal_pattern => {
+                        ab.node(Pattern::Literal(*pat.into_ast(resolver).body))
+                    }
                     Rule::tuple_pattern => ab.node(Pattern::Tuple(TuplePattern {
-                        elements: pat.into_inner().map(|p| p.into_ast()).collect(),
+                        elements: pat.into_inner().map(|p| p.into_ast(resolver)).collect(),
                     })),
 
                     // grouped pattern is just a pattern surrounded by parenthesees, to specify precidence...
-                    Rule::grouped_pattern => pat.into_ast(),
+                    Rule::grouped_pattern => pat.into_ast(resolver),
                     k => panic!("unexpected rule within single_pattern: {:?}", k),
                 }
             }
@@ -638,7 +653,7 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
                 let mut components = self.into_inner();
 
                 let pattern_rule = components.next().unwrap();
-                let mut pats = pattern_rule.into_inner().map(|p| p.into_ast());
+                let mut pats = pattern_rule.into_inner().map(|p| p.into_ast(resolver));
 
                 // there are can only be a lhs and rhs
                 debug_assert_eq!(pats.size_hint().0, 2);
@@ -655,7 +670,7 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
 
                         AstBuilder::from_pair(&k).node(Pattern::If(IfPattern {
                             pattern: lhs,
-                            condition: k.into_ast(),
+                            condition: k.into_ast(resolver),
                         }))
                     }
                     None => lhs,
@@ -667,17 +682,19 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
 }
 
 impl IntoAstNode<Expression> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Expression> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Expression> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
-            Rule::fn_body => self.into_inner().next().unwrap().into_ast(),
+            Rule::fn_body => self.into_inner().next().unwrap().into_ast(resolver),
             Rule::expr => {
                 let expr = self.into_inner().next().unwrap();
 
                 match expr.as_rule() {
-                    Rule::block => ab.node(Expression::Block(expr.into_ast())),
-                    Rule::struct_literal => ab.node(Expression::LiteralExpr(expr.into_ast())),
+                    Rule::block => ab.node(Expression::Block(expr.into_ast(resolver))),
+                    Rule::struct_literal => {
+                        ab.node(Expression::LiteralExpr(expr.into_ast(resolver)))
+                    }
                     Rule::binary_expr => {
                         let mut items = expr.clone().into_inner();
 
@@ -686,8 +703,8 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                         let lhs = items.next().unwrap();
 
                         match items.next() {
-                            Some(_) => climb(expr),
-                            None => lhs.into_ast(),
+                            Some(_) => climb(expr, resolver),
+                            None => lhs.into_ast(resolver),
                         }
                     }
                     k => panic!("unexpected rule within inner_expr: {:?}", k),
@@ -697,12 +714,12 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                 let mut expr = self.into_inner();
 
                 // this is the unary expression...
-                let unary = expr.next().unwrap().into_ast();
+                let unary = expr.next().unwrap().into_ast(resolver);
 
                 // check if this expression has a type...
                 match expr.next() {
                     Some(ty) => ab.node(Expression::Typed(TypedExpr {
-                        ty: ty.into_ast(), // convert the type into an AstNode
+                        ty: ty.into_ast(resolver), // convert the type into an AstNode
                         expr: unary,
                     })),
                     None => unary,
@@ -737,11 +754,11 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                                 type_args: vec![],
                             })),
                             args: ab.node(FunctionCallArgs {
-                                entries: vec![operand.into_ast()],
+                                entries: vec![operand.into_ast(resolver)],
                             }),
                         }))
                     }
-                    _ => op_or_single_expr.into_ast(),
+                    _ => op_or_single_expr.into_ast(resolver),
                 }
             }
             Rule::single_expr => {
@@ -770,7 +787,9 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                             AstBuilder::from_pair(&import_path).node(s),
                         ))
                     }
-                    Rule::literal_expr => ab.node(Expression::LiteralExpr(subject_expr.into_ast())),
+                    Rule::literal_expr => {
+                        ab.node(Expression::LiteralExpr(subject_expr.into_ast(resolver)))
+                    }
                     Rule::variable_expr => {
                         // so since this is going to be an access_name, which is a list of 'ident' rules,
                         // we can directly convert this into a VariableExpr
@@ -779,14 +798,16 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                         let access_name = var_expr.next().unwrap();
 
                         // is this even correct?
-                        let names: Vec<AstNode<Name>> =
-                            access_name.into_inner().map(|n| n.into_ast()).collect();
+                        let names: Vec<AstNode<Name>> = access_name
+                            .into_inner()
+                            .map(|n| n.into_ast(resolver))
+                            .collect();
 
                         // check for type args...
                         if let Some(ty) = var_expr.next() {
                             ab.node(Expression::Variable(VariableExpr {
                                 name: ab.node(AccessName { names }),
-                                type_args: ty.into_inner().map(|p| p.into_ast()).collect(),
+                                type_args: ty.into_inner().map(|p| p.into_ast(resolver)).collect(),
                             }))
                         } else {
                             ab.node(Expression::Variable(VariableExpr {
@@ -795,7 +816,7 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                             }))
                         }
                     }
-                    Rule::paren_expr => subject_expr.into_ast(),
+                    Rule::paren_expr => subject_expr.into_ast(resolver),
                     k => panic!("unexpected rule within expr: {:?}", k),
                 };
 
@@ -811,7 +832,7 @@ impl IntoAstNode<Expression> for HashPair<'_> {
 
                                 // it's safe to unwrap here since property access will always
                                 // provide the ident rule as the first one, otherwise it is a parsing error
-                                property: accessor.into_inner().next().unwrap().into_ast(),
+                                property: accessor.into_inner().next().unwrap().into_ast(resolver),
                             }))
                         }
                         Rule::fn_args => {
@@ -820,7 +841,10 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                             ab.node(Expression::FunctionCall(FunctionCallExpr {
                                 subject,
                                 args: AstBuilder::from_pair(&accessor).node(FunctionCallArgs {
-                                    entries: accessor.into_inner().map(|p| p.into_ast()).collect(),
+                                    entries: accessor
+                                        .into_inner()
+                                        .map(|p| p.into_ast(resolver))
+                                        .collect(),
                                 }),
                             }))
                         }
@@ -831,7 +855,8 @@ impl IntoAstNode<Expression> for HashPair<'_> {
                             debug_assert_eq!(subject_rule, Rule::variable_expr);
 
                             // this is the expression within the brackets.
-                            let index_expr = accessor.into_inner().next().unwrap().into_ast();
+                            let index_expr =
+                                accessor.into_inner().next().unwrap().into_ast(resolver);
 
                             // @@Cutnpase: move this into a seprate function for transpilling built-in functions
                             ab.node(Expression::FunctionCall(FunctionCallExpr {
@@ -863,7 +888,7 @@ impl IntoAstNode<Expression> for HashPair<'_> {
 }
 
 impl IntoAstNode<Block> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Block> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Block> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -901,8 +926,8 @@ impl IntoAstNode<Block> for HashPair<'_> {
                                         let mut components = if_condition.into_inner();
 
                                         // get the clause and block from the if-block components
-                                        let clause = components.next().unwrap().into_ast();
-                                        let block = components.next().unwrap().into_ast();
+                                        let clause = components.next().unwrap().into_ast(resolver);
+                                        let block = components.next().unwrap().into_ast(resolver);
 
                                         block_builder.node(MatchCase {
                                             pattern: block_builder.node(Pattern::If(IfPattern {
@@ -916,8 +941,11 @@ impl IntoAstNode<Block> for HashPair<'_> {
                                     Rule::else_block => {
                                         append_else = false;
 
-                                        let block =
-                                            if_condition.into_inner().next().unwrap().into_ast();
+                                        let block = if_condition
+                                            .into_inner()
+                                            .next()
+                                            .unwrap()
+                                            .into_ast(resolver);
 
                                         block_builder.node(MatchCase {
                                             pattern: block_builder.node(Pattern::Ignore),
@@ -952,7 +980,7 @@ impl IntoAstNode<Block> for HashPair<'_> {
                         // firstly get the expresion condition from the match block, the
                         // next rule will be a bunch of match_case rules which can be
                         // converted into ast using the pattern and block implementations...
-                        let subject = match_block.next().unwrap().into_ast();
+                        let subject = match_block.next().unwrap().into_ast(resolver);
                         let match_cases = match_block.next().unwrap();
 
                         let cases = match_cases
@@ -964,8 +992,8 @@ impl IntoAstNode<Block> for HashPair<'_> {
                                     Rule::match_case => {
                                         let mut components = case.into_inner();
 
-                                        let pattern = components.next().unwrap().into_ast();
-                                        let expr = components.next().unwrap().into_ast();
+                                        let pattern = components.next().unwrap().into_ast(resolver);
+                                        let expr = components.next().unwrap().into_ast(resolver);
 
                                         case_builder.node(MatchCase { pattern, expr })
                                     }
@@ -977,20 +1005,22 @@ impl IntoAstNode<Block> for HashPair<'_> {
                         ab.node(Block::Match(MatchBlock { subject, cases }))
                     }
                     Rule::loop_block => {
-                        let body_block = block.into_inner().next().unwrap().into_ast();
+                        let body_block = block.into_inner().next().unwrap().into_ast(resolver);
 
                         ab.node(Block::Loop(body_block))
                     }
                     Rule::for_block => {
                         let mut for_block = block.into_inner();
 
-                        let pattern: AstNode<Pattern> = for_block.next().unwrap().into_ast();
+                        let pattern: AstNode<Pattern> =
+                            for_block.next().unwrap().into_ast(resolver);
                         let pat_builder = AstBuilder::from_node(&pattern);
 
-                        let iterator: AstNode<Expression> = for_block.next().unwrap().into_ast();
+                        let iterator: AstNode<Expression> =
+                            for_block.next().unwrap().into_ast(resolver);
                         let iter_builder = AstBuilder::from_node(&iterator);
 
-                        let body: AstNode<Block> = for_block.next().unwrap().into_ast();
+                        let body: AstNode<Block> = for_block.next().unwrap().into_ast(resolver);
                         let body_builder = AstBuilder::from_node(&body);
 
                         ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
@@ -1045,10 +1075,11 @@ impl IntoAstNode<Block> for HashPair<'_> {
                     Rule::while_block => {
                         let mut while_block = block.into_inner();
 
-                        let condition: AstNode<Expression> = while_block.next().unwrap().into_ast();
+                        let condition: AstNode<Expression> =
+                            while_block.next().unwrap().into_ast(resolver);
                         let condition_builder = AstBuilder::from_node(&condition);
 
-                        let body: AstNode<Block> = while_block.next().unwrap().into_ast();
+                        let body: AstNode<Block> = while_block.next().unwrap().into_ast(resolver);
                         let body_builder = AstBuilder::from_node(&body);
 
                         ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
@@ -1076,13 +1107,13 @@ impl IntoAstNode<Block> for HashPair<'_> {
                             ],
                         }))))
                     }
-                    Rule::body_block => block.into_ast(),
+                    Rule::body_block => block.into_ast(resolver),
                     k => panic!("unexpected rule within block variant: {:?}", k),
                 }
             }
             Rule::body_block => {
                 ab.node(Block::Body(BodyBlock {
-                    statements: self.into_inner().map(|p| p.into_ast()).collect(),
+                    statements: self.into_inner().map(|p| p.into_ast(resolver)).collect(),
                     // @@FIXME: since the tokeniser cannot tell the difference betweeen a statment and an expression (what is returned), we need to do it here...
                     expr: None,
                 }))
@@ -1093,7 +1124,7 @@ impl IntoAstNode<Block> for HashPair<'_> {
 }
 
 impl IntoAstNode<Statement> for HashPair<'_> {
-    fn into_ast(self) -> AstNode<Statement> {
+    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Statement> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -1102,16 +1133,16 @@ impl IntoAstNode<Statement> for HashPair<'_> {
 
                 // since we have block statements and semi statements, we can check here
                 // to see which path it is, if this is a block statement, we just call
-                // into_ast() since there is an implementation for block convetsions
+                // into_ast(resolver) since there is an implementation for block convetsions
                 match statement.as_rule() {
-                    Rule::block => ab.node(Statement::Block(statement.into_ast())),
+                    Rule::block => ab.node(Statement::Block(statement.into_ast(resolver))),
                     Rule::break_st => ab.node(Statement::Break),
                     Rule::continue_st => ab.node(Statement::Continue),
                     Rule::return_st => {
                         let ret_expr = statement.into_inner().next();
 
                         if let Some(node) = ret_expr {
-                            ab.node(Statement::Return(Some(node.into_ast())))
+                            ab.node(Statement::Return(Some(node.into_ast(resolver))))
                         } else {
                             ab.node(Statement::Return(None))
                         }
@@ -1122,13 +1153,13 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         // assignment to the let statement
                         let mut components = statement.into_inner();
 
-                        let pattern = components.next().unwrap().into_ast();
+                        let pattern = components.next().unwrap().into_ast(resolver);
 
                         let bound_or_ty = components.next();
                         let (bound, ty, value) = match bound_or_ty {
                             Some(pair) => match pair.as_rule() {
                                 Rule::bound => {
-                                    let bound = Some(pair.into_ast());
+                                    let bound = Some(pair.into_ast(resolver));
 
                                     let ty_or_expr = components.next();
 
@@ -1136,11 +1167,13 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                                         Some(r) => match r.as_rule() {
                                             Rule::any_type => (
                                                 bound,
-                                                Some(r.into_ast()),
+                                                Some(r.into_ast(resolver)),
                                                 // check if the optional value component is present with the let statement...
-                                                components.next().map(|expr| expr.into_ast()),
+                                                components
+                                                    .next()
+                                                    .map(|expr| expr.into_ast(resolver)),
                                             ),
-                                            Rule::expr => (bound, None, Some(r.into_ast())),
+                                            Rule::expr => (bound, None, Some(r.into_ast(resolver))),
                                             k => {
                                                 panic!("Unexpected rule within ty_or_expr: {:?}", k)
                                             }
@@ -1150,10 +1183,10 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                                 }
                                 Rule::any_type => (
                                     None,
-                                    Some(pair.into_ast()),
-                                    components.next().map(|expr| expr.into_ast()),
+                                    Some(pair.into_ast(resolver)),
+                                    components.next().map(|expr| expr.into_ast(resolver)),
                                 ),
-                                Rule::expr => (None, None, Some(pair.into_ast())),
+                                Rule::expr => (None, None, Some(pair.into_ast(resolver))),
                                 k => panic!("Unexpected rule within let_st: {:?}", k),
                             },
                             None => (None, None, None),
@@ -1183,7 +1216,8 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         // So, what we have to do is insert a phantom ast_node which binds the lhs to
                         // '$index', so that it can be used when transpilling the re-assignment operators...
                         // FIXME: we need to handle this situation ^^^
-                        let lhs: AstNode<Expression> = components.next().unwrap().into_ast();
+                        let lhs: AstNode<Expression> =
+                            components.next().unwrap().into_ast(resolver);
 
                         // if no rhs is present, this is just an singular expression instead of an
                         // assignment
@@ -1210,7 +1244,7 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                                     ),
                                 };
 
-                                let mut rhs = components.next().unwrap().into_ast();
+                                let mut rhs = components.next().unwrap().into_ast(resolver);
 
                                 // transform lhs if we're using a non-eq assignment operator into the appropriate
                                 // function call...
@@ -1239,25 +1273,28 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     }
                     Rule::struct_def => {
                         let mut components = statement.into_inner();
-                        let name = components.next().unwrap().into_ast();
+                        let name = components.next().unwrap().into_ast(resolver);
 
                         let bound_or_fields = components.next().unwrap();
                         let (bound, entries) = match bound_or_fields.as_rule() {
                             Rule::bound => (
-                                Some(bound_or_fields.into_ast()),
+                                Some(bound_or_fields.into_ast(resolver)),
                                 // It's guaranteed to have zero or more struct def fields and so it is
                                 // safe to unwrap the following rule after the bound...
                                 components
                                     .next()
                                     .unwrap()
                                     .into_inner()
-                                    .map(|p| p.into_ast())
+                                    .map(|p| p.into_ast(resolver))
                                     .collect(),
                             ),
 
                             Rule::struct_def_fields => (
                                 None,
-                                bound_or_fields.into_inner().map(|p| p.into_ast()).collect(),
+                                bound_or_fields
+                                    .into_inner()
+                                    .map(|p| p.into_ast(resolver))
+                                    .collect(),
                             ),
                             k => panic!("Unexpected rule within struct_def: {:?}", k),
                         };
@@ -1269,24 +1306,27 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     }
                     Rule::enum_def => {
                         let mut components = statement.into_inner();
-                        let name = components.next().unwrap().into_ast();
+                        let name = components.next().unwrap().into_ast(resolver);
 
                         let bound_or_fields = components.next().unwrap();
                         let (bound, entries) = match bound_or_fields.as_rule() {
                             Rule::bound => (
-                                Some(bound_or_fields.into_ast()),
+                                Some(bound_or_fields.into_ast(resolver)),
                                 components
                                     .next()
                                     .unwrap()
                                     .into_inner()
-                                    .map(|p| p.into_ast())
+                                    .map(|p| p.into_ast(resolver))
                                     .collect(),
                             ),
                             // It's guaranteed to have zero or more enum def fields and so it is
                             // safe to unwrap the following rule after the bound...
                             Rule::enum_fields => (
                                 None,
-                                bound_or_fields.into_inner().map(|p| p.into_ast()).collect(),
+                                bound_or_fields
+                                    .into_inner()
+                                    .map(|p| p.into_ast(resolver))
+                                    .collect(),
                             ),
                             k => panic!("Unexpected rule within enum_def: {:?}", k),
                         };
@@ -1299,11 +1339,11 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                     }
                     Rule::trait_def => {
                         let mut components = statement.into_inner();
-                        let name = components.next().unwrap().into_ast();
-                        let bound = components.next().unwrap().into_ast();
+                        let name = components.next().unwrap().into_ast(resolver);
+                        let bound = components.next().unwrap().into_ast(resolver);
 
                         // @@Incomplete: ensure that this is a function_type!!
-                        let trait_type = components.next().unwrap().into_ast();
+                        let trait_type = components.next().unwrap().into_ast(resolver);
 
                         ab.node(Statement::TraitDef(TraitDef {
                             name,
@@ -1318,7 +1358,7 @@ impl IntoAstNode<Statement> for HashPair<'_> {
             // arbitrary number of statements, and an optional final expression.
             // So, when we convert the body_blocks' into ast, we don't know if the
             // last item is a statement or expression...
-            Rule::expr => ab.node(Statement::Expr(self.into_ast())),
+            Rule::expr => ab.node(Statement::Expr(self.into_ast(resolver))),
             k => panic!("unexpected rule within statement: {:?}", k),
         }
     }
@@ -1336,8 +1376,9 @@ mod tests {
     where
         for<'a> HashPair<'a>: IntoAstNode<T>,
     {
+        let resolver = ModuleResolver::new();
         let mut result = grammar::HashGrammar::parse(rule, input).unwrap();
-        let parsed: AstNode<T> = result.next().unwrap().into_ast();
+        let parsed: AstNode<T> = result.next().unwrap().into_ast(&resolver);
         parsed
     }
 

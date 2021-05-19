@@ -1,12 +1,15 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::grammar::{HashGrammar, Rule};
 use crate::{
     ast::{self, *},
     modules::{self, ModuleIdx},
 };
 use crate::{error::ParseError, modules::Modules};
+use crate::{
+    grammar::{HashGrammar, Rule},
+    modules::ModuleResolver,
+};
 use std::{fs, path::PathBuf, time::Instant};
 
 extern crate pretty_env_logger;
@@ -105,11 +108,12 @@ impl ParParser<'_> {
         match result {
             Ok(pairs) => {
                 let after_token = Instant::now();
+                let resolver = ModuleResolver::new();
 
                 // take rules from the grammar until we reach EOF
                 let contents = pairs
                     .take_while(|p| p.as_rule() != Rule::EOI)
-                    .map(|p| p.into_ast())
+                    .map(|p| p.into_ast(&resolver))
                     .collect();
 
                 debug!("ast: {:.2?}", after_token.elapsed());
@@ -169,6 +173,7 @@ impl SeqParser<'_> {
 
         // create the modules object
         let mut modules = Modules::new();
+        let resolver = ModuleResolver::new();
 
         // now continue onto the ast-emit part
         match result {
@@ -178,7 +183,7 @@ impl SeqParser<'_> {
                 // take rules from the grammar until we reach EOF
                 let contents = pairs
                     .take_while(|p| p.as_rule() != Rule::EOI)
-                    .map(|p| p.into_ast())
+                    .map(|p| p.into_ast(&resolver))
                     .collect();
 
                 debug!("ast: {:.2?}", after_token.elapsed());
@@ -195,9 +200,11 @@ impl SeqParser<'_> {
     pub fn parse_statement(&self, source: &str) -> Result<AstNode<Statement>, ParseError> {
         let mut result = HashGrammar::parse(Rule::statement, source)?;
 
+        let resolver = ModuleResolver::new();
+
         // @@ErrorReporting: change _into_ast to return an Result in case the
         // ast emit had a reason for failure since it might not always be a bug...
-        let body: AstNode<Statement> = result.next().unwrap().into_ast();
+        let body: AstNode<Statement> = result.next().unwrap().into_ast(&resolver);
         Ok(body)
     }
 }
