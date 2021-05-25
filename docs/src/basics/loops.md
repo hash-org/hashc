@@ -48,12 +48,6 @@ for num in iter(nums) {
 }
 ```
 
-The general syntax for a `for` loop is
-
-```
-"for" destructor_expression "in" iterator_expr "{" body_expression "}"
-```
-
 ### iterators
 
 Iterators ship with the standard library, but you can define your own iterators via the Hash generic typing system.

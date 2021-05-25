@@ -3,7 +3,7 @@
 - [Introduction](./introduction.md)
 - [Language Basics](./basics/intro.md)
     - [Variables](./basics/variables.md)
-    - [Operators](./basics/operators.md)
+    - [Operators & Symbols](./basics/operators.md)
     - [Types, Structs and Enums](./basics/types.md)
         - [Primitives](./basics/primitive-types.md)
         - [Struct types](./basics/struct-types.md)

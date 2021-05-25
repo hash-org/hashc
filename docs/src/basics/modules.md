@@ -1,17 +1,6 @@
 # Hash language modules
 
-## General
-`Hash` has a fairly robust module system that allows one to split a codebase
-into smaller fragments.
-
-Modules allow for a source to be split up into smaller code fragments, allowing for better source code organisation and maintainance. Many guides online
-suggest that a project should have source files of between 500-1000 lines of code,
-but it's really up to the developer about how long their modules should be, and in
-general how a project source is organised.
-
 A module in `Hash` is equivalent to a namespace that can contain variable definitions, function definitions, type definitions or include other modules.
-
-<br />
 
 ## Importing
 
@@ -42,7 +31,9 @@ let c = import("lib/sub/c");
 By doing so, you are placing everything that is defined within each of those modules under
 the namespace. 
 
-## Referencing exports
+## Referencing exports 🚧
+
+> **Note**: Currently there is no way to declare if a symbol or type are to be exported or should be contained within the local scope of the module. Of course this is bounded to change and hence why the name `pub` has been reserved for the future.
 
 Furthermore, if the `a` module contained a structure definition like `Point`:
 
@@ -87,14 +78,10 @@ let {Point: LibPoint} = import("lib/a");
 let p1 = LibPoint { x=2; y=3 };
 ```
 
-**Note**: Naming is entirely up to the developer, there are no restrictions on naming
-except the language naming 
+> **Note**: Naming is entirely up to the developer, there are no restrictions on naming
+> except the language naming 
 
-<br />
-
-## Limitations
-
-### Cyclic imports
+### Cyclic imports 🚧
 
 Hash does not currently support cyclical dependencies within a project. Two modules within a project cannot be dependent on each other. As much as this might be an inconvienience, this is done to avoid "behaviour" which is implied by supporting cyclical imports. Other languages such as JavaScript support cyclical imports but can sometimes exhibit strange behaviour when using modules with cyclical imports.
 
