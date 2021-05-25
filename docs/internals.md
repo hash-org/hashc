@@ -1,3 +1,0 @@
-# Hash Compiler Internals
-
-## Intrinsics

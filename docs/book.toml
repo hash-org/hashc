@@ -1,0 +1,6 @@
+[book]
+authors = ["The Hash Programming Language authors"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Hash Programming Language"
