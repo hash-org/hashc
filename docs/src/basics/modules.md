@@ -7,12 +7,12 @@ A module in `Hash` is equivalent to a namespace that can contain variable defini
 Given the project structure:
 ```
 .
-+-- lib
-|   +-- a.hash
-|   +-- b.hash
-|   +-- sub
-|   |   +-- c.hash
-+-- main.hash
+├── lib
+│   ├── a.hash
+│   ├── b.hash
+│   └── sub
+│       └── c.hash
+└── main.hash
 ```
 
 Modules in hash allow for a source to be split up into smaller code fragments, allowing for better source code organisation and maintainance.

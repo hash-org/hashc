@@ -30,7 +30,7 @@ error: Failed to typecheck:
 
  --> 3:7
   |
-1 | print(x)
+3 | print(x)
   |       ^
   |   symbol 'x' is uninitialised.
 ```

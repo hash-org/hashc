@@ -2,7 +2,7 @@
 
 This section contains all of the syntactic operators that are available within Hash
 
-## General operators
+## General operators 🚧
 
 Here are the general operators for arithmetic, bitwise assignment operators. This table does not include
 all of the possible operators specified within the grammar. There are more operators that are related to
@@ -42,11 +42,21 @@ a specific group of operations or are used to convey meaning within the language
 | `&=`                 | `a &= b`             | Bitwise and with assignment   | `andb`             |
 | <code>&#124;=</code>                | <code>b  &#124;= SOME_CONST</code>   | Bitwise or with assignment    | `orb`              |
 | `^=`                 | `a ^= 1`             | Bitwise xor with assignment   | `xorb`             |
+| `.`  	| `a.foo`, `item.id` 	| Struct/Tuple enum property accessor 	| N/A 	|
+| `:`  	| `{2: 'a'}`         	| Map key-value separator             	| N/A 	|
+| `::` 	| `io::open()`       	| Namespace symbol access             	| N/A 	|
+| `as` 	| `t as str`         	| Type assertion                      	| N/A 	|
+| `@` 	| N/A              	| Pattern value binding   	| N/A 	|
+| `...` 	| N/A                	| Spread operator (Not-implemented)   	| `range`? 	|
+| `;` 	| `expression;`              	| statement terminator   	| N/A 	|
+| `?` 	| `let k<T> where s<T, ?> = ...`              	| Type argument wildcard   	| N/A 	|
 
--- 'as' ':' '::' '.' '...' ';' 
+## Comments 🚧
 
-## Non-operator symbols
+This table represents the syntax for different types of comments in Hash:
 
-## Type annotations
-
-## Comments
+| Symbol    | Description                 |
+|-----------|-----------------------------|
+| `//...`   | Line comment                |
+| `/*...*/` | Block comment               |
+| N/A       | Module/function doc comment |
