@@ -23,5 +23,6 @@
 - [Advanced Concepts](./advanced/intro.md)
     - [Compiler internals](./advanced/compiler-internals.md)
         - [Loop transpilation](./advanced/loop-transpilation.md)
+        - [If statement transpilation](./advanced/if-statement-transpilation.md)
         - [Type inference](./advanced/type-inference.md)
     - [Future features](./advanced/future-features.md)
