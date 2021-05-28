@@ -205,7 +205,7 @@ To specify more complex conditional statements like and within the match case, y
 can do so using the `match-if` syntax, like so:
 
 
-```hash
+```rust
 let x: u32 = input<u32>();
 let y: bool = true;
 

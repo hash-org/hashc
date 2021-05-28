@@ -16,7 +16,7 @@ to any statement after the loop (if any).
 of the loop body and move on to the next iteration (if any). Obviously, if no iterations
 remain, `continue` behaves just like `break`.
 
-## For construct
+## For loop
 
 ###  Basics
 
@@ -58,7 +58,7 @@ So, for the example above, the `range` function is essentially a `RangeIterator`
 More details about generics are [here](./generics-polymorphism.md).
 
 
-## While construct
+## While loop
 
 ###  Basics
 
@@ -133,16 +133,16 @@ while c -= 1 {
 ```
 Running the following code snippet produces the following error:
 ```
-error: Failed to typecheck:
+error: Failed to Typecheck:
  --> 3:7 - 3:12
   |
 3 | while c -= 1 {
   |       ^^^^^^
-  |       This does not have a boolean type 
+  |       Expression does not have a boolean type 
 ```
 
 
-## Loop consturct
+## Loop
 
 The loop consturct is the simplest of the three. The basic syntax for a loop is as follows:
 
