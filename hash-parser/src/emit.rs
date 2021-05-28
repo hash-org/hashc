@@ -8,6 +8,7 @@ use crate::{
     location::Location,
     modules::{ModuleIdx, ModuleResolver},
     precedence::climb,
+    utils::*,
 };
 
 /// Utility for creating a boolean in enum representation
@@ -26,6 +27,19 @@ fn make_boolean(variant: bool, ab: &AstBuilder) -> AstNode<AccessName> {
 fn make_variable(name: AstNode<AccessName>, ab: &AstBuilder) -> AstNode<Expression> {
     ab.node(Expression::Variable(VariableExpr {
         name,
+        type_args: vec![],
+    }))
+}
+
+/// Utility function to make an `$internal` identifier reference, this is used when
+/// transforming assignment with update operators like `+=`
+fn make_internal_node(ab: &AstBuilder) -> AstNode<Expression> {
+    ab.node(Expression::Variable(VariableExpr {
+        name: ab.node(AccessName {
+            names: vec![ab.node(Name {
+                string: String::from("$internal"),
+            })],
+        }),
         type_args: vec![],
     }))
 }
@@ -1225,7 +1239,6 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                         //
                         // So, what we have to do is insert a phantom ast_node which binds the lhs to
                         // '$index', so that it can be used when transpilling the re-assignment operators...
-                        // FIXME: we need to handle this situation ^^^
                         let lhs: AstNode<Expression> =
                             components.next().unwrap().into_ast(resolver);
 
@@ -1235,45 +1248,68 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                             Some(op_wrap) => {
                                 // get the assignment operator out of 'assign_op'
                                 let op = op_wrap.into_inner().next().unwrap();
-
-                                let transform: Option<&str> = match op.as_rule() {
-                                    Rule::assign_eq_op => None,
-                                    Rule::add_eq_op => Some("pos"),
-                                    Rule::sub_eq_op => Some("neg"),
-                                    Rule::mul_eq_op => Some("mul"),
-                                    Rule::div_eq_op => Some("div"),
-                                    Rule::mod_eq_op => Some("mod"),
-                                    Rule::andl_eq_op => Some("andl"),
-                                    Rule::orl_eq_op => Some("orl"),
-                                    Rule::andb_eq_op => Some("andb"),
-                                    Rule::orb_eq_op => Some("orb"),
-                                    Rule::xorb_eq_op => Some("xorb"),
-                                    k => panic!(
-                                        "Unexpected rule within assignment_operator: {:?}",
-                                        k
-                                    ),
-                                };
+                                let transform = convert_rule_into_fn_call(&op.as_rule());
 
                                 let mut rhs = components.next().unwrap().into_ast(resolver);
 
                                 // transform lhs if we're using a non-eq assignment operator into the appropriate
                                 // function call...
                                 if let Some(fn_name) = transform {
-                                    let builder = AstBuilder::from_pair(&op);
+                                    // Representing '$internal' as an identifier
+                                    let builder = AstBuilder::from_node(&rhs);
+                                    let internal_node = make_internal_node(&builder);
 
-                                    rhs = builder.node(Expression::FunctionCall(FunctionCallExpr {
-                                        subject: builder.node(Expression::Variable(VariableExpr {
-                                            name: builder.node(AccessName {
-                                                names: vec![builder.node(Name {
-                                                    string: String::from(fn_name),
-                                                })],
-                                            }),
-                                            type_args: vec![],
-                                        })),
-                                        args: AstBuilder::from_node(&rhs).node(FunctionCallArgs {
-                                            entries: vec![lhs.clone(), rhs],
+                                    let internal_decl = AstBuilder::from_node(&lhs).node(
+                                        Statement::Assign(AssignStatement {
+                                            lhs: internal_node.clone(),
+                                            rhs: lhs.clone(),
                                         }),
-                                    }))
+                                    );
+
+                                    // transform the right hand side into the appropriate expression, by representing the
+                                    // modification operator into a function call and then setting the lhs and rhs as
+                                    // arguments to the function call. So, essentially the expression `lhs += rhs` is transformed
+                                    // into `lhs = lhs + rhs`
+                                    rhs =
+                                        builder.node(Expression::FunctionCall(FunctionCallExpr {
+                                            subject: builder.node(Expression::Variable(
+                                                VariableExpr {
+                                                    name: builder.node(AccessName {
+                                                        names: vec![
+                                                            builder.node(Name { string: fn_name })
+                                                        ],
+                                                    }),
+                                                    type_args: vec![],
+                                                },
+                                            )),
+                                            args: AstBuilder::from_node(&rhs).node(
+                                                FunctionCallArgs {
+                                                    entries: vec![internal_node.clone(), rhs],
+                                                },
+                                            ),
+                                        }));
+
+                                    // make the assignment
+                                    let assignment = ab.node(Statement::Assign(AssignStatement {
+                                        lhs: internal_node.clone(),
+                                        rhs,
+                                    }));
+
+                                    // a[side_effect] += 2
+                                    //
+                                    // transforms into...
+                                    // {
+                                    //  $internal = a[side_effect]
+                                    //  $internal = $internal + 2
+                                    //  $internal
+                                    // }
+                                    //
+                                    return ab.node(Statement::Expr(builder.node(
+                                        Expression::Block(builder.node(Block::Body(BodyBlock {
+                                            statements: vec![internal_decl, assignment],
+                                            expr: Some(internal_node), // the return statement is just the internal node
+                                        }))),
+                                    )));
                                 }
 
                                 ab.node(Statement::Assign(AssignStatement { lhs, rhs }))

@@ -34,6 +34,7 @@ mod grammar;
 mod location;
 mod modules;
 mod precedence;
+mod utils;
 
 #[allow(dead_code)]
 pub struct ParseInfo {

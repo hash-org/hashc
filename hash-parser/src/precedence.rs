@@ -2,6 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+use crate::utils::convert_rule_into_fn_call;
 use crate::{ast::*, emit::AstBuilder};
 use crate::{grammar::Rule, modules::ModuleResolver};
 
@@ -41,30 +42,8 @@ fn build_binary(
 ) -> AstNode<Expression> {
     let ab = AstBuilder::from_pair(&op);
 
-    let subject_name = String::from(match op.as_rule() {
-        Rule::triple_eq_op => "ref_eq",
-        Rule::double_eq_op => "eq",
-        Rule::double_neq_op => "ref_not_eq",
-        Rule::neq_op => "logical_not",
-        Rule::add_op => "add",
-        Rule::sub_op => "sub",
-        Rule::mul_op => "mul",
-        Rule::div_op => "div",
-        Rule::mod_op => "mod",
-        Rule::andl_op => "logical_and",
-        Rule::orl_op => "logical_or",
-        Rule::shl_op => "left_shift",
-        Rule::shr_op => "right_shift",
-        Rule::exp_op => "exp",
-        Rule::geq_op => "gt_eq",
-        Rule::leq_op => "lt_eq",
-        Rule::gt_op => "gt",
-        Rule::lt_op => "lt",
-        Rule::andb_op => "bit_and",
-        Rule::orb_op => "bit_or",
-        Rule::xorb_op => "bit_xor",
-        _ => unreachable!(),
-    });
+    // Panic here if we cannot convert the operator into a function call
+    let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap_or_else(|| unreachable!());
 
     ab.node(Expression::FunctionCall(FunctionCallExpr {
         subject: ab.node(Expression::Variable(VariableExpr {
