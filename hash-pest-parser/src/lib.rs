@@ -1,14 +1,101 @@
+//! Hash language grammar implementation using pest
+//
+// All rights reserved 2021 (c) The Hash Language authors
+
+/// Language parser, created via [pest]
+#[allow(clippy::upper_case_acronyms)]
+mod derived {
+    use pest_derive::Parser;
+
+    #[derive(Parser)]
+    #[grammar = "grammar.pest"] // relative to src
+    pub struct PestParser;
+}
+
+pub use derived::{PestParser, Rule};
+
 use std::{iter, vec};
-
 use num::BigInt;
+use crate::{*, self, location::Location, modules::{ModuleIdx, SeqModuleResolver}, precedence::climb};
 
-use crate::{
-    ast::*,
-    grammar::Rule,
-    location::Location,
-    modules::{ModuleIdx, ModuleResolver},
-    precedence::climb,
-};
+lazy_static! {
+    pub static ref PREC_CLIMBER: PrecClimber<Rule> = build_precedence_climber();
+}
+
+fn build_precedence_climber() -> PrecClimber<Rule> {
+    PrecClimber::new(vec![
+        Operator::new(Rule::orl_op, Assoc::Left),
+        Operator::new(Rule::andl_op, Assoc::Left),
+        Operator::new(Rule::double_eq_op, Assoc::Right) | Operator::new(Rule::neq_op, Assoc::Right),
+        Operator::new(Rule::geq_op, Assoc::Left)
+            | Operator::new(Rule::leq_op, Assoc::Left)
+            | Operator::new(Rule::gt_op, Assoc::Left)
+            | Operator::new(Rule::lt_op, Assoc::Left),
+        Operator::new(Rule::xorb_op, Assoc::Left) | Operator::new(Rule::orb_op, Assoc::Left),
+        Operator::new(Rule::andb_op, Assoc::Left),
+        Operator::new(Rule::shr_op, Assoc::Left) | Operator::new(Rule::shl_op, Assoc::Left),
+        Operator::new(Rule::add_op, Assoc::Left) | Operator::new(Rule::sub_op, Assoc::Left),
+        Operator::new(Rule::mod_op, Assoc::Left)
+            | Operator::new(Rule::div_op, Assoc::Left)
+            | Operator::new(Rule::mul_op, Assoc::Left),
+        Operator::new(Rule::exp_op, Assoc::Right),
+    ])
+}
+
+fn build_binary(
+    lhs: AstNode<Expression>,
+    op: Pair<'_, Rule>,
+    rhs: AstNode<Expression>,
+) -> AstNode<Expression> {
+    let ab = AstBuilder::from_pair(&op);
+
+    let subject_name = String::from(match op.as_rule() {
+        Rule::triple_eq_op => "ref_eq",
+        Rule::double_eq_op => "eq",
+        Rule::double_neq_op => "ref_not_eq",
+        Rule::neq_op => "logical_not",
+        Rule::add_op => "add",
+        Rule::sub_op => "sub",
+        Rule::mul_op => "mul",
+        Rule::div_op => "div",
+        Rule::mod_op => "mod",
+        Rule::andl_op => "logical_and",
+        Rule::orl_op => "logical_or",
+        Rule::shl_op => "left_shift",
+        Rule::shr_op => "right_shift",
+        Rule::exp_op => "exp",
+        Rule::geq_op => "gt_eq",
+        Rule::leq_op => "lt_eq",
+        Rule::gt_op => "gt",
+        Rule::lt_op => "lt",
+        Rule::andb_op => "bit_and",
+        Rule::orb_op => "bit_or",
+        Rule::xorb_op => "bit_xor",
+        _ => unreachable!(),
+    });
+
+    ab.node(Expression::FunctionCall(FunctionCallExpr {
+        subject: ab.node(Expression::Variable(VariableExpr {
+            name: ab.node(AccessName {
+                names: vec![ab.node(Name {
+                    string: subject_name,
+                })],
+            }),
+            type_args: vec![], // we dont need any kind of typeargs since were just transpilling here
+        })),
+        args: ab.node(FunctionCallArgs {
+            entries: vec![lhs, rhs],
+        }),
+    }))
+}
+
+pub fn climb(pair: Pair<'_, Rule>, resolver: &SeqModuleResolver) -> AstNode<Expression> {
+    PREC_CLIMBER.climb(
+        pair.into_inner(),
+        |pair| pair.into_ast(resolver),
+        build_binary,
+    )
+}
 
 /// Utility for creating a boolean in enum representation
 fn make_boolean(variant: bool, ab: &AstBuilder) -> AstNode<AccessName> {
@@ -28,6 +115,22 @@ fn make_variable(name: AstNode<AccessName>, ab: &AstBuilder) -> AstNode<Expressi
         name,
         type_args: vec![],
     }))
+}
+
+impl From<pest::error::Error<Rule>> for ParseError {
+    fn from(pest: pest::error::Error<Rule>) -> Self {
+        match pest.variant {
+            pest::error::ErrorVariant::ParsingError {
+                positives,
+                negatives,
+            } => ParseError::Parsing {
+                positives,
+                negatives,
+                location: Location::from(pest.location),
+            },
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// A wrapper around AstNode to build [AstNode]s with the same information as the builder
@@ -88,7 +191,7 @@ impl AstBuilder {
 type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
 impl IntoAstNode<Name> for HashPair<'_> {
-    fn into_ast(self, _resolver: &ModuleResolver) -> AstNode<Name> {
+    fn into_ast(self, _resolver: &SeqModuleResolver) -> AstNode<Name> {
         match self.as_rule() {
             Rule::ident => AstBuilder::from_pair(&self).node(Name {
                 string: self.as_str().to_owned(),
@@ -99,7 +202,7 @@ impl IntoAstNode<Name> for HashPair<'_> {
 }
 
 impl IntoAstNode<StructDefEntry> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<StructDefEntry> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<StructDefEntry> {
         match self.as_rule() {
             Rule::struct_def_field => {
                 let ab = AstBuilder::from_pair(&self);
@@ -128,7 +231,7 @@ impl IntoAstNode<StructDefEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<StructLiteralEntry> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<StructLiteralEntry> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<StructLiteralEntry> {
         match self.as_rule() {
             Rule::struct_literal_field => {
                 let ab = AstBuilder::from_pair(&self);
@@ -145,7 +248,7 @@ impl IntoAstNode<StructLiteralEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<EnumDefEntry> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<EnumDefEntry> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<EnumDefEntry> {
         match self.as_rule() {
             Rule::enum_field => {
                 let ab = AstBuilder::from_pair(&self);
@@ -162,7 +265,7 @@ impl IntoAstNode<EnumDefEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<Bound> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Bound> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Bound> {
         match self.as_rule() {
             Rule::bound => {
                 let ab = AstBuilder::from_pair(&self);
@@ -194,7 +297,7 @@ impl IntoAstNode<Bound> for HashPair<'_> {
 }
 
 impl IntoAstNode<TraitBound> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<TraitBound> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<TraitBound> {
         match self.as_rule() {
             Rule::trait_bound => {
                 let ab = AstBuilder::from_pair(&self);
@@ -218,7 +321,7 @@ impl IntoAstNode<TraitBound> for HashPair<'_> {
 }
 
 impl IntoAstNode<AccessName> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<AccessName> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<AccessName> {
         match self.as_rule() {
             Rule::access_name => AstBuilder::from_pair(&self).node(AccessName {
                 names: self.into_inner().map(|p| p.into_ast(resolver)).collect(),
@@ -243,7 +346,7 @@ fn single_access_name(ab: &AstBuilder, name: &str) -> AstNode<AccessName> {
 }
 
 impl IntoAstNode<Type> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Type> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Type> {
         match self.as_rule() {
             Rule::any_type => {
                 let ab = AstBuilder::from_pair(&self);
@@ -329,7 +432,7 @@ impl IntoAstNode<Type> for HashPair<'_> {
 }
 
 impl IntoAstNode<Literal> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Literal> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Literal> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -540,7 +643,7 @@ impl IntoAstNode<Literal> for HashPair<'_> {
 }
 
 impl IntoAstNode<LiteralPattern> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<LiteralPattern> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<LiteralPattern> {
         match self.as_rule() {
             Rule::literal_pattern => {
                 let pat = self.into_inner().next().unwrap();
@@ -568,7 +671,7 @@ impl IntoAstNode<LiteralPattern> for HashPair<'_> {
 }
 
 impl IntoAstNode<Pattern> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Pattern> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Pattern> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -692,7 +795,7 @@ impl IntoAstNode<Pattern> for HashPair<'_> {
 }
 
 impl IntoAstNode<Expression> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Expression> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Expression> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -898,7 +1001,7 @@ impl IntoAstNode<Expression> for HashPair<'_> {
 }
 
 impl IntoAstNode<Block> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Block> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Block> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -1134,7 +1237,7 @@ impl IntoAstNode<Block> for HashPair<'_> {
 }
 
 impl IntoAstNode<Statement> for HashPair<'_> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<Statement> {
+    fn into_ast(self, resolver: &SeqModuleResolver) -> AstNode<Statement> {
         let ab = AstBuilder::from_pair(&self);
 
         match self.as_rule() {
@@ -1374,6 +1477,12 @@ impl IntoAstNode<Statement> for HashPair<'_> {
     }
 }
 
+impl<I> IntoAstNode<ast::Module> for I
+    where I: Iterator<Item=HashPair<'_>> 
+{
+
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ast::*;
@@ -1386,7 +1495,7 @@ mod tests {
     where
         for<'a> HashPair<'a>: IntoAstNode<T>,
     {
-        let resolver = ModuleResolver::new();
+        let resolver = SeqModuleResolver::new();
         let mut result = grammar::HashGrammar::parse(rule, input).unwrap();
         let parsed: AstNode<T> = result.next().unwrap().into_ast(&resolver);
         parsed

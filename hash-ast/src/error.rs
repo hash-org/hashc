@@ -16,36 +16,24 @@ pub enum ParseError {
         err: String,
     },
     Parsing {
-        positives: Vec<Rule>,
-        negatives: Vec<Rule>,
         location: Location,
     },
     AstGeneration {
-        rule: Rule,
         location: Location,
     },
     ImportError {
         import_name: PathBuf,
-        location: Location,
+        location: Option<Location>,
     },
 }
 
-/// Convert a [pest::error::Error] into a [ParseError]
-impl From<pest::error::Error<Rule>> for ParseError {
-    fn from(pest: pest::error::Error<Rule>) -> Self {
-        // @@Incomplete: Remove when we have real error formatting.
-        println!("{}: Failed to parse:\n{}", ERR, pest);
+pub type ParseResult<T> = Result<T, ParseError>;
 
-        match pest.variant {
-            pest::error::ErrorVariant::ParsingError {
-                positives,
-                negatives,
-            } => ParseError::Parsing {
-                positives,
-                negatives,
-                location: Location::from(pest.location),
-            },
-            _ => unreachable!(),
+impl From<(io::Error, PathBuf)> for ParseError {
+    fn from((err, filename): (io::Error, PathBuf)) -> Self {
+        ParseError::IoError {
+            err: err.to_string(),
+            filename,
         }
     }
 }

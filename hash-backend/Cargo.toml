@@ -5,4 +5,4 @@ authors = ["The Hash Language authors"]
 edition = "2018"
 
 [dependencies]
-hash-parser = {path = "../hash-parser" } 
+hash-ast = {path = "../hash-ast" } 

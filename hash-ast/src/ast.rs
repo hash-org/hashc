@@ -5,7 +5,7 @@
 
 use crate::{
     location::Location,
-    modules::{ModuleIdx, ModuleResolver},
+    parse::ModuleIdx,
 };
 use num::BigInt;
 use std::hash::Hash;
@@ -22,13 +22,6 @@ pub struct AstNode<T> {
     pub pos: Location,
     /// Module that this node is part of. Index into [`Modules`](crate::modules::Modules).
     pub module: ModuleIdx,
-}
-
-/// Trait to convert some type into an [AstNode].
-///
-/// e.g. Used to convert pest rules into [AstNode]s.
-pub trait IntoAstNode<T> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<T>;
 }
 
 /// [AstNode] hashes as its inner `body` type.
