@@ -1,27 +1,51 @@
-name: github pages
-
-on:
+name: Generate book
+on: 
   push:
-    branches:
-      - main
-  pull_request:
+    branches: [ main ]
 
 jobs:
-  deploy:
-    runs-on: ubuntu-18.04
+  ebook:
+    name: Build and upload
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@v1
+      # Install Rust & its package manager Cargo
+      - name: Install cargo
+        uses: actions-rs/toolchain@v1
         with:
-          mdbook-version: 'latest'
+          toolchain: stable
+          profile: minimal
+      # Cache installation assets
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - run: mdbook build
+      # Install mdbook
+      - name: Install mdbook
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: mdbook
 
-      - name: Deploy
+      #  build the book
+      - name: Generate ebook from markdown
+        run: mdbook build ./docs
+
+      # HTML publication as Github Page
+      - name: Publish HTML
         uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
+          publish_dir: ./docs/book/html
+          publich_branch: ${{ github.ref }}
