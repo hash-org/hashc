@@ -2,8 +2,8 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::{grammar::Rule, location::Location};
-use std::{fmt, path::PathBuf};
+use crate::location::Location;
+use std::{fmt, io, path::PathBuf};
 
 /// Error message prefix
 const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";

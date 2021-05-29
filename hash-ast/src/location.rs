@@ -1,7 +1,6 @@
 //! Frontend-agnostic token/input locations utilities and definitions.
 //
 // All rights reserved 2021 (c) The Hash Language authors
-use crate::grammar::Rule;
 use std::fmt;
 
 /// Enum representing a location of a token within the source.

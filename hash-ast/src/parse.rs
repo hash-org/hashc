@@ -6,13 +6,14 @@ use crate::{
     error::{ParseError, ParseResult},
     location::Location,
 };
+use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
 use log::{debug, info, log_enabled, Level};
 use std::{
     collections::HashMap,
-    fs,
+    fs, mem,
     path::{Path, PathBuf},
-    sync::atomic::Ordering,
+    sync::{atomic::Ordering, Arc, Mutex},
     time::Instant,
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
@@ -63,25 +64,24 @@ where
         }
     }
 
-    fn parse_seq(
-        &self,
-        modules: &mut Modules,
-        filename: &Path,
-        directory: &Path,
-    ) -> ParseResult<()> {
-        let resolver = SeqModuleResolver::new(modules, directory.to_owned(), &self.backend);
+    fn parse_seq(&self, filename: &Path, directory: &Path) -> ParseResult<Modules> {
+        let mut modules = Modules::new();
+
+        let mut resolver = SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend);
         let entry_index = resolver.add_module(filename, None)?;
         modules.set_entry_point(entry_index);
-        Ok(())
+
+        Ok(modules)
     }
 
     fn parse_par(
         &self,
-        modules: &mut Modules,
         filename: &Path,
         directory: &Path,
         worker_count: usize,
-    ) -> ParseResult<()> {
+    ) -> ParseResult<Modules> {
+        let modules = Mutex::new(Modules::new());
+
         let (s, r) = unbounded::<ParMessage>();
         let module_counter = AtomicUsize::new(0);
 
@@ -94,12 +94,13 @@ where
         pool.scope(|scope| -> ParseResult<()> {
             // spawn the initial job
             scope.spawn(|_| {
-                let resolver =
+                let mut resolver =
                     ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
                 let entry_index = resolver.add_module_send_error(filename, None);
                 match entry_index {
                     None => {}
                     Some(entry_index) => {
+                        let mut modules = modules.lock().unwrap();
                         modules.set_entry_point(entry_index);
                     }
                 }
@@ -112,19 +113,20 @@ where
                     Ok(ParMessage::ModuleImport {
                         filename,
                         parent,
-                        index,
+                        index: _, // why is this here if we aren't using it?
                     }) => {
+                        let modules = modules.lock().unwrap();
                         if !modules.has_path(&filename) {
                             let root_dir = filename.parent().unwrap().to_owned();
-                            scope.spawn(|_| {
-                                let resolver = ParModuleResolver::new(
+                            scope.spawn(closure!(ref module_counter, ref s, |_| {
+                                let mut resolver = ParModuleResolver::new(
                                     s.clone(),
                                     &module_counter,
                                     parent,
                                     root_dir,
                                 );
                                 resolver.parse_file(filename, &self.backend);
-                            });
+                            }));
                         } else {
                             continue;
                         }
@@ -134,19 +136,23 @@ where
                         filename,
                         contents,
                     }) => {
+                        let mut modules = modules.lock().unwrap();
                         // add the module to the modules list.
                         modules.add_module(filename, node, contents);
                     }
                     Ok(ParMessage::Error(e)) => {
                         break Err(e);
                     }
-                    Err(recv_err) => {
+                    Err(_) => {
                         // All senders disconnected
                         break Ok(());
                     }
                 }
             }
-        })
+        })?;
+
+        // Ok to unwrap because no one else has a reference to modules
+        Ok(modules.into_inner().unwrap())
     }
 
     pub fn parse(
@@ -154,19 +160,13 @@ where
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
     ) -> ParseResult<Modules> {
-        let modules = Modules::new();
-
         let filename = filename.as_ref();
         let directory = directory.as_ref();
 
         match self.worker_count {
-            None => self.parse_seq(&mut modules, filename, directory)?,
-            Some(worker_count) => {
-                self.parse_par(&mut modules, filename, directory, worker_count)?
-            }
+            None => self.parse_seq(filename, directory),
+            Some(worker_count) => self.parse_par(filename, directory, worker_count),
         }
-
-        Ok(modules)
     }
 }
 
@@ -202,7 +202,7 @@ trait ParserBackend: Sync {
 
 pub trait ModuleResolver {
     fn add_module(
-        &self,
+        &mut self,
         import_path: impl AsRef<Path>,
         location: Option<Location>,
     ) -> ParseResult<ModuleIdx>;
@@ -248,11 +248,11 @@ where
         }
     }
 
-    fn for_dir(&self, dir: PathBuf) -> Self {
-        SeqModuleResolver {
-            root_dir: dir,
-            ..*self
-        }
+    fn for_dir<R>(&mut self, mut dir: PathBuf, cb: impl FnOnce(&mut Self) -> R) -> R {
+        mem::swap(&mut self.root_dir, &mut dir);
+        let ret = cb(self);
+        mem::swap(&mut self.root_dir, &mut dir);
+        ret
     }
 }
 
@@ -261,7 +261,7 @@ where
     B: ParserBackend,
 {
     fn add_module(
-        &self,
+        &mut self,
         import_path: impl AsRef<Path>,
         location: Option<Location>,
     ) -> ParseResult<ModuleIdx> {
@@ -271,11 +271,10 @@ where
         }
 
         let resolved_dir = resolved_path.parent().unwrap(); // is this correct?
-        let (node, source) = parse_file(
-            &resolved_path,
-            &self.for_dir(resolved_dir.to_owned()),
-            self.backend,
-        )?;
+
+        let (node, source) = self.for_dir(resolved_dir.to_owned(), |resolver| {
+            parse_file(&resolved_path, resolver, resolver.backend)
+        })?;
 
         let added_module = self.modules.add_module(resolved_path, node, source);
         Ok(added_module.index())
@@ -305,7 +304,7 @@ impl<'scope> ParModuleResolver<'scope> {
     }
 
     pub fn add_module_send_error(
-        &self,
+        &mut self,
         import_path: impl AsRef<Path>,
         location: Option<Location>,
     ) -> Option<ModuleIdx> {
@@ -318,19 +317,17 @@ impl<'scope> ParModuleResolver<'scope> {
         }
     }
 
-    fn for_dir(&self, dir: PathBuf) -> Self {
-        ParModuleResolver {
-            root_dir: dir,
-            ..*self
-        }
+    fn for_dir<R>(&mut self, mut dir: PathBuf, cb: impl FnOnce(&mut Self) -> R) -> R {
+        mem::swap(&mut self.root_dir, &mut dir);
+        let ret = cb(self);
+        mem::swap(&mut self.root_dir, &mut dir);
+        ret
     }
 
-    fn parse_file(&self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
-        let parse_result = parse_file(
-            &resolved_filename,
-            &self.for_dir(self.root_dir.to_owned()),
-            backend,
-        );
+    fn parse_file(&mut self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
+        let parse_result = self.for_dir(self.root_dir.to_owned(), |resolver| {
+            parse_file(&resolved_filename, resolver, backend)
+        });
 
         let message = match parse_result {
             Ok((node, source)) => ParMessage::ParsedModule {
@@ -347,7 +344,7 @@ impl<'scope> ParModuleResolver<'scope> {
 
 impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
     fn add_module(
-        &self,
+        &mut self,
         import_path: impl AsRef<Path>,
         location: Option<Location>,
     ) -> ParseResult<ModuleIdx> {
@@ -365,6 +362,7 @@ impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
 }
 
 /// Represents a set of loaded modules.
+#[derive(Debug)]
 pub struct Modules {
     path_to_index: HashMap<PathBuf, ModuleIdx>,
     filenames_by_index: Vec<PathBuf>,
@@ -446,7 +444,7 @@ impl Modules {
 
         Module {
             index: ModuleIdx(index),
-            modules: &self,
+            modules: self,
         }
     }
 

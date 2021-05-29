@@ -13,10 +13,10 @@ mod derived {
 }
 
 pub use derived::{PestParser, Rule};
+use pest::prec_climber::{Operator, PrecClimber};
 
 use std::{iter, vec};
 use num::BigInt;
-use crate::{*, self, location::Location, modules::{ModuleIdx, SeqModuleResolver}, precedence::climb};
 
 lazy_static! {
     pub static ref PREC_CLIMBER: PrecClimber<Rule> = build_precedence_climber();
@@ -1485,8 +1485,6 @@ impl<I> IntoAstNode<ast::Module> for I
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::*;
-    use crate::grammar;
     use pest::Parser;
 
     use super::*;
