@@ -8,44 +8,18 @@ jobs:
     name: Build and upload
     runs-on: ubuntu-latest
     steps:
-      # Install Rust & its package manager Cargo
-      - name: Install cargo
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-      # Cache installation assets
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/checkout@v2
 
-      # Install mdbook
-      - name: Install mdbook
-        uses: actions-rs/cargo@v1
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v1
         with:
-          command: install
-          args: mdbook
+          mdbook-version: 'latest'
 
-      #  build the book
-      - name: Generate ebook from markdown
-        run: mdbook build ./docs
+      - run: mdbook build docs
 
       # HTML publication as Github Page
       - name: Publish HTML
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/book/html
-          publich_branch: ${{ github.ref }}
+          publish_dir: ./docs/book
