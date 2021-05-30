@@ -84,7 +84,7 @@ impl ast::IntoAstNode<ast::Type> for HashPair<'_> {
                         let type_args = in_named
                             .next()
                             .map(|n| n.into_inner().map(|p| p.into_ast()).collect())
-                            .unwrap_or(vec![]);
+                            .unwrap_or_default();
 
                         ab.node(ast::Type::Named(ast::NamedType { name, type_args }))
                     }
