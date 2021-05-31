@@ -213,7 +213,8 @@ leq_op = { "<=" }
 andb_op = { "&" }
 orb_op = { "|" }
 xorb_op = { "^" }
-binary_op = { 
+
+binary_op = _{ 
     triple_eq_op  |
     double_eq_op  |
     double_neq_op |

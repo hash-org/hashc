@@ -83,8 +83,8 @@ fn execute(input: &str) {
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
             // parse the input
-            let _statement = parser.parse_statement(&expr);
-            // println!("{:#?}", statement);
+            let statement = parser.parse_statement(&expr);
+            println!("{:#?}", statement);
 
             // Typecheck and execute...
         }
