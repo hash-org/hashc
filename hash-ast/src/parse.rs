@@ -20,7 +20,7 @@ use std::{sync::atomic::AtomicUsize, time::Duration};
 
 extern crate pretty_env_logger;
 
-struct Parser<B> {
+pub struct Parser<B> {
     worker_count: Option<usize>,
     backend: B,
 }
@@ -97,12 +97,9 @@ where
                 let mut resolver =
                     ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
                 let entry_index = resolver.add_module_send_error(filename, None);
-                match entry_index {
-                    None => {}
-                    Some(entry_index) => {
-                        let mut modules = modules.lock().unwrap();
-                        modules.set_entry_point(entry_index);
-                    }
+                if let Some(entry_index) = entry_index {
+                    let mut modules = modules.lock().unwrap();
+                    modules.set_entry_point(entry_index);
                 }
             });
 
@@ -117,6 +114,9 @@ where
                     }) => {
                         let modules = modules.lock().unwrap();
                         if !modules.has_path(&filename) {
+                            // Explicitly drop the guard as soon as possible.
+                            drop(modules);
+
                             let root_dir = filename.parent().unwrap().to_owned();
                             scope.spawn(closure!(ref module_counter, ref s, |_| {
                                 let mut resolver = ParModuleResolver::new(
@@ -194,7 +194,7 @@ pub trait IntoAstNode<T> {
     fn into_ast(self, resolver: &impl ModuleResolver) -> Result<AstNode<T>, ParseError>;
 }
 
-trait ParserBackend: Sync {
+pub trait ParserBackend: Sync {
     type Output: IntoAstNode<ast::Module>;
 
     fn parse_module(&self, contents: &str) -> ParseResult<Self::Output>;
