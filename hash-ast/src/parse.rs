@@ -80,7 +80,7 @@ where
         directory: &Path,
         worker_count: usize,
     ) -> ParseResult<Modules> {
-        let modules = Mutex::new(Modules::new());
+        let mut modules = Modules::new();
 
         let (s, r) = unbounded::<ParMessage>();
         let module_counter = AtomicUsize::new(0);
@@ -93,15 +93,12 @@ where
 
         pool.scope(|scope| -> ParseResult<()> {
             // spawn the initial job
-            scope.spawn(|_| {
-                let mut resolver =
-                    ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
-                let entry_index = resolver.add_module_send_error(filename, None);
-                if let Some(entry_index) = entry_index {
-                    let mut modules = modules.lock().unwrap();
-                    modules.set_entry_point(entry_index);
-                }
-            });
+            let mut resolver =
+                ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
+            let entry_index = resolver.add_module_send_error(filename, None);
+            if let Some(entry_index) = entry_index {
+                modules.set_entry_point(entry_index);
+            }
 
             // start the reciever and listen for any messages from the jobs, continue looping until all of the module
             // dependencies were resovled from the initially supplied file.
@@ -112,11 +109,7 @@ where
                         parent,
                         index: _, // why is this here if we aren't using it?
                     }) => {
-                        let modules = modules.lock().unwrap();
                         if !modules.has_path(&filename) {
-                            // Explicitly drop the guard as soon as possible.
-                            drop(modules);
-
                             let root_dir = filename.parent().unwrap().to_owned();
                             scope.spawn(closure!(ref module_counter, ref s, |_| {
                                 let mut resolver = ParModuleResolver::new(
@@ -136,8 +129,6 @@ where
                         filename,
                         contents,
                     }) => {
-                        let mut modules = modules.lock().unwrap();
-                        // add the module to the modules list.
                         modules.add_module(filename, node, contents);
                     }
                     Ok(ParMessage::Error(e)) => {
@@ -152,7 +143,7 @@ where
         })?;
 
         // Ok to unwrap because no one else has a reference to modules
-        Ok(modules.into_inner().unwrap())
+        Ok(modules)
     }
 
     pub fn parse(
@@ -330,15 +321,16 @@ impl<'scope> ParModuleResolver<'scope> {
         });
 
         let message = match parse_result {
-            Ok((node, source)) => ParMessage::ParsedModule {
+            Ok((node, source)) => {
+                ParMessage::ParsedModule {
                 node,
                 contents: source,
                 filename: resolved_filename.as_ref().to_owned(),
-            },
+            }},
             Err(err) => ParMessage::Error(err),
         };
 
-        self.sender.send(message);
+        self.sender.send(message).unwrap();
     }
 }
 
@@ -355,7 +347,7 @@ impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
             index,
             filename: resolved_path,
             parent: self.parent,
-        });
+        }).unwrap();
 
         Ok(index)
     }
