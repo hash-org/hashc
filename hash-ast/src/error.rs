@@ -6,7 +6,7 @@ use crate::location::Location;
 use std::{fmt, io, path::PathBuf};
 
 /// Error message prefix
-const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
+// const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 
 /// Hash ParseError enum represnting the variants of possible errors.
 #[derive(Debug, Clone)]
@@ -19,6 +19,7 @@ pub enum ParseError {
         location: Location,
     },
     AstGeneration {
+        message: String,
         location: Location,
     },
     ImportError {

@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-mod ast;
-mod parse;
-mod error;
-mod location;
+pub mod ast;
+pub mod parse;
+pub mod error;
+pub mod location;

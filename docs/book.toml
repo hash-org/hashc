@@ -1,0 +1,10 @@
+[book]
+authors = ["The Hash Programming Language authors"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Hash Programming Language"
+
+[output.html]
+git-repository-url = "https://github.com/hash-org/lang"
+git-repository-icon = "fa-github"

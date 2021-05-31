@@ -13,7 +13,7 @@ use std::{
     collections::HashMap,
     fs, mem,
     path::{Path, PathBuf},
-    sync::{atomic::Ordering, Arc, Mutex},
+    sync::atomic::Ordering,
     time::Instant,
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
@@ -39,9 +39,15 @@ pub enum ParMessage {
     Error(ParseError),
 }
 
+#[derive(Debug, Copy, Clone)]
+enum EntryPoint<'a> {
+    Interactive { contents: &'a str },
+    Module { filename: &'a Path },
+}
+
 impl<B> Parser<B>
 where
-    B: ParserBackend,
+    B: for<'a> ParserBackend<'a>,
 {
     pub fn sequential(backend: B) -> Self {
         Parser {
@@ -64,19 +70,35 @@ where
         }
     }
 
-    fn parse_seq(&self, filename: &Path, directory: &Path) -> ParseResult<Modules> {
+    fn parse_seq(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules> {
         let mut modules = Modules::new();
 
-        let mut resolver = SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend);
-        let entry_index = resolver.add_module(filename, None)?;
-        modules.set_entry_point(entry_index);
+        let mut resolver =
+            SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend);
 
+        let entry_index = match entry {
+            EntryPoint::Module { filename } => resolver.add_module(filename, None)?,
+            EntryPoint::Interactive { contents } => {
+                let statement = self.backend.parse_statement(&mut resolver, contents)?;
+                let module = modules.add_module(
+                    "<interactive>".into(),
+                    ast::Module {
+                        contents: vec![statement],
+                    },
+                    contents.to_owned(),
+                );
+
+                module.index()
+            }
+        };
+
+        modules.set_entry_point(entry_index);
         Ok(modules)
     }
 
     fn parse_par(
         &self,
-        filename: &Path,
+        entry: EntryPoint,
         directory: &Path,
         worker_count: usize,
     ) -> ParseResult<Modules> {
@@ -95,7 +117,21 @@ where
             // spawn the initial job
             let mut resolver =
                 ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
-            let entry_index = resolver.add_module_send_error(filename, None);
+            let entry_index = match entry {
+                EntryPoint::Module { filename } => resolver.add_module_send_error(filename, None),
+                EntryPoint::Interactive { contents } => {
+                    let statement = self.backend.parse_statement(&mut resolver, contents)?;
+                    let module = modules.add_module(
+                        "<interactive>".into(),
+                        ast::Module {
+                            contents: vec![statement],
+                        },
+                        contents.to_owned(),
+                    );
+
+                    Some(module.index())
+                }
+            };
             if let Some(entry_index) = entry_index {
                 modules.set_entry_point(entry_index);
             }
@@ -153,10 +189,24 @@ where
     ) -> ParseResult<Modules> {
         let filename = filename.as_ref();
         let directory = directory.as_ref();
+        let entry = EntryPoint::Module { filename };
 
         match self.worker_count {
-            None => self.parse_seq(filename, directory),
-            Some(worker_count) => self.parse_par(filename, directory, worker_count),
+            None => self.parse_seq(entry, directory),
+            Some(worker_count) => self.parse_par(entry, directory, worker_count),
+        }
+    }
+
+    pub fn parse_statement(
+        &self,
+        contents: &str,
+        directory: impl AsRef<Path>,
+    ) -> ParseResult<Modules> {
+        let directory = directory.as_ref();
+        let entry = EntryPoint::Interactive { contents };
+        match self.worker_count {
+            None => self.parse_seq(entry, directory),
+            Some(worker_count) => self.parse_par(entry, directory, worker_count),
         }
     }
 }
@@ -164,6 +214,12 @@ where
 /// A module identifier which is an index into [Modules].
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
 pub struct ModuleIdx(usize);
+
+impl ModuleIdx {
+    pub fn from_raw(index: usize) -> Self {
+        Self(index)
+    }
+}
 
 #[inline(always)]
 fn timed<T>(
@@ -182,13 +238,21 @@ fn timed<T>(
 }
 
 pub trait IntoAstNode<T> {
-    fn into_ast(self, resolver: &impl ModuleResolver) -> Result<AstNode<T>, ParseError>;
+    fn into_ast(self, resolver: &mut impl ModuleResolver) -> Result<AstNode<T>, ParseError>;
 }
 
-pub trait ParserBackend: Sync {
-    type Output: IntoAstNode<ast::Module>;
+pub trait ParserBackend<'a>: Sync {
+    fn parse_module(
+        &self,
+        resolver: &mut impl ModuleResolver,
+        contents: &'a str,
+    ) -> ParseResult<ast::Module>;
 
-    fn parse_module(&self, contents: &str) -> ParseResult<Self::Output>;
+    fn parse_statement(
+        &self,
+        resolver: &mut impl ModuleResolver,
+        contents: &'a str,
+    ) -> ParseResult<AstNode<ast::Statement>>;
 }
 
 pub trait ModuleResolver {
@@ -201,8 +265,8 @@ pub trait ModuleResolver {
 
 fn parse_file(
     resolved_filename: impl AsRef<Path>,
-    resolver: &impl ModuleResolver,
-    backend: &impl ParserBackend,
+    resolver: &mut impl ModuleResolver,
+    backend: &impl for<'a> ParserBackend<'a>,
 ) -> Result<(ast::Module, String), ParseError> {
     debug!("Parsing file: {:?}", resolved_filename.as_ref());
 
@@ -211,13 +275,12 @@ fn parse_file(
         .map_err(|e| (e, resolved_filename.as_ref().to_owned()))?;
 
     let module = timed(
-        || backend.parse_module(&source),
+        || backend.parse_module(resolver, &source),
         Level::Debug,
         |elapsed| debug!("ast: {:.2?}", elapsed),
-    )?
-    .into_ast(resolver)?;
+    )?;
 
-    Ok((*module.body, source))
+    Ok((module, source))
 }
 
 /// Represents an object that is responsible for resolving any module imports
@@ -229,7 +292,7 @@ pub struct SeqModuleResolver<'modules, 'backend, B> {
 
 impl<'modules, 'backend, B> SeqModuleResolver<'modules, 'backend, B>
 where
-    B: ParserBackend,
+    B: for<'a> ParserBackend<'a>,
 {
     fn new(modules: &'modules mut Modules, root_dir: PathBuf, backend: &'backend B) -> Self {
         SeqModuleResolver {
@@ -249,7 +312,7 @@ where
 
 impl<'modules, 'backend, B> ModuleResolver for SeqModuleResolver<'modules, 'backend, B>
 where
-    B: ParserBackend,
+    B: for<'a> ParserBackend<'a>,
 {
     fn add_module(
         &mut self,
@@ -302,7 +365,7 @@ impl<'scope> ParModuleResolver<'scope> {
         match self.add_module(import_path, location) {
             Ok(index) => Some(index),
             Err(err) => {
-                self.sender.send(ParMessage::Error(err));
+                self.sender.send(ParMessage::Error(err)).unwrap();
                 None
             }
         }
@@ -315,18 +378,21 @@ impl<'scope> ParModuleResolver<'scope> {
         ret
     }
 
-    fn parse_file(&mut self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
+    fn parse_file(
+        &mut self,
+        resolved_filename: impl AsRef<Path>,
+        backend: &impl for<'a> ParserBackend<'a>,
+    ) {
         let parse_result = self.for_dir(self.root_dir.to_owned(), |resolver| {
             parse_file(&resolved_filename, resolver, backend)
         });
 
         let message = match parse_result {
-            Ok((node, source)) => {
-                ParMessage::ParsedModule {
+            Ok((node, source)) => ParMessage::ParsedModule {
                 node,
                 contents: source,
                 filename: resolved_filename.as_ref().to_owned(),
-            }},
+            },
             Err(err) => ParMessage::Error(err),
         };
 
@@ -343,11 +409,13 @@ impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
         let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
         let index = ModuleIdx(self.module_counter.fetch_add(1, Ordering::SeqCst));
 
-        self.sender.send(ParMessage::ModuleImport {
-            index,
-            filename: resolved_path,
-            parent: self.parent,
-        }).unwrap();
+        self.sender
+            .send(ParMessage::ModuleImport {
+                index,
+                filename: resolved_path,
+                parent: self.parent,
+            })
+            .unwrap();
 
         Ok(index)
     }

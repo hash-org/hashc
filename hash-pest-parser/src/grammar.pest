@@ -5,7 +5,7 @@
 /// Comments
 COMMENT = _{ line_comment | block_comment }
 line_comment = _{"//" ~ (!NEWLINE ~ ANY)*}
-block_comment = _{"/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+block_comment = _{"/*" ~ (!"*/" ~ ( (&"/*" ~ block_comment) | ANY) )* ~ "*/" } // check for nested comments here...
 
 /// Whitespace
 WHITESPACE = _{ (" " | "\t" | "\r" | "\n")+ }
@@ -56,6 +56,7 @@ semi_op = _{ ";" }
 namespace_op = _{ "::" }
 underscore_op = _{ "_" }
 arrow_op = _{ "=>" }
+thin_arrow_op = _{"->"}
 eq_op = _{ "=" }
 spread_op = _{ "..." }
 question_op = _{ "?" }
@@ -212,7 +213,8 @@ leq_op = { "<=" }
 andb_op = { "&" }
 orb_op = { "|" }
 xorb_op = { "^" }
-binary_op = { 
+
+binary_op = _{ 
     triple_eq_op  |
     double_eq_op  |
     double_neq_op |

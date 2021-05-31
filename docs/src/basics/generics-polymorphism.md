@@ -128,7 +128,7 @@ Generic parameters in Hash work slightly differently than they do in other langu
 
 For example, one can write:
 
-```
+```rs
 let next<Enumerate<I>, (usize, T)> where next<I, T>;
 ```
 
@@ -137,7 +137,7 @@ Notice that the `Enumerate` struct takes a generic parameter, which is denoted w
 Type variables in type argument lists can appear nested within other generic types.
 When a type variable appears anywhere within a type argument list, it is implicitly "declared".
 
-```
+```rs
 let next<WeirdIterator<I>, I> where next<I, ?>;
 ```
 
