@@ -4,3 +4,6 @@
 *.old
 
 /profiles
+
+# stupid vscode config files
+.vscode/

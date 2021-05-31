@@ -1,11 +1,9 @@
-# Hash language conditional statements
+## Conditional statements
 
 Conditional statements in the `Hash` programming language are very similar to other languages such as Python, Javascript, C and Rust. However, there is one subtle **difference**, which is that the statement provided to a conditional statement must always evaluate to an explicit boolean value. 
 
 
-# If-else statements
-
-## Basics
+## If-else statements
 
 If statements are very basic constructs in Hash. An example of a basic `if-else` statement is as follows:
 
@@ -43,7 +41,7 @@ let a: u8 = 12;
 if a { print("a") }
 ```
 
-## Additional syntax
+### Additional syntax
 
 Furthermore, if you do not want an else statement you can do:
 
@@ -73,7 +71,7 @@ let abs: (i64: x) => i64 = if x < 0 { -x }
 **Note**: here that you will not get a syntax error if you run this, but you will encounter an error during the interpretation stage of the program because the function may not have any return type since this has no definition
 of what should happen for the `else` case.
 
-## If statements and Enums
+## If statements and Enums 🚧
 You can destruct enum values within if statments using the `if-let` syntax, like so:
 
 ```rust
@@ -118,7 +116,7 @@ of `a` within the `if` statement body or later on in the program.
 
 <br />
 
-# Match cases
+## Match cases
 
 Match cases are one step above the simple `if-else` syntax.  Using a matching case, you can construct more complicated cases in a more readable format than u can with an `if-else` statement. Additionally, you can destruct Enums into their corresponding values. To use a matching case, you do the following:
 
@@ -216,63 +214,5 @@ match x {
   {4 if y} | y   => print("x is 4 and y is true, or  x is equal to y"); // using bitwise or operator
   {2 | 4 if y}   => print("x is 6 and y is true");
   _              => print("x is something else");
-}
-```
-
-
-## Miscellaneous
-
-`for`, `while`, and `if`-`else` blocks are all transpiled to `loop`/`match`.
-
-
-### `for`
-
-```rust
-for pattern in iterator {
-  body;
-}
-
-// becomes:
-
-loop {
-  match next(iterator) {
-    Some(pattern) => { body; };
-    None => { break; };
-  }
-}
-```
-
-### `while`
-```rust
-while condition {
-  body;
-}
-
-// becomes:
-
-loop {
-  match condition {
-    true => { body; };
-    false => { break; };
-  }
-}
-```
-
-### `if-else`
-```rust
-if conditionA {
-  bodyA
-} else if conditionB {
-  bodyB
-} else {
-  bodyC
-}
-
-// becomes:
-
-match true {
-  _ if conditionA => { bodyA };
-  _ if conditionB => { bodyB };
-  _ => { bodyC };
 }
 ```

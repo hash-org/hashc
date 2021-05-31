@@ -56,6 +56,7 @@ semi_op = _{ ";" }
 namespace_op = _{ "::" }
 underscore_op = _{ "_" }
 arrow_op = _{ "=>" }
+thin_arrow_op = _{"->"}
 eq_op = _{ "=" }
 spread_op = _{ "..." }
 question_op = _{ "?" }
