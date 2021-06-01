@@ -38,11 +38,10 @@ pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<String> {
         Rule::andb_op => Some("bit_and"),
         Rule::orb_op => Some("bit_or"),
         Rule::xorb_op => Some("bit_xor"),
-        _ => None
-        // k => panic!(
-        //     "Unexpected rule within assignment_operator: {:?}",
-        //     k
-        // ),
+        k => panic!(
+            "Unexpected rule within assignment_operator: {:?}",
+            k
+        ),
     };
 
     value.map(String::from)

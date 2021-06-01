@@ -110,6 +110,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "closure"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6173fd61b610d15a7566dd7b7620775627441c4ab9dac8906e17cb93a24b782"
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -261,24 +267,40 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "derive-macro",
+ "hash-ast",
  "hash-backend",
- "hash-parser",
+ "hash-pest-parser",
  "rustyline",
  "thiserror",
+]
+
+[[package]]
+name = "hash-ast"
+version = "0.1.0"
+dependencies = [
+ "closure",
+ "crossbeam-channel",
+ "lazy_static",
+ "log",
+ "num",
+ "num_cpus",
+ "pretty_env_logger",
+ "rayon",
 ]
 
 [[package]]
 name = "hash-backend"
 version = "0.1.0"
 dependencies = [
- "hash-parser",
+ "hash-ast",
 ]
 
 [[package]]
-name = "hash-parser"
+name = "hash-pest-parser"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
+ "hash-ast",
  "lazy_static",
  "log",
  "num",

@@ -3,10 +3,8 @@
 // All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
-use crate::{
-    location::Location,
-    modules::{ModuleIdx, ModuleResolver},
-};
+use crate::location::Location;
+use crate::parse::ModuleIdx;
 use num::BigInt;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -20,15 +18,6 @@ pub struct AstNode<T> {
     pub body: Box<T>,
     /// Position of the node in the input.
     pub pos: Location,
-    /// Module that this node is part of. Index into [`Modules`](crate::modules::Modules).
-    pub module: ModuleIdx,
-}
-
-/// Trait to convert some type into an [AstNode].
-///
-/// e.g. Used to convert pest rules into [AstNode]s.
-pub trait IntoAstNode<T> {
-    fn into_ast(self, resolver: &ModuleResolver) -> AstNode<T>;
 }
 
 /// [AstNode] hashes as its inner `body` type.
@@ -524,7 +513,11 @@ pub struct TypedExpr {
 }
 
 /// Represents a path to a module, given as a string literal to an `import` call.
-type ImportPath = String;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Import {
+    pub path: String,
+    pub index: ModuleIdx,
+}
 
 /// A variable expression.
 #[derive(Debug, Clone, PartialEq)]
@@ -555,7 +548,7 @@ pub enum Expression {
     /// A block.
     Block(AstNode<Block>),
     /// An `import` call.
-    Import(AstNode<ImportPath>),
+    Import(AstNode<Import>),
 }
 
 /// A module.

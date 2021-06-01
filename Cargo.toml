@@ -1,6 +1,7 @@
 [workspace]
 members = [
-  "hash-parser",
+  "hash-ast",
+  "hash-pest-parser",
   "hash-backend",
   "hash-typecheck",
   "hash"

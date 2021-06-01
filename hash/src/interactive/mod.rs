@@ -7,9 +7,11 @@ mod error;
 
 use command::InteractiveCommand;
 use error::{report_interp_error, InterpreterError};
-use hash_parser::parse::{ParserOptions, SeqParser};
+use hash_ast::parse::Parser;
+use hash_pest_parser::grammar::HashGrammar;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
+use std::env;
 use std::process::exit;
 
 /// Interactive backend version
@@ -64,10 +66,7 @@ fn execute(input: &str) {
     let command = InteractiveCommand::from(&input);
 
     // setup the parser
-    let opts = ParserOptions {
-        ..ParserOptions::default()
-    };
-    let parser = SeqParser::new(&opts);
+    let parser = Parser::sequential(HashGrammar);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
@@ -83,7 +82,8 @@ fn execute(input: &str) {
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
             // parse the input
-            let statement = parser.parse_statement(&expr);
+            let directory = env::current_dir().unwrap();
+            let statement = parser.parse_statement(&expr, &directory);
             println!("{:#?}", statement);
 
             // Typecheck and execute...
