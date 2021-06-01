@@ -320,6 +320,7 @@ where
         location: Option<Location>,
     ) -> ParseResult<ModuleIdx> {
         let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
+        
         if let Some(module) = self.modules.get_by_path(&resolved_path) {
             return Ok(module.index());
         }
@@ -632,15 +633,6 @@ pub fn resolve_path(
     // otherwise, we have to resolve the module path based on the working directory
     let work_dir = wd.canonicalize().unwrap();
     let raw_path = work_dir.join(path);
-
-    // check if that path exists, if not it does return it as an error
-    if !raw_path.exists() {
-        // @@Copied
-        return Err(ParseError::ImportError {
-            import_name: path.to_path_buf(),
-            location,
-        });
-    }
 
     // If the provided path is a directory, we assume that the user is referencing an index
     // module that is located within the given directory. This takes precendence over checking
