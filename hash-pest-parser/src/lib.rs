@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-mod precedence;
-mod utils;
 pub mod grammar;
+mod precedence;
 mod translate;
+mod utils;

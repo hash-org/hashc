@@ -147,7 +147,10 @@ impl IntoAstNode<StructDefEntry> for HashPair<'_> {
 }
 
 impl IntoAstNode<StructLiteralEntry> for HashPair<'_> {
-    fn into_ast(self, resolver: &mut impl ModuleResolver) -> ParseResult<AstNode<StructLiteralEntry>> {
+    fn into_ast(
+        self,
+        resolver: &mut impl ModuleResolver,
+    ) -> ParseResult<AstNode<StructLiteralEntry>> {
         match self.inner().as_rule() {
             Rule::struct_literal_field => {
                 let ab = AstBuilder::from_pair(&self.inner());
@@ -279,10 +282,8 @@ impl IntoAstNode<Type> for HashPair<'_> {
                     Rule::fn_type => {
                         let mut in_func = in_type.into_inner();
 
-                        let mut args = pairs_to_asts!(in_func
-                            .next()
-                            .unwrap()
-                            .into_inner(), resolver)?;
+                        let mut args =
+                            pairs_to_asts!(in_func.next().unwrap().into_inner(), resolver)?;
                         let ret = pair_to_ast!(in_func.next().unwrap(), resolver)?;
                         args.push(ret);
 
@@ -348,7 +349,9 @@ impl IntoAstNode<Literal> for HashPair<'_> {
         match self.inner().as_rule() {
             // If the literal is wrapped in a literal_expr, we unwrap it and then just convert
             // the internal contents of it using the same implementation...
-            Rule::literal_expr => pair_to_ast!(self.into_inner().into_inner().next().unwrap(), resolver),
+            Rule::literal_expr => {
+                pair_to_ast!(self.into_inner().into_inner().next().unwrap(), resolver)
+            }
             Rule::integer_literal => {
                 let inner = self.into_inner().into_inner().next().unwrap();
                 // this could be binary, hex, octal or decimal...
@@ -1192,7 +1195,10 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                                                 bound,
                                                 Some(pair_to_ast!(r, resolver)?),
                                                 // check if the optional value component is present with the let statement...
-                                                components.next().map(|p| pair_to_ast!(p, resolver)).transpose()?,
+                                                components
+                                                    .next()
+                                                    .map(|p| pair_to_ast!(p, resolver))
+                                                    .transpose()?,
                                             ),
                                             Rule::expr => {
                                                 (bound, None, Some(pair_to_ast!(r, resolver)?))
@@ -1207,7 +1213,10 @@ impl IntoAstNode<Statement> for HashPair<'_> {
                                 Rule::any_type => (
                                     None,
                                     Some(pair_to_ast!(pair, resolver)?),
-                                    components.next().map(|p| pair_to_ast!(p, resolver)).transpose()?,
+                                    components
+                                        .next()
+                                        .map(|p| pair_to_ast!(p, resolver))
+                                        .transpose()?,
                                 ),
                                 Rule::expr => (None, None, Some(pair_to_ast!(pair, resolver)?)),
                                 k => panic!("Unexpected rule within let_st: {:?}", k),

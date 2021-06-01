@@ -25,8 +25,7 @@ fn build_precedence_climber() -> PrecClimber<Rule> {
     PrecClimber::new(vec![
         Operator::new(Rule::orl_op, Assoc::Left),
         Operator::new(Rule::andl_op, Assoc::Left),
-        Operator::new(Rule::double_eq_op, Assoc::Right)
-            | Operator::new(Rule::neq_op, Assoc::Right),
+        Operator::new(Rule::double_eq_op, Assoc::Right) | Operator::new(Rule::neq_op, Assoc::Right),
         Operator::new(Rule::geq_op, Assoc::Left)
             | Operator::new(Rule::leq_op, Assoc::Left)
             | Operator::new(Rule::gt_op, Assoc::Left)

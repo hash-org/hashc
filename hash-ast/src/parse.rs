@@ -10,7 +10,7 @@ use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
 use log::{debug, info, log_enabled, Level};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs, mem,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
@@ -73,22 +73,30 @@ where
     fn parse_seq(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules> {
         let mut modules = Modules::new();
 
-        let mut resolver =
-            SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend);
-
         let entry_index = match entry {
-            EntryPoint::Module { filename } => resolver.add_module(filename, None)?,
+            EntryPoint::Module { filename } => {
+                let mut resolver =
+                    SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend, None);
+                resolver.add_module(filename, None)?
+            }
             EntryPoint::Interactive { contents } => {
+                let (index, add) = modules.add_module_with_index();
+                let mut resolver = SeqModuleResolver::new(
+                    &mut modules,
+                    directory.to_owned(),
+                    &self.backend,
+                    Some(index),
+                );
                 let statement = self.backend.parse_statement(&mut resolver, contents)?;
-                let module = modules.add_module(
+                add(
+                    &mut modules,
                     "<interactive>".into(),
                     ast::Module {
                         contents: vec![statement],
                     },
                     contents.to_owned(),
                 );
-
-                module.index()
+                index
             }
         };
 
@@ -143,10 +151,15 @@ where
                     Ok(ParMessage::ModuleImport {
                         filename,
                         parent,
-                        index: _, // why is this here if we aren't using it?
+                        index,
                     }) => {
+                        if let Some(parent) = parent {
+                            modules.add_dependency(parent, index);
+                        }
+
                         if !modules.has_path(&filename) {
                             let root_dir = filename.parent().unwrap().to_owned();
+
                             scope.spawn(closure!(ref module_counter, ref s, |_| {
                                 let mut resolver = ParModuleResolver::new(
                                     s.clone(),
@@ -288,23 +301,38 @@ pub struct SeqModuleResolver<'modules, 'backend, B> {
     modules: &'modules mut Modules,
     root_dir: PathBuf,
     backend: &'backend B,
+    index: Option<ModuleIdx>,
 }
 
 impl<'modules, 'backend, B> SeqModuleResolver<'modules, 'backend, B>
 where
     B: for<'a> ParserBackend<'a>,
 {
-    fn new(modules: &'modules mut Modules, root_dir: PathBuf, backend: &'backend B) -> Self {
+    fn new(
+        modules: &'modules mut Modules,
+        root_dir: PathBuf,
+        backend: &'backend B,
+        index: Option<ModuleIdx>,
+    ) -> Self {
         SeqModuleResolver {
             modules,
             root_dir,
             backend,
+            index,
         }
     }
 
-    fn for_dir<R>(&mut self, mut dir: PathBuf, cb: impl FnOnce(&mut Self) -> R) -> R {
+    fn for_module<R>(
+        &mut self,
+        mut dir: PathBuf,
+        index: Option<ModuleIdx>,
+        cb: impl FnOnce(&mut Self) -> R,
+    ) -> R {
         mem::swap(&mut self.root_dir, &mut dir);
+        let old_index = self.index;
+        self.index = index;
         let ret = cb(self);
+        self.index = old_index;
         mem::swap(&mut self.root_dir, &mut dir);
         ret
     }
@@ -320,19 +348,29 @@ where
         location: Option<Location>,
     ) -> ParseResult<ModuleIdx> {
         let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
-        
+
         if let Some(module) = self.modules.get_by_path(&resolved_path) {
-            return Ok(module.index());
+            let index = module.index();
+            drop(module);
+
+            if let Some(parent) = self.index {
+                self.modules.add_dependency(parent, index);
+            }
+            return Ok(index);
         }
 
-        let resolved_dir = resolved_path.parent().unwrap(); // is this correct?
+        let resolved_dir = resolved_path.parent().unwrap().to_owned(); // is this correct?
 
-        let (node, source) = self.for_dir(resolved_dir.to_owned(), |resolver| {
+        let (index, add) = self.modules.add_module_with_index();
+        let (node, source) = self.for_module(resolved_dir.to_owned(), Some(index), |resolver| {
             parse_file(&resolved_path, resolver, resolver.backend)
         })?;
+        add(self.modules, resolved_path, node, source);
 
-        let added_module = self.modules.add_module(resolved_path, node, source);
-        Ok(added_module.index())
+        if let Some(parent) = self.index {
+            self.modules.add_dependency(parent, index);
+        }
+        Ok(index)
     }
 }
 
@@ -429,7 +467,7 @@ pub struct Modules {
     filenames_by_index: Vec<PathBuf>,
     modules_by_index: Vec<ast::Module>,
     contents_by_index: Vec<String>,
-    deps_by_index: Vec<Vec<ModuleIdx>>,
+    deps_by_index: Vec<HashSet<ModuleIdx>>,
     entry_point: Option<ModuleIdx>,
     size: usize,
 }
@@ -494,19 +532,32 @@ impl Modules {
     }
 
     fn add_module(&mut self, path: PathBuf, node: ast::Module, contents: String) -> Module<'_> {
-        let index = self.size;
-
-        self.path_to_index.insert(path.clone(), ModuleIdx(index));
-        self.filenames_by_index.push(path);
-        self.modules_by_index.push(node);
-        self.contents_by_index.push(contents);
-
-        self.size += 1;
-
+        let (index, add) = self.add_module_with_index();
+        add(self, path, node, contents);
         Module {
-            index: ModuleIdx(index),
+            index,
             modules: self,
         }
+    }
+
+    fn add_module_with_index(
+        &mut self,
+    ) -> (
+        ModuleIdx,
+        impl FnOnce(&mut Self, PathBuf, ast::Module, String),
+    ) {
+        let index = ModuleIdx(self.size);
+        self.size += 1;
+        (
+            index,
+            move |this, path: PathBuf, node: ast::Module, contents: String| {
+                this.path_to_index.insert(path.clone(), index);
+                this.filenames_by_index.push(path);
+                this.modules_by_index.push(node);
+                this.contents_by_index.push(contents);
+                this.deps_by_index.push(HashSet::new());
+            },
+        )
     }
 
     fn set_entry_point(&mut self, index: ModuleIdx) {
@@ -515,6 +566,13 @@ impl Modules {
         }
 
         self.entry_point = Some(index);
+    }
+
+    fn add_dependency(&mut self, parent: ModuleIdx, child: ModuleIdx) {
+        if !self.has_index(parent) {
+            panic!("Tried to set dependency of nonexistent module");
+        }
+        self.deps_by_index[parent.0].insert(child);
     }
 }
 
