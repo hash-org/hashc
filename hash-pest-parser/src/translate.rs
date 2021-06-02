@@ -275,7 +275,7 @@ impl IntoAstNode<Type> for HashPair<'_> {
                         let type_args = in_named
                             .next()
                             .map(|n| pairs_to_asts!(n.into_inner(), resolver))
-                            .unwrap_or(Ok(vec![]))?;
+                            .unwrap_or_else(|| Ok(vec![]))?;
 
                         Ok(ab.node(Type::Named(NamedType { name, type_args })))
                     }

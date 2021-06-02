@@ -235,11 +235,7 @@ impl ModuleIdx {
 }
 
 #[inline(always)]
-fn timed<T>(
-    op: impl FnOnce() -> T,
-    level: log::Level,
-    on_elapsed: impl FnOnce(Duration) -> (),
-) -> T {
+fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();
@@ -390,8 +386,8 @@ impl<'scope> ParModuleResolver<'scope> {
     ) -> Self {
         ParModuleResolver {
             sender,
-            module_counter,
             parent,
+            module_counter,
             root_dir,
         }
     }
@@ -472,6 +468,12 @@ pub struct Modules {
     size: usize,
 }
 
+impl Default for Modules {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Modules {
     /// Create a new [Modules] object
     pub fn new() -> Modules {
@@ -487,7 +489,7 @@ impl Modules {
     }
 
     pub fn has_index(&self, index: ModuleIdx) -> bool {
-        !(self.size <= index.0)
+        self.size > index.0
     }
 
     pub fn has_path(&self, path: impl AsRef<Path>) -> bool {

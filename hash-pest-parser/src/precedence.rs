@@ -70,9 +70,9 @@ pub fn climb(
     pair: Pair<'_, Rule>,
     resolver: &mut impl ModuleResolver,
 ) -> ParseResult<AstNode<Expression>> {
-    Ok(PREC_CLIMBER.climb(
+    PREC_CLIMBER.climb(
         pair.into_inner(),
         |pair| HashPair::from_inner(pair).into_ast(resolver),
         build_binary,
-    )?)
+    )
 }
