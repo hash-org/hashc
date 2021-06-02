@@ -6,3 +6,4 @@ pub mod ast;
 pub mod error;
 pub mod location;
 pub mod parse;
+pub mod visualise;
