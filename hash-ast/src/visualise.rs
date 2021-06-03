@@ -19,20 +19,22 @@ impl fmt::Display for AstNode<Statement> {
         // we first need to compute the children, including the height of the 
         // node so that we can compute the length of vertical lines to draw.
         // Everything else should be handeled by the implementation of the child 
-        
-        match *self.body {
-            Statement::Expr(_) => {}
-            Statement::Return(_) => {}
-            Statement::Block(_) => {}
-            Statement::Break => {}
-            Statement::Continue => {}
-            Statement::Let(_) => {}
-            Statement::Assign(_) => {}
-            Statement::StructDef(_) => {}
-            Statement::EnumDef(_) => {}
-            Statement::TraitDef(_) => {}
-        }
+
         todo!()
+        // let node_count = 0;
+
+        // Ok(match *self.body {
+        //     Statement::Expr(_) => {}
+        //     Statement::Return(_) => {}
+        //     Statement::Block(_) => {}
+        //     Statement::Break => write!(f, "break"),
+        //     Statement::Continue => write!(f, "continue"),
+        //     Statement::Let(_) => {}
+        //     Statement::Assign(_) => {}
+        //     Statement::StructDef(_) => {}
+        //     Statement::EnumDef(_) => {}
+        //     Statement::TraitDef(_) => {}
+        // })
     }
 }
 
