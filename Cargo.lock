@@ -54,6 +54,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bumpalo"
+version = "3.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c59e7af012c713f529e7a3ee57ce9b31ddd858d4b512923602f74608b009631"
+
+[[package]]
 name = "byte-tools"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -278,6 +284,7 @@ dependencies = [
 name = "hash-ast"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "closure",
  "crossbeam-channel",
  "lazy_static",
@@ -299,6 +306,7 @@ dependencies = [
 name = "hash-pest-parser"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "crossbeam-channel",
  "hash-ast",
  "lazy_static",

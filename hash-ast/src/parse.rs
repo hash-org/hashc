@@ -6,6 +6,7 @@ use crate::{
     error::{ParseError, ParseResult},
     location::Location,
 };
+use bumpalo::Bump;
 use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
 use log::{debug, info, log_enabled, Level};
@@ -32,7 +33,7 @@ pub enum ParMessage {
         index: ModuleIdx,
     },
     ParsedModule {
-        node: ast::Module,
+        node: ast::OwnedModule,
         filename: PathBuf,
         contents: String,
     },
@@ -75,8 +76,12 @@ where
 
         let entry_index = match entry {
             EntryPoint::Module { filename } => {
-                let mut resolver =
-                    SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend, None);
+                let mut resolver = SeqModuleResolver::new(
+                    &mut modules,
+                    directory.to_owned(),
+                    &self.backend,
+                    None,
+                );
                 resolver.add_module(filename, None)?
             }
             EntryPoint::Interactive { contents } => {
@@ -87,13 +92,18 @@ where
                     &self.backend,
                     Some(index),
                 );
-                let statement = self.backend.parse_statement(&mut resolver, contents)?;
+                let module = OwnedModule::try_new::<ParseError, _>(|bump| {
+                    let statement = self
+                        .backend
+                        .parse_statement(&mut resolver, contents, bump)?;
+                    Ok(ast::Module {
+                        contents: bumpalo::vec![in bump; statement],
+                    })
+                })?;
                 add(
                     &mut modules,
                     "<interactive>".into(),
-                    ast::Module {
-                        contents: vec![statement],
-                    },
+                    module,
                     contents.to_owned(),
                 );
                 index
@@ -112,7 +122,6 @@ where
     ) -> ParseResult<Modules> {
         let mut modules = Modules::new();
 
-        let (s, r) = unbounded::<ParMessage>();
         let module_counter = AtomicUsize::new(0);
 
         info!("Creating worker pool with {} workers", worker_count);
@@ -122,18 +131,26 @@ where
             .unwrap();
 
         pool.scope(|scope| -> ParseResult<()> {
+            let (s, r) = unbounded::<ParMessage>();
+
             // spawn the initial job
             let mut resolver =
                 ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
             let entry_index = match entry {
                 EntryPoint::Module { filename } => resolver.add_module_send_error(filename, None),
                 EntryPoint::Interactive { contents } => {
-                    let statement = self.backend.parse_statement(&mut resolver, contents)?;
+                    let module_node = OwnedModule::try_new::<ParseError, _>(|bump| {
+                        let statement =
+                            self.backend
+                                .parse_statement(&mut resolver, contents, bump)?;
+                        Ok(ast::Module {
+                            contents: bumpalo::vec![in bump; statement],
+                        })
+                    })?;
+
                     let module = modules.add_module(
                         "<interactive>".into(),
-                        ast::Module {
-                            contents: vec![statement],
-                        },
+                        module_node,
                         contents.to_owned(),
                     );
 
@@ -160,15 +177,17 @@ where
                         if !modules.has_path(&filename) {
                             let root_dir = filename.parent().unwrap().to_owned();
 
-                            scope.spawn(closure!(ref module_counter, ref s, |_| {
-                                let mut resolver = ParModuleResolver::new(
-                                    s.clone(),
-                                    &module_counter,
-                                    parent,
-                                    root_dir,
-                                );
-                                resolver.parse_file(filename, &self.backend);
-                            }));
+                            unimplemented!();
+                            // TODO: FIXME
+                            // scope.spawn(closure!(ref module_counter, ref s, |_| {
+                            //     let mut resolver = ParModuleResolver::new(
+                            //         s.clone(),
+                            //         &module_counter,
+                            //         parent,
+                            //         root_dir,
+                            //     );
+                            //     resolver.parse_file(filename, &self.backend);
+                            // }));
                         } else {
                             continue;
                         }
@@ -246,22 +265,20 @@ fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(D
     }
 }
 
-pub trait IntoAstNode<T> {
-    fn into_ast(self, resolver: &mut impl ModuleResolver) -> Result<AstNode<T>, ParseError>;
-}
-
 pub trait ParserBackend<'a>: Sync {
-    fn parse_module(
+    fn parse_module<'ast>(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &'a str,
-    ) -> ParseResult<ast::Module>;
+        bump: &'ast Bump,
+    ) -> ParseResult<ast::Module<'ast>>;
 
-    fn parse_statement(
+    fn parse_statement<'ast>(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &'a str,
-    ) -> ParseResult<AstNode<ast::Statement>>;
+        bump: &'ast Bump,
+    ) -> ParseResult<AstNode<ast::Statement<'ast>>>;
 }
 
 pub trait ModuleResolver {
@@ -272,11 +289,12 @@ pub trait ModuleResolver {
     ) -> ParseResult<ModuleIdx>;
 }
 
-fn parse_file(
+fn parse_file<'ast>(
     resolved_filename: impl AsRef<Path>,
     resolver: &mut impl ModuleResolver,
     backend: &impl for<'a> ParserBackend<'a>,
-) -> Result<(ast::Module, String), ParseError> {
+    bump: &'ast Bump,
+) -> Result<(ast::Module<'ast>, String), ParseError> {
     debug!("Parsing file: {:?}", resolved_filename.as_ref());
 
     // load the file in...
@@ -284,7 +302,7 @@ fn parse_file(
         .map_err(|e| (e, resolved_filename.as_ref().to_owned()))?;
 
     let module = timed(
-        || backend.parse_module(resolver, &source),
+        || backend.parse_module(resolver, &source, bump),
         Level::Debug,
         |elapsed| debug!("ast: {:.2?}", elapsed),
     )?;
@@ -358,8 +376,14 @@ where
         let resolved_dir = resolved_path.parent().unwrap().to_owned(); // is this correct?
 
         let (index, add) = self.modules.add_module_with_index();
-        let (node, source) = self.for_module(resolved_dir.to_owned(), Some(index), |resolver| {
-            parse_file(&resolved_path, resolver, resolver.backend)
+        let (node, source) = self.for_module(resolved_dir, Some(index), |resolver| {
+            let src;
+            let node = OwnedModule::try_new::<ParseError, _>(|bump| {
+                let (node, source) = parse_file(&resolved_path, resolver, resolver.backend, bump)?;
+                src = source;
+                Ok(node)
+            });
+            node.map(|n| (n, src))
         })?;
         add(self.modules, resolved_path, node, source);
 
@@ -419,7 +443,13 @@ impl<'scope> ParModuleResolver<'scope> {
         backend: &impl for<'a> ParserBackend<'a>,
     ) {
         let parse_result = self.for_dir(self.root_dir.to_owned(), |resolver| {
-            parse_file(&resolved_filename, resolver, backend)
+            let src;
+            let node = OwnedModule::try_new::<ParseError, _>(|bump| {
+                let (node, source) = parse_file(&resolved_filename, resolver, backend, bump)?;
+                src = source;
+                Ok(node)
+            });
+            node.map(|n| (n, src))
         });
 
         let message = match parse_result {
@@ -461,7 +491,7 @@ impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
 pub struct Modules {
     path_to_index: HashMap<PathBuf, ModuleIdx>,
     filenames_by_index: Vec<PathBuf>,
-    modules_by_index: Vec<ast::Module>,
+    modules_by_index: Vec<ast::OwnedModule>,
     contents_by_index: Vec<String>,
     deps_by_index: Vec<HashSet<ModuleIdx>>,
     entry_point: Option<ModuleIdx>,
@@ -476,7 +506,7 @@ impl Default for Modules {
 
 impl Modules {
     /// Create a new [Modules] object
-    pub fn new() -> Modules {
+    pub fn new() -> Self {
         Modules {
             path_to_index: HashMap::new(),
             modules_by_index: vec![],
@@ -533,7 +563,12 @@ impl Modules {
         self.get_by_path(path).unwrap()
     }
 
-    fn add_module(&mut self, path: PathBuf, node: ast::Module, contents: String) -> Module<'_> {
+    fn add_module(
+        &mut self,
+        path: PathBuf,
+        node: ast::OwnedModule,
+        contents: String,
+    ) -> Module<'_> {
         let (index, add) = self.add_module_with_index();
         add(self, path, node, contents);
         Module {
@@ -546,13 +581,13 @@ impl Modules {
         &mut self,
     ) -> (
         ModuleIdx,
-        impl FnOnce(&mut Self, PathBuf, ast::Module, String),
+        impl FnOnce(&mut Self, PathBuf, ast::OwnedModule, String),
     ) {
         let index = ModuleIdx(self.size);
         self.size += 1;
         (
             index,
-            move |this, path: PathBuf, node: ast::Module, contents: String| {
+            move |this: &mut Self, path: PathBuf, node: ast::OwnedModule, contents: String| {
                 this.path_to_index.insert(path.clone(), index);
                 this.filenames_by_index.push(path);
                 this.modules_by_index.push(node);
@@ -597,7 +632,7 @@ impl<'a> Module<'a> {
         self.modules.entry_point == Some(self.index)
     }
 
-    pub fn ast(&self) -> &ast::Module {
+    pub fn ast(&self) -> &ast::OwnedModule {
         &self.modules.modules_by_index[self.index.0]
     }
 

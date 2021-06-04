@@ -98,9 +98,11 @@ fn main() {
 
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
-            Ok(_) => {
-                // convert the CompilerOptions into ParserOptions and then invoke parse...
-                unimplemented!()
+            Ok(filename) => {
+                let parser = Parser::sequential(HashGrammar);
+                let directory = env::current_dir().unwrap();
+                let modules = parser.parse(&filename, &directory);
+                println!("{:#?}", modules);
             }
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
