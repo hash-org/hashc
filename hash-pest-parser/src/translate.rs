@@ -898,7 +898,7 @@ where
                 let subject_expr = expr.next().unwrap().into_inner().next().unwrap();
                 let subject_rule = subject_expr.as_rule();
 
-                let mut subject = match subject_rule {
+                let subject = match subject_rule {
                     // We throw away the '#' here since we already know that it is an intrinsic call
                     Rule::intrinsic_expr => Ok(ab.node(Expression::Intrinsic(IntrinsicKey {
                         name: self.allocator.alloc_str(subject_expr.as_str()),
@@ -944,9 +944,9 @@ where
                 // can be zero or more accessors, we need continue looking at each rule until there
                 // are no more accessors. If there is an accessor, we pattern match for the type,
                 // transform the old 'subject' and continue
-                for accessor in expr {
-                    let prev_subject = subject?;
-                    subject = match accessor.as_rule() {
+                let expr_node = expr.fold(subject, |prev_subject, accessor| {
+                    let prev_subject = prev_subject?;
+                    match accessor.as_rule() {
                         Rule::property_access => {
                             Ok(ab.node(Expression::PropertyAccess(PropertyAccessExpr {
                                 subject: prev_subject,
@@ -993,13 +993,13 @@ where
                             })))
                         }
                         k => panic!("unexpected rule within variable expr: {:?}", k),
-                    };
-                }
+                    }
+                });
 
                 // since there can be zero or more 'accessor' rules, we are sure that the current
-                // subject has been transformed as required, essentially nesting each form of
+                // expr has been transformed as required, essentially nesting each form of
                 // accessor in each other
-                subject
+                expr_node
             }
             k => panic!("unexpected rule within expr: {:?}", k),
         }
