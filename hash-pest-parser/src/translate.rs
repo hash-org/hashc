@@ -156,7 +156,10 @@ where
         }
     }
 
-    pub(crate) fn climb(&self, pair: HashPair<'_>) -> ParseResult<AstNode<'ast, Expression<'ast>>> {
+    pub(crate) fn climb(
+        &self,
+        pair: HashPair<'_>,
+    ) -> ParseResult<AstNode<'ast, Expression<'ast>>> {
         PREC_CLIMBER.climb(
             pair.into_inner(),
             |pair| self.transform_expression(&pair),
@@ -805,7 +808,7 @@ where
         &self,
         pair: &HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Expression<'ast>>> {
-        let ab = self.builder_from_pair(&pair);
+        let ab = self.builder_from_pair(pair);
 
         match pair.as_rule() {
             Rule::fn_body => self.transform_expression(&pair.into_inner().next().unwrap()),
@@ -1033,58 +1036,76 @@ where
                         // empty block since an if-block could be assigned to any variable and therefore
                         // we need to know the outcome of all branches for typechecking.
                         let mut append_else = true;
-                        let mut cases: Vec<AstNode<MatchCase>> =
-                            ab.try_collect(block.into_inner().map(|if_condition| {
-                                let block_builder = self.builder_from_pair(&if_condition);
+                        let mut cases = ab.try_collect(
+                            block
+                                .into_inner()
+                                .map(|if_condition| {
+                                    let block_builder = self.builder_from_pair(&if_condition);
 
-                                match if_condition.as_rule() {
-                                    Rule::if_block => {
-                                        let mut components = if_condition.into_inner();
+                                    match if_condition.as_rule() {
+                                        Rule::if_block => {
+                                            let mut components = if_condition.into_inner();
 
-                                        // get the clause and block from the if-block components
-                                        let clause =
-                                            self.transform_expression(&components.next().unwrap())?;
-                                        let block =
-                                            self.transform_block(&components.next().unwrap())?;
+                                            // get the clause and block from the if-block components
+                                            let clause = self.transform_expression(
+                                                &components.next().unwrap(),
+                                            )?;
+                                            let block =
+                                                self.transform_block(&components.next().unwrap())?;
 
-                                        Ok(block_builder.node(MatchCase {
-                                            pattern: block_builder.node(Pattern::If(IfPattern {
+                                            Ok(block_builder.node(MatchCase {
+                                                pattern: block_builder.node(Pattern::If(
+                                                    IfPattern {
+                                                        pattern: block_builder
+                                                            .node(Pattern::Ignore),
+                                                        condition: clause,
+                                                    },
+                                                )),
+                                                expr: self
+                                                    .builder_from_node(&block)
+                                                    .node(Expression::Block(block)),
+                                            }))
+                                        }
+                                        Rule::else_block => {
+                                            append_else = false;
+
+                                            let block = self.transform_block(
+                                                &if_condition.into_inner().next().unwrap(),
+                                            )?;
+
+                                            Ok(block_builder.node(MatchCase {
                                                 pattern: block_builder.node(Pattern::Ignore),
-                                                condition: clause,
-                                            })),
-                                            expr: self
-                                                .builder_from_node(&block)
-                                                .node(Expression::Block(block)),
-                                        }))
+                                                expr: self
+                                                    .builder_from_node(&block)
+                                                    .node(Expression::Block(block)),
+                                            }))
+                                        }
+                                        k => {
+                                            panic!("unexpected rule within if-else-block: {:?}", k)
+                                        }
                                     }
-                                    Rule::else_block => {
-                                        append_else = false;
-
-                                        let block = self.transform_block(
-                                            &if_condition.into_inner().next().unwrap(),
-                                        )?;
-
-                                        Ok(block_builder.node(MatchCase {
-                                            pattern: block_builder.node(Pattern::Ignore),
-                                            expr: self
-                                                .builder_from_node(&block)
-                                                .node(Expression::Block(block)),
-                                        }))
+                                })
+                                .chain(
+                                    {
+                                        if append_else {
+                                            Some(Ok(ab.node(MatchCase {
+                                                pattern: ab.node(Pattern::Ignore),
+                                                expr: ab.node(Expression::Block(ab.node(
+                                                    Block::Body(BodyBlock {
+                                                        statements: ab.empty_slice(),
+                                                        expr: None,
+                                                    }),
+                                                ))),
+                                            })))
+                                        } else {
+                                            None
+                                        }
                                     }
-                                    k => panic!("unexpected rule within if-else-block: {:?}", k),
-                                }
-                            }))?;
+                                    .into_iter(),
+                                ),
+                        )?;
 
                         // if no else-block was provided, we need to add one manually
-                        if append_else {
-                            cases.push(ab.node(MatchCase {
-                                pattern: ab.node(Pattern::Ignore),
-                                expr: ab.node(Expression::Block(ab.node(Block::Body(BodyBlock {
-                                    statements: ab.empty_slice(),
-                                    expr: None,
-                                })))),
-                            }))
-                        }
 
                         Ok(ab.node(Block::Match(MatchBlock {
                             subject: ab.make_variable(ab.make_boolean(true)),
@@ -1248,14 +1269,20 @@ where
                 // to see which path it is, if this is a block statement, we just call
                 // into_ast(resolver) since there is an implementation for block convetsions
                 match statement.as_rule() {
-                    Rule::block => Ok(ab.node(Statement::Block(self.transform_block(&statement)?))),
+                    Rule::block => {
+                        Ok(ab.node(Statement::Block(self.transform_block(&statement)?)))
+                    }
                     Rule::break_st => Ok(ab.node(Statement::Break)),
                     Rule::continue_st => Ok(ab.node(Statement::Continue)),
                     Rule::return_st => {
                         let ret_expr = statement.into_inner().next();
 
                         if let Some(node) = ret_expr {
-                            Ok(ab.node(Statement::Return(Some(self.transform_expression(&node)?))))
+                            Ok(
+                                ab.node(Statement::Return(Some(
+                                    self.transform_expression(&node)?,
+                                ))),
+                            )
                         } else {
                             Ok(ab.node(Statement::Return(None)))
                         }
@@ -1291,7 +1318,10 @@ where
                                                 (bound, None, Some(self.transform_expression(&r)?))
                                             }
                                             k => {
-                                                panic!("Unexpected rule within ty_or_expr: {:?}", k)
+                                                panic!(
+                                                    "Unexpected rule within ty_or_expr: {:?}",
+                                                    k
+                                                )
                                             }
                                         },
                                         None => (bound, None, None),
@@ -1305,7 +1335,9 @@ where
                                         .map(|p| self.transform_expression(&p))
                                         .transpose()?,
                                 ),
-                                Rule::expr => (None, None, Some(self.transform_expression(&pair)?)),
+                                Rule::expr => {
+                                    (None, None, Some(self.transform_expression(&pair)?))
+                                }
                                 k => panic!("Unexpected rule within let_st: {:?}", k),
                             },
                             None => (None, None, None),

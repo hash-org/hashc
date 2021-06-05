@@ -39,7 +39,7 @@ impl ParserBackend for HashGrammar {
         match HashGrammar::parse(Rule::module, contents) {
             Ok(result) => Ok(ast::Module {
                 contents: allocator
-                    .alloc_ast_nodes(result.map(|x| builder.transform_statement(&x))),
+                    .try_alloc_slice(result.map(|x| builder.transform_statement(&x)))?,
             }),
             Err(e) => Err(PestError(e).into()),
         }
