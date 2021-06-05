@@ -15,38 +15,49 @@ mod derived {
 pub use derived::{HashGrammar, Rule};
 use pest::Parser;
 
-use hash_ast::{ast::{self, AstAllocator}, error::{ParseError, ParseResult}, location::Location, parse::{ModuleResolver, ParserBackend}};
+use hash_ast::{
+    ast::{self, AstAllocator},
+    error::ParseResult,
+    parse::{ModuleResolver, ParserBackend},
+};
 
-use crate::translate::{PestAstBuilder};
+use crate::{error::PestError, translate::PestAstBuilder};
 
 pub type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
 impl ParserBackend for HashGrammar {
-    fn parse_module<'ast>(
+    fn parse_module<'ast, 'alloc>(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-        allocator: &'ast impl AstAllocator,
-    ) -> ParseResult<ast::Module<'ast>> {
+        allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
+    ) -> ParseResult<ast::Module<'ast>>
+    where
+        'ast: 'alloc,
+    {
         let builder = PestAstBuilder::new(resolver, allocator);
         match HashGrammar::parse(Rule::module, contents) {
             Ok(result) => Ok(ast::Module {
-                contents: allocator.alloc_ast_nodes(result
-                    .map(|x| builder.transform_statement(x))),
+                contents: allocator
+                    .alloc_ast_nodes(result.map(|x| builder.transform_statement(&x))),
             }),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(PestError(e).into()),
         }
     }
 
-    fn parse_statement<'ast>(
+    fn parse_statement<'ast, 'alloc>(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-        allocator: &'ast impl AstAllocator,
-    ) -> ParseResult<ast::AstNode<'ast, ast::Statement<'ast>>> {
+        allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
+    ) -> ParseResult<ast::AstNode<'ast, ast::Statement<'ast>>>
+    where
+        'ast: 'alloc,
+    {
+        let builder = PestAstBuilder::new(resolver, allocator);
         match HashGrammar::parse(Rule::statement, contents) {
-            Ok(mut result) => HashPair::from_inner(result.next().unwrap()).into_ast(resolver),
-            Err(e) => Err(e.into()),
+            Ok(mut result) => builder.transform_statement(&result.next().unwrap()),
+            Err(e) => Err(PestError(e).into()),
         }
     }
 }

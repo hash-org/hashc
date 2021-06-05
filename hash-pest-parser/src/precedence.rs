@@ -2,12 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::grammar::HashPair;
 use crate::grammar::Rule;
-use crate::utils::convert_rule_into_fn_call;
-use hash_ast::ast::*;
-use hash_ast::error::ParseResult;
-use hash_ast::parse::ModuleResolver;
 use lazy_static::lazy_static;
 
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
@@ -20,8 +15,7 @@ fn build_precedence_climber() -> PrecClimber<Rule> {
     PrecClimber::new(vec![
         Operator::new(Rule::orl_op, Assoc::Left),
         Operator::new(Rule::andl_op, Assoc::Left),
-        Operator::new(Rule::double_eq_op, Assoc::Right)
-            | Operator::new(Rule::neq_op, Assoc::Right),
+        Operator::new(Rule::double_eq_op, Assoc::Right) | Operator::new(Rule::neq_op, Assoc::Right),
         Operator::new(Rule::geq_op, Assoc::Left)
             | Operator::new(Rule::leq_op, Assoc::Left)
             | Operator::new(Rule::gt_op, Assoc::Left)

@@ -16,6 +16,7 @@ pub enum ParseError {
         err: String,
     },
     Parsing {
+        message: String,
         location: Location,
     },
     AstGeneration {

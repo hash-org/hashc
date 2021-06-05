@@ -63,11 +63,7 @@ where
         Self::parallel_with_workers(backend, allocator, num_cpus::get())
     }
 
-    pub fn parallel_with_workers(
-        backend: B,
-        allocator: &'alloc A,
-        workers: usize,
-    ) -> Self {
+    pub fn parallel_with_workers(backend: B, allocator: &'alloc A, workers: usize) -> Self {
         Parser {
             worker_count: Some(workers),
             backend,
@@ -75,11 +71,7 @@ where
         }
     }
 
-    fn parse_seq(
-        &self,
-        entry: EntryPoint,
-        directory: &Path,
-    ) -> ParseResult<Modules<'ast>> {
+    fn parse_seq(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules<'ast>> {
         let mut modules = Modules::new();
 
         let entry_index = match entry {
@@ -589,10 +581,7 @@ where
             .map(|&idx| self.get_by_index(idx))
     }
 
-    pub fn get_by_path_unchecked(
-        &'modules self,
-        path: impl AsRef<Path>,
-    ) -> Module<'ast, 'modules> {
+    pub fn get_by_path_unchecked(&'modules self, path: impl AsRef<Path>) -> Module<'ast, 'modules> {
         self.get_by_path(path).unwrap()
     }
 
