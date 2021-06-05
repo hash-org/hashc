@@ -477,5 +477,6 @@ semi_st = _{
 statement = { block_st | semi_st }
 
 /// ---- Module (entry point) ----
-module = _{ SOI ~ statement* ~ EOI }
+eoi = _{ !ANY }
+module = _{ SOI ~ statement* ~ eoi }
 

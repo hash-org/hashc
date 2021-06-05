@@ -15,43 +15,38 @@ mod derived {
 pub use derived::{HashGrammar, Rule};
 use pest::Parser;
 
-use hash_ast::{
-    ast,
-    error::{ParseError, ParseResult},
-    location::Location,
-    parse::{ModuleResolver, ParserBackend},
-};
+use hash_ast::{ast::{self, AstAllocator}, error::{ParseError, ParseResult}, location::Location, parse::{ModuleResolver, ParserBackend}};
+
+use crate::translate::{PestAstBuilder};
 
 pub type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
-impl<'a> ParserBackend<'a> for HashGrammar {
-    fn parse_module(
+impl ParserBackend for HashGrammar {
+    fn parse_module<'ast>(
         &self,
         resolver: &mut impl ModuleResolver,
-        contents: &'a str,
-        bump: &Bump,
-    ) -> ParseResult<ast::Module> {
-        let builder = PestAstBuilder::new(resolver, bump);
+        contents: &str,
+        allocator: &'ast impl AstAllocator,
+    ) -> ParseResult<ast::Module<'ast>> {
+        let builder = PestAstBuilder::new(resolver, allocator);
         match HashGrammar::parse(Rule::module, contents) {
             Ok(result) => Ok(ast::Module {
-                contents: result
-                    .take_while(|x| x.as_rule() != Rule::EOI)
-                    .map(|x| builder.transform_statement(x))
-                    .collect::<Result<Vec<_>, _>>()?,
+                contents: allocator.alloc_ast_nodes(result
+                    .map(|x| builder.transform_statement(x))),
             }),
-            Err(e) => Err(PestError(e).into()),
+            Err(e) => Err(e.into()),
         }
     }
 
-    fn parse_statement(
+    fn parse_statement<'ast>(
         &self,
         resolver: &mut impl ModuleResolver,
-        contents: &'a str,
-        bump: &Bump,
-    ) -> ParseResult<ast::AstNode<ast::Statement>> {
+        contents: &str,
+        allocator: &'ast impl AstAllocator,
+    ) -> ParseResult<ast::AstNode<'ast, ast::Statement<'ast>>> {
         match HashGrammar::parse(Rule::statement, contents) {
             Ok(mut result) => HashPair::from_inner(result.next().unwrap()).into_ast(resolver),
-            Err(e) => Err(PestError(e).into()),
+            Err(e) => Err(e.into()),
         }
     }
 }

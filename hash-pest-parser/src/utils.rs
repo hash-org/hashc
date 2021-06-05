@@ -3,8 +3,8 @@ use crate::grammar::Rule;
 /// Function to convert a pest rule denoting operators into a named function symbols
 /// that represent their function call, more details about names of functions is
 /// accessible in the docs at "https://hash-org.github.io/lang/basics/operators.html"
-pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<String> {
-    let value = match rule {
+pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<&'static str> {
+    match rule {
         Rule::assign_eq_op => None,
         Rule::add_eq_op => Some("pos"),
         Rule::sub_eq_op => Some("neg"),
@@ -39,7 +39,5 @@ pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<String> {
         Rule::orb_op => Some("bit_or"),
         Rule::xorb_op => Some("bit_xor"),
         k => panic!("Unexpected rule within assignment_operator: {:?}", k),
-    };
-
-    value.map(String::from)
+    }
 }

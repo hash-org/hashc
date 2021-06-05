@@ -14,3 +14,4 @@ rayon = "1.5.0"
 num = "0.4"
 closure = "0.3.0"
 bumpalo = { version = "3.7", features = ["collections", "boxed"] }
+bumpalo-herd = "0.1"
