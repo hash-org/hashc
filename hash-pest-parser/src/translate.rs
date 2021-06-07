@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::iter;
+use std::{cell::Cell, iter};
 
 use crate::{
     grammar::{HashPair, Rule},
@@ -15,6 +15,7 @@ use hash_ast::{
     location::Location,
     parse::ModuleResolver,
 };
+use iter::once;
 use num::BigInt;
 
 const FUNCTION_TYPE_NAME: &str = "Function";
@@ -27,7 +28,7 @@ const MAP_TYPE_NAME: &str = "Map";
 /// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
 /// or a [pest::iterators::Pair].
-struct NodeBuilder<'alloc, A> {
+pub struct NodeBuilder<'alloc, A> {
     pos: Location,
     allocator: &'alloc A,
 }
@@ -37,6 +38,22 @@ where
     A: AstAllocator<'ast, 'alloc>,
     'ast: 'alloc,
 {
+    pub(crate) fn from_pair(pair: &HashPair<'_>, allocator: &'alloc A) -> NodeBuilder<'alloc, A> {
+        let span = pair.as_span();
+        let pos = Location::Span(span.start(), span.end());
+        NodeBuilder { pos, allocator }
+    }
+
+    pub(crate) fn from_node<T>(
+        node: &AstNode<'ast, T>,
+        allocator: &'alloc A,
+    ) -> NodeBuilder<'alloc, A> {
+        NodeBuilder {
+            pos: node.pos,
+            allocator,
+        }
+    }
+
     /// Create a new [AstNode] from the information provided by the [AstBuilder]
     pub fn node<T>(&self, inner: T) -> AstNode<'ast, T> {
         self.allocator.alloc_ast_node(inner, self.pos)
@@ -119,6 +136,31 @@ where
     }
 }
 
+pub(crate) fn build_binary<'ast: 'alloc, 'alloc, A>(
+    lhs: ParseResult<AstNode<'ast, Expression<'ast>>>,
+    op: HashPair<'_>,
+    rhs: ParseResult<AstNode<'ast, Expression<'ast>>>,
+    allocator: &'alloc A,
+) -> ParseResult<AstNode<'ast, Expression<'ast>>>
+where
+    A: AstAllocator<'ast, 'alloc>,
+{
+    let ab = NodeBuilder::from_pair(&op, allocator);
+
+    // Panic here if we cannot convert the operator into a function call
+    let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
+
+    Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
+        subject: ab.node(Expression::Variable(VariableExpr {
+            name: ab.make_single_access_name(subject_name),
+            type_args: ab.empty_slice(), // we dont need any kind of typeargs since were just transpiling here
+        })),
+        args: ab.node(FunctionCallArgs {
+            entries: allocator.alloc([lhs?, rhs?]),
+        }),
+    })))
+}
+
 pub(crate) struct PestAstBuilder<'alloc, 'resolver, R, A> {
     resolver: &'resolver mut R,
     allocator: &'alloc A,
@@ -137,62 +179,29 @@ where
         }
     }
 
-    pub(crate) fn builder_from_pair(
-        &self,
-        pair: &pest::iterators::Pair<'_, Rule>,
-    ) -> NodeBuilder<'alloc, A> {
-        let span = pair.as_span();
-        let pos = Location::Span(span.start(), span.end());
-        NodeBuilder {
-            pos,
-            allocator: self.allocator,
-        }
+    pub(crate) fn builder_from_pair(&self, pair: &HashPair<'_>) -> NodeBuilder<'alloc, A> {
+        NodeBuilder::from_pair(pair, self.allocator)
     }
 
     pub(crate) fn builder_from_node<T>(&self, node: &AstNode<'ast, T>) -> NodeBuilder<'alloc, A> {
-        NodeBuilder {
-            pos: node.pos,
-            allocator: self.allocator,
-        }
+        NodeBuilder::from_node(node, self.allocator)
     }
 
-    pub(crate) fn climb(
-        &self,
-        pair: HashPair<'_>,
-    ) -> ParseResult<AstNode<'ast, Expression<'ast>>> {
+    pub(crate) fn climb<'i, P>(&mut self, pairs: P) -> ParseResult<AstNode<'ast, Expression<'ast>>>
+    where
+        P: Iterator<Item = HashPair<'i>>,
+    {
+        let allocator = self.allocator;
         PREC_CLIMBER.climb(
-            pair.into_inner(),
-            |pair| self.transform_expression(&pair),
-            |lhs, op, rhs| self.build_binary(lhs, op, rhs),
+            pairs,
+            |pair| self.transform_expression(pair),
+            |lhs, op, rhs| build_binary(lhs, op, rhs, allocator),
         )
     }
 
-    pub(crate) fn build_binary(
-        &self,
-        lhs: ParseResult<AstNode<'ast, Expression<'ast>>>,
-        op: HashPair<'_>,
-        rhs: ParseResult<AstNode<'ast, Expression<'ast>>>,
-    ) -> ParseResult<AstNode<'ast, Expression<'ast>>> {
-        let ab = self.builder_from_pair(&op);
-
-        // Panic here if we cannot convert the operator into a function call
-        let subject_name =
-            convert_rule_into_fn_call(&op.as_rule()).unwrap_or_else(|| unreachable!());
-
-        Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-            subject: ab.node(Expression::Variable(VariableExpr {
-                name: ab.make_single_access_name(subject_name),
-                type_args: ab.empty_slice(), // we dont need any kind of typeargs since were just transpiling here
-            })),
-            args: ab.node(FunctionCallArgs {
-                entries: self.allocator.alloc([lhs?, rhs?]),
-            }),
-        })))
-    }
-
     pub(crate) fn transform_name(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Name<'ast>>> {
         match pair.as_rule() {
             Rule::ident => Ok(self.builder_from_pair(&pair).node(Name {
@@ -203,24 +212,24 @@ where
     }
 
     pub(crate) fn transform_struct_def_entry(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, StructDefEntry<'ast>>> {
         match pair.as_rule() {
             Rule::struct_def_field => {
-                let ab = self.builder_from_pair(pair);
+                let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
-                let name = self.transform_name(&components.next().unwrap())?;
+                let name = self.transform_name(components.next().unwrap())?;
                 let next_node = components.next();
 
                 let (ty, def) = match next_node {
-                    Some(ref inner_pair) => match inner_pair.as_rule() {
+                    Some(inner_pair) => match inner_pair.as_rule() {
                         Rule::any_type => (
                             Some(self.transform_type(inner_pair)?),
                             components
                                 .next()
-                                .map(|p| self.transform_expression(&p))
+                                .map(|p| self.transform_expression(p))
                                 .transpose()?,
                         ),
                         Rule::expr => (None, Some(self.transform_expression(inner_pair)?)),
@@ -240,16 +249,16 @@ where
     }
 
     pub(crate) fn transform_struct_literal_entry(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, StructLiteralEntry<'ast>>> {
         match pair.as_rule() {
             Rule::struct_literal_field => {
-                let ab = self.builder_from_pair(pair);
+                let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
-                let name = self.transform_name(&components.next().unwrap())?;
-                let value = self.transform_expression(&components.next().unwrap())?;
+                let name = self.transform_name(components.next().unwrap())?;
+                let value = self.transform_expression(components.next().unwrap())?;
 
                 Ok(ab.node(StructLiteralEntry { name, value }))
             }
@@ -258,16 +267,16 @@ where
     }
 
     pub(crate) fn transform_enum_def_entry(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, EnumDefEntry<'ast>>> {
         match pair.as_rule() {
             Rule::enum_field => {
-                let ab = self.builder_from_pair(pair);
+                let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
-                let name = self.transform_name(&components.next().unwrap())?;
-                let args = ab.try_collect(components.map(|c| self.transform_type(&c)))?;
+                let name = self.transform_name(components.next().unwrap())?;
+                let args = ab.try_collect(components.map(|c| self.transform_type(c)))?;
 
                 Ok(ab.node(EnumDefEntry { name, args }))
             }
@@ -276,12 +285,12 @@ where
     }
 
     pub(crate) fn transform_bound(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Bound<'ast>>> {
         match pair.as_rule() {
             Rule::bound => {
-                let ab = self.builder_from_pair(pair);
+                let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
                 // firsly convertkk the type args by just iterating the inner component
@@ -291,13 +300,13 @@ where
                         .next()
                         .unwrap()
                         .into_inner()
-                        .map(|x| self.transform_type(&x)),
+                        .map(|x| self.transform_type(x)),
                 )?;
 
                 // check if there are any trait_bounds attached with this bound
                 let trait_bounds = match components.next() {
                     Some(pair) => {
-                        ab.try_collect(pair.into_inner().map(|x| self.transform_trait_bound(&x)))?
+                        ab.try_collect(pair.into_inner().map(|x| self.transform_trait_bound(x)))?
                     }
                     None => ab.empty_slice(),
                 };
@@ -312,22 +321,22 @@ where
     }
 
     pub(crate) fn transform_trait_bound(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, TraitBound<'ast>>> {
         match pair.as_rule() {
             Rule::trait_bound => {
-                let ab = self.builder_from_pair(pair);
+                let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
                 // convert the access_name rule into a AstNode, each trait bound is guaranteed
                 // to have an access name, so it's safe to unwrap here...
-                let name = self.transform_access_name(&components.next().unwrap())?;
+                let name = self.transform_access_name(components.next().unwrap())?;
 
                 // convert any type args the trait bound contains
                 let type_args = match components.next() {
                     Some(pair) => {
-                        ab.try_collect(pair.into_inner().map(|x| self.transform_type(&x)))?
+                        ab.try_collect(pair.into_inner().map(|x| self.transform_type(x)))?
                     }
                     None => ab.empty_slice(),
                 };
@@ -339,25 +348,25 @@ where
     }
 
     pub(crate) fn transform_access_name(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, AccessName<'ast>>> {
-        let ab = self.builder_from_pair(pair);
+        let ab = self.builder_from_pair(&pair);
         match pair.as_rule() {
             Rule::access_name => Ok(self.builder_from_pair(&pair).node(AccessName {
-                names: ab.try_collect(pair.into_inner().map(|x| self.transform_name(&x)))?,
+                names: ab.try_collect(pair.into_inner().map(|x| self.transform_name(x)))?,
             })),
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn transform_type(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Type<'ast>>> {
         match pair.as_rule() {
             Rule::any_type => {
-                let ab = self.builder_from_pair(pair);
+                let ab = self.builder_from_pair(&pair);
                 let in_type = pair.into_inner().next().unwrap();
 
                 match in_type.as_rule() {
@@ -365,11 +374,11 @@ where
                     Rule::named_type => {
                         let mut in_named = in_type.into_inner();
 
-                        let name = self.transform_access_name(&in_named.next().unwrap())?;
+                        let name = self.transform_access_name(in_named.next().unwrap())?;
                         let type_args = in_named
                             .next()
                             .map(|n| {
-                                ab.try_collect(n.into_inner().map(|x| self.transform_type(&x)))
+                                ab.try_collect(n.into_inner().map(|x| self.transform_type(x)))
                             })
                             .unwrap_or_else(|| Ok(ab.empty_slice()))?;
 
@@ -379,24 +388,23 @@ where
                         let mut in_func = in_type.into_inner();
 
                         let func_args = in_func.next().unwrap();
+                        let func_return_ty = self.transform_type(in_func.next().unwrap());
 
-                        let func_return = in_func.next().unwrap();
-
-                        let mut args = ab.try_collect(
+                        let type_args = ab.try_collect(
                             func_args
                                 .into_inner()
-                                .map(|x| self.transform_type(&x))
-                                .chain(iter::once(self.transform_type(&func_return))),
+                                .map(|x| self.transform_type(x))
+                                .chain(once(func_return_ty)),
                         )?;
 
                         Ok(ab.node(Type::Named(NamedType {
                             name: ab.make_single_access_name(FUNCTION_TYPE_NAME),
-                            type_args: args,
+                            type_args,
                         })))
                     }
                     Rule::tuple_type => {
                         let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(&x)))?;
+                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
                         Ok(ab.node(Type::Named(NamedType {
                             name: ab.make_single_access_name(TUPLE_TYPE_NAME),
                             type_args: inner,
@@ -404,7 +412,7 @@ where
                     }
                     Rule::list_type => {
                         let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(&x)))?;
+                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
 
                         // list type should only have one type
                         debug_assert_eq!(inner.len(), 1);
@@ -416,7 +424,7 @@ where
                     }
                     Rule::set_type => {
                         let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(&x)))?;
+                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
 
                         // set type should only have one type
                         debug_assert_eq!(inner.len(), 1);
@@ -428,7 +436,7 @@ where
                     }
                     Rule::map_type => {
                         let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(&x)))?;
+                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
 
                         // map type should only have a type for a key and a value
                         debug_assert_eq!(inner.len(), 2);
@@ -447,15 +455,15 @@ where
     }
 
     pub(crate) fn transform_literal(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Literal<'ast>>> {
-        let ab = self.builder_from_pair(pair);
+        let ab = self.builder_from_pair(&pair);
 
         match pair.as_rule() {
             // If the literal is wrapped in a literal_expr, we unwrap it and then just convert
             // the internal contents of it using the same implementation...
-            Rule::literal_expr => self.transform_literal(&pair.into_inner().next().unwrap()),
+            Rule::literal_expr => self.transform_literal(pair.into_inner().next().unwrap()),
             Rule::integer_literal => {
                 let inner = pair.into_inner().next().unwrap();
                 // this could be binary, hex, octal or decimal...
@@ -533,7 +541,7 @@ where
                 // since list literals are just a bunch of expressions, we just call
                 // into_ast(resolver) on each member and collect at the end
                 let elements =
-                    ab.try_collect(pair.into_inner().map(|x| self.transform_expression(&x)))?;
+                    ab.try_collect(pair.into_inner().map(|x| self.transform_expression(x)))?;
 
                 Ok(ab.node(Literal::List(ListLiteral { elements })))
             }
@@ -541,7 +549,7 @@ where
                 // since set literals are just a bunch of expressions, we just call
                 // into_ast(resolver) on each member and collect at the end
                 let elements =
-                    ab.try_collect(pair.into_inner().map(|x| self.transform_expression(&x)))?;
+                    ab.try_collect(pair.into_inner().map(|x| self.transform_expression(x)))?;
 
                 Ok(ab.node(Literal::Set(SetLiteral { elements })))
             }
@@ -549,7 +557,7 @@ where
                 // since tuple literals are just a bunch of expressions, we just call
                 // into_ast(resolver) on each member and collect at the end
                 let elements =
-                    ab.try_collect(pair.into_inner().map(|x| self.transform_expression(&x)))?;
+                    ab.try_collect(pair.into_inner().map(|x| self.transform_expression(x)))?;
 
                 Ok(ab.node(Literal::Tuple(TupleLiteral { elements })))
             }
@@ -557,7 +565,7 @@ where
                 // A map is made of a vector of 'map_entries' rules, which are just two
                 // expressions.
                 let elements = ab.try_collect(pair.into_inner().map(|p| {
-                    let mut items = p.into_inner().map(|p| self.transform_expression(&p));
+                    let mut items = p.into_inner().map(|p| self.transform_expression(p));
                     Ok((items.next().unwrap()?, items.next().unwrap()?))
                 }))?;
 
@@ -574,12 +582,12 @@ where
                         let mut param_components = param.into_inner();
 
                         // get the name of identifier
-                        let name = self.transform_name(&param_components.next().unwrap())?;
+                        let name = self.transform_name(param_components.next().unwrap())?;
 
                         // if no type is specified for the param, we just set it to none
                         let ty = param_components
                             .next()
-                            .map(|t| self.transform_type(&t))
+                            .map(|t| self.transform_type(t))
                             .transpose()?;
 
                         Ok(ab.node(FunctionDefArg { name, ty }))
@@ -594,11 +602,11 @@ where
                     Rule::any_type => {
                         let body = components.next().unwrap();
                         (
-                            Some(self.transform_type(&fn_type_or_body)?),
-                            self.transform_expression(&body)?,
+                            Some(self.transform_type(fn_type_or_body)?),
+                            self.transform_expression(body)?,
                         )
                     }
-                    Rule::fn_body => (None, self.transform_expression(&fn_type_or_body)?),
+                    Rule::fn_body => (None, self.transform_expression(fn_type_or_body)?),
                     k => panic!("unexpected rule within fn_literal: {:?}", k),
                 };
                 Ok(ab.node(Literal::Function(FunctionDef {
@@ -611,7 +619,7 @@ where
                 let mut components = pair.into_inner();
 
                 // first sort out the name of the struct
-                let name = self.transform_access_name(&components.next().unwrap())?;
+                let name = self.transform_access_name(components.next().unwrap())?;
 
                 // now check if the next rule is either type_args or struct_fields...
                 let type_args_or_fields = components.next().unwrap();
@@ -622,7 +630,7 @@ where
                         let type_args = ab.try_collect(
                             type_args_or_fields
                                 .into_inner()
-                                .map(|x| self.transform_type(&x)),
+                                .map(|x| self.transform_type(x)),
                         )?;
 
                         // convert the struct fields into ast nodes...
@@ -631,7 +639,7 @@ where
                                 .next()
                                 .unwrap()
                                 .into_inner()
-                                .map(|x| self.transform_struct_literal_entry(&x)),
+                                .map(|x| self.transform_struct_literal_entry(x)),
                         )?;
 
                         (type_args, fields)
@@ -641,7 +649,7 @@ where
                         ab.try_collect(
                             type_args_or_fields
                                 .into_inner()
-                                .map(|x| self.transform_struct_literal_entry(&x)),
+                                .map(|x| self.transform_struct_literal_entry(x)),
                         )?,
                     ),
                     k => panic!("unexpected rule within struct_literal: {:?}", k),
@@ -658,24 +666,23 @@ where
     }
 
     pub(crate) fn transform_literal_pattern(
-        &self,
-        pair: &HashPair<'_>,
-    ) -> ParseResult<AstNode<'ast, LiteralPattern<'ast>>> {
+        &mut self,
+        pair: HashPair<'_>,
+    ) -> ParseResult<LiteralPattern<'ast>> {
         match pair.as_rule() {
             Rule::literal_pattern => {
                 let pat = pair.into_inner().next().unwrap();
 
                 // we prematurely convert the first node into a Literal, and then
                 // pattern match on the literal, converting into a Literal pattern
-                let node = self.transform_literal(&pat)?;
-                let ab = self.builder_from_pair(pair);
+                let node = self.transform_literal(pat)?;
 
                 // essentially cast the literal into a literal_pattern
-                Ok(match *node.body {
-                    Literal::Str(s) => ab.node(LiteralPattern::Str(s)),
-                    Literal::Char(s) => ab.node(LiteralPattern::Char(s)),
-                    Literal::Float(s) => ab.node(LiteralPattern::Float(s)),
-                    Literal::Int(s) => ab.node(LiteralPattern::Int(s)),
+                Ok(match node.body {
+                    Literal::Str(s) => LiteralPattern::Str(s),
+                    Literal::Char(s) => LiteralPattern::Char(*s),
+                    Literal::Float(s) => LiteralPattern::Float(*s),
+                    Literal::Int(s) => LiteralPattern::Int(s.clone()),
                     k => panic!(
                         "literal_pattern should be string, float, char or int, got : {:?}",
                         k
@@ -687,13 +694,13 @@ where
     }
 
     pub(crate) fn transform_pattern(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Pattern<'ast>>> {
-        let ab = self.builder_from_pair(pair);
+        let ab = self.builder_from_pair(&pair);
 
         match pair.as_rule() {
-            Rule::pattern => self.transform_pattern(&pair.into_inner().next().unwrap()),
+            Rule::pattern => self.transform_pattern(pair.into_inner().next().unwrap()),
             Rule::single_pattern => {
                 let pat = pair.into_inner().next().unwrap();
 
@@ -701,13 +708,13 @@ where
                     Rule::enum_pattern => {
                         let mut components = pat.into_inner();
 
-                        let name = self.transform_access_name(&components.next().unwrap())?;
+                        let name = self.transform_access_name(components.next().unwrap())?;
                         let args = ab.try_collect(
                             components
                                 .next()
                                 .unwrap()
                                 .into_inner()
-                                .map(|x| self.transform_pattern(&x)),
+                                .map(|x| self.transform_pattern(x)),
                         )?;
 
                         Ok(ab.node(Pattern::Enum(EnumPattern { name, args })))
@@ -715,7 +722,7 @@ where
                     Rule::struct_pattern => {
                         let mut components = pat.into_inner();
 
-                        let name = self.transform_access_name(&components.next().unwrap())?;
+                        let name = self.transform_access_name(components.next().unwrap())?;
 
                         // If there is no binding part of the destructuring pattern, as in if
                         // no pattern on the right-handside, we use the name of the field as a
@@ -723,11 +730,11 @@ where
                         let entries =
                             ab.try_collect(components.next().unwrap().into_inner().map(|p| {
                                 let mut field = p.into_inner();
-                                let name = self.transform_name(&field.next().unwrap())?;
+                                let name = self.transform_name(field.next().unwrap())?;
                                 let name_ab = self.builder_from_node(&name);
 
                                 let pattern = match field.next() {
-                                    Some(pat) => self.transform_pattern(&pat)?,
+                                    Some(pat) => self.transform_pattern(pat)?,
                                     None => name_ab
                                         .node(Pattern::Binding(name_ab.copy_name_node(&name))),
                                 };
@@ -740,11 +747,11 @@ where
                     Rule::namespace_pattern => {
                         let patterns = ab.try_collect(pat.into_inner().map(|p| {
                             let mut field = p.into_inner();
-                            let name = self.transform_name(&field.next().unwrap())?;
+                            let name = self.transform_name(field.next().unwrap())?;
                             let name_ab = self.builder_from_node(&name);
 
                             let pattern = match field.next() {
-                                Some(pat) => self.transform_pattern(&pat)?,
+                                Some(pat) => self.transform_pattern(pat)?,
                                 None => {
                                     name_ab.node(Pattern::Binding(name_ab.copy_name_node(&name)))
                                 }
@@ -756,21 +763,22 @@ where
                         Ok(ab.node(Pattern::Namespace(NamespacePattern { patterns })))
                     }
                     Rule::binding_pattern => {
-                        let name = self.transform_name(&pat.into_inner().next().unwrap())?;
+                        let name = self.transform_name(pat.into_inner().next().unwrap())?;
                         Ok(ab.node(Pattern::Binding(name)))
                     }
                     Rule::ignore_pattern => Ok(ab.node(Pattern::Ignore)),
                     // @@Cleanup: is this right, can we avoid this by just using another AstNode here?
-                    Rule::literal_pattern => Ok(ab.node(Pattern::Literal(
-                        *self.transform_literal_pattern(&pat)?.body,
-                    ))),
+                    Rule::literal_pattern => {
+                        let literal = self.transform_literal_pattern(pat)?;
+                        Ok(ab.node(Pattern::Literal(literal)))
+                    }
                     Rule::tuple_pattern => Ok(ab.node(Pattern::Tuple(TuplePattern {
                         elements: ab
-                            .try_collect(pat.into_inner().map(|x| self.transform_pattern(&x)))?,
+                            .try_collect(pat.into_inner().map(|x| self.transform_pattern(x)))?,
                     }))),
 
                     // grouped pattern is just a pattern surrounded by parentheses, to specify precedence...
-                    Rule::grouped_pattern => self.transform_pattern(&pat),
+                    Rule::grouped_pattern => self.transform_pattern(pat),
                     k => panic!("unexpected rule within single_pattern: {:?}", k),
                 }
             }
@@ -778,9 +786,7 @@ where
                 let mut components = pair.into_inner();
 
                 let pattern_rule = components.next().unwrap();
-                let mut pats = pattern_rule
-                    .into_inner()
-                    .map(|p| self.transform_pattern(&p));
+                let mut pats = pattern_rule.into_inner().map(|p| self.transform_pattern(p));
 
                 let lhs = ab.node(Pattern::Or(OrPattern {
                     a: pats.next().unwrap()?,
@@ -794,7 +800,7 @@ where
 
                         self.builder_from_pair(&k).node(Pattern::If(IfPattern {
                             pattern: lhs,
-                            condition: self.transform_expression(&k)?,
+                            condition: self.transform_expression(k)?,
                         }))
                     }
                     None => lhs,
@@ -804,54 +810,53 @@ where
         }
     }
 
-    pub(crate) fn transform_expression(
-        &self,
-        pair: &HashPair<'_>,
+    pub(crate) fn transform_expression<'s>(
+        &mut self,
+        pair: HashPair<'s>,
     ) -> ParseResult<AstNode<'ast, Expression<'ast>>> {
-        let ab = self.builder_from_pair(pair);
+        let ab = self.builder_from_pair(&pair);
+        let rule = pair.as_rule();
+        let mut expr = pair.into_inner();
 
-        match pair.as_rule() {
-            Rule::fn_body => self.transform_expression(&pair.into_inner().next().unwrap()),
+        match rule {
+            Rule::fn_body => self.transform_expression(expr.next().unwrap()),
             Rule::expr => {
-                let expr = pair.into_inner().next().unwrap();
+                let expr = expr.next().unwrap();
 
                 match expr.as_rule() {
-                    Rule::block => Ok(ab.node(Expression::Block(self.transform_block(&expr)?))),
+                    Rule::block => Ok(ab.node(Expression::Block(self.transform_block(expr)?))),
                     Rule::struct_literal => {
-                        Ok(ab.node(Expression::LiteralExpr(self.transform_literal(&expr)?)))
+                        Ok(ab.node(Expression::LiteralExpr(self.transform_literal(expr)?)))
                     }
                     Rule::binary_expr => {
-                        let mut items = expr.clone().into_inner();
+                        let mut items = expr.into_inner();
 
                         // if this is an actual binary expr, we need to check if the second token is a
                         // binary_op and the invoke prec_climber.
                         let lhs = items.next().unwrap();
 
                         Ok(match items.next() {
-                            Some(_) => self.climb(expr)?,
-                            None => self.transform_expression(&lhs)?,
+                            Some(op) => self.climb(once(lhs).chain(once(op)).chain(items))?,
+                            None => self.transform_expression(lhs)?,
                         })
                     }
                     k => panic!("unexpected rule within inner_expr: {:?}", k),
                 }
             }
             Rule::typed_expr => {
-                let mut expr = pair.into_inner();
-
                 // this is the unary expression...
-                let unary = self.transform_expression(&expr.next().unwrap())?;
+                let unary = self.transform_expression(expr.next().unwrap())?;
 
                 // check if this expression has a type...
                 match expr.next() {
                     Some(ty) => Ok(ab.node(Expression::Typed(TypedExpr {
-                        ty: self.transform_type(&ty)?, // convert the type into an AstNode
+                        ty: self.transform_type(ty)?, // convert the type into an AstNode
                         expr: unary,
                     }))),
                     None => Ok(unary),
                 }
             }
             Rule::unary_expr => {
-                let mut expr = pair.into_inner();
                 // check the first token to is if it is a unary expression, if so we
                 // need convert this into the appropriate function call...
                 let op_or_single_expr = expr.next().unwrap();
@@ -882,16 +887,14 @@ where
                             args: ab.node(FunctionCallArgs {
                                 entries: self
                                     .allocator
-                                    .alloc([self.transform_expression(&operand)?]),
+                                    .alloc([self.transform_expression(operand)?]),
                             }),
                         })))
                     }
-                    _ => self.transform_expression(&op_or_single_expr),
+                    _ => self.transform_expression(op_or_single_expr),
                 }
             }
             Rule::single_expr => {
-                let mut expr = pair.into_inner();
-
                 // a single expression is made of a 'subject' and then an accessor like a
                 // an index, property_access or func args. So, we firstly convert the
                 // subject into an ast_node and then deal with a potential 'accessor'...
@@ -913,22 +916,22 @@ where
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::Import(
                             self.builder_from_pair(&import_path).node(Import {
-                                path: s,
+                                path: self.allocator.alloc_str(s),
                                 index: module_idx,
                             }),
                         )))
                     }
                     Rule::literal_expr => Ok(ab.node(Expression::LiteralExpr(
-                        self.transform_literal(&subject_expr)?,
+                        self.transform_literal(subject_expr)?,
                     ))),
                     Rule::variable_expr => {
                         // so since this is going to be an access_name, which is a list of 'ident' rules,
                         // we can directly convert this into a VariableExpr
                         let mut var_expr = subject_expr.into_inner();
                         let access_name_inner = var_expr.next().unwrap();
-                        let access_name = self.transform_access_name(&access_name_inner)?;
+                        let access_name = self.transform_access_name(access_name_inner)?;
                         let type_args = var_expr.next().map_or(Ok(ab.empty_slice()), |ty| {
-                            ab.try_collect(ty.into_inner().map(|x| self.transform_type(&x)))
+                            ab.try_collect(ty.into_inner().map(|x| self.transform_type(x)))
                         })?;
 
                         Ok(ab.node(Expression::Variable(VariableExpr {
@@ -936,7 +939,7 @@ where
                             type_args,
                         })))
                     }
-                    Rule::paren_expr => self.transform_expression(&subject_expr),
+                    Rule::paren_expr => self.transform_expression(subject_expr),
                     k => panic!("unexpected rule within expr: {:?}", k),
                 };
 
@@ -954,7 +957,7 @@ where
                                 // it's safe to unwrap here since property access will always
                                 // provide the ident rule as the first one, otherwise it is a parsing error
                                 property: self
-                                    .transform_name(&accessor.into_inner().next().unwrap())?,
+                                    .transform_name(accessor.into_inner().next().unwrap())?,
                             })))
                         }
                         Rule::fn_args => {
@@ -966,7 +969,7 @@ where
                                     entries: ab.try_collect(
                                         accessor
                                             .into_inner()
-                                            .map(|x| self.transform_expression(&x)),
+                                            .map(|x| self.transform_expression(x)),
                                     )?,
                                 }),
                             })))
@@ -979,7 +982,7 @@ where
 
                             // this is the expression within the brackets.
                             let index_expr =
-                                self.transform_expression(&accessor.into_inner().next().unwrap())?;
+                                self.transform_expression(accessor.into_inner().next().unwrap())?;
 
                             // @@Cutnpaste: move this into a seprate function for transpilling built-in functions
                             Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
@@ -1006,10 +1009,10 @@ where
     }
 
     pub(crate) fn transform_block(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Block<'ast>>> {
-        let ab = self.builder_from_pair(pair);
+        let ab = self.builder_from_pair(&pair);
 
         match pair.as_rule() {
             Rule::block => {
@@ -1035,8 +1038,8 @@ where
                         // Adittionally, if no 'else' clause is specified, we fill it with an
                         // empty block since an if-block could be assigned to any variable and therefore
                         // we need to know the outcome of all branches for typechecking.
-                        let mut append_else = true;
-                        let mut cases = ab.try_collect(
+                        let append_else = Cell::new(true);
+                        let cases = ab.try_collect(
                             block
                                 .into_inner()
                                 .map(|if_condition| {
@@ -1048,10 +1051,10 @@ where
 
                                             // get the clause and block from the if-block components
                                             let clause = self.transform_expression(
-                                                &components.next().unwrap(),
+                                                components.next().unwrap(),
                                             )?;
                                             let block =
-                                                self.transform_block(&components.next().unwrap())?;
+                                                self.transform_block(components.next().unwrap())?;
 
                                             Ok(block_builder.node(MatchCase {
                                                 pattern: block_builder.node(Pattern::If(
@@ -1067,10 +1070,10 @@ where
                                             }))
                                         }
                                         Rule::else_block => {
-                                            append_else = false;
+                                            append_else.set(false);
 
                                             let block = self.transform_block(
-                                                &if_condition.into_inner().next().unwrap(),
+                                                if_condition.into_inner().next().unwrap(),
                                             )?;
 
                                             Ok(block_builder.node(MatchCase {
@@ -1087,7 +1090,7 @@ where
                                 })
                                 .chain(
                                     {
-                                        if append_else {
+                                        if append_else.get() {
                                             Some(Ok(ab.node(MatchCase {
                                                 pattern: ab.node(Pattern::Ignore),
                                                 expr: ab.node(Expression::Block(ab.node(
@@ -1118,7 +1121,7 @@ where
                         // firstly get the expresion condition from the match block, the
                         // next rule will be a bunch of match_case rules which can be
                         // converted into ast using the pattern and block implementations...
-                        let subject = self.transform_expression(&match_block.next().unwrap())?;
+                        let subject = self.transform_expression(match_block.next().unwrap())?;
                         let match_cases = match_block.next().unwrap();
 
                         let cases = ab.try_collect(match_cases.into_inner().map(|case| {
@@ -1129,9 +1132,9 @@ where
                                     let mut components = case.into_inner();
 
                                     let pattern =
-                                        self.transform_pattern(&components.next().unwrap())?;
+                                        self.transform_pattern(components.next().unwrap())?;
                                     let expr =
-                                        self.transform_expression(&components.next().unwrap())?;
+                                        self.transform_expression(components.next().unwrap())?;
 
                                     Ok(case_builder.node(MatchCase { pattern, expr }))
                                 }
@@ -1143,19 +1146,19 @@ where
                     }
                     Rule::loop_block => {
                         let body_block =
-                            self.transform_block(&block.into_inner().next().unwrap())?;
+                            self.transform_block(block.into_inner().next().unwrap())?;
                         Ok(ab.node(Block::Loop(body_block)))
                     }
                     Rule::for_block => {
                         let mut for_block = block.into_inner();
 
-                        let pattern = self.transform_pattern(&for_block.next().unwrap())?;
+                        let pattern = self.transform_pattern(for_block.next().unwrap())?;
                         let pat_builder = self.builder_from_node(&pattern);
 
-                        let iterator = self.transform_expression(&for_block.next().unwrap())?;
+                        let iterator = self.transform_expression(for_block.next().unwrap())?;
                         let iter_builder = self.builder_from_node(&iterator);
 
-                        let body = self.transform_block(&for_block.next().unwrap())?;
+                        let body = self.transform_block(for_block.next().unwrap())?;
                         let body_builder = self.builder_from_node(&body);
 
                         Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
@@ -1203,10 +1206,10 @@ where
                     Rule::while_block => {
                         let mut while_block = block.into_inner();
 
-                        let condition = self.transform_expression(&while_block.next().unwrap())?;
+                        let condition = self.transform_expression(while_block.next().unwrap())?;
                         let condition_builder = self.builder_from_node(&condition);
 
-                        let body = self.transform_block(&while_block.next().unwrap())?;
+                        let body = self.transform_block(while_block.next().unwrap())?;
                         let body_builder = self.builder_from_node(&body);
 
                         Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
@@ -1239,14 +1242,14 @@ where
                             ]),
                         })))))
                     }
-                    Rule::body_block => self.transform_block(&block),
+                    Rule::body_block => self.transform_block(block),
                     k => panic!("unexpected rule within block variant: {:?}", k),
                 }
             }
             Rule::body_block => {
                 Ok(ab.node(Block::Body(BodyBlock {
                     statements: ab
-                        .try_collect(pair.into_inner().map(|x| self.transform_statement(&x)))?,
+                        .try_collect(pair.into_inner().map(|x| self.transform_statement(x)))?,
                     // @@FIXME: since the tokeniser cannot tell the difference betweeen a statment and an expression (what is returned), we need to do it here...
                     expr: None,
                 })))
@@ -1256,8 +1259,8 @@ where
     }
 
     pub(crate) fn transform_statement(
-        &self,
-        pair: &HashPair<'_>,
+        &mut self,
+        pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Statement<'ast>>> {
         let ab = self.builder_from_pair(&pair);
 
@@ -1269,20 +1272,14 @@ where
                 // to see which path it is, if this is a block statement, we just call
                 // into_ast(resolver) since there is an implementation for block convetsions
                 match statement.as_rule() {
-                    Rule::block => {
-                        Ok(ab.node(Statement::Block(self.transform_block(&statement)?)))
-                    }
+                    Rule::block => Ok(ab.node(Statement::Block(self.transform_block(statement)?))),
                     Rule::break_st => Ok(ab.node(Statement::Break)),
                     Rule::continue_st => Ok(ab.node(Statement::Continue)),
                     Rule::return_st => {
                         let ret_expr = statement.into_inner().next();
 
                         if let Some(node) = ret_expr {
-                            Ok(
-                                ab.node(Statement::Return(Some(
-                                    self.transform_expression(&node)?,
-                                ))),
-                            )
+                            Ok(ab.node(Statement::Return(Some(self.transform_expression(node)?))))
                         } else {
                             Ok(ab.node(Statement::Return(None)))
                         }
@@ -1293,13 +1290,13 @@ where
                         // assignment to the let statement
                         let mut components = statement.into_inner();
 
-                        let pattern = self.transform_pattern(&components.next().unwrap())?;
+                        let pattern = self.transform_pattern(components.next().unwrap())?;
 
                         let bound_or_ty = components.next();
                         let (bound, ty, value) = match bound_or_ty {
                             Some(pair) => match pair.as_rule() {
                                 Rule::bound => {
-                                    let bound = Some(self.transform_bound(&pair)?);
+                                    let bound = Some(self.transform_bound(pair)?);
 
                                     let ty_or_expr = components.next();
 
@@ -1307,15 +1304,15 @@ where
                                         Some(r) => match r.as_rule() {
                                             Rule::any_type => (
                                                 bound,
-                                                Some(self.transform_type(&r)?),
+                                                Some(self.transform_type(r)?),
                                                 // check if the optional value component is present with the let statement...
                                                 components
                                                     .next()
-                                                    .map(|p| self.transform_expression(&p))
+                                                    .map(|p| self.transform_expression(p))
                                                     .transpose()?,
                                             ),
                                             Rule::expr => {
-                                                (bound, None, Some(self.transform_expression(&r)?))
+                                                (bound, None, Some(self.transform_expression(r)?))
                                             }
                                             k => {
                                                 panic!(
@@ -1329,15 +1326,13 @@ where
                                 }
                                 Rule::any_type => (
                                     None,
-                                    Some(self.transform_type(&pair)?),
+                                    Some(self.transform_type(pair)?),
                                     components
                                         .next()
-                                        .map(|p| self.transform_expression(&p))
+                                        .map(|p| self.transform_expression(p))
                                         .transpose()?,
                                 ),
-                                Rule::expr => {
-                                    (None, None, Some(self.transform_expression(&pair)?))
-                                }
+                                Rule::expr => (None, None, Some(self.transform_expression(pair)?)),
                                 k => panic!("Unexpected rule within let_st: {:?}", k),
                             },
                             None => (None, None, None),
@@ -1367,7 +1362,7 @@ where
                         // So, what we have to do is insert a phantom ast_node which binds the lhs to
                         // '$index', so that it can be used when transpilling the re-assignment operators...
                         let lhs: AstNode<Expression> =
-                            self.transform_expression(&components.next().unwrap())?;
+                            self.transform_expression(components.next().unwrap())?;
 
                         // if no rhs is present, this is just an singular expression instead of an
                         // assignment
@@ -1378,7 +1373,7 @@ where
                                 let transform = convert_rule_into_fn_call(&op.as_rule());
 
                                 let mut rhs =
-                                    self.transform_expression(&components.next().unwrap())?;
+                                    self.transform_expression(components.next().unwrap())?;
 
                                 // transform lhs if we're using a non-eq assignment operator into the appropriate
                                 // function call...
@@ -1446,12 +1441,12 @@ where
                     }
                     Rule::struct_def => {
                         let mut components = statement.into_inner();
-                        let name = self.transform_name(&components.next().unwrap())?;
+                        let name = self.transform_name(components.next().unwrap())?;
 
                         let bound_or_fields = components.next().unwrap();
                         let (bound, entries) = match bound_or_fields.as_rule() {
                             Rule::bound => (
-                                Some(self.transform_bound(&bound_or_fields)?),
+                                Some(self.transform_bound(bound_or_fields)?),
                                 // It's guaranteed to have zero or more struct def fields and so it is
                                 // safe to unwrap the following rule after the bound...
                                 ab.try_collect(
@@ -1459,7 +1454,7 @@ where
                                         .next()
                                         .unwrap()
                                         .into_inner()
-                                        .map(|x| self.transform_struct_def_entry(&x)),
+                                        .map(|x| self.transform_struct_def_entry(x)),
                                 )?,
                             ),
 
@@ -1468,7 +1463,7 @@ where
                                 ab.try_collect(
                                     bound_or_fields
                                         .into_inner()
-                                        .map(|x| self.transform_struct_def_entry(&x)),
+                                        .map(|x| self.transform_struct_def_entry(x)),
                                 )?,
                             ),
                             k => panic!("Unexpected rule within struct_def: {:?}", k),
@@ -1481,18 +1476,18 @@ where
                     }
                     Rule::enum_def => {
                         let mut components = statement.into_inner();
-                        let name = self.transform_name(&components.next().unwrap())?;
+                        let name = self.transform_name(components.next().unwrap())?;
 
                         let bound_or_fields = components.next().unwrap();
                         let (bound, entries) = match bound_or_fields.as_rule() {
                             Rule::bound => (
-                                Some(self.transform_bound(&bound_or_fields)?),
+                                Some(self.transform_bound(bound_or_fields)?),
                                 ab.try_collect(
                                     components
                                         .next()
                                         .unwrap()
                                         .into_inner()
-                                        .map(|x| self.transform_enum_def_entry(&x)),
+                                        .map(|x| self.transform_enum_def_entry(x)),
                                 )?,
                             ),
                             // It's guaranteed to have zero or more enum def fields and so it is
@@ -1502,7 +1497,7 @@ where
                                 ab.try_collect(
                                     bound_or_fields
                                         .into_inner()
-                                        .map(|x| self.transform_enum_def_entry(&x)),
+                                        .map(|x| self.transform_enum_def_entry(x)),
                                 )?,
                             ),
                             k => panic!("Unexpected rule within enum_def: {:?}", k),
@@ -1516,13 +1511,13 @@ where
                     }
                     Rule::trait_def => {
                         let mut components = statement.into_inner();
-                        let name = self.transform_name(&components.next().unwrap())?;
-                        let bound = self.transform_bound(&components.next().unwrap())?;
+                        let name = self.transform_name(components.next().unwrap())?;
+                        let bound = self.transform_bound(components.next().unwrap())?;
 
                         let fn_rule = components.next().unwrap();
                         debug_assert_eq!(fn_rule.as_rule(), Rule::fn_type);
 
-                        let trait_type = self.transform_type(&fn_rule)?;
+                        let trait_type = self.transform_type(fn_rule)?;
 
                         Ok(ab.node(Statement::TraitDef(TraitDef {
                             name,

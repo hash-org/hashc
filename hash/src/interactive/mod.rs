@@ -5,6 +5,7 @@
 mod command;
 mod error;
 
+use bumpalo::Bump;
 use command::InteractiveCommand;
 use error::{report_interp_error, InterpreterError};
 use hash_ast::parse::Parser;
@@ -65,8 +66,9 @@ fn execute(input: &str) {
 
     let command = InteractiveCommand::from(&input);
 
+    let allocator = Bump::new();
     // setup the parser
-    let parser = Parser::sequential(HashGrammar);
+    let parser = Parser::sequential(HashGrammar, &allocator);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),

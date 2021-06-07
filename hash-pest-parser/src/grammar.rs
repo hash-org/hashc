@@ -35,11 +35,11 @@ impl ParserBackend for HashGrammar {
     where
         'ast: 'alloc,
     {
-        let builder = PestAstBuilder::new(resolver, allocator);
+        let mut builder = PestAstBuilder::new(resolver, allocator);
         match HashGrammar::parse(Rule::module, contents) {
             Ok(result) => Ok(ast::Module {
                 contents: allocator
-                    .try_alloc_slice(result.map(|x| builder.transform_statement(&x)))?,
+                    .try_alloc_slice(result.map(|x| builder.transform_statement(x)))?,
             }),
             Err(e) => Err(PestError(e).into()),
         }
@@ -54,9 +54,9 @@ impl ParserBackend for HashGrammar {
     where
         'ast: 'alloc,
     {
-        let builder = PestAstBuilder::new(resolver, allocator);
+        let mut builder = PestAstBuilder::new(resolver, allocator);
         match HashGrammar::parse(Rule::statement, contents) {
-            Ok(mut result) => builder.transform_statement(&result.next().unwrap()),
+            Ok(mut result) => builder.transform_statement(result.next().unwrap()),
             Err(e) => Err(PestError(e).into()),
         }
     }

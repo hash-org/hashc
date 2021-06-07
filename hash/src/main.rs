@@ -4,9 +4,11 @@
 mod error;
 mod interactive;
 
+use bumpalo::Bump;
 use clap::{crate_version, AppSettings, Clap};
-use std::fs;
-
+use hash_ast::parse::Parser;
+use std::{env, fs};
+use hash_pest_parser::grammar::HashGrammar;
 use crate::error::{report_error, ErrorType};
 
 /// CompilerOptions is a structural representation of what arguments the compiler
@@ -99,7 +101,8 @@ fn main() {
     match opts.execute {
         Some(path) => match fs::canonicalize(&path) {
             Ok(filename) => {
-                let parser = Parser::sequential(HashGrammar);
+                let allocator = Bump::new();
+                let parser = Parser::sequential(HashGrammar, &allocator);
                 let directory = env::current_dir().unwrap();
                 let modules = parser.parse(&filename, &directory);
                 println!("{:#?}", modules);
