@@ -309,6 +309,8 @@ dependencies = [
  "hash-ast",
  "hash-backend",
  "hash-pest-parser",
+ "log",
+ "pretty_env_logger",
  "rustyline",
  "thiserror",
 ]

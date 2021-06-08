@@ -7,7 +7,8 @@ mod interactive;
 use bumpalo::Bump;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::Parser;
-use std::{env, fs};
+use log::log_enabled;
+use std::{env, fs, hint, time::{Duration, Instant}};
 use hash_pest_parser::grammar::HashGrammar;
 use crate::error::{report_error, ErrorType};
 
@@ -73,6 +74,8 @@ struct IrGen {
 }
 
 fn main() {
+    pretty_env_logger::init();
+
     let opts: CompilerOptions = CompilerOptions::parse();
 
     // print recieved cmdargs, if debug is specified
@@ -104,13 +107,28 @@ fn main() {
                 let allocator = Bump::new();
                 let parser = Parser::sequential(HashGrammar, &allocator);
                 let directory = env::current_dir().unwrap();
-                let modules = parser.parse(&filename, &directory);
-                println!("{:#?}", modules);
+                let _ = timed(
+                    ||parser.parse(&filename, &directory),
+                    log::Level::Debug,
+                    |elapsed| println!("total: {:?}", elapsed),
+                );
             }
             Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
         },
         None => {
             interactive::init();
         }
+    }
+}
+
+#[inline(always)]
+fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
+    if log_enabled!(level) {
+        let begin = Instant::now();
+        let result = op();
+        on_elapsed(begin.elapsed());
+        result
+    } else {
+        op()
     }
 }
