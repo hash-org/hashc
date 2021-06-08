@@ -17,8 +17,6 @@ use std::{
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
 
-extern crate pretty_env_logger;
-
 pub struct Parser<'alloc, B, A> {
     worker_count: Option<usize>,
     backend: B,
@@ -254,7 +252,7 @@ impl ModuleIdx {
 }
 
 #[inline(always)]
-fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
+pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();

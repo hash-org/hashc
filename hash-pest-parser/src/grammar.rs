@@ -17,8 +17,8 @@ use pest::Parser;
 
 use hash_ast::{
     ast::{self, AstAllocator},
-    error::ParseResult,
-    parse::{ModuleResolver, ParserBackend},
+    error::{ParseError, ParseResult},
+    parse::{timed, ModuleResolver, ParserBackend},
 };
 
 use crate::{error::PestError, translate::PestAstBuilder};
@@ -36,13 +36,23 @@ impl ParserBackend for HashGrammar {
         'ast: 'alloc,
     {
         let mut builder = PestAstBuilder::new(resolver, allocator);
-        match HashGrammar::parse(Rule::module, contents) {
-            Ok(result) => Ok(ast::Module {
-                contents: allocator
-                    .try_alloc_slice(result.map(|x| builder.transform_statement(x)))?,
-            }),
-            Err(e) => Err(PestError(e).into()),
-        }
+        let pest_result = timed(
+            || HashGrammar::parse(Rule::module, contents),
+            log::Level::Debug,
+            |elapsed| println!("pest: {:?}", elapsed),
+        )
+        .map_err(|e| ParseError::from(PestError(e)))?;
+
+        timed(
+            || {
+                Ok(ast::Module {
+                    contents: allocator
+                        .try_alloc_slice(pest_result.map(|x| builder.transform_statement(x)))?,
+                })
+            },
+            log::Level::Debug,
+            |elapsed| println!("translation: {:?}", elapsed),
+        )
     }
 
     fn parse_statement<'ast, 'alloc>(

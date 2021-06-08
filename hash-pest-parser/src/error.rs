@@ -1,5 +1,6 @@
 use crate::grammar::Rule;
 use hash_ast::{error::ParseError, location::Location};
+
 pub(crate) struct PestError(pub pest::error::Error<Rule>);
 
 impl From<pest::error::Error<Rule>> for PestError {
@@ -27,8 +28,8 @@ impl From<PestError> for ParseError {
         match error.inner().variant {
             pest::error::ErrorVariant::ParsingError { .. } => ParseError::Parsing {
                 location: match error.inner().location {
-                    pest::error::InputLocation::Pos(x) => Location::Pos(x),
-                    pest::error::InputLocation::Span((x, y)) => Location::Span(x, y),
+                    pest::error::InputLocation::Pos(x) => Location::pos(x),
+                    pest::error::InputLocation::Span((x, y)) => Location::span(x, y),
                 },
                 message: error.into_inner().to_string(),
             },

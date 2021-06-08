@@ -40,7 +40,7 @@ where
 {
     pub(crate) fn from_pair(pair: &HashPair<'_>, allocator: &'alloc A) -> NodeBuilder<'alloc, A> {
         let span = pair.as_span();
-        let pos = Location::Span(span.start(), span.end());
+        let pos = Location::span(span.start(), span.end());
         NodeBuilder { pos, allocator }
     }
 
@@ -57,6 +57,14 @@ where
     /// Create a new [AstNode] from the information provided by the [AstBuilder]
     pub fn node<T>(&self, inner: T) -> AstNode<'ast, T> {
         self.allocator.alloc_ast_node(inner, self.pos)
+    }
+
+    /// Create a new [AstNode] from the information provided by the [AstBuilder]
+    pub fn existing_node<T>(&self, inner: &'ast mut T) -> AstNode<'ast, T> {
+        AstNode {
+            body: inner,
+            pos: self.pos,
+        }
     }
 
     pub fn error(&self, message: String) -> ParseError {
@@ -364,92 +372,84 @@ where
         &mut self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'ast, Type<'ast>>> {
+        let ab = self.builder_from_pair(&pair);
+
         match pair.as_rule() {
             Rule::any_type => {
-                let ab = self.builder_from_pair(&pair);
                 let in_type = pair.into_inner().next().unwrap();
-
-                match in_type.as_rule() {
-                    Rule::infer_type => Ok(ab.node(Type::Infer)),
-                    Rule::named_type => {
-                        let mut in_named = in_type.into_inner();
-
-                        let name = self.transform_access_name(in_named.next().unwrap())?;
-                        let type_args = in_named
-                            .next()
-                            .map(|n| {
-                                ab.try_collect(n.into_inner().map(|x| self.transform_type(x)))
-                            })
-                            .unwrap_or_else(|| Ok(ab.empty_slice()))?;
-
-                        Ok(ab.node(Type::Named(NamedType { name, type_args })))
-                    }
-                    Rule::fn_type => {
-                        let mut in_func = in_type.into_inner();
-
-                        let func_args = in_func.next().unwrap();
-                        let func_return_ty = self.transform_type(in_func.next().unwrap());
-
-                        let type_args = ab.try_collect(
-                            func_args
-                                .into_inner()
-                                .map(|x| self.transform_type(x))
-                                .chain(once(func_return_ty)),
-                        )?;
-
-                        Ok(ab.node(Type::Named(NamedType {
-                            name: ab.make_single_access_name(FUNCTION_TYPE_NAME),
-                            type_args,
-                        })))
-                    }
-                    Rule::tuple_type => {
-                        let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
-                        Ok(ab.node(Type::Named(NamedType {
-                            name: ab.make_single_access_name(TUPLE_TYPE_NAME),
-                            type_args: inner,
-                        })))
-                    }
-                    Rule::list_type => {
-                        let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
-
-                        // list type should only have one type
-                        debug_assert_eq!(inner.len(), 1);
-
-                        Ok(ab.node(Type::Named(NamedType {
-                            name: ab.make_single_access_name(LIST_TYPE_NAME),
-                            type_args: inner,
-                        })))
-                    }
-                    Rule::set_type => {
-                        let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
-
-                        // set type should only have one type
-                        debug_assert_eq!(inner.len(), 1);
-
-                        Ok(ab.node(Type::Named(NamedType {
-                            name: ab.make_single_access_name(SET_TYPE_NAME),
-                            type_args: inner,
-                        })))
-                    }
-                    Rule::map_type => {
-                        let inner =
-                            ab.try_collect(in_type.into_inner().map(|x| self.transform_type(x)))?;
-
-                        // map type should only have a type for a key and a value
-                        debug_assert_eq!(inner.len(), 2);
-
-                        Ok(ab.node(Type::Named(NamedType {
-                            name: ab.make_single_access_name(MAP_TYPE_NAME),
-                            type_args: inner,
-                        })))
-                    }
-                    Rule::existential_type => Ok(ab.node(Type::Existential)),
-                    _ => unreachable!(),
-                }
+                self.transform_type(in_type)
             }
+            Rule::infer_type => Ok(ab.node(Type::Infer)),
+            Rule::named_type => {
+                let mut in_named = pair.into_inner();
+
+                let name = self.transform_access_name(in_named.next().unwrap())?;
+                let type_args = in_named
+                    .next()
+                    .map(|n| ab.try_collect(n.into_inner().map(|x| self.transform_type(x))))
+                    .unwrap_or_else(|| Ok(ab.empty_slice()))?;
+
+                Ok(ab.node(Type::Named(NamedType { name, type_args })))
+            }
+            Rule::fn_type => {
+                let mut in_func = pair.into_inner();
+
+                let func_args = in_func.next().unwrap();
+                let func_return_ty = self.transform_type(in_func.next().unwrap());
+
+                let type_args = ab.try_collect(
+                    func_args
+                        .into_inner()
+                        .map(|x| self.transform_type(x))
+                        .chain(once(func_return_ty)),
+                )?;
+
+                Ok(ab.node(Type::Named(NamedType {
+                    name: ab.make_single_access_name(FUNCTION_TYPE_NAME),
+                    type_args,
+                })))
+            }
+            Rule::tuple_type => {
+                let inner = ab.try_collect(pair.into_inner().map(|x| self.transform_type(x)))?;
+                Ok(ab.node(Type::Named(NamedType {
+                    name: ab.make_single_access_name(TUPLE_TYPE_NAME),
+                    type_args: inner,
+                })))
+            }
+            Rule::list_type => {
+                let inner = ab.try_collect(pair.into_inner().map(|x| self.transform_type(x)))?;
+
+                // list type should only have one type
+                debug_assert_eq!(inner.len(), 1);
+
+                Ok(ab.node(Type::Named(NamedType {
+                    name: ab.make_single_access_name(LIST_TYPE_NAME),
+                    type_args: inner,
+                })))
+            }
+            Rule::set_type => {
+                let inner = ab.try_collect(pair.into_inner().map(|x| self.transform_type(x)))?;
+
+                // set type should only have one type
+                debug_assert_eq!(inner.len(), 1);
+
+                Ok(ab.node(Type::Named(NamedType {
+                    name: ab.make_single_access_name(SET_TYPE_NAME),
+                    type_args: inner,
+                })))
+            }
+            Rule::map_type => {
+                let inner = ab.try_collect(pair.into_inner().map(|x| self.transform_type(x)))?;
+
+                // map type should only have a type for a key and a value
+                debug_assert_eq!(inner.len(), 2);
+
+                Ok(ab.node(Type::Named(NamedType {
+                    name: ab.make_single_access_name(MAP_TYPE_NAME),
+                    type_args: inner,
+                })))
+            }
+            Rule::existential_type => Ok(ab.node(Type::Existential)),
             k => panic!("unexpected rule within type: {:?} at {:?}", k, pair),
         }
     }
@@ -1247,12 +1247,32 @@ where
                 }
             }
             Rule::body_block => {
-                Ok(ab.node(Block::Body(BodyBlock {
-                    statements: ab
-                        .try_collect(pair.into_inner().map(|x| self.transform_statement(x)))?,
-                    // @@FIXME: since the tokeniser cannot tell the difference betweeen a statment and an expression (what is returned), we need to do it here...
-                    expr: None,
-                })))
+                let mut statements = pair.into_inner();
+                let last_statement = statements.next_back();
+
+                let (statements, expr) = match last_statement {
+                    Some(last) => {
+                        let parsed = self.transform_statement(last)?;
+                        let ab = self.builder_from_node(&parsed);
+                        match parsed.body {
+                            Statement::Expr(expr) => (
+                                ab.try_collect(statements.map(|s| self.transform_statement(s)))?,
+                                Some(ab.existing_node(expr.body)),
+                            ),
+                            _ => (
+                                ab.try_collect(
+                                    statements
+                                        .map(|s| self.transform_statement(s))
+                                        .chain(once(Ok(parsed))),
+                                )?,
+                                None,
+                            ),
+                        }
+                    }
+                    None => (ab.empty_slice(), None),
+                };
+
+                Ok(ab.node(Block::Body(BodyBlock { statements, expr })))
             }
             k => panic!("unexpected rule within block: {:?}", k),
         }
@@ -1354,9 +1374,9 @@ where
                         // avoid from evalauting it twice...
                         //
                         // For example:
-                        // >>> a[pub(crate) fn()] += 2;
+                        // >>> a[fn()] += 2;
                         //
-                        // This looks pretty innocent at first glance, however what if 'pub(crate) fn()' which returns a
+                        // This looks pretty innocent at first glance, however what if 'fn()' which returns a
                         // valid integer slice also fires rockets as a side effect... we don't want to fire the rockets twice :^)
                         //
                         // So, what we have to do is insert a phantom ast_node which binds the lhs to
@@ -1377,64 +1397,79 @@ where
 
                                 // transform lhs if we're using a non-eq assignment operator into the appropriate
                                 // function call...
-                                if let Some(fn_name) = transform {
-                                    // Representing '$internal' as an identifier
-                                    let builder = self.builder_from_node(&rhs);
-                                    let internal_node = ab.make_internal_node();
+                                match transform {
+                                    Some(fn_name) => {
+                                        // Representing '$internal' as an identifier
+                                        let builder = self.builder_from_node(&rhs);
+                                        let internal_node = ab.make_internal_node();
 
-                                    let internal_decl = self.builder_from_node(&lhs).node(
-                                        Statement::Assign(AssignStatement {
-                                            lhs: ab.make_internal_node(),
-                                            rhs: lhs,
-                                        }),
-                                    );
+                                        let internal_decl = self.builder_from_node(&lhs).node(
+                                            Statement::Assign(AssignStatement {
+                                                lhs: ab.make_internal_node(),
+                                                rhs: lhs,
+                                            }),
+                                        );
 
-                                    // transform the right hand side into the appropriate expression, by representing the
-                                    // modification operator into a function call and then setting the lhs and rhs as
-                                    // arguments to the function call. So, essentially the expression `lhs += rhs` is transformed
-                                    // into `lhs = lhs + rhs`
-                                    rhs =
-                                        builder.node(Expression::FunctionCall(FunctionCallExpr {
-                                            subject: builder.node(Expression::Variable(
-                                                VariableExpr {
-                                                    name: builder.make_single_access_name(fn_name),
-                                                    type_args: self.allocator.alloc([]),
-                                                },
-                                            )),
-                                            args: self.builder_from_node(&rhs).node(
-                                                FunctionCallArgs {
-                                                    entries: self
-                                                        .allocator
-                                                        .alloc([ab.make_internal_node(), rhs]),
-                                                },
+                                        // transform the right hand side into the appropriate expression, by representing the
+                                        // modification operator into a function call and then setting the lhs and rhs as
+                                        // arguments to the function call. So, essentially the expression `lhs += rhs` is transformed
+                                        // into `lhs = lhs + rhs`
+                                        rhs = builder.node(Expression::FunctionCall(
+                                            FunctionCallExpr {
+                                                subject: builder.node(Expression::Variable(
+                                                    VariableExpr {
+                                                        name: builder
+                                                            .make_single_access_name(fn_name),
+                                                        type_args: self.allocator.alloc([]),
+                                                    },
+                                                )),
+                                                args: self.builder_from_node(&rhs).node(
+                                                    FunctionCallArgs {
+                                                        entries: self
+                                                            .allocator
+                                                            .alloc([ab.make_internal_node(), rhs]),
+                                                    },
+                                                ),
+                                            },
+                                        ));
+
+                                        // make the assignment
+                                        let assignment =
+                                            ab.node(Statement::Assign(AssignStatement {
+                                                lhs: ab.make_internal_node(),
+                                                rhs,
+                                            }));
+
+                                        // a[side_effect] += 2
+                                        //
+                                        // transforms into...
+                                        // {
+                                        //  $internal = a[side_effect]
+                                        //  $internal = $internal + 2
+                                        //  $internal
+                                        // }
+                                        //
+                                        Ok(ab.node(Statement::Expr(builder.node(
+                                            Expression::Block(
+                                                builder.node(
+                                                    Block::Body(
+                                                        BodyBlock {
+                                                            statements: self.allocator.alloc([
+                                                                internal_decl,
+                                                                assignment,
+                                                            ]),
+                                                            expr: Some(internal_node), // the return statement is just the internal node
+                                                        },
+                                                    ),
+                                                ),
                                             ),
-                                        }));
-
-                                    // make the assignment
-                                    let assignment = ab.node(Statement::Assign(AssignStatement {
-                                        lhs: ab.make_internal_node(),
-                                        rhs,
-                                    }));
-
-                                    // a[side_effect] += 2
-                                    //
-                                    // transforms into...
-                                    // {
-                                    //  $internal = a[side_effect]
-                                    //  $internal = $internal + 2
-                                    //  $internal
-                                    // }
-                                    //
-                                    return Ok(ab.node(Statement::Expr(builder.node(
-                                        Expression::Block(builder.node(Block::Body(BodyBlock {
-                                            statements:
-                                                self.allocator.alloc([internal_decl, assignment]),
-                                            expr: Some(internal_node), // the return statement is just the internal node
-                                        }))),
-                                    ))));
+                                        ))))
+                                    }
+                                    None => {
+                                        Ok(ab
+                                            .node(Statement::Assign(AssignStatement { lhs, rhs })))
+                                    }
                                 }
-
-                                Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs })))
                             }
                             None => Ok(ab.node(Statement::Expr(lhs))),
                         }
