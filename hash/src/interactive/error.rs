@@ -4,8 +4,6 @@
 
 use thiserror::Error;
 
-/// Error message prefix
-const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 /// Enum representing the variants of error that can occur when running an interactive session
 #[derive(Error, Debug)]
 pub enum InterpreterError {
@@ -21,9 +19,4 @@ pub enum InterpreterError {
 
     #[error("Unexpected error: `{0}`")]
     InternalError(String),
-}
-
-/// Function that is used by the interpeter ro report interpreter errors
-pub fn report_interp_error(err: InterpreterError) {
-    println!("{}: {}", ERR, err);
 }

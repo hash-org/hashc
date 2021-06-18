@@ -3,17 +3,20 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 mod command;
-mod error;
+pub(crate) mod error;
 
 use bumpalo::Bump;
 use command::InteractiveCommand;
-use error::{report_interp_error, InterpreterError};
+use error::InterpreterError;
 use hash_ast::parse::Parser;
 use hash_pest_parser::grammar::HashGrammar;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::env;
 use std::process::exit;
+
+use crate::error::CompilerError;
+use crate::error::CompilerResult;
 
 /// Interactive backend version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -32,7 +35,7 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init() {
+pub fn init() -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
@@ -51,11 +54,14 @@ pub fn init() {
                 break;
             }
             Err(err) => {
-                report_interp_error(InterpreterError::InternalError(format!("{:?}", err)));
-                break;
+                return Err(
+                    InterpreterError::InternalError(format!("Unexpected error: {}", err)).into(),
+                );
             }
         }
     }
+
+    Ok(())
 }
 
 /// Function to process a single line of input from the REPL instance.
@@ -91,6 +97,6 @@ fn execute(input: &str) {
             // Typecheck and execute...
         }
         Ok(InteractiveCommand::Type(expr)) => println!("typeof({})", expr),
-        Err(e) => report_interp_error(e),
+        Err(e) => CompilerError::from(e).report(),
     }
 }

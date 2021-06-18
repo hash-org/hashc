@@ -29,7 +29,7 @@ const MAP_TYPE_NAME: &str = "Map";
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
 /// or a [pest::iterators::Pair].
 pub struct NodeBuilder<'alloc, A> {
-    pos: Location,
+    pos: SourceLocation,
     allocator: &'alloc A,
 }
 
@@ -40,6 +40,7 @@ where
 {
     pub(crate) fn from_pair(pair: &HashPair<'_>, allocator: &'alloc A) -> NodeBuilder<'alloc, A> {
         let span = pair.as_span();
+        let location = Location::span(span.start(), span.end());
         let pos = Location::span(span.start(), span.end());
         NodeBuilder { pos, allocator }
     }
@@ -378,6 +379,10 @@ where
             Rule::any_type => {
                 let in_type = pair.into_inner().next().unwrap();
                 self.transform_type(in_type)
+            }
+            Rule::ref_type => {
+                let in_type = pair.into_inner().next().unwrap();
+                Ok(ab.node(Type::Ref(self.transform_type(in_type)?)))
             }
             Rule::infer_type => Ok(ab.node(Type::Infer)),
             Rule::named_type => {
@@ -865,31 +870,50 @@ where
                     Rule::unary_op => {
                         let operator = op_or_single_expr.into_inner().next().unwrap();
 
-                        let fn_call = match operator.as_rule() {
-                            Rule::notb_op => "notb",
-                            Rule::not_op => "not",
-                            Rule::neg_op => "neg",
-                            Rule::pos_op => "pos",
+                        enum UnaryOpType {
+                            FnCall(&'static str),
+                            Ref,
+                            Deref,
+                        }
+                        use UnaryOpType::*;
+
+                        let op_type = match operator.as_rule() {
+                            Rule::notb_op => FnCall("notb"),
+                            Rule::not_op => FnCall("not"),
+                            Rule::neg_op => FnCall("neg"),
+                            Rule::pos_op => FnCall("pos"),
+                            Rule::ref_op => Ref,
+                            Rule::deref_op => Deref,
                             _ => unreachable!(),
                         };
 
                         // get the internal operand of the unary operator
                         let operand = expr.next().unwrap();
 
-                        Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-                            subject: ab.node(Expression::Variable(VariableExpr {
-                                name: ab.make_single_access_name(fn_call),
-                                // name: ab.node(AccessName {
-                                //     names: self.allocator.alloc([inab.node(Name { string:  })]),
-                                // }),
-                                type_args: ab.empty_slice(),
-                            })),
-                            args: ab.node(FunctionCallArgs {
-                                entries: self
-                                    .allocator
-                                    .alloc([self.transform_expression(operand)?]),
-                            }),
-                        })))
+                        match op_type {
+                            FnCall(fn_call) => {
+                                Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
+                                    subject: ab.node(Expression::Variable(VariableExpr {
+                                        name: ab.make_single_access_name(fn_call),
+                                        // name: ab.node(AccessName {
+                                        //     names: self.allocator.alloc([inab.node(Name { string:  })]),
+                                        // }),
+                                        type_args: ab.empty_slice(),
+                                    })),
+                                    args: ab.node(FunctionCallArgs {
+                                        entries: self
+                                            .allocator
+                                            .alloc([self.transform_expression(operand)?]),
+                                    }),
+                                })))
+                            }
+                            Ref => {
+                                Ok(ab.node(Expression::Ref(self.transform_expression(operand)?)))
+                            }
+                            Deref => {
+                                Ok(ab.node(Expression::Deref(self.transform_expression(operand)?)))
+                            }
+                        }
                     }
                     _ => self.transform_expression(op_or_single_expr),
                 }
@@ -967,9 +991,7 @@ where
                                 subject: prev_subject,
                                 args: self.builder_from_pair(&accessor).node(FunctionCallArgs {
                                     entries: ab.try_collect(
-                                        accessor
-                                            .into_inner()
-                                            .map(|x| self.transform_expression(x)),
+                                        accessor.into_inner().map(|x| self.transform_expression(x)),
                                     )?,
                                 }),
                             })))
@@ -1050,9 +1072,8 @@ where
                                             let mut components = if_condition.into_inner();
 
                                             // get the clause and block from the if-block components
-                                            let clause = self.transform_expression(
-                                                components.next().unwrap(),
-                                            )?;
+                                            let clause = self
+                                                .transform_expression(components.next().unwrap())?;
                                             let block =
                                                 self.transform_block(components.next().unwrap())?;
 
@@ -1335,10 +1356,7 @@ where
                                                 (bound, None, Some(self.transform_expression(r)?))
                                             }
                                             k => {
-                                                panic!(
-                                                    "Unexpected rule within ty_or_expr: {:?}",
-                                                    k
-                                                )
+                                                panic!("Unexpected rule within ty_or_expr: {:?}", k)
                                             }
                                         },
                                         None => (bound, None, None),
@@ -1454,10 +1472,11 @@ where
                                                 builder.node(
                                                     Block::Body(
                                                         BodyBlock {
-                                                            statements: self.allocator.alloc([
-                                                                internal_decl,
-                                                                assignment,
-                                                            ]),
+                                                            statements:
+                                                                self.allocator.alloc([
+                                                                    internal_decl,
+                                                                    assignment,
+                                                                ]),
                                                             expr: Some(internal_node), // the return statement is just the internal node
                                                         },
                                                     ),
@@ -1466,8 +1485,7 @@ where
                                         ))))
                                     }
                                     None => {
-                                        Ok(ab
-                                            .node(Statement::Assign(AssignStatement { lhs, rhs })))
+                                        Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs })))
                                     }
                                 }
                             }
