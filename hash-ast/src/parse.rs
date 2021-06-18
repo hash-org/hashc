@@ -1,11 +1,7 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::{
-    ast::{self, *},
-    error::{ParseError, ParseResult},
-    location::Location,
-};
+use crate::{ast::{self, *}, error::{ParseError, ParseResult}, location::{Location, SourceLocation}};
 use log::{debug, info, log_enabled, Level};
 use std::{cell::RefCell, iter};
 use std::{
@@ -267,6 +263,7 @@ pub trait ParserBackend: Sync {
     fn parse_module<'ast, 'alloc>(
         &self,
         resolver: &mut impl ModuleResolver,
+        path: &Path,
         contents: &str,
         allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
     ) -> ParseResult<ast::Module<'ast>>
@@ -287,7 +284,7 @@ pub trait ModuleResolver {
     fn add_module(
         &mut self,
         import_path: impl AsRef<Path>,
-        location: Option<Location>,
+        location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx>;
 }
 
@@ -307,7 +304,7 @@ where
         .map_err(|e| (e, resolved_filename.as_ref().to_owned()))?;
 
     let module = timed(
-        || backend.parse_module(resolver, &source, allocator),
+        || backend.parse_module(resolver, resolved_filename.as_ref(), &source, allocator),
         Level::Debug,
         |elapsed| debug!("ast: {:.2?}", elapsed),
     )?;
@@ -377,7 +374,7 @@ where
     fn add_module(
         &mut self,
         import_path: impl AsRef<Path>,
-        location: Option<Location>,
+        location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx> {
         let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
 
@@ -727,7 +724,7 @@ pub fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
 pub fn resolve_path(
     path: impl AsRef<Path>,
     wd: impl AsRef<Path>,
-    location: Option<Location>,
+    location: Option<SourceLocation>,
 ) -> ParseResult<PathBuf> {
     let path = path.as_ref();
     let wd = wd.as_ref();
@@ -764,7 +761,7 @@ pub fn resolve_path(
         // @@Copied
         Err(ParseError::ImportError {
             import_name: path.to_path_buf(),
-            location,
+            src: location.unwrap_or_else(|| SourceLocation::interactive()),
         })
     } else {
         // we don't need to anything if the given raw_path already has a extension '.hash',
@@ -787,7 +784,7 @@ pub fn resolve_path(
                 } else {
                     Err(ParseError::ImportError {
                         import_name: path.to_path_buf(),
-                        location,
+                        src: location.unwrap_or_else(|| SourceLocation::interactive()),
                     })
                 }
             }

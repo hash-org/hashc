@@ -12,6 +12,8 @@ mod derived {
     pub struct HashGrammar;
 }
 
+use std::path::Path;
+
 pub use derived::{HashGrammar, Rule};
 use pest::Parser;
 
@@ -29,6 +31,7 @@ impl ParserBackend for HashGrammar {
     fn parse_module<'ast, 'alloc>(
         &self,
         resolver: &mut impl ModuleResolver,
+        path: &Path,
         contents: &str,
         allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
     ) -> ParseResult<ast::Module<'ast>>
@@ -41,7 +44,7 @@ impl ParserBackend for HashGrammar {
             log::Level::Debug,
             |elapsed| println!("pest: {:?}", elapsed),
         )
-        .map_err(|e| ParseError::from(PestError(e)))?;
+        .map_err(|e| ParseError::from(PestError::from((path.to_owned(), e))))?;
 
         timed(
             || {
@@ -67,7 +70,8 @@ impl ParserBackend for HashGrammar {
         let mut builder = PestAstBuilder::new(resolver, allocator);
         match HashGrammar::parse(Rule::statement, contents) {
             Ok(mut result) => builder.transform_statement(result.next().unwrap()),
-            Err(e) => Err(PestError(e).into()),
+            // TODO: use constant for "interactive"
+            Err(e) => Err(ParseError::from(PestError::from(("interactive".into(), e)))),
         }
     }
 }

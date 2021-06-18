@@ -329,6 +329,7 @@ dependencies = [
  "num_cpus",
  "pretty_env_logger",
  "rayon",
+ "thiserror",
 ]
 
 [[package]]

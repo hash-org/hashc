@@ -243,7 +243,9 @@ not_op = { "!" }
 notb_op = { "~" }
 pos_op = {"+"}
 neg_op = { "-" }
-unary_op = { not_op | notb_op | neg_op | pos_op }
+ref_op = { "&" }
+deref_op = { "*" }
+unary_op = { not_op | notb_op | neg_op | pos_op | ref_op | deref_op }
 
 /// ---- Types ----
 
@@ -270,8 +272,13 @@ bound = { type_args ~ where_traits? }
 /// Named type
 named_type = { access_name ~ type_args? } // this also handles type variables
 
+/// Reference type
+type_ref_op = _{ ref_op }
+ref_type = { type_ref_op ~ any_type }
+
 /// Any type
 any_type = { 
+    ref_type   |
     named_type |
     infer_type |
     fn_type    |

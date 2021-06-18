@@ -241,6 +241,8 @@ pub struct TypeVar<'ast> {
 pub enum Type<'ast> {
     /// A concrete/"named" type.
     Named(NamedType<'ast>),
+    /// A reference type.
+    Ref(AstNode<'ast, Type<'ast>>),
     /// A type variable.
     TypeVar(TypeVar<'ast>),
     /// The existential type (`?`).
@@ -696,6 +698,15 @@ pub struct VariableExpr<'ast> {
     pub type_args: AstNodes<'ast, Type<'ast>>,
 }
 
+/// A variable expression.
+#[derive(Debug, PartialEq)]
+pub struct IndexExpr<'ast> {
+    /// The name of the variable.
+    pub subject: AstNode<'ast, Expression<'ast>>,
+    /// Any type arguments of the variable. Only valid for traits.
+    pub index: AstNodes<'ast, Expression<'ast>>,
+}
+
 /// An expression.
 #[derive(Debug, PartialEq)]
 pub enum Expression<'ast> {
@@ -709,6 +720,12 @@ pub enum Expression<'ast> {
     Variable(VariableExpr<'ast>),
     /// A property access.
     PropertyAccess(PropertyAccessExpr<'ast>),
+    /// An index.
+    Index(IndexExpr<'ast>),
+    /// A reference expression.
+    Ref(AstNode<'ast, Expression<'ast>>),
+    /// A dereference expression.
+    Deref(AstNode<'ast, Expression<'ast>>),
     /// A literal.
     LiteralExpr(AstNode<'ast, Literal<'ast>>),
     /// A typed expression.
