@@ -2,15 +2,18 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 mod error;
-mod interactive;
+pub(crate) mod interactive;
 
+use crate::error::CompilerError;
 use bumpalo::Bump;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::Parser;
-use log::log_enabled;
-use std::{env, fs, hint, time::{Duration, Instant}};
 use hash_pest_parser::grammar::HashGrammar;
-use crate::error::{report_error, ErrorType};
+use log::log_enabled;
+use std::{
+    env, fs,
+    time::{Duration, Instant},
+};
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -74,50 +77,60 @@ struct IrGen {
 }
 
 fn main() {
-    pretty_env_logger::init();
+    execute(|| {
+        pretty_env_logger::init();
 
-    let opts: CompilerOptions = CompilerOptions::parse();
+        let opts: CompilerOptions = CompilerOptions::parse();
 
-    // print recieved cmdargs, if debug is specified
-    if opts.debug {
-        println!("Stack_size is {}", opts.stack_size);
+        // print recieved cmdargs, if debug is specified
+        if opts.debug {
+            println!("Stack_size is {}", opts.stack_size);
 
-        for path in opts.includes.iter() {
-            println!("Running with {}", path);
-        }
-    }
-
-    // check here if we are operating in a special mode...
-    if let Some(mode) = opts.mode {
-        match mode {
-            SubCmd::AstGen(a) => {
-                println!("Generating ast for: {} with debug={}", a.filename, a.debug)
-            }
-            SubCmd::IrGen(i) => {
-                println!("Generating ir for: {} with debug={}", i.filename, i.debug)
+            for path in opts.includes.iter() {
+                println!("Running with {}", path);
             }
         }
 
-        return;
-    }
+        // check here if we are operating in a special mode...
+        if let Some(mode) = opts.mode {
+            match mode {
+                SubCmd::AstGen(a) => {
+                    println!("Generating ast for: {} with debug={}", a.filename, a.debug)
+                }
+                SubCmd::IrGen(i) => {
+                    println!("Generating ir for: {} with debug={}", i.filename, i.debug)
+                }
+            }
 
-    match opts.execute {
-        Some(path) => match fs::canonicalize(&path) {
-            Ok(filename) => {
+            return Ok(());
+        }
+
+        match opts.execute {
+            Some(path) => {
+                let filename = fs::canonicalize(&path)?;
                 let allocator = Bump::new();
                 let parser = Parser::sequential(HashGrammar, &allocator);
                 let directory = env::current_dir().unwrap();
-                let _ = timed(
-                    ||parser.parse(&filename, &directory),
+                let result = timed(
+                    || { parser.parse(&filename, &directory) },
                     log::Level::Debug,
                     |elapsed| println!("total: {:?}", elapsed),
-                );
+                )?;
+                println!("{:#?}", result);
+                Ok(())
             }
-            Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
-        },
-        None => {
-            interactive::init();
+            None => {
+                interactive::init()?;
+                Ok(())
+            }
         }
+    })
+}
+
+fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
+    match f() {
+        Ok(()) => (),
+        Err(e) => e.report_and_exit(),
     }
 }
 

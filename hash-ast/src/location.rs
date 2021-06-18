@@ -1,7 +1,7 @@
 //! Frontend-agnostic token/input locations utilities and definitions.
 //
 // All rights reserved 2021 (c) The Hash Language authors
-use std::{convert::TryInto, fmt};
+use std::{convert::TryInto, fmt, path::PathBuf};
 
 /// Enum representing a location of a token within the source.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
@@ -32,5 +32,26 @@ impl Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}:{}", self.0, self.1)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SourceLocation {
+    pub location: Location,
+    pub path: PathBuf,
+}
+
+impl SourceLocation {
+    pub fn interactive() -> Self {
+        Self {
+            location: Location::pos(0),
+            path: "interactive".into(),
+        }
+    }
+}
+
+impl fmt::Display for SourceLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}:{}", self.path, self.location)
     }
 }
