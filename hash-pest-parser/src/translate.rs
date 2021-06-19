@@ -2,17 +2,17 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::{cell::Cell, iter};
+use std::{cell::Cell, iter, path::PathBuf};
 
 use crate::{
     grammar::{HashPair, Rule},
     precedence::PREC_CLIMBER,
-    utils::convert_rule_into_fn_call,
+    utils::{convert_rule_into_fn_call, OperatorFunction},
 };
 use hash_ast::{
     ast::*,
     error::{ParseError, ParseResult},
-    location::Location,
+    location::{Location, SourceLocation},
     parse::ModuleResolver,
 };
 use iter::once;
@@ -29,7 +29,7 @@ const MAP_TYPE_NAME: &str = "Map";
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
 /// or a [pest::iterators::Pair].
 pub struct NodeBuilder<'alloc, A> {
-    pos: SourceLocation,
+    site: SourceLocation,
     allocator: &'alloc A,
 }
 
@@ -41,8 +41,13 @@ where
     pub(crate) fn from_pair(pair: &HashPair<'_>, allocator: &'alloc A) -> NodeBuilder<'alloc, A> {
         let span = pair.as_span();
         let location = Location::span(span.start(), span.end());
-        let pos = Location::span(span.start(), span.end());
-        NodeBuilder { pos, allocator }
+        NodeBuilder {
+            site: SourceLocation {
+                location,
+                path: PathBuf::from(""), // TODO: actually get the filename here!
+            },
+            allocator,
+        }
     }
 
     pub(crate) fn from_node<T>(
@@ -50,27 +55,30 @@ where
         allocator: &'alloc A,
     ) -> NodeBuilder<'alloc, A> {
         NodeBuilder {
-            pos: node.pos,
+            site: SourceLocation {
+                location: node.pos,
+                path: PathBuf::from(""), // TODO: actually get the filename here! ,
+            },
             allocator,
         }
     }
 
     /// Create a new [AstNode] from the information provided by the [AstBuilder]
     pub fn node<T>(&self, inner: T) -> AstNode<'ast, T> {
-        self.allocator.alloc_ast_node(inner, self.pos)
+        self.allocator.alloc_ast_node(inner, self.site.location)
     }
 
     /// Create a new [AstNode] from the information provided by the [AstBuilder]
     pub fn existing_node<T>(&self, inner: &'ast mut T) -> AstNode<'ast, T> {
         AstNode {
             body: inner,
-            pos: self.pos,
+            pos: self.site.location,
         }
     }
 
     pub fn error(&self, message: String) -> ParseError {
         ParseError::AstGeneration {
-            location: self.pos,
+            src: self.site.clone(),
             message,
         }
     }
@@ -91,12 +99,6 @@ where
             names: self.allocator.alloc([self.node(Name {
                 string: self.allocator.alloc_str(name),
             })]),
-        })
-    }
-
-    fn make_name(&self, name: &str) -> AstNode<'ast, Name<'ast>> {
-        self.node(Name {
-            string: self.allocator.alloc_str(name),
         })
     }
 
@@ -130,19 +132,6 @@ where
             type_args: self.empty_slice(),
         }))
     }
-
-    /// Utility function to make an `$internal` identifier reference, this is used when
-    /// transforming assignment with update operators like `+=`
-    fn make_internal_node(&self) -> AstNode<'ast, Expression<'ast>> {
-        self.node(Expression::Variable(VariableExpr {
-            name: self.node(AccessName {
-                names: self.allocator.alloc([self.node(Name {
-                    string: self.allocator.alloc_str("$internal"),
-                })]),
-            }),
-            type_args: self.empty_slice(),
-        }))
-    }
 }
 
 pub(crate) fn build_binary<'ast: 'alloc, 'alloc, A>(
@@ -159,15 +148,20 @@ where
     // Panic here if we cannot convert the operator into a function call
     let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
 
-    Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-        subject: ab.node(Expression::Variable(VariableExpr {
-            name: ab.make_single_access_name(subject_name),
-            type_args: ab.empty_slice(), // we dont need any kind of typeargs since were just transpiling here
-        })),
-        args: ab.node(FunctionCallArgs {
-            entries: allocator.alloc([lhs?, rhs?]),
-        }),
-    })))
+    match subject_name {
+        OperatorFunction::Named(fn_name) => {
+            Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
+                subject: ab.node(Expression::Variable(VariableExpr {
+                    name: ab.make_single_access_name(fn_name),
+                    type_args: ab.empty_slice(), // we dont need any kind of typeargs since were just transpiling here
+                })),
+                args: ab.node(FunctionCallArgs {
+                    entries: allocator.alloc([lhs?, rhs?]),
+                }),
+            })))
+        }
+        _ => unimplemented!(),
+    }
 }
 
 pub(crate) struct PestAstBuilder<'alloc, 'resolver, R, A> {
@@ -935,7 +929,7 @@ where
                         let import_call = subject_expr.into_inner().next().unwrap();
                         let import_path = import_call.into_inner().next().unwrap();
                         let s = import_path.as_span().as_str();
-                        let module_idx = self.resolver.add_module(s, Some(ab.pos))?;
+                        let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
 
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::Import(
@@ -1386,19 +1380,6 @@ where
                     Rule::expr_or_assign_st => {
                         let mut components = statement.into_inner();
 
-                        // look at each kind of operator, since we need to perform some AST black magic, in
-                        // the form of inserting a phantom node to represent the `lhs`. We have to do this because
-                        // lhs expr might have side-effects included when it is evaluated and therefore we have to
-                        // avoid from evalauting it twice...
-                        //
-                        // For example:
-                        // >>> a[fn()] += 2;
-                        //
-                        // This looks pretty innocent at first glance, however what if 'fn()' which returns a
-                        // valid integer slice also fires rockets as a side effect... we don't want to fire the rockets twice :^)
-                        //
-                        // So, what we have to do is insert a phantom ast_node which binds the lhs to
-                        // '$index', so that it can be used when transpilling the re-assignment operators...
                         let lhs: AstNode<Expression> =
                             self.transform_expression(components.next().unwrap())?;
 
@@ -1410,29 +1391,16 @@ where
                                 let op = op_wrap.into_inner().next().unwrap();
                                 let transform = convert_rule_into_fn_call(&op.as_rule());
 
-                                let mut rhs =
-                                    self.transform_expression(components.next().unwrap())?;
+                                let rhs = self.transform_expression(components.next().unwrap())?;
 
                                 // transform lhs if we're using a non-eq assignment operator into the appropriate
                                 // function call...
                                 match transform {
-                                    Some(fn_name) => {
+                                    Some(OperatorFunction::Named(fn_name)) => {
                                         // Representing '$internal' as an identifier
                                         let builder = self.builder_from_node(&rhs);
-                                        let internal_node = ab.make_internal_node();
 
-                                        let internal_decl = self.builder_from_node(&lhs).node(
-                                            Statement::Assign(AssignStatement {
-                                                lhs: ab.make_internal_node(),
-                                                rhs: lhs,
-                                            }),
-                                        );
-
-                                        // transform the right hand side into the appropriate expression, by representing the
-                                        // modification operator into a function call and then setting the lhs and rhs as
-                                        // arguments to the function call. So, essentially the expression `lhs += rhs` is transformed
-                                        // into `lhs = lhs + rhs`
-                                        rhs = builder.node(Expression::FunctionCall(
+                                        let assign_call = builder.node(Expression::FunctionCall(
                                             FunctionCallExpr {
                                                 subject: builder.node(Expression::Variable(
                                                     VariableExpr {
@@ -1443,46 +1411,21 @@ where
                                                 )),
                                                 args: self.builder_from_node(&rhs).node(
                                                     FunctionCallArgs {
-                                                        entries: self
-                                                            .allocator
-                                                            .alloc([ab.make_internal_node(), rhs]),
+                                                        entries: self.allocator.alloc([
+                                                            ab.node(Expression::Ref(lhs)),
+                                                            rhs,
+                                                        ]),
                                                     },
                                                 ),
                                             },
                                         ));
-
-                                        // make the assignment
-                                        let assignment =
-                                            ab.node(Statement::Assign(AssignStatement {
-                                                lhs: ab.make_internal_node(),
-                                                rhs,
-                                            }));
-
-                                        // a[side_effect] += 2
-                                        //
-                                        // transforms into...
-                                        // {
-                                        //  $internal = a[side_effect]
-                                        //  $internal = $internal + 2
-                                        //  $internal
-                                        // }
-                                        //
-                                        Ok(ab.node(Statement::Expr(builder.node(
-                                            Expression::Block(
-                                                builder.node(
-                                                    Block::Body(
-                                                        BodyBlock {
-                                                            statements:
-                                                                self.allocator.alloc([
-                                                                    internal_decl,
-                                                                    assignment,
-                                                                ]),
-                                                            expr: Some(internal_node), // the return statement is just the internal node
-                                                        },
-                                                    ),
-                                                ),
-                                            ),
-                                        ))))
+                                        Ok(ab.node(Statement::Expr(assign_call)))
+                                    }
+                                    Some(OperatorFunction::LazyNamed(_fn_name)) => {
+                                        unimplemented!()
+                                    }
+                                    Some(_t) => {
+                                        unimplemented!()
                                     }
                                     None => {
                                         Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs })))

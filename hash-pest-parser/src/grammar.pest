@@ -205,7 +205,7 @@ andl_op = { "&&" }
 orl_op = { "||" }
 shl_op = { "<<" }
 shr_op = { ">>" }
-exp_op = { "**" }
+exp_op = { "^^" }
 gt_op = { ">" }
 lt_op = { "<" }
 geq_op = { ">=" }
@@ -273,7 +273,7 @@ bound = { type_args ~ where_traits? }
 named_type = { access_name ~ type_args? } // this also handles type variables
 
 /// Reference type
-type_ref_op = _{ ref_op }
+type_ref_op = _{ "&" }
 ref_type = { type_ref_op ~ any_type }
 
 /// Any type
@@ -348,11 +348,6 @@ binary_expr = { typed_expr ~ ( binary_op ~ typed_expr )* }
 
 /// Block expression
 block_expr = _{ block }
-
-/// Struct literal
-/// Placed outside of other literals to prevent blocks being parsed as struct
-/// expressions.
-struct_expr = { struct_literal }
 
 /// Any expression
 expr = { block_expr | ( &struct_literal ~ struct_literal ) | binary_expr }

@@ -12,7 +12,8 @@ use crate::interactive::error::InterpreterError;
 /// Error message prefix
 const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 
-/// Errors that might occur when attempting to interpret a program
+/// Errors that might occur when attempting to compile and or interpret a
+/// program.
 #[derive(Debug, Error)]
 pub enum CompilerError {
     #[error("{0}")]

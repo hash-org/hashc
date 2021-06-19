@@ -77,8 +77,9 @@ let d: Dog = Dog {
     age=12.0
 };
 
+// references
 let my_ref: &[{int:str}] = &my_fn_call();
-let my_ref_2: &MyStruct = &MyStruct { foo = &3 };
+let my_ref_2: &MyStruct = &(MyStruct { foo = &3 });
 let my_ref_3: &Foo = *something(*&3);
 
 let a = [1,2,3,4,5,6,7,8,9,];
