@@ -112,7 +112,7 @@ fn main() {
                 let parser = Parser::sequential(HashGrammar, &allocator);
                 let directory = env::current_dir().unwrap();
                 let result = timed(
-                    || { parser.parse(&filename, &directory) },
+                    || parser.parse(&filename, &directory),
                     log::Level::Debug,
                     |elapsed| println!("total: {:?}", elapsed),
                 )?;

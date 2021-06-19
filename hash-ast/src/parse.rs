@@ -1,9 +1,13 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::{ast::{self, *}, error::{ParseError, ParseResult}, location::{Location, SourceLocation}};
-use log::{debug, info, log_enabled, Level};
-use std::{cell::RefCell, iter};
+use crate::{
+    ast::{self, *},
+    error::{ParseError, ParseResult},
+    location::SourceLocation,
+};
+use log::{debug, log_enabled, Level};
+use std::iter;
 use std::{
     collections::{HashMap, HashSet},
     fs, mem,

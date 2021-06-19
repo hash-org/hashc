@@ -32,8 +32,6 @@ impl PestError {
     }
 }
 
-struct PestErrorWithPath(pub PestError);
-
 impl From<PestError> for ParseError {
     fn from(error: PestError) -> Self {
         let path = error.path().to_owned();

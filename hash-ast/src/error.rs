@@ -2,8 +2,8 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::location::{Location, SourceLocation};
-use std::{fmt, io, path::PathBuf};
+use crate::location::SourceLocation;
+use std::{io, path::PathBuf};
 use thiserror::Error;
 
 /// Error message prefix
@@ -13,10 +13,7 @@ use thiserror::Error;
 #[derive(Debug, Clone, Error)]
 pub enum ParseError {
     #[error("An IO error occurred when reading {filename}: {err}")]
-    IoError {
-        filename: PathBuf,
-        err: String,
-    },
+    IoError { filename: PathBuf, err: String },
     // TODO: merge Parsing and AstGeneration
     #[error("Parse error at {src}:\n{message}")]
     Parsing {
