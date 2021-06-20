@@ -533,7 +533,7 @@ where
                 Ok(ab.node(Literal::Char(c)))
             }
             Rule::string_literal => {
-                let s = pair.into_inner().next().unwrap().as_str();
+                let s = pair.into_inner().next().map(|s| s.as_str()).unwrap_or("");
                 Ok(ab.node(Literal::Str(self.allocator.alloc_str(s))))
             }
             Rule::list_literal => {
