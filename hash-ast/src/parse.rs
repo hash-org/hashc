@@ -84,7 +84,7 @@ where
                 resolver.add_module(filename, None)?
             }
             EntryPoint::Interactive { contents } => {
-                let index = modules.next_index();
+                let index = modules.reserve_index();
 
                 let statement = {
                     let mut resolver = SeqModuleResolver::new(
@@ -393,7 +393,7 @@ where
 
         let resolved_dir = resolved_path.parent().unwrap().to_owned(); // is this correct?
 
-        let index = self.modules.next_index();
+        let index = self.modules.reserve_index();
 
         let (node, source) = self.for_module(resolved_dir, Some(index), |resolver| {
             parse_file(
@@ -404,8 +404,8 @@ where
             )
         })?;
 
-        // FIXME: this is broken, the index will already be updated!
-        self.modules.add_module(resolved_path, node, source);
+        self.modules
+            .add_module_at(index, resolved_path, node, source);
 
         if let Some(parent) = self.index {
             self.modules.add_dependency(parent, index);
@@ -507,13 +507,13 @@ where
 // }
 
 /// Represents a set of loaded modules.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Modules<'ast> {
     path_to_index: HashMap<PathBuf, ModuleIdx>,
-    filenames_by_index: Vec<PathBuf>,
-    modules_by_index: Vec<ast::Module<'ast>>,
-    contents_by_index: Vec<String>,
-    deps_by_index: Vec<HashSet<ModuleIdx>>,
+    filenames_by_index: HashMap<ModuleIdx, PathBuf>,
+    modules_by_index: HashMap<ModuleIdx, ast::Module<'ast>>,
+    contents_by_index: HashMap<ModuleIdx, String>,
+    deps_by_index: HashMap<ModuleIdx, HashSet<ModuleIdx>>,
     entry_point: Option<ModuleIdx>,
     size: usize,
 }
@@ -524,15 +524,7 @@ where
 {
     /// Create a new [Modules] object
     pub fn new() -> Self {
-        Modules {
-            path_to_index: HashMap::new(),
-            modules_by_index: vec![],
-            deps_by_index: vec![],
-            filenames_by_index: vec![],
-            contents_by_index: vec![],
-            entry_point: None,
-            size: 0,
-        }
+        Modules::default()
     }
 
     pub fn has_index(&self, index: ModuleIdx) -> bool {
@@ -545,10 +537,6 @@ where
 
     pub fn get_by_index(&'modules self, index: ModuleIdx) -> Module<'ast, 'modules> {
         self.get_by_index_checked(index).unwrap()
-    }
-
-    pub fn get_modules(&self) -> &Vec<ast::Module<'ast>> {
-        &self.modules_by_index
     }
 
     pub fn has_entry_point(&self) -> bool {
@@ -593,15 +581,26 @@ where
         node: ast::Module<'ast>,
         contents: String,
     ) -> Module<'ast, 'modules> {
-        let index = ModuleIdx(self.size);
+        let index = self.reserve_index();
+        self.add_module_at(index, path, node, contents)
+    }
+
+    fn add_module_at(
+        &'modules mut self,
+        index: ModuleIdx,
+        path: PathBuf,
+        node: ast::Module<'ast>,
+        contents: String,
+    ) -> Module<'ast, 'modules> {
+        if self.has_index(index) {
+            panic!("Tried to add a module at an existing index");
+        }
 
         self.path_to_index.insert(path.clone(), index);
-        self.filenames_by_index.push(path);
-        self.modules_by_index.push(node);
-        self.contents_by_index.push(contents);
-        self.deps_by_index.push(HashSet::new());
-
-        self.size += 1;
+        self.filenames_by_index.insert(index, path);
+        self.modules_by_index.insert(index, node);
+        self.contents_by_index.insert(index, contents);
+        self.deps_by_index.insert(index, HashSet::new());
 
         Module {
             index,
@@ -609,8 +608,10 @@ where
         }
     }
 
-    fn next_index(&self) -> ModuleIdx {
-        ModuleIdx(self.size)
+    fn reserve_index(&mut self) -> ModuleIdx {
+        let next = ModuleIdx(self.size);
+        self.size += 1;
+        next
     }
 
     fn set_entry_point(&mut self, index: ModuleIdx) {
@@ -625,7 +626,14 @@ where
         if !self.has_index(parent) {
             panic!("Tried to set dependency of nonexistent module");
         }
-        self.deps_by_index[parent.0].insert(child);
+        self.deps_by_index.get_mut(&parent).unwrap().insert(child);
+    }
+
+    pub fn iter(&'modules self) -> impl Iterator<Item = Module<'ast, 'modules>> {
+        self.filenames_by_index.keys().map(move |&index| Module {
+            index,
+            modules: self,
+        })
     }
 }
 
@@ -652,15 +660,22 @@ where
     }
 
     pub fn ast(&self) -> &ast::Module<'ast> {
-        &self.modules.modules_by_index[self.index.0]
+        &self.modules.modules_by_index.get(&self.index).unwrap()
     }
 
     pub fn content(&self) -> &str {
-        self.modules.contents_by_index[self.index.0].as_ref()
+        self.modules
+            .contents_by_index
+            .get(&self.index)
+            .unwrap()
+            .as_ref()
     }
 
     pub fn dependencies(&'modules self) -> impl Iterator<Item = Module<'ast, 'modules>> {
-        self.modules.deps_by_index[self.index.0]
+        self.modules
+            .deps_by_index
+            .get(&self.index)
+            .unwrap()
             .iter()
             .map(move |&index| Module {
                 index,
@@ -669,7 +684,11 @@ where
     }
 
     pub fn filename(&self) -> &Path {
-        self.modules.filenames_by_index[self.index.0].as_ref()
+        self.modules
+            .filenames_by_index
+            .get(&self.index)
+            .unwrap()
+            .as_ref()
     }
 }
 
