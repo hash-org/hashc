@@ -7,13 +7,13 @@ use std::fmt;
 use crate::ast::*;
 
 
-impl fmt::Display for Module {
+impl<'ast> fmt::Display for Module<'ast> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }
 
-impl fmt::Display for AstNode<Statement> {
+impl<'ast> fmt::Display for AstNode<'ast, Statement<'ast>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
         // we first need to compute the children, including the height of the 
@@ -38,13 +38,13 @@ impl fmt::Display for AstNode<Statement> {
     }
 }
 
-impl fmt::Display for AstNode<Expression> {
+impl<'ast> fmt::Display for AstNode<'ast, Expression<'ast>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }
 
-impl fmt::Display for AstNode<Block> {
+impl<'ast> fmt::Display for AstNode<'ast, Block<'ast>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
