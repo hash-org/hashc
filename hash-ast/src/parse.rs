@@ -175,7 +175,6 @@ where
         //                 if !modules.has_path(&filename) {
         //                     let root_dir = filename.parent().unwrap().to_owned();
 
-        //                     unimplemented!();
         //                     // TODO: FIXME
         //                     // scope.spawn(closure!(ref module_counter, ref s, |_| {
         //                     //     let mut resolver = ParModuleResolver::new(
@@ -546,6 +545,10 @@ where
 
     pub fn get_by_index(&'modules self, index: ModuleIdx) -> Module<'ast, 'modules> {
         self.get_by_index_checked(index).unwrap()
+    }
+
+    pub fn get_modules(&self) -> &Vec<ast::Module<'ast>> {
+        &self.modules_by_index
     }
 
     pub fn has_entry_point(&self) -> bool {

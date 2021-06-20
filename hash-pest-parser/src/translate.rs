@@ -7,7 +7,7 @@ use std::{cell::Cell, iter, path::PathBuf};
 use crate::{
     grammar::{HashPair, Rule},
     precedence::PREC_CLIMBER,
-    utils::{convert_rule_into_fn_call, OperatorFunction},
+    utils::{convert_rule_into_fn_call, OperatorFn},
 };
 use hash_ast::{
     ast::*,
@@ -149,7 +149,7 @@ where
     let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
 
     match subject_name {
-        OperatorFunction::Named(fn_name) => {
+        OperatorFn::Named(fn_name) => {
             Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
                 subject: ab.node(Expression::Variable(VariableExpr {
                     name: ab.make_single_access_name(fn_name),
@@ -931,6 +931,13 @@ where
                         let s = import_path.as_span().as_str();
                         let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
 
+                        let import = self.builder_from_pair(&import_path).node(Import {
+                            path: self.allocator.alloc_str(s),
+                            index: module_idx,
+                        });
+
+                        println!("{}", import);
+
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::Import(
                             self.builder_from_pair(&import_path).node(Import {
@@ -1396,7 +1403,7 @@ where
                                 // transform lhs if we're using a non-eq assignment operator into the appropriate
                                 // function call...
                                 match transform {
-                                    Some(OperatorFunction::Named(fn_name)) => {
+                                    Some(OperatorFn::Named(fn_name)) => {
                                         // Representing '$internal' as an identifier
                                         let builder = self.builder_from_node(&rhs);
 
@@ -1421,7 +1428,7 @@ where
                                         ));
                                         Ok(ab.node(Statement::Expr(assign_call)))
                                     }
-                                    Some(OperatorFunction::LazyNamed(_fn_name)) => {
+                                    Some(OperatorFn::LazyNamed(_fn_name)) => {
                                         unimplemented!()
                                     }
                                     Some(_t) => {
