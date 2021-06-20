@@ -205,7 +205,7 @@ andl_op = { "&&" }
 orl_op = { "||" }
 shl_op = { "<<" }
 shr_op = { ">>" }
-exp_op = { "**" }
+exp_op = { "^^" }
 gt_op = { ">" }
 lt_op = { "<" }
 geq_op = { ">=" }
@@ -243,7 +243,9 @@ not_op = { "!" }
 notb_op = { "~" }
 pos_op = {"+"}
 neg_op = { "-" }
-unary_op = { not_op | notb_op | neg_op | pos_op }
+ref_op = { "&" }
+deref_op = { "*" }
+unary_op = { not_op | notb_op | neg_op | pos_op | ref_op | deref_op }
 
 /// ---- Types ----
 
@@ -270,8 +272,13 @@ bound = { type_args ~ where_traits? }
 /// Named type
 named_type = { access_name ~ type_args? } // this also handles type variables
 
+/// Reference type
+type_ref_op = _{ "&" }
+ref_type = { type_ref_op ~ any_type }
+
 /// Any type
 any_type = { 
+    ref_type   |
     named_type |
     infer_type |
     fn_type    |
@@ -341,11 +348,6 @@ binary_expr = { typed_expr ~ ( binary_op ~ typed_expr )* }
 
 /// Block expression
 block_expr = _{ block }
-
-/// Struct literal
-/// Placed outside of other literals to prevent blocks being parsed as struct
-/// expressions.
-struct_expr = { struct_literal }
 
 /// Any expression
 expr = { block_expr | ( &struct_literal ~ struct_literal ) | binary_expr }
@@ -466,7 +468,7 @@ enum_fields = { curly_left ~ (enum_field? ~ (comma_op ~ enum_field)*)? ~ comma_o
 enum_def = { enum_kw ~ name ~ eq_op ~ (bound ~ arrow_op)? ~ enum_fields }
 
 /// Trait definition
-trait_def = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
+trait_def = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ fn_type }
 
 /// Semicolon-ending statement
 semi_st = _{
@@ -477,5 +479,6 @@ semi_st = _{
 statement = { block_st | semi_st }
 
 /// ---- Module (entry point) ----
-module = _{ SOI ~ statement* ~ EOI }
+eoi = _{ !ANY }
+module = _{ SOI ~ statement* ~ eoi }
 
