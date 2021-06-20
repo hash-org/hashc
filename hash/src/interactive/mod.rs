@@ -95,14 +95,15 @@ fn execute(input: &str) {
             let statement = parser.parse_statement(&expr, &directory);
             // println!("{:#?}", statement);
 
-            if let Ok(st) = statement {
-                let modules = st.get_modules();
-
+            if let Ok(modules) = statement {
                 let node_count: usize = modules
                     .iter()
                     .map(|m| {
-                        let mod_node_count: usize = m.contents.iter().map(|s| s.node_count()).sum();
-                        mod_node_count
+                        m.ast()
+                            .contents
+                            .iter()
+                            .map(|s| s.node_count())
+                            .sum::<usize>()
                     })
                     .sum();
 
