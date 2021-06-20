@@ -8,9 +8,9 @@ pub enum CompoundFn {
 }
 
 pub enum OperatorFn {
-    Named(&'static str),
-    LazyNamed(&'static str),
-    Compound(CompoundFn),
+    Named { name: &'static str, assigning: bool },
+    LazyNamed { name: &'static str, assigning: bool },
+    Compound { name: CompoundFn, assigning: bool },
 }
 
 /// Function to convert a pest rule denoting operators into a named function symbols
@@ -20,37 +20,133 @@ pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<OperatorFn> {
     use OperatorFn::*;
 
     match rule {
+        // special case of just the assignment operator
         Rule::assign_eq_op => None,
-        Rule::add_eq_op => Some(Named("add_eq")),
-        Rule::sub_eq_op => Some(Named("sub_eq")),
-        Rule::div_eq_op => Some(Named("div_eq")),
-        Rule::mod_eq_op => Some(Named("mod_eq")),
-        Rule::andl_eq_op => Some(Named("and_eq")),
-        Rule::orl_eq_op => Some(Named("or_eq")),
-        Rule::andb_eq_op => Some(Named("andb_eq")),
-        Rule::orb_eq_op => Some(Named("orb_eq")),
-        Rule::xorb_eq_op => Some(Named("xorb_eq")),
 
-        // non-update operators
-        Rule::double_eq_op => Some(Named("eq")),
-        Rule::neq_op => Some(Named("not")),
-        Rule::add_op => Some(Named("add")),
-        Rule::sub_op => Some(Named("sub")),
-        Rule::mul_op => Some(Named("mul")),
-        Rule::div_op => Some(Named("div")),
-        Rule::mod_op => Some(Named("mod")),
-        Rule::andl_op => Some(LazyNamed("and")),
-        Rule::orl_op => Some(LazyNamed("or")),
-        Rule::shl_op => Some(Named("shl")),
-        Rule::shr_op => Some(Named("shr")),
-        Rule::exp_op => Some(Named("exp")),
-        Rule::geq_op => Some(Compound(CompoundFn::Geq)),
-        Rule::leq_op => Some(Compound(CompoundFn::Leq)),
-        Rule::gt_op => Some(Compound(CompoundFn::Gt)),
-        Rule::lt_op => Some(Compound(CompoundFn::Lt)),
-        Rule::andb_op => Some(Named("andb")),
-        Rule::orb_op => Some(Named("orb")),
-        Rule::xorb_op => Some(Named("xorb")),
+        // assinging operators, ones that will overwrite the lhs of the expression
+        // with a new value. This is important since it needs to have different
+        // traits and handeled differently using references...
+        Rule::add_eq_op => Some(Named {
+            name: "add_eq",
+            assigning: true,
+        }),
+        Rule::sub_eq_op => Some(Named {
+            name: "sub_eq",
+            assigning: true,
+        }),
+        Rule::div_eq_op => Some(Named {
+            name: "div_eq",
+            assigning: true,
+        }),
+        Rule::mod_eq_op => Some(Named {
+            name: "mod_eq",
+            assigning: true,
+        }),
+        Rule::mul_eq_op => Some(Named {
+            name: "mul_eq",
+            assigning: true,
+        }),
+        Rule::andl_eq_op => Some(LazyNamed {
+            name: "and_eq",
+            assigning: true,
+        }),
+        Rule::orl_eq_op => Some(LazyNamed {
+            name: "or_eq",
+            assigning: true,
+        }),
+        Rule::andb_eq_op => Some(Named {
+            name: "andb_eq",
+            assigning: true,
+        }),
+        Rule::orb_eq_op => Some(Named {
+            name: "orb_eq",
+            assigning: true,
+        }),
+        Rule::xorb_eq_op => Some(Named {
+            name: "xorb_eq",
+            assigning: true,
+        }),
+
+        // non-assigning operators
+        Rule::double_eq_op => Some(Named {
+            name: "eq",
+            assigning: false,
+        }),
+        Rule::neq_op => Some(Named {
+            name: "not_eq",
+            assigning: false,
+        }),
+        Rule::add_op => Some(Named {
+            name: "add",
+            assigning: false,
+        }),
+        Rule::sub_op => Some(Named {
+            name: "sub",
+            assigning: false,
+        }),
+        Rule::mul_op => Some(Named {
+            name: "mul",
+            assigning: false,
+        }),
+        Rule::div_op => Some(Named {
+            name: "div",
+            assigning: false,
+        }),
+        Rule::mod_op => Some(Named {
+            name: "mod",
+            assigning: false,
+        }),
+        Rule::andl_op => Some(LazyNamed {
+            name: "and",
+            assigning: false,
+        }),
+        Rule::orl_op => Some(LazyNamed {
+            name: "or",
+            assigning: false,
+        }),
+        Rule::shl_op => Some(Named {
+            name: "shl",
+            assigning: false,
+        }),
+        Rule::shr_op => Some(Named {
+            name: "shr",
+            assigning: false,
+        }),
+        Rule::exp_op => Some(Named {
+            name: "exp",
+            assigning: false,
+        }),
+        Rule::andb_op => Some(Named {
+            name: "andb",
+            assigning: false,
+        }),
+        Rule::orb_op => Some(Named {
+            name: "orb",
+            assigning: false,
+        }),
+        Rule::xorb_op => Some(Named {
+            name: "xorb",
+            assigning: false,
+        }),
+
+        // Compound functions that require further simplification
+        Rule::geq_op => Some(Compound {
+            name: CompoundFn::Geq,
+            assigning: false,
+        }),
+        Rule::leq_op => Some(Compound {
+            name: CompoundFn::Leq,
+            assigning: false,
+        }),
+        Rule::gt_op => Some(Compound {
+            name: CompoundFn::Gt,
+            assigning: false,
+        }),
+        Rule::lt_op => Some(Compound {
+            name: CompoundFn::Lt,
+            assigning: false,
+        }),
+
         k => panic!("Unexpected rule within assignment_operator: {:?}", k),
     }
 }

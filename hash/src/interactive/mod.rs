@@ -93,7 +93,7 @@ fn execute(input: &str) {
             // parse the input
             let directory = env::current_dir().unwrap();
             let statement = parser.parse_statement(&expr, &directory);
-            // println!("{:#?}", statement);
+            println!("{:#?}", statement);
 
             if let Ok(st) = statement {
                 let modules = st.get_modules();
