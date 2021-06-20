@@ -1,19 +1,23 @@
 use crate::grammar::Rule;
 
-pub enum OperatorFunction {
-    Named(&'static str),
-    LazyNamed(&'static str),
+pub enum CompoundFn {
     Leq,
     Geq,
     Lt,
     Gt,
 }
 
+pub enum OperatorFn {
+    Named(&'static str),
+    LazyNamed(&'static str),
+    Compound(CompoundFn),
+}
+
 /// Function to convert a pest rule denoting operators into a named function symbols
 /// that represent their function call, more details about names of functions is
 /// accessible in the docs at "https://hash-org.github.io/lang/basics/operators.html"
-pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<OperatorFunction> {
-    use OperatorFunction::*;
+pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<OperatorFn> {
+    use OperatorFn::*;
 
     match rule {
         Rule::assign_eq_op => None,
@@ -40,10 +44,10 @@ pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<OperatorFunction> {
         Rule::shl_op => Some(Named("shl")),
         Rule::shr_op => Some(Named("shr")),
         Rule::exp_op => Some(Named("exp")),
-        Rule::geq_op => Some(Geq),
-        Rule::leq_op => Some(Leq),
-        Rule::gt_op => Some(Gt),
-        Rule::lt_op => Some(Lt),
+        Rule::geq_op => Some(Compound(CompoundFn::Geq)),
+        Rule::leq_op => Some(Compound(CompoundFn::Leq)),
+        Rule::gt_op => Some(Compound(CompoundFn::Gt)),
+        Rule::lt_op => Some(Compound(CompoundFn::Lt)),
         Rule::andb_op => Some(Named("andb")),
         Rule::orb_op => Some(Named("orb")),
         Rule::xorb_op => Some(Named("xorb")),

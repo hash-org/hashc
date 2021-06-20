@@ -8,6 +8,7 @@ pub(crate) mod error;
 use bumpalo::Bump;
 use command::InteractiveCommand;
 use error::InterpreterError;
+use hash_ast::count::NodeCount;
 use hash_ast::parse::Parser;
 use hash_pest_parser::grammar::HashGrammar;
 use rustyline::error::ReadlineError;
@@ -92,7 +93,21 @@ fn execute(input: &str) {
             // parse the input
             let directory = env::current_dir().unwrap();
             let statement = parser.parse_statement(&expr, &directory);
-            println!("{:#?}", statement);
+            // println!("{:#?}", statement);
+
+            if let Ok(st) = statement {
+                let modules = st.get_modules();
+
+                let node_count: usize = modules
+                    .iter()
+                    .map(|m| {
+                        let mod_node_count: usize = m.contents.iter().map(|s| s.node_count()).sum();
+                        mod_node_count
+                    })
+                    .sum();
+
+                println!("node_count={}", node_count);
+            }
 
             // Typecheck and execute...
         }
