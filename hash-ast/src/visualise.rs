@@ -14,6 +14,17 @@ const VERT_PIPE: &str = "│";
 const END_PIPE: &str = "└─";
 const MID_PIPE: &str = "├─";
 
+
+/// Compile time function to determine which PIPE connector should
+/// be used when converting an array of [AstNode]s.
+const fn which_connector(index: usize, max_index: usize) -> &'static str {
+    if index == max_index - 1 {
+        END_PIPE
+    } else {
+        MID_PIPE
+    }
+}
+
 pub trait NodeDisplay {
     fn node_display(&self, indent: usize) -> Vec<String>;
 }
@@ -70,7 +81,7 @@ impl<'ast> std::fmt::Display for Module<'ast> {
 
         writeln!(f, "module")?;
 
-        for (count, node) in nodes.iter().enumerate() {
+        Ok(for (count, node) in nodes.iter().enumerate() {
             // determine the connector that should be use to join the nodes
             let (connector, ending) = if count == nodes.len() - 1 {
                 (END_PIPE, "")
@@ -79,10 +90,8 @@ impl<'ast> std::fmt::Display for Module<'ast> {
             };
 
             // println!("{:?}", node);
-            writeln!(f, "{}{}\n{}", connector, node.join("\n"), ending)?;
-        }
-
-        write!(f, "\n")
+            write!(f, "{}{}\n{}", connector, node.join("\n"), ending)?
+        })
     }
 }
 
@@ -99,16 +108,23 @@ impl<'ast> NodeDisplay for AstNode<'ast, Literal<'ast>> {
 
             // all these variants have the possibility of containing multiple elements, so
             // we have to evaluate the children first and then construct the branches...
-            Literal::Set(set_lit) => {
-                lines.push(format!("set"));
+            Literal::Set(SetLiteral { elements })
+            | Literal::List(ListLiteral { elements })
+            | Literal::Tuple(TupleLiteral { elements }) => {
+
+                // @@Dumbness: rust doesn't allow to bind patterns if there are pattern binds
+                // after '@', this can be enabled on Rust nightly, but we aren't that crazy!
+                // so we're matching a second time just to get the right literal name
+                match &self.body {
+                    Literal::Set(_) => lines.push(format!("set")),
+                    Literal::List(_) => lines.push(format!("list")),
+                    Literal::Tuple(_) => lines.push(format!("tuple")),
+                    _ => panic!("node_display on AstNode<Literal> failed unexpectedly")
+                };
 
                 // convert all the children and add them to the new lines
-                for (index, element) in set_lit.elements.iter().enumerate() {
-                    let connector = if index == set_lit.elements.len() - 1 {
-                        END_PIPE
-                    } else {
-                        MID_PIPE
-                    };
+                for (index, element) in elements.iter().enumerate() {
+                    let connector = which_connector(index, elements.len());
 
                     // reset the indent here since we'll be doing indentation here...
                     let child_lines = element.node_display(0);
@@ -124,8 +140,6 @@ impl<'ast> NodeDisplay for AstNode<'ast, Literal<'ast>> {
                 }
             }
             Literal::Map(_map_lit) => {}
-            Literal::List(_list_lit) => {}
-            Literal::Tuple(_tup_lit) => {}
             Literal::Struct(_struct_lit) => {}
             Literal::Function(_fn_lit) => {}
         };
