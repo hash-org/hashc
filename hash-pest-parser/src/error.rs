@@ -27,9 +27,9 @@ impl PestError {
         &self.1
     }
 
-    pub(crate) fn inner_mut(&mut self) -> &mut pest::error::Error<Rule> {
-        &mut self.0
-    }
+    // pub(crate) fn inner_mut(&mut self) -> &mut pest::error::Error<Rule> {
+    //     &mut self.0
+    // }
 }
 
 impl From<PestError> for ParseError {
