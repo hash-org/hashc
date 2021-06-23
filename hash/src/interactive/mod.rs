@@ -93,7 +93,6 @@ fn execute(input: &str) {
             // parse the input
             let directory = env::current_dir().unwrap();
             let statement = parser.parse_statement(&expr, &directory);
-            println!("{:#?}", statement);
 
             if let Ok(st) = statement {
                 let modules = st.get_modules();
@@ -101,6 +100,7 @@ fn execute(input: &str) {
                 let node_count: usize = modules
                     .iter()
                     .map(|m| {
+                        println!("{}", m);
                         let mod_node_count: usize = m.contents.iter().map(|s| s.node_count()).sum();
                         mod_node_count
                     })

@@ -1081,13 +1081,6 @@ where
                         let s = import_path.as_span().as_str();
                         let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
 
-                        let import = self.builder_from_pair(&import_path).node(Import {
-                            path: self.allocator.alloc_str(s),
-                            index: module_idx,
-                        });
-
-                        println!("{}", import);
-
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::Import(
                             self.builder_from_pair(&import_path).node(Import {
