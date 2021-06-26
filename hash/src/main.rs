@@ -7,7 +7,7 @@ pub(crate) mod interactive;
 use crate::error::CompilerError;
 use bumpalo::Bump;
 use clap::{crate_version, AppSettings, Clap};
-use hash_ast::parse::SeqParser;
+use hash_ast::parse::{Parser, SeqParser};
 use hash_pest_parser::grammar::HashGrammar;
 use log::log_enabled;
 use std::{

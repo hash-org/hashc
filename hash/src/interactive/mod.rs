@@ -5,12 +5,12 @@
 mod command;
 pub(crate) mod error;
 
-use bumpalo::Bump;
 use command::InteractiveCommand;
 use error::InterpreterError;
 use hash_ast::count::NodeCount;
-use hash_ast::parse::SeqParser;
+use hash_ast::parse::{ParParser, Parser, SeqParser};
 use hash_pest_parser::grammar::HashGrammar;
+use log::debug;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::env;
@@ -74,7 +74,7 @@ fn execute(input: &str) {
     let command = InteractiveCommand::from(&input);
 
     // setup the parser
-    let parser = SeqParser::new(HashGrammar);
+    let parser = ParParser::new(HashGrammar);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
