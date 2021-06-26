@@ -2,14 +2,17 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 mod error;
-mod interactive;
+pub(crate) mod interactive;
 
+use crate::error::CompilerError;
 use clap::{crate_version, AppSettings, Clap};
-use hash_parser::parse;
-
-use std::{fs, process::exit};
-
-use crate::error::{report_error, ErrorType};
+use hash_ast::parse::{Parser, SeqParser};
+use hash_pest_parser::grammar::HashGrammar;
+use log::log_enabled;
+use std::{
+    env, fs,
+    time::{Duration, Instant},
+};
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -38,38 +41,105 @@ struct CompilerOptions {
     /// Run the compiler in debug mode
     #[clap(short, long)]
     debug: bool,
+
+    #[clap(subcommand)]
+    mode: Option<SubCmd>,
+}
+
+#[derive(Clap)]
+enum SubCmd {
+    AstGen(AstGen),
+    IrGen(IrGen),
+}
+
+/// Generate AST from given input file
+#[derive(Clap)]
+struct AstGen {
+    /// Input file to generate AST from
+    #[clap(required = true)]
+    filename: String,
+
+    /// Run the AST generation in debug mode
+    #[clap(short, long)]
+    debug: bool,
+}
+/// Generate IR from the given input file
+#[derive(Clap)]
+struct IrGen {
+    /// Input file to generate IR from
+    #[clap(required = true)]
+    filename: String,
+
+    /// Run the IR generation in debug mode
+    #[clap(short, long)]
+    debug: bool,
 }
 
 fn main() {
-    let opts: CompilerOptions = CompilerOptions::parse();
+    execute(|| {
+        pretty_env_logger::init();
 
-    // print recieved cmdargs, if debug is specified
-    if opts.debug {
-        println!("Stack_size is {}", opts.stack_size);
+        let opts: CompilerOptions = CompilerOptions::parse();
 
-        for path in opts.includes.iter() {
-            println!("Running with {}", path);
-        }
-    }
-    match opts.execute {
-        Some(path) => match fs::canonicalize(&path) {
-            Ok(c) => {
-                // Resolve the module path
-                let contents = fs::read_to_string(&c).unwrap_or_else(|e| {
-                    report_error(
-                        ErrorType::IoError,
-                        format!("Couldn't read file '{}'\n{}", path, e),
-                    );
-                    exit(-1);
-                });
+        // print recieved cmdargs, if debug is specified
+        if opts.debug {
+            println!("Stack_size is {}", opts.stack_size);
 
-                // parse the given module
-                let _ = parse::module(&contents);
+            for path in opts.includes.iter() {
+                println!("Running with {}", path);
             }
-            Err(e) => report_error(ErrorType::IoError, format!(" - '{}' ", e)),
-        },
-        None => {
-            interactive::init();
         }
+
+        // check here if we are operating in a special mode...
+        if let Some(mode) = opts.mode {
+            match mode {
+                SubCmd::AstGen(a) => {
+                    println!("Generating ast for: {} with debug={}", a.filename, a.debug)
+                }
+                SubCmd::IrGen(i) => {
+                    println!("Generating ir for: {} with debug={}", i.filename, i.debug)
+                }
+            }
+
+            return Ok(());
+        }
+
+        match opts.execute {
+            Some(path) => {
+                let filename = fs::canonicalize(&path)?;
+                let parser = SeqParser::new(HashGrammar);
+                let directory = env::current_dir().unwrap();
+                let result = timed(
+                    || parser.parse(&filename, &directory),
+                    log::Level::Debug,
+                    |elapsed| println!("total: {:?}", elapsed),
+                )?;
+                println!("{:#?}", result);
+                Ok(())
+            }
+            None => {
+                interactive::init()?;
+                Ok(())
+            }
+        }
+    })
+}
+
+fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
+    match f() {
+        Ok(()) => (),
+        Err(e) => e.report_and_exit(),
+    }
+}
+
+#[inline(always)]
+fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
+    if log_enabled!(level) {
+        let begin = Instant::now();
+        let result = op();
+        on_elapsed(begin.elapsed());
+        result
+    } else {
+        op()
     }
 }

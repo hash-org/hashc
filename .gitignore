@@ -1,2 +1,9 @@
 /target
+
+# any local files that are marked as ignore
+*.old
+
+/profiles
+
+# stupid vscode config files
 .vscode/
