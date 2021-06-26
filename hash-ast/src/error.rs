@@ -2,29 +2,27 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::location::Location;
-use std::{fmt, io, path::PathBuf};
+use crate::location::SourceLocation;
+use std::{io, path::PathBuf};
+use thiserror::Error;
 
 /// Error message prefix
 // const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 
 /// Hash ParseError enum represnting the variants of possible errors.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum ParseError {
-    IoError {
-        filename: PathBuf,
-        err: String,
-    },
+    #[error("An IO error occurred when reading {filename}: {err}")]
+    IoError { filename: PathBuf, err: String },
+    #[error("Parse error at {src}:\n{message}")]
     Parsing {
-        location: Location,
-    },
-    AstGeneration {
         message: String,
-        location: Location,
+        src: SourceLocation,
     },
+    #[error("Cannot locate module {import_name} at {src}")]
     ImportError {
         import_name: PathBuf,
-        location: Option<Location>,
+        src: SourceLocation,
     },
 }
 
@@ -36,12 +34,5 @@ impl From<(io::Error, PathBuf)> for ParseError {
             err: err.to_string(),
             filename,
         }
-    }
-}
-
-/// Format trait implementation for a ParseError
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
     }
 }
