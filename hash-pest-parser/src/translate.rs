@@ -62,7 +62,7 @@ impl NodeBuilder {
     }
 
     pub fn error(&self, message: String) -> ParseError {
-        ParseError::AstGeneration {
+        ParseError::Parsing {
             src: self.site.clone(),
             message,
         }
