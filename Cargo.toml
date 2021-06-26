@@ -1,10 +1,10 @@
 [workspace]
 members = [
-  "hash-ast",
-  "hash-pest-parser",
-  "hash-backend",
-  "hash-typecheck",
-  "hash"
+  "compiler/hash-ast",
+  "compiler/hash-pest-parser",
+  "compiler/hash-backend",
+  "compiler/hash-typecheck",
+  "compiler/hash"
 ]
 
 [profile.release]
