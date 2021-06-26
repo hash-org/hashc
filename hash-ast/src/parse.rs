@@ -6,6 +6,7 @@ use crate::{
     error::{ParseError, ParseResult},
     location::SourceLocation,
 };
+use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
 use log::{debug, info, log_enabled, Level};
 use std::{
@@ -16,7 +17,6 @@ use std::{
     time::Instant,
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
-use closure::closure;
 
 #[derive(Debug, Copy, Clone)]
 enum EntryPoint<'a> {
@@ -31,8 +31,11 @@ pub trait Parser {
         directory: impl AsRef<Path>,
     ) -> ParseResult<Modules>;
 
-    fn parse_statement(&self, contents: &str, directory: impl AsRef<Path>)
-        -> ParseResult<Modules>;
+    fn parse_interactive(
+        &self,
+        contents: &str,
+        directory: impl AsRef<Path>,
+    ) -> ParseResult<(AstNode<BodyBlock>, Modules)>;
 }
 
 pub struct ParParser<B> {
@@ -69,7 +72,11 @@ where
         }
     }
 
-    fn parse_main(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules> {
+    fn parse_main(
+        &self,
+        entry: EntryPoint,
+        directory: &Path,
+    ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
         let mut modules = Modules::new();
         let module_counter = AtomicUsize::new(0);
         let senders = AtomicUsize::new(0);
@@ -80,7 +87,7 @@ where
             .build()
             .unwrap();
 
-        pool.scope(|scope| -> ParseResult<()> {
+        let interactive = pool.scope(|scope| -> ParseResult<_> {
             let module_counter = &module_counter;
 
             let (s, r) = unbounded::<ParMessage>();
@@ -90,27 +97,19 @@ where
             let mut resolver =
                 ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
 
-            let entry_index = match entry {
-                EntryPoint::Module { filename } => resolver.add_module_send_error(filename, None),
+            let interactive = match entry {
+                EntryPoint::Module { filename } => {
+                    let entry_index = resolver.add_module_send_error(filename, None);
+                    if let Some(entry_index) = entry_index {
+                        modules.set_entry_point(entry_index);
+                    }
+                    None
+                },
                 EntryPoint::Interactive { contents } => {
-                    let statement = self.backend.parse_statement(&mut resolver, contents)?;
-                    let module_node = ast::Module {
-                        contents: vec![statement],
-                    };
-                    let module = modules.add_module(
-                        "<interactive>".into(),
-                        module_node,
-                        contents.to_owned(),
-                    );
-
-                    Some(module.index())
+                    Some(self.backend.parse_interactive(&mut resolver, contents)?)
                 }
             };
             senders.fetch_sub(1, Ordering::SeqCst);
-
-            if let Some(entry_index) = entry_index {
-                modules.set_entry_point(entry_index);
-            }
 
             // start the reciever and listen for any messages from the jobs, continue looping until all of the module
             // dependencies were resovled from the initially supplied file.
@@ -152,7 +151,7 @@ where
                     Err(_) => {
                         if senders.load(Ordering::SeqCst) == 0 {
                             // All senders disconnected
-                            break Ok(());
+                            break Ok(interactive);
                         } else {
                             continue;
                         }
@@ -161,8 +160,7 @@ where
             }
         })?;
 
-        // Ok to unwrap because no one else has a reference to modules
-        Ok(modules)
+        Ok((interactive, modules))
     }
 }
 
@@ -178,17 +176,19 @@ where
         let filename = filename.as_ref();
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
-        self.parse_main(entry, directory)
+        let (_, modules) = self.parse_main(entry, directory)?;
+        Ok(modules)
     }
 
-    fn parse_statement(
+    fn parse_interactive(
         &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules> {
+    ) -> ParseResult<(AstNode<BodyBlock>, Modules)> {
         let directory = directory.as_ref();
         let entry = EntryPoint::Interactive { contents };
-        self.parse_main(entry, directory)
+        let (interactive, modules) = self.parse_main(entry, directory)?;
+        Ok((interactive.unwrap(), modules))
     }
 }
 
@@ -204,10 +204,14 @@ where
         Self { backend }
     }
 
-    fn parse_main(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules> {
+    fn parse_main(
+        &self,
+        entry: EntryPoint,
+        directory: &Path,
+    ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
         let mut modules = Modules::new();
 
-        let entry_index = match entry {
+        let interactive = match entry {
             EntryPoint::Module { filename } => {
                 let mut resolver = SeqModuleResolver::new(
                     &mut modules,
@@ -215,34 +219,26 @@ where
                     &self.backend,
                     None,
                 );
-                resolver.add_module(filename, None)?
+                let entry_index = resolver.add_module(filename, None)?;
+                modules.set_entry_point(entry_index);
+                None
             }
             EntryPoint::Interactive { contents } => {
-                let index = modules.reserve_index();
-
-                let statement = {
+                let block = {
                     let mut resolver = SeqModuleResolver::new(
                         &mut modules,
                         directory.to_owned(),
                         &self.backend,
-                        Some(index),
+                        None,
                     );
 
-                    self.backend.parse_statement(&mut resolver, contents)
+                    self.backend.parse_interactive(&mut resolver, contents)
                 }?;
-
-                let module = ast::Module {
-                    contents: vec![statement],
-                };
-
-                modules.add_module_at(index, "<interactive>".into(), module, contents.to_owned());
-                index
+                Some(block)
             }
         };
 
-        modules.set_entry_point(entry_index);
-
-        Ok(modules)
+        Ok((interactive, modules))
     }
 }
 
@@ -258,17 +254,19 @@ where
         let filename = filename.as_ref();
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
-        self.parse_main(entry, directory)
+        let (_, modules) = self.parse_main(entry, directory)?;
+        Ok(modules)
     }
 
-    fn parse_statement(
+    fn parse_interactive(
         &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules> {
+    ) -> ParseResult<(AstNode<BodyBlock>, Modules)> {
         let directory = directory.as_ref();
         let entry = EntryPoint::Interactive { contents };
-        self.parse_main(entry, directory)
+        let (interactive, modules) = self.parse_main(entry, directory)?;
+        Ok((interactive.unwrap(), modules))
     }
 }
 
@@ -306,11 +304,11 @@ pub trait ParserBackend: Sync {
         contents: &str,
     ) -> ParseResult<ast::Module>;
 
-    fn parse_statement(
+    fn parse_interactive(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-    ) -> ParseResult<AstNode<ast::Statement>>;
+    ) -> ParseResult<AstNode<ast::BodyBlock>>;
 }
 
 pub trait ModuleResolver {
@@ -538,12 +536,12 @@ impl Modules {
         self.entry_point.is_some()
     }
 
-    pub fn get_entry_point_checked(&self) -> Option<Module<'_>> {
+    pub fn get_entry_point(&self) -> Option<Module<'_>> {
         Some(self.get_by_index(self.entry_point?))
     }
 
-    pub fn get_entry_point(&self) -> Module<'_> {
-        self.get_entry_point_checked().unwrap()
+    pub fn get_entry_point_unchecked(&self) -> Module<'_> {
+        self.get_entry_point().unwrap()
     }
 
     pub fn get_by_index_checked(&self, index: ModuleIdx) -> Option<Module<'_>> {
@@ -683,7 +681,7 @@ static BUILD_DIR: &str = env!("CARGO_MANIFEST_DIR");
 /// Name of the prelude module
 static PRELUDE: &str = "prelude";
 
-// FIXME: this is what we should be looking at rather than doing at runtime!
+// @@FIXME: this is what we should be looking at rather than doing at runtime!
 // Module names that are used within the standard library
 // const MODULES: &[&Path] = get_stdlib_modules!("./stdlib");
 //

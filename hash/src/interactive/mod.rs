@@ -7,10 +7,11 @@ pub(crate) mod error;
 
 use command::InteractiveCommand;
 use error::InterpreterError;
+use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
-use hash_ast::parse::{ParParser, Parser, SeqParser};
+use hash_ast::parse::{Modules, ParParser, Parser};
 use hash_pest_parser::grammar::HashGrammar;
-use log::debug;
+
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::env;
@@ -65,6 +66,21 @@ pub fn init() -> CompilerResult<()> {
     Ok(())
 }
 
+fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+    // setup the parser
+    let parser = ParParser::new(HashGrammar);
+    let directory = env::current_dir().unwrap();
+
+    // parse the input
+    match parser.parse_interactive(&expr, &directory) {
+        Ok(result) => Some(result),
+        Err(e) => {
+            CompilerError::from(e).report();
+            None
+        }
+    }
+}
+
 /// Function to process a single line of input from the REPL instance.
 fn execute(input: &str) {
     if input.is_empty() {
@@ -72,9 +88,6 @@ fn execute(input: &str) {
     }
 
     let command = InteractiveCommand::from(&input);
-
-    // setup the parser
-    let parser = ParParser::new(HashGrammar);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
@@ -89,28 +102,27 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
-            // parse the input
-            let directory = env::current_dir().unwrap();
-            let statement = parser.parse_statement(&expr, &directory);
-
-            if let Ok(modules) = statement {
-                let node_count: usize = modules
-                    .iter()
-                    .map(|m| {
-                        m.ast()
-                            .contents
-                            .iter()
-                            .map(|s| s.node_count())
-                            .sum::<usize>()
-                    })
-                    .sum();
-
-                println!("node_count={}", node_count);
+            if let Some(_) = parse_interactive(expr) {
+                println!("running code...");
+                // Typecheck and execute...
             }
-
-            // Typecheck and execute...
         }
-        Ok(InteractiveCommand::Type(expr)) => println!("typeof({})", expr),
+        Ok(InteractiveCommand::Type(expr)) => {
+            if let Some((block, _)) = parse_interactive(expr) {
+                println!("typeof({:#?})", block);
+            }
+        }
+        Ok(InteractiveCommand::Display(expr)) => {
+            if let Some((block, _)) = parse_interactive(expr) {
+                //@@Todo(alex) change this to node_display when it's ready.
+                println!("{:?}", block);
+            }
+        }
+        Ok(InteractiveCommand::Count(expr)) => {
+            if let Some((block, _)) = parse_interactive(expr) {
+                println!("{} nodes", block.node_count());
+            }
+        }
         Err(e) => CompilerError::from(e).report(),
     }
 }

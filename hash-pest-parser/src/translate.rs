@@ -1130,262 +1130,268 @@ where
         match pair.as_rule() {
             Rule::block => {
                 let block = pair.into_inner().next().unwrap();
+                self.transform_block(block)
+            }
+            Rule::if_else_block => {
+                // we transpile if-else blocks into match blocks in order to simplify
+                // the typechecking process and optimisation effors.
+                // Firstly, since we always want to check each case, we convert the
+                // if statement into a series of and-patterns, where the right handside
+                // pattern is the condition to execute the branch...
+                //
+                // For example:
+                // >>> if a {a_branch} else if b {b_branch} else {c_branch}
+                // will be transpiled into...
+                // >>> match true {
+                //      _ if a => a_branch
+                //      _ if b => b_branch
+                //      _ => c_branch
+                //     }
+                //
+                // Adittionally, if no 'else' clause is specified, we fill it with an
+                // empty block since an if-block could be assigned to any variable and therefore
+                // we need to know the outcome of all branches for typechecking.
+                let append_else = Cell::new(true);
+                let cases = ab.try_collect(
+                    pair.into_inner()
+                        .map(|if_condition| {
+                            let block_builder = self.builder_from_pair(&if_condition);
 
-                match block.as_rule() {
-                    Rule::if_else_block => {
-                        // we transpile if-else blocks into match blocks in order to simplify
-                        // the typechecking process and optimisation effors.
-                        // Firstly, since we always want to check each case, we convert the
-                        // if statement into a series of and-patterns, where the right handside
-                        // pattern is the condition to execute the branch...
-                        //
-                        // For example:
-                        // >>> if a {a_branch} else if b {b_branch} else {c_branch}
-                        // will be transpiled into...
-                        // >>> match true {
-                        //      _ if a => a_branch
-                        //      _ if b => b_branch
-                        //      _ => c_branch
-                        //     }
-                        //
-                        // Adittionally, if no 'else' clause is specified, we fill it with an
-                        // empty block since an if-block could be assigned to any variable and therefore
-                        // we need to know the outcome of all branches for typechecking.
-                        let append_else = Cell::new(true);
-                        let cases = ab.try_collect(
-                            block
-                                .into_inner()
-                                .map(|if_condition| {
-                                    let block_builder = self.builder_from_pair(&if_condition);
+                            match if_condition.as_rule() {
+                                Rule::if_block => {
+                                    let mut components = if_condition.into_inner();
 
-                                    match if_condition.as_rule() {
-                                        Rule::if_block => {
-                                            let mut components = if_condition.into_inner();
-
-                                            // get the clause and block from the if-block components
-                                            let clause = self.transform_expression(
-                                                components.next().unwrap(),
-                                            )?;
-                                            let block =
-                                                self.transform_block(components.next().unwrap())?;
-
-                                            Ok(block_builder.node(MatchCase {
-                                                pattern: block_builder.node(Pattern::If(
-                                                    IfPattern {
-                                                        pattern: block_builder
-                                                            .node(Pattern::Ignore),
-                                                        condition: clause,
-                                                    },
-                                                )),
-                                                expr: self
-                                                    .builder_from_node(&block)
-                                                    .node(Expression::Block(block)),
-                                            }))
-                                        }
-                                        Rule::else_block => {
-                                            append_else.set(false);
-
-                                            let block = self.transform_block(
-                                                if_condition.into_inner().next().unwrap(),
-                                            )?;
-
-                                            Ok(block_builder.node(MatchCase {
-                                                pattern: block_builder.node(Pattern::Ignore),
-                                                expr: self
-                                                    .builder_from_node(&block)
-                                                    .node(Expression::Block(block)),
-                                            }))
-                                        }
-                                        k => {
-                                            panic!("unexpected rule within if-else-block: {:?}", k)
-                                        }
-                                    }
-                                })
-                                .chain(
-                                    {
-                                        if append_else.get() {
-                                            Some(Ok(ab.node(MatchCase {
-                                                pattern: ab.node(Pattern::Ignore),
-                                                expr: ab.node(Expression::Block(ab.node(
-                                                    Block::Body(BodyBlock {
-                                                        statements: vec![],
-                                                        expr: None,
-                                                    }),
-                                                ))),
-                                            })))
-                                        } else {
-                                            None
-                                        }
-                                    }
-                                    .into_iter(),
-                                ),
-                        )?;
-
-                        // if no else-block was provided, we need to add one manually
-
-                        Ok(ab.node(Block::Match(MatchBlock {
-                            subject: ab.make_variable(ab.make_boolean(true)),
-                            cases,
-                        })))
-                    }
-                    Rule::match_block => {
-                        let mut match_block = block.into_inner();
-
-                        // firstly get the expresion condition from the match block, the
-                        // next rule will be a bunch of match_case rules which can be
-                        // converted into ast using the pattern and block implementations...
-                        let subject = self.transform_expression(match_block.next().unwrap())?;
-                        let match_cases = match_block.next().unwrap();
-
-                        let cases = ab.try_collect(match_cases.into_inner().map(|case| {
-                            let case_builder = self.builder_from_pair(&case);
-
-                            match case.as_rule() {
-                                Rule::match_case => {
-                                    let mut components = case.into_inner();
-
-                                    let pattern =
-                                        self.transform_pattern(components.next().unwrap())?;
-                                    let expr =
+                                    // get the clause and block from the if-block components
+                                    let clause =
                                         self.transform_expression(components.next().unwrap())?;
+                                    let pair = self.transform_block(components.next().unwrap())?;
 
-                                    Ok(case_builder.node(MatchCase { pattern, expr }))
+                                    Ok(block_builder.node(MatchCase {
+                                        pattern: block_builder.node(Pattern::If(IfPattern {
+                                            pattern: block_builder.node(Pattern::Ignore),
+                                            condition: clause,
+                                        })),
+                                        expr: self
+                                            .builder_from_node(&pair)
+                                            .node(Expression::Block(pair)),
+                                    }))
                                 }
-                                k => panic!("unexpected rule within match_case: {:?}", k),
+                                Rule::else_block => {
+                                    append_else.set(false);
+
+                                    let pair = self.transform_block(
+                                        if_condition.into_inner().next().unwrap(),
+                                    )?;
+
+                                    Ok(block_builder.node(MatchCase {
+                                        pattern: block_builder.node(Pattern::Ignore),
+                                        expr: self
+                                            .builder_from_node(&pair)
+                                            .node(Expression::Block(pair)),
+                                    }))
+                                }
+                                k => {
+                                    panic!("unexpected rule within if-else-pair: {:?}", k)
+                                }
                             }
-                        }))?;
+                        })
+                        .chain(
+                            {
+                                if append_else.get() {
+                                    Some(Ok(ab.node(MatchCase {
+                                        pattern: ab.node(Pattern::Ignore),
+                                        expr: ab.node(Expression::Block(ab.node(Block::Body(
+                                            BodyBlock {
+                                                statements: vec![],
+                                                expr: None,
+                                            },
+                                        )))),
+                                    })))
+                                } else {
+                                    None
+                                }
+                            }
+                            .into_iter(),
+                        ),
+                )?;
 
-                        Ok(ab.node(Block::Match(MatchBlock { subject, cases })))
+                // if no else-block was provided, we need to add one manually
+
+                Ok(ab.node(Block::Match(MatchBlock {
+                    subject: ab.make_variable(ab.make_boolean(true)),
+                    cases,
+                })))
+            }
+            Rule::match_block => {
+                let mut match_block = pair.into_inner();
+
+                // firstly get the expresion condition from the match block, the
+                // next rule will be a bunch of match_case rules which can be
+                // converted into ast using the pattern and block implementations...
+                let subject = self.transform_expression(match_block.next().unwrap())?;
+                let match_cases = match_block.next().unwrap();
+
+                let cases = ab.try_collect(match_cases.into_inner().map(|case| {
+                    let case_builder = self.builder_from_pair(&case);
+
+                    match case.as_rule() {
+                        Rule::match_case => {
+                            let mut components = case.into_inner();
+
+                            let pattern = self.transform_pattern(components.next().unwrap())?;
+                            let expr = self.transform_expression(components.next().unwrap())?;
+
+                            Ok(case_builder.node(MatchCase { pattern, expr }))
+                        }
+                        k => panic!("unexpected rule within match_case: {:?}", k),
                     }
-                    Rule::loop_block => {
-                        let body_block =
-                            self.transform_block(block.into_inner().next().unwrap())?;
-                        Ok(ab.node(Block::Loop(body_block)))
-                    }
-                    Rule::for_block => {
-                        let mut for_block = block.into_inner();
+                }))?;
 
-                        let pattern = self.transform_pattern(for_block.next().unwrap())?;
-                        let pat_builder = self.builder_from_node(&pattern);
+                Ok(ab.node(Block::Match(MatchBlock { subject, cases })))
+            }
+            Rule::loop_block => {
+                let body_block = self.transform_block(pair.into_inner().next().unwrap())?;
+                Ok(ab.node(Block::Loop(body_block)))
+            }
+            Rule::for_block => {
+                let mut for_block = pair.into_inner();
 
-                        let iterator = self.transform_expression(for_block.next().unwrap())?;
-                        let iter_builder = self.builder_from_node(&iterator);
+                let pattern = self.transform_pattern(for_block.next().unwrap())?;
+                let pat_builder = self.builder_from_node(&pattern);
 
-                        let body = self.transform_block(for_block.next().unwrap())?;
-                        let body_builder = self.builder_from_node(&body);
+                let iterator = self.transform_expression(for_block.next().unwrap())?;
+                let iter_builder = self.builder_from_node(&iterator);
 
-                        Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
-                            subject: iter_builder.node(Expression::FunctionCall(
-                                FunctionCallExpr {
-                                    subject: iter_builder.node(Expression::Variable(
-                                        VariableExpr {
-                                            name: ab.make_single_access_name(AstString::Borrowed(
-                                                "next",
-                                            )),
-                                            type_args: vec![],
-                                        },
-                                    )),
-                                    args: iter_builder.node(FunctionCallArgs {
-                                        entries: vec![iterator],
-                                    }),
-                                },
-                            )),
-                            cases: vec![
-                                body_builder.node(MatchCase {
-                                    pattern: pat_builder.node(Pattern::Enum(EnumPattern {
+                let body = self.transform_block(for_block.next().unwrap())?;
+                let body_builder = self.builder_from_node(&body);
+
+                Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
+                    subject: iter_builder.node(Expression::FunctionCall(FunctionCallExpr {
+                        subject: iter_builder.node(Expression::Variable(VariableExpr {
+                            name: ab.make_single_access_name(AstString::Borrowed("next")),
+                            type_args: vec![],
+                        })),
+                        args: iter_builder.node(FunctionCallArgs {
+                            entries: vec![iterator],
+                        }),
+                    })),
+                    cases: vec![
+                        body_builder.node(MatchCase {
+                            pattern: pat_builder.node(
+                                Pattern::Enum(
+                                    EnumPattern {
                                         name:
                                             iter_builder.make_single_access_name(
                                                 AstString::Borrowed("Some"),
                                             ),
                                         args: vec![pattern],
-                                    })),
-                                    expr: body_builder.node(Expression::Block(body)),
-                                }),
-                                body_builder.node(MatchCase {
-                                    pattern: pat_builder.node(Pattern::Enum(EnumPattern {
+                                    },
+                                ),
+                            ),
+                            expr: body_builder.node(Expression::Block(body)),
+                        }),
+                        body_builder.node(MatchCase {
+                            pattern: pat_builder.node(
+                                Pattern::Enum(
+                                    EnumPattern {
                                         name:
                                             iter_builder.make_single_access_name(
                                                 AstString::Borrowed("None"),
                                             ),
                                         args: vec![],
-                                    })),
-                                    expr: body_builder.node(Expression::Block(body_builder.node(
-                                        Block::Body(BodyBlock {
-                                            statements: vec![body_builder.node(Statement::Break)],
-                                            expr: None,
-                                        }),
-                                    ))),
+                                    },
+                                ),
+                            ),
+                            expr: body_builder.node(Expression::Block(body_builder.node(
+                                Block::Body(BodyBlock {
+                                    statements: vec![body_builder.node(Statement::Break)],
+                                    expr: None,
                                 }),
-                            ],
-                        })))))
-                    }
-                    Rule::while_block => {
-                        let mut while_block = block.into_inner();
+                            ))),
+                        }),
+                    ],
+                })))))
+            }
+            Rule::while_block => {
+                let mut while_block = pair.into_inner();
 
-                        let condition = self.transform_expression(while_block.next().unwrap())?;
-                        let condition_builder = self.builder_from_node(&condition);
+                let condition = self.transform_expression(while_block.next().unwrap())?;
+                let condition_builder = self.builder_from_node(&condition);
 
-                        let body = self.transform_block(while_block.next().unwrap())?;
-                        let body_builder = self.builder_from_node(&body);
+                let body = self.transform_block(while_block.next().unwrap())?;
+                let body_builder = self.builder_from_node(&body);
 
-                        Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
-                            subject: condition,
-                            cases: vec![
-                                body_builder.node(MatchCase {
-                                    pattern: condition_builder.node(Pattern::Enum(EnumPattern {
-                                        name: condition_builder.make_boolean(true),
-                                        args: vec![],
-                                    })),
-                                    expr: body_builder.node(Expression::Block(body)),
+                Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
+                    subject: condition,
+                    cases: vec![
+                        body_builder.node(MatchCase {
+                            pattern: condition_builder.node(Pattern::Enum(EnumPattern {
+                                name: condition_builder.make_boolean(true),
+                                args: vec![],
+                            })),
+                            expr: body_builder.node(Expression::Block(body)),
+                        }),
+                        body_builder.node(MatchCase {
+                            pattern: condition_builder.node(Pattern::Enum(EnumPattern {
+                                name: condition_builder.make_boolean(false),
+                                args: vec![],
+                            })),
+                            expr: body_builder.node(Expression::Block(body_builder.node(
+                                Block::Body(BodyBlock {
+                                    statements: vec![body_builder.node(Statement::Break)],
+                                    expr: None,
                                 }),
-                                body_builder.node(MatchCase {
-                                    pattern: condition_builder.node(Pattern::Enum(EnumPattern {
-                                        name: condition_builder.make_boolean(false),
-                                        args: vec![],
-                                    })),
-                                    expr: body_builder.node(Expression::Block(body_builder.node(
-                                        Block::Body(BodyBlock {
-                                            statements: vec![body_builder.node(Statement::Break)],
-                                            expr: None,
-                                        }),
-                                    ))),
-                                }),
-                            ],
-                        })))))
-                    }
-                    Rule::body_block => self.transform_block(block),
-                    k => panic!("unexpected rule within block variant: {:?}", k),
-                }
+                            ))),
+                        }),
+                    ],
+                })))))
             }
             Rule::body_block => {
-                let mut statements = pair.into_inner();
-                let last_statement = statements.next_back();
-
-                let (statements, expr) = match last_statement {
-                    Some(last) => {
-                        let parsed = self.transform_statement(last)?;
-                        let ab = self.builder_from_node(&parsed);
-                        match *parsed.body {
-                            Statement::Expr(expr) => (
-                                ab.try_collect(statements.map(|s| self.transform_statement(s)))?,
-                                Some(ab.node(*expr.body)),
-                            ),
-                            _ => (
-                                ab.try_collect(
-                                    statements
-                                        .map(|s| self.transform_statement(s))
-                                        .chain(once(Ok(parsed))),
-                                )?,
-                                None,
-                            ),
-                        }
-                    }
-                    None => (vec![], None),
-                };
-
-                Ok(ab.node(Block::Body(BodyBlock { statements, expr })))
+                let body_block = self.transform_body_block(pair)?;
+                Ok(ab.node(Block::Body(body_block)))
             }
             k => panic!("unexpected rule within block: {:?}", k),
+        }
+    }
+
+    pub(crate) fn transform_body_block(&mut self, pair: HashPair<'_>) -> ParseResult<BodyBlock> {
+        let mut statements = pair.into_inner();
+        let last_statement = statements.next_back();
+
+        let (statements, expr) = match last_statement {
+            Some(last) => {
+                let parsed = self.transform_statement_or_expression(last)?;
+                let ab = self.builder_from_node(&parsed);
+                match *parsed.body {
+                    Statement::Expr(expr) => (
+                        ab.try_collect(statements.map(|s| self.transform_statement(s)))?,
+                        Some(ab.node(*expr.body)),
+                    ),
+                    _ => (
+                        ab.try_collect(
+                            statements
+                                .map(|s| self.transform_statement(s))
+                                .chain(once(Ok(parsed))),
+                        )?,
+                        None,
+                    ),
+                }
+            }
+            None => (vec![], None),
+        };
+
+        Ok(BodyBlock { statements, expr })
+    }
+
+    pub(crate) fn transform_statement_or_expression(
+        &mut self,
+        pair: HashPair<'_>,
+    ) -> ParseResult<AstNode<Statement>> {
+        let ab = self.builder_from_pair(&pair);
+        // println!("{:#?}", pair);
+        match pair.as_rule() {
+            Rule::expr => Ok(ab.node(Statement::Expr(self.transform_expression(pair)?))),
+            _ => self.transform_statement(pair),
         }
     }
 
@@ -1398,277 +1404,257 @@ where
         match pair.as_rule() {
             Rule::statement => {
                 let statement = pair.into_inner().next().unwrap();
+                self.transform_statement(statement)
+            }
+            // since we have block statements and semi statements, we can check here
+            // to see which path it is, if this is a block statement, we just call
+            // into_ast(resolver) since there is an implementation for block convetsions
+            Rule::block => Ok(ab.node(Statement::Block(self.transform_block(pair)?))),
+            Rule::break_st => Ok(ab.node(Statement::Break)),
+            Rule::continue_st => Ok(ab.node(Statement::Continue)),
+            Rule::return_st => {
+                let ret_expr = pair.into_inner().next();
 
-                // since we have block statements and semi statements, we can check here
-                // to see which path it is, if this is a block statement, we just call
-                // into_ast(resolver) since there is an implementation for block convetsions
-                match statement.as_rule() {
-                    Rule::block => Ok(ab.node(Statement::Block(self.transform_block(statement)?))),
-                    Rule::break_st => Ok(ab.node(Statement::Break)),
-                    Rule::continue_st => Ok(ab.node(Statement::Continue)),
-                    Rule::return_st => {
-                        let ret_expr = statement.into_inner().next();
-
-                        if let Some(node) = ret_expr {
-                            Ok(ab.node(Statement::Return(Some(self.transform_expression(node)?))))
-                        } else {
-                            Ok(ab.node(Statement::Return(None)))
-                        }
-                    }
-                    Rule::let_st => {
-                        // the first rule will be the pattern which can be automatically converted, whereas
-                        // then we have a trait bound and finally an optional expression which is used as an
-                        // assignment to the let statement
-                        let mut components = statement.into_inner();
-
-                        let pattern = self.transform_pattern(components.next().unwrap())?;
-
-                        let bound_or_ty = components.next();
-                        let (bound, ty, value) = match bound_or_ty {
-                            Some(pair) => match pair.as_rule() {
-                                Rule::bound => {
-                                    let bound = Some(self.transform_bound(pair)?);
-
-                                    let ty_or_expr = components.next();
-
-                                    match ty_or_expr {
-                                        Some(r) => match r.as_rule() {
-                                            Rule::any_type => (
-                                                bound,
-                                                Some(self.transform_type(r)?),
-                                                // check if the optional value component is present with the let statement...
-                                                components
-                                                    .next()
-                                                    .map(|p| self.transform_expression(p))
-                                                    .transpose()?,
-                                            ),
-                                            Rule::expr => {
-                                                (bound, None, Some(self.transform_expression(r)?))
-                                            }
-                                            k => {
-                                                panic!(
-                                                    "Unexpected rule within ty_or_expr: {:?}",
-                                                    k
-                                                )
-                                            }
-                                        },
-                                        None => (bound, None, None),
-                                    }
-                                }
-                                Rule::any_type => (
-                                    None,
-                                    Some(self.transform_type(pair)?),
-                                    components
-                                        .next()
-                                        .map(|p| self.transform_expression(p))
-                                        .transpose()?,
-                                ),
-                                Rule::expr => (None, None, Some(self.transform_expression(pair)?)),
-                                k => panic!("Unexpected rule within let_st: {:?}", k),
-                            },
-                            None => (None, None, None),
-                        };
-
-                        Ok(ab.node(Statement::Let(LetStatement {
-                            pattern,
-                            ty,
-                            bound,
-                            value,
-                        })))
-                    }
-                    Rule::expr_or_assign_st => {
-                        let mut components = statement.into_inner();
-
-                        let lhs: AstNode<Expression> =
-                            self.transform_expression(components.next().unwrap())?;
-
-                        // if no rhs is present, this is just an singular expression instead of an
-                        // assignment
-                        match components.next() {
-                            Some(op_wrap) => {
-                                // get the assignment operator out of 'assign_op'
-                                let op = op_wrap.into_inner().next().unwrap();
-                                let transform = convert_rule_into_fn_call(&op.as_rule());
-
-                                let rhs = self.transform_expression(components.next().unwrap())?;
-                                let builder = self.builder_from_node(&rhs);
-
-                                match transform {
-                                    Some(OperatorFn::Named { name, assigning }) => {
-                                        let assign_call = builder.node(Expression::FunctionCall(
-                                            FunctionCallExpr {
-                                                subject: builder.node(Expression::Variable(
-                                                    VariableExpr {
-                                                        name: builder.make_single_access_name(
-                                                            AstString::Borrowed(name),
-                                                        ),
-                                                        type_args: vec![],
-                                                    },
-                                                )),
-                                                args: self.builder_from_node(&rhs).node(
-                                                    FunctionCallArgs {
-                                                        entries: vec![
-                                                            ab.transform_expr_into_ref(
-                                                                lhs, assigning,
-                                                            ),
-                                                            rhs,
-                                                        ],
-                                                    },
-                                                ),
-                                            },
-                                        ));
-                                        Ok(ab.node(Statement::Expr(assign_call)))
-                                    }
-                                    Some(OperatorFn::LazyNamed { name, assigning }) => {
-                                        // some functions have to ehxibit a short-circuiting behaviour, namely
-                                        // the logical 'and' and 'or' operators. To do this, we expect the 'and'
-                                        // 'or' trait (and their assignment counterparts) to expect the rhs part
-                                        // as a lambda. So, we essentially create a lambda that calls the rhs, or
-                                        // in other words, something like this happens:
-                                        //
-                                        // >>> lhs && rhs
-                                        // vvv (transpiles to...)
-                                        // >>> and(lhs, () => rhs)
-                                        //
-
-                                        let fn_call = builder.node(Expression::FunctionCall(
-                                            FunctionCallExpr {
-                                                subject: builder.node(Expression::Variable(
-                                                    VariableExpr {
-                                                        name: builder.make_single_access_name(
-                                                            AstString::Borrowed(name),
-                                                        ),
-                                                        type_args: vec![],
-                                                    },
-                                                )),
-                                                args: ab.node(FunctionCallArgs {
-                                                    entries: vec![
-                                                        ab.transform_expr_into_ref(lhs, assigning),
-                                                        ab.make_single_lambda(rhs),
-                                                    ],
-                                                }),
-                                            },
-                                        ));
-
-                                        Ok(ab.node(Statement::Expr(fn_call)))
-                                    }
-                                    Some(OperatorFn::Compound { name, assigning }) => {
-                                        // @@Copied
-                                        //
-                                        // for compound functions that include ordering, we essentially transpile
-                                        // into a match block that checks the result of the 'ord' fn call to the
-                                        // 'Ord' enum variants. This also happens for operators such as '>=' which
-                                        // essentially means that we have to check if the result of 'ord()' is either
-                                        // 'Eq' or 'Gt'.
-                                        Ok(ab.node(Statement::Expr(
-                                            builder.transfrom_compound_ord_fn(
-                                                name, assigning, lhs, rhs,
-                                            ),
-                                        )))
-                                    }
-                                    None => {
-                                        Ok(ab
-                                            .node(Statement::Assign(AssignStatement { lhs, rhs })))
-                                    }
-                                }
-                            }
-                            None => Ok(ab.node(Statement::Expr(lhs))),
-                        }
-                    }
-                    Rule::struct_def => {
-                        let mut components = statement.into_inner();
-                        let name = self.transform_name(components.next().unwrap())?;
-
-                        let bound_or_fields = components.next().unwrap();
-                        let (bound, entries) = match bound_or_fields.as_rule() {
-                            Rule::bound => (
-                                Some(self.transform_bound(bound_or_fields)?),
-                                // It's guaranteed to have zero or more struct def fields and so it is
-                                // safe to unwrap the following rule after the bound...
-                                ab.try_collect(
-                                    components
-                                        .next()
-                                        .unwrap()
-                                        .into_inner()
-                                        .map(|x| self.transform_struct_def_entry(x)),
-                                )?,
-                            ),
-
-                            Rule::struct_def_fields => (
-                                None,
-                                ab.try_collect(
-                                    bound_or_fields
-                                        .into_inner()
-                                        .map(|x| self.transform_struct_def_entry(x)),
-                                )?,
-                            ),
-                            k => panic!("Unexpected rule within struct_def: {:?}", k),
-                        };
-                        Ok(ab.node(Statement::StructDef(StructDef {
-                            name,
-                            bound,
-                            entries,
-                        })))
-                    }
-                    Rule::enum_def => {
-                        let mut components = statement.into_inner();
-                        let name = self.transform_name(components.next().unwrap())?;
-
-                        let bound_or_fields = components.next().unwrap();
-                        let (bound, entries) = match bound_or_fields.as_rule() {
-                            Rule::bound => (
-                                Some(self.transform_bound(bound_or_fields)?),
-                                ab.try_collect(
-                                    components
-                                        .next()
-                                        .unwrap()
-                                        .into_inner()
-                                        .map(|x| self.transform_enum_def_entry(x)),
-                                )?,
-                            ),
-                            // It's guaranteed to have zero or more enum def fields and so it is
-                            // safe to unwrap the following rule after the bound...
-                            Rule::enum_fields => (
-                                None,
-                                ab.try_collect(
-                                    bound_or_fields
-                                        .into_inner()
-                                        .map(|x| self.transform_enum_def_entry(x)),
-                                )?,
-                            ),
-                            k => panic!("Unexpected rule within enum_def: {:?}", k),
-                        };
-
-                        Ok(ab.node(Statement::EnumDef(EnumDef {
-                            name,
-                            bound,
-                            entries,
-                        })))
-                    }
-                    Rule::trait_def => {
-                        let mut components = statement.into_inner();
-                        let name = self.transform_name(components.next().unwrap())?;
-                        let bound = self.transform_bound(components.next().unwrap())?;
-
-                        let fn_rule = components.next().unwrap();
-                        debug_assert_eq!(fn_rule.as_rule(), Rule::fn_type);
-
-                        let trait_type = self.transform_type(fn_rule)?;
-
-                        Ok(ab.node(Statement::TraitDef(TraitDef {
-                            name,
-                            bound,
-                            trait_type,
-                        })))
-                    }
-                    _ => unreachable!(),
+                if let Some(node) = ret_expr {
+                    Ok(ab.node(Statement::Return(Some(self.transform_expression(node)?))))
+                } else {
+                    Ok(ab.node(Statement::Return(None)))
                 }
             }
-            // This rule must be present here because body_block's are made of a
-            // arbitrary number of statements, and an optional final expression.
-            // So, when we convert the body_blocks' into ast, we don't know if the
-            // last item is a statement or expression...
-            Rule::expr => Ok(ab.node(Statement::Expr(self.transform_expression(pair)?))),
+            Rule::let_st => {
+                // the first rule will be the pattern which can be automatically converted, whereas
+                // then we have a trait bound and finally an optional expression which is used as an
+                // assignment to the let pair
+                let mut components = pair.into_inner();
+
+                let pattern = self.transform_pattern(components.next().unwrap())?;
+
+                let bound_or_ty = components.next();
+                let (bound, ty, value) = match bound_or_ty {
+                    Some(pair) => match pair.as_rule() {
+                        Rule::bound => {
+                            let bound = Some(self.transform_bound(pair)?);
+
+                            let ty_or_expr = components.next();
+
+                            match ty_or_expr {
+                                Some(r) => match r.as_rule() {
+                                    Rule::any_type => (
+                                        bound,
+                                        Some(self.transform_type(r)?),
+                                        // check if the optional value component is present with the let pair...
+                                        components
+                                            .next()
+                                            .map(|p| self.transform_expression(p))
+                                            .transpose()?,
+                                    ),
+                                    Rule::expr => {
+                                        (bound, None, Some(self.transform_expression(r)?))
+                                    }
+                                    k => {
+                                        panic!("Unexpected rule within ty_or_expr: {:?}", k)
+                                    }
+                                },
+                                None => (bound, None, None),
+                            }
+                        }
+                        Rule::any_type => (
+                            None,
+                            Some(self.transform_type(pair)?),
+                            components
+                                .next()
+                                .map(|p| self.transform_expression(p))
+                                .transpose()?,
+                        ),
+                        Rule::expr => (None, None, Some(self.transform_expression(pair)?)),
+                        k => panic!("Unexpected rule within let_st: {:?}", k),
+                    },
+                    None => (None, None, None),
+                };
+
+                Ok(ab.node(Statement::Let(LetStatement {
+                    pattern,
+                    ty,
+                    bound,
+                    value,
+                })))
+            }
+            Rule::expr_or_assign_st => {
+                let mut components = pair.into_inner();
+
+                let lhs: AstNode<Expression> =
+                    self.transform_expression(components.next().unwrap())?;
+
+                // if no rhs is present, this is just an singular expression instead of an
+                // assignment
+                match components.next() {
+                    Some(op_wrap) => {
+                        // get the assignment operator out of 'assign_op'
+                        let op = op_wrap.into_inner().next().unwrap();
+                        let transform = convert_rule_into_fn_call(&op.as_rule());
+
+                        let rhs = self.transform_expression(components.next().unwrap())?;
+                        let builder = self.builder_from_node(&rhs);
+
+                        match transform {
+                            Some(OperatorFn::Named { name, assigning }) => {
+                                let assign_call =
+                                    builder.node(Expression::FunctionCall(FunctionCallExpr {
+                                        subject: builder.node(Expression::Variable(
+                                            VariableExpr {
+                                                name: builder.make_single_access_name(
+                                                    AstString::Borrowed(name),
+                                                ),
+                                                type_args: vec![],
+                                            },
+                                        )),
+                                        args: self.builder_from_node(&rhs).node(
+                                            FunctionCallArgs {
+                                                entries: vec![
+                                                    ab.transform_expr_into_ref(lhs, assigning),
+                                                    rhs,
+                                                ],
+                                            },
+                                        ),
+                                    }));
+                                Ok(ab.node(Statement::Expr(assign_call)))
+                            }
+                            Some(OperatorFn::LazyNamed { name, assigning }) => {
+                                // some functions have to ehxibit a short-circuiting behaviour, namely
+                                // the logical 'and' and 'or' operators. To do this, we expect the 'and'
+                                // 'or' trait (and their assignment counterparts) to expect the rhs part
+                                // as a lambda. So, we essentially create a lambda that calls the rhs, or
+                                // in other words, something like this happens:
+                                //
+                                // >>> lhs && rhs
+                                // vvv (transpiles to...)
+                                // >>> and(lhs, () => rhs)
+                                //
+
+                                let fn_call =
+                                    builder.node(Expression::FunctionCall(FunctionCallExpr {
+                                        subject: builder.node(Expression::Variable(
+                                            VariableExpr {
+                                                name: builder.make_single_access_name(
+                                                    AstString::Borrowed(name),
+                                                ),
+                                                type_args: vec![],
+                                            },
+                                        )),
+                                        args: ab.node(FunctionCallArgs {
+                                            entries: vec![
+                                                ab.transform_expr_into_ref(lhs, assigning),
+                                                ab.make_single_lambda(rhs),
+                                            ],
+                                        }),
+                                    }));
+
+                                Ok(ab.node(Statement::Expr(fn_call)))
+                            }
+                            Some(OperatorFn::Compound { name, assigning }) => {
+                                // @@Copied
+                                //
+                                // for compound functions that include ordering, we essentially transpile
+                                // into a match block that checks the result of the 'ord' fn call to the
+                                // 'Ord' enum variants. This also happens for operators such as '>=' which
+                                // essentially means that we have to check if the result of 'ord()' is either
+                                // 'Eq' or 'Gt'.
+                                Ok(ab.node(Statement::Expr(
+                                    builder.transfrom_compound_ord_fn(name, assigning, lhs, rhs),
+                                )))
+                            }
+                            None => Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs }))),
+                        }
+                    }
+                    None => Ok(ab.node(Statement::Expr(lhs))),
+                }
+            }
+            Rule::struct_def => {
+                let mut components = pair.into_inner();
+                let name = self.transform_name(components.next().unwrap())?;
+
+                let bound_or_fields = components.next().unwrap();
+                let (bound, entries) = match bound_or_fields.as_rule() {
+                    Rule::bound => (
+                        Some(self.transform_bound(bound_or_fields)?),
+                        // It's guaranteed to have zero or more struct def fields and so it is
+                        // safe to unwrap the following rule after the bound...
+                        ab.try_collect(
+                            components
+                                .next()
+                                .unwrap()
+                                .into_inner()
+                                .map(|x| self.transform_struct_def_entry(x)),
+                        )?,
+                    ),
+
+                    Rule::struct_def_fields => (
+                        None,
+                        ab.try_collect(
+                            bound_or_fields
+                                .into_inner()
+                                .map(|x| self.transform_struct_def_entry(x)),
+                        )?,
+                    ),
+                    k => panic!("Unexpected rule within struct_def: {:?}", k),
+                };
+                Ok(ab.node(Statement::StructDef(StructDef {
+                    name,
+                    bound,
+                    entries,
+                })))
+            }
+            Rule::enum_def => {
+                let mut components = pair.into_inner();
+                let name = self.transform_name(components.next().unwrap())?;
+
+                let bound_or_fields = components.next().unwrap();
+                let (bound, entries) = match bound_or_fields.as_rule() {
+                    Rule::bound => (
+                        Some(self.transform_bound(bound_or_fields)?),
+                        ab.try_collect(
+                            components
+                                .next()
+                                .unwrap()
+                                .into_inner()
+                                .map(|x| self.transform_enum_def_entry(x)),
+                        )?,
+                    ),
+                    // It's guaranteed to have zero or more enum def fields and so it is
+                    // safe to unwrap the following rule after the bound...
+                    Rule::enum_fields => (
+                        None,
+                        ab.try_collect(
+                            bound_or_fields
+                                .into_inner()
+                                .map(|x| self.transform_enum_def_entry(x)),
+                        )?,
+                    ),
+                    k => panic!("Unexpected rule within enum_def: {:?}", k),
+                };
+
+                Ok(ab.node(Statement::EnumDef(EnumDef {
+                    name,
+                    bound,
+                    entries,
+                })))
+            }
+            Rule::trait_def => {
+                let mut components = pair.into_inner();
+                let name = self.transform_name(components.next().unwrap())?;
+                let bound = self.transform_bound(components.next().unwrap())?;
+
+                let fn_rule = components.next().unwrap();
+                debug_assert_eq!(fn_rule.as_rule(), Rule::fn_type);
+
+                let trait_type = self.transform_type(fn_rule)?;
+
+                Ok(ab.node(Statement::TraitDef(TraitDef {
+                    name,
+                    bound,
+                    trait_type,
+                })))
+            }
             k => panic!("unexpected rule within statement: {:?}", k),
         }
     }
