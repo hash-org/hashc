@@ -86,7 +86,7 @@ impl std::fmt::Display for Module {
 
         writeln!(f, "module")?;
 
-        Ok(for (count, node) in nodes.iter().enumerate() {
+        for (count, node) in nodes.iter().enumerate() {
             // determine the connector that should be use to join the nodes
             let (connector, ending) = if count == nodes.len() - 1 {
                 (END_PIPE, "")
@@ -96,7 +96,9 @@ impl std::fmt::Display for Module {
 
             // println!("{:?}", node);
             write!(f, "{}{}\n{}", connector, node.join("\n"), ending)?
-        })
+        }
+
+        Ok(())
     }
 }
 
@@ -120,10 +122,10 @@ impl NodeDisplay for Literal {
                 // after '@', this can be enabled on Rust nightly, but we aren't that crazy!
                 // so we're matching a second time just to get the right literal name
                 match &self {
-                    Literal::Set(_) => lines.push(format!("set")),
-                    Literal::List(_) => lines.push(format!("list")),
-                    Literal::Tuple(_) => lines.push(format!("tuple")),
-                    _ => unreachable!()
+                    Literal::Set(_) => lines.push("set".to_string()),
+                    Literal::List(_) => lines.push("list".to_string()),
+                    Literal::Tuple(_) => lines.push("tuple".to_string()),
+                    _ => unreachable!(),
                 };
 
                 // convert all the children and add them to the new lines
@@ -177,7 +179,7 @@ impl NodeDisplay for Statement {
         match &self {
             Statement::Expr(expr) => lines.extend(expr.node_display(next_indent)),
             Statement::Return(expr) => {
-                lines.push(format!("ret"));
+                lines.push("ret".to_string());
 
                 // if a return statement has a lin
                 if let Some(ret_expr) = expr {
@@ -191,8 +193,8 @@ impl NodeDisplay for Statement {
             Statement::Block(_block) => {
                 todo!()
             }
-            Statement::Break => lines.push(format!("break")),
-            Statement::Continue => lines.push(format!("continue")),
+            Statement::Break => lines.push("break".to_string()),
+            Statement::Continue => lines.push("continue".to_string()),
             Statement::Let(_decl) => todo!(),
             Statement::Assign(_decl) => todo!(),
             Statement::StructDef(_def) => todo!(),
@@ -218,7 +220,10 @@ impl NodeDisplay for Statement {
 
 impl NodeDisplay for Import {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        vec![format!("import"), format!("{} \"{}\"", END_PIPE, self.path)]
+        vec![
+            "import".to_string(),
+            format!("{} \"{}\"", END_PIPE, self.path),
+        ]
     }
 }
 

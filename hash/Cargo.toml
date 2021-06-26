@@ -12,7 +12,5 @@ hash-backend = {path = "../hash-backend" }
 rustyline = "8.0.0"
 thiserror = "1.0"
 derive-macro = { path = "derive-macro" }
-bumpalo = { version = "3.7", features = ["collections", "boxed"] }
-bumpalo-herd = "0.1"
 log = "0.4"
 pretty_env_logger = "0.4"

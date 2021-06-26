@@ -74,9 +74,7 @@ impl NodeCount for Block {
                 match_block.subject.node_count() + cases
             }
             Block::Loop(loop_block) => loop_block.node_count(),
-            Block::Body(body_block) => {
-                body_block.node_count()
-            }
+            Block::Body(body_block) => body_block.node_count(),
         }
     }
 }

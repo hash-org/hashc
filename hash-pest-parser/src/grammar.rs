@@ -66,7 +66,7 @@ impl ParserBackend for HashGrammar {
                 let pair = result.next().unwrap();
                 let ab = builder.builder_from_pair(&pair);
                 Ok(ab.node(builder.transform_body_block(pair)?))
-            },
+            }
             // @@TODO: use constant for "interactive"
             Err(e) => Err(ParseError::from(PestError::from(("interactive".into(), e)))),
         }

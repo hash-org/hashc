@@ -109,10 +109,7 @@ pub struct TupleLiteral {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MapLiteral {
     /// The elements of the map literal (key-value pairs).
-    pub elements: Vec<(
-        AstNode<Expression>,
-        AstNode<Expression>,
-    )>,
+    pub elements: Vec<(AstNode<Expression>, AstNode<Expression>)>,
 }
 
 /// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.

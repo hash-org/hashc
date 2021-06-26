@@ -22,6 +22,7 @@ pub enum CompilerError {
         Some(x) => &x,
         None => "",
     })]
+    #[allow(dead_code)]
     InternalError {
         message: String,
         extra_info: Option<String>,

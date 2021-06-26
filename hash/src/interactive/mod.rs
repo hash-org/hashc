@@ -102,7 +102,7 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
-            if let Some(_) = parse_interactive(expr) {
+            if parse_interactive(expr).is_some() {
                 println!("running code...");
                 // Typecheck and execute...
             }
