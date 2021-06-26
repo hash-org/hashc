@@ -763,7 +763,7 @@ pub fn resolve_path(
         // @@Copied
         Err(ParseError::ImportError {
             import_name: path.to_path_buf(),
-            src: location.unwrap_or_else(|| SourceLocation::interactive()),
+            src: location.unwrap_or_else(SourceLocation::interactive),
         })
     } else {
         // we don't need to anything if the given raw_path already has a extension '.hash',
@@ -786,7 +786,7 @@ pub fn resolve_path(
                 } else {
                     Err(ParseError::ImportError {
                         import_name: path.to_path_buf(),
-                        src: location.unwrap_or_else(|| SourceLocation::interactive()),
+                        src: location.unwrap_or_else(SourceLocation::interactive),
                     })
                 }
             }
