@@ -6,8 +6,9 @@ use crate::{
     error::{ParseError, ParseResult},
     location::SourceLocation,
 };
-use log::{debug, log_enabled, Level};
-use std::iter;
+use closure::closure;
+use crossbeam_channel::{unbounded, Sender};
+use log::{debug, info, log_enabled, Level};
 use std::{
     collections::{HashMap, HashSet},
     fs, mem,
@@ -17,20 +18,14 @@ use std::{
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
 
-pub struct Parser<'alloc, B, A> {
-    worker_count: Option<usize>,
-    backend: B,
-    allocator: &'alloc A,
-}
-
-pub enum ParMessage<'ast> {
+pub enum ParMessage {
     ModuleImport {
         filename: PathBuf,
         parent: Option<ModuleIdx>,
         index: ModuleIdx,
     },
     ParsedModule {
-        node: ast::Module<'ast>,
+        node: ast::Module,
         filename: PathBuf,
         contents: String,
     },
@@ -43,33 +38,151 @@ enum EntryPoint<'a> {
     Module { filename: &'a Path },
 }
 
-impl<'ast, 'alloc, B, A> Parser<'alloc, B, A>
+pub struct ParParser<B> {
+    worker_count: Option<usize>,
+    backend: B,
+}
+
+impl<B> ParParser<B>
 where
     B: ParserBackend,
-    A: AstAllocator<'ast, 'alloc>,
-    'ast: 'alloc,
 {
-    pub fn sequential(backend: B, allocator: &'alloc A) -> Self {
-        Parser {
-            worker_count: None,
-            backend,
-            allocator,
-        }
+    pub fn new(backend: B) -> Self {
+        Self::new_with_workers(backend, num_cpus::get())
     }
 
-    pub fn parallel(backend: B, allocator: &'alloc A) -> Self {
-        Self::parallel_with_workers(backend, allocator, num_cpus::get())
-    }
-
-    pub fn parallel_with_workers(backend: B, allocator: &'alloc A, workers: usize) -> Self {
-        Parser {
+    pub fn new_with_workers(backend: B, workers: usize) -> Self {
+        Self {
             worker_count: Some(workers),
             backend,
-            allocator,
         }
     }
 
-    fn parse_seq(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules<'ast>> {
+    fn parse_par<A>(
+        &self,
+        entry: EntryPoint,
+        directory: &Path,
+        worker_count: usize,
+    ) -> ParseResult<Modules>
+    {
+        let mut modules = Modules::new();
+        let module_counter = AtomicUsize::new(0);
+
+        info!("Creating worker pool with {} workers", worker_count);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(worker_count)
+            .build()
+            .unwrap();
+
+        pool.scope(closure!(
+            ref mut modules,
+            ref module_counter,
+            |scope| -> ParseResult<()> {
+                let (s, r) = unbounded::<ParMessage>();
+
+                // spawn the initial job
+                let mut resolver = ParModuleResolver::new(
+                    s.clone(),
+                    &module_counter,
+                    None,
+                    directory.to_owned(),
+                );
+
+                let entry_index = match entry {
+                    EntryPoint::Module { filename } => {
+                        resolver.add_module_send_error(filename, None)
+                    }
+                    EntryPoint::Interactive { contents } => {
+                        let statement =
+                            self.backend
+                                .parse_statement(&mut resolver, contents)?;
+                        let module_node = ast::Module {
+                            contents: vec![statement],
+                        };
+                        let module = modules.add_module(
+                            "<interactive>".into(),
+                            module_node,
+                            contents.to_owned(),
+                        );
+
+                        Some(module.index())
+                    }
+                };
+                if let Some(entry_index) = entry_index {
+                    modules.set_entry_point(entry_index);
+                }
+
+                // start the reciever and listen for any messages from the jobs, continue looping until all of the module
+                // dependencies were resovled from the initially supplied file.
+                loop {
+                    match r.recv() {
+                        Ok(ParMessage::ModuleImport {
+                            filename,
+                            parent,
+                            index,
+                        }) => {
+                            if let Some(parent) = parent {
+                                modules.add_dependency(parent, index);
+                            }
+
+                            if !modules.has_path(&filename) {
+                                let _root_dir = filename.parent().unwrap().to_owned();
+
+                                todo!()
+                                // scope.spawn(closure!(
+                                //     ref module_counter,
+                                //     ref s,
+                                //     |_| {
+                                //         let mut resolver = ParModuleResolver::new(
+                                //             s.clone(),
+                                //             &module_counter,
+                                //             parent,
+                                //             root_dir,
+                                //         );
+                                //         resolver.parse_file(filename, &self.backend);
+                                //     }
+                                // ));
+                            } else {
+                                continue;
+                            }
+                        }
+                        Ok(ParMessage::ParsedModule {
+                            node,
+                            filename,
+                            contents,
+                        }) => {
+                            modules.add_module(filename, node, contents);
+                        }
+                        Ok(ParMessage::Error(e)) => {
+                            break Err(e);
+                        }
+                        Err(_) => {
+                            // All senders disconnected
+                            break Ok(());
+                        }
+                    }
+                }
+            }
+        ))?;
+
+        // Ok to unwrap because no one else has a reference to modules
+        Ok(modules)
+    }
+}
+
+pub struct SeqParser<B> {
+    backend: B,
+}
+
+impl<B> SeqParser<B>
+where
+    B: ParserBackend,
+{
+    pub fn new(backend: B) -> Self {
+        Self { backend }
+    }
+
+    fn parse_main(&self, entry: EntryPoint, directory: &Path) -> ParseResult<Modules> {
         let mut modules = Modules::new();
 
         let entry_index = match entry {
@@ -79,7 +192,6 @@ where
                     directory.to_owned(),
                     &self.backend,
                     None,
-                    self.allocator,
                 );
                 resolver.add_module(filename, None)?
             }
@@ -92,15 +204,14 @@ where
                         directory.to_owned(),
                         &self.backend,
                         Some(index),
-                        self.allocator,
                     );
 
                     self.backend
-                        .parse_statement(&mut resolver, contents, self.allocator)
+                        .parse_statement(&mut resolver, contents)
                 }?;
 
                 let module = ast::Module {
-                    contents: self.allocator.alloc_ast_nodes(iter::once(statement)),
+                    contents: vec![statement],
                 };
 
                 modules.add_module("<interactive>".into(), module, contents.to_owned());
@@ -113,130 +224,25 @@ where
         Ok(modules)
     }
 
-    fn parse_par(
-        &self,
-        _entry: EntryPoint,
-        _directory: &Path,
-        _worker_count: usize,
-    ) -> ParseResult<Modules<'ast>> {
-        unimplemented!()
-        // let mut modules = Modules::new();
-
-        // let module_counter = AtomicUsize::new(0);
-
-        // info!("Creating worker pool with {} workers", worker_count);
-        // let pool = rayon::ThreadPoolBuilder::new()
-        //     .num_threads(worker_count)
-        //     .build()
-        //     .unwrap();
-
-        // pool.scope(|scope| -> ParseResult<()> {
-        //     let (s, r) = unbounded::<ParMessage>();
-        //     let bump = self.herd.get().as_bump();
-
-        //     // spawn the initial job
-        //     let mut resolver =
-        //         ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
-        //     let entry_index = match entry {
-        //         EntryPoint::Module { filename } => resolver.add_module_send_error(filename, None),
-        //         EntryPoint::Interactive { contents } => {
-        //             let statement =
-        //                 self.backend
-        //                     .parse_statement(&mut resolver, contents, bump)?;
-        //             let module_node = ast::Module {
-        //                 contents: bumpalo::vec![in bump; statement],
-        //             };
-        //             let module = modules.add_module(
-        //                 "<interactive>".into(),
-        //                 module_node,
-        //                 contents.to_owned(),
-        //             );
-
-        //             Some(module.index())
-        //         }
-        //     };
-        //     if let Some(entry_index) = entry_index {
-        //         modules.set_entry_point(entry_index);
-        //     }
-
-        //     // start the reciever and listen for any messages from the jobs, continue looping until all of the module
-        //     // dependencies were resovled from the initially supplied file.
-        //     loop {
-        //         match r.recv() {
-        //             Ok(ParMessage::ModuleImport {
-        //                 filename,
-        //                 parent,
-        //                 index,
-        //             }) => {
-        //                 if let Some(parent) = parent {
-        //                     modules.add_dependency(parent, index);
-        //                 }
-
-        //                 if !modules.has_path(&filename) {
-        //                     let root_dir = filename.parent().unwrap().to_owned();
-
-        //                     // TODO: FIXME
-        //                     // scope.spawn(closure!(ref module_counter, ref s, |_| {
-        //                     //     let mut resolver = ParModuleResolver::new(
-        //                     //         s.clone(),
-        //                     //         &module_counter,
-        //                     //         parent,
-        //                     //         root_dir,
-        //                     //     );
-        //                     //     resolver.parse_file(filename, &self.backend);
-        //                     // }));
-        //                 } else {
-        //                     continue;
-        //                 }
-        //             }
-        //             Ok(ParMessage::ParsedModule {
-        //                 node,
-        //                 filename,
-        //                 contents,
-        //             }) => {
-        //                 modules.add_module(filename, node, contents);
-        //             }
-        //             Ok(ParMessage::Error(e)) => {
-        //                 break Err(e);
-        //             }
-        //             Err(_) => {
-        //                 // All senders disconnected
-        //                 break Ok(());
-        //             }
-        //         }
-        //     }
-        // })?;
-
-        // // Ok to unwrap because no one else has a reference to modules
-        // Ok(modules)
-    }
-
     pub fn parse(
-        &'ast self,
+        &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules<'ast>> {
+    ) -> ParseResult<Modules> {
         let filename = filename.as_ref();
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
-
-        match self.worker_count {
-            None => self.parse_seq(entry, directory),
-            Some(worker_count) => self.parse_par(entry, directory, worker_count),
-        }
+        self.parse_main(entry, directory)
     }
 
     pub fn parse_statement(
-        &'ast self,
+        &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules<'ast>> {
+    ) -> ParseResult<Modules> {
         let directory = directory.as_ref();
         let entry = EntryPoint::Interactive { contents };
-        match self.worker_count {
-            None => self.parse_seq(entry, directory),
-            Some(worker_count) => self.parse_par(entry, directory, worker_count),
-        }
+        self.parse_main(entry, directory)
     }
 }
 
@@ -251,7 +257,11 @@ impl ModuleIdx {
 }
 
 #[inline(always)]
-pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
+pub fn timed<T>(
+    op: impl FnOnce() -> T,
+    level: log::Level,
+    on_elapsed: impl FnOnce(Duration),
+) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();
@@ -263,24 +273,18 @@ pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOn
 }
 
 pub trait ParserBackend: Sync {
-    fn parse_module<'ast, 'alloc>(
+    fn parse_module(
         &self,
         resolver: &mut impl ModuleResolver,
         path: &Path,
         contents: &str,
-        allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
-    ) -> ParseResult<ast::Module<'ast>>
-    where
-        'ast: 'alloc;
+    ) -> ParseResult<ast::Module>;
 
-    fn parse_statement<'ast, 'alloc>(
+    fn parse_statement(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-        allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
-    ) -> ParseResult<AstNode<'ast, ast::Statement<'ast>>>
-    where
-        'ast: 'alloc;
+    ) -> ParseResult<AstNode<ast::Statement>>;
 }
 
 pub trait ModuleResolver {
@@ -291,15 +295,11 @@ pub trait ModuleResolver {
     ) -> ParseResult<ModuleIdx>;
 }
 
-fn parse_file<'ast, 'alloc>(
+fn parse_file(
     resolved_filename: impl AsRef<Path>,
     resolver: &mut impl ModuleResolver,
     backend: &impl ParserBackend,
-    allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
-) -> Result<(ast::Module<'ast>, String), ParseError>
-where
-    'ast: 'alloc,
-{
+) -> Result<(ast::Module, String), ParseError> {
     debug!("Parsing file: {:?}", resolved_filename.as_ref());
 
     // load the file in...
@@ -307,7 +307,7 @@ where
         .map_err(|e| (e, resolved_filename.as_ref().to_owned()))?;
 
     let module = timed(
-        || backend.parse_module(resolver, resolved_filename.as_ref(), &source, allocator),
+        || backend.parse_module(resolver, resolved_filename.as_ref(), &source),
         Level::Debug,
         |elapsed| debug!("ast: {:.2?}", elapsed),
     )?;
@@ -316,36 +316,28 @@ where
 }
 
 /// Represents an object that is responsible for resolving any module imports
-pub struct SeqModuleResolver<'ast, 'alloc, 'backend, 'modules, B, A> {
-    modules: &'modules mut Modules<'ast>,
+pub struct SeqModuleResolver<'backend, 'modules, B> {
+    modules: &'modules mut Modules,
     root_dir: PathBuf,
     backend: &'backend B,
     index: Option<ModuleIdx>,
-    allocator: &'alloc A,
 }
 
-impl<'ast, 'alloc, 'backend, 'modules, B, A>
-    SeqModuleResolver<'ast, 'alloc, 'backend, 'modules, B, A>
+impl<'backend, 'modules, B> SeqModuleResolver<'backend, 'modules, B>
 where
     B: ParserBackend,
-    A: AstAllocator<'ast, 'alloc>,
-    'ast: 'backend,
-    'ast: 'modules,
-    'ast: 'alloc,
 {
     fn new(
-        modules: &'modules mut Modules<'ast>,
+        modules: &'modules mut Modules,
         root_dir: PathBuf,
         backend: &'backend B,
         index: Option<ModuleIdx>,
-        allocator: &'alloc A,
     ) -> Self {
         SeqModuleResolver {
             modules,
             root_dir,
             backend,
             index,
-            allocator,
         }
     }
 
@@ -365,14 +357,10 @@ where
     }
 }
 
-impl<'ast, 'alloc, 'backend, 'modules, B, A> ModuleResolver
-    for SeqModuleResolver<'ast, 'alloc, 'backend, 'modules, B, A>
+impl<'backend, 'modules, B> ModuleResolver
+    for SeqModuleResolver<'backend, 'modules, B>
 where
     B: ParserBackend,
-    A: AstAllocator<'ast, 'alloc>,
-    'ast: 'backend,
-    'ast: 'modules,
-    'ast: 'alloc,
 {
     fn add_module(
         &mut self,
@@ -400,7 +388,6 @@ where
                 &resolved_path,
                 resolver,
                 resolver.backend,
-                resolver.allocator,
             )
         })?;
 
@@ -414,114 +401,102 @@ where
     }
 }
 
-// struct ParModuleResolver<'scope> {
-//     sender: Sender<ParMessage>,
-//     parent: Option<ModuleIdx>,
-//     module_counter: &'scope AtomicUsize,
-//     root_dir: PathBuf,
-// }
+struct ParModuleResolver<'scope> {
+    sender: Sender<ParMessage>,
+    parent: Option<ModuleIdx>,
+    module_counter: &'scope AtomicUsize,
+    root_dir: PathBuf,
+}
 
-// impl<'scope> ParModuleResolver<'scope> {
-//     pub fn new(
-//         sender: Sender<ParMessage>,
-//         module_counter: &'scope AtomicUsize,
-//         parent: Option<ModuleIdx>,
-//         root_dir: PathBuf,
-//     ) -> Self {
-//         ParModuleResolver {
-//             sender,
-//             parent,
-//             module_counter,
-//             root_dir,
-//         }
-//     }
+impl<'scope> ParModuleResolver<'scope>
+{
+    pub fn new(
+        sender: Sender<ParMessage>,
+        module_counter: &'scope AtomicUsize,
+        parent: Option<ModuleIdx>,
+        root_dir: PathBuf,
+    ) -> Self {
+        Self {
+            sender,
+            parent,
+            module_counter,
+            root_dir,
+        }
+    }
 
-//     pub fn add_module_send_error(
-//         &mut self,
-//         import_path: impl AsRef<Path>,
-//         location: Option<Location>,
-//     ) -> Option<ModuleIdx> {
-//         match self.add_module(import_path, location) {
-//             Ok(index) => Some(index),
-//             Err(err) => {
-//                 self.sender.send(ParMessage::Error(err)).unwrap();
-//                 None
-//             }
-//         }
-//     }
+    pub fn add_module_send_error(
+        &mut self,
+        import_path: impl AsRef<Path>,
+        location: Option<SourceLocation>,
+    ) -> Option<ModuleIdx> {
+        match self.add_module(import_path, location) {
+            Ok(index) => Some(index),
+            Err(err) => {
+                self.sender.send(ParMessage::Error(err)).unwrap();
+                None
+            }
+        }
+    }
 
-//     fn for_dir<R>(&mut self, mut dir: PathBuf, cb: impl FnOnce(&mut Self) -> R) -> R {
-//         mem::swap(&mut self.root_dir, &mut dir);
-//         let ret = cb(self);
-//         mem::swap(&mut self.root_dir, &mut dir);
-//         ret
-//     }
+    fn for_dir<R>(&mut self, mut dir: PathBuf, cb: impl FnOnce(&mut Self) -> R) -> R {
+        mem::swap(&mut self.root_dir, &mut dir);
+        let ret = cb(self);
+        mem::swap(&mut self.root_dir, &mut dir);
+        ret
+    }
 
-//     fn parse_file(
-//         &mut self,
-//         resolved_filename: impl AsRef<Path>,
-//         backend: &impl for<'a> ParserBackend<'a>,
-//     ) {
-//         let parse_result = self.for_dir(self.root_dir.to_owned(), |resolver| {
-//             let src;
-//             let node = OwnedModule::try_new::<ParseError, _>(|bump| {
-//                 let (node, source) = parse_file(&resolved_filename, resolver, backend, bump)?;
-//                 src = source;
-//                 Ok(node)
-//             });
-//             node.map(|n| (n, src))
-//         });
+    fn parse_file(&mut self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
+        let parse_result = self.for_dir(self.root_dir.to_owned(), |resolver| {
+            parse_file(&resolved_filename, resolver, backend)
+        });
 
-//         let message = match parse_result {
-//             Ok((node, source)) => ParMessage::ParsedModule {
-//                 node,
-//                 contents: source,
-//                 filename: resolved_filename.as_ref().to_owned(),
-//             },
-//             Err(err) => ParMessage::Error(err),
-//         };
+        let message = match parse_result {
+            Ok((node, source)) => ParMessage::ParsedModule {
+                node,
+                contents: source,
+                filename: resolved_filename.as_ref().to_owned(),
+            },
+            Err(err) => ParMessage::Error(err),
+        };
 
-//         self.sender.send(message).unwrap();
-//     }
-// }
+        self.sender.send(message).unwrap();
+    }
+}
 
-// impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
-//     fn add_module(
-//         &mut self,
-//         import_path: impl AsRef<Path>,
-//         location: Option<Location>,
-//     ) -> ParseResult<ModuleIdx> {
-//         let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
-//         let index = ModuleIdx(self.module_counter.fetch_add(1, Ordering::SeqCst));
+impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
+    fn add_module(
+        &mut self,
+        import_path: impl AsRef<Path>,
+        location: Option<SourceLocation>,
+    ) -> ParseResult<ModuleIdx> {
+        let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
+        let index = ModuleIdx(self.module_counter.fetch_add(1, Ordering::SeqCst));
 
-//         self.sender
-//             .send(ParMessage::ModuleImport {
-//                 index,
-//                 filename: resolved_path,
-//                 parent: self.parent,
-//             })
-//             .unwrap();
+        self.sender
+            .send(ParMessage::ModuleImport {
+                index,
+                filename: resolved_path,
+                parent: self.parent,
+            })
+            .unwrap();
 
-//         Ok(index)
-//     }
-// }
+        Ok(index)
+    }
+}
 
 /// Represents a set of loaded modules.
 #[derive(Debug, Default)]
-pub struct Modules<'ast> {
+pub struct Modules {
     path_to_index: HashMap<PathBuf, ModuleIdx>,
     filenames_by_index: HashMap<ModuleIdx, PathBuf>,
-    modules_by_index: HashMap<ModuleIdx, ast::Module<'ast>>,
+    modules_by_index: HashMap<ModuleIdx, ast::Module>,
     contents_by_index: HashMap<ModuleIdx, String>,
     deps_by_index: HashMap<ModuleIdx, HashSet<ModuleIdx>>,
     entry_point: Option<ModuleIdx>,
     size: usize,
 }
 
-impl<'ast, 'modules> Modules<'ast>
-where
-    Self: 'modules,
-{
+impl Modules {
     /// Create a new [Modules] object
     pub fn new() -> Self {
         Modules::default()
@@ -535,7 +510,7 @@ where
         self.path_to_index.contains_key(path.as_ref())
     }
 
-    pub fn get_by_index(&'modules self, index: ModuleIdx) -> Module<'ast, 'modules> {
+    pub fn get_by_index(&self, index: ModuleIdx) -> Module<'_> {
         self.get_by_index_checked(index).unwrap()
     }
 
@@ -543,18 +518,18 @@ where
         self.entry_point.is_some()
     }
 
-    pub fn get_entry_point_checked(&'modules self) -> Option<Module<'ast, 'modules>> {
+    pub fn get_entry_point_checked(&self) -> Option<Module<'_>> {
         Some(self.get_by_index(self.entry_point?))
     }
 
-    pub fn get_entry_point(&'modules self) -> Module<'ast, 'modules> {
+    pub fn get_entry_point(&self) -> Module<'_> {
         self.get_entry_point_checked().unwrap()
     }
 
     pub fn get_by_index_checked(
-        &'modules self,
+        &self,
         index: ModuleIdx,
-    ) -> Option<Module<'ast, 'modules>> {
+    ) -> Option<Module<'_>> {
         if !self.has_index(index) {
             None
         } else {
@@ -565,33 +540,36 @@ where
         }
     }
 
-    pub fn get_by_path(&'modules self, path: impl AsRef<Path>) -> Option<Module<'ast, 'modules>> {
+    pub fn get_by_path(&self, path: impl AsRef<Path>) -> Option<Module<'_>> {
         self.path_to_index
             .get(path.as_ref())
             .map(|&idx| self.get_by_index(idx))
     }
 
-    pub fn get_by_path_unchecked(&'modules self, path: impl AsRef<Path>) -> Module<'ast, 'modules> {
+    pub fn get_by_path_unchecked(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Module<'_> {
         self.get_by_path(path).unwrap()
     }
 
     fn add_module(
-        &'modules mut self,
+        &mut self,
         path: PathBuf,
-        node: ast::Module<'ast>,
+        node: ast::Module,
         contents: String,
-    ) -> Module<'ast, 'modules> {
+    ) -> Module<'_> {
         let index = self.reserve_index();
         self.add_module_at(index, path, node, contents)
     }
 
     fn add_module_at(
-        &'modules mut self,
+        &mut self,
         index: ModuleIdx,
         path: PathBuf,
-        node: ast::Module<'ast>,
+        node: ast::Module,
         contents: String,
-    ) -> Module<'ast, 'modules> {
+    ) -> Module<'_> {
         if self.has_index(index) {
             panic!("Tried to add a module at an existing index");
         }
@@ -629,7 +607,7 @@ where
         self.deps_by_index.get_mut(&parent).unwrap().insert(child);
     }
 
-    pub fn iter(&'modules self) -> impl Iterator<Item = Module<'ast, 'modules>> {
+    pub fn iter(&self) -> impl Iterator<Item = Module<'_>> {
         self.filenames_by_index.keys().map(move |&index| Module {
             index,
             modules: self,
@@ -638,16 +616,14 @@ where
 }
 
 /// Represents a single module.
-pub struct Module<'ast, 'modules> {
+pub struct Module<'modules> {
     index: ModuleIdx,
-    modules: &'modules Modules<'ast>,
+    modules: &'modules Modules,
 }
 
-impl<'ast, 'modules> Module<'ast, 'modules>
-where
-    'ast: 'modules,
+impl<'modules> Module<'modules>
 {
-    pub fn all_modules(&self) -> &Modules<'ast> {
+    pub fn all_modules(&self) -> &Modules {
         self.modules
     }
 
@@ -659,7 +635,7 @@ where
         self.modules.entry_point == Some(self.index)
     }
 
-    pub fn ast(&self) -> &ast::Module<'ast> {
+    pub fn ast(&self) -> &ast::Module {
         &self.modules.modules_by_index.get(&self.index).unwrap()
     }
 
@@ -671,7 +647,7 @@ where
             .as_ref()
     }
 
-    pub fn dependencies(&'modules self) -> impl Iterator<Item = Module<'ast, 'modules>> {
+    pub fn dependencies(&'modules self) -> impl Iterator<Item = Module<'modules>> {
         self.modules
             .deps_by_index
             .get(&self.index)

@@ -7,7 +7,7 @@ pub(crate) mod interactive;
 use crate::error::CompilerError;
 use bumpalo::Bump;
 use clap::{crate_version, AppSettings, Clap};
-use hash_ast::parse::Parser;
+use hash_ast::parse::SeqParser;
 use hash_pest_parser::grammar::HashGrammar;
 use log::log_enabled;
 use std::{
@@ -108,8 +108,7 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let allocator = Bump::new();
-                let parser = Parser::sequential(HashGrammar, &allocator);
+                let parser = SeqParser::new(HashGrammar);
                 let directory = env::current_dir().unwrap();
                 let result = timed(
                     || parser.parse(&filename, &directory),

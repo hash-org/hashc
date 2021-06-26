@@ -9,7 +9,7 @@ use bumpalo::Bump;
 use command::InteractiveCommand;
 use error::InterpreterError;
 use hash_ast::count::NodeCount;
-use hash_ast::parse::Parser;
+use hash_ast::parse::SeqParser;
 use hash_pest_parser::grammar::HashGrammar;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -73,9 +73,8 @@ fn execute(input: &str) {
 
     let command = InteractiveCommand::from(&input);
 
-    let allocator = Bump::new();
     // setup the parser
-    let parser = Parser::sequential(HashGrammar, &allocator);
+    let parser = SeqParser::new(HashGrammar);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
