@@ -14,7 +14,6 @@ const VERT_PIPE: &str = "│";
 const END_PIPE: &str = "└─";
 const MID_PIPE: &str = "├─";
 
-
 /// Compile time function to determine which PIPE connector should
 /// be used when converting an array of [AstNode]s.
 const fn which_connector(index: usize, max_index: usize) -> &'static str {
@@ -111,7 +110,6 @@ impl<'ast> NodeDisplay for AstNode<'ast, Literal<'ast>> {
             Literal::Set(SetLiteral { elements })
             | Literal::List(ListLiteral { elements })
             | Literal::Tuple(TupleLiteral { elements }) => {
-
                 // @@Dumbness: rust doesn't allow to bind patterns if there are pattern binds
                 // after '@', this can be enabled on Rust nightly, but we aren't that crazy!
                 // so we're matching a second time just to get the right literal name
@@ -119,12 +117,19 @@ impl<'ast> NodeDisplay for AstNode<'ast, Literal<'ast>> {
                     Literal::Set(_) => lines.push(format!("set")),
                     Literal::List(_) => lines.push(format!("list")),
                     Literal::Tuple(_) => lines.push(format!("tuple")),
-                    _ => panic!("node_display on AstNode<Literal> failed unexpectedly")
+                    _ => panic!("node_display on AstNode<Literal> failed unexpectedly"),
                 };
 
                 // convert all the children and add them to the new lines
                 for (index, element) in elements.iter().enumerate() {
                     let connector = which_connector(index, elements.len());
+
+                    // @@Cleanup: make this a function!
+                    let branch = if index == elements.len() - 1 {
+                        " "
+                    } else {
+                        "│"
+                    };
 
                     // reset the indent here since we'll be doing indentation here...
                     let child_lines = element.node_display(0);
@@ -132,9 +137,10 @@ impl<'ast> NodeDisplay for AstNode<'ast, Literal<'ast>> {
                     for (child_index, line) in child_lines.iter().enumerate() {
                         // @@Speed: is this really the best way to deal with string concatination.
                         if child_index == 0 {
-                            next_lines.push(format!("{}{}", connector, line));
+                            next_lines.push(format!("  {}{}", connector, line));
                         } else {
-                            next_lines.push(format!("|{}", line));
+                            // it's only one space here since the 'branch' char already takes one up
+                            next_lines.push(format!("  {}{}", branch, line));
                         }
                     }
                 }
