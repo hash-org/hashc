@@ -4,194 +4,28 @@
 
 use crate::location::Location;
 use crate::parse::ModuleIdx;
-use bumpalo::Bump;
-use bumpalo_herd::Herd;
-use bumpalo_herd::Member;
 use num::BigInt;
+use std::borrow::Cow;
 use std::hash::Hash;
-use std::mem;
 use std::ops::Deref;
 
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
-#[derive(Debug)]
-pub struct AstNode<'ast, T> {
+#[derive(Debug, PartialEq, Clone)]
+pub struct AstNode<T> {
     /// The actual value contained within this node.
-    pub body: &'ast mut T,
+    pub body: Box<T>,
     /// Position of the node in the input.
     pub pos: Location,
 }
 
-pub trait AstAllocatorProvider<'ast, 'alloc>
-where
-    'ast: 'alloc,
-{
-    type Alloc: AstAllocator<'ast, 'alloc>;
+pub type AstNodes<T> = Vec<AstNode<T>>;
 
-    fn get_alloc<'alloc_prov>(&'alloc_prov self) -> Self::Alloc
-    where
-        'alloc_prov: 'ast;
-}
-
-impl<'ast, 'alloc> AstAllocatorProvider<'ast, 'alloc> for Herd
-where
-    'ast: 'alloc,
-{
-    type Alloc = Member<'ast>;
-
-    fn get_alloc<'alloc_prov>(&'alloc_prov self) -> Self::Alloc
-    where
-        'alloc_prov: 'ast,
-    {
-        self.get()
-    }
-}
-
-pub trait AstAllocator<'ast, 'alloc>
-where
-    'ast: 'alloc,
-{
-    fn alloc<T>(&'alloc self, value: T) -> &'ast mut T;
-
-    fn alloc_lazy<T>(&'alloc self, value: impl FnOnce() -> T) -> &'ast mut T;
-
-    fn alloc_str(&'alloc self, src: &str) -> &'ast mut str;
-
-    fn alloc_slice<T>(&'alloc self, contents: impl Iterator<Item = T>) -> &'ast mut [T];
-
-    fn try_alloc_slice<T, E>(
-        &'alloc self,
-        contents: impl Iterator<Item = Result<T, E>>,
-    ) -> Result<&'ast mut [T], E>;
-
-    fn alloc_ast_node<T>(&'alloc self, body: T, pos: Location) -> AstNode<'ast, T> {
-        AstNode {
-            pos,
-            body: self.alloc(body),
-        }
-    }
-
-    fn alloc_ast_node_lazy<T>(
-        &'alloc self,
-        with_body: impl FnOnce() -> T,
-        pos: Location,
-    ) -> AstNode<'ast, T> {
-        AstNode {
-            pos,
-            body: self.alloc_lazy(with_body),
-        }
-    }
-
-    fn alloc_ast_nodes<T>(
-        &'alloc self,
-        contents: impl Iterator<Item = AstNode<'ast, T>>,
-    ) -> AstNodes<'ast, T> {
-        self.alloc_slice(contents)
-    }
-}
-
-impl<'ast> AstAllocator<'ast, 'ast> for Bump {
-    fn alloc<T>(&'ast self, value: T) -> &'ast mut T {
-        self.alloc(value)
-    }
-
-    fn alloc_lazy<T>(&'ast self, with_value: impl FnOnce() -> T) -> &'ast mut T {
-        self.alloc_with(with_value)
-    }
-
-    fn alloc_str(&'ast self, src: &str) -> &'ast mut str {
-        self.alloc_str(src)
-    }
-
-    fn alloc_slice<T>(&'ast self, contents: impl Iterator<Item = T>) -> &'ast mut [T] {
-        let (min, _) = contents.size_hint();
-        let mut vec = bumpalo::collections::Vec::with_capacity_in(min, self);
-        vec.extend(contents);
-        vec.into_bump_slice_mut()
-    }
-
-    fn try_alloc_slice<T, E>(
-        &'ast self,
-        contents: impl Iterator<Item = Result<T, E>>,
-    ) -> Result<&'ast mut [T], E> {
-        let (min, _) = contents.size_hint();
-        let mut vec = bumpalo::collections::Vec::with_capacity_in(min, self);
-        for i in contents {
-            vec.push(i?);
-        }
-        Ok(vec.into_bump_slice_mut())
-    }
-}
-
-impl<'ast, 'alloc> AstAllocator<'ast, 'alloc> for Member<'ast>
-where
-    'ast: 'alloc,
-{
-    fn alloc<T>(&'alloc self, value: T) -> &'ast mut T {
-        self.alloc(value)
-    }
-
-    fn alloc_lazy<T>(&'alloc self, with_value: impl FnOnce() -> T) -> &'ast mut T {
-        self.alloc_with(with_value)
-    }
-
-    fn alloc_str(&'alloc self, src: &str) -> &'ast mut str {
-        self.alloc_str(src)
-    }
-
-    fn alloc_slice<T>(&'alloc self, contents: impl Iterator<Item = T>) -> &'ast mut [T] {
-        let (min, _) = contents.size_hint();
-
-        // This is okay to do because the herd will ensure that the reference lives as long as
-        // 'ast, after the Member has been dropped.
-        let bump = unsafe { mem::transmute::<&'alloc Bump, &'ast Bump>(self.as_bump()) };
-
-        let mut vec = bumpalo::collections::Vec::with_capacity_in(min, bump);
-        vec.extend(contents);
-        vec.into_bump_slice_mut()
-    }
-
-    fn try_alloc_slice<T, E>(
-        &'alloc self,
-        contents: impl Iterator<Item = Result<T, E>>,
-    ) -> Result<&'ast mut [T], E> {
-        let (min, _) = contents.size_hint();
-
-        // This is okay to do because the herd will ensure that the reference lives as long as
-        // 'ast, after the Member has been dropped.
-        let bump = unsafe { mem::transmute::<&'alloc Bump, &'ast Bump>(self.as_bump()) };
-
-        let mut vec = bumpalo::collections::Vec::with_capacity_in(min, bump);
-        for i in contents {
-            vec.push(i?);
-        }
-        Ok(vec.into_bump_slice_mut())
-    }
-}
-
-pub type AstNodes<'ast, T> = &'ast mut [AstNode<'ast, T>];
-
-impl<T: PartialEq> PartialEq for AstNode<'_, T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.pos == other.pos && self.body == other.body
-    }
-}
-
-impl<'alloc, 'ast, T: Clone> AstNode<'ast, T>
-where
-    'ast: 'alloc,
-{
-    fn clone_with(&self, allocator: &'alloc impl AstAllocator<'ast, 'alloc>) -> Self {
-        Self {
-            pos: self.pos,
-            body: allocator.alloc(self.body.clone()),
-        }
-    }
-}
+pub type AstString = Cow<'static, str>;
 
 /// [AstNode] dereferences to its inner `body` type.
-impl<T> Deref for AstNode<'_, T> {
+impl<T> Deref for AstNode<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.body
@@ -200,50 +34,50 @@ impl<T> Deref for AstNode<'_, T> {
 
 /// An intrinsic identifier.
 #[derive(Hash, PartialEq, Debug)]
-pub struct IntrinsicKey<'ast> {
+pub struct IntrinsicKey {
     /// The name of the intrinsic (without the "#").
-    pub name: &'ast str,
+    pub name: AstString,
 }
 
 /// A single name/symbol.
 #[derive(Hash, PartialEq, Debug)]
-pub struct Name<'ast> {
+pub struct Name {
     // The name of the symbol.
-    pub string: &'ast str,
+    pub string: AstString,
 }
 
 /// A namespaced name, i.e. access name.
 #[derive(Debug, PartialEq)]
-pub struct AccessName<'ast> {
+pub struct AccessName {
     /// The list of names that make up the access name.
-    pub names: AstNodes<'ast, Name<'ast>>,
+    pub names: AstNodes<Name>,
 }
 
 /// A concrete/"named" type.
 #[derive(Debug, PartialEq)]
-pub struct NamedType<'ast> {
+pub struct NamedType {
     /// The name of the type.
-    pub name: AstNode<'ast, AccessName<'ast>>,
+    pub name: AstNode<AccessName>,
     /// The type arguments of the type, if any.
-    pub type_args: AstNodes<'ast, Type<'ast>>,
+    pub type_args: AstNodes<Type>,
 }
 
 /// A type variable.
 #[derive(Debug, PartialEq)]
-pub struct TypeVar<'ast> {
+pub struct TypeVar {
     /// The name of the type variable.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
 }
 
 /// A type.
 #[derive(Debug, PartialEq)]
-pub enum Type<'ast> {
+pub enum Type {
     /// A concrete/"named" type.
-    Named(NamedType<'ast>),
+    Named(NamedType),
     /// A reference type.
-    Ref(AstNode<'ast, Type<'ast>>),
+    Ref(AstNode<Type>),
     /// A type variable.
-    TypeVar(TypeVar<'ast>),
+    TypeVar(TypeVar),
     /// The existential type (`?`).
     Existential,
     /// The type infer operator.
@@ -252,84 +86,84 @@ pub enum Type<'ast> {
 
 /// A set literal, e.g. `{1, 2, 3}`.
 #[derive(Debug, PartialEq)]
-pub struct SetLiteral<'ast> {
+pub struct SetLiteral {
     /// The elements of the set literal.
-    pub elements: AstNodes<'ast, Expression<'ast>>,
+    pub elements: AstNodes<Expression>,
 }
 
 /// A list literal, e.g. `[1, 2, 3]`.
 #[derive(Debug, PartialEq)]
-pub struct ListLiteral<'ast> {
+pub struct ListLiteral {
     /// The elements of the list literal.
-    pub elements: AstNodes<'ast, Expression<'ast>>,
+    pub elements: AstNodes<Expression>,
 }
 
 /// A tuple literal, e.g. `(1, 'A', "foo")`.
 #[derive(Debug, PartialEq)]
-pub struct TupleLiteral<'ast> {
+pub struct TupleLiteral {
     /// The elements of the tuple literal.
-    pub elements: AstNodes<'ast, Expression<'ast>>,
+    pub elements: AstNodes<Expression>,
 }
 
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
 #[derive(Debug, PartialEq)]
-pub struct MapLiteral<'ast> {
+pub struct MapLiteral {
     /// The elements of the map literal (key-value pairs).
-    pub elements: &'ast mut [(
-        AstNode<'ast, Expression<'ast>>,
-        AstNode<'ast, Expression<'ast>>,
-    )],
+    pub elements: Vec<(
+        AstNode<Expression>,
+        AstNode<Expression>,
+    )>,
 }
 
 /// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
 #[derive(Debug, PartialEq)]
-pub struct StructLiteralEntry<'ast> {
+pub struct StructLiteralEntry {
     /// The name of the struct field.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The value given to the struct field.
-    pub value: AstNode<'ast, Expression<'ast>>,
+    pub value: AstNode<Expression>,
 }
 
 /// A struct literal, e.g. `Dog { name = "Adam", age = 12 }`
 #[derive(Debug, PartialEq)]
-pub struct StructLiteral<'ast> {
+pub struct StructLiteral {
     /// The name of the struct literal.
-    pub name: AstNode<'ast, AccessName<'ast>>,
+    pub name: AstNode<AccessName>,
     /// Type arguments to the struct literal, if any.
-    pub type_args: AstNodes<'ast, Type<'ast>>,
+    pub type_args: AstNodes<Type>,
     /// The fields (entries) of the struct literal.
-    pub entries: AstNodes<'ast, StructLiteralEntry<'ast>>,
+    pub entries: AstNodes<StructLiteralEntry>,
 }
 
 /// A function definition argument.
 #[derive(Debug, PartialEq)]
-pub struct FunctionDefArg<'ast> {
+pub struct FunctionDefArg {
     /// The name of the argument.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The type of the argument, if any.
     ///
     /// Will be inferred if [None].
-    pub ty: Option<AstNode<'ast, Type<'ast>>>,
+    pub ty: Option<AstNode<Type>>,
 }
 
 /// A function definition.
 #[derive(Debug, PartialEq)]
-pub struct FunctionDef<'ast> {
+pub struct FunctionDef {
     /// The arguments of the function definition.
-    pub args: AstNodes<'ast, FunctionDefArg<'ast>>,
+    pub args: AstNodes<FunctionDefArg>,
     /// The return type of the function definition.
     ///
     /// Will be inferred if [None].
-    pub return_ty: Option<AstNode<'ast, Type<'ast>>>,
+    pub return_ty: Option<AstNode<Type>>,
     /// The body/contents of the function, in the form of an expression.
-    pub fn_body: AstNode<'ast, Expression<'ast>>,
+    pub fn_body: AstNode<Expression>,
 }
 
 /// A literal.
 #[derive(Debug, PartialEq)]
-pub enum Literal<'ast> {
+pub enum Literal {
     /// A string literal.
-    Str(&'ast str),
+    Str(AstString),
     /// A character literal.
     Char(char),
     /// An integer literal.
@@ -338,85 +172,85 @@ pub enum Literal<'ast> {
     /// A float literal.
     Float(f64),
     /// A set literal.
-    Set(SetLiteral<'ast>),
+    Set(SetLiteral),
     /// A map literal.
-    Map(MapLiteral<'ast>),
+    Map(MapLiteral),
     /// A list literal.
-    List(ListLiteral<'ast>),
+    List(ListLiteral),
     /// A tuple literal.
-    Tuple(TupleLiteral<'ast>),
+    Tuple(TupleLiteral),
     /// A struct literal.
-    Struct(StructLiteral<'ast>),
+    Struct(StructLiteral),
     /// A function definition.
-    Function(FunctionDef<'ast>),
+    Function(FunctionDef),
 }
 
 /// An alternative pattern, e.g. `Red | Blue`.
 #[derive(Debug, PartialEq)]
-pub struct OrPattern<'ast> {
+pub struct OrPattern {
     /// The first pattern in the "or".
-    pub a: AstNode<'ast, Pattern<'ast>>,
+    pub a: AstNode<Pattern>,
     /// The second pattern in the "or".
-    pub b: AstNode<'ast, Pattern<'ast>>,
+    pub b: AstNode<Pattern>,
 }
 
 /// A conditional pattern, e.g. `x if x == 42`.
 #[derive(Debug, PartialEq)]
-pub struct IfPattern<'ast> {
+pub struct IfPattern {
     /// The pattern part of the conditional.
-    pub pattern: AstNode<'ast, Pattern<'ast>>,
+    pub pattern: AstNode<Pattern>,
     /// The expression part of the conditional.
-    pub condition: AstNode<'ast, Expression<'ast>>,
+    pub condition: AstNode<Expression>,
 }
 
 /// An enum pattern, e.g. `Some((x, y))`.
 #[derive(Debug, PartialEq)]
-pub struct EnumPattern<'ast> {
+pub struct EnumPattern {
     /// The name of the enum variant.
-    pub name: AstNode<'ast, AccessName<'ast>>,
+    pub name: AstNode<AccessName>,
     /// The arguments of the enum variant as patterns.
-    pub args: AstNodes<'ast, Pattern<'ast>>,
+    pub args: AstNodes<Pattern>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
 ///
 /// Used in struct and namespace patterns.
 #[derive(Debug, PartialEq)]
-pub struct DestructuringPattern<'ast> {
+pub struct DestructuringPattern {
     /// The name of the field.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The pattern to match the field's value with.
-    pub pattern: AstNode<'ast, Pattern<'ast>>,
+    pub pattern: AstNode<Pattern>,
 }
 
 /// A struct pattern, e.g. `Dog { name = "Frank"; age; }`
 #[derive(Debug, PartialEq)]
-pub struct StructPattern<'ast> {
+pub struct StructPattern {
     /// The name of the struct.
-    pub name: AstNode<'ast, AccessName<'ast>>,
+    pub name: AstNode<AccessName>,
     /// The entries of the struct, as [DestructuringPattern] entries.
-    pub entries: AstNodes<'ast, DestructuringPattern<'ast>>,
+    pub entries: AstNodes<DestructuringPattern>,
 }
 
 /// A namespace pattern, e.g. `{ fgets; fputs; }`
 #[derive(Debug, PartialEq)]
-pub struct NamespacePattern<'ast> {
+pub struct NamespacePattern {
     /// The entries of the namespace, as [DestructuringPattern] entries.
-    pub patterns: AstNodes<'ast, DestructuringPattern<'ast>>,
+    pub patterns: AstNodes<DestructuringPattern>,
 }
 
 /// A tuple pattern, e.g. `(1, 2, x)`
 #[derive(Debug, PartialEq)]
-pub struct TuplePattern<'ast> {
+pub struct TuplePattern {
     /// The element of the tuple, as patterns.
-    pub elements: AstNodes<'ast, Pattern<'ast>>,
+    pub elements: AstNodes<Pattern>,
 }
 
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`.
 #[derive(Debug, PartialEq)]
-pub enum LiteralPattern<'ast> {
+pub enum LiteralPattern {
     /// A string literal pattern.
-    Str(&'ast str),
+    Str(AstString),
     /// A character literal pattern.
     Char(char),
     /// An integer literal pattern.
@@ -427,218 +261,218 @@ pub enum LiteralPattern<'ast> {
 
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq)]
-pub enum Pattern<'ast> {
+pub enum Pattern {
     /// An enum pattern.
-    Enum(EnumPattern<'ast>),
+    Enum(EnumPattern),
     /// A struct pattern.
-    Struct(StructPattern<'ast>),
+    Struct(StructPattern),
     /// A namespace pattern.
-    Namespace(NamespacePattern<'ast>),
+    Namespace(NamespacePattern),
     /// A tuple pattern.
-    Tuple(TuplePattern<'ast>),
+    Tuple(TuplePattern),
     /// A literal pattern.
-    Literal(LiteralPattern<'ast>),
+    Literal(LiteralPattern),
     /// An alternative/"or" pattern.
-    Or(OrPattern<'ast>),
+    Or(OrPattern),
     /// A conditional/"if" pattern.
-    If(IfPattern<'ast>),
+    If(IfPattern),
     /// A pattern name binding.
-    Binding(AstNode<'ast, Name<'ast>>),
+    Binding(AstNode<Name>),
     /// The catch-all, i.e "ignore" pattern.
     Ignore,
 }
 
 /// A trait bound, e.g. "where eq<T>"
 #[derive(Debug, PartialEq)]
-pub struct TraitBound<'ast> {
+pub struct TraitBound {
     /// The name of the trait.
-    pub name: AstNode<'ast, AccessName<'ast>>,
+    pub name: AstNode<AccessName>,
     /// The type arguments of the trait.
-    pub type_args: AstNodes<'ast, Type<'ast>>,
+    pub type_args: AstNodes<Type>,
 }
 
 /// A bound, e.g. "<T, U> where conv<U, T>".
 ///
 /// Used in struct, enum, trait definitions.
 #[derive(Debug, PartialEq)]
-pub struct Bound<'ast> {
+pub struct Bound {
     /// The type arguments of the bound.
-    pub type_args: AstNodes<'ast, Type<'ast>>,
+    pub type_args: AstNodes<Type>,
     /// The traits that constrain the bound, if any.
-    pub trait_bounds: AstNodes<'ast, TraitBound<'ast>>,
+    pub trait_bounds: AstNodes<TraitBound>,
 }
 
 /// A let statement, e.g. `let x = 3;`.
 #[derive(Debug, PartialEq)]
-pub struct LetStatement<'ast> {
+pub struct LetStatement {
     /// The pattern to bind the right-hand side to.
-    pub pattern: AstNode<'ast, Pattern<'ast>>,
+    pub pattern: AstNode<Pattern>,
 
     /// Any associated type with the expression
-    pub ty: Option<AstNode<'ast, Type<'ast>>>,
+    pub ty: Option<AstNode<Type>>,
 
     /// The bound of the let, if any.
     ///
     /// Used for trait implementations.
-    pub bound: Option<AstNode<'ast, Bound<'ast>>>,
+    pub bound: Option<AstNode<Bound>>,
 
     /// Any value that is assigned to the statement, simply
     /// an expression. Since it is optional, it will be set
     /// to none if there is no expression.
-    pub value: Option<AstNode<'ast, Expression<'ast>>>,
+    pub value: Option<AstNode<Expression>>,
 }
 
 /// An assign statement, e.g. `x = 4;`.
 #[derive(Debug, PartialEq)]
-pub struct AssignStatement<'ast> {
+pub struct AssignStatement {
     /// The left-hand side of the assignment.
     ///
     /// This should resolve to either a variable or a struct field.
-    pub lhs: AstNode<'ast, Expression<'ast>>,
+    pub lhs: AstNode<Expression>,
     /// The right-hand side of the assignment.
     ///
     /// The value will be assigned to the left-hand side.
-    pub rhs: AstNode<'ast, Expression<'ast>>,
+    pub rhs: AstNode<Expression>,
 }
 
 /// A field of a struct definition, e.g. "name: str".
 #[derive(Debug, PartialEq)]
-pub struct StructDefEntry<'ast> {
+pub struct StructDefEntry {
     /// The name of the struct field.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The type of the struct field.
     ///
     /// Will be inferred if [None].
-    pub ty: Option<AstNode<'ast, Type<'ast>>>,
+    pub ty: Option<AstNode<Type>>,
     /// The default value of the struct field, if any.
-    pub default: Option<AstNode<'ast, Expression<'ast>>>,
+    pub default: Option<AstNode<Expression>>,
 }
 
 /// A struct definition, e.g. `struct Foo = { bar: int; };`.
 #[derive(Debug, PartialEq)]
-pub struct StructDef<'ast> {
+pub struct StructDef {
     /// The name of the struct.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The bound of the struct.
-    pub bound: Option<AstNode<'ast, Bound<'ast>>>,
+    pub bound: Option<AstNode<Bound>>,
     /// The fields of the struct, in the form of [StructDefEntry].
-    pub entries: AstNodes<'ast, StructDefEntry<'ast>>,
+    pub entries: AstNodes<StructDefEntry>,
 }
 
 /// A variant of an enum definition, e.g. `Some(T)`.
 #[derive(Debug, PartialEq)]
-pub struct EnumDefEntry<'ast> {
+pub struct EnumDefEntry {
     /// The name of the enum variant.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The arguments of the enum variant, if any.
-    pub args: AstNodes<'ast, Type<'ast>>,
+    pub args: AstNodes<Type>,
 }
 
 /// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
 #[derive(Debug, PartialEq)]
-pub struct EnumDef<'ast> {
+pub struct EnumDef {
     /// The name of the enum.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The bounds of the enum.
-    pub bound: Option<AstNode<'ast, Bound<'ast>>>,
+    pub bound: Option<AstNode<Bound>>,
     /// The variants of the enum, in the form of [EnumDefEntry].
-    pub entries: AstNodes<'ast, EnumDefEntry<'ast>>,
+    pub entries: AstNodes<EnumDefEntry>,
 }
 
 /// A trait definition, e.g. `trait add = <T> => (T, T) => T;`.
 #[derive(Debug, PartialEq)]
-pub struct TraitDef<'ast> {
+pub struct TraitDef {
     /// The name of the trait.
-    pub name: AstNode<'ast, Name<'ast>>,
+    pub name: AstNode<Name>,
     /// The bound of the trait.
-    pub bound: AstNode<'ast, Bound<'ast>>,
+    pub bound: AstNode<Bound>,
     /// The inner type of the trait. Expected to be a `Function` type.
-    pub trait_type: AstNode<'ast, Type<'ast>>,
+    pub trait_type: AstNode<Type>,
 }
 
 /// A statement.
 #[derive(Debug, PartialEq)]
-pub enum Statement<'ast> {
+pub enum Statement {
     /// An expression statement, e.g. `my_func();`
-    Expr(AstNode<'ast, Expression<'ast>>),
+    Expr(AstNode<Expression>),
     /// An return statement.
     ///
     /// Has an optional return expression, which becomes `void` if [None] is given.
-    Return(Option<AstNode<'ast, Expression<'ast>>>),
+    Return(Option<AstNode<Expression>>),
     /// A block statement.
-    Block(AstNode<'ast, Block<'ast>>),
+    Block(AstNode<Block>),
     /// Break statement (only in loop context).
     Break,
     /// Continue statement (only in loop context).
     Continue,
     /// A let statement.
-    Let(LetStatement<'ast>),
+    Let(LetStatement),
     /// An assign statement.
-    Assign(AssignStatement<'ast>),
+    Assign(AssignStatement),
     /// A struct definition.
-    StructDef(StructDef<'ast>),
+    StructDef(StructDef),
     /// An enum definition.
-    EnumDef(EnumDef<'ast>),
+    EnumDef(EnumDef),
     /// A trait definition.
-    TraitDef(TraitDef<'ast>),
+    TraitDef(TraitDef),
 }
 
 /// A branch/"case" of a `match` block.
 #[derive(Debug, PartialEq)]
-pub struct MatchCase<'ast> {
+pub struct MatchCase {
     /// The pattern of the `match` case.
-    pub pattern: AstNode<'ast, Pattern<'ast>>,
+    pub pattern: AstNode<Pattern>,
     /// The expression corresponding to the match case.
     ///
     /// Will be executed if the pattern succeeeds.
-    pub expr: AstNode<'ast, Expression<'ast>>,
+    pub expr: AstNode<Expression>,
 }
 
 /// A `match` block.
 #[derive(Debug, PartialEq)]
-pub struct MatchBlock<'ast> {
+pub struct MatchBlock {
     /// The expression to match on.
-    pub subject: AstNode<'ast, Expression<'ast>>,
+    pub subject: AstNode<Expression>,
     /// The match cases to execute.
-    pub cases: AstNodes<'ast, MatchCase<'ast>>,
+    pub cases: AstNodes<MatchCase>,
 }
 
 /// A body block.
 #[derive(Debug, PartialEq)]
-pub struct BodyBlock<'ast> {
+pub struct BodyBlock {
     /// Zero or more statements.
-    pub statements: AstNodes<'ast, Statement<'ast>>,
+    pub statements: AstNodes<Statement>,
     /// Zero or one expression.
-    pub expr: Option<AstNode<'ast, Expression<'ast>>>,
+    pub expr: Option<AstNode<Expression>>,
 }
 
 /// A block.
 #[derive(Debug, PartialEq)]
-pub enum Block<'ast> {
+pub enum Block {
     /// A match block.
-    Match(MatchBlock<'ast>),
+    Match(MatchBlock),
     /// A loop block.
     ///
     /// The inner block is the loop body.
-    Loop(AstNode<'ast, Block<'ast>>),
+    Loop(AstNode<Block>),
     /// A body block.
-    Body(BodyBlock<'ast>),
+    Body(BodyBlock),
 }
 
 /// Function call arguments.
 #[derive(Debug, PartialEq)]
-pub struct FunctionCallArgs<'ast> {
+pub struct FunctionCallArgs {
     /// Each argument of the function call, as an expression.
-    pub entries: AstNodes<'ast, Expression<'ast>>,
+    pub entries: AstNodes<Expression>,
 }
 
 /// A function call expression.
 #[derive(Debug, PartialEq)]
-pub struct FunctionCallExpr<'ast> {
+pub struct FunctionCallExpr {
     /// An expression which evaluates to a function value.
-    pub subject: AstNode<'ast, Expression<'ast>>,
+    pub subject: AstNode<Expression>,
     /// Arguments to the function, in the form of [FunctionCallArgs].
-    pub args: AstNode<'ast, FunctionCallArgs<'ast>>,
+    pub args: AstNode<FunctionCallArgs>,
 }
 
 /// A logical operator.
@@ -654,92 +488,92 @@ pub enum LogicalOp {
 
 /// A logical operation expression.
 #[derive(Debug, PartialEq)]
-pub struct LogicalOpExpr<'ast> {
+pub struct LogicalOpExpr {
     /// The operator of the logical operation.
-    pub op: AstNode<'ast, LogicalOp>,
+    pub op: AstNode<LogicalOp>,
     /// The left-hand side of the operation.
-    pub lhs: AstNode<'ast, Expression<'ast>>,
+    pub lhs: AstNode<Expression>,
     /// The right-hand side of the operation.
-    pub rhs: AstNode<'ast, Expression<'ast>>,
+    pub rhs: AstNode<Expression>,
 }
 
 /// A property access exprssion.
 #[derive(Debug, PartialEq)]
-pub struct PropertyAccessExpr<'ast> {
+pub struct PropertyAccessExpr {
     /// An expression which evaluates to a struct or tuple value.
-    pub subject: AstNode<'ast, Expression<'ast>>,
+    pub subject: AstNode<Expression>,
     /// The property of the subject to access.
-    pub property: AstNode<'ast, Name<'ast>>,
+    pub property: AstNode<Name>,
 }
 
 /// A typed expression, e.g. `foo as int`.
 #[derive(Debug, PartialEq)]
-pub struct TypedExpr<'ast> {
+pub struct TypedExpr {
     /// The annotated type of the expression.
-    pub ty: AstNode<'ast, Type<'ast>>,
+    pub ty: AstNode<Type>,
     /// The expression being typed.
-    pub expr: AstNode<'ast, Expression<'ast>>,
+    pub expr: AstNode<Expression>,
 }
 
 /// Represents a path to a module, given as a string literal to an `import` call.
 #[derive(Debug, PartialEq)]
-pub struct Import<'ast> {
-    pub path: &'ast str,
+pub struct Import {
+    pub path: AstString,
     pub index: ModuleIdx,
 }
 
 /// A variable expression.
 #[derive(Debug, PartialEq)]
-pub struct VariableExpr<'ast> {
+pub struct VariableExpr {
     /// The name of the variable.
-    pub name: AstNode<'ast, AccessName<'ast>>,
+    pub name: AstNode<AccessName>,
     /// Any type arguments of the variable. Only valid for traits.
-    pub type_args: AstNodes<'ast, Type<'ast>>,
+    pub type_args: AstNodes<Type>,
 }
 
 /// A variable expression.
 #[derive(Debug, PartialEq)]
-pub struct IndexExpr<'ast> {
+pub struct IndexExpr {
     /// The name of the variable.
-    pub subject: AstNode<'ast, Expression<'ast>>,
+    pub subject: AstNode<Expression>,
     /// Any type arguments of the variable. Only valid for traits.
-    pub index: AstNodes<'ast, Expression<'ast>>,
+    pub index: AstNodes<Expression>,
 }
 
 /// An expression.
 #[derive(Debug, PartialEq)]
-pub enum Expression<'ast> {
+pub enum Expression {
     /// A function call.
-    FunctionCall(FunctionCallExpr<'ast>),
+    FunctionCall(FunctionCallExpr),
     /// An intrinsic symbol.
-    Intrinsic(IntrinsicKey<'ast>),
+    Intrinsic(IntrinsicKey),
     /// A logical operation.
-    LogicalOp(LogicalOpExpr<'ast>),
+    LogicalOp(LogicalOpExpr),
     /// A variable.
-    Variable(VariableExpr<'ast>),
+    Variable(VariableExpr),
     /// A property access.
-    PropertyAccess(PropertyAccessExpr<'ast>),
+    PropertyAccess(PropertyAccessExpr),
     /// An index.
-    Index(IndexExpr<'ast>),
+    Index(IndexExpr),
     /// A reference expression.
-    Ref(AstNode<'ast, Expression<'ast>>),
+    Ref(AstNode<Expression>),
     /// A dereference expression.
-    Deref(AstNode<'ast, Expression<'ast>>),
+    Deref(AstNode<Expression>),
     /// A literal.
-    LiteralExpr(AstNode<'ast, Literal<'ast>>),
+    LiteralExpr(AstNode<Literal>),
     /// A typed expression.
-    Typed(TypedExpr<'ast>),
+    Typed(TypedExpr),
     /// A block.
-    Block(AstNode<'ast, Block<'ast>>),
+    Block(AstNode<Block>),
     /// An `import` call.
-    Import(AstNode<'ast, Import<'ast>>),
+    Import(AstNode<Import>),
 }
 
 /// A module.
 ///
 /// Represents a parsed `.hash` file.
 #[derive(Debug, PartialEq)]
-pub struct Module<'ast> {
+pub struct Module {
     /// The contents of the module, as a list of statements.
-    pub contents: AstNodes<'ast, Statement<'ast>>,
+    pub contents: AstNodes<Statement>,
 }

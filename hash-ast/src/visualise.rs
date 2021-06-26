@@ -18,7 +18,7 @@ pub trait NodeDisplay {
     fn node_display(&self) -> Vec<String>;
 }
 
-impl<T> std::fmt::Display for AstNode<'_, T>
+impl<T> std::fmt::Display for AstNode<T>
 where
     Self: NodeDisplay,
 {
@@ -37,13 +37,13 @@ where
     }
 }
 
-impl<'ast> NodeDisplay for Module<'ast> {
+impl NodeDisplay for Module {
     fn node_display(&self) -> Vec<String> {
         todo!()
     }
 }
 
-impl<'ast> NodeDisplay for AstNode<'ast, Statement<'ast>> {
+impl NodeDisplay for AstNode<Statement> {
     fn node_display(&self) -> Vec<String> {
         todo!()
         // let node_count = 0;
@@ -63,7 +63,7 @@ impl<'ast> NodeDisplay for AstNode<'ast, Statement<'ast>> {
     }
 }
 
-impl<'ast> NodeDisplay for AstNode<'ast, Import<'ast>> {
+impl NodeDisplay for AstNode<Import> {
     fn node_display(&self) -> Vec<String> {
         vec![
             format!("import\n{}", END_PIPE),
@@ -72,15 +72,15 @@ impl<'ast> NodeDisplay for AstNode<'ast, Import<'ast>> {
     }
 }
 
-impl<'ast> NodeDisplay for AstNode<'ast, Expression<'ast>> {
+impl NodeDisplay for AstNode<Expression> {
     fn node_display(&self) -> Vec<String> {
         todo!()
     }
 }
 
-impl<'ast> NodeDisplay for AstNode<'ast, Block<'ast>> {
+impl NodeDisplay for AstNode<Block> {
     fn node_display(&self) -> Vec<String> {
-        match &self.body {
+        match self.body.as_ref() {
             Block::Match(_match_body) => todo!(),
             Block::Loop(_loop_body) => {
                 // first of all, we need to call format on all of the children statements

@@ -18,7 +18,7 @@ pub use derived::{HashGrammar, Rule};
 use pest::Parser;
 
 use hash_ast::{
-    ast::{self, AstAllocator},
+    ast,
     error::{ParseError, ParseResult},
     parse::{timed, ModuleResolver, ParserBackend},
 };
@@ -28,17 +28,13 @@ use crate::{error::PestError, translate::PestAstBuilder};
 pub type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
 impl ParserBackend for HashGrammar {
-    fn parse_module<'ast, 'alloc>(
+    fn parse_module(
         &self,
         resolver: &mut impl ModuleResolver,
         path: &Path,
         contents: &str,
-        allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
-    ) -> ParseResult<ast::Module<'ast>>
-    where
-        'ast: 'alloc,
-    {
-        let mut builder = PestAstBuilder::new(resolver, allocator);
+    ) -> ParseResult<ast::Module> {
+        let mut builder = PestAstBuilder::new(resolver);
         let pest_result = timed(
             || HashGrammar::parse(Rule::module, contents),
             log::Level::Debug,
@@ -49,8 +45,9 @@ impl ParserBackend for HashGrammar {
         timed(
             || {
                 Ok(ast::Module {
-                    contents: allocator
-                        .try_alloc_slice(pest_result.map(|x| builder.transform_statement(x)))?,
+                    contents: pest_result
+                        .map(|x| builder.transform_statement(x))
+                        .collect::<Result<_, _>>()?,
                 })
             },
             log::Level::Debug,
@@ -58,16 +55,12 @@ impl ParserBackend for HashGrammar {
         )
     }
 
-    fn parse_statement<'ast, 'alloc>(
+    fn parse_statement(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-        allocator: &'alloc impl AstAllocator<'ast, 'alloc>,
-    ) -> ParseResult<ast::AstNode<'ast, ast::Statement<'ast>>>
-    where
-        'ast: 'alloc,
-    {
-        let mut builder = PestAstBuilder::new(resolver, allocator);
+    ) -> ParseResult<ast::AstNode<ast::Statement>> {
+        let mut builder = PestAstBuilder::new(resolver);
         match HashGrammar::parse(Rule::statement, contents) {
             Ok(mut result) => builder.transform_statement(result.next().unwrap()),
             // TODO: use constant for "interactive"
