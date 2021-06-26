@@ -92,7 +92,6 @@ fn execute(input: &str) {
             // parse the input
             let directory = env::current_dir().unwrap();
             let statement = parser.parse_statement(&expr, &directory);
-            // println!("{:#?}", statement);
 
             if let Ok(modules) = statement {
                 let node_count: usize = modules

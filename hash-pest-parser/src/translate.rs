@@ -1,13 +1,13 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights rese name: (), args: ()  name: (), args: () rved 2021 (c) The Hash Language authors
 
 use std::{cell::Cell, iter, path::PathBuf};
 
 use crate::{
     grammar::{HashPair, Rule},
     precedence::PREC_CLIMBER,
-    utils::{convert_rule_into_fn_call, OperatorFn},
+    utils::{convert_rule_into_fn_call, CompoundFn, OperatorFn},
 };
 use hash_ast::{
     ast::*,
@@ -48,7 +48,7 @@ impl NodeBuilder {
         NodeBuilder {
             site: SourceLocation {
                 location: node.pos,
-                path: PathBuf::from(""), // TODO: actually get the filename here! ,
+                path: PathBuf::from(""), // TODO: actually get the filename here!
             },
         }
     }
@@ -108,6 +108,121 @@ impl NodeBuilder {
             type_args: vec![],
         }))
     }
+
+    /// Function to make a lambda from a given expression. This takes the expression
+    /// and put's the expression as the returning expression of a function body block
+    fn make_single_lambda(&self, expr: AstNode<Expression>) -> AstNode<Expression> {
+        self.node(Expression::LiteralExpr(self.node(Literal::Function(
+            FunctionDef {
+                args: vec![],
+                return_ty: None,
+                fn_body: expr,
+            },
+        ))))
+    }
+
+    /// Utility function to transform to some expression into a referenced expresison
+    /// given some condition. This function is useful when transpilling some types of
+    /// operators which might have a side-effect to overwrite the lhs.
+    fn transform_expr_into_ref(
+        &self,
+        expr: AstNode<Expression>,
+        transform: bool,
+    ) -> AstNode<Expression> {
+        if transform {
+            self.node(Expression::Ref(expr))
+        } else {
+            expr
+        }
+    }
+
+    // we love jon blow
+    fn transfrom_compound_ord_fn(
+        &self,
+        fn_ty: CompoundFn,
+        assiging: bool,
+        lhs: AstNode<Expression>,
+        rhs: AstNode<Expression>,
+    ) -> AstNode<Expression> {
+        // we need to transform the lhs into a reference if the type of function is 'assigning'
+        let lhs = self.transform_expr_into_ref(lhs, assiging);
+
+        let fn_call = self.node(Expression::FunctionCall(FunctionCallExpr {
+            subject: self.node(Expression::Variable(VariableExpr {
+                name: self.make_single_access_name(AstString::Borrowed("ord")),
+                type_args: vec![],
+            })),
+            args: self.node(FunctionCallArgs {
+                entries: vec![lhs, rhs],
+            }),
+        }));
+
+        // each tuple bool variant represents a branch the match statement
+        // should return 'true' on, and all the rest will return false...
+        // the order is (Lt, Eq, Gt)
+        let mut branches = match fn_ty {
+            CompoundFn::Leq => {
+                vec![self.node(MatchCase {
+                    pattern: self.node(Pattern::Or(OrPattern {
+                        a: self.node(Pattern::Enum(EnumPattern {
+                            name: self.make_single_access_name(AstString::Borrowed("Lt")),
+                            args: vec![],
+                        })),
+                        b: self.node(Pattern::Enum(EnumPattern {
+                            name: self.make_single_access_name(AstString::Borrowed("Eq")),
+                            args: vec![],
+                        })),
+                    })),
+                    expr: self.make_variable(self.make_boolean(true)),
+                })]
+            }
+            CompoundFn::Geq => {
+                vec![self.node(MatchCase {
+                    pattern: self.node(Pattern::Or(OrPattern {
+                        a: self.node(Pattern::Enum(EnumPattern {
+                            name: self.make_single_access_name(AstString::Borrowed("Gt")),
+                            args: vec![],
+                        })),
+                        b: self.node(Pattern::Enum(EnumPattern {
+                            name: self.make_single_access_name(AstString::Borrowed("Eq")),
+                            args: vec![],
+                        })),
+                    })),
+                    expr: self.make_variable(self.make_boolean(true)),
+                })]
+            }
+            CompoundFn::Lt => {
+                vec![self.node(MatchCase {
+                    pattern: self.node(Pattern::Enum(EnumPattern {
+                        name: self.make_single_access_name(AstString::Borrowed("Lt")),
+                        args: vec![],
+                    })),
+                    expr: self.make_variable(self.make_boolean(false)),
+                })]
+            }
+            CompoundFn::Gt => {
+                vec![self.node(MatchCase {
+                    pattern: self.node(Pattern::Enum(EnumPattern {
+                        name: self.make_single_access_name(AstString::Borrowed("Gt")),
+                        args: vec![],
+                    })),
+                    expr: self.make_variable(self.make_boolean(false)),
+                })]
+            }
+        };
+
+        // add the '_' case to the branches to return false on any other
+        // condition
+        branches.push(self.node(MatchCase {
+            pattern: self.node(Pattern::Ignore),
+            expr: self.make_variable(self.make_boolean(false)),
+        }));
+
+        self.node(Expression::Block(self.node(Block::Match(MatchBlock {
+            subject: fn_call,
+            cases: branches,
+        }))))
+    }
 }
 
 pub(crate) fn build_binary(
@@ -121,18 +236,47 @@ pub(crate) fn build_binary(
     let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
 
     match subject_name {
-        OperatorFn::Named(fn_name) => {
+        OperatorFn::Named { name, assigning } => {
+            // @@Copied
+
             Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
                 subject: ab.node(Expression::Variable(VariableExpr {
-                    name: ab.make_single_access_name(AstString::Borrowed(fn_name)),
+                    name: ab.make_single_access_name(AstString::Borrowed(name)),
                     type_args: vec![], // we dont need any kind of typeargs since were just transpiling here
                 })),
                 args: ab.node(FunctionCallArgs {
-                    entries: vec![lhs?, rhs?],
+                    entries: vec![ab.transform_expr_into_ref(lhs?, assigning), rhs?],
                 }),
             })))
         }
-        _ => unimplemented!(),
+        OperatorFn::Compound { name, assigning } => {
+            // @@Copied
+            //
+            // for compound functions that include ordering, we essentially transpile
+            // into a match block that checks the result of the 'ord' fn call to the
+            // 'Ord' enum variants. This also happens for operators such as '>=' which
+            // essentially means that we have to check if the result of 'ord()' is either
+            // 'Eq' or 'Gt'.
+            Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
+        }
+        OperatorFn::LazyNamed { name, assigning } => {
+            // @@Copied: transform lhs into ref if assinging
+
+            let fn_call = ab.node(Expression::FunctionCall(FunctionCallExpr {
+                subject: ab.node(Expression::Variable(VariableExpr {
+                    name: ab.make_single_access_name(AstString::Borrowed(name)),
+                    type_args: vec![],
+                })),
+                args: ab.node(FunctionCallArgs {
+                    entries: vec![
+                        ab.transform_expr_into_ref(lhs?, assigning),
+                        ab.make_single_lambda(rhs?),
+                    ],
+                }),
+            }));
+
+            Ok(fn_call)
+        }
     }
 }
 
@@ -886,13 +1030,6 @@ where
                         let s = import_path.as_span().as_str();
                         let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
 
-                        let import = self.builder_from_pair(&import_path).node(Import {
-                            path: s.to_owned().into(),
-                            index: module_idx,
-                        });
-
-                        println!("{}", import);
-
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::Import(
                             self.builder_from_pair(&import_path).node(Import {
@@ -927,7 +1064,11 @@ where
                 // can be zero or more accessors, we need continue looking at each rule until there
                 // are no more accessors. If there is an accessor, we pattern match for the type,
                 // transform the old 'subject' and continue
-                let expr_node = expr.fold(subject, |prev_subject, accessor| {
+                //
+                // since there can be zero or more 'accessor' rules, we are sure that the current
+                // expr has been transformed as required, essentially nesting each form of
+                // accessor in each other
+                expr.fold(subject, |prev_subject, accessor| {
                     let prev_subject = prev_subject?;
                     match accessor.as_rule() {
                         Rule::property_access => {
@@ -977,12 +1118,7 @@ where
                         }
                         k => panic!("unexpected rule within variable expr: {:?}", k),
                     }
-                });
-
-                // since there can be zero or more 'accessor' rules, we are sure that the current
-                // expr has been transformed as required, essentially nesting each form of
-                // accessor in each other
-                expr_node
+                })
             }
             k => panic!("unexpected rule within expr: {:?}", k),
         }
@@ -1355,20 +1491,16 @@ where
                                 let transform = convert_rule_into_fn_call(&op.as_rule());
 
                                 let rhs = self.transform_expression(components.next().unwrap())?;
+                                let builder = self.builder_from_node(&rhs);
 
-                                // transform lhs if we're using a non-eq assignment operator into the appropriate
-                                // function call...
                                 match transform {
-                                    Some(OperatorFn::Named(fn_name)) => {
-                                        // Representing '$internal' as an identifier
-                                        let builder = self.builder_from_node(&rhs);
-
+                                    Some(OperatorFn::Named { name, assigning }) => {
                                         let assign_call = builder.node(Expression::FunctionCall(
                                             FunctionCallExpr {
                                                 subject: builder.node(Expression::Variable(
                                                     VariableExpr {
                                                         name: builder.make_single_access_name(
-                                                            AstString::Borrowed(fn_name),
+                                                            AstString::Borrowed(name),
                                                         ),
                                                         type_args: vec![],
                                                     },
@@ -1376,7 +1508,9 @@ where
                                                 args: self.builder_from_node(&rhs).node(
                                                     FunctionCallArgs {
                                                         entries: vec![
-                                                            ab.node(Expression::Ref(lhs)),
+                                                            ab.transform_expr_into_ref(
+                                                                lhs, assigning,
+                                                            ),
                                                             rhs,
                                                         ],
                                                     },
@@ -1385,11 +1519,52 @@ where
                                         ));
                                         Ok(ab.node(Statement::Expr(assign_call)))
                                     }
-                                    Some(OperatorFn::LazyNamed(_fn_name)) => {
-                                        unimplemented!()
+                                    Some(OperatorFn::LazyNamed { name, assigning }) => {
+                                        // some functions have to ehxibit a short-circuiting behaviour, namely
+                                        // the logical 'and' and 'or' operators. To do this, we expect the 'and'
+                                        // 'or' trait (and their assignment counterparts) to expect the rhs part
+                                        // as a lambda. So, we essentially create a lambda that calls the rhs, or
+                                        // in other words, something like this happens:
+                                        //
+                                        // >>> lhs && rhs
+                                        // vvv (transpiles to...)
+                                        // >>> and(lhs, () => rhs)
+                                        //
+
+                                        let fn_call = builder.node(Expression::FunctionCall(
+                                            FunctionCallExpr {
+                                                subject: builder.node(Expression::Variable(
+                                                    VariableExpr {
+                                                        name: builder.make_single_access_name(
+                                                            AstString::Borrowed(name),
+                                                        ),
+                                                        type_args: vec![],
+                                                    },
+                                                )),
+                                                args: ab.node(FunctionCallArgs {
+                                                    entries: vec![
+                                                        ab.transform_expr_into_ref(lhs, assigning),
+                                                        ab.make_single_lambda(rhs),
+                                                    ],
+                                                }),
+                                            },
+                                        ));
+
+                                        Ok(ab.node(Statement::Expr(fn_call)))
                                     }
-                                    Some(_t) => {
-                                        unimplemented!()
+                                    Some(OperatorFn::Compound { name, assigning }) => {
+                                        // @@Copied
+                                        //
+                                        // for compound functions that include ordering, we essentially transpile
+                                        // into a match block that checks the result of the 'ord' fn call to the
+                                        // 'Ord' enum variants. This also happens for operators such as '>=' which
+                                        // essentially means that we have to check if the result of 'ord()' is either
+                                        // 'Eq' or 'Gt'.
+                                        Ok(ab.node(Statement::Expr(
+                                            builder.transfrom_compound_ord_fn(
+                                                name, assigning, lhs, rhs,
+                                            ),
+                                        )))
                                     }
                                     None => {
                                         Ok(ab
