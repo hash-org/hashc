@@ -1,7 +1,13 @@
 [workspace]
 members = [
-  "hash-parser",
+  "hash-ast",
+  "hash-pest-parser",
   "hash-backend",
   "hash-typecheck",
   "hash"
 ]
+
+[profile.release]
+opt-level = 3
+lto = true
+debug = false

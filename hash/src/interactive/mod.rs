@@ -3,14 +3,22 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 mod command;
-mod error;
+pub(crate) mod error;
 
 use command::InteractiveCommand;
-use error::{report_interp_error, InterpreterError};
-use hash_parser::parse;
+use error::InterpreterError;
+use hash_ast::ast::{AstNode, BodyBlock};
+use hash_ast::count::NodeCount;
+use hash_ast::parse::{Modules, ParParser, Parser};
+use hash_pest_parser::grammar::HashGrammar;
+
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
+use std::env;
 use std::process::exit;
+
+use crate::error::CompilerError;
+use crate::error::CompilerResult;
 
 /// Interactive backend version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -29,7 +37,7 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init() {
+pub fn init() -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
@@ -48,9 +56,27 @@ pub fn init() {
                 break;
             }
             Err(err) => {
-                report_interp_error(InterpreterError::InternalError(format!("{:?}", err)));
-                break;
+                return Err(
+                    InterpreterError::InternalError(format!("Unexpected error: {}", err)).into(),
+                );
             }
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+    // setup the parser
+    let parser = ParParser::new(HashGrammar);
+    let directory = env::current_dir().unwrap();
+
+    // parse the input
+    match parser.parse_interactive(&expr, &directory) {
+        Ok(result) => Some(result),
+        Err(e) => {
+            CompilerError::from(e).report();
+            None
         }
     }
 }
@@ -76,12 +102,27 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
-            // parse the input
-            let _ = parse::statement(&expr);
-
-            // Typecheck and execute...
+            if parse_interactive(expr).is_some() {
+                println!("running code...");
+                // Typecheck and execute...
+            }
         }
-        Ok(InteractiveCommand::Type(expr)) => println!("typeof({})", expr),
-        Err(e) => report_interp_error(e),
+        Ok(InteractiveCommand::Type(expr)) => {
+            if let Some((block, _)) = parse_interactive(expr) {
+                println!("typeof({:#?})", block);
+            }
+        }
+        Ok(InteractiveCommand::Display(expr)) => {
+            if let Some((block, _)) = parse_interactive(expr) {
+                //@@Todo(alex) change this to node_display when it's ready.
+                println!("{:?}", block);
+            }
+        }
+        Ok(InteractiveCommand::Count(expr)) => {
+            if let Some((block, _)) = parse_interactive(expr) {
+                println!("{} nodes", block.node_count());
+            }
+        }
+        Err(e) => CompilerError::from(e).report(),
     }
 }

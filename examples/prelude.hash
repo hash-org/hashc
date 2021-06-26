@@ -71,20 +71,20 @@ let size<{K:V}> where eq<K>, hash<K> = (map) => #intrinsic_size(map);
 
 // Primitives that are injected even before the prelude is injected 
 //enum bool = {
-//   true,
-//   false,
+//   true;
+//   false;
 //};
 
 // Represents an optional value.
 // enum Option = <T> => {
-//   Some(T),
-//   None,
+//   Some(T);
+//   None;
 // };
 
 // Represents the result of a fallible operation.
 // enum Result = <T, E> => {
-//   Ok(T),
-//   Err(E),
+//   Ok(T);
+//   Err(E);
 // };
 
 // Hash a value into a 64-bit integer
@@ -164,7 +164,7 @@ let eq<{A:B}> where eq<A>, hash<A>, eq<B> = (a, b) => #intrinsic_eq_map(a, b, (a
 
 // Ordering
 // Implemented for numeric primitives and strings.
-enum Ordering = { Lt, Eq, Gt, };
+enum Ordering = { Lt; Eq; Gt; };
 let eq<Ordering> = (a: Ordering, b: Ordering) => match (a, b) {
     (Eq, Eq) => true;
     (Lt, Lt) => true;

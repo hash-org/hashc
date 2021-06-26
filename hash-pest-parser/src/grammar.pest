@@ -5,7 +5,7 @@
 /// Comments
 COMMENT = _{ line_comment | block_comment }
 line_comment = _{"//" ~ (!NEWLINE ~ ANY)*}
-block_comment = _{"/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+block_comment = _{"/*" ~ (!"*/" ~ ( (&"/*" ~ block_comment) | ANY) )* ~ "*/" } // check for nested comments here...
 
 /// Whitespace
 WHITESPACE = _{ (" " | "\t" | "\r" | "\n")+ }
@@ -81,7 +81,7 @@ ident = @{ !( "_" ~ !ident_first_char ) ~ ident_first_char ~ ident_char* }
 
 /// Name and access name
 keyword_ident = @{ keyword ~ !ident_char } // Used to prevent keywords being used as identifiers.
-name = { !keyword_ident ~ ident }
+name = _{ !keyword_ident ~ ident }
 access_name = { name ~ (namespace_op ~ name)* }
 
 /// ---- Literals ----
@@ -90,32 +90,39 @@ access_name = { name ~ (namespace_op ~ name)* }
 integer_literal = { hex_literal | octal_literal | bin_literal | decimal_literal }
 digit_sep = _{ "_" }
 
-/// Decimal
-decimal_digit = ${ ASCII_DIGIT }
-decimal_prefix = _{ "0d" }
-decimal_literal = ${ decimal_prefix? ~ decimal_digit ~ (decimal_digit | digit_sep)* }
-
 /// Octal
-octal_digit = ${ ASCII_OCT_DIGIT }
+octal_digit = _{ ASCII_OCT_DIGIT }
 octal_prefix = _{ "0o" }
-octal_literal = ${ octal_prefix ~ octal_digit ~ (octal_digit | digit_sep)* }
+octal_value = ${octal_digit ~ (octal_digit | digit_sep)*}
+octal_literal = ${ octal_prefix ~ octal_value }
 
 /// Hexadecimal
-hex_digit = ${ ASCII_HEX_DIGIT }
+hex_digit = _{ ASCII_HEX_DIGIT }
 hex_prefix = _{ "0x" }
-hex_literal = ${ hex_prefix ~ hex_digit ~ (hex_digit | digit_sep)* }
+hex_value = ${hex_digit ~ (hex_digit | digit_sep)*}
+hex_literal = ${ hex_prefix ~ hex_value }
 
 /// Binary
-bin_digit = ${ ASCII_BIN_DIGIT }
+bin_digit = _{ ASCII_BIN_DIGIT }
 bin_prefix = _{ "0b" }
-bin_literal = ${ bin_prefix ~ bin_digit ~ (bin_digit | digit_sep)* }
+bin_value = ${bin_digit ~ (bin_digit | digit_sep)* }
+bin_literal = ${ bin_prefix ~ bin_value }
+
+/// Shared definitions between decimal and float
+num_part = @{ decimal_digit ~ (decimal_digit | digit_sep)* }
+exp      = _{ "e" }
+sign     = _{add_op | sub_op}
+exp_part =  ${ exp ~ sign? ~ num_part }
+
+/// Decimal
+decimal_digit = _{ ASCII_DIGIT }
+decimal_prefix = _{ "0d" }
+decimal_literal = ${ decimal_prefix? ~ num_part }
 
 /// Float literal
 float_period = _{ "." }
-float_part = ${ decimal_digit+ }
-float_exp_e = _{ "e" }
-float_exp = ${ float_exp_e ~ (add_op | sub_op)? ~ float_part }
-float_literal = ${ float_part ~ float_period ~ float_part ~ float_exp? }
+float_component = ${num_part ~ float_period ~ num_part}
+float_literal = ${ float_component ~ exp_part? }
 
 /// String literal
 string_quote = _{ "\"" }
@@ -124,7 +131,7 @@ string_literal = ${ string_quote ~ (raw_string | escape)* ~ string_quote }
 
 /// Character literal
 char_quote = _{ "'" }
-char_literal = ${ char_quote ~ (escape | ANY) ~ char_quote }
+char_literal = @{ char_quote ~ (escape | ANY) ~ char_quote }
 
 /// Escaping utilities
 predefined = { "n" | "r" | "t" | "\\" | "0" | "\"" | "'" }
@@ -147,13 +154,14 @@ map_literal = { curly_left ~ ((colon_op ~ &curly_right) | (map_entry ~ (comma_op
 /// Function literal
 fn_param = { name ~ (colon_op ~ any_type)? }
 fn_params = { paren_left ~ (fn_param ~ (comma_op ~ fn_param)*)? ~ paren_right }
-fn_return_ty = { colon_op ~ any_type }
+fn_return_ty = _{ colon_op ~ any_type }
 fn_body = { arrow_op ~ expr }
 fn_literal = { fn_params ~ fn_return_ty? ~ fn_body }
 
 /// Struct literal
 struct_literal_field = { name ~ eq_op ~ expr }
-struct_literal = { access_name ~ type_args? ~ curly_left ~ (struct_literal_field ~ (comma_op ~ struct_literal_field)* ~ comma_op?)* ~ curly_right }
+struct_literal_fields = {curly_left ~ (struct_literal_field ~ (comma_op ~ struct_literal_field)* ~ comma_op?)* ~ curly_right }
+struct_literal = { access_name ~ type_args? ~ struct_literal_fields }
 
 /// ---- Operators ----
 
@@ -197,7 +205,7 @@ andl_op = { "&&" }
 orl_op = { "||" }
 shl_op = { "<<" }
 shr_op = { ">>" }
-exp_op = { "**" }
+exp_op = { "^^" }
 gt_op = { ">" }
 lt_op = { "<" }
 geq_op = { ">=" }
@@ -205,7 +213,8 @@ leq_op = { "<=" }
 andb_op = { "&" }
 orb_op = { "|" }
 xorb_op = { "^" }
-binary_op = { 
+
+binary_op = _{ 
     triple_eq_op  |
     double_eq_op  |
     double_neq_op |
@@ -232,8 +241,11 @@ binary_op = {
 /// Unary operators
 not_op = { "!" }
 notb_op = { "~" }
+pos_op = {"+"}
 neg_op = { "-" }
-unary_op = { not_op | notb_op | neg_op }
+ref_op = { "&" }
+deref_op = { "*" }
+unary_op = { not_op | notb_op | neg_op | pos_op | ref_op | deref_op }
 
 /// ---- Types ----
 
@@ -260,8 +272,13 @@ bound = { type_args ~ where_traits? }
 /// Named type
 named_type = { access_name ~ type_args? } // this also handles type variables
 
+/// Reference type
+type_ref_op = _{ "&" }
+ref_type = { type_ref_op ~ any_type }
+
 /// Any type
 any_type = { 
+    ref_type   |
     named_type |
     infer_type |
     fn_type    |
@@ -330,12 +347,7 @@ typed_expr = { unary_expr ~ ( as_kw ~ any_type )? }
 binary_expr = { typed_expr ~ ( binary_op ~ typed_expr )* }
 
 /// Block expression
-block_expr = { block }
-
-/// Struct literal
-/// Placed outside of other literals to prevent blocks being parsed as struct
-/// expressions.
-struct_expr = { struct_literal }
+block_expr = _{ block }
 
 /// Any expression
 expr = { block_expr | ( &struct_literal ~ struct_literal ) | binary_expr }
@@ -355,7 +367,7 @@ enum_pattern_args = { paren_left ~ pattern ~ (comma_op ~ pattern)* ~ paren_right
 enum_pattern = { access_name ~ enum_pattern_args }
 
 /// Namespace pattern
-namespace_pattern_field = { name ~ (eq_op ~ pattern)? }
+namespace_pattern_field = { name ~ (colon_op ~ pattern)? }
 namespace_pattern = { curly_left ~ (namespace_pattern_field ~ (comma_op ~ namespace_pattern_field)*)? ~ curly_right }
 
 /// Tuple pattern
@@ -384,12 +396,11 @@ single_pattern = {
     literal_pattern |
     tuple_pattern   |
     grouped_pattern |
-    literal_pattern |
     namespace_pattern 
 }
 
 /// Compound pattern (matches a series of single patterns)
-compound_pattern = { single_pattern ~ (pipe_op ~ single_pattern)* }
+compound_pattern = _{ single_pattern ~ (pipe_op ~ single_pattern)* }
 
 /// Any pattern (includes optional if condition)
 pattern = { compound_pattern ~ (if_kw ~ expr)? }
@@ -406,7 +417,7 @@ body_block = { curly_left ~ statement* ~ expr? ~ curly_right }
 
 /// If-else block
 else_block = { else_kw ~ body_block }
-else_if_block = { else_kw ~ if_block }
+else_if_block = _{ else_kw ~ if_block }
 if_block = { if_kw ~ expr ~ body_block }
 if_else_block = { if_block ~ else_if_block* ~ else_block? }
 
@@ -438,7 +449,7 @@ break_st = { break_kw }
 continue_st = { continue_kw }
 
 /// Block statement
-block_st = { block }
+block_st = _{ block }
 
 /// Let statement
 let_st = { let_kw ~ single_pattern ~ bound? ~ (colon_op ~ any_type)? ~ (eq_op ~ expr)?}
@@ -457,7 +468,7 @@ enum_fields = { curly_left ~ (enum_field? ~ (comma_op ~ enum_field)*)? ~ comma_o
 enum_def = { enum_kw ~ name ~ eq_op ~ (bound ~ arrow_op)? ~ enum_fields }
 
 /// Trait definition
-trait_def = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ any_type }
+trait_def = { trait_kw ~ name ~ eq_op ~ bound ~ arrow_op ~ fn_type }
 
 /// Semicolon-ending statement
 semi_st = _{
@@ -468,5 +479,6 @@ semi_st = _{
 statement = { block_st | semi_st }
 
 /// ---- Module (entry point) ----
-module = _{ SOI ~ statement* ~ EOI }
-
+eoi = _{ !ANY }
+module = _{ SOI ~ statement* ~ eoi }
+interactive = { SOI ~ statement* ~ expr? ~ eoi }
