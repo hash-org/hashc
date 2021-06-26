@@ -33,7 +33,7 @@ trait conv = <A, B> => (A) => B;
 let conv<T, str> = (x) => "<unknown>";
 
 let conv<int,float>    = (num) => #intrinsic_conv_to_float(num);
-let conv<float, float> = (num) => num; // @Cleanup: maybe a better way to do this rather than explicitly providing an implementation
+let conv<float, float> = (num) => num; // @@Cleanup: maybe a better way to do this rather than explicitly providing an implementation
 let conv<str, Result<float, str>> = (s) => #intrinsic_conv_to_float(s);
 
 let conv<int, Result<char, str>> = (num) => #intrinsic_conv_to_char(num);
@@ -41,7 +41,7 @@ let conv<char, char> = (ch) => ch;
 
 let conv<char, int>  = (ch) => #intrinsic_conv_to_int(ch);
 let conv<float, int> = (num) => #intrinsic_conv_to_int(num);
-let conv<int, int>   = (num) => num; // @Cleanup: maybe a better way to do this rather than explicitly providing an implementation
+let conv<int, int>   = (num) => num; // @@Cleanup: maybe a better way to do this rather than explicitly providing an implementation
 let conv<str, Result<int, str>> = (s) => #intrinsic_conv_to_int(s);
 
 let conv<bool, str> = (x: bool) => match x {
@@ -51,7 +51,7 @@ let conv<bool, str> = (x: bool) => match x {
 let conv<int, str>   = (num) => #intrinsic_conv_to_str(num);
 let conv<float, str> = (num) => #intrinsic_conv_to_str(num);
 let conv<char, str>  = (ch) => #intrinsic_conv_to_str(ch);
-let conv<void, str>  = (v) => ""; // @Cleanup: Is this really needed?
+let conv<void, str>  = (v) => ""; // @@Cleanup: Is this really needed?
 let conv<str, str> = (s) => s;
 //let conv<() => T,  str> = (val) => #intrinsic_conv_to_str(val);
 
@@ -157,7 +157,7 @@ let eq<float> = (a, b) => #intrinsic_eq(a, b);
 let eq<str> = (a, b) => #intrinsic_eq(a, b);
 let eq<[A]> where eq<A> = (a, b) => #intrinsic_eq_bracketted(a, b, (x, y) => eq<A>(x, y));
 
-// TODO: I think these are still flaky
+// @@TODO: I think these are still flaky
 let eq<{A}> where eq<A>, hash<A> = (a, b) => #intrinsic_eq_bracketted(a, b, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
 let eq<{A:B}> where eq<A>, hash<A>, eq<B> = (a, b) => #intrinsic_eq_map(a, b, (a) => hash<A>(a), (x, y) => eq<A>(x, y), (x, y) => eq<B>(x, y));
 
@@ -236,7 +236,7 @@ let remove<{A:B}, A, B> where eq<A>, hash<A> = (map, key) => #intrinsic_brackett
 let remove<{A}, A, A> where eq<A>, hash<A> = (set, key) => #intrinsic_bracketted_remove(set, key,  (a) => hash<A>(a), (x, y) => eq<A>(x, y));
 
 // Index a map a key, returning a value if the key exists
-trait try_get = <A, B> where eq<A>, hash<A> => ({A:B}, A) => Option<B>; //TODO: should we add this?
+trait try_get = <A, B> where eq<A>, hash<A> => ({A:B}, A) => Option<B>; //@@TODO: should we add this?
 let try_get<A, B> where eq<A>, hash<A>;
 
 

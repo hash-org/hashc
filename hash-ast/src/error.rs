@@ -14,7 +14,7 @@ use thiserror::Error;
 pub enum ParseError {
     #[error("An IO error occurred when reading {filename}: {err}")]
     IoError { filename: PathBuf, err: String },
-    // TODO: merge Parsing and AstGeneration
+    // @@TODO: merge Parsing and AstGeneration
     #[error("Parse error at {src}:\n{message}")]
     Parsing {
         message: String,
