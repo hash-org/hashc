@@ -21,7 +21,7 @@ enum IoErrorType = {
    Other,
 };
 
-// @Safety: The order of these fields must be preserved since the compiler internally assumes
+// @@Safety: The order of these fields must be preserved since the compiler internally assumes
 // this order. Yes it is somewhat dangerous, and the 'IoError' struct will likely get moved into 
 // Primitives, but for now: DO NOT TOUCH THE ORDER OF THE FIELDS!
 struct IoError = {
@@ -137,7 +137,7 @@ let fseek = (file: File, position: int, whence: SeekMode): Result<void, IoError>
         SeekSet => 0;
         SeekCur => 1;
         SeekEnd => 2;
-    }; // TODO: could make this a seperate function
+    }; // @@TODO: could make this a seperate function
     
     _wrap_io<void>(#intrinsic_fseek(file, position, whence_mode))
 };

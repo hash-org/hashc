@@ -12,3 +12,5 @@ hash-backend = {path = "../hash-backend" }
 rustyline = "8.0.0"
 thiserror = "1.0"
 derive-macro = { path = "derive-macro" }
+log = "0.4"
+pretty_env_logger = "0.4"
