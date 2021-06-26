@@ -1,5 +1,7 @@
 # The Hash Programming language
 
-## Run
+The Hash Programming Language compiler and standard library sources.
 
-- Using the command `cargo run hash`. This will compile, build and run the program in the current terminal/shell.
+## Action list
+
+- Write a nice and welcoming README in order to not scare off any newcomers.
