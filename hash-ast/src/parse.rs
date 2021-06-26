@@ -8,7 +8,7 @@ use crate::{
 };
 use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
-use log::{debug, info, log_enabled, Level};
+use log::{debug, log_enabled, Level};
 use std::{
     collections::{HashMap, HashSet},
     fs, mem,
@@ -104,7 +104,7 @@ where
                         modules.set_entry_point(entry_index);
                     }
                     None
-                },
+                }
                 EntryPoint::Interactive { contents } => {
                     Some(self.backend.parse_interactive(&mut resolver, contents)?)
                 }
@@ -213,12 +213,8 @@ where
 
         let interactive = match entry {
             EntryPoint::Module { filename } => {
-                let mut resolver = SeqModuleResolver::new(
-                    &mut modules,
-                    directory.to_owned(),
-                    &self.backend,
-                    None,
-                );
+                let mut resolver =
+                    SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend, None);
                 let entry_index = resolver.add_module(filename, None)?;
                 modules.set_entry_point(entry_index);
                 None
@@ -281,11 +277,7 @@ impl ModuleIdx {
 }
 
 #[inline(always)]
-pub fn timed<T>(
-    op: impl FnOnce() -> T,
-    level: log::Level,
-    on_elapsed: impl FnOnce(Duration),
-) -> T {
+pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();
