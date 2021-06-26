@@ -23,9 +23,15 @@ impl<T: NodeCount> NodeCount for Option<T> {
     }
 }
 
-impl NodeCount for AstNode<Statement> {
+impl<T: NodeCount> NodeCount for AstNode<T> {
     fn children_count(&self) -> usize {
-        match self.body.as_ref() {
+        self.body.children_count()
+    }
+}
+
+impl NodeCount for Statement {
+    fn children_count(&self) -> usize {
+        match &self {
             Statement::Expr(k) => k.node_count(),
             Statement::Return(k) => k.node_count(),
             Statement::Block(block) => block.node_count(),
@@ -53,27 +59,31 @@ impl NodeCount for AstNode<Statement> {
     }
 }
 
-impl NodeCount for AstNode<Block> {
+impl NodeCount for BodyBlock {
     fn children_count(&self) -> usize {
-        match self.body.as_ref() {
+        let arg_count: usize = self.statements.iter().map(|s| s.node_count()).sum();
+        arg_count + self.expr.node_count()
+    }
+}
+
+impl NodeCount for Block {
+    fn children_count(&self) -> usize {
+        match &self {
             Block::Match(match_block) => {
                 let cases: usize = match_block.cases.iter().map(|c| c.node_count()).sum();
-
                 match_block.subject.node_count() + cases
             }
             Block::Loop(loop_block) => loop_block.node_count(),
             Block::Body(body_block) => {
-                let arg_count: usize = body_block.statements.iter().map(|s| s.node_count()).sum();
-
-                arg_count + body_block.expr.node_count()
+                body_block.node_count()
             }
         }
     }
 }
 
-impl NodeCount for AstNode<Expression> {
+impl NodeCount for Expression {
     fn children_count(&self) -> usize {
-        match self.body.as_ref() {
+        match &self {
             Expression::FunctionCall(e) => {
                 let fn_args: usize = e.args.entries.iter().map(|a| a.node_count()).sum();
                 e.subject.node_count() + fn_args
@@ -101,9 +111,9 @@ impl NodeCount for AstNode<Expression> {
     }
 }
 
-impl NodeCount for AstNode<Literal> {
+impl NodeCount for Literal {
     fn children_count(&self) -> usize {
-        match self.body.as_ref() {
+        match &self {
             // count string, number, char literals as zero since they are wrapped in AstNode and should count
             // as only a single node instead of 2.
             Literal::Str(_) => 0,
@@ -135,15 +145,15 @@ impl NodeCount for AstNode<Literal> {
     }
 }
 
-impl NodeCount for AstNode<MatchCase> {
+impl NodeCount for MatchCase {
     fn children_count(&self) -> usize {
-        self.body.pattern.node_count() + self.body.expr.node_count()
+        self.pattern.node_count() + self.expr.node_count()
     }
 }
 
-impl NodeCount for AstNode<Pattern> {
+impl NodeCount for Pattern {
     fn children_count(&self) -> usize {
-        match self.body.as_ref() {
+        match &self {
             Pattern::Enum(pat) => {
                 let arg_count: usize = pat.args.iter().map(|s| s.node_count()).sum();
                 pat.name.node_count() + arg_count
@@ -167,59 +177,59 @@ impl NodeCount for AstNode<Pattern> {
     }
 }
 
-impl NodeCount for AstNode<DestructuringPattern> {
+impl NodeCount for DestructuringPattern {
     fn children_count(&self) -> usize {
         1 + self.pattern.node_count()
     }
 }
 
-impl NodeCount for AstNode<StructDefEntry> {
+impl NodeCount for StructDefEntry {
     fn children_count(&self) -> usize {
-        self.body.ty.node_count() + self.body.default.node_count()
+        self.ty.node_count() + self.default.node_count()
     }
 }
 
-impl NodeCount for AstNode<EnumDefEntry> {
+impl NodeCount for EnumDefEntry {
     fn children_count(&self) -> usize {
-        self.body.args.iter().map(|t| t.node_count()).sum()
+        self.args.iter().map(|t| t.node_count()).sum()
     }
 }
-impl NodeCount for AstNode<Bound> {
+impl NodeCount for Bound {
     fn children_count(&self) -> usize {
-        let args_count: usize = self.body.type_args.iter().map(|t| t.node_count()).sum();
-        let bound_count: usize = self.body.trait_bounds.iter().map(|t| t.node_count()).sum();
+        let args_count: usize = self.type_args.iter().map(|t| t.node_count()).sum();
+        let bound_count: usize = self.trait_bounds.iter().map(|t| t.node_count()).sum();
 
         args_count + bound_count
     }
 }
 
-impl NodeCount for AstNode<TraitBound> {
+impl NodeCount for TraitBound {
     fn children_count(&self) -> usize {
-        let count = self.body.name.node_count();
-        let args_count: usize = self.body.type_args.iter().map(|t| t.node_count()).sum();
+        let count = self.name.node_count();
+        let args_count: usize = self.type_args.iter().map(|t| t.node_count()).sum();
 
         count + args_count
     }
 }
 
-impl NodeCount for AstNode<Type> {
+impl NodeCount for Type {
     fn children_count(&self) -> usize {
-        match self.body.as_ref() {
+        match &self {
             Type::Named(ty) => {
                 let arg_count: usize = ty.type_args.iter().map(|t| t.node_count()).sum();
 
                 ty.name.node_count() + arg_count
             }
 
-            // TypeVar variant just counts for one node since it just wrapper for AstNode<Name>,
+            // TypeVar variant just counts for one node since it just wrapper for Name,
             // which is of made of a single AstNode.
             _ => 1,
         }
     }
 }
 
-impl NodeCount for AstNode<AccessName> {
+impl NodeCount for AccessName {
     fn children_count(&self) -> usize {
-        self.body.names.len()
+        self.names.len()
     }
 }

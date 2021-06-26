@@ -55,15 +55,19 @@ impl ParserBackend for HashGrammar {
         )
     }
 
-    fn parse_statement(
+    fn parse_interactive(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-    ) -> ParseResult<ast::AstNode<ast::Statement>> {
+    ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let mut builder = PestAstBuilder::new(resolver);
-        match HashGrammar::parse(Rule::statement, contents) {
-            Ok(mut result) => builder.transform_statement(result.next().unwrap()),
-            // TODO: use constant for "interactive"
+        match HashGrammar::parse(Rule::interactive, contents) {
+            Ok(mut result) => {
+                let pair = result.next().unwrap();
+                let ab = builder.builder_from_pair(&pair);
+                Ok(ab.node(builder.transform_body_block(pair)?))
+            },
+            // @@TODO: use constant for "interactive"
             Err(e) => Err(ParseError::from(PestError::from(("interactive".into(), e)))),
         }
     }

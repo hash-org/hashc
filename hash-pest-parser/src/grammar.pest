@@ -481,4 +481,4 @@ statement = { block_st | semi_st }
 /// ---- Module (entry point) ----
 eoi = _{ !ANY }
 module = _{ SOI ~ statement* ~ eoi }
-
+interactive = { SOI ~ statement* ~ expr? ~ eoi }

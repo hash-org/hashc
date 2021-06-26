@@ -28,6 +28,12 @@ pub trait NodeDisplay {
     fn node_display(&self, indent: usize) -> Vec<String>;
 }
 
+impl<T: NodeDisplay> NodeDisplay for AstNode<T> {
+    fn node_display(&self, indent: usize) -> Vec<String> {
+        self.body.node_display(indent)
+    }
+}
+
 /// Utility function to pad a string based on [Alignment]
 fn pad_str(line: &str, pad_char: char, padding: usize, alignment: Alignment) -> String {
     // compute side padding based on the alignment
@@ -94,12 +100,12 @@ impl std::fmt::Display for Module {
     }
 }
 
-impl NodeDisplay for AstNode<Literal> {
+impl NodeDisplay for Literal {
     fn node_display(&self, indent: usize) -> Vec<String> {
         let mut lines = vec![];
         let mut next_lines = vec![];
 
-        match self.body.as_ref() {
+        match &self {
             Literal::Str(s) => lines.push(format!("string \"{}\"", s)),
             Literal::Char(c) => lines.push(format!("char \'{}\'", c)),
             Literal::Int(i) => lines.push(format!("number {}", i)),
@@ -113,11 +119,11 @@ impl NodeDisplay for AstNode<Literal> {
                 // @@Dumbness: rust doesn't allow to bind patterns if there are pattern binds
                 // after '@', this can be enabled on Rust nightly, but we aren't that crazy!
                 // so we're matching a second time just to get the right literal name
-                match self.body.as_ref() {
+                match &self {
                     Literal::Set(_) => lines.push(format!("set")),
                     Literal::List(_) => lines.push(format!("list")),
                     Literal::Tuple(_) => lines.push(format!("tuple")),
-                    _ => panic!("node_display on AstNode<Literal> failed unexpectedly"),
+                    _ => unreachable!()
                 };
 
                 // convert all the children and add them to the new lines
@@ -162,13 +168,13 @@ impl NodeDisplay for AstNode<Literal> {
     }
 }
 
-impl NodeDisplay for AstNode<Statement> {
+impl NodeDisplay for Statement {
     fn node_display(&self, indent: usize) -> Vec<String> {
         let mut lines = vec![];
         let mut next_lines = vec![];
         let next_indent = indent + 2;
 
-        match self.body.as_ref() {
+        match &self {
             Statement::Expr(expr) => lines.extend(expr.node_display(next_indent)),
             Statement::Return(expr) => {
                 lines.push(format!("ret"));
@@ -210,15 +216,15 @@ impl NodeDisplay for AstNode<Statement> {
     }
 }
 
-impl NodeDisplay for AstNode<Import> {
+impl NodeDisplay for Import {
     fn node_display(&self, _indent: usize) -> Vec<String> {
         vec![format!("import"), format!("{} \"{}\"", END_PIPE, self.path)]
     }
 }
 
-impl NodeDisplay for AstNode<Expression> {
+impl NodeDisplay for Expression {
     fn node_display(&self, indent: usize) -> Vec<String> {
-        match self.body.as_ref() {
+        match &self {
             Expression::FunctionCall(_) => todo!(),
             Expression::Intrinsic(_) => todo!(),
             Expression::LogicalOp(_) => todo!(),
@@ -235,9 +241,9 @@ impl NodeDisplay for AstNode<Expression> {
     }
 }
 
-impl NodeDisplay for AstNode<Block> {
+impl NodeDisplay for Block {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        match self.body.as_ref() {
+        match &self {
             Block::Match(_match_body) => todo!(),
             Block::Loop(_loop_body) => {
                 // first of all, we need to call format on all of the children statements
