@@ -57,6 +57,23 @@ fn pad_str(line: &str, pad_char: char, padding: usize, alignment: Alignment) -> 
     s
 }
 
+/// utility function to draw parental branch when display the children of the [AstNode]
+fn draw_branches_for_lines(lines: &[String], connector: &str, branch: &str) -> Vec<String> {
+    let mut next_lines = vec![];
+
+    for (child_index, line) in lines.iter().enumerate() {
+        // @@Speed: is this really the best way to deal with string concatination.
+        if child_index == 0 {
+            next_lines.push(format!("{}{}", connector, line));
+        } else {
+            // it's only one space here since the 'branch' char already takes one up
+            next_lines.push(format!("{}{}", branch, line));
+        }
+    }
+
+    next_lines
+}
+
 impl<T> std::fmt::Display for AstNode<T>
 where
     Self: NodeDisplay,
@@ -140,17 +157,8 @@ impl NodeDisplay for Literal {
                     };
 
                     // reset the indent here since we'll be doing indentation here...
-                    let child_lines = element.node_display(0);
-
-                    for (child_index, line) in child_lines.iter().enumerate() {
-                        // @@Speed: is this really the best way to deal with string concatination.
-                        if child_index == 0 {
-                            next_lines.push(format!("  {}{}", connector, line));
-                        } else {
-                            // it's only one space here since the 'branch' char already takes one up
-                            next_lines.push(format!("  {}{}", branch, line));
-                        }
-                    }
+                    let child_lines = element.node_display(1);
+                    next_lines.extend(draw_branches_for_lines(&child_lines, connector, branch));
                 }
             }
             Literal::Map(_map_lit) => {}
@@ -174,14 +182,15 @@ impl NodeDisplay for Statement {
     fn node_display(&self, indent: usize) -> Vec<String> {
         let mut lines = vec![];
         let mut next_lines = vec![];
-        let next_indent = indent + 2;
+        let next_indent = indent + 1; // only another indent is added since the other indent is considered as the connector character
 
         match &self {
             Statement::Expr(expr) => lines.extend(expr.node_display(next_indent)),
             Statement::Return(expr) => {
                 lines.push("ret".to_string());
 
-                // if a return statement has a lin
+                // if a return statement has a line, display it as the child
+                // @@Cleanup: make this a function!
                 if let Some(ret_expr) = expr {
                     next_lines.push(format!(
                         "{}{}",
@@ -190,9 +199,11 @@ impl NodeDisplay for Statement {
                     ));
                 }
             }
-            Statement::Block(_block) => {
-                todo!()
-            }
+            Statement::Block(block) => next_lines.push(format!(
+                "{}{}",
+                END_PIPE,
+                block.node_display(next_indent).join("\n")
+            )),
             Statement::Break => lines.push("break".to_string()),
             Statement::Continue => lines.push("continue".to_string()),
             Statement::Let(_decl) => todo!(),
@@ -247,7 +258,7 @@ impl NodeDisplay for Expression {
 }
 
 impl NodeDisplay for Block {
-    fn node_display(&self, _indent: usize) -> Vec<String> {
+    fn node_display(&self, indent: usize) -> Vec<String> {
         match &self {
             Block::Match(_match_body) => todo!(),
             Block::Loop(_loop_body) => {
@@ -257,7 +268,51 @@ impl NodeDisplay for Block {
                 // let statements = ;
                 todo!()
             }
-            Block::Body(_body) => todo!(),
+            Block::Body(body) => body.node_display(indent),
         }
+    }
+}
+
+impl NodeDisplay for BodyBlock {
+    fn node_display(&self, indent: usize) -> Vec<String> {
+        let mut lines = vec!["block".to_string()]; // do we need an initial connector here?
+        let mut next_lines = vec![];
+
+        for (index, statement) in self.statements.iter().enumerate() {
+            // special case when the block contains an expression, we should use the MID_PIPE instead
+            // of the end pipe
+            let connector = if matches!(self.expr, Some(_)) && self.statements.len() - 1 == index {
+                MID_PIPE
+            } else {
+                which_connector(index, self.statements.len())
+            };
+
+            // @@Cleanup: make this a function!
+            let branch = if index == self.statements.len() - 1 && matches!(self.expr, None) {
+                " "
+            } else {
+                "│"
+            };
+
+            // reset the indent here since we'll be doing indentation here...
+            let lines = statement.node_display(0);
+            next_lines.extend(draw_branches_for_lines(&lines, connector, branch));
+        }
+
+        // check if body block has an expression at the end
+        if let Some(expr) = &self.expr {
+            let child_lines = expr.node_display(1);
+            next_lines.extend(draw_branches_for_lines(&&child_lines, END_PIPE, " "));
+        }
+
+        // @@Cleanup: can we make this transformation generic, so we don't have to call it at the end of each implementation??
+        // we need to pad each line by the number of spaces specified by 'ident'
+        let next_lines: Vec<String> = next_lines
+            .into_iter()
+            .map(|line| pad_str(line.as_str(), ' ', indent, Alignment::Left))
+            .collect();
+
+        lines.extend(next_lines);
+        lines
     }
 }

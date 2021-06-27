@@ -114,8 +114,7 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Display(expr)) => {
             if let Some((block, _)) = parse_interactive(expr) {
-                //@@Todo(alex) change this to node_display when it's ready.
-                println!("{:?}", block);
+                println!("{}", block);
             }
         }
         Ok(InteractiveCommand::Count(expr)) => {
