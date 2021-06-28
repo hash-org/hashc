@@ -237,8 +237,6 @@ pub(crate) fn build_binary(
 
     match subject_name {
         OperatorFn::Named { name, assigning } => {
-            // @@Copied
-
             Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
                 subject: ab.node(Expression::Variable(VariableExpr {
                     name: ab.make_single_access_name(AstString::Borrowed(name)),
@@ -250,8 +248,6 @@ pub(crate) fn build_binary(
             })))
         }
         OperatorFn::Compound { name, assigning } => {
-            // @@Copied
-            //
             // for compound functions that include ordering, we essentially transpile
             // into a match block that checks the result of the 'ord' fn call to the
             // 'Ord' enum variants. This also happens for operators such as '>=' which
@@ -260,8 +256,6 @@ pub(crate) fn build_binary(
             Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
         }
         OperatorFn::LazyNamed { name, assigning } => {
-            // @@Copied: transform lhs into ref if assinging
-
             let fn_call = ab.node(Expression::FunctionCall(FunctionCallExpr {
                 subject: ab.node(Expression::Variable(VariableExpr {
                     name: ab.make_single_access_name(AstString::Borrowed(name)),
@@ -1538,8 +1532,6 @@ where
                                 Ok(ab.node(Statement::Expr(fn_call)))
                             }
                             Some(OperatorFn::Compound { name, assigning }) => {
-                                // @@Copied
-                                //
                                 // for compound functions that include ordering, we essentially transpile
                                 // into a match block that checks the result of the 'ord' fn call to the
                                 // 'Ord' enum variants. This also happens for operators such as '>=' which

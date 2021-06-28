@@ -17,7 +17,7 @@ const MID_PIPE: &str = "├─";
 /// Compile time function to determine which PIPE connector should
 /// be used when converting an array of [AstNode]s.
 const fn which_connector(index: usize, max_index: usize) -> &'static str {
-    if index == max_index - 1 {
+    if max_index == 0 || index == max_index - 1 {
         END_PIPE
     } else {
         MID_PIPE
@@ -119,6 +119,18 @@ impl std::fmt::Display for Module {
     }
 }
 
+impl NodeDisplay for Type {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        match &self {
+            Type::Named(_) => todo!(),
+            Type::Ref(_) => todo!(),
+            Type::TypeVar(_) => todo!(),
+            Type::Existential => todo!(),
+            Type::Infer => todo!(),
+        }
+    }
+}
+
 impl NodeDisplay for Literal {
     fn node_display(&self, indent: usize) -> Vec<String> {
         let mut lines = vec![];
@@ -175,6 +187,13 @@ impl NodeDisplay for Literal {
 
         lines.extend(next_lines);
         lines
+    }
+}
+
+impl NodeDisplay for AccessName {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let names: Vec<&str> = self.names.iter().map(|n| n.body.string.as_ref()).collect();
+        vec![names.join("::")]
     }
 }
 
@@ -240,11 +259,48 @@ impl NodeDisplay for Import {
 
 impl NodeDisplay for Expression {
     fn node_display(&self, indent: usize) -> Vec<String> {
+        let mut lines = vec![];
+
         match &self {
-            Expression::FunctionCall(_) => todo!(),
-            Expression::Intrinsic(_) => todo!(),
-            Expression::LogicalOp(_) => todo!(),
-            Expression::Variable(_) => todo!(),
+            Expression::FunctionCall(func) => {
+                lines.push("function".to_string());
+
+                // deal with the subject of the function call, this is for sure going to
+                // be a VariableExpr, so the child branch will be labelled as 'ident'...
+                let connector = which_connector(0, func.args.body.entries.len());
+
+                lines.push(format!(" {}subject", connector));
+
+                // deal with the 'subject' as a child and then append it to the next lines
+                let subject_lines =
+                    draw_branches_for_lines(&func.subject.node_display(2), END_PIPE, " ");
+
+                lines.extend(
+                    subject_lines
+                        .iter()
+                        .map(|line| pad_str(line, ' ', 3, Alignment::Left))
+                        .collect::<Vec<String>>(),
+                );
+
+                // now deal with the function args
+
+                lines
+            }
+            Expression::Intrinsic(intrinsic) => {
+                lines.push(format!("intrinsic \"{}\"", intrinsic.name.as_ref()));
+                lines
+            }
+            Expression::Variable(var) => {
+                // check if the length of type_args to this ident, if not
+                // we don't produce any children nodes for it
+                if var.type_args.len() > 0 {
+                    todo!()
+                } else {
+                    let name = var.name.node_display(0).join("");
+                    lines.push(format!("ident \"{}\"", name));
+                    lines
+                }
+            }
             Expression::PropertyAccess(_) => todo!(),
             Expression::Index(_) => todo!(),
             Expression::Ref(_) => todo!(),
@@ -302,7 +358,7 @@ impl NodeDisplay for BodyBlock {
         // check if body block has an expression at the end
         if let Some(expr) = &self.expr {
             let child_lines = expr.node_display(1);
-            next_lines.extend(draw_branches_for_lines(&&child_lines, END_PIPE, " "));
+            next_lines.extend(draw_branches_for_lines(&child_lines, END_PIPE, " "));
         }
 
         // @@Cleanup: can we make this transformation generic, so we don't have to call it at the end of each implementation??
