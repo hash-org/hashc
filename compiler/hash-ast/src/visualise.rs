@@ -24,14 +24,19 @@ const fn which_connector(index: usize, max_index: usize) -> &'static str {
     }
 }
 
-pub trait NodeDisplay {
-    fn node_display(&self, indent: usize) -> Vec<String>;
+const fn which_pipe(index: usize, max_index: usize) -> &'static str {
+    if max_index == 0 || index == max_index - 1 {
+        " "
+    } else {
+        "│"
+    }
 }
 
-impl<T: NodeDisplay> NodeDisplay for AstNode<T> {
-    fn node_display(&self, indent: usize) -> Vec<String> {
-        self.body.node_display(indent)
-    }
+fn pad_lines(lines: &[String], padding: usize) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| pad_str(line, ' ', padding, Alignment::Left))
+        .collect()
 }
 
 /// Utility function to pad a string based on [Alignment]
@@ -72,6 +77,16 @@ fn draw_branches_for_lines(lines: &[String], connector: &str, branch: &str) -> V
     }
 
     next_lines
+}
+
+pub trait NodeDisplay {
+    fn node_display(&self, indent: usize) -> Vec<String>;
+}
+
+impl<T: NodeDisplay> NodeDisplay for AstNode<T> {
+    fn node_display(&self, indent: usize) -> Vec<String> {
+        self.body.node_display(indent)
+    }
 }
 
 impl<T> std::fmt::Display for AstNode<T>
@@ -275,12 +290,7 @@ impl NodeDisplay for Expression {
                 let subject_lines =
                     draw_branches_for_lines(&func.subject.node_display(2), END_PIPE, " ");
 
-                lines.extend(
-                    subject_lines
-                        .iter()
-                        .map(|line| pad_str(line, ' ', 3, Alignment::Left))
-                        .collect::<Vec<String>>(),
-                );
+                lines.extend(pad_lines(&subject_lines, 3));
 
                 // now deal with the function args
 
@@ -293,7 +303,7 @@ impl NodeDisplay for Expression {
             Expression::Variable(var) => {
                 // check if the length of type_args to this ident, if not
                 // we don't produce any children nodes for it
-                if var.type_args.len() > 0 {
+                if !var.type_args.is_empty() {
                     todo!()
                 } else {
                     let name = var.name.node_display(0).join("");
@@ -303,11 +313,21 @@ impl NodeDisplay for Expression {
             }
             Expression::PropertyAccess(_) => todo!(),
             Expression::Index(_) => todo!(),
-            Expression::Ref(_) => todo!(),
-            Expression::Deref(_) => todo!(),
+            Expression::Ref(expr) | Expression::Deref(expr) => {
+                // Match again to determine whether it is a deref or a ref!
+                match &self {
+                    Expression::Ref(_) => lines.push("ref".to_string()),
+                    Expression::Deref(_) => lines.push("deref".to_string()),
+                    _ => unreachable!(),
+                };
+
+                let next_lines = draw_branches_for_lines(&expr.node_display(indent), END_PIPE, "");
+                lines.extend(pad_lines(&next_lines, 1));
+                lines
+            }
             Expression::LiteralExpr(literal) => literal.node_display(indent),
             Expression::Typed(_) => todo!(),
-            Expression::Block(_) => todo!(),
+            Expression::Block(block) => block.node_display(indent),
             Expression::Import(import) => import.node_display(indent),
         }
     }
@@ -343,11 +363,10 @@ impl NodeDisplay for BodyBlock {
                 which_connector(index, self.statements.len())
             };
 
-            // @@Cleanup: make this a function!
-            let branch = if index == self.statements.len() - 1 && matches!(self.expr, None) {
+            let branch = if matches!(self.expr, None) {
                 " "
             } else {
-                "│"
+                which_pipe(index, self.statements.len())
             };
 
             // reset the indent here since we'll be doing indentation here...
