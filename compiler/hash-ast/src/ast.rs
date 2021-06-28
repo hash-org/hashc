@@ -472,28 +472,6 @@ pub struct FunctionCallExpr {
     pub args: AstNode<FunctionCallArgs>,
 }
 
-/// A logical operator.
-///
-/// These are treated differently from all other operators due to short-circuiting.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum LogicalOp {
-    /// The logical-and operator.
-    And,
-    /// The logical-or operator.
-    Or,
-}
-
-/// A logical operation expression.
-#[derive(Debug, PartialEq, Clone)]
-pub struct LogicalOpExpr {
-    /// The operator of the logical operation.
-    pub op: AstNode<LogicalOp>,
-    /// The left-hand side of the operation.
-    pub lhs: AstNode<Expression>,
-    /// The right-hand side of the operation.
-    pub rhs: AstNode<Expression>,
-}
-
 /// A property access exprssion.
 #[derive(Debug, PartialEq, Clone)]
 pub struct PropertyAccessExpr {
@@ -544,8 +522,6 @@ pub enum Expression {
     FunctionCall(FunctionCallExpr),
     /// An intrinsic symbol.
     Intrinsic(IntrinsicKey),
-    /// A logical operation.
-    LogicalOp(LogicalOpExpr),
     /// A variable.
     Variable(VariableExpr),
     /// A property access.
