@@ -79,6 +79,17 @@ fn draw_branches_for_lines(lines: &[String], connector: &str, branch: &str) -> V
     next_lines
 }
 
+/// Utility function to draw a single line for a given vector of lines, essentially padding
+/// them with a vertical branch at the start of each line. This is a useful function for
+/// drawing children nodes of [AstNode]s that have potential children nodes with a specific
+/// context.
+fn draw_vertical_branch(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| format!("{} {}", VERT_PIPE, line))
+        .collect()
+}
+
 pub trait NodeDisplay {
     fn node_display(&self, indent: usize) -> Vec<String>;
 }
@@ -175,13 +186,7 @@ impl NodeDisplay for Literal {
                 // convert all the children and add them to the new lines
                 for (index, element) in elements.iter().enumerate() {
                     let connector = which_connector(index, elements.len());
-
-                    // @@Cleanup: make this a function!
-                    let branch = if index == elements.len() - 1 {
-                        " "
-                    } else {
-                        "│"
-                    };
+                    let branch = which_pipe(index, elements.len());
 
                     // reset the indent here since we'll be doing indentation here...
                     let child_lines = element.node_display(1);
@@ -278,21 +283,51 @@ impl NodeDisplay for Expression {
 
         match &self {
             Expression::FunctionCall(func) => {
+                let arguments = &func.args.body.entries;
+
                 lines.push("function".to_string());
 
                 // deal with the subject of the function call, this is for sure going to
                 // be a VariableExpr, so the child branch will be labelled as 'ident'...
-                let connector = which_connector(0, func.args.body.entries.len());
+                let connector = if arguments.is_empty() {
+                    END_PIPE
+                } else {
+                    MID_PIPE
+                };
 
                 lines.push(format!(" {}subject", connector));
 
                 // deal with the 'subject' as a child and then append it to the next lines
                 let subject_lines =
                     draw_branches_for_lines(&func.subject.node_display(2), END_PIPE, " ");
+                // now deal with the function args if there are any
+                if !arguments.is_empty() {
+                    // we need to add a vertical line to the subject in order to connect the 'args'
+                    // and subject component of the function AST node...
+                    let subject_lines = draw_vertical_branch(&subject_lines);
+                    lines.extend(pad_lines(&subject_lines, 1));
 
-                lines.extend(pad_lines(&subject_lines, 3));
+                    lines.push(format!(" {}args", END_PIPE));
 
-                // now deal with the function args
+                    let mut arg_lines = vec![];
+
+                    // draw the children on onto the arguments
+                    for (index, element) in arguments.iter().enumerate() {
+                        let connector = which_connector(index, arguments.len());
+                        let branch = which_pipe(index, arguments.len());
+
+                        // reset the indent here since we'll be doing indentation here...
+                        let child_lines = element.node_display(1);
+                        arg_lines.extend(draw_branches_for_lines(&child_lines, connector, branch));
+                    }
+
+                    // add the lines to parent...
+                    lines.extend(pad_lines(&arg_lines, 3))
+                } else {
+                    // no arguments, hence we should pad the lines by 3 characters instead of one,
+                    // counting for a phantom verticla line...
+                    lines.extend(pad_lines(&subject_lines, 3));
+                }
 
                 lines
             }
