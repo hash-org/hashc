@@ -26,9 +26,9 @@ const fn which_connector(index: usize, max_index: usize) -> &'static str {
 
 const fn which_pipe(index: usize, max_index: usize) -> &'static str {
     if max_index == 0 || index == max_index - 1 {
-        " "
+        "  "
     } else {
-        "│"
+        "│ "
     }
 }
 
@@ -77,6 +77,26 @@ fn draw_branches_for_lines(lines: &[String], connector: &str, branch: &str) -> V
     }
 
     next_lines
+}
+
+/// Function to draw branches for a Vector of lines, connecting each line with the appropriate
+/// connector and vertical connector
+fn draw_lines_for_children(line_collections: &Vec<Vec<String>>) -> Vec<String> {
+    let mut lines = vec![];
+
+    for (index, collection) in line_collections.iter().enumerate() {
+        // figure out which connector to use here...
+        let connector = which_connector(index, line_collections.len());
+        let branch = which_pipe(index, line_collections.len());
+
+        for (line_index, line) in collection.iter().enumerate() {
+            let branch_char = if line_index == 0 { connector } else { branch };
+
+            lines.push(format!("{}{}", branch_char, line));
+        }
+    }
+
+    lines
 }
 
 /// Utility function to draw a single line for a given vector of lines, essentially padding
@@ -137,7 +157,6 @@ impl std::fmt::Display for Module {
                 (MID_PIPE, VERT_PIPE)
             };
 
-            // println!("{:?}", node);
             write!(f, "{}{}\n{}", connector, node.join("\n"), ending)?
         }
 
@@ -238,11 +257,7 @@ impl NodeDisplay for Statement {
                     ));
                 }
             }
-            Statement::Block(block) => next_lines.push(format!(
-                "{}{}",
-                END_PIPE,
-                block.node_display(next_indent).join("\n")
-            )),
+            Statement::Block(block) => lines.extend(block.node_display(indent)),
             Statement::Break => lines.push("break".to_string()),
             Statement::Continue => lines.push("continue".to_string()),
             Statement::Let(_decl) => todo!(),
@@ -371,58 +386,106 @@ impl NodeDisplay for Expression {
 impl NodeDisplay for Block {
     fn node_display(&self, indent: usize) -> Vec<String> {
         match &self {
-            Block::Match(_match_body) => todo!(),
-            Block::Loop(_loop_body) => {
-                // first of all, we need to call format on all of the children statements
-                // of the block and then compute the height of the formatted string by
-                // just checking the number of lines that are in the resultant string.
-                // let statements = ;
-                todo!()
+            Block::Match(match_block) => {
+                let mut lines = vec!["match".to_string()];
+
+                let MatchBlock { cases, subject } = &match_block;
+
+                // apply the subject, this is esentially @@Copied from the FunctionCall
+                let connector = if cases.is_empty() { END_PIPE } else { MID_PIPE };
+
+                lines.push(format!(" {}subject", connector));
+
+                // deal with the 'subject' as a child and then append it to the next lines
+                let subject_lines =
+                    draw_branches_for_lines(&subject.node_display(2), END_PIPE, " ");
+
+                // now consider the cases
+                if !cases.is_empty() {
+                    // we need to add a vertical line to the subject in order to connect the 'args'
+                    // and subject component of the function AST node...
+                    let subject_lines = draw_vertical_branch(&subject_lines);
+                    lines.extend(pad_lines(&subject_lines, 1));
+
+                    lines.push(format!(" {}cases", END_PIPE));
+
+                    let mut arg_lines = vec![];
+
+                    // draw the children on onto the arguments
+                    for (index, element) in cases.iter().enumerate() {
+                        let connector = which_connector(index, cases.len());
+                        let branch = which_pipe(index, cases.len());
+
+                        // reset the indent here since we'll be doing indentation here...
+                        let child_lines = element.node_display(1);
+                        arg_lines.extend(draw_branches_for_lines(&child_lines, connector, branch));
+                    }
+
+                    // add the lines to parent...
+                    lines.extend(pad_lines(&arg_lines, 3))
+                } else {
+                    // no arguments, hence we should pad the lines by 3 characters instead of one,
+                    // counting for a phantom verticla line...
+                    lines.extend(pad_lines(&subject_lines, 3));
+                }
+
+                lines
+            }
+            Block::Loop(loop_body) => {
+                let mut lines = vec!["loop".to_string()];
+
+                let block_lines =
+                    draw_branches_for_lines(&loop_body.node_display(indent), END_PIPE, "");
+
+                lines.extend(pad_lines(&block_lines, 2));
+                lines
             }
             Block::Body(body) => body.node_display(indent),
         }
     }
 }
 
+impl NodeDisplay for MatchCase {
+    fn node_display(&self, indent: usize) -> Vec<String> {
+        let mut lines = vec!["case".to_string()];
+
+        // deal with the pattern for this case
+        let pattern_lines = self.pattern.node_display(indent);
+
+        // deal with the block for this case
+        let mut branch_lines = vec!["branch".to_string()];
+
+        let child_lines = draw_branches_for_lines(&self.expr.node_display(indent), END_PIPE, "");
+        branch_lines.extend(pad_lines(&child_lines, 2));
+
+        // append child_lines with padding and vertical lines being drawn
+        lines.extend(draw_lines_for_children(&vec![pattern_lines, branch_lines]));
+        lines
+    }
+}
+
+impl NodeDisplay for Pattern {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        vec!["pattern".to_string()]
+    }
+}
+
 impl NodeDisplay for BodyBlock {
     fn node_display(&self, indent: usize) -> Vec<String> {
-        let mut lines = vec!["block".to_string()]; // do we need an initial connector here?
-        let mut next_lines = vec![];
+        let mut lines = vec!["block".to_string()];
 
-        for (index, statement) in self.statements.iter().enumerate() {
-            // special case when the block contains an expression, we should use the MID_PIPE instead
-            // of the end pipe
-            let connector = if matches!(self.expr, Some(_)) && self.statements.len() - 1 == index {
-                MID_PIPE
-            } else {
-                which_connector(index, self.statements.len())
-            };
-
-            let branch = if matches!(self.expr, None) {
-                " "
-            } else {
-                which_pipe(index, self.statements.len())
-            };
-
-            // reset the indent here since we'll be doing indentation here...
-            let lines = statement.node_display(0);
-            next_lines.extend(draw_branches_for_lines(&lines, connector, branch));
-        }
+        let mut statements: Vec<Vec<String>> = self
+            .statements
+            .iter()
+            .map(|statement| statement.node_display(0))
+            .collect();
 
         // check if body block has an expression at the end
         if let Some(expr) = &self.expr {
-            let child_lines = expr.node_display(1);
-            next_lines.extend(draw_branches_for_lines(&child_lines, END_PIPE, " "));
+            statements.push(expr.node_display(0));
         }
 
-        // @@Cleanup: can we make this transformation generic, so we don't have to call it at the end of each implementation??
-        // we need to pad each line by the number of spaces specified by 'ident'
-        let next_lines: Vec<String> = next_lines
-            .into_iter()
-            .map(|line| pad_str(line.as_str(), ' ', indent, Alignment::Left))
-            .collect();
-
-        lines.extend(next_lines);
-        lines
+        lines.extend(draw_lines_for_children(&statements));
+        pad_lines(&lines, indent)
     }
 }
