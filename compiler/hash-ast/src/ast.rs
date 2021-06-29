@@ -526,8 +526,6 @@ pub enum Expression {
     Variable(VariableExpr),
     /// A property access.
     PropertyAccess(PropertyAccessExpr),
-    /// An index.
-    Index(IndexExpr),
     /// A reference expression.
     Ref(AstNode<Expression>),
     /// A dereference expression.

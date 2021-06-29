@@ -98,11 +98,6 @@ impl NodeCount for Expression {
             Expression::Block(e) => e.node_count(),
             Expression::Deref(e) => e.node_count(),
             Expression::Ref(e) => e.node_count(),
-            Expression::Index(e) => {
-                let indices: usize = e.index.iter().map(|node| node.node_count()).sum();
-
-                e.subject.node_count() + indices
-            }
             Expression::Import(_) => 1,
         }
     }
