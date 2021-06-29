@@ -312,7 +312,6 @@ impl NodeDisplay for Expression {
                 }
             }
             Expression::PropertyAccess(_) => todo!(),
-            Expression::Index(_) => todo!(),
             Expression::Ref(expr) | Expression::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
                 match &self {
@@ -323,6 +322,7 @@ impl NodeDisplay for Expression {
 
                 let next_lines = draw_branches_for_lines(&expr.node_display(indent), END_PIPE, "");
                 lines.extend(pad_lines(&next_lines, 1));
+
                 lines
             }
             Expression::LiteralExpr(literal) => literal.node_display(indent),
