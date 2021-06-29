@@ -239,56 +239,87 @@ impl NodeDisplay for AccessName {
 impl NodeDisplay for Statement {
     fn node_display(&self, indent: usize) -> Vec<String> {
         let mut lines = vec![];
-        let mut next_lines = vec![];
-        let next_indent = indent + 1; // only another indent is added since the other indent is considered as the connector character
 
-        match &self {
-            Statement::Expr(expr) => lines.extend(expr.node_display(next_indent)),
+        let child_lines: Vec<Vec<String>> = match &self {
+            Statement::Expr(expr) => vec![expr.node_display(indent + 1)],
             Statement::Return(expr) => {
                 lines.push("ret".to_string());
 
-                // if a return statement has a line, display it as the child
-                // @@Cleanup: make this a function!
-                if let Some(ret_expr) = expr {
-                    next_lines.push(format!(
-                        "{}{}",
-                        END_PIPE,
-                        ret_expr.node_display(next_indent).join("\n")
-                    ));
+                match expr {
+                    Some(ret) => vec![ret.node_display(indent + 1)],
+                    None => vec![],
                 }
             }
-            Statement::Block(block) => lines.extend(block.node_display(indent)),
-            Statement::Break => lines.push("break".to_string()),
-            Statement::Continue => lines.push("continue".to_string()),
-            Statement::Let(_decl) => todo!(),
-            Statement::Assign(_decl) => todo!(),
-            Statement::StructDef(_def) => todo!(),
-            Statement::EnumDef(_def) => todo!(),
-            Statement::TraitDef(_def) => todo!(),
+            Statement::Block(block) => vec![block.node_display(indent)],
+            Statement::Break => {
+                lines.push("break".to_string());
+                vec![]
+            }
+            Statement::Continue => {
+                lines.push("continue".to_string());
+                vec![]
+            }
+            Statement::Let(_decl) => {
+                lines.push("let".to_string());
+                vec![]
+            }
+            Statement::Assign(decl) => {
+                lines.push("assign".to_string());
+
+                // add a mid connector for the lhs section, and then add vertical pipe
+                // to the lhs so that it can be joined with the rhs of the assign expr
+                let mut lhs_lines = vec!["lhs".to_string()];
+                lhs_lines.extend(draw_branches_for_lines(
+                    &decl.lhs.node_display(0),
+                    END_PIPE,
+                    "",
+                ));
+
+                // now deal with the rhs
+                let mut rhs_lines = vec!["rhs".to_string()];
+                rhs_lines.extend(draw_branches_for_lines(
+                    &decl.rhs.node_display(0),
+                    END_PIPE,
+                    "",
+                ));
+
+                vec![lhs_lines, rhs_lines]
+            }
+            Statement::StructDef(_def) => {
+                lines.push("struct_def".to_string());
+                vec![]
+            }
+            Statement::EnumDef(_def) => {
+                lines.push("enum_def".to_string());
+                vec![]
+            }
+            Statement::TraitDef(_def) => {
+                lines.push("trait_def".to_string());
+                vec![]
+            }
         };
 
-        // we need to pad each line by the number of spaces specified by 'ident'
-        let mut lines: Vec<String> = lines
-            .into_iter()
-            .map(|line| pad_str(line.as_str(), ' ', indent, Alignment::Left))
-            .collect();
-
-        let next_lines: Vec<String> = next_lines
-            .into_iter()
-            .map(|line| pad_str(line.as_str(), ' ', next_indent, Alignment::Left))
-            .collect();
-
-        lines.extend(next_lines);
+        lines.extend(draw_lines_for_children(&child_lines));
         lines
+        // // we need to pad each line by the number of spaces specified by 'ident'
+        // let mut lines: Vec<String> = lines
+        //     .into_iter()
+        //     .map(|line| pad_str(line.as_str(), ' ', indent, Alignment::Left))
+        //     .collect();
+
+        // let next_lines: Vec<String> = next_lines
+        //     .into_iter()
+        //     .map(|line| pad_str(line.as_str(), ' ', next_indent, Alignment::Left))
+        //     .collect();
+
+        // lines.extend(next_lines);
+        // lines
     }
 }
 
 impl NodeDisplay for Import {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        vec![
-            "import".to_string(),
-            format!("{} \"{}\"", END_PIPE, self.path),
-        ]
+        vec![format!("import \"{}\"", self.path)]
     }
 }
 
@@ -435,9 +466,9 @@ impl NodeDisplay for Block {
                 let mut lines = vec!["loop".to_string()];
 
                 let block_lines =
-                    draw_branches_for_lines(&loop_body.node_display(indent), END_PIPE, "");
+                    draw_branches_for_lines(&loop_body.node_display(indent + 2), END_PIPE, "");
 
-                lines.extend(pad_lines(&block_lines, 2));
+                lines.extend(block_lines);
                 lines
             }
             Block::Body(body) => body.node_display(indent),
@@ -485,7 +516,8 @@ impl NodeDisplay for BodyBlock {
             statements.push(expr.node_display(0));
         }
 
-        lines.extend(draw_lines_for_children(&statements));
-        pad_lines(&lines, indent)
+        let next_lines = draw_lines_for_children(&statements);
+        lines.extend(pad_lines(&next_lines, indent));
+        lines
     }
 }
