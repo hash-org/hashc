@@ -17,11 +17,8 @@ use std::path::Path;
 pub use derived::{HashGrammar, Rule};
 use pest::Parser;
 
-use hash_ast::{
-    ast,
-    error::{ParseError, ParseResult},
-    parse::{timed, ModuleResolver, ParserBackend},
-};
+use hash_ast::{ast, error::{ParseError, ParseResult}, parse::{ModuleResolver, ParserBackend}};
+use hash_utils::timed;
 
 use crate::{error::PestError, translate::PestAstBuilder};
 
