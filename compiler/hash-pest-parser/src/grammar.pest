@@ -389,10 +389,10 @@ literal_pattern = {
 
 /// Single pattern (used in binding positions)
 single_pattern = {
+    struct_pattern  |
     enum_pattern    |
     binding_pattern |
     ignore_pattern  |
-    struct_pattern  |
     literal_pattern |
     tuple_pattern   |
     grouped_pattern |

@@ -114,6 +114,7 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Display(expr)) => {
             if let Some((block, _)) = parse_interactive(expr) {
+                println!("{:#?}", block);
                 println!("{}", block);
             }
         }
