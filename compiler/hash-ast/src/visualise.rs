@@ -170,12 +170,6 @@ impl std::fmt::Display for Module {
     }
 }
 
-impl std::fmt::Display for Name {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "name \"{}\"", self.string)
-    }
-}
-
 impl NodeDisplay for Type {
     fn node_display(&self, _indent: usize) -> Vec<String> {
         // special case for reference type, the name of the parent node has the prefix 'ref_'
@@ -388,7 +382,7 @@ impl NodeDisplay for Literal {
 
 impl NodeDisplay for StructLiteralEntry {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        let name = vec![format!("{}", self.name.body)];
+        let name = self.name.node_display(0);
 
         let value = iter::once("value".to_string())
             .chain(child_branch(&self.value.node_display(0)))
@@ -403,7 +397,13 @@ impl NodeDisplay for StructLiteralEntry {
 impl NodeDisplay for AccessName {
     fn node_display(&self, _indent: usize) -> Vec<String> {
         let names: Vec<&str> = self.names.iter().map(|n| n.body.string.as_ref()).collect();
-        vec![format!("name \"{}\"", names.join("::"))]
+        vec![format!("\"{}\"", names.join("::"))]
+    }
+}
+
+impl NodeDisplay for Name {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        vec![format!("\"{}\"", self.string)]
     }
 }
 
@@ -537,7 +537,7 @@ impl NodeDisplay for Expression {
                 // check if the length of type_args to this ident, if not
                 // we don't produce any children nodes for it
                 let name = var.name.node_display(0).join("");
-                let ident_lines = vec![format!("ident \"{}\"", name)];
+                let ident_lines = vec![format!("ident {}", name)];
 
                 if !var.type_args.is_empty() {
                     lines.push("variable".to_string());
@@ -573,11 +573,7 @@ impl NodeDisplay for Expression {
                 // deal with the subject
                 let subject_lines = vec!["subject".to_string()]
                     .into_iter()
-                    .chain(draw_branches_for_lines(
-                        &expr.subject.node_display(2),
-                        END_PIPE,
-                        "  ",
-                    ))
+                    .chain(child_branch(&expr.subject.node_display(0)))
                     .collect();
 
                 // now deal with the field
@@ -691,7 +687,7 @@ impl NodeDisplay for MatchCase {
         // deal with the block for this case
         let branch_lines = vec!["branch".to_string()]
             .into_iter()
-            .chain(self.expr.node_display(0))
+            .chain(child_branch(&self.expr.node_display(0)))
             .collect();
 
         // append child_lines with padding and vertical lines being drawn
@@ -700,22 +696,122 @@ impl NodeDisplay for MatchCase {
     }
 }
 
+impl NodeDisplay for LiteralPattern {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        vec![match &self {
+            LiteralPattern::Str(s) => format!("string \"{}\"", s),
+            LiteralPattern::Char(c) => format!("char \'{}\'", c),
+            LiteralPattern::Int(i) => format!("number {}", i),
+            LiteralPattern::Float(f) => format!("float {}", f),
+        }]
+    }
+}
+
+impl NodeDisplay for DestructuringPattern {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let name = vec![format!("ident {}", self.name.node_display(0).join(""))];
+        let pat = self.pattern.node_display(0);
+
+        draw_lines_for_children(&[name, pat])
+    }
+}
+
 impl NodeDisplay for Pattern {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        let lines = vec!["pattern".to_string()];
+        let mut lines = vec!["pattern".to_string()];
 
-        match &self {
-            Pattern::Enum(_) => {}
-            Pattern::Struct(_) => {}
-            Pattern::Namespace(_) => {}
-            Pattern::Tuple(_) => {}
-            Pattern::Literal(_) => {}
-            Pattern::Or(_) => {}
-            Pattern::If(_) => {}
-            Pattern::Binding(_) => {}
-            Pattern::Ignore => {}
-        }
+        let child_components = match &self {
+            Pattern::Enum(enum_pat) => {
+                let mut components = vec![vec![format!(
+                    "ident {}",
+                    enum_pat.name.node_display(0).join("")
+                )]];
 
+                let patterns: Vec<Vec<String>> = enum_pat
+                    .args
+                    .iter()
+                    .map(|pat| pat.node_display(0))
+                    .collect();
+
+                components.push(
+                    iter::once("patterns".to_string())
+                        .chain(draw_lines_for_children(&patterns))
+                        .collect(),
+                );
+
+                vec![iter::once("enum".to_string())
+                    .chain(draw_lines_for_children(&components))
+                    .collect()]
+            }
+            Pattern::Struct(struct_pat) => {
+                let mut components = vec![vec![format!(
+                    "ident {}",
+                    struct_pat.name.node_display(0).join("")
+                )]];
+
+                let patterns: Vec<Vec<String>> = struct_pat
+                    .entries
+                    .iter()
+                    .map(|pat| pat.node_display(0))
+                    .collect();
+
+                components.push(
+                    iter::once("patterns".to_string())
+                        .chain(draw_lines_for_children(&patterns))
+                        .collect(),
+                );
+
+                vec![iter::once("struct".to_string())
+                    .chain(draw_lines_for_children(&components))
+                    .collect()]
+            }
+            Pattern::Namespace(namespace) => {
+                let patterns: Vec<Vec<String>> = namespace
+                    .patterns
+                    .iter()
+                    .map(|pat| pat.node_display(0))
+                    .collect();
+
+                vec![iter::once("namespace".to_string())
+                    .chain(draw_lines_for_children(&patterns))
+                    .collect()]
+            }
+            Pattern::Tuple(tup) => {
+                let patterns: Vec<Vec<String>> =
+                    tup.elements.iter().map(|pat| pat.node_display(0)).collect();
+
+                vec![iter::once("tuple".to_string())
+                    .chain(draw_lines_for_children(&patterns))
+                    .collect()]
+            }
+            Pattern::Literal(lit) => vec![iter::once("literal".to_string())
+                .chain(child_branch(&lit.node_display(0)))
+                .collect()],
+            Pattern::Or(pat) => {
+                let left = pat.a.node_display(0);
+                let right = pat.b.node_display(0);
+
+                vec![iter::once("or".to_string())
+                    .chain(draw_lines_for_children(&[left, right]))
+                    .collect()]
+            }
+            Pattern::If(pat) => {
+                let pattern = pat.pattern.node_display(0);
+
+                // add a 'condition' prefix branch to the expression
+                let condition = iter::once("condition".to_string())
+                    .chain(child_branch(&pat.condition.node_display(0)))
+                    .collect();
+
+                vec![iter::once("if".to_string())
+                    .chain(draw_lines_for_children(&[pattern, condition]))
+                    .collect()]
+            }
+            Pattern::Binding(x) => vec![x.node_display(0)],
+            Pattern::Ignore => vec![vec!["ignore".to_string()]],
+        };
+
+        lines.extend(draw_lines_for_children(&child_components));
         lines
     }
 }
