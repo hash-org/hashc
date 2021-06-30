@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::fmt::Alignment;
+use std::{fmt::Alignment, iter};
 
 use crate::ast::*;
 
@@ -170,6 +170,12 @@ impl std::fmt::Display for Module {
     }
 }
 
+impl std::fmt::Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "name \"{}\"", self.string)
+    }
+}
+
 impl NodeDisplay for Type {
     fn node_display(&self, _indent: usize) -> Vec<String> {
         // special case for reference type, the name of the parent node has the prefix 'ref_'
@@ -282,11 +288,47 @@ impl NodeDisplay for Literal {
 
                 next_lines.extend(draw_lines_for_children(&entries));
             }
-            Literal::Struct(_struct_lit) => {
+            Literal::Struct(struct_lit) => {
                 lines.push("struct".to_string());
+
+                let mut components = vec![struct_lit.name.node_display(0)];
+
+                // now deal with type_arguments here
+                if !struct_lit.type_args.is_empty() {
+                    let args: Vec<Vec<String>> = struct_lit
+                        .type_args
+                        .iter()
+                        .map(|arg| arg.node_display(0))
+                        .collect();
+
+                    let type_args_lines = vec!["type_args".to_string()]
+                        .into_iter()
+                        .chain(draw_lines_for_children(&args))
+                        .collect();
+
+                    components.push(type_args_lines);
+                }
+
+                if !struct_lit.entries.is_empty() {
+                    let entries: Vec<Vec<String>> = struct_lit
+                        .entries
+                        .iter()
+                        .map(|arg| arg.node_display(0))
+                        .collect();
+
+                    // @@Naming: change this to 'fields' rather than 'entries'?
+                    let entry_lines = vec!["entries".to_string()]
+                        .into_iter()
+                        .chain(draw_lines_for_children(&entries))
+                        .collect();
+
+                    components.push(entry_lines);
+                }
+
+                next_lines.extend(draw_lines_for_children(&components));
             }
             Literal::Function(fn_defn) => {
-                lines.push("function".to_string());
+                lines.push("function_defn".to_string());
 
                 let mut components = vec![];
 
@@ -344,10 +386,24 @@ impl NodeDisplay for Literal {
     }
 }
 
+impl NodeDisplay for StructLiteralEntry {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let name = vec![format!("{}", self.name.body)];
+
+        let value = iter::once("value".to_string())
+            .chain(child_branch(&self.value.node_display(0)))
+            .collect();
+
+        iter::once("entry".to_string())
+            .chain(draw_lines_for_children(&[name, value]))
+            .collect()
+    }
+}
+
 impl NodeDisplay for AccessName {
     fn node_display(&self, _indent: usize) -> Vec<String> {
         let names: Vec<&str> = self.names.iter().map(|n| n.body.string.as_ref()).collect();
-        vec![names.join("::")]
+        vec![format!("name \"{}\"", names.join("::"))]
     }
 }
 
@@ -376,9 +432,7 @@ impl NodeDisplay for Statement {
             Statement::Break => vec![],
             Statement::Continue => vec![],
             Statement::Let(decl) => {
-                let mut components = vec![
-                    decl.pattern.node_display(0)
-                ];
+                let mut components = vec![decl.pattern.node_display(0)];
 
                 // optionally add the type of the argument, as specified by the user
                 if let Some(ty) = &decl.ty {
@@ -451,52 +505,28 @@ impl NodeDisplay for Expression {
 
         match &self {
             Expression::FunctionCall(func) => {
+                lines.push("function_call".to_string());
+
+                let mut components = vec![iter::once("subject".to_string())
+                    .chain(child_branch(&func.subject.node_display(indent)))
+                    .collect()];
+
                 let arguments = &func.args.body.entries;
 
-                lines.push("function".to_string());
-
-                // deal with the subject of the function call, this is for sure going to
-                // be a VariableExpr, so the child branch will be labelled as 'ident'...
-                let connector = if arguments.is_empty() {
-                    END_PIPE
-                } else {
-                    MID_PIPE
-                };
-
-                lines.push(format!(" {}subject", connector));
-
-                // deal with the 'subject' as a child and then append it to the next lines
-                let subject_lines =
-                    draw_branches_for_lines(&func.subject.node_display(2), END_PIPE, " ");
                 // now deal with the function args if there are any
                 if !arguments.is_empty() {
-                    // we need to add a vertical line to the subject in order to connect the 'args'
-                    // and subject component of the function AST node...
-                    let subject_lines = draw_vertical_branch(&subject_lines);
-                    lines.extend(pad_lines(subject_lines, 1));
+                    // @@TODO: add 'arg' prefix to each branch
 
-                    lines.push(format!(" {}args", END_PIPE));
+                    let args: Vec<Vec<String>> =
+                        arguments.iter().map(|arg| arg.node_display(0)).collect();
 
-                    let mut arg_lines = vec![];
+                    let arg_lines = iter::once("args".to_string())
+                        .chain(draw_lines_for_children(&args))
+                        .collect();
 
-                    // draw the children on onto the arguments
-                    for (index, element) in arguments.iter().enumerate() {
-                        let connector = which_connector(index, arguments.len());
-                        let branch = which_pipe(index, arguments.len());
-
-                        // reset the indent here since we'll be doing indentation here...
-                        let child_lines = element.node_display(1);
-                        arg_lines.extend(draw_branches_for_lines(&child_lines, connector, branch));
-                    }
-
-                    // add the lines to parent...
-                    lines.extend(pad_lines(arg_lines, 3))
-                } else {
-                    // no arguments, hence we should pad the lines by 3 characters instead of one,
-                    // counting for a phantom verticla line...
-                    lines.extend(pad_lines(subject_lines, 3));
+                    components.push(arg_lines);
                 }
-
+                lines.extend(draw_lines_for_children(&components));
                 lines
             }
             Expression::Intrinsic(intrinsic) => {
@@ -514,7 +544,7 @@ impl NodeDisplay for Expression {
 
                     let mut components = vec![ident_lines];
 
-                    // now deal with type_argumnets here
+                    // now deal with type_arguments here
                     let args: Vec<Vec<String>> = var
                         .type_args
                         .iter()
