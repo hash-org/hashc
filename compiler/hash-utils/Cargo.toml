@@ -1,0 +1,8 @@
+[package]
+name = "hash-utils"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2018"
+
+[dependencies]
+log = "0.4"
