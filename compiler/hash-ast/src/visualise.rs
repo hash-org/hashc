@@ -238,34 +238,32 @@ impl NodeDisplay for AccessName {
 
 impl NodeDisplay for Statement {
     fn node_display(&self, indent: usize) -> Vec<String> {
-        let mut lines = vec![];
+        let node_name = match &self {
+            Statement::Expr(_) => None,
+            Statement::Return(_) => Some("ret".to_string()),
+            Statement::Block(_) => Some("block".to_string()),
+            Statement::Break => Some("break".to_string()),
+            Statement::Continue => Some("continue".to_string()),
+            Statement::Let(_) => Some("let".to_string()),
+            Statement::Assign(_) => Some("assign".to_string()),
+            Statement::StructDef(_) => Some("struct_defn".to_string()),
+            Statement::EnumDef(_) => Some("enum_defn".to_string()),
+            Statement::TraitDef(_) => Some("trait_defn".to_string()),
+        };
 
-        let child_lines: Vec<Vec<String>> = match &self {
-            Statement::Expr(expr) => vec![expr.node_display(indent + 1)],
-            Statement::Return(expr) => {
-                lines.push("ret".to_string());
-
-                match expr {
-                    Some(ret) => vec![ret.node_display(indent + 1)],
-                    None => vec![],
-                }
-            }
-            Statement::Block(block) => vec![block.node_display(indent)],
-            Statement::Break => {
-                lines.push("break".to_string());
-                vec![]
-            }
-            Statement::Continue => {
-                lines.push("continue".to_string());
-                vec![]
-            }
+        let child_lines: Vec<String> = match &self {
+            Statement::Expr(expr) => expr.node_display(indent + 1),
+            Statement::Return(expr) => match expr {
+                Some(ret) => draw_branches_for_lines(&ret.node_display(indent + 1), END_PIPE, ""),
+                None => vec![],
+            },
+            Statement::Block(block) => block.node_display(indent),
+            Statement::Break => vec![],
+            Statement::Continue => vec![],
             Statement::Let(_decl) => {
-                lines.push("let".to_string());
                 vec![]
             }
             Statement::Assign(decl) => {
-                lines.push("assign".to_string());
-
                 // add a mid connector for the lhs section, and then add vertical pipe
                 // to the lhs so that it can be joined with the rhs of the assign expr
                 let mut lhs_lines = vec!["lhs".to_string()];
@@ -283,37 +281,20 @@ impl NodeDisplay for Statement {
                     "",
                 ));
 
-                vec![lhs_lines, rhs_lines]
+                draw_lines_for_children(&vec![lhs_lines, rhs_lines])
             }
             Statement::StructDef(_def) => {
-                lines.push("struct_def".to_string());
                 vec![]
             }
             Statement::EnumDef(_def) => {
-                lines.push("enum_def".to_string());
                 vec![]
             }
             Statement::TraitDef(_def) => {
-                lines.push("trait_def".to_string());
                 vec![]
             }
         };
 
-        lines.extend(draw_lines_for_children(&child_lines));
-        lines
-        // // we need to pad each line by the number of spaces specified by 'ident'
-        // let mut lines: Vec<String> = lines
-        //     .into_iter()
-        //     .map(|line| pad_str(line.as_str(), ' ', indent, Alignment::Left))
-        //     .collect();
-
-        // let next_lines: Vec<String> = next_lines
-        //     .into_iter()
-        //     .map(|line| pad_str(line.as_str(), ' ', next_indent, Alignment::Left))
-        //     .collect();
-
-        // lines.extend(next_lines);
-        // lines
+        node_name.into_iter().chain(child_lines).collect()
     }
 }
 
@@ -503,8 +484,6 @@ impl NodeDisplay for Pattern {
 
 impl NodeDisplay for BodyBlock {
     fn node_display(&self, indent: usize) -> Vec<String> {
-        let mut lines = vec!["block".to_string()];
-
         let mut statements: Vec<Vec<String>> = self
             .statements
             .iter()
@@ -517,7 +496,6 @@ impl NodeDisplay for BodyBlock {
         }
 
         let next_lines = draw_lines_for_children(&statements);
-        lines.extend(pad_lines(&next_lines, indent));
-        lines
+        pad_lines(&next_lines, indent)
     }
 }
