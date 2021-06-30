@@ -6,11 +6,9 @@ use std::fmt::Alignment;
 
 use crate::ast::*;
 
-// const CROSS_PIPE: char = '├';
-// const CORNER_PIPE: char = '└';
-// const HORIZ_PIPE: char = '─';
-const VERT_PIPE: &str = "│";
+// @@FIXME: REMOVE IDENT!
 
+const VERT_PIPE: &str = "│";
 const END_PIPE: &str = "└─";
 const MID_PIPE: &str = "├─";
 
@@ -81,6 +79,10 @@ fn draw_branches_for_lines(lines: &[String], connector: &str, branch: &str) -> V
     }
 
     next_lines
+}
+
+fn child_branch(lines: &[String]) -> Vec<String> {
+    draw_branches_for_lines(lines, END_PIPE, "  ")
 }
 
 /// Function to draw branches for a Vector of lines, connecting each line with the appropriate
@@ -192,7 +194,8 @@ impl NodeDisplay for Type {
                 if !type_args.is_empty() {
                     let mut type_lines = vec!["args".to_string()];
 
-                    let arg_lines: Vec<Vec<String>> = type_args.iter().map(|arg| arg.node_display(0)).collect();
+                    let arg_lines: Vec<Vec<String>> =
+                        type_args.iter().map(|arg| arg.node_display(0)).collect();
                     type_lines.extend(draw_lines_for_children(&arg_lines));
 
                     components.push(type_lines)
@@ -251,9 +254,89 @@ impl NodeDisplay for Literal {
                     next_lines.extend(draw_branches_for_lines(&child_lines, connector, branch));
                 }
             }
-            Literal::Map(_map_lit) => {}
-            Literal::Struct(_struct_lit) => {}
-            Literal::Function(_fn_lit) => {}
+            Literal::Map(map) => {
+                lines.push("map".to_string());
+
+                // loop over the entries in the map and build a list of
+                // 'entry' branches which contain a 'key' and 'value' sub branch
+                let entries: Vec<Vec<String>> = map
+                    .elements
+                    .iter()
+                    .map(|(key, value)| {
+                        let mut entry = vec!["entry".to_string()];
+
+                        // deal with they key, and then value
+                        let key_lines = vec!["key".to_string()]
+                            .into_iter()
+                            .chain(child_branch(&key.node_display(0)))
+                            .collect();
+                        let value_lines = vec!["value".to_string()]
+                            .into_iter()
+                            .chain(child_branch(&value.node_display(0)))
+                            .collect();
+
+                        entry.extend(draw_lines_for_children(&[key_lines, value_lines]));
+                        entry
+                    })
+                    .collect();
+
+                next_lines.extend(draw_lines_for_children(&entries));
+            }
+            Literal::Struct(_struct_lit) => {
+                lines.push("struct".to_string());
+            }
+            Literal::Function(fn_defn) => {
+                lines.push("function".to_string());
+
+                let mut components = vec![];
+
+                // deal with the args
+                if !fn_defn.args.is_empty() {
+                    let arg_lines: Vec<Vec<String>> = fn_defn
+                        .args
+                        .iter()
+                        .map(|arg| {
+                            let lines = vec!["arg".to_string()];
+
+                            // deal with the name and type as seperate branches
+                            let mut arg_components =
+                                vec![vec![format!("name \"{}\"", arg.name.body.string)]];
+
+                            if let Some(ty) = &arg.ty {
+                                arg_components.push(ty.node_display(0))
+                            }
+
+                            let component_lines = draw_lines_for_children(&arg_components);
+                            lines.into_iter().chain(component_lines).collect()
+                        })
+                        .collect();
+
+                    let args = draw_lines_for_children(&arg_lines);
+                    components.push(vec!["args".to_string()].into_iter().chain(args).collect());
+                }
+
+                // if there is a return type on the function, then add it to the tree
+                if let Some(return_ty) = &fn_defn.return_ty {
+                    let return_ty_lines = vec!["return_type".to_string()]
+                        .into_iter()
+                        .chain(child_branch(&return_ty.node_display(1)))
+                        .collect();
+
+                    components.push(return_ty_lines);
+                }
+
+                // deal with the function body
+                let body = vec!["body".to_string()]
+                    .into_iter()
+                    // we don't need to deal with branches here since the block will already add a parental
+                    // branch
+                    .chain(fn_defn.fn_body.node_display(0))
+                    .collect();
+
+                components.push(body);
+
+                next_lines.extend(pad_lines(draw_lines_for_children(&components), 2));
+            }
         };
 
         lines.extend(pad_lines(next_lines, indent));
@@ -292,8 +375,34 @@ impl NodeDisplay for Statement {
             Statement::Block(block) => block.node_display(indent),
             Statement::Break => vec![],
             Statement::Continue => vec![],
-            Statement::Let(_decl) => {
-                vec![]
+            Statement::Let(decl) => {
+                let mut components = vec![
+                    decl.pattern.node_display(0)
+                ];
+
+                // optionally add the type of the argument, as specified by the user
+                if let Some(ty) = &decl.ty {
+                    components.push(ty.node_display(0));
+                }
+
+                // optionally deal with the bound of the let statement
+                if let Some(_bound) = &decl.bound {
+                    todo!()
+                }
+
+                // optionally deal with the value of the let statement
+                if let Some(value) = &decl.value {
+                    let mut value_lines = vec!["value".to_string()];
+                    value_lines.extend(draw_branches_for_lines(
+                        &value.node_display(0),
+                        END_PIPE,
+                        "",
+                    ));
+
+                    components.push(value_lines);
+                }
+
+                draw_lines_for_children(&components)
             }
             Statement::Assign(decl) => {
                 // add a mid connector for the lhs section, and then add vertical pipe
@@ -397,15 +506,56 @@ impl NodeDisplay for Expression {
             Expression::Variable(var) => {
                 // check if the length of type_args to this ident, if not
                 // we don't produce any children nodes for it
+                let name = var.name.node_display(0).join("");
+                let ident_lines = vec![format!("ident \"{}\"", name)];
+
                 if !var.type_args.is_empty() {
-                    todo!()
+                    lines.push("variable".to_string());
+
+                    let mut components = vec![ident_lines];
+
+                    // now deal with type_argumnets here
+                    let args: Vec<Vec<String>> = var
+                        .type_args
+                        .iter()
+                        .map(|arg| arg.node_display(0))
+                        .collect();
+
+                    let type_args_lines = vec!["type_args".to_string()]
+                        .into_iter()
+                        .chain(draw_lines_for_children(&args))
+                        .collect();
+
+                    components.push(type_args_lines);
+                    lines.extend(draw_lines_for_children(&components));
                 } else {
-                    let name = var.name.node_display(0).join("");
-                    lines.push(format!("ident \"{}\"", name));
-                    lines
+                    // we don't construct a complex tree structure here since we want to avoid
+                    // verbosity as much, since most of the time variales aren't going to have
+                    // type arguments.
+                    lines.extend(ident_lines);
                 }
+
+                lines
             }
-            Expression::PropertyAccess(_) => todo!(),
+            Expression::PropertyAccess(expr) => {
+                lines.push("property_access".to_string());
+
+                // deal with the subject
+                let subject_lines = vec!["subject".to_string()]
+                    .into_iter()
+                    .chain(draw_branches_for_lines(
+                        &expr.subject.node_display(2),
+                        END_PIPE,
+                        "  ",
+                    ))
+                    .collect();
+
+                // now deal with the field
+                let field_lines = vec![format!("field \"{}\"", expr.property.body.string)];
+
+                lines.extend(draw_lines_for_children(&[subject_lines, field_lines]));
+                lines
+            }
             Expression::Ref(expr) | Expression::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
                 match &self {
@@ -489,16 +639,12 @@ impl NodeDisplay for Block {
                     lines.extend(pad_lines(subject_lines, 3));
                 }
 
-                lines
+                draw_branches_for_lines(&lines, END_PIPE, " ")
             }
             Block::Loop(loop_body) => {
                 let mut lines = vec!["loop".to_string()];
-
-                let block_lines =
-                    draw_branches_for_lines(&loop_body.node_display(indent + 2), END_PIPE, "");
-
-                lines.extend(block_lines);
-                lines
+                lines.extend(pad_lines(loop_body.node_display(indent), 2));
+                draw_branches_for_lines(&lines, END_PIPE, "")
             }
             Block::Body(body) => body.node_display(indent),
         }
@@ -513,10 +659,10 @@ impl NodeDisplay for MatchCase {
         let pattern_lines = self.pattern.node_display(indent);
 
         // deal with the block for this case
-        let mut branch_lines = vec!["branch".to_string()];
-
-        let child_lines = draw_branches_for_lines(&self.expr.node_display(indent), END_PIPE, "");
-        branch_lines.extend(pad_lines(child_lines, 2));
+        let branch_lines = vec!["branch".to_string()]
+            .into_iter()
+            .chain(self.expr.node_display(0))
+            .collect();
 
         // append child_lines with padding and vertical lines being drawn
         lines.extend(draw_lines_for_children(&[pattern_lines, branch_lines]));
@@ -526,7 +672,21 @@ impl NodeDisplay for MatchCase {
 
 impl NodeDisplay for Pattern {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        vec!["pattern".to_string()]
+        let lines = vec!["pattern".to_string()];
+
+        match &self {
+            Pattern::Enum(_) => {}
+            Pattern::Struct(_) => {}
+            Pattern::Namespace(_) => {}
+            Pattern::Tuple(_) => {}
+            Pattern::Literal(_) => {}
+            Pattern::Or(_) => {}
+            Pattern::If(_) => {}
+            Pattern::Binding(_) => {}
+            Pattern::Ignore => {}
+        }
+
+        lines
     }
 }
 
