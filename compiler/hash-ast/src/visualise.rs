@@ -154,19 +154,19 @@ impl std::fmt::Display for Module {
         let nodes: Vec<Vec<String>> = self.contents.iter().map(|s| s.node_display(0)).collect();
 
         writeln!(f, "module")?;
+        write!(f, "{}", draw_lines_for_children(&nodes).join("\n"))
+    }
+}
 
-        for (count, node) in nodes.iter().enumerate() {
-            // determine the connector that should be use to join the nodes
-            let (connector, ending) = if count == nodes.len() - 1 {
-                (END_PIPE, "")
-            } else {
-                (MID_PIPE, VERT_PIPE)
-            };
+/// Implementation for Type_Args specifically!
+impl NodeDisplay for AstNodes<Type> {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let args: Vec<Vec<String>> = self.iter().map(|arg| arg.node_display(0)).collect();
 
-            write!(f, "{}{}\n{}", connector, node.join("\n"), ending)?
-        }
-
-        Ok(())
+        iter::once("type_args".to_string())
+            .into_iter()
+            .chain(draw_lines_for_children(&args))
+            .collect()
     }
 }
 
@@ -188,30 +188,19 @@ impl NodeDisplay for Type {
                 let NamedType { name, type_args } = &named_ty;
 
                 // add the name_lines into components
-                // @@Fixme: maybe have a different fmt::Display for Access
-                components.push(vec![format!("name \"{}\"", name.node_display(0)[0])]);
+                components.push(vec![format!("name {}", name.node_display(0).join(""))]);
 
                 if !type_args.is_empty() {
-                    let mut type_lines = vec!["args".to_string()];
-
-                    let arg_lines: Vec<Vec<String>> =
-                        type_args.iter().map(|arg| arg.node_display(0)).collect();
-                    type_lines.extend(draw_lines_for_children(&arg_lines));
-
-                    components.push(type_lines)
+                    components.push(type_args.node_display(0));
                 }
 
                 // components
                 draw_lines_for_children(&components)
             }
-            Type::Ref(ref_ty) => draw_branches_for_lines(&ref_ty.node_display(2), END_PIPE, "  "), // @@Hack: two spaces here to add padding to the child lines
-            Type::TypeVar(var) => draw_branches_for_lines(
-                &[format!("var \"{}\"", var.name.body.string)],
-                END_PIPE,
-                "",
-            ),
-            Type::Existential => draw_branches_for_lines(&["infer".to_string()], END_PIPE, ""),
-            Type::Infer => draw_branches_for_lines(&["infer".to_string()], END_PIPE, ""),
+            Type::Ref(ref_ty) => child_branch(&ref_ty.node_display(2)),
+            Type::TypeVar(var) => child_branch(&[format!("var \"{}\"", var.name)]),
+            Type::Existential => child_branch(&["existential".to_string()]),
+            Type::Infer => child_branch(&["infer".to_string()]),
         };
 
         lines.into_iter().chain(child_lines).collect()
@@ -289,18 +278,7 @@ impl NodeDisplay for Literal {
 
                 // now deal with type_arguments here
                 if !struct_lit.type_args.is_empty() {
-                    let args: Vec<Vec<String>> = struct_lit
-                        .type_args
-                        .iter()
-                        .map(|arg| arg.node_display(0))
-                        .collect();
-
-                    let type_args_lines = vec!["type_args".to_string()]
-                        .into_iter()
-                        .chain(draw_lines_for_children(&args))
-                        .collect();
-
-                    components.push(type_args_lines);
+                    components.push(struct_lit.type_args.node_display(0));
                 }
 
                 if !struct_lit.entries.is_empty() {
@@ -311,7 +289,7 @@ impl NodeDisplay for Literal {
                         .collect();
 
                     // @@Naming: change this to 'fields' rather than 'entries'?
-                    let entry_lines = vec!["entries".to_string()]
+                    let entry_lines = iter::once("entries".to_string())
                         .into_iter()
                         .chain(draw_lines_for_children(&entries))
                         .collect();
@@ -336,7 +314,7 @@ impl NodeDisplay for Literal {
 
                             // deal with the name and type as seperate branches
                             let mut arg_components =
-                                vec![vec![format!("name \"{}\"", arg.name.body.string)]];
+                                vec![vec![format!("name {}", arg.name.body.string)]];
 
                             if let Some(ty) = &arg.ty {
                                 arg_components.push(ty.node_display(0))
@@ -366,7 +344,7 @@ impl NodeDisplay for Literal {
                     .into_iter()
                     // we don't need to deal with branches here since the block will already add a parental
                     // branch
-                    .chain(fn_defn.fn_body.node_display(0))
+                    .chain(child_branch(&fn_defn.fn_body.node_display(0)))
                     .collect();
 
                 components.push(body);
@@ -440,20 +418,17 @@ impl NodeDisplay for Statement {
                 }
 
                 // optionally deal with the bound of the let statement
-                if let Some(_bound) = &decl.bound {
-                    todo!()
+                if let Some(bound) = &decl.bound {
+                    components.push(bound.node_display(0))
                 }
 
                 // optionally deal with the value of the let statement
                 if let Some(value) = &decl.value {
-                    let mut value_lines = vec!["value".to_string()];
-                    value_lines.extend(draw_branches_for_lines(
-                        &value.node_display(0),
-                        END_PIPE,
-                        "",
-                    ));
-
-                    components.push(value_lines);
+                    components.push(
+                        iter::once("value".to_string())
+                            .chain(child_branch(&value.node_display(0)))
+                            .collect(),
+                    );
                 }
 
                 draw_lines_for_children(&components)
@@ -461,35 +436,157 @@ impl NodeDisplay for Statement {
             Statement::Assign(decl) => {
                 // add a mid connector for the lhs section, and then add vertical pipe
                 // to the lhs so that it can be joined with the rhs of the assign expr
-                let mut lhs_lines = vec!["lhs".to_string()];
-                lhs_lines.extend(draw_branches_for_lines(
-                    &decl.lhs.node_display(0),
-                    END_PIPE,
-                    "",
-                ));
+                let lhs_lines = iter::once("lhs".to_string())
+                    .chain(child_branch(&decl.lhs.node_display(0)))
+                    .collect();
 
                 // now deal with the rhs
-                let mut rhs_lines = vec!["rhs".to_string()];
-                rhs_lines.extend(draw_branches_for_lines(
-                    &decl.rhs.node_display(0),
-                    END_PIPE,
-                    "",
-                ));
+                let rhs_lines = iter::once("rhs".to_string())
+                    .chain(child_branch(&decl.rhs.node_display(0)))
+                    .collect();
 
                 draw_lines_for_children(&[lhs_lines, rhs_lines])
             }
-            Statement::StructDef(_def) => {
-                vec![]
+            Statement::StructDef(defn) => {
+                let mut components =
+                    vec![vec![format!("name {}", defn.name.node_display(0).join(""))]];
+
+                if let Some(bound) = &defn.bound {
+                    components.push(bound.node_display(0))
+                }
+
+                // append the entries if there is more than one
+                if !defn.entries.is_empty() {
+                    let lines = defn
+                        .entries
+                        .iter()
+                        .map(|entry| entry.node_display(0))
+                        .collect::<Vec<Vec<String>>>();
+
+                    // the enum definition entries
+                    let entries = iter::once("entries".to_string())
+                        .into_iter()
+                        .chain(draw_lines_for_children(&lines))
+                        .collect();
+
+                    components.push(entries);
+                }
+
+                draw_lines_for_children(&components)
             }
-            Statement::EnumDef(_def) => {
-                vec![]
+            Statement::EnumDef(defn) => {
+                let mut components =
+                    vec![vec![format!("name {}", defn.name.node_display(0).join(""))]];
+
+                if let Some(bound) = &defn.bound {
+                    components.push(bound.node_display(0))
+                }
+
+                // append the entries if there is more than one
+                if !defn.entries.is_empty() {
+                    let lines = defn
+                        .entries
+                        .iter()
+                        .map(|entry| entry.node_display(0))
+                        .collect::<Vec<Vec<String>>>();
+
+                    // the enum definition entries
+                    let entries = iter::once("entries".to_string())
+                        .into_iter()
+                        .chain(draw_lines_for_children(&lines))
+                        .collect();
+
+                    components.push(entries);
+                }
+
+                draw_lines_for_children(&components)
             }
-            Statement::TraitDef(_def) => {
-                vec![]
+            Statement::TraitDef(defn) => {
+                let components = vec![
+                    vec![format!("name {}", defn.name.node_display(0).join(""))],
+                    defn.bound.node_display(0),
+                    defn.trait_type.node_display(0),
+                ];
+
+                draw_lines_for_children(&components)
             }
         };
 
         node_name.into_iter().chain(child_lines).collect()
+    }
+}
+
+impl NodeDisplay for EnumDefEntry {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let components = vec![
+            vec![format!("name {}", self.name.node_display(0).join(""))],
+            self.args.node_display(0),
+        ];
+
+        iter::once("field".to_string())
+            .chain(draw_lines_for_children(&components))
+            .collect()
+    }
+}
+
+impl NodeDisplay for StructDefEntry {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let mut components = vec![vec![format!("name {}", self.name.node_display(0).join(""))]];
+
+        if let Some(ty) = &self.ty {
+            components.push(ty.node_display(0))
+        }
+
+        if let Some(default) = &self.default {
+            components.push(
+                iter::once("default".to_string())
+                    .chain(child_branch(&default.node_display(0)))
+                    .collect(),
+            )
+        }
+
+        iter::once("field".to_string())
+            .chain(draw_lines_for_children(&components))
+            .collect()
+    }
+}
+
+impl NodeDisplay for Bound {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let mut components = vec![self.type_args.node_display(0)];
+
+        if !self.trait_bounds.is_empty() {
+            let trait_bounds = draw_lines_for_children(
+                &self
+                    .trait_bounds
+                    .iter()
+                    .map(|bound| bound.node_display(0))
+                    .collect::<Vec<Vec<String>>>(),
+            );
+
+            components.push(
+                iter::once("trait_bounds".to_string())
+                    .chain(trait_bounds)
+                    .collect(),
+            );
+        }
+
+        iter::once("bound".to_string())
+            .chain(draw_lines_for_children(&components))
+            .collect()
+    }
+}
+
+impl NodeDisplay for TraitBound {
+    fn node_display(&self, _indent: usize) -> Vec<String> {
+        let components = vec![
+            vec![format!("name {}", self.name.node_display(0).join(""))],
+            self.type_args.node_display(0),
+        ];
+
+        iter::once("trait_bound".to_string())
+            .chain(draw_lines_for_children(&components))
+            .collect()
     }
 }
 
@@ -542,21 +639,8 @@ impl NodeDisplay for Expression {
                 if !var.type_args.is_empty() {
                     lines.push("variable".to_string());
 
-                    let mut components = vec![ident_lines];
+                    let components = vec![ident_lines, var.type_args.node_display(0)];
 
-                    // now deal with type_arguments here
-                    let args: Vec<Vec<String>> = var
-                        .type_args
-                        .iter()
-                        .map(|arg| arg.node_display(0))
-                        .collect();
-
-                    let type_args_lines = vec!["type_args".to_string()]
-                        .into_iter()
-                        .chain(draw_lines_for_children(&args))
-                        .collect();
-
-                    components.push(type_args_lines);
                     lines.extend(draw_lines_for_children(&components));
                 } else {
                     // we don't construct a complex tree structure here since we want to avoid
@@ -807,7 +891,7 @@ impl NodeDisplay for Pattern {
                     .chain(draw_lines_for_children(&[pattern, condition]))
                     .collect()]
             }
-            Pattern::Binding(x) => vec![x.node_display(0)],
+            Pattern::Binding(x) => vec![vec![format!("bind {}", x.node_display(0).join(""))]],
             Pattern::Ignore => vec![vec!["ignore".to_string()]],
         };
 

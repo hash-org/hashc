@@ -1,0 +1,2 @@
+let some_var: int = 3;
+let conv<T, str> = (x) => "<unknown>";
