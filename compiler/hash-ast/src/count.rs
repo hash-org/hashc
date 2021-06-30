@@ -25,7 +25,7 @@ impl<T: NodeCount> NodeCount for Option<T> {
 
 impl<T: NodeCount> NodeCount for AstNode<T> {
     fn children_count(&self) -> usize {
-        self.body.children_count()
+        self.body().children_count()
     }
 }
 
