@@ -32,11 +32,15 @@ const fn which_pipe(index: usize, max_index: usize) -> &'static str {
     }
 }
 
-fn pad_lines(lines: &[String], padding: usize) -> Vec<String> {
-    lines
-        .iter()
-        .map(|line| pad_str(line, ' ', padding, Alignment::Left))
-        .collect()
+fn pad_lines(lines: Vec<String>, padding: usize) -> Vec<String> {
+    if padding == 0 {
+        lines
+    } else {
+        lines
+            .iter()
+            .map(|line| pad_str(line, ' ', padding, Alignment::Left))
+            .collect()
+    }
 }
 
 /// Utility function to pad a string based on [Alignment]
@@ -81,7 +85,7 @@ fn draw_branches_for_lines(lines: &[String], connector: &str, branch: &str) -> V
 
 /// Function to draw branches for a Vector of lines, connecting each line with the appropriate
 /// connector and vertical connector
-fn draw_lines_for_children(line_collections: &Vec<Vec<String>>) -> Vec<String> {
+fn draw_lines_for_children(line_collections: &[Vec<String>]) -> Vec<String> {
     let mut lines = vec![];
 
     for (index, collection) in line_collections.iter().enumerate() {
@@ -166,13 +170,48 @@ impl std::fmt::Display for Module {
 
 impl NodeDisplay for Type {
     fn node_display(&self, _indent: usize) -> Vec<String> {
-        match &self {
-            Type::Named(_) => todo!(),
-            Type::Ref(_) => todo!(),
-            Type::TypeVar(_) => todo!(),
-            Type::Existential => todo!(),
-            Type::Infer => todo!(),
-        }
+        // special case for reference type, the name of the parent node has the prefix 'ref_'
+        let lines = if let Type::Ref(_) = &self {
+            vec!["ref_type".to_string()]
+        } else {
+            vec!["type".to_string()]
+        };
+
+        let child_lines = match &self {
+            Type::Named(named_ty) => {
+                let mut components = vec![];
+
+                // add a mid connector for the lhs section, and then add vertical pipe
+                // to the lhs so that it can be joined with the rhs of the assign expr
+                let NamedType { name, type_args } = &named_ty;
+
+                // add the name_lines into components
+                // @@Fixme: maybe have a different fmt::Display for Access
+                components.push(vec![format!("name \"{}\"", name.node_display(0)[0])]);
+
+                if !type_args.is_empty() {
+                    let mut type_lines = vec!["args".to_string()];
+
+                    let arg_lines: Vec<Vec<String>> = type_args.iter().map(|arg| arg.node_display(0)).collect();
+                    type_lines.extend(draw_lines_for_children(&arg_lines));
+
+                    components.push(type_lines)
+                }
+
+                // components
+                draw_lines_for_children(&components)
+            }
+            Type::Ref(ref_ty) => draw_branches_for_lines(&ref_ty.node_display(2), END_PIPE, "  "), // @@Hack: two spaces here to add padding to the child lines
+            Type::TypeVar(var) => draw_branches_for_lines(
+                &[format!("var \"{}\"", var.name.body.string)],
+                END_PIPE,
+                "",
+            ),
+            Type::Existential => draw_branches_for_lines(&["infer".to_string()], END_PIPE, ""),
+            Type::Infer => draw_branches_for_lines(&["infer".to_string()], END_PIPE, ""),
+        };
+
+        lines.into_iter().chain(child_lines).collect()
     }
 }
 
@@ -217,14 +256,7 @@ impl NodeDisplay for Literal {
             Literal::Function(_fn_lit) => {}
         };
 
-        // @@Cleanup: can we make this transformation generic, so we don't have to call it at the end of each implementation??
-        // we need to pad each line by the number of spaces specified by 'ident'
-        let next_lines: Vec<String> = next_lines
-            .into_iter()
-            .map(|line| pad_str(line.as_str(), ' ', indent, Alignment::Left))
-            .collect();
-
-        lines.extend(next_lines);
+        lines.extend(pad_lines(next_lines, indent));
         lines
     }
 }
@@ -281,7 +313,7 @@ impl NodeDisplay for Statement {
                     "",
                 ));
 
-                draw_lines_for_children(&vec![lhs_lines, rhs_lines])
+                draw_lines_for_children(&[lhs_lines, rhs_lines])
             }
             Statement::StructDef(_def) => {
                 vec![]
@@ -332,7 +364,7 @@ impl NodeDisplay for Expression {
                     // we need to add a vertical line to the subject in order to connect the 'args'
                     // and subject component of the function AST node...
                     let subject_lines = draw_vertical_branch(&subject_lines);
-                    lines.extend(pad_lines(&subject_lines, 1));
+                    lines.extend(pad_lines(subject_lines, 1));
 
                     lines.push(format!(" {}args", END_PIPE));
 
@@ -349,11 +381,11 @@ impl NodeDisplay for Expression {
                     }
 
                     // add the lines to parent...
-                    lines.extend(pad_lines(&arg_lines, 3))
+                    lines.extend(pad_lines(arg_lines, 3))
                 } else {
                     // no arguments, hence we should pad the lines by 3 characters instead of one,
                     // counting for a phantom verticla line...
-                    lines.extend(pad_lines(&subject_lines, 3));
+                    lines.extend(pad_lines(subject_lines, 3));
                 }
 
                 lines
@@ -383,12 +415,28 @@ impl NodeDisplay for Expression {
                 };
 
                 let next_lines = draw_branches_for_lines(&expr.node_display(indent), END_PIPE, "");
-                lines.extend(pad_lines(&next_lines, 1));
+                lines.extend(pad_lines(next_lines, 1));
 
                 lines
             }
             Expression::LiteralExpr(literal) => literal.node_display(indent),
-            Expression::Typed(_) => todo!(),
+            Expression::Typed(expr) => {
+                lines.push("typed_expr".to_string());
+
+                let TypedExpr { expr, ty } = expr;
+
+                // the type line is handeled by the implementation
+                let type_lines = ty.node_display(0);
+
+                // now deal with the expression
+                let mut expr_lines = vec!["subject".to_string()];
+                expr_lines.extend(draw_branches_for_lines(&expr.node_display(0), END_PIPE, ""));
+
+                let next_lines = draw_lines_for_children(&[expr_lines, type_lines]);
+
+                lines.extend(pad_lines(next_lines, 1));
+                lines
+            }
             Expression::Block(block) => block.node_display(indent),
             Expression::Import(import) => import.node_display(indent),
         }
@@ -417,7 +465,7 @@ impl NodeDisplay for Block {
                     // we need to add a vertical line to the subject in order to connect the 'args'
                     // and subject component of the function AST node...
                     let subject_lines = draw_vertical_branch(&subject_lines);
-                    lines.extend(pad_lines(&subject_lines, 1));
+                    lines.extend(pad_lines(subject_lines, 1));
 
                     lines.push(format!(" {}cases", END_PIPE));
 
@@ -434,11 +482,11 @@ impl NodeDisplay for Block {
                     }
 
                     // add the lines to parent...
-                    lines.extend(pad_lines(&arg_lines, 3))
+                    lines.extend(pad_lines(arg_lines, 3))
                 } else {
                     // no arguments, hence we should pad the lines by 3 characters instead of one,
                     // counting for a phantom verticla line...
-                    lines.extend(pad_lines(&subject_lines, 3));
+                    lines.extend(pad_lines(subject_lines, 3));
                 }
 
                 lines
@@ -468,10 +516,10 @@ impl NodeDisplay for MatchCase {
         let mut branch_lines = vec!["branch".to_string()];
 
         let child_lines = draw_branches_for_lines(&self.expr.node_display(indent), END_PIPE, "");
-        branch_lines.extend(pad_lines(&child_lines, 2));
+        branch_lines.extend(pad_lines(child_lines, 2));
 
         // append child_lines with padding and vertical lines being drawn
-        lines.extend(draw_lines_for_children(&vec![pattern_lines, branch_lines]));
+        lines.extend(draw_lines_for_children(&[pattern_lines, branch_lines]));
         lines
     }
 }
@@ -496,6 +544,6 @@ impl NodeDisplay for BodyBlock {
         }
 
         let next_lines = draw_lines_for_children(&statements);
-        pad_lines(&next_lines, indent)
+        pad_lines(next_lines, indent)
     }
 }
