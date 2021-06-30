@@ -8,16 +8,83 @@ use num::BigInt;
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Deref;
+use hash_utils::counter;
+
+counter!(AstNodeId, AST_NODE_ID_COUNTER);
+counter!(TypeId, TYPE_ID_COUNTER);
 
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct AstNode<T> {
-    /// The actual value contained within this node.
-    pub body: Box<T>,
-    /// Position of the node in the input.
-    pub pos: Location,
+    body: Box<T>,
+    location: Location,
+    id: AstNodeId,
+    type_id: Option<TypeId>,
+}
+
+impl<T> PartialEq for AstNode<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<T> AstNode<T> {
+    /// Create a new node with a given body and location.
+    pub fn new(body: T, location: Location) -> Self {
+        Self {
+            body: Box::new(body),
+            location,
+            id: AstNodeId::new(),
+            type_id: None,
+        }
+    }
+
+    /// Create a new node with a given body, location, and type ID.
+    pub fn typed(body: T, location: Location, type_id: TypeId) -> Self {
+        Self {
+            body: Box::new(body),
+            location,
+            id: AstNodeId::new(),
+            type_id: Some(type_id),
+        }
+    }
+
+    /// Set the type ID of the node.
+    pub fn set_type_id(&mut self, type_id: TypeId) {
+        self.type_id = Some(type_id);
+    }
+
+    /// Clear the type ID of the node.
+    pub fn clear_type_id(&mut self) {
+        self.type_id = None;
+    }
+
+    /// Get a reference to the value contained within this node.
+    pub fn body(&self) -> &T {
+        self.body.as_ref()
+    }
+
+    /// Take the value contained within this node.
+    pub fn into_body(self) -> T {
+        *self.body
+    }
+
+    /// Get the location of this node in the input.
+    pub fn location(&self) -> Location {
+        self.location
+    }
+
+    /// Get the type ID of this node.
+    pub fn type_id(&self) -> Option<TypeId> {
+        self.type_id
+    }
+
+    /// Get the ID of this node.
+    pub fn id(&self) -> AstNodeId {
+        self.id
+    }
 }
 
 pub type AstNodes<T> = Vec<AstNode<T>>;
@@ -28,7 +95,7 @@ pub type AstString = Cow<'static, str>;
 impl<T> Deref for AstNode<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        &self.body
+        self.body()
     }
 }
 

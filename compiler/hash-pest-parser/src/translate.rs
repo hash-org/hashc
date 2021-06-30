@@ -47,7 +47,7 @@ impl NodeBuilder {
     pub(crate) fn from_node<T>(node: &AstNode<T>) -> NodeBuilder {
         NodeBuilder {
             site: SourceLocation {
-                location: node.pos,
+                location: node.location(),
                 path: PathBuf::from(""), // @@TODO: actually get the filename here!
             },
         }
@@ -55,10 +55,7 @@ impl NodeBuilder {
 
     /// Create a new [AstNode] from the information provided by the [AstBuilder]
     pub fn node<T>(&self, inner: T) -> AstNode<T> {
-        AstNode {
-            body: Box::new(inner),
-            pos: self.site.location,
-        }
+        AstNode::new(inner, self.site.location)
     }
 
     pub fn error(&self, message: String) -> ParseError {
@@ -773,7 +770,7 @@ where
                 let node = self.transform_literal(pat)?;
 
                 // essentially cast the literal into a literal_pattern
-                Ok(match node.body.as_ref() {
+                Ok(match node.body() {
                     Literal::Str(s) => LiteralPattern::Str(s.clone()),
                     Literal::Char(s) => LiteralPattern::Char(*s),
                     Literal::Float(s) => LiteralPattern::Float(*s),
@@ -999,9 +996,9 @@ where
                             Ref => {
                                 Ok(ab.node(Expression::Ref(self.transform_expression(operand)?)))
                             }
-                            Deref => {
-                                Ok(ab.node(Expression::Deref(self.transform_expression(operand)?)))
-                            }
+                            Deref => Ok(
+                                ab.node(Expression::Deref(self.transform_expression(operand)?))
+                            ),
                         }
                     }
                     _ => self.transform_expression(op_or_single_expr),
@@ -1084,7 +1081,9 @@ where
                                 subject: prev_subject,
                                 args: self.builder_from_pair(&accessor).node(FunctionCallArgs {
                                     entries: ab.try_collect(
-                                        accessor.into_inner().map(|x| self.transform_expression(x)),
+                                        accessor
+                                            .into_inner()
+                                            .map(|x| self.transform_expression(x)),
                                     )?,
                                 }),
                             })))
@@ -1356,16 +1355,17 @@ where
             Some(last) => {
                 let parsed = self.transform_statement_or_expression(last)?;
                 let ab = self.builder_from_node(&parsed);
-                match *parsed.body {
+
+                match parsed.into_body() {
                     Statement::Expr(expr) => (
                         ab.try_collect(statements.map(|s| self.transform_statement(s)))?,
-                        Some(ab.node(*expr.body)),
+                        Some(ab.node(expr.into_body())),
                     ),
-                    _ => (
+                    body => (
                         ab.try_collect(
                             statements
                                 .map(|s| self.transform_statement(s))
-                                .chain(once(Ok(parsed))),
+                                .chain(once(Ok(ab.node(body)))),
                         )?,
                         None,
                     ),
@@ -1494,17 +1494,22 @@ where
                             Some(OperatorFn::Named { name, assigning }) => {
                                 let assign_call =
                                     builder.node(Expression::FunctionCall(FunctionCallExpr {
-                                        subject: builder.node(Expression::Variable(VariableExpr {
-                                            name: builder
-                                                .make_single_access_name(AstString::Borrowed(name)),
-                                            type_args: vec![],
-                                        })),
-                                        args: self.builder_from_node(&rhs).node(FunctionCallArgs {
-                                            entries: vec![
-                                                ab.transform_expr_into_ref(lhs, assigning),
-                                                rhs,
-                                            ],
-                                        }),
+                                        subject: builder.node(Expression::Variable(
+                                            VariableExpr {
+                                                name: builder.make_single_access_name(
+                                                    AstString::Borrowed(name),
+                                                ),
+                                                type_args: vec![],
+                                            },
+                                        )),
+                                        args: self.builder_from_node(&rhs).node(
+                                            FunctionCallArgs {
+                                                entries: vec![
+                                                    ab.transform_expr_into_ref(lhs, assigning),
+                                                    rhs,
+                                                ],
+                                            },
+                                        ),
                                     }));
                                 Ok(ab.node(Statement::Expr(assign_call)))
                             }
@@ -1522,11 +1527,14 @@ where
 
                                 let fn_call =
                                     builder.node(Expression::FunctionCall(FunctionCallExpr {
-                                        subject: builder.node(Expression::Variable(VariableExpr {
-                                            name: builder
-                                                .make_single_access_name(AstString::Borrowed(name)),
-                                            type_args: vec![],
-                                        })),
+                                        subject: builder.node(Expression::Variable(
+                                            VariableExpr {
+                                                name: builder.make_single_access_name(
+                                                    AstString::Borrowed(name),
+                                                ),
+                                                type_args: vec![],
+                                            },
+                                        )),
                                         args: ab.node(FunctionCallArgs {
                                             entries: vec![
                                                 ab.transform_expr_into_ref(lhs, assigning),

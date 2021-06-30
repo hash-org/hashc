@@ -30,7 +30,7 @@ pub trait NodeDisplay {
 
 impl<T: NodeDisplay> NodeDisplay for AstNode<T> {
     fn node_display(&self, indent: usize) -> Vec<String> {
-        self.body.node_display(indent)
+        self.body().node_display(indent)
     }
 }
 
