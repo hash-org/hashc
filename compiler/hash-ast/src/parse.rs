@@ -13,7 +13,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs, mem,
     path::{Path, PathBuf},
-    sync::atomic::Ordering,
+    sync::atomic::{AtomicU32, Ordering},
     time::Instant,
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
@@ -78,7 +78,6 @@ where
         directory: &Path,
     ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
         let mut modules = Modules::new();
-        let module_counter = AtomicUsize::new(0);
         let senders = AtomicUsize::new(0);
 
         debug!("Creating worker pool with {} workers", self.worker_count);
@@ -88,14 +87,11 @@ where
             .unwrap();
 
         let interactive = pool.scope(|scope| -> ParseResult<_> {
-            let module_counter = &module_counter;
-
             let (s, r) = unbounded::<ParMessage>();
 
             senders.fetch_add(1, Ordering::SeqCst);
             // spawn the initial job
-            let mut resolver =
-                ParModuleResolver::new(s.clone(), &module_counter, None, directory.to_owned());
+            let mut resolver = ParModuleResolver::new(s.clone(), None, directory.to_owned());
 
             let interactive = match entry {
                 EntryPoint::Module { filename } => {
@@ -129,8 +125,7 @@ where
                             let s = s.clone();
                             senders.fetch_add(1, Ordering::SeqCst);
                             scope.spawn(closure!(ref senders, |_| {
-                                let mut resolver =
-                                    ParModuleResolver::new(s, &module_counter, parent, root_dir);
+                                let mut resolver = ParModuleResolver::new(s, parent, root_dir);
                                 resolver.parse_file(filename, &self.backend);
                                 senders.fetch_sub(1, Ordering::SeqCst);
                             }));
@@ -213,8 +208,12 @@ where
 
         let interactive = match entry {
             EntryPoint::Module { filename } => {
-                let mut resolver =
-                    SeqModuleResolver::new(&mut modules, directory.to_owned(), &self.backend, None);
+                let mut resolver = SeqModuleResolver::new(
+                    &mut modules,
+                    directory.to_owned(),
+                    &self.backend,
+                    None,
+                );
                 let entry_index = resolver.add_module(filename, None)?;
                 modules.set_entry_point(entry_index);
                 None
@@ -266,18 +265,12 @@ where
     }
 }
 
-/// A module identifier which is an index into [Modules].
-#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
-pub struct ModuleIdx(usize);
-
-impl ModuleIdx {
-    pub fn from_raw(index: usize) -> Self {
-        Self(index)
-    }
-}
-
 #[inline(always)]
-pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
+pub fn timed<T>(
+    op: impl FnOnce() -> T,
+    level: log::Level,
+    on_elapsed: impl FnOnce(Duration),
+) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();
@@ -412,24 +405,17 @@ where
     }
 }
 
-struct ParModuleResolver<'scope> {
+struct ParModuleResolver {
     sender: Sender<ParMessage>,
     parent: Option<ModuleIdx>,
-    module_counter: &'scope AtomicUsize,
     root_dir: PathBuf,
 }
 
-impl<'scope> ParModuleResolver<'scope> {
-    pub fn new(
-        sender: Sender<ParMessage>,
-        module_counter: &'scope AtomicUsize,
-        parent: Option<ModuleIdx>,
-        root_dir: PathBuf,
-    ) -> Self {
+impl ParModuleResolver {
+    pub fn new(sender: Sender<ParMessage>, parent: Option<ModuleIdx>, root_dir: PathBuf) -> Self {
         Self {
             sender,
             parent,
-            module_counter,
             root_dir,
         }
     }
@@ -473,14 +459,14 @@ impl<'scope> ParModuleResolver<'scope> {
     }
 }
 
-impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
+impl ModuleResolver for ParModuleResolver {
     fn add_module(
         &mut self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx> {
         let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
-        let index = ModuleIdx(self.module_counter.fetch_add(1, Ordering::SeqCst));
+        let index = ModuleIdx::new();
 
         self.sender
             .send(ParMessage::ModuleImport {
@@ -494,16 +480,27 @@ impl<'scope> ModuleResolver for ParModuleResolver<'scope> {
     }
 }
 
+static MODULE_IDX_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct ModuleIdx(u32);
+
+impl ModuleIdx {
+    fn new() -> Self {
+        Self(MODULE_IDX_COUNTER.fetch_add(1, Ordering::SeqCst))
+    }
+}
+
 /// Represents a set of loaded modules.
 #[derive(Debug, Default)]
 pub struct Modules {
+    indexes: HashSet<ModuleIdx>,
     path_to_index: HashMap<PathBuf, ModuleIdx>,
     filenames_by_index: HashMap<ModuleIdx, PathBuf>,
     modules_by_index: HashMap<ModuleIdx, ast::Module>,
     contents_by_index: HashMap<ModuleIdx, String>,
     deps_by_index: HashMap<ModuleIdx, HashSet<ModuleIdx>>,
     entry_point: Option<ModuleIdx>,
-    size: usize,
 }
 
 impl Modules {
@@ -512,16 +509,8 @@ impl Modules {
         Modules::default()
     }
 
-    pub fn has_index(&self, index: ModuleIdx) -> bool {
-        self.size > index.0
-    }
-
     pub fn has_path(&self, path: impl AsRef<Path>) -> bool {
         self.path_to_index.contains_key(path.as_ref())
-    }
-
-    pub fn get_by_index(&self, index: ModuleIdx) -> Module<'_> {
-        self.get_by_index_checked(index).unwrap()
     }
 
     pub fn has_entry_point(&self) -> bool {
@@ -536,14 +525,10 @@ impl Modules {
         self.get_entry_point().unwrap()
     }
 
-    pub fn get_by_index_checked(&self, index: ModuleIdx) -> Option<Module<'_>> {
-        if !self.has_index(index) {
-            None
-        } else {
-            Some(Module {
-                index,
-                modules: self,
-            })
+    pub fn get_by_index(&self, index: ModuleIdx) -> Module<'_> {
+        Module {
+            index,
+            modules: self,
         }
     }
 
@@ -569,10 +554,6 @@ impl Modules {
         node: ast::Module,
         contents: String,
     ) -> Module<'_> {
-        if !self.has_index(index) {
-            panic!("Tried to add a module at a nonexisting index");
-        }
-
         self.path_to_index.insert(path.clone(), index);
         self.filenames_by_index.insert(index, path);
         self.modules_by_index.insert(index, node);
@@ -585,24 +566,17 @@ impl Modules {
     }
 
     fn reserve_index(&mut self) -> ModuleIdx {
-        let next = ModuleIdx(self.size);
+        let next = ModuleIdx::new();
+        self.indexes.insert(next);
         self.deps_by_index.insert(next, HashSet::new());
-        self.size += 1;
         next
     }
 
     fn set_entry_point(&mut self, index: ModuleIdx) {
-        if !self.has_index(index) {
-            panic!("Tried to set entry point of nonexistent module");
-        }
-
         self.entry_point = Some(index);
     }
 
     fn add_dependency(&mut self, parent: ModuleIdx, child: ModuleIdx) {
-        if !self.has_index(parent) {
-            panic!("Tried to set dependency of nonexistent module");
-        }
         self.deps_by_index.get_mut(&parent).unwrap().insert(child);
     }
 

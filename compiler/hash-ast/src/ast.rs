@@ -4,11 +4,11 @@
 
 use crate::location::Location;
 use crate::parse::ModuleIdx;
+use hash_utils::counter;
 use num::BigInt;
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Deref;
-use hash_utils::counter;
 
 counter!(AstNodeId, AST_NODE_ID_COUNTER);
 counter!(TypeId, TYPE_ID_COUNTER);
