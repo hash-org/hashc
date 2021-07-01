@@ -109,12 +109,11 @@ fn main() {
                 let filename = fs::canonicalize(&path)?;
                 let parser = SeqParser::new(HashGrammar);
                 let directory = env::current_dir().unwrap();
-                let result = timed(
+                let _result = timed(
                     || parser.parse(&filename, &directory),
                     log::Level::Debug,
                     |elapsed| println!("total: {:?}", elapsed),
-                )?;
-                println!("{:#?}", result);
+                );
                 Ok(())
             }
             None => {

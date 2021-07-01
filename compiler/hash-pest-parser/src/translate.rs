@@ -164,14 +164,16 @@ impl NodeBuilder {
             CompoundFn::Leq => {
                 vec![self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
-                        a: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Lt")),
-                            args: vec![],
-                        })),
-                        b: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Eq")),
-                            args: vec![],
-                        })),
+                        variants: vec![
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Lt")),
+                                args: vec![],
+                            })),
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Eq")),
+                                args: vec![],
+                            })),
+                        ],
                     })),
                     expr: self.make_variable(self.make_boolean(true)),
                 })]
@@ -179,14 +181,16 @@ impl NodeBuilder {
             CompoundFn::Geq => {
                 vec![self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
-                        a: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Gt")),
-                            args: vec![],
-                        })),
-                        b: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Eq")),
-                            args: vec![],
-                        })),
+                        variants: vec![
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Gt")),
+                                args: vec![],
+                            })),
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Eq")),
+                                args: vec![],
+                            })),
+                        ],
                     })),
                     expr: self.make_variable(self.make_boolean(true)),
                 })]
@@ -237,8 +241,6 @@ pub(crate) fn build_binary(
 
     match subject_name {
         OperatorFn::Named { name, assigning } => {
-            // @@Copied
-
             Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
                 subject: ab.node(Expression::Variable(VariableExpr {
                     name: ab.make_single_access_name(AstString::Borrowed(name)),
@@ -250,8 +252,6 @@ pub(crate) fn build_binary(
             })))
         }
         OperatorFn::Compound { name, assigning } => {
-            // @@Copied
-            //
             // for compound functions that include ordering, we essentially transpile
             // into a match block that checks the result of the 'ord' fn call to the
             // 'Ord' enum variants. This also happens for operators such as '>=' which
@@ -260,8 +260,6 @@ pub(crate) fn build_binary(
             Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
         }
         OperatorFn::LazyNamed { name, assigning } => {
-            // @@Copied: transform lhs into ref if assinging
-
             let fn_call = ab.node(Expression::FunctionCall(FunctionCallExpr {
                 subject: ab.node(Expression::Variable(VariableExpr {
                     name: ab.make_single_access_name(AstString::Borrowed(name)),
@@ -795,7 +793,22 @@ where
         let ab = self.builder_from_pair(&pair);
 
         match pair.as_rule() {
-            Rule::pattern => self.transform_pattern(pair.into_inner().next().unwrap()),
+            Rule::pattern => {
+                let mut components = pair.into_inner();
+                let lhs = self.transform_pattern(components.next().unwrap())?;
+
+                // check here if there is an 'if' clause with the pattern
+                Ok(match components.next() {
+                    Some(pair) => match pair.as_rule() {
+                        Rule::expr => self.builder_from_pair(&pair).node(Pattern::If(IfPattern {
+                            pattern: lhs,
+                            condition: self.transform_expression(pair)?,
+                        })),
+                        k => panic!("Expecting 'expr' within pattern for if_guard: {:?}", k),
+                    },
+                    None => lhs,
+                })
+            }
             Rule::single_pattern => {
                 let pat = pair.into_inner().next().unwrap();
 
@@ -878,28 +891,9 @@ where
                 }
             }
             Rule::compound_pattern => {
-                let mut components = pair.into_inner();
+                let pats = ab.try_collect(pair.into_inner().map(|p| self.transform_pattern(p)))?;
 
-                let pattern_rule = components.next().unwrap();
-                let mut pats = pattern_rule.into_inner().map(|p| self.transform_pattern(p));
-
-                let lhs = ab.node(Pattern::Or(OrPattern {
-                    a: pats.next().unwrap()?,
-                    b: pats.next().unwrap()?,
-                }));
-
-                Ok(match components.next() {
-                    Some(k) => {
-                        // the 'if' guared expects the rhs to be an expression
-                        debug_assert_eq!(k.as_rule(), Rule::expr);
-
-                        self.builder_from_pair(&k).node(Pattern::If(IfPattern {
-                            pattern: lhs,
-                            condition: self.transform_expression(k)?,
-                        }))
-                    }
-                    None => lhs,
-                })
+                Ok(ab.node(Pattern::Or(OrPattern { variants: pats })))
             }
             k => panic!("unexpected rule within expr: {:?}", k),
         }
@@ -1146,6 +1140,7 @@ where
                 // empty block since an if-block could be assigned to any variable and therefore
                 // we need to know the outcome of all branches for typechecking.
                 let append_else = Cell::new(true);
+
                 let cases = ab.try_collect(
                     pair.into_inner()
                         .map(|if_condition| {
@@ -1190,7 +1185,10 @@ where
                             }
                         })
                         .chain(
-                            {
+                            // @@Dumbness: use this to run the append at the end of the iterator, otherwise this will be computed
+                            // when the expression is evaluated, hence the `append_else` might be true when it should
+                            // be false!
+                            iter::from_fn(|| {
                                 if append_else.get() {
                                     Some(Ok(ab.node(MatchCase {
                                         pattern: ab.node(Pattern::Ignore),
@@ -1204,8 +1202,8 @@ where
                                 } else {
                                     None
                                 }
-                            }
-                            .into_iter(),
+                            })
+                            .take(1),
                         ),
                 )?;
 
@@ -1382,7 +1380,6 @@ where
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<Statement>> {
         let ab = self.builder_from_pair(&pair);
-        // println!("{:#?}", pair);
         match pair.as_rule() {
             Rule::expr => Ok(ab.node(Statement::Expr(self.transform_expression(pair)?))),
             _ => self.transform_statement(pair),
@@ -1538,8 +1535,6 @@ where
                                 Ok(ab.node(Statement::Expr(fn_call)))
                             }
                             Some(OperatorFn::Compound { name, assigning }) => {
-                                // @@Copied
-                                //
                                 // for compound functions that include ordering, we essentially transpile
                                 // into a match block that checks the result of the 'ord' fn call to the
                                 // 'Ord' enum variants. This also happens for operators such as '>=' which

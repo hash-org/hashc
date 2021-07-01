@@ -389,10 +389,10 @@ literal_pattern = {
 
 /// Single pattern (used in binding positions)
 single_pattern = {
+    struct_pattern  |
     enum_pattern    |
     binding_pattern |
     ignore_pattern  |
-    struct_pattern  |
     literal_pattern |
     tuple_pattern   |
     grouped_pattern |
@@ -400,7 +400,7 @@ single_pattern = {
 }
 
 /// Compound pattern (matches a series of single patterns)
-compound_pattern = _{ single_pattern ~ (pipe_op ~ single_pattern)* }
+compound_pattern = { single_pattern ~ (pipe_op ~ single_pattern)* }
 
 /// Any pattern (includes optional if condition)
 pattern = { compound_pattern ~ (if_kw ~ expr)? }
