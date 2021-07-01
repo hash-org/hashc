@@ -24,27 +24,27 @@ pub enum InteractiveCommand<'i> {
 
 struct CommandDelegator<'i> {
     command: &'i str,
-    arg: Option<&'i str>,
+    arg: &'i str,
 }
 
 impl<'i> CommandDelegator<'i> {
-    fn new(command: &'i str, arg: Option<&'i str>) -> Self {
+    fn new(command: &'i str, arg: &'i str) -> Self {
         Self { command, arg }
     }
 
     fn with_arg(&self, f: impl FnOnce(&'i str) -> InteractiveResult<'i>) -> InteractiveResult<'i> {
         match self.arg {
-            None => Err(InterpreterError::ArgumentMismatchError(
+            "" => Err(InterpreterError::ArgumentMismatchError(
                 self.command.to_string(),
             )),
-            Some(arg) => f(arg),
+            arg => f(arg),
         }
     }
 
     fn without_arg(&self, command: InteractiveCommand<'i>) -> InteractiveResult<'i> {
         match self.arg {
-            None => Ok(command),
-            Some(_) => Err(InterpreterError::ZeroArguments(self.command.to_string())),
+            "" => Ok(command),
+            _ => Err(InterpreterError::ZeroArguments(self.command.to_string())),
         }
     }
 }
@@ -59,21 +59,22 @@ impl InteractiveCommand<'_> {
             return Ok(InteractiveCommand::Code(input));
         }
 
-        let mut prefix = input.trim_start().split_ascii_whitespace();
-        match prefix.next() {
-            Some(command) => {
-                let d = CommandDelegator::new(command, prefix.next());
-                match command {
-                    ":q" => d.without_arg(InteractiveCommand::Quit),
-                    ":c" | ":cls" | ":clear" => d.without_arg(InteractiveCommand::Clear),
-                    ":v" => d.without_arg(InteractiveCommand::Version),
-                    ":t" => d.with_arg(|arg| Ok(InteractiveCommand::Type(arg))),
-                    ":n" => d.with_arg(|arg| Ok(InteractiveCommand::Count(arg))),
-                    ":d" => d.with_arg(|arg| Ok(InteractiveCommand::Display(arg))),
-                    _ => Err(InterpreterError::UnrecognisedCommand(command.to_string())),
-                }
-            }
-            _ => Ok(InteractiveCommand::Code(input)),
+        // get the index of the first white space character
+        let index = input
+            .trim_start()
+            .find(char::is_whitespace)
+            .unwrap_or(input.len());
+        let (command, rest) = input.split_at(index);
+
+        let d = CommandDelegator::new(command, rest);
+        match command {
+            ":q" => d.without_arg(InteractiveCommand::Quit),
+            ":c" | ":cls" | ":clear" => d.without_arg(InteractiveCommand::Clear),
+            ":v" => d.without_arg(InteractiveCommand::Version),
+            ":t" => d.with_arg(|arg| Ok(InteractiveCommand::Type(arg))),
+            ":n" => d.with_arg(|arg| Ok(InteractiveCommand::Count(arg))),
+            ":d" => d.with_arg(|arg| Ok(InteractiveCommand::Display(arg))),
+            _ => Err(InterpreterError::UnrecognisedCommand(command.to_string())),
         }
     }
 }
