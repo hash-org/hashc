@@ -722,12 +722,17 @@ impl NodeDisplay for Block {
                     components.push(case_lines);
                 }
 
-                iter::once("match".to_string())
+                let lines = iter::once("match".to_string())
                     .chain(draw_branches_for_children(&components))
-                    .collect()
+                    .collect::<Vec<String>>();
+
+                child_branch(&lines)
             }
             Block::Loop(loop_body) => {
                 let mut lines = vec!["loop".to_string()];
+
+                // @@Cleanup: This is a block but we don't display this as a block with the branch because
+                // it doesn't go through the Statement implementation which deals with the block
                 lines.extend(pad_lines(loop_body.node_display(), 2));
                 draw_branches_for_lines(&lines, END_PIPE, "")
             }
@@ -844,11 +849,14 @@ impl NodeDisplay for Pattern {
                 .chain(child_branch(&lit.node_display()))
                 .collect()],
             Pattern::Or(pat) => {
-                let left = pat.a.node_display();
-                let right = pat.b.node_display();
+                let variants = pat
+                    .variants
+                    .iter()
+                    .map(|pat| pat.node_display())
+                    .collect::<Vec<Vec<String>>>();
 
                 vec![iter::once("or".to_string())
-                    .chain(draw_branches_for_children(&[left, right]))
+                    .chain(draw_branches_for_children(&variants))
                     .collect()]
             }
             Pattern::If(pat) => {

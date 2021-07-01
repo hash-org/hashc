@@ -185,10 +185,8 @@ pub enum Literal {
 /// An alternative pattern, e.g. `Red | Blue`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct OrPattern {
-    /// The first pattern in the "or".
-    pub a: AstNode<Pattern>,
-    /// The second pattern in the "or".
-    pub b: AstNode<Pattern>,
+    /// The variants of the "or" pattern
+    pub variants: AstNodes<Pattern>,
 }
 
 /// A conditional pattern, e.g. `x if x == 42`.

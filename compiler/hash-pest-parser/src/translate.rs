@@ -164,14 +164,16 @@ impl NodeBuilder {
             CompoundFn::Leq => {
                 vec![self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
-                        a: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Lt")),
-                            args: vec![],
-                        })),
-                        b: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Eq")),
-                            args: vec![],
-                        })),
+                        variants: vec![
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Lt")),
+                                args: vec![],
+                            })),
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Eq")),
+                                args: vec![],
+                            })),
+                        ],
                     })),
                     expr: self.make_variable(self.make_boolean(true)),
                 })]
@@ -179,14 +181,16 @@ impl NodeBuilder {
             CompoundFn::Geq => {
                 vec![self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
-                        a: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Gt")),
-                            args: vec![],
-                        })),
-                        b: self.node(Pattern::Enum(EnumPattern {
-                            name: self.make_single_access_name(AstString::Borrowed("Eq")),
-                            args: vec![],
-                        })),
+                        variants: vec![
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Gt")),
+                                args: vec![],
+                            })),
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_single_access_name(AstString::Borrowed("Eq")),
+                                args: vec![],
+                            })),
+                        ],
                     })),
                     expr: self.make_variable(self.make_boolean(true)),
                 })]
@@ -789,7 +793,22 @@ where
         let ab = self.builder_from_pair(&pair);
 
         match pair.as_rule() {
-            Rule::pattern => self.transform_pattern(pair.into_inner().next().unwrap()),
+            Rule::pattern => {
+                let mut components = pair.into_inner();
+                let lhs = self.transform_pattern(components.next().unwrap())?;
+
+                // check here if there is an 'if' clause with the pattern
+                Ok(match components.next() {
+                    Some(pair) => match pair.as_rule() {
+                        Rule::expr => self.builder_from_pair(&pair).node(Pattern::If(IfPattern {
+                            pattern: lhs,
+                            condition: self.transform_expression(pair)?,
+                        })),
+                        k => panic!("Expecting 'expr' within pattern for if_guard: {:?}", k),
+                    },
+                    None => lhs,
+                })
+            }
             Rule::single_pattern => {
                 let pat = pair.into_inner().next().unwrap();
 
@@ -872,28 +891,9 @@ where
                 }
             }
             Rule::compound_pattern => {
-                let mut components = pair.into_inner();
+                let pats = ab.try_collect(pair.into_inner().map(|p| self.transform_pattern(p)))?;
 
-                let pattern_rule = components.next().unwrap();
-                let mut pats = pattern_rule.into_inner().map(|p| self.transform_pattern(p));
-
-                let lhs = ab.node(Pattern::Or(OrPattern {
-                    a: pats.next().unwrap()?,
-                    b: pats.next().unwrap()?,
-                }));
-
-                Ok(match components.next() {
-                    Some(k) => {
-                        // the 'if' guared expects the rhs to be an expression
-                        debug_assert_eq!(k.as_rule(), Rule::expr);
-
-                        self.builder_from_pair(&k).node(Pattern::If(IfPattern {
-                            pattern: lhs,
-                            condition: self.transform_expression(k)?,
-                        }))
-                    }
-                    None => lhs,
-                })
+                Ok(ab.node(Pattern::Or(OrPattern { variants: pats })))
             }
             k => panic!("unexpected rule within expr: {:?}", k),
         }
@@ -1380,7 +1380,6 @@ where
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<Statement>> {
         let ab = self.builder_from_pair(&pair);
-        // println!("{:#?}", pair);
         match pair.as_rule() {
             Rule::expr => Ok(ab.node(Statement::Expr(self.transform_expression(pair)?))),
             _ => self.transform_statement(pair),
