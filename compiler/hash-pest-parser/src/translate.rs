@@ -1140,6 +1140,7 @@ where
                 // empty block since an if-block could be assigned to any variable and therefore
                 // we need to know the outcome of all branches for typechecking.
                 let append_else = Cell::new(true);
+
                 let cases = ab.try_collect(
                     pair.into_inner()
                         .map(|if_condition| {
@@ -1184,7 +1185,10 @@ where
                             }
                         })
                         .chain(
-                            {
+                            // @@Dumbness: use this to run the append at the end of the iterator, otherwise this will be computed
+                            // when the expression is evaluated, hence the `append_else` might be true when it should
+                            // be false!
+                            iter::from_fn(|| {
                                 if append_else.get() {
                                     Some(Ok(ab.node(MatchCase {
                                         pattern: ab.node(Pattern::Ignore),
@@ -1198,8 +1202,8 @@ where
                                 } else {
                                     None
                                 }
-                            }
-                            .into_iter(),
+                            })
+                            .take(1),
                         ),
                 )?;
 
