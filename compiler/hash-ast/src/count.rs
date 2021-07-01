@@ -86,7 +86,7 @@ impl NodeCount for Expression {
                 let fn_args: usize = e.args.entries.iter().map(|a| a.node_count()).sum();
                 e.subject.node_count() + fn_args
             }
-            Expression::Intrinsic(_) => 1,
+            Expression::Intrinsic(_) => 0,
             Expression::Variable(e) => {
                 let ty_args: usize = e.type_args.iter().map(|t| t.node_count()).sum();
 
@@ -98,7 +98,7 @@ impl NodeCount for Expression {
             Expression::Block(e) => e.node_count(),
             Expression::Deref(e) => e.node_count(),
             Expression::Ref(e) => e.node_count(),
-            Expression::Import(_) => 1,
+            Expression::Import(_) => 0,
         }
     }
 }
@@ -157,14 +157,14 @@ impl NodeCount for Pattern {
             }
             Pattern::Namespace(pat) => pat.patterns.iter().map(|p| p.node_count()).sum(),
             Pattern::Tuple(pat) => pat.elements.iter().map(|e| e.node_count()).sum(),
-            Pattern::Literal(_) => 1,
+            Pattern::Literal(_) => 0,
             Pattern::Or(pat) => pat.variants.iter().map(|e| e.node_count()).sum(),
             Pattern::If(pat) => {
                 let count = pat.pattern.node_count();
                 count + pat.condition.node_count()
             }
-            Pattern::Binding(_) => 1,
-            Pattern::Ignore => 1,
+            Pattern::Binding(_) => 0,
+            Pattern::Ignore => 0,
         }
     }
 }
@@ -215,7 +215,7 @@ impl NodeCount for Type {
 
             // TypeVar variant just counts for one node since it just wrapper for Name,
             // which is of made of a single AstNode.
-            _ => 1,
+            _ => 0,
         }
     }
 }

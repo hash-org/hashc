@@ -118,17 +118,7 @@ where
     Self: NodeDisplay,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.node_display()
-                .into_iter()
-                .map(|mut line| {
-                    line.push('\n');
-                    line
-                })
-                .collect::<String>()
-        )
+        write!(f, "{}", self.node_display().join("\n"))
     }
 }
 
@@ -378,28 +368,19 @@ impl NodeDisplay for Name {
 
 impl NodeDisplay for Statement {
     fn node_display(&self) -> Vec<String> {
-        let node_name = match &self {
-            Statement::Expr(_) => None,
-            Statement::Return(_) => Some("ret".to_string()),
-            Statement::Block(_) => Some("block".to_string()),
-            Statement::Break => Some("break".to_string()),
-            Statement::Continue => Some("continue".to_string()),
-            Statement::Let(_) => Some("let".to_string()),
-            Statement::Assign(_) => Some("assign".to_string()),
-            Statement::StructDef(_) => Some("struct_defn".to_string()),
-            Statement::EnumDef(_) => Some("enum_defn".to_string()),
-            Statement::TraitDef(_) => Some("trait_defn".to_string()),
-        };
+        let (node_name, child_lines) = match &self {
+            Statement::Expr(expr) => (None, expr.node_display()),
+            Statement::Return(expr) => {
+                let lines = match expr {
+                    Some(ret) => child_branch(&ret.node_display()),
+                    None => vec![],
+                };
 
-        let child_lines: Vec<String> = match &self {
-            Statement::Expr(expr) => expr.node_display(),
-            Statement::Return(expr) => match expr {
-                Some(ret) => child_branch(&ret.node_display()),
-                None => vec![],
-            },
-            Statement::Block(block) => block.node_display(),
-            Statement::Break => vec![],
-            Statement::Continue => vec![],
+                (Some("ret".to_string()), lines)
+            }
+            Statement::Block(block) => (Some("block".to_string()), block.node_display()),
+            Statement::Break => (Some("break".to_string()), vec![]),
+            Statement::Continue => (Some("continue".to_string()), vec![]),
             Statement::Let(decl) => {
                 let mut components = vec![decl.pattern.node_display()];
 
@@ -422,7 +403,10 @@ impl NodeDisplay for Statement {
                     );
                 }
 
-                draw_branches_for_children(&components)
+                (
+                    Some("let".to_string()),
+                    draw_branches_for_children(&components),
+                )
             }
             Statement::Assign(decl) => {
                 // add a mid connector for the lhs section, and then add vertical pipe
@@ -436,7 +420,10 @@ impl NodeDisplay for Statement {
                     .chain(child_branch(&decl.rhs.node_display()))
                     .collect();
 
-                draw_branches_for_children(&[lhs_lines, rhs_lines])
+                (
+                    Some("assign".to_string()),
+                    draw_branches_for_children(&[lhs_lines, rhs_lines]),
+                )
             }
             Statement::StructDef(defn) => {
                 let mut components =
@@ -463,7 +450,10 @@ impl NodeDisplay for Statement {
                     components.push(entries);
                 }
 
-                draw_branches_for_children(&components)
+                (
+                    Some("struct_defn".to_string()),
+                    draw_branches_for_children(&components),
+                )
             }
             Statement::EnumDef(defn) => {
                 let mut components =
@@ -490,7 +480,10 @@ impl NodeDisplay for Statement {
                     components.push(entries);
                 }
 
-                draw_branches_for_children(&components)
+                (
+                    Some("enum_defn".to_string()),
+                    draw_branches_for_children(&components),
+                )
             }
             Statement::TraitDef(defn) => {
                 let components = vec![
@@ -499,7 +492,10 @@ impl NodeDisplay for Statement {
                     defn.trait_type.node_display(),
                 ];
 
-                draw_branches_for_children(&components)
+                (
+                    Some("trait_defn".to_string()),
+                    draw_branches_for_children(&components),
+                )
             }
         };
 
