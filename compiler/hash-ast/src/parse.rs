@@ -328,9 +328,6 @@ fn parse_file(
         |elapsed| debug!("ast: {:.2?}", elapsed),
     )?;
 
-    // @@Temp: remove me
-    println!("{}", module);
-
     Ok((module, source))
 }
 
