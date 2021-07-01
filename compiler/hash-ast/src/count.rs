@@ -158,7 +158,7 @@ impl NodeCount for Pattern {
             Pattern::Namespace(pat) => pat.patterns.iter().map(|p| p.node_count()).sum(),
             Pattern::Tuple(pat) => pat.elements.iter().map(|e| e.node_count()).sum(),
             Pattern::Literal(_) => 1,
-            Pattern::Or(pat) => pat.a.node_count() + pat.b.node_count(),
+            Pattern::Or(pat) => pat.variants.iter().map(|e| e.node_count()).sum(),
             Pattern::If(pat) => {
                 let count = pat.pattern.node_count();
                 count + pat.condition.node_count()
