@@ -109,11 +109,19 @@ fn main() {
                 let filename = fs::canonicalize(&path)?;
                 let parser = SeqParser::new(HashGrammar);
                 let directory = env::current_dir().unwrap();
-                let _result = timed(
+
+                // @@TODO: this should be a compiler error instead of a ParseError, let's unify errors so that everyone uses CompilerError?
+                //         We could also move all the error stuff into hash_error
+                let result = timed(
                     || parser.parse(&filename, &directory),
                     log::Level::Debug,
                     |elapsed| println!("total: {:?}", elapsed),
                 );
+
+                if let Err(e) = result {
+                    CompilerError::from(e).report_and_exit();
+                }
+
                 Ok(())
             }
             None => {

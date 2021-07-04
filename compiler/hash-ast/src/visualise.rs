@@ -149,11 +149,10 @@ impl NodeDisplay for AstNodes<Type> {
 
 impl NodeDisplay for Type {
     fn node_display(&self) -> Vec<String> {
-        // special case for reference type, the name of the parent node has the prefix 'ref_'
-        let lines = if let Type::Ref(_) = &self {
-            vec!["ref_type".to_string()]
-        } else {
-            vec!["type".to_string()]
+        let lines = match &self {
+            Type::Ref(_) => vec!["ref_type".to_string()],
+            Type::RawRef(_) => vec!["raw_ref_type".to_string()],
+            _ => vec!["type".to_string()],
         };
 
         let child_lines = match &self {
@@ -175,6 +174,7 @@ impl NodeDisplay for Type {
                 draw_branches_for_children(&components)
             }
             Type::Ref(ref_ty) => child_branch(&ref_ty.node_display()),
+            Type::RawRef(ref_ty) => child_branch(&ref_ty.node_display()),
             Type::TypeVar(var) => child_branch(&[format!("var \"{}\"", var.name)]),
             Type::Existential => child_branch(&["existential".to_string()]),
             Type::Infer => child_branch(&["infer".to_string()]),
