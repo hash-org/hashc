@@ -76,6 +76,8 @@ pub enum Type {
     Named(NamedType),
     /// A reference type.
     Ref(AstNode<Type>),
+    /// A raw reference type
+    RawRef(AstNode<Type>),
     /// A type variable.
     TypeVar(TypeVar),
     /// The existential type (`?`).
