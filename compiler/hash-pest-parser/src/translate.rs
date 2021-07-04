@@ -469,8 +469,24 @@ where
                 self.transform_type(in_type)
             }
             Rule::ref_type => {
-                let in_type = pair.into_inner().next().unwrap();
-                Ok(ab.node(Type::Ref(self.transform_type(in_type)?)))
+                let mut components = pair.into_inner();
+
+                // get the operator to see if it is a raw or unraw ref
+                let op_type = components.next().unwrap();
+
+                // get the actual type
+                let in_type = components.next().unwrap();
+
+                match op_type.as_rule() {
+                    Rule::raw_type_ref_op => {
+                        Ok(ab.node(Type::RawRef(self.transform_type(in_type)?)))
+                    }
+                    Rule::type_ref_op => Ok(ab.node(Type::Ref(self.transform_type(in_type)?))),
+                    k => panic!(
+                        "Expected raw_type_ref_op or ref_type_op in type_ref rule, but got: {:?}",
+                        k
+                    ),
+                }
             }
             Rule::infer_type => Ok(ab.node(Type::Infer)),
             Rule::named_type => {
