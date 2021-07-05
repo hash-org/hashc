@@ -1,0 +1,66 @@
+
+
+Iterator := interface((Self: type) => (
+    Item: type,
+    next: (&Self) => Option(Item),
+));
+
+
+Iterator.implement(Vec, (
+    Item = Dog,
+));
+
+Dog := struct(foo: int, bar: str);
+
+
+Color := enum(Red, Blue, Green);
+
+malloc := (T: type) -> {
+    size := sizeof($T);
+
+
+    alloc_mem(size)
+}
+
+Vec := (T: type) -> struct(data: &raw T, length: usize, capacity: usize);
+
+new := (M: type(Map(infer K, infer V))) -> M {
+    map := M(buckets = [], capacity = 0);
+    map
+};
+
+
+
+make_vec := (T: type) -> Vec(T) {
+    data := malloc(0);
+    Vec($T)(data, length = 0, capacity = 0);
+};
+
+single_length_vec := (T: type = infer, el: T) -> Vec(T) {
+                       ...
+};
+
+Array := (T: type(impl Iterator), length: const usize) -> #intrinsic_array($T, $length);
+
+main := () -> {
+    my_vec: Array(int, 3);
+
+    single := single_length_vec(4);
+
+    x.iter().map(x -> x^^2);
+
+    my_map := Map(int, str).new()
+    my_map[3] = bar;
+
+    
+    
+
+    x := () -> 3;
+
+    dog := Dog(foo = 3, bar = 4);
+
+    call_fn(&dog);
+
+    map := Map(dyn type, dyn type).new();
+    map.insert(int, str);
+}

@@ -8,3 +8,4 @@ pub mod error;
 pub mod location;
 pub mod parse;
 pub mod visualise;
+pub mod ident;

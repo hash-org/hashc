@@ -341,6 +341,11 @@ dependencies = [
 [[package]]
 name = "hash-typechecker"
 version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-utils",
+ "smallvec",
+]
 
 [[package]]
 name = "hash-utils"

@@ -9,12 +9,7 @@ use crate::{
     precedence::PREC_CLIMBER,
     utils::{convert_rule_into_fn_call, CompoundFn, OperatorFn},
 };
-use hash_ast::{
-    ast::*,
-    error::{ParseError, ParseResult},
-    location::{Location, SourceLocation},
-    parse::ModuleResolver,
-};
+use hash_ast::{ast::*, error::{ParseError, ParseResult}, ident::{IdentifierMap, PathIdentifierMap}, location::{Location, SourceLocation}, parse::{ModuleResolver, ParsingContext}};
 use iter::once;
 use num::BigInt;
 
@@ -28,28 +23,37 @@ const MAP_TYPE_NAME: &str = "Map";
 /// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
 /// or a [pest::iterators::Pair].
-pub struct NodeBuilder {
+pub struct NodeBuilder<'resolver, 'ident, R> {
     site: SourceLocation,
+    ctx: ParsingContext<'resolver, 'ident, R>,
 }
 
-impl NodeBuilder {
-    pub(crate) fn from_pair(pair: &HashPair<'_>) -> NodeBuilder {
+impl<'resolver, 'ident, R> NodeBuilder<'pab, 'ident, R> {
+    pub(crate) fn from_pair(
+        ctx: ParsingContext<'resolver, 'ident, R>,
+        pair: &HashPair<'_>,
+    ) -> Self {
         let span = pair.as_span();
         let location = Location::span(span.start(), span.end());
-        NodeBuilder {
+        Self {
             site: SourceLocation {
                 location,
                 path: PathBuf::from(""), // @@TODO: actually get the filename here!
             },
+            ctx,
         }
     }
 
-    pub(crate) fn from_node<T>(node: &AstNode<T>) -> NodeBuilder {
-        NodeBuilder {
+    pub(crate) fn from_node<T>(
+        ctx: ParsingContext<'resolver, 'ident, R>,
+        node: &AstNode<T>,
+    ) -> Self {
+        Self {
             site: SourceLocation {
                 location: node.location(),
                 path: PathBuf::from(""), // @@TODO: actually get the filename here!
             },
+            ctx,
         }
     }
 
@@ -67,14 +71,12 @@ impl NodeBuilder {
 
     fn make_single_access_name(&self, name: AstString) -> AstNode<AccessName> {
         self.node(AccessName {
-            names: vec![self.node(Name { string: name })],
+            path: self.parent.ctx.path_ident_map.create(name),
         })
     }
 
     fn copy_name_node(&self, name: &AstNode<Name>) -> AstNode<Name> {
-        self.node(Name {
-            string: name.string.clone(),
-        })
+        self.node(Name { ..*name.body() })
     }
 
     fn try_collect<T, I>(&self, iter: I) -> Result<Vec<T>, ParseError>
@@ -92,29 +94,30 @@ impl NodeBuilder {
         };
 
         self.node(AccessName {
-            names: vec![self.node(Name {
-                string: AstString::Borrowed(name_ref),
-            })],
+            path: self
+                .parent
+                .path_ident_map
+                .create(AstString::Borrowed(name_ref)),
         })
     }
 
     /// Utility finction for creating a variable from a given name.
     fn make_variable(&self, name: AstNode<AccessName>) -> AstNode<Expression> {
-        self.node(Expression::Variable(VariableExpr {
+        self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
             type_args: vec![],
-        }))
+        })))
     }
 
     /// Function to make a lambda from a given expression. This takes the expression
     /// and put's the expression as the returning expression of a function body block
     fn make_single_lambda(&self, expr: AstNode<Expression>) -> AstNode<Expression> {
-        self.node(Expression::LiteralExpr(self.node(Literal::Function(
-            FunctionDef {
+        self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
+            Literal::Function(FunctionDef {
                 args: vec![],
                 return_ty: None,
                 fn_body: expr,
-            },
+            }),
         ))))
     }
 
@@ -127,7 +130,7 @@ impl NodeBuilder {
         transform: bool,
     ) -> AstNode<Expression> {
         if transform {
-            self.node(Expression::Ref(expr))
+            self.node(Expression::new(ExpressionKind::Ref(expr)))
         } else {
             expr
         }
@@ -144,15 +147,17 @@ impl NodeBuilder {
         // we need to transform the lhs into a reference if the type of function is 'assigning'
         let lhs = self.transform_expr_into_ref(lhs, assiging);
 
-        let fn_call = self.node(Expression::FunctionCall(FunctionCallExpr {
-            subject: self.node(Expression::Variable(VariableExpr {
-                name: self.make_single_access_name(AstString::Borrowed("ord")),
-                type_args: vec![],
-            })),
-            args: self.node(FunctionCallArgs {
-                entries: vec![lhs, rhs],
-            }),
-        }));
+        let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
+            FunctionCallExpr {
+                subject: self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
+                    name: self.make_single_access_name(AstString::Borrowed("ord")),
+                    type_args: vec![],
+                }))),
+                args: self.node(FunctionCallArgs {
+                    entries: vec![lhs, rhs],
+                }),
+            },
+        )));
 
         // each tuple bool variant represents a branch the match statement
         // should return 'true' on, and all the rest will return false...
@@ -215,99 +220,126 @@ impl NodeBuilder {
             expr: self.make_variable(self.make_boolean(false)),
         }));
 
-        self.node(Expression::Block(self.node(Block::Match(MatchBlock {
-            subject: fn_call,
-            cases: branches,
-        }))))
+        self.node(Expression::new(ExpressionKind::Block(self.node(
+            Block::Match(MatchBlock {
+                subject: fn_call,
+                cases: branches,
+            }),
+        ))))
     }
 }
 
-pub(crate) fn build_binary(
-    lhs: ParseResult<AstNode<Expression>>,
-    op: HashPair<'_>,
-    rhs: ParseResult<AstNode<Expression>>,
-) -> ParseResult<AstNode<Expression>> {
-    let ab = NodeBuilder::from_pair(&op);
-
-    // Panic here if we cannot convert the operator into a function call
-    let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
-
-    match subject_name {
-        OperatorFn::Named { name, assigning } => {
-            // @@Copied
-
-            Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-                subject: ab.node(Expression::Variable(VariableExpr {
-                    name: ab.make_single_access_name(AstString::Borrowed(name)),
-                    type_args: vec![], // we dont need any kind of typeargs since were just transpiling here
-                })),
-                args: ab.node(FunctionCallArgs {
-                    entries: vec![ab.transform_expr_into_ref(lhs?, assigning), rhs?],
-                }),
-            })))
-        }
-        OperatorFn::Compound { name, assigning } => {
-            // @@Copied
-            //
-            // for compound functions that include ordering, we essentially transpile
-            // into a match block that checks the result of the 'ord' fn call to the
-            // 'Ord' enum variants. This also happens for operators such as '>=' which
-            // essentially means that we have to check if the result of 'ord()' is either
-            // 'Eq' or 'Gt'.
-            Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
-        }
-        OperatorFn::LazyNamed { name, assigning } => {
-            // @@Copied: transform lhs into ref if assinging
-
-            let fn_call = ab.node(Expression::FunctionCall(FunctionCallExpr {
-                subject: ab.node(Expression::Variable(VariableExpr {
-                    name: ab.make_single_access_name(AstString::Borrowed(name)),
-                    type_args: vec![],
-                })),
-                args: ab.node(FunctionCallArgs {
-                    entries: vec![
-                        ab.transform_expr_into_ref(lhs?, assigning),
-                        ab.make_single_lambda(rhs?),
-                    ],
-                }),
-            }));
-
-            Ok(fn_call)
-        }
-    }
+pub(crate) struct PestAstBuilder<'resolver, 'ident, R> {
+    ctx: ParsingContext<'resolver, 'ident, R>,
 }
 
-pub(crate) struct PestAstBuilder<'resolver, R> {
-    resolver: &'resolver mut R,
-}
-
-impl<'resolver, R> PestAstBuilder<'resolver, R>
+impl<'resolver, 'ident, R> PestAstBuilder<'resolver, 'ident, R>
 where
     R: ModuleResolver,
 {
-    pub(crate) fn new(resolver: &'resolver mut R) -> Self {
-        Self { resolver }
+    pub(crate) fn new(
+        ctx: ParsingContext<'resolver, 'ident, R>,
+    ) -> Self {
+        Self {
+            ctx,
+        }
     }
 
-    pub(crate) fn builder_from_pair(&self, pair: &HashPair<'_>) -> NodeBuilder {
-        NodeBuilder::from_pair(pair)
+    pub(crate) fn builder_from_pair<'s>(
+        &'s self,
+        pair: &HashPair<'_>,
+    ) -> NodeBuilder<'s, 'resolver, 'ident, R> {
+        NodeBuilder::from_pair(self.ctx, pair)
     }
 
-    pub(crate) fn builder_from_node<T>(&self, node: &AstNode<T>) -> NodeBuilder {
-        NodeBuilder::from_node(node)
+    pub(crate) fn builder_from_node<'s, T>(
+        &'s self,
+        node: &AstNode<T>,
+    ) -> NodeBuilder<'s, 'resolver, 'ident, R> {
+        NodeBuilder::from_node(self.ctx, node)
     }
 
     pub(crate) fn climb<'i, P>(&mut self, pairs: P) -> ParseResult<AstNode<Expression>>
     where
         P: Iterator<Item = HashPair<'i>>,
     {
-        PREC_CLIMBER.climb(pairs, |pair| self.transform_expression(pair), build_binary)
+        PREC_CLIMBER.climb(
+            pairs,
+            |pair| self.transform_expression(pair),
+            |lhs, op, rhs| self.build_binary(lhs, op, rhs),
+        )
+    }
+
+    pub(crate) fn build_binary(
+        &self,
+        lhs: ParseResult<AstNode<Expression>>,
+        op: HashPair<'_>,
+        rhs: ParseResult<AstNode<Expression>>,
+    ) -> ParseResult<AstNode<Expression>> {
+        let ab = self.builder_from_pair(&op);
+
+        // Panic here if we cannot convert the operator into a function call
+        let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
+
+        match subject_name {
+            OperatorFn::Named { name, assigning } => {
+                // @@Copied
+
+                Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
+                    FunctionCallExpr {
+                        subject: ab.node(Expression::new(ExpressionKind::Variable(
+                            VariableExpr {
+                                name: ab.make_single_access_name(AstString::Borrowed(name)),
+                                type_args: vec![], // we dont need any kind of typeargs since were just transpiling here
+                            },
+                        ))),
+                        args: ab.node(FunctionCallArgs {
+                            entries: vec![ab.transform_expr_into_ref(lhs?, assigning), rhs?],
+                        }),
+                    },
+                ))))
+            }
+            OperatorFn::Compound { name, assigning } => {
+                // @@Copied
+                //
+                // for compound functions that include ordering, we essentially transpile
+                // into a match block that checks the result of the 'ord' fn call to the
+                // 'Ord' enum variants. This also happens for operators such as '>=' which
+                // essentially means that we have to check if the result of 'ord()' is either
+                // 'Eq' or 'Gt'.
+                Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
+            }
+            OperatorFn::LazyNamed { name, assigning } => {
+                // @@Copied: transform lhs into ref if assinging
+
+                let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
+                    FunctionCallExpr {
+                        subject: ab.node(Expression::new(ExpressionKind::Variable(
+                            VariableExpr {
+                                name: ab.make_single_access_name(AstString::Borrowed(name)),
+                                type_args: vec![],
+                            },
+                        ))),
+                        args: ab.node(FunctionCallArgs {
+                            entries: vec![
+                                ab.transform_expr_into_ref(lhs?, assigning),
+                                ab.make_single_lambda(rhs?),
+                            ],
+                        }),
+                    },
+                )));
+
+                Ok(fn_call)
+            }
+        }
     }
 
     pub(crate) fn transform_name(&mut self, pair: HashPair<'_>) -> ParseResult<AstNode<Name>> {
         match pair.as_rule() {
             Rule::ident => Ok(self.builder_from_pair(&pair).node(Name {
-                string: AstString::Owned(pair.as_str().to_owned()),
+                ident: self
+                    .ident_map
+                    .create(AstString::Owned(pair.as_str().to_owned())),
             })),
             _ => unreachable!(),
         }
@@ -453,7 +485,9 @@ where
         let ab = self.builder_from_pair(&pair);
         match pair.as_rule() {
             Rule::access_name => Ok(self.builder_from_pair(&pair).node(AccessName {
-                names: ab.try_collect(pair.into_inner().map(|x| self.transform_name(x)))?,
+                path: self
+                    .path_ident_map
+                    .create(AstString::Owned(pair.as_str().to_owned())),
             })),
             _ => unreachable!(),
         }
@@ -916,10 +950,12 @@ where
                 let expr = expr.next().unwrap();
 
                 match expr.as_rule() {
-                    Rule::block => Ok(ab.node(Expression::Block(self.transform_block(expr)?))),
-                    Rule::struct_literal => {
-                        Ok(ab.node(Expression::LiteralExpr(self.transform_literal(expr)?)))
-                    }
+                    Rule::block => Ok(ab.node(Expression::new(ExpressionKind::Block(
+                        self.transform_block(expr)?,
+                    )))),
+                    Rule::struct_literal => Ok(ab.node(Expression::new(
+                        ExpressionKind::LiteralExpr(self.transform_literal(expr)?),
+                    ))),
                     Rule::binary_expr => {
                         let mut items = expr.into_inner();
 
@@ -941,10 +977,10 @@ where
 
                 // check if this expression has a type...
                 match expr.next() {
-                    Some(ty) => Ok(ab.node(Expression::Typed(TypedExpr {
+                    Some(ty) => Ok(ab.node(Expression::new(ExpressionKind::Typed(TypedExpr {
                         ty: self.transform_type(ty)?, // convert the type into an AstNode
                         expr: unary,
-                    }))),
+                    })))),
                     None => Ok(unary),
                 }
             }
@@ -979,26 +1015,31 @@ where
 
                         match op_type {
                             FnCall(fn_call) => {
-                                Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-                                    subject: ab.node(Expression::Variable(VariableExpr {
-                                        name: ab
-                                            .make_single_access_name(AstString::Borrowed(fn_call)),
-                                        // name: ab.node(AccessName {
-                                        //     names: vec![inab.node(Name { string:  })],
-                                        // }),
-                                        type_args: vec![],
-                                    })),
-                                    args: ab.node(FunctionCallArgs {
-                                        entries: vec![self.transform_expression(operand)?],
-                                    }),
-                                })))
+                                Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
+                                    FunctionCallExpr {
+                                        subject: ab.node(Expression::new(
+                                            ExpressionKind::Variable(VariableExpr {
+                                                name: ab.make_single_access_name(
+                                                    AstString::Borrowed(fn_call),
+                                                ),
+                                                // name: ab.node(AccessName {
+                                                //     names: vec![inab.node(Name { string:  })],
+                                                // }),
+                                                type_args: vec![],
+                                            }),
+                                        )),
+                                        args: ab.node(FunctionCallArgs {
+                                            entries: vec![self.transform_expression(operand)?],
+                                        }),
+                                    },
+                                ))))
                             }
-                            Ref => {
-                                Ok(ab.node(Expression::Ref(self.transform_expression(operand)?)))
-                            }
-                            Deref => Ok(
-                                ab.node(Expression::Deref(self.transform_expression(operand)?))
-                            ),
+                            Ref => Ok(ab.node(Expression::new(ExpressionKind::Ref(
+                                self.transform_expression(operand)?,
+                            )))),
+                            Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
+                                self.transform_expression(operand)?,
+                            )))),
                         }
                     }
                     _ => self.transform_expression(op_or_single_expr),
@@ -1013,26 +1054,30 @@ where
 
                 let subject = match subject_rule {
                     // We throw away the '#' here since we already know that it is an intrinsic call
-                    Rule::intrinsic_expr => Ok(ab.node(Expression::Intrinsic(IntrinsicKey {
-                        name: subject_expr.as_str().to_owned().into(),
-                    }))),
+                    Rule::intrinsic_expr => Ok(ab.node(Expression::new(
+                        ExpressionKind::Intrinsic(IntrinsicKey {
+                            name: self
+                                .ident_map
+                                .create(subject_expr.as_str().to_owned().into()),
+                        }),
+                    ))),
                     Rule::import_expr => {
                         // we only care about the string literal here
                         let import_call = subject_expr.into_inner().next().unwrap();
                         let import_path = import_call.into_inner().next().unwrap();
                         let s = import_path.as_span().as_str();
-                        let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
+                        let module_idx = self.ctx.resolver.add_module(s, Some(ab.site.clone()))?;
 
                         // get the string, but then convert into an AstNode using the string literal ast info
-                        Ok(ab.node(Expression::Import(
+                        Ok(ab.node(Expression::new(ExpressionKind::Import(
                             self.builder_from_pair(&import_path).node(Import {
                                 path: s.to_owned().into(),
                                 index: module_idx,
                             }),
-                        )))
+                        ))))
                     }
-                    Rule::literal_expr => Ok(ab.node(Expression::LiteralExpr(
-                        self.transform_literal(subject_expr)?,
+                    Rule::literal_expr => Ok(ab.node(Expression::new(
+                        ExpressionKind::LiteralExpr(self.transform_literal(subject_expr)?),
                     ))),
                     Rule::variable_expr => {
                         // so since this is going to be an access_name, which is a list of 'ident' rules,
@@ -1044,10 +1089,12 @@ where
                             ab.try_collect(ty.into_inner().map(|x| self.transform_type(x)))
                         })?;
 
-                        Ok(ab.node(Expression::Variable(VariableExpr {
-                            name: access_name,
-                            type_args,
-                        })))
+                        Ok(
+                            ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
+                                name: access_name,
+                                type_args,
+                            }))),
+                        )
                     }
                     Rule::paren_expr => self.transform_expression(subject_expr),
                     k => panic!("unexpected rule within expr: {:?}", k),
@@ -1065,28 +1112,34 @@ where
                     let prev_subject = prev_subject?;
                     match accessor.as_rule() {
                         Rule::property_access => {
-                            Ok(ab.node(Expression::PropertyAccess(PropertyAccessExpr {
-                                subject: prev_subject,
+                            Ok(ab.node(Expression::new(ExpressionKind::PropertyAccess(
+                                PropertyAccessExpr {
+                                    subject: prev_subject,
 
-                                // it's safe to unwrap here since property access will always
-                                // provide the ident rule as the first one, otherwise it is a parsing error
-                                property: self
-                                    .transform_name(accessor.into_inner().next().unwrap())?,
-                            })))
+                                    // it's safe to unwrap here since property access will always
+                                    // provide the ident rule as the first one, otherwise it is a parsing error
+                                    property: self
+                                        .transform_name(accessor.into_inner().next().unwrap())?,
+                                },
+                            ))))
                         }
                         Rule::fn_args => {
                             // if it is func args, we need convert the 'subject' which is going
                             // to be a VariableExpr into a FunctionCallExpr
-                            Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-                                subject: prev_subject,
-                                args: self.builder_from_pair(&accessor).node(FunctionCallArgs {
-                                    entries: ab.try_collect(
-                                        accessor
-                                            .into_inner()
-                                            .map(|x| self.transform_expression(x)),
-                                    )?,
-                                }),
-                            })))
+                            Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
+                                FunctionCallExpr {
+                                    subject: prev_subject,
+                                    args: self.builder_from_pair(&accessor).node(
+                                        FunctionCallArgs {
+                                            entries: ab.try_collect(
+                                                accessor
+                                                    .into_inner()
+                                                    .map(|x| self.transform_expression(x)),
+                                            )?,
+                                        },
+                                    ),
+                                },
+                            ))))
                         }
                         // we need to convert this into a 'index' function call on the
                         // current variable
@@ -1099,15 +1152,21 @@ where
                                 self.transform_expression(accessor.into_inner().next().unwrap())?;
 
                             // @@Cutnpaste: move this into a seprate function for transpilling built-in functions
-                            Ok(ab.node(Expression::FunctionCall(FunctionCallExpr {
-                                subject: ab.node(Expression::Variable(VariableExpr {
-                                    name: ab.make_single_access_name(AstString::Borrowed("index")),
-                                    type_args: vec![],
-                                })),
-                                args: ab.node(FunctionCallArgs {
-                                    entries: vec![prev_subject, index_expr],
-                                }),
-                            })))
+                            Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
+                                FunctionCallExpr {
+                                    subject: ab.node(Expression::new(ExpressionKind::Variable(
+                                        VariableExpr {
+                                            name: ab.make_single_access_name(AstString::Borrowed(
+                                                "index",
+                                            )),
+                                            type_args: vec![],
+                                        },
+                                    ))),
+                                    args: ab.node(FunctionCallArgs {
+                                        entries: vec![prev_subject, index_expr],
+                                    }),
+                                },
+                            ))))
                         }
                         k => panic!("unexpected rule within variable expr: {:?}", k),
                     }
@@ -1166,7 +1225,7 @@ where
                                         })),
                                         expr: self
                                             .builder_from_node(&pair)
-                                            .node(Expression::Block(pair)),
+                                            .node(Expression::new(ExpressionKind::Block(pair))),
                                     }))
                                 }
                                 Rule::else_block => {
@@ -1180,7 +1239,7 @@ where
                                         pattern: block_builder.node(Pattern::Ignore),
                                         expr: self
                                             .builder_from_node(&pair)
-                                            .node(Expression::Block(pair)),
+                                            .node(Expression::new(ExpressionKind::Block(pair))),
                                     }))
                                 }
                                 k => {
@@ -1193,12 +1252,12 @@ where
                                 if append_else.get() {
                                     Some(Ok(ab.node(MatchCase {
                                         pattern: ab.node(Pattern::Ignore),
-                                        expr: ab.node(Expression::Block(ab.node(Block::Body(
-                                            BodyBlock {
+                                        expr: ab.node(Expression::new(ExpressionKind::Block(
+                                            ab.node(Block::Body(BodyBlock {
                                                 statements: vec![],
                                                 expr: None,
-                                            },
-                                        )))),
+                                            })),
+                                        ))),
                                     })))
                                 } else {
                                     None
@@ -1259,15 +1318,19 @@ where
                 let body_builder = self.builder_from_node(&body);
 
                 Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
-                    subject: iter_builder.node(Expression::FunctionCall(FunctionCallExpr {
-                        subject: iter_builder.node(Expression::Variable(VariableExpr {
-                            name: ab.make_single_access_name(AstString::Borrowed("next")),
-                            type_args: vec![],
-                        })),
-                        args: iter_builder.node(FunctionCallArgs {
-                            entries: vec![iterator],
-                        }),
-                    })),
+                    subject: iter_builder.node(Expression::new(ExpressionKind::FunctionCall(
+                        FunctionCallExpr {
+                            subject: iter_builder.node(Expression::new(ExpressionKind::Variable(
+                                VariableExpr {
+                                    name: ab.make_single_access_name(AstString::Borrowed("next")),
+                                    type_args: vec![],
+                                },
+                            ))),
+                            args: iter_builder.node(FunctionCallArgs {
+                                entries: vec![iterator],
+                            }),
+                        },
+                    ))),
                     cases: vec![
                         body_builder.node(MatchCase {
                             pattern: pat_builder.node(
@@ -1281,7 +1344,7 @@ where
                                     },
                                 ),
                             ),
-                            expr: body_builder.node(Expression::Block(body)),
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(body))),
                         }),
                         body_builder.node(MatchCase {
                             pattern: pat_builder.node(
@@ -1295,11 +1358,11 @@ where
                                     },
                                 ),
                             ),
-                            expr: body_builder.node(Expression::Block(body_builder.node(
-                                Block::Body(BodyBlock {
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(
+                                body_builder.node(Block::Body(BodyBlock {
                                     statements: vec![body_builder.node(Statement::Break)],
                                     expr: None,
-                                }),
+                                })),
                             ))),
                         }),
                     ],
@@ -1322,18 +1385,18 @@ where
                                 name: condition_builder.make_boolean(true),
                                 args: vec![],
                             })),
-                            expr: body_builder.node(Expression::Block(body)),
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(body))),
                         }),
                         body_builder.node(MatchCase {
                             pattern: condition_builder.node(Pattern::Enum(EnumPattern {
                                 name: condition_builder.make_boolean(false),
                                 args: vec![],
                             })),
-                            expr: body_builder.node(Expression::Block(body_builder.node(
-                                Block::Body(BodyBlock {
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(
+                                body_builder.node(Block::Body(BodyBlock {
                                     statements: vec![body_builder.node(Statement::Break)],
                                     expr: None,
-                                }),
+                                })),
                             ))),
                         }),
                     ],
@@ -1492,15 +1555,15 @@ where
 
                         match transform {
                             Some(OperatorFn::Named { name, assigning }) => {
-                                let assign_call =
-                                    builder.node(Expression::FunctionCall(FunctionCallExpr {
-                                        subject: builder.node(Expression::Variable(
-                                            VariableExpr {
+                                let assign_call = builder.node(Expression::new(
+                                    ExpressionKind::FunctionCall(FunctionCallExpr {
+                                        subject: builder.node(Expression::new(
+                                            ExpressionKind::Variable(VariableExpr {
                                                 name: builder.make_single_access_name(
                                                     AstString::Borrowed(name),
                                                 ),
                                                 type_args: vec![],
-                                            },
+                                            }),
                                         )),
                                         args: self.builder_from_node(&rhs).node(
                                             FunctionCallArgs {
@@ -1510,7 +1573,8 @@ where
                                                 ],
                                             },
                                         ),
-                                    }));
+                                    }),
+                                ));
                                 Ok(ab.node(Statement::Expr(assign_call)))
                             }
                             Some(OperatorFn::LazyNamed { name, assigning }) => {
@@ -1525,15 +1589,15 @@ where
                                 // >>> and(lhs, () => rhs)
                                 //
 
-                                let fn_call =
-                                    builder.node(Expression::FunctionCall(FunctionCallExpr {
-                                        subject: builder.node(Expression::Variable(
-                                            VariableExpr {
+                                let fn_call = builder.node(Expression::new(
+                                    ExpressionKind::FunctionCall(FunctionCallExpr {
+                                        subject: builder.node(Expression::new(
+                                            ExpressionKind::Variable(VariableExpr {
                                                 name: builder.make_single_access_name(
                                                     AstString::Borrowed(name),
                                                 ),
                                                 type_args: vec![],
-                                            },
+                                            }),
                                         )),
                                         args: ab.node(FunctionCallArgs {
                                             entries: vec![
@@ -1541,7 +1605,8 @@ where
                                                 ab.make_single_lambda(rhs),
                                             ],
                                         }),
-                                    }));
+                                    }),
+                                ));
 
                                 Ok(ab.node(Statement::Expr(fn_call)))
                             }
