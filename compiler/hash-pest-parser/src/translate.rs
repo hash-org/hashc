@@ -907,9 +907,25 @@ where
                 }
             }
             Rule::compound_pattern => {
-                let pats = ab.try_collect(pair.into_inner().map(|p| self.transform_pattern(p)))?;
+                let mut pairs = pair.into_inner();
+                let first = self.transform_pattern(pairs.next().unwrap())?;
 
-                Ok(ab.node(Pattern::Or(OrPattern { variants: pats })))
+                // if there is only one pattern within the compound pattern, we don't want to always wrap it an 'Or'
+                // variant since this is redundant
+                match pairs.next() {
+                    None => Ok(first),
+                    Some(pat) => {
+                        let second = self.transform_pattern(pat)?;
+
+                        // collect any remaining patterns in the or secquence
+                        let variants = vec![first, second]
+                            .into_iter()
+                            .chain(ab.try_collect(pairs.map(|p| self.transform_pattern(p)))?)
+                            .collect();
+
+                        Ok(ab.node(Pattern::Or(OrPattern { variants })))
+                    }
+                }
             }
             k => panic!("unexpected rule within expr: {:?}", k),
         }
