@@ -474,7 +474,7 @@ where
                 // get the operator to see if it is a raw or unraw ref
                 let op_type = components.next().unwrap();
 
-                // get the actucal type
+                // get the actual type
                 let in_type = components.next().unwrap();
 
                 match op_type.as_rule() {
