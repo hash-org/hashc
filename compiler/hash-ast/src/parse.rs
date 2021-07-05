@@ -1,13 +1,10 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::{
-    ast::{self, *},
-    error::{ParseError, ParseResult},
-    location::SourceLocation,
-};
+use crate::{ast::{self, *}, error::{ParseError, ParseResult}, ident::{IdentifierMap, PathIdentifierMap}, location::SourceLocation};
 use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
+use hash_utils::counter;
 use log::{debug, log_enabled, Level};
 use std::{
     collections::{HashMap, HashSet},
@@ -281,32 +278,39 @@ pub fn timed<T>(
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct ParsingContext<'ident, R> {
+    resolver: R,
+    ident_map: &'ident IdentifierMap,
+    path_ident_map: &'ident PathIdentifierMap,
+}
+
 pub trait ParserBackend: Sync {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        ctx: ParsingContext<'_, '_, impl ModuleResolver>,
         path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module>;
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        ctx: ParsingContext<'_, '_, impl ModuleResolver>,
         contents: &str,
     ) -> ParseResult<AstNode<ast::BodyBlock>>;
 }
 
 pub trait ModuleResolver {
     fn add_module(
-        &mut self,
+        &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx>;
 }
 
-fn parse_file(
+fn parse_file<R: ModuleResolver>(
     resolved_filename: impl AsRef<Path>,
-    resolver: &mut impl ModuleResolver,
+    ctx: ParsingContext<'_, '_, R>,
     backend: &impl ParserBackend,
 ) -> Result<(ast::Module, String), ParseError> {
     debug!("Parsing file: {:?}", resolved_filename.as_ref());
@@ -316,7 +320,7 @@ fn parse_file(
         .map_err(|e| (e, resolved_filename.as_ref().to_owned()))?;
 
     let module = timed(
-        || backend.parse_module(resolver, resolved_filename.as_ref(), &source),
+        || backend.parse_module(ctx, resolved_filename.as_ref(), &source),
         Level::Debug,
         |elapsed| debug!("ast: {:.2?}", elapsed),
     )?;
@@ -351,17 +355,17 @@ where
     }
 
     fn for_module<R>(
-        &mut self,
+        &self,
         mut dir: PathBuf,
         index: Option<ModuleIdx>,
-        cb: impl FnOnce(&mut Self) -> R,
+        cb: impl FnOnce(&Self) -> R,
     ) -> R {
-        mem::swap(&mut self.root_dir, &mut dir);
+        mem::swap(&self.root_dir, &dir);
         let old_index = self.index;
         self.index = index;
         let ret = cb(self);
         self.index = old_index;
-        mem::swap(&mut self.root_dir, &mut dir);
+        mem::swap(&self.root_dir, &dir);
         ret
     }
 }
@@ -371,7 +375,7 @@ where
     B: ParserBackend,
 {
     fn add_module(
-        &mut self,
+        &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx> {
@@ -390,6 +394,8 @@ where
         let resolved_dir = resolved_path.parent().unwrap().to_owned(); // is this correct?
 
         let index = self.modules.reserve_index();
+
+        let child = SeqModuleResolver::new()
 
         let (node, source) = self.for_module(resolved_dir, Some(index), |resolver| {
             parse_file(&resolved_path, resolver, resolver.backend)
@@ -421,7 +427,7 @@ impl ParModuleResolver {
     }
 
     pub fn add_module_send_error(
-        &mut self,
+        &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> Option<ModuleIdx> {
@@ -434,17 +440,8 @@ impl ParModuleResolver {
         }
     }
 
-    fn for_dir<R>(&mut self, mut dir: PathBuf, cb: impl FnOnce(&mut Self) -> R) -> R {
-        mem::swap(&mut self.root_dir, &mut dir);
-        let ret = cb(self);
-        mem::swap(&mut self.root_dir, &mut dir);
-        ret
-    }
-
-    fn parse_file(&mut self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
-        let parse_result = self.for_dir(self.root_dir.to_owned(), |resolver| {
-            parse_file(&resolved_filename, resolver, backend)
-        });
+    fn parse_file(&self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
+        let parse_result = parse_file(&resolved_filename, self, backend);
 
         let message = match parse_result {
             Ok((node, source)) => ParMessage::ParsedModule {
@@ -480,15 +477,11 @@ impl ModuleResolver for ParModuleResolver {
     }
 }
 
-static MODULE_IDX_COUNTER: AtomicU32 = AtomicU32::new(0);
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct ModuleIdx(u32);
-
-impl ModuleIdx {
-    fn new() -> Self {
-        Self(MODULE_IDX_COUNTER.fetch_add(1, Ordering::SeqCst))
-    }
+counter! {
+    name: ModuleIdx,
+    counter_name: MODULE_COUNTER,
+    visibility: pub,
+    method_visibility:,
 }
 
 /// Represents a set of loaded modules.

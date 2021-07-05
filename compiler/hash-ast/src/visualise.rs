@@ -229,19 +229,19 @@ impl NodeDisplay for Import {
 
 impl NodeDisplay for Expression {
     fn node_display(&self, indent: usize) -> Vec<String> {
-        match &self {
-            Expression::FunctionCall(_) => todo!(),
-            Expression::Intrinsic(_) => todo!(),
-            Expression::LogicalOp(_) => todo!(),
-            Expression::Variable(_) => todo!(),
-            Expression::PropertyAccess(_) => todo!(),
-            Expression::Index(_) => todo!(),
-            Expression::Ref(_) => todo!(),
-            Expression::Deref(_) => todo!(),
-            Expression::LiteralExpr(literal) => literal.node_display(indent),
-            Expression::Typed(_) => todo!(),
-            Expression::Block(_) => todo!(),
-            Expression::Import(import) => import.node_display(indent),
+        match self.kind() {
+            ExpressionKind::FunctionCall(_) => todo!(),
+            ExpressionKind::Intrinsic(_) => todo!(),
+            ExpressionKind::LogicalOp(_) => todo!(),
+            ExpressionKind::Variable(_) => todo!(),
+            ExpressionKind::PropertyAccess(_) => todo!(),
+            ExpressionKind::Index(_) => todo!(),
+            ExpressionKind::Ref(_) => todo!(),
+            ExpressionKind::Deref(_) => todo!(),
+            ExpressionKind::LiteralExpr(literal) => literal.node_display(indent),
+            ExpressionKind::Typed(_) => todo!(),
+            ExpressionKind::Block(_) => todo!(),
+            ExpressionKind::Import(import) => import.node_display(indent),
         }
     }
 }

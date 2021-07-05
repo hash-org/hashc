@@ -9,9 +9,21 @@ use num::BigInt;
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Deref;
+use crate::ident::{Identifier, PathIdentifier};
 
-counter!(AstNodeId, AST_NODE_ID_COUNTER);
-counter!(TypeId, TYPE_ID_COUNTER);
+counter! {
+    name: AstNodeId,
+    counter_name: AST_NODE_ID_COUNTER, 
+    visibility: pub,
+    method_visibility: pub,
+}
+
+counter! {
+    name: TypeId,
+    counter_name: TYPE_ID_COUNTER,
+    visibility: pub,
+    method_visibility: pub,
+}
 
 /// Represents an abstract syntax tree node.
 ///
@@ -21,7 +33,6 @@ pub struct AstNode<T> {
     body: Box<T>,
     location: Location,
     id: AstNodeId,
-    type_id: Option<TypeId>,
 }
 
 impl<T> PartialEq for AstNode<T> {
@@ -37,28 +48,7 @@ impl<T> AstNode<T> {
             body: Box::new(body),
             location,
             id: AstNodeId::new(),
-            type_id: None,
         }
-    }
-
-    /// Create a new node with a given body, location, and type ID.
-    pub fn typed(body: T, location: Location, type_id: TypeId) -> Self {
-        Self {
-            body: Box::new(body),
-            location,
-            id: AstNodeId::new(),
-            type_id: Some(type_id),
-        }
-    }
-
-    /// Set the type ID of the node.
-    pub fn set_type_id(&mut self, type_id: TypeId) {
-        self.type_id = Some(type_id);
-    }
-
-    /// Clear the type ID of the node.
-    pub fn clear_type_id(&mut self) {
-        self.type_id = None;
     }
 
     /// Get a reference to the value contained within this node.
@@ -74,11 +64,6 @@ impl<T> AstNode<T> {
     /// Get the location of this node in the input.
     pub fn location(&self) -> Location {
         self.location
-    }
-
-    /// Get the type ID of this node.
-    pub fn type_id(&self) -> Option<TypeId> {
-        self.type_id
     }
 
     /// Get the ID of this node.
@@ -103,21 +88,21 @@ impl<T> Deref for AstNode<T> {
 #[derive(Hash, PartialEq, Clone, Debug)]
 pub struct IntrinsicKey {
     /// The name of the intrinsic (without the "#").
-    pub name: AstString,
+    pub name: Identifier,
 }
 
 /// A single name/symbol.
 #[derive(Hash, PartialEq, Clone, Debug)]
 pub struct Name {
     // The name of the symbol.
-    pub string: AstString,
+    pub ident: Identifier,
 }
 
 /// A namespaced name, i.e. access name.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AccessName {
     /// The list of names that make up the access name.
-    pub names: AstNodes<Name>,
+    pub path: PathIdentifier,
 }
 
 /// A concrete/"named" type.
@@ -604,9 +589,9 @@ pub struct IndexExpr {
     pub index: AstNodes<Expression>,
 }
 
-/// An expression.
+/// The kind of an expression.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Expression {
+pub enum ExpressionKind {
     /// A function call.
     FunctionCall(FunctionCallExpr),
     /// An intrinsic symbol.
@@ -631,6 +616,41 @@ pub enum Expression {
     Block(AstNode<Block>),
     /// An `import` call.
     Import(AstNode<Import>),
+}
+
+/// An expression.
+#[derive(Debug, PartialEq, Clone)]
+pub struct Expression {
+    kind: ExpressionKind,
+    type_id: Option<TypeId>,
+}
+
+impl Expression {
+    pub fn new(kind: ExpressionKind) -> Self {
+        Self {
+            kind,
+            type_id: None,
+        }
+    }
+
+    pub fn kind(&self) -> &ExpressionKind {
+        &self.kind
+    }
+
+    /// Set the type ID of the node.
+    pub fn set_type_id(&mut self, type_id: TypeId) {
+        self.type_id = Some(type_id);
+    }
+
+    /// Clear the type ID of the node.
+    pub fn clear_type_id(&mut self) {
+        self.type_id = None;
+    }
+
+    /// Get the type ID of this node.
+    pub fn type_id(&self) -> Option<TypeId> {
+        self.type_id
+    }
 }
 
 /// A module.
