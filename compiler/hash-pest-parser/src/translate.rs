@@ -1,6 +1,6 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
-//! All rights rese name: (), args: ()  name: (), args: () rved 2021 (c) The Hash Language authors
+//! All rights reserved 2021 (c) The Hash Language authors
 
 use std::{cell::Cell, iter, path::PathBuf};
 
@@ -907,9 +907,24 @@ where
                 }
             }
             Rule::compound_pattern => {
-                let pats = ab.try_collect(pair.into_inner().map(|p| self.transform_pattern(p)))?;
+                let mut pairs = pair.into_inner();
+                let first = self.transform_pattern(pairs.next().unwrap())?;
 
-                Ok(ab.node(Pattern::Or(OrPattern { variants: pats })))
+                // if there is only one pattern within the compound pattern, we don't want to always wrap it an 'Or'
+                // variant since this is redundant
+                match pairs.next() {
+                    None => Ok(first),
+                    Some(pat) => {
+                        // collect any remaining patterns in the or secquence
+                        let variants = ab.try_collect(
+                            vec![Ok(first), self.transform_pattern(pat)]
+                                .into_iter()
+                                .chain(pairs.map(|p| self.transform_pattern(p))),
+                        )?;
+
+                        Ok(ab.node(Pattern::Or(OrPattern { variants })))
+                    }
+                }
             }
             k => panic!("unexpected rule within expr: {:?}", k),
         }
