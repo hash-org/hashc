@@ -3,22 +3,20 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 mod command;
-pub(crate) mod error;
 
 use command::InteractiveCommand;
-use error::InterpreterError;
 use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
 use hash_ast::parse::{Modules, ParParser, Parser};
 use hash_pest_parser::grammar::HashGrammar;
+use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::env;
 use std::process::exit;
 
-use crate::error::CompilerError;
-use crate::error::CompilerResult;
+type CompilerResult<T> = Result<T, CompilerError>;
 
 /// Interactive backend version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -56,9 +54,11 @@ pub fn init() -> CompilerResult<()> {
                 break;
             }
             Err(err) => {
-                return Err(
-                    InterpreterError::InternalError(format!("Unexpected error: {}", err)).into(),
-                );
+                return Err(InteractiveCommandError::InternalError(format!(
+                    "Unexpected error: {}",
+                    err
+                ))
+                .into());
             }
         }
     }
@@ -114,8 +114,7 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Display(expr)) => {
             if let Some((block, _)) = parse_interactive(expr) {
-                //@@Todo(alex) change this to node_display when it's ready.
-                println!("{:?}", block);
+                println!("{}", block);
             }
         }
         Ok(InteractiveCommand::Count(expr)) => {
