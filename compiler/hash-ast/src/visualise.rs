@@ -5,6 +5,7 @@
 use std::{fmt::Alignment, iter};
 
 use crate::ast::*;
+use crate::ident::IDENTIFIER_MAP;
 
 const VERT_PIPE: &str = "│ ";
 const PADDING: &str = "  ";
@@ -109,7 +110,7 @@ pub trait NodeDisplay {
 
 impl<T: NodeDisplay> NodeDisplay for AstNode<T> {
     fn node_display(&self) -> Vec<String> {
-        self.body.node_display()
+        self.body().node_display()
     }
 }
 
@@ -355,14 +356,16 @@ impl NodeDisplay for StructLiteralEntry {
 
 impl NodeDisplay for AccessName {
     fn node_display(&self) -> Vec<String> {
-        let names: Vec<&str> = self.names.iter().map(|n| n.body.string.as_ref()).collect();
-        vec![format!("\"{}\"", names.join("::"))]
+        vec![format!(
+            "\"{}\"",
+            IDENTIFIER_MAP.path_ident_name(self.path).full()
+        )]
     }
 }
 
 impl NodeDisplay for Name {
     fn node_display(&self) -> Vec<String> {
-        vec![format!("\"{}\"", self.string)]
+        vec![format!("\"{}\"", IDENTIFIER_MAP.ident_name(self.ident))]
     }
 }
 
@@ -587,15 +590,15 @@ impl NodeDisplay for Expression {
     fn node_display(&self) -> Vec<String> {
         let mut lines = vec![];
 
-        match &self {
-            Expression::FunctionCall(func) => {
+        match self.kind() {
+            ExpressionKind::FunctionCall(func) => {
                 lines.push("function_call".to_string());
 
                 let mut components = vec![iter::once("subject".to_string())
                     .chain(child_branch(&func.subject.node_display()))
                     .collect()];
 
-                let arguments = &func.args.body.entries;
+                let arguments = &func.args.entries;
 
                 // now deal with the function args if there are any
                 if !arguments.is_empty() {
@@ -618,11 +621,14 @@ impl NodeDisplay for Expression {
                 lines.extend(draw_branches_for_children(&components));
                 lines
             }
-            Expression::Intrinsic(intrinsic) => {
-                lines.push(format!("intrinsic \"{}\"", intrinsic.name.as_ref()));
+            ExpressionKind::Intrinsic(intrinsic) => {
+                lines.push(format!(
+                    "intrinsic \"{}\"",
+                    IDENTIFIER_MAP.ident_name(intrinsic.name)
+                ));
                 lines
             }
-            Expression::Variable(var) => {
+            ExpressionKind::Variable(var) => {
                 // check if the length of type_args to this ident, if not
                 // we don't produce any children nodes for it
                 let name = var.name.node_display().join("");
@@ -643,7 +649,7 @@ impl NodeDisplay for Expression {
 
                 lines
             }
-            Expression::PropertyAccess(expr) => {
+            ExpressionKind::PropertyAccess(expr) => {
                 lines.push("property_access".to_string());
 
                 // deal with the subject
@@ -653,16 +659,19 @@ impl NodeDisplay for Expression {
                     .collect();
 
                 // now deal with the field
-                let field_lines = vec![format!("field \"{}\"", expr.property.body.string)];
+                let field_lines = vec![format!(
+                    "field \"{}\"",
+                    IDENTIFIER_MAP.ident_name(expr.property.body().ident)
+                )];
 
                 lines.extend(draw_branches_for_children(&[subject_lines, field_lines]));
                 lines
             }
-            Expression::Ref(expr) | Expression::Deref(expr) => {
+            ExpressionKind::Ref(expr) | ExpressionKind::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
-                match &self {
-                    Expression::Ref(_) => lines.push("ref".to_string()),
-                    Expression::Deref(_) => lines.push("deref".to_string()),
+                match self.kind() {
+                    ExpressionKind::Ref(_) => lines.push("ref".to_string()),
+                    ExpressionKind::Deref(_) => lines.push("deref".to_string()),
                     _ => unreachable!(),
                 };
 
@@ -671,8 +680,8 @@ impl NodeDisplay for Expression {
 
                 lines
             }
-            Expression::LiteralExpr(literal) => literal.node_display(),
-            Expression::Typed(expr) => {
+            ExpressionKind::LiteralExpr(literal) => literal.node_display(),
+            ExpressionKind::Typed(expr) => {
                 lines.push("typed_expr".to_string());
 
                 let TypedExpr { expr, ty } = expr;
@@ -689,8 +698,8 @@ impl NodeDisplay for Expression {
                 lines.extend(pad_lines(next_lines, 1));
                 lines
             }
-            Expression::Block(block) => block.node_display(),
-            Expression::Import(import) => import.node_display(),
+            ExpressionKind::Block(block) => block.node_display(),
+            ExpressionKind::Import(import) => import.node_display(),
         }
     }
 }

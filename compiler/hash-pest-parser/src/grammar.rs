@@ -20,8 +20,9 @@ use pest::Parser;
 use hash_ast::{
     ast,
     error::{ParseError, ParseResult},
-    parse::{timed, ModuleResolver, ParserBackend},
+    parse::{ModuleResolver, ParserBackend},
 };
+use hash_utils::timed;
 
 use crate::{error::PestError, translate::PestAstBuilder};
 

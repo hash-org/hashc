@@ -25,7 +25,7 @@ impl<T: NodeCount> NodeCount for Option<T> {
 
 impl<T: NodeCount> NodeCount for AstNode<T> {
     fn children_count(&self) -> usize {
-        self.body.children_count()
+        self.body().children_count()
     }
 }
 
@@ -81,24 +81,24 @@ impl NodeCount for Block {
 
 impl NodeCount for Expression {
     fn children_count(&self) -> usize {
-        match &self {
-            Expression::FunctionCall(e) => {
+        match self.kind() {
+            ExpressionKind::FunctionCall(e) => {
                 let fn_args: usize = e.args.entries.iter().map(|a| a.node_count()).sum();
                 e.subject.node_count() + fn_args
             }
-            Expression::Intrinsic(_) => 0,
-            Expression::Variable(e) => {
+            ExpressionKind::Intrinsic(_) => 0,
+            ExpressionKind::Variable(e) => {
                 let ty_args: usize = e.type_args.iter().map(|t| t.node_count()).sum();
 
                 e.name.node_count() + ty_args
             }
-            Expression::PropertyAccess(e) => e.subject.node_count() + 1,
-            Expression::LiteralExpr(e) => e.node_count(),
-            Expression::Typed(e) => e.ty.node_count() + e.expr.node_count(),
-            Expression::Block(e) => e.node_count(),
-            Expression::Deref(e) => e.node_count(),
-            Expression::Ref(e) => e.node_count(),
-            Expression::Import(_) => 0,
+            ExpressionKind::PropertyAccess(e) => e.subject.node_count() + 1,
+            ExpressionKind::LiteralExpr(e) => e.node_count(),
+            ExpressionKind::Typed(e) => e.ty.node_count() + e.expr.node_count(),
+            ExpressionKind::Block(e) => e.node_count(),
+            ExpressionKind::Deref(e) => e.node_count(),
+            ExpressionKind::Ref(e) => e.node_count(),
+            ExpressionKind::Import(_) => 0,
         }
     }
 }
@@ -222,6 +222,6 @@ impl NodeCount for Type {
 
 impl NodeCount for AccessName {
     fn children_count(&self) -> usize {
-        self.names.len()
+        1
     }
 }

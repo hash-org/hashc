@@ -3,7 +3,7 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 use clap::{crate_version, AppSettings, Clap};
-use hash_ast::parse::{Parser, SeqParser};
+use hash_ast::parse::{ParParser, Parser};
 use hash_pest_parser::grammar::HashGrammar;
 use hash_reporting::errors::CompilerError;
 use log::log_enabled;
@@ -105,7 +105,7 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let parser = SeqParser::new(HashGrammar);
+                let parser = ParParser::new(HashGrammar);
                 let directory = env::current_dir().unwrap();
 
                 // @@TODO: this should be a compiler error instead of a ParseError, let's unify errors so that everyone uses CompilerError?
