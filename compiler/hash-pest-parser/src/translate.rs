@@ -1,6 +1,6 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
-//! All rights rese name: (), args: ()  name: (), args: () rved 2021 (c) The Hash Language authors
+//! All rights reserved 2021 (c) The Hash Language authors
 
 use std::{cell::Cell, iter, path::PathBuf};
 
@@ -915,13 +915,12 @@ where
                 match pairs.next() {
                     None => Ok(first),
                     Some(pat) => {
-                        let second = self.transform_pattern(pat)?;
-
                         // collect any remaining patterns in the or secquence
-                        let variants = vec![first, second]
-                            .into_iter()
-                            .chain(ab.try_collect(pairs.map(|p| self.transform_pattern(p)))?)
-                            .collect();
+                        let variants = ab.try_collect(
+                            vec![Ok(first), self.transform_pattern(pat)]
+                                .into_iter()
+                                .chain(pairs.map(|p| self.transform_pattern(p))),
+                        )?;
 
                         Ok(ab.node(Pattern::Or(OrPattern { variants })))
                     }
