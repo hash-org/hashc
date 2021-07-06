@@ -2,7 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::interactive::error::InterpreterError;
+use hash_reporting::errors::InteractiveCommandError;
 
 #[derive(Debug, Clone)]
 pub enum InteractiveCommand<'i> {
@@ -34,7 +34,7 @@ impl<'i> CommandDelegator<'i> {
 
     fn with_arg(&self, f: impl FnOnce(&'i str) -> InteractiveResult<'i>) -> InteractiveResult<'i> {
         match self.arg {
-            "" => Err(InterpreterError::ArgumentMismatchError(
+            "" => Err(InteractiveCommandError::ArgumentMismatchError(
                 self.command.to_string(),
             )),
             arg => f(arg),
@@ -44,12 +44,14 @@ impl<'i> CommandDelegator<'i> {
     fn without_arg(&self, command: InteractiveCommand<'i>) -> InteractiveResult<'i> {
         match self.arg {
             "" => Ok(command),
-            _ => Err(InterpreterError::ZeroArguments(self.command.to_string())),
+            _ => Err(InteractiveCommandError::ZeroArguments(
+                self.command.to_string(),
+            )),
         }
     }
 }
 
-type InteractiveResult<'i> = Result<InteractiveCommand<'i>, InterpreterError>;
+type InteractiveResult<'i> = Result<InteractiveCommand<'i>, InteractiveCommandError>;
 
 impl InteractiveCommand<'_> {
     /// Attempt to convert a string into an interactive command
@@ -74,7 +76,9 @@ impl InteractiveCommand<'_> {
             ":t" => d.with_arg(|arg| Ok(InteractiveCommand::Type(arg))),
             ":n" => d.with_arg(|arg| Ok(InteractiveCommand::Count(arg))),
             ":d" => d.with_arg(|arg| Ok(InteractiveCommand::Display(arg))),
-            _ => Err(InterpreterError::UnrecognisedCommand(command.to_string())),
+            _ => Err(InteractiveCommandError::UnrecognisedCommand(
+                command.to_string(),
+            )),
         }
     }
 }
