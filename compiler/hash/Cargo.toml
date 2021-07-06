@@ -8,9 +8,8 @@ edition = "2018"
 clap = "3.0.0-beta.2"
 hash-ast = {path = "../hash-ast" }
 hash-pest-parser = {path = "../hash-pest-parser" }
-hash-backend = {path = "../hash-backend" } 
-rustyline = "8.0.0"
+hash-interactive = {path = "../hash-interactive" } 
+hash-reporting = {path = "../hash-reporting" }
 thiserror = "1.0"
-derive-macro = { path = "derive-macro" }
 log = "0.4"
 pretty_env_logger = "0.4"

@@ -86,8 +86,7 @@ impl NodeCount for Expression {
                 let fn_args: usize = e.args.entries.iter().map(|a| a.node_count()).sum();
                 e.subject.node_count() + fn_args
             }
-            ExpressionKind::Intrinsic(_) => 1,
-            ExpressionKind::LogicalOp(e) => 1 + e.lhs.node_count() + e.rhs.node_count(),
+            ExpressionKind::Intrinsic(_) => 0,
             ExpressionKind::Variable(e) => {
                 let ty_args: usize = e.type_args.iter().map(|t| t.node_count()).sum();
 
@@ -99,12 +98,7 @@ impl NodeCount for Expression {
             ExpressionKind::Block(e) => e.node_count(),
             ExpressionKind::Deref(e) => e.node_count(),
             ExpressionKind::Ref(e) => e.node_count(),
-            ExpressionKind::Index(e) => {
-                let indices: usize = e.index.iter().map(|node| node.node_count()).sum();
-
-                e.subject.node_count() + indices
-            }
-            ExpressionKind::Import(_) => 1,
+            ExpressionKind::Import(_) => 0,
         }
     }
 }
@@ -163,14 +157,14 @@ impl NodeCount for Pattern {
             }
             Pattern::Namespace(pat) => pat.patterns.iter().map(|p| p.node_count()).sum(),
             Pattern::Tuple(pat) => pat.elements.iter().map(|e| e.node_count()).sum(),
-            Pattern::Literal(_) => 1,
-            Pattern::Or(pat) => pat.a.node_count() + pat.b.node_count(),
+            Pattern::Literal(_) => 0,
+            Pattern::Or(pat) => pat.variants.iter().map(|e| e.node_count()).sum(),
             Pattern::If(pat) => {
                 let count = pat.pattern.node_count();
                 count + pat.condition.node_count()
             }
-            Pattern::Binding(_) => 1,
-            Pattern::Ignore => 1,
+            Pattern::Binding(_) => 0,
+            Pattern::Ignore => 0,
         }
     }
 }
@@ -221,7 +215,7 @@ impl NodeCount for Type {
 
             // TypeVar variant just counts for one node since it just wrapper for Name,
             // which is of made of a single AstNode.
-            _ => 1,
+            _ => 0,
         }
     }
 }

@@ -1,8 +1,10 @@
 [package]
-name = "hash-backend"
+name = "hash-reporting"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2018"
 
 [dependencies]
-hash-ast = {path = "../hash-ast" } 
+thiserror = "1.0"
+hash-ast = {path = "../hash-ast" }
+

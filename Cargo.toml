@@ -3,12 +3,15 @@ members = [
   "compiler/hash-utils",
   "compiler/hash-ast",
   "compiler/hash-pest-parser",
-  "compiler/hash-backend",
+  "compiler/hash-interactive",
   "compiler/hash-typecheck",
+  "compiler/hash-reporting",
   "compiler/hash"
 ]
 
 [profile.release]
 opt-level = 3
 lto = true
+
+# set debug to true when profilling
 debug = false
