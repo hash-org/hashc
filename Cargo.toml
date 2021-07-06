@@ -2,8 +2,9 @@
 members = [
   "compiler/hash-ast",
   "compiler/hash-pest-parser",
-  "compiler/hash-backend",
+  "compiler/hash-interactive",
   "compiler/hash-typecheck",
+  "compiler/hash-reporting",
   "compiler/hash"
 ]
 

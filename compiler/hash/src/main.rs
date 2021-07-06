@@ -1,13 +1,11 @@
 //! Main module.
 //
 // All rights reserved 2021 (c) The Hash Language authors
-mod error;
-pub(crate) mod interactive;
 
-use crate::error::CompilerError;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::{Parser, SeqParser};
 use hash_pest_parser::grammar::HashGrammar;
+use hash_reporting::errors::CompilerError;
 use log::log_enabled;
 use std::{
     env, fs,
@@ -125,7 +123,7 @@ fn main() {
                 Ok(())
             }
             None => {
-                interactive::init()?;
+                hash_interactive::init()?;
                 Ok(())
             }
         }

@@ -6,9 +6,6 @@ use crate::location::SourceLocation;
 use std::{io, path::PathBuf};
 use thiserror::Error;
 
-/// Error message prefix
-// const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
-
 /// Hash ParseError enum represnting the variants of possible errors.
 #[derive(Debug, Clone, Error)]
 pub enum ParseError {
