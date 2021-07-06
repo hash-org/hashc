@@ -2,6 +2,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+use crate::ident::{Identifier, PathIdentifier};
 use crate::location::Location;
 use crate::parse::ModuleIdx;
 use hash_utils::counter;
@@ -9,11 +10,10 @@ use num::BigInt;
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Deref;
-use crate::ident::{Identifier, PathIdentifier};
 
 counter! {
     name: AstNodeId,
-    counter_name: AST_NODE_ID_COUNTER, 
+    counter_name: AST_NODE_ID_COUNTER,
     visibility: pub,
     method_visibility: pub,
 }

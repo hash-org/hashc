@@ -6,7 +6,7 @@ pub(crate) mod interactive;
 
 use crate::error::CompilerError;
 use clap::{crate_version, AppSettings, Clap};
-use hash_ast::parse::{Parser, SeqParser};
+use hash_ast::parse::{ParParser, Parser};
 use hash_pest_parser::grammar::HashGrammar;
 use log::log_enabled;
 use std::{
@@ -107,7 +107,7 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let parser = SeqParser::new(HashGrammar);
+                let parser = ParParser::new(HashGrammar);
                 let directory = env::current_dir().unwrap();
                 let result = timed(
                     || parser.parse(&filename, &directory),

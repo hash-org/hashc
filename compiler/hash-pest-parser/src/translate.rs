@@ -9,7 +9,13 @@ use crate::{
     precedence::PREC_CLIMBER,
     utils::{convert_rule_into_fn_call, CompoundFn, OperatorFn},
 };
-use hash_ast::{ast::*, error::{ParseError, ParseResult}, ident::{IdentifierMap, PathIdentifierMap}, location::{Location, SourceLocation}, parse::{ModuleResolver, ParsingContext}};
+use hash_ast::{
+    ast::*,
+    error::{ParseError, ParseResult},
+    ident::IDENTIFIER_MAP,
+    location::{Location, SourceLocation},
+    parse::ModuleResolver,
+};
 use iter::once;
 use num::BigInt;
 
@@ -23,16 +29,12 @@ const MAP_TYPE_NAME: &str = "Map";
 /// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
 /// or a [pest::iterators::Pair].
-pub struct NodeBuilder<'resolver, 'ident, R> {
+pub struct NodeBuilder {
     site: SourceLocation,
-    ctx: ParsingContext<'resolver, 'ident, R>,
 }
 
-impl<'resolver, 'ident, R> NodeBuilder<'pab, 'ident, R> {
-    pub(crate) fn from_pair(
-        ctx: ParsingContext<'resolver, 'ident, R>,
-        pair: &HashPair<'_>,
-    ) -> Self {
+impl NodeBuilder {
+    pub(crate) fn from_pair(pair: &HashPair<'_>) -> Self {
         let span = pair.as_span();
         let location = Location::span(span.start(), span.end());
         Self {
@@ -40,20 +42,15 @@ impl<'resolver, 'ident, R> NodeBuilder<'pab, 'ident, R> {
                 location,
                 path: PathBuf::from(""), // @@TODO: actually get the filename here!
             },
-            ctx,
         }
     }
 
-    pub(crate) fn from_node<T>(
-        ctx: ParsingContext<'resolver, 'ident, R>,
-        node: &AstNode<T>,
-    ) -> Self {
+    pub(crate) fn from_node<T>(node: &AstNode<T>) -> Self {
         Self {
             site: SourceLocation {
                 location: node.location(),
                 path: PathBuf::from(""), // @@TODO: actually get the filename here!
             },
-            ctx,
         }
     }
 
@@ -71,7 +68,7 @@ impl<'resolver, 'ident, R> NodeBuilder<'pab, 'ident, R> {
 
     fn make_single_access_name(&self, name: AstString) -> AstNode<AccessName> {
         self.node(AccessName {
-            path: self.parent.ctx.path_ident_map.create(name),
+            path: IDENTIFIER_MAP.create_path_ident(name),
         })
     }
 
@@ -94,10 +91,7 @@ impl<'resolver, 'ident, R> NodeBuilder<'pab, 'ident, R> {
         };
 
         self.node(AccessName {
-            path: self
-                .parent
-                .path_ident_map
-                .create(AstString::Borrowed(name_ref)),
+            path: IDENTIFIER_MAP.create_path_ident(AstString::Borrowed(name_ref)),
         })
     }
 
@@ -229,117 +223,96 @@ impl<'resolver, 'ident, R> NodeBuilder<'pab, 'ident, R> {
     }
 }
 
-pub(crate) struct PestAstBuilder<'resolver, 'ident, R> {
-    ctx: ParsingContext<'resolver, 'ident, R>,
+pub(crate) fn build_binary(
+    lhs: ParseResult<AstNode<Expression>>,
+    op: HashPair<'_>,
+    rhs: ParseResult<AstNode<Expression>>,
+) -> ParseResult<AstNode<Expression>> {
+    let ab = NodeBuilder::from_pair(&op);
+
+    // Panic here if we cannot convert the operator into a function call
+    let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
+
+    match subject_name {
+        OperatorFn::Named { name, assigning } => {
+            // @@Copied
+
+            Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
+                FunctionCallExpr {
+                    subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
+                        name: ab.make_single_access_name(AstString::Borrowed(name)),
+                        type_args: vec![], // we dont need any kind of typeargs since were just transpiling here
+                    }))),
+                    args: ab.node(FunctionCallArgs {
+                        entries: vec![ab.transform_expr_into_ref(lhs?, assigning), rhs?],
+                    }),
+                },
+            ))))
+        }
+        OperatorFn::Compound { name, assigning } => {
+            // @@Copied
+            //
+            // for compound functions that include ordering, we essentially transpile
+            // into a match block that checks the result of the 'ord' fn call to the
+            // 'Ord' enum variants. This also happens for operators such as '>=' which
+            // essentially means that we have to check if the result of 'ord()' is either
+            // 'Eq' or 'Gt'.
+            Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
+        }
+        OperatorFn::LazyNamed { name, assigning } => {
+            // @@Copied: transform lhs into ref if assinging
+
+            let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
+                FunctionCallExpr {
+                    subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
+                        name: ab.make_single_access_name(AstString::Borrowed(name)),
+                        type_args: vec![],
+                    }))),
+                    args: ab.node(FunctionCallArgs {
+                        entries: vec![
+                            ab.transform_expr_into_ref(lhs?, assigning),
+                            ab.make_single_lambda(rhs?),
+                        ],
+                    }),
+                },
+            )));
+
+            Ok(fn_call)
+        }
+    }
 }
 
-impl<'resolver, 'ident, R> PestAstBuilder<'resolver, 'ident, R>
+pub(crate) struct PestAstBuilder<'resolver, R> {
+    resolver: &'resolver mut R,
+}
+
+impl<'resolver, R> PestAstBuilder<'resolver, R>
 where
     R: ModuleResolver,
 {
-    pub(crate) fn new(
-        ctx: ParsingContext<'resolver, 'ident, R>,
-    ) -> Self {
-        Self {
-            ctx,
-        }
+    pub(crate) fn new(resolver: &'resolver mut R) -> Self {
+        Self { resolver }
     }
 
-    pub(crate) fn builder_from_pair<'s>(
-        &'s self,
-        pair: &HashPair<'_>,
-    ) -> NodeBuilder<'s, 'resolver, 'ident, R> {
-        NodeBuilder::from_pair(self.ctx, pair)
+    pub(crate) fn builder_from_pair(&self, pair: &HashPair<'_>) -> NodeBuilder {
+        NodeBuilder::from_pair(pair)
     }
 
-    pub(crate) fn builder_from_node<'s, T>(
-        &'s self,
-        node: &AstNode<T>,
-    ) -> NodeBuilder<'s, 'resolver, 'ident, R> {
-        NodeBuilder::from_node(self.ctx, node)
+    pub(crate) fn builder_from_node<T>(&self, node: &AstNode<T>) -> NodeBuilder {
+        NodeBuilder::from_node(node)
     }
 
     pub(crate) fn climb<'i, P>(&mut self, pairs: P) -> ParseResult<AstNode<Expression>>
     where
         P: Iterator<Item = HashPair<'i>>,
     {
-        PREC_CLIMBER.climb(
-            pairs,
-            |pair| self.transform_expression(pair),
-            |lhs, op, rhs| self.build_binary(lhs, op, rhs),
-        )
-    }
-
-    pub(crate) fn build_binary(
-        &self,
-        lhs: ParseResult<AstNode<Expression>>,
-        op: HashPair<'_>,
-        rhs: ParseResult<AstNode<Expression>>,
-    ) -> ParseResult<AstNode<Expression>> {
-        let ab = self.builder_from_pair(&op);
-
-        // Panic here if we cannot convert the operator into a function call
-        let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
-
-        match subject_name {
-            OperatorFn::Named { name, assigning } => {
-                // @@Copied
-
-                Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
-                    FunctionCallExpr {
-                        subject: ab.node(Expression::new(ExpressionKind::Variable(
-                            VariableExpr {
-                                name: ab.make_single_access_name(AstString::Borrowed(name)),
-                                type_args: vec![], // we dont need any kind of typeargs since were just transpiling here
-                            },
-                        ))),
-                        args: ab.node(FunctionCallArgs {
-                            entries: vec![ab.transform_expr_into_ref(lhs?, assigning), rhs?],
-                        }),
-                    },
-                ))))
-            }
-            OperatorFn::Compound { name, assigning } => {
-                // @@Copied
-                //
-                // for compound functions that include ordering, we essentially transpile
-                // into a match block that checks the result of the 'ord' fn call to the
-                // 'Ord' enum variants. This also happens for operators such as '>=' which
-                // essentially means that we have to check if the result of 'ord()' is either
-                // 'Eq' or 'Gt'.
-                Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
-            }
-            OperatorFn::LazyNamed { name, assigning } => {
-                // @@Copied: transform lhs into ref if assinging
-
-                let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
-                    FunctionCallExpr {
-                        subject: ab.node(Expression::new(ExpressionKind::Variable(
-                            VariableExpr {
-                                name: ab.make_single_access_name(AstString::Borrowed(name)),
-                                type_args: vec![],
-                            },
-                        ))),
-                        args: ab.node(FunctionCallArgs {
-                            entries: vec![
-                                ab.transform_expr_into_ref(lhs?, assigning),
-                                ab.make_single_lambda(rhs?),
-                            ],
-                        }),
-                    },
-                )));
-
-                Ok(fn_call)
-            }
-        }
+        PREC_CLIMBER.climb(pairs, |pair| self.transform_expression(pair), build_binary)
     }
 
     pub(crate) fn transform_name(&mut self, pair: HashPair<'_>) -> ParseResult<AstNode<Name>> {
         match pair.as_rule() {
             Rule::ident => Ok(self.builder_from_pair(&pair).node(Name {
-                ident: self
-                    .ident_map
-                    .create(AstString::Owned(pair.as_str().to_owned())),
+                ident: IDENTIFIER_MAP.create_ident(AstString::Owned(pair.as_str().to_owned())),
             })),
             _ => unreachable!(),
         }
@@ -485,9 +458,7 @@ where
         let ab = self.builder_from_pair(&pair);
         match pair.as_rule() {
             Rule::access_name => Ok(self.builder_from_pair(&pair).node(AccessName {
-                path: self
-                    .path_ident_map
-                    .create(AstString::Owned(pair.as_str().to_owned())),
+                path: IDENTIFIER_MAP.create_path_ident(AstString::Owned(pair.as_str().to_owned())),
             })),
             _ => unreachable!(),
         }
@@ -1056,9 +1027,8 @@ where
                     // We throw away the '#' here since we already know that it is an intrinsic call
                     Rule::intrinsic_expr => Ok(ab.node(Expression::new(
                         ExpressionKind::Intrinsic(IntrinsicKey {
-                            name: self
-                                .ident_map
-                                .create(subject_expr.as_str().to_owned().into()),
+                            name: IDENTIFIER_MAP
+                                .create_ident(subject_expr.as_str().to_owned().into()),
                         }),
                     ))),
                     Rule::import_expr => {
@@ -1066,7 +1036,7 @@ where
                         let import_call = subject_expr.into_inner().next().unwrap();
                         let import_path = import_call.into_inner().next().unwrap();
                         let s = import_path.as_span().as_str();
-                        let module_idx = self.ctx.resolver.add_module(s, Some(ab.site.clone()))?;
+                        let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
 
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::new(ExpressionKind::Import(
@@ -1565,14 +1535,12 @@ where
                                                 type_args: vec![],
                                             }),
                                         )),
-                                        args: self.builder_from_node(&rhs).node(
-                                            FunctionCallArgs {
-                                                entries: vec![
-                                                    ab.transform_expr_into_ref(lhs, assigning),
-                                                    rhs,
-                                                ],
-                                            },
-                                        ),
+                                        args: self.builder_from_node(&rhs).node(FunctionCallArgs {
+                                            entries: vec![
+                                                ab.transform_expr_into_ref(lhs, assigning),
+                                                rhs,
+                                            ],
+                                        }),
                                     }),
                                 ));
                                 Ok(ab.node(Statement::Expr(assign_call)))

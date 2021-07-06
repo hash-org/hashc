@@ -1,16 +1,20 @@
 //! Hash compiler module for converting from tokens to an AST tree
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::{ast::{self, *}, error::{ParseError, ParseResult}, ident::{IdentifierMap, PathIdentifierMap}, location::SourceLocation};
+use crate::{
+    ast::{self, *},
+    error::{ParseError, ParseResult},
+    location::SourceLocation,
+};
 use closure::closure;
 use crossbeam_channel::{unbounded, Sender};
 use hash_utils::counter;
 use log::{debug, log_enabled, Level};
 use std::{
     collections::{HashMap, HashSet},
-    fs, mem,
+    fs,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU32, Ordering},
+    sync::atomic::Ordering,
     time::Instant,
 };
 use std::{sync::atomic::AtomicUsize, time::Duration};
@@ -184,90 +188,8 @@ where
     }
 }
 
-pub struct SeqParser<B> {
-    backend: B,
-}
-
-impl<B> SeqParser<B>
-where
-    B: ParserBackend,
-{
-    pub fn new(backend: B) -> Self {
-        Self { backend }
-    }
-
-    fn parse_main(
-        &self,
-        entry: EntryPoint,
-        directory: &Path,
-    ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
-        let mut modules = Modules::new();
-
-        let interactive = match entry {
-            EntryPoint::Module { filename } => {
-                let mut resolver = SeqModuleResolver::new(
-                    &mut modules,
-                    directory.to_owned(),
-                    &self.backend,
-                    None,
-                );
-                let entry_index = resolver.add_module(filename, None)?;
-                modules.set_entry_point(entry_index);
-                None
-            }
-            EntryPoint::Interactive { contents } => {
-                let block = {
-                    let mut resolver = SeqModuleResolver::new(
-                        &mut modules,
-                        directory.to_owned(),
-                        &self.backend,
-                        None,
-                    );
-
-                    self.backend.parse_interactive(&mut resolver, contents)
-                }?;
-                Some(block)
-            }
-        };
-
-        Ok((interactive, modules))
-    }
-}
-
-impl<B> Parser for SeqParser<B>
-where
-    B: ParserBackend,
-{
-    fn parse(
-        &self,
-        filename: impl AsRef<Path>,
-        directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules> {
-        let filename = filename.as_ref();
-        let directory = directory.as_ref();
-        let entry = EntryPoint::Module { filename };
-        let (_, modules) = self.parse_main(entry, directory)?;
-        Ok(modules)
-    }
-
-    fn parse_interactive(
-        &self,
-        contents: &str,
-        directory: impl AsRef<Path>,
-    ) -> ParseResult<(AstNode<BodyBlock>, Modules)> {
-        let directory = directory.as_ref();
-        let entry = EntryPoint::Interactive { contents };
-        let (interactive, modules) = self.parse_main(entry, directory)?;
-        Ok((interactive.unwrap(), modules))
-    }
-}
-
 #[inline(always)]
-pub fn timed<T>(
-    op: impl FnOnce() -> T,
-    level: log::Level,
-    on_elapsed: impl FnOnce(Duration),
-) -> T {
+pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();
@@ -278,39 +200,32 @@ pub fn timed<T>(
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct ParsingContext<'ident, R> {
-    resolver: R,
-    ident_map: &'ident IdentifierMap,
-    path_ident_map: &'ident PathIdentifierMap,
-}
-
 pub trait ParserBackend: Sync {
     fn parse_module(
         &self,
-        ctx: ParsingContext<'_, '_, impl ModuleResolver>,
+        resolver: &mut impl ModuleResolver,
         path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module>;
 
     fn parse_interactive(
         &self,
-        ctx: ParsingContext<'_, '_, impl ModuleResolver>,
+        resolver: &mut impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<AstNode<ast::BodyBlock>>;
 }
 
 pub trait ModuleResolver {
     fn add_module(
-        &self,
+        &mut self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx>;
 }
 
-fn parse_file<R: ModuleResolver>(
+fn parse_file(
     resolved_filename: impl AsRef<Path>,
-    ctx: ParsingContext<'_, '_, R>,
+    resolver: &mut impl ModuleResolver,
     backend: &impl ParserBackend,
 ) -> Result<(ast::Module, String), ParseError> {
     debug!("Parsing file: {:?}", resolved_filename.as_ref());
@@ -320,95 +235,12 @@ fn parse_file<R: ModuleResolver>(
         .map_err(|e| (e, resolved_filename.as_ref().to_owned()))?;
 
     let module = timed(
-        || backend.parse_module(ctx, resolved_filename.as_ref(), &source),
+        || backend.parse_module(resolver, resolved_filename.as_ref(), &source),
         Level::Debug,
         |elapsed| debug!("ast: {:.2?}", elapsed),
     )?;
 
     Ok((module, source))
-}
-
-/// Represents an object that is responsible for resolving any module imports
-pub struct SeqModuleResolver<'backend, 'modules, B> {
-    modules: &'modules mut Modules,
-    root_dir: PathBuf,
-    backend: &'backend B,
-    index: Option<ModuleIdx>,
-}
-
-impl<'backend, 'modules, B> SeqModuleResolver<'backend, 'modules, B>
-where
-    B: ParserBackend,
-{
-    fn new(
-        modules: &'modules mut Modules,
-        root_dir: PathBuf,
-        backend: &'backend B,
-        index: Option<ModuleIdx>,
-    ) -> Self {
-        SeqModuleResolver {
-            modules,
-            root_dir,
-            backend,
-            index,
-        }
-    }
-
-    fn for_module<R>(
-        &self,
-        mut dir: PathBuf,
-        index: Option<ModuleIdx>,
-        cb: impl FnOnce(&Self) -> R,
-    ) -> R {
-        mem::swap(&self.root_dir, &dir);
-        let old_index = self.index;
-        self.index = index;
-        let ret = cb(self);
-        self.index = old_index;
-        mem::swap(&self.root_dir, &dir);
-        ret
-    }
-}
-
-impl<'backend, 'modules, B> ModuleResolver for SeqModuleResolver<'backend, 'modules, B>
-where
-    B: ParserBackend,
-{
-    fn add_module(
-        &self,
-        import_path: impl AsRef<Path>,
-        location: Option<SourceLocation>,
-    ) -> ParseResult<ModuleIdx> {
-        let resolved_path = resolve_path(import_path, &self.root_dir, location)?;
-
-        if let Some(module) = self.modules.get_by_path(&resolved_path) {
-            let index = module.index();
-            drop(module);
-
-            if let Some(parent) = self.index {
-                self.modules.add_dependency(parent, index);
-            }
-            return Ok(index);
-        }
-
-        let resolved_dir = resolved_path.parent().unwrap().to_owned(); // is this correct?
-
-        let index = self.modules.reserve_index();
-
-        let child = SeqModuleResolver::new()
-
-        let (node, source) = self.for_module(resolved_dir, Some(index), |resolver| {
-            parse_file(&resolved_path, resolver, resolver.backend)
-        })?;
-
-        self.modules
-            .add_module_at(index, resolved_path, node, source);
-
-        if let Some(parent) = self.index {
-            self.modules.add_dependency(parent, index);
-        }
-        Ok(index)
-    }
 }
 
 struct ParModuleResolver {
@@ -427,7 +259,7 @@ impl ParModuleResolver {
     }
 
     pub fn add_module_send_error(
-        &self,
+        &mut self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> Option<ModuleIdx> {
@@ -440,7 +272,7 @@ impl ParModuleResolver {
         }
     }
 
-    fn parse_file(&self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
+    fn parse_file(&mut self, resolved_filename: impl AsRef<Path>, backend: &impl ParserBackend) {
         let parse_result = parse_file(&resolved_filename, self, backend);
 
         let message = match parse_result {

@@ -109,7 +109,9 @@ pub struct GenTypeVar {
 
 impl GenTypeVar {
     pub fn new() -> Self {
-        Self { id: GenTypeVarId::new() }
+        Self {
+            id: GenTypeVarId::new(),
+        }
     }
 }
 
