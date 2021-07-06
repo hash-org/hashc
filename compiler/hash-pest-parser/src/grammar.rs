@@ -17,7 +17,11 @@ use std::path::Path;
 pub use derived::{HashGrammar, Rule};
 use pest::Parser;
 
-use hash_ast::{ast, error::{ParseError, ParseResult}, parse::{ModuleResolver, ParserBackend, ParsingContext}};
+use hash_ast::{
+    ast,
+    error::{ParseError, ParseResult},
+    parse::{ModuleResolver, ParserBackend},
+};
 use hash_utils::timed;
 
 use crate::{error::PestError, translate::PestAstBuilder};
@@ -25,13 +29,13 @@ use crate::{error::PestError, translate::PestAstBuilder};
 pub type HashPair<'a> = pest::iterators::Pair<'a, Rule>;
 
 impl ParserBackend for HashGrammar {
-    fn parse_module<R>(
+    fn parse_module(
         &self,
-        ctx: ParsingContext<'_, '_, R>,
+        resolver: &mut impl ModuleResolver,
         path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module> {
-        let mut builder = PestAstBuilder::new(ctx);
+        let mut builder = PestAstBuilder::new(resolver);
         let pest_result = timed(
             || HashGrammar::parse(Rule::module, contents),
             log::Level::Debug,

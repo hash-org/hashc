@@ -28,11 +28,7 @@ macro_rules! counter {
 }
 
 #[inline(always)]
-pub fn timed<T>(
-    op: impl FnOnce() -> T,
-    level: log::Level,
-    on_elapsed: impl FnOnce(Duration),
-) -> T {
+pub fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
     if log_enabled!(level) {
         let begin = Instant::now();
         let result = op();
