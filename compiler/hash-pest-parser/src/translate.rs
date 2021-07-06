@@ -1011,23 +1011,21 @@ where
                         let operand = expr.next().unwrap();
 
                         match op_type {
-                            FnCall(fn_call) => {
-                                Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
-                                    FunctionCallExpr {
-                                        subject: ab.node(Expression::new(
-                                            ExpressionKind::Variable(VariableExpr {
-                                                name: ab.make_single_access_name(
-                                                    AstString::Borrowed(fn_call),
-                                                ),
-                                                type_args: vec![],
-                                            }),
-                                        )),
-                                        args: ab.node(FunctionCallArgs {
-                                            entries: vec![self.transform_expression(operand)?],
-                                        }),
-                                    },
-                                ))))
-                            }
+                            FnCall(fn_call) => Ok(ab.node(Expression::new(
+                                ExpressionKind::FunctionCall(FunctionCallExpr {
+                                    subject: ab.node(Expression::new(ExpressionKind::Variable(
+                                        VariableExpr {
+                                            name: ab.make_single_access_name(AstString::Borrowed(
+                                                fn_call,
+                                            )),
+                                            type_args: vec![],
+                                        },
+                                    ))),
+                                    args: ab.node(FunctionCallArgs {
+                                        entries: vec![self.transform_expression(operand)?],
+                                    }),
+                                }),
+                            ))),
                             Ref => Ok(ab.node(Expression::new(ExpressionKind::Ref(
                                 self.transform_expression(operand)?,
                             )))),
