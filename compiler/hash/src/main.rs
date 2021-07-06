@@ -4,7 +4,6 @@
 
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::{Parser, SeqParser};
-use hash_interactive::init;
 use hash_pest_parser::grammar::HashGrammar;
 use hash_reporting::errors::CompilerError;
 use log::log_enabled;
@@ -124,7 +123,7 @@ fn main() {
                 Ok(())
             }
             None => {
-                init()?;
+                hash_interactive::init()?;
                 Ok(())
             }
         }
