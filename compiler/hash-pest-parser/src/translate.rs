@@ -1019,9 +1019,6 @@ where
                                                 name: ab.make_single_access_name(
                                                     AstString::Borrowed(fn_call),
                                                 ),
-                                                // name: ab.node(AccessName {
-                                                //     names: vec![inab.node(Name { string:  })],
-                                                // }),
                                                 type_args: vec![],
                                             }),
                                         )),
