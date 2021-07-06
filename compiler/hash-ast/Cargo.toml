@@ -14,3 +14,5 @@ rayon = "1.5.0"
 thiserror = "1.0"
 num = "0.4"
 closure = "0.3.0"
+hash-utils = { path = "../hash-utils" }
+dashmap = "4.0"
