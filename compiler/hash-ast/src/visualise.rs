@@ -356,7 +356,10 @@ impl NodeDisplay for StructLiteralEntry {
 
 impl NodeDisplay for AccessName {
     fn node_display(&self) -> Vec<String> {
-        vec![format!("\"{}\"", IDENTIFIER_MAP.path_ident_name(self.path).full())]
+        vec![format!(
+            "\"{}\"",
+            IDENTIFIER_MAP.path_ident_name(self.path).full()
+        )]
     }
 }
 
@@ -619,7 +622,10 @@ impl NodeDisplay for Expression {
                 lines
             }
             ExpressionKind::Intrinsic(intrinsic) => {
-                lines.push(format!("intrinsic \"{}\"", IDENTIFIER_MAP.ident_name(intrinsic.name)));
+                lines.push(format!(
+                    "intrinsic \"{}\"",
+                    IDENTIFIER_MAP.ident_name(intrinsic.name)
+                ));
                 lines
             }
             ExpressionKind::Variable(var) => {
@@ -653,7 +659,10 @@ impl NodeDisplay for Expression {
                     .collect();
 
                 // now deal with the field
-                let field_lines = vec![format!("field \"{}\"", IDENTIFIER_MAP.ident_name(expr.property.body().ident))];
+                let field_lines = vec![format!(
+                    "field \"{}\"",
+                    IDENTIFIER_MAP.ident_name(expr.property.body().ident)
+                )];
 
                 lines.extend(draw_branches_for_children(&[subject_lines, field_lines]));
                 lines
