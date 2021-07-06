@@ -1,0 +1,6 @@
+└─function_call
+  ├─subject
+  │ └─ident "print"
+  └─args
+    └─arg
+      └─string "hello world"

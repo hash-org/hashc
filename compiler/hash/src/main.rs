@@ -2,13 +2,16 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+use backtrace::Backtrace;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::{ParParser, Parser};
 use hash_pest_parser::grammar::HashGrammar;
 use hash_reporting::errors::CompilerError;
 use log::log_enabled;
+use std::panic;
 use std::{
     env, fs,
+    panic::PanicInfo,
     time::{Duration, Instant},
 };
 
@@ -73,7 +76,43 @@ struct IrGen {
     debug: bool,
 }
 
+fn panic_handler(info: &PanicInfo) {
+    if let Some(s) = info.payload().downcast_ref::<&str>() {
+        println!("Sorry :^(\nInternal Panic: {}\n", s);
+    } else {
+        println!("Sorry :^(\nInternal Panic\n");
+    }
+
+    // Display the location if we can...
+    if let Some(location) = info.location() {
+        println!(
+            "Occurred in file '{}' at {}:{}",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+    }
+
+    // print the backtrace
+    println!("Backtrace:\n{:?}", Backtrace::new());
+
+    let msg = "This is an interpreter bug, please file a bug report at";
+    let uri = "https://github.com/hash-org/lang/issues";
+
+    println!("{}\n\n{:^len$}\n", msg, uri, len = msg.len());
+}
+
 fn main() {
+    // Setup our panic handler
+    panic::set_hook(Box::new(panic_handler));
+
+    fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
+        match f() {
+            Ok(()) => (),
+            Err(e) => e.report_and_exit(),
+        }
+    }
+
     execute(|| {
         pretty_env_logger::init();
 
@@ -87,7 +126,6 @@ fn main() {
                 println!("Running with {}", path);
             }
         }
-
         // check here if we are operating in a special mode...
         if let Some(mode) = opts.mode {
             match mode {
@@ -108,8 +146,6 @@ fn main() {
                 let parser = ParParser::new(HashGrammar);
                 let directory = env::current_dir().unwrap();
 
-                // @@TODO: this should be a compiler error instead of a ParseError, let's unify errors so that everyone uses CompilerError?
-                //         We could also move all the error stuff into hash_error
                 let result = timed(
                     || parser.parse(&filename, &directory),
                     log::Level::Debug,
@@ -128,13 +164,6 @@ fn main() {
             }
         }
     })
-}
-
-fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
-    match f() {
-        Ok(()) => (),
-        Err(e) => e.report_and_exit(),
-    }
 }
 
 #[inline(always)]
