@@ -10,4 +10,6 @@ members = [
 [profile.release]
 opt-level = 3
 lto = true
+
+# set debug to true when profilling
 debug = false
