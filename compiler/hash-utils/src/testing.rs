@@ -1,15 +1,20 @@
-pub struct TestingSuccess {
-    visualiser_output: String,
-    ast_debug_output: String,
-}
+use std::path::PathBuf;
 
-pub struct TestingFailure {
-    error_debug_output: String,
-}
+// pub struct TestingSuccess {
+//     visualiser_output: String,
+//     ast_debug_output: String,
+// }
 
+// pub struct TestingFailure {
+//     error_debug_output: String,
+// }
+
+// pub type TestingResult = Result<TestingSuccess, TestingFailure>;
+
+#[derive(Debug, Clone)]
 pub struct TestingInput {
-    filename: String,
-    directory: String,
+    pub path: PathBuf,
+    pub snake_name: String,
 }
 
-pub type TestingResult = Result<TestingSuccess, TestingFailure>;
+pub type TestingFn = fn(input: TestingInput);

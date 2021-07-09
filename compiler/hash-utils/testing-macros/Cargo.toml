@@ -9,5 +9,8 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0", features = ["extra-traits"] }
+syn = { version = "1.0", features = ["extra-traits", "full"] }
 quote = "1.0"
+convert_case = "0.4"
+regex = "1.5"
+hash-utils = { path = "../" }
