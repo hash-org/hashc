@@ -18,8 +18,8 @@ impl Location {
     }
 
     /// Create a 'Span' variant by providing a single position and the span of the input token
-    pub fn span(col: usize, row: usize) -> Location {
-        Location(col.try_into().unwrap(), row.try_into().unwrap())
+    pub fn span(start: usize, end: usize) -> Location {
+        Location(start.try_into().unwrap(), end.try_into().unwrap())
     }
 
     pub fn row(&self) -> usize {

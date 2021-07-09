@@ -330,6 +330,7 @@ dependencies = [
  "hash-pest-parser",
  "hash-reporting",
  "log",
+ "num_cpus",
  "pretty_env_logger",
  "thiserror",
 ]
@@ -346,7 +347,6 @@ dependencies = [
  "log",
  "num",
  "num_cpus",
- "pretty_env_logger",
  "rayon",
  "thiserror",
 ]

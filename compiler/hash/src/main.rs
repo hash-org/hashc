@@ -2,12 +2,15 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+mod logger;
+
 use backtrace::Backtrace;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::{ParParser, Parser};
 use hash_pest_parser::grammar::HashGrammar;
 use hash_reporting::errors::CompilerError;
-use log::log_enabled;
+use log::{log_enabled, LevelFilter};
+use logger::CompilerLogger;
 use std::panic;
 use std::{
     env, fs,
@@ -27,22 +30,25 @@ use std::{
 )]
 #[clap(setting = AppSettings::ColorNever)]
 struct CompilerOptions {
-    ///  Include a directory into runtime. The current directory is included by default
-    #[clap(short, long, multiple_values = true)]
-    includes: Vec<String>,
-
+    //  Include a directory into runtime. The current directory is included by default
+    // #[clap(short, long, multiple_values = true)]
+    // includes: Vec<String>,
     /// Execute the passed script directly without launching interactive mode
     #[clap(short, long)]
     execute: Option<String>,
 
-    /// Set the maximum stack size for the current running instance.
-    #[clap(short, long, default_value = "10000")]
-    stack_size: u32,
-
+    // Set the maximum stack size for the current running instance.
+    // #[clap(short, long, default_value = "10000")]
+    // stack_size: u32,
     /// Run the compiler in debug mode
     #[clap(short, long)]
     debug: bool,
 
+    /// Number of worker threads the compiler should use
+    #[clap(short, long, default_value = Box::leak(num_cpus::get().to_string().into_boxed_str()))]
+    worker_count: usize,
+
+    /// Compiler mode
     #[clap(subcommand)]
     mode: Option<SubCmd>,
 }
@@ -76,6 +82,8 @@ struct IrGen {
     debug: bool,
 }
 
+pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
+
 fn panic_handler(info: &PanicInfo) {
     if let Some(s) = info.payload().downcast_ref::<&str>() {
         println!("Sorry :^(\nInternal Panic: {}\n", s);
@@ -102,30 +110,26 @@ fn panic_handler(info: &PanicInfo) {
     println!("{}\n\n{:^len$}\n", msg, uri, len = msg.len());
 }
 
-fn main() {
-    // Setup our panic handler
-    panic::set_hook(Box::new(panic_handler));
+fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
+    match f() {
+        Ok(()) => (),
+        Err(e) => e.report_and_exit(),
+    }
+}
 
-    fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
-        match f() {
-            Ok(()) => (),
-            Err(e) => e.report_and_exit(),
-        }
+fn main() {
+    // Initial grunt work, panic handler and logger setup...
+    panic::set_hook(Box::new(panic_handler));
+    log::set_logger(&CONSOLE_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
+
+    let opts: CompilerOptions = CompilerOptions::parse();
+
+    // if debug is specified, we want to log everything that is debug level...
+    if opts.debug {
+        log::set_max_level(LevelFilter::Debug);
     }
 
     execute(|| {
-        pretty_env_logger::init();
-
-        let opts: CompilerOptions = CompilerOptions::parse();
-
-        // print recieved cmdargs, if debug is specified
-        if opts.debug {
-            println!("Stack_size is {}", opts.stack_size);
-
-            for path in opts.includes.iter() {
-                println!("Running with {}", path);
-            }
-        }
         // check here if we are operating in a special mode...
         if let Some(mode) = opts.mode {
             match mode {
@@ -143,7 +147,7 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let parser = ParParser::new(HashGrammar);
+                let parser = ParParser::new_with_workers(HashGrammar, opts.worker_count);
                 let directory = env::current_dir().unwrap();
 
                 let result = timed(
