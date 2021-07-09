@@ -67,6 +67,10 @@ where
     }
 
     pub fn new_with_workers(backend: B, worker_count: usize) -> Self {
+        if worker_count == 0 {
+            panic!("Cannot spawn a parallel parser with 0 threads");
+        }
+
         Self {
             worker_count,
             backend,
@@ -83,7 +87,7 @@ where
 
         debug!("Creating worker pool with {} workers", self.worker_count);
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.worker_count)
+            .num_threads(self.worker_count + 1)
             .build()
             .unwrap();
 
@@ -266,7 +270,7 @@ impl ParModuleResolver {
         match self.add_module(import_path, location) {
             Ok(index) => Some(index),
             Err(err) => {
-                self.sender.send(ParMessage::Error(err)).unwrap();
+                self.sender.try_send(ParMessage::Error(err)).unwrap();
                 None
             }
         }
@@ -284,7 +288,7 @@ impl ParModuleResolver {
             Err(err) => ParMessage::Error(err),
         };
 
-        self.sender.send(message).unwrap();
+        self.sender.try_send(message).unwrap();
     }
 }
 
@@ -298,7 +302,7 @@ impl ModuleResolver for ParModuleResolver {
         let index = ModuleIdx::new();
 
         self.sender
-            .send(ParMessage::ModuleImport {
+            .try_send(ParMessage::ModuleImport {
                 index,
                 filename: resolved_path,
                 parent: self.parent,
