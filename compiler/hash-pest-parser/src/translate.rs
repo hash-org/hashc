@@ -17,7 +17,6 @@ use hash_ast::{
     parse::ModuleResolver,
 };
 use iter::once;
-use num::BigInt;
 
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
@@ -586,23 +585,22 @@ where
                         let mut components = inner.into_inner();
                         let num = components.next().unwrap();
 
-                        let val = BigInt::parse_bytes(num.as_str().as_bytes(), 10).unwrap();
-
+                        let val = num.as_str().parse::<u64>().unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::hex_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = BigInt::parse_bytes(item.as_str().as_bytes(), 16).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 16).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::octal_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = BigInt::parse_bytes(item.as_str().as_bytes(), 8).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 8).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::bin_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = BigInt::parse_bytes(item.as_str().as_bytes(), 2).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 2).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     _ => unreachable!(),
@@ -794,7 +792,7 @@ where
                     Literal::Str(s) => LiteralPattern::Str(s.clone()),
                     Literal::Char(s) => LiteralPattern::Char(*s),
                     Literal::Float(s) => LiteralPattern::Float(*s),
-                    Literal::Int(s) => LiteralPattern::Int(s.clone()),
+                    Literal::Int(s) => LiteralPattern::Int(*s),
                     k => panic!(
                         "literal_pattern should be string, float, char or int, got : {:?}",
                         k
