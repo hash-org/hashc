@@ -345,7 +345,6 @@ dependencies = [
  "hash-utils",
  "lazy_static",
  "log",
- "num",
  "num_cpus",
  "rayon",
  "thiserror",

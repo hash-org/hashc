@@ -7,5 +7,7 @@ pub mod count;
 pub mod error;
 pub mod ident;
 pub mod location;
+pub mod module;
 pub mod parse;
+pub mod resolve;
 pub mod visualise;
