@@ -1,16 +1,13 @@
-use std::fs;
-
 use hash_utils::testing::TestingInput;
 
-fn handle_test(input: TestingInput) {
+fn _handle_test(_input: TestingInput) {
     // @@Todo: write testing logic for parsing
-    assert_eq!("a", "a");
+    assert_ne!(1, 2);
 }
 
 mod tests {
-    use super::*;
     use hash_utils_testing_macros::generate_tests;
 
     // "case.hash" is the test pattern.
-    generate_tests!("../test/", r"^case\.hash$", handle_test);
+    generate_tests!("../test/", r"^case\.hash$", _handle_test);
 }
