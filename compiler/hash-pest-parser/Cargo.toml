@@ -13,6 +13,5 @@ num_cpus = "1.13.0"
 rayon = "1.5.0"
 pest = "2.1"
 pest_derive = "2.1"
-num = "0.4"
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
