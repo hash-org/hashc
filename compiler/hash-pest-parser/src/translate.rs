@@ -17,7 +17,7 @@ use hash_ast::{
     parse::ModuleResolver,
 };
 use iter::once;
-use num::BigInt;
+use pest::error::{Error, ErrorVariant, InputLocation};
 
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
@@ -59,10 +59,18 @@ impl NodeBuilder {
         AstNode::new(inner, self.site.location)
     }
 
+    /// Create a error from the location using Pest and then add a custom message on top of the location.
     pub fn error(&self, message: String) -> ParseError {
+        let err = Error::new_from_span(
+            ErrorVariant::CustomError {
+                message,
+            },
+            InputLocation::Span(self.site.location.0, self.site.location.1)
+        );
+
         ParseError::Parsing {
             src: self.site.clone(),
-            message,
+            message: err.into(),
         }
     }
 
@@ -586,23 +594,22 @@ where
                         let mut components = inner.into_inner();
                         let num = components.next().unwrap();
 
-                        let val = BigInt::parse_bytes(num.as_str().as_bytes(), 10).unwrap();
-
+                        let val = u64::from_str_radix(num.as_str(), 10)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::hex_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = BigInt::parse_bytes(item.as_str().as_bytes(), 16).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 16)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::octal_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = BigInt::parse_bytes(item.as_str().as_bytes(), 8).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 8)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::bin_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = BigInt::parse_bytes(item.as_str().as_bytes(), 2).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 2)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     _ => unreachable!(),
@@ -794,7 +801,7 @@ where
                     Literal::Str(s) => LiteralPattern::Str(s.clone()),
                     Literal::Char(s) => LiteralPattern::Char(*s),
                     Literal::Float(s) => LiteralPattern::Float(*s),
-                    Literal::Int(s) => LiteralPattern::Int(s.clone()),
+                    Literal::Int(s) => LiteralPattern::Int(*s),
                     k => panic!(
                         "literal_pattern should be string, float, char or int, got : {:?}",
                         k
@@ -894,7 +901,6 @@ where
                         Ok(ab.node(Pattern::Binding(name)))
                     }
                     Rule::ignore_pattern => Ok(ab.node(Pattern::Ignore)),
-                    // @@Cleanup: is this right, can we avoid this by just using another AstNode here?
                     Rule::literal_pattern => {
                         let literal = self.transform_literal_pattern(pat)?;
                         Ok(ab.node(Pattern::Literal(literal)))

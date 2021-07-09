@@ -3,7 +3,7 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 use crate::location::SourceLocation;
-use std::{io, path::PathBuf};
+use std::{io, num::{ParseFloatError, ParseIntError}, path::PathBuf};
 use thiserror::Error;
 
 /// Hash ParseError enum represnting the variants of possible errors.
@@ -31,5 +31,17 @@ impl From<(io::Error, PathBuf)> for ParseError {
             err: err.to_string(),
             filename,
         }
+    }
+}
+
+impl From<ParseIntError> for ParseError {
+    fn from(_: ParseIntError) -> Self {
+        todo!()
+    }
+}
+
+impl From<ParseFloatError> for ParseError {
+    fn from(_: ParseFloatError) -> Self {
+        todo!()
     }
 }
