@@ -329,6 +329,7 @@ dependencies = [
  "hash-interactive",
  "hash-pest-parser",
  "hash-reporting",
+ "hash-utils-testing-macros",
  "log",
  "pretty_env_logger",
  "thiserror",
@@ -400,6 +401,14 @@ name = "hash-utils"
 version = "0.1.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "hash-utils-testing-macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
