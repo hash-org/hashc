@@ -34,7 +34,7 @@ pub enum CompilerError {
     #[error("{0}")]
     IoError(#[from] io::Error),
     #[error("Sorry :^(\nInternal panic: {message}\n{}", match .extra_info {
-        Some(x) => &x,
+        Some(x) => x,
         None => "",
     })]
     #[allow(dead_code)]

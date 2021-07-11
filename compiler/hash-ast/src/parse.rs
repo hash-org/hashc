@@ -433,7 +433,7 @@ impl<'modules> Module<'modules> {
     }
 
     pub fn ast(&self) -> &ast::Module {
-        &self.modules.modules_by_index.get(&self.index).unwrap()
+        self.modules.modules_by_index.get(&self.index).unwrap()
     }
 
     pub fn content(&self) -> &str {
