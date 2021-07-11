@@ -16,10 +16,11 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
-      - name: Install Rust Stable
+      - name: Install Rust Nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.51.0 # Pinned warnings
+          toolchain: nightly
+          override: true
           components: rustfmt, clippy
       - name: Cargo Build
         uses: actions-rs/cargo@v1
