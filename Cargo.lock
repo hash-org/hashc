@@ -335,6 +335,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-alloc"
+version = "0.1.0"
+
+[[package]]
 name = "hash-ast"
 version = "0.1.0"
 dependencies = [

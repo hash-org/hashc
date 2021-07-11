@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "compiler/hash-utils",
+  "compiler/hash-alloc",
   "compiler/hash-ast",
   "compiler/hash-pest-parser",
   "compiler/hash-interactive",

@@ -1,9 +1,7 @@
 [package]
-name = "hash-reporting"
+name = "hash-alloc"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2018"
 
 [dependencies]
-thiserror = "1.0"
-hash-ast = {path = "../hash-ast" }
