@@ -13,6 +13,7 @@ use log::{debug, log_enabled, Level};
 use std::{
     collections::{HashMap, HashSet},
     fs,
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
     time::Instant,
@@ -40,7 +41,7 @@ pub trait Parser {
 }
 
 pub struct ParParser<B> {
-    worker_count: usize,
+    worker_count: NonZeroUsize,
     backend: B,
 }
 
@@ -63,10 +64,10 @@ where
     B: ParserBackend,
 {
     pub fn new(backend: B) -> Self {
-        Self::new_with_workers(backend, num_cpus::get())
+        Self::new_with_workers(backend, NonZeroUsize::new(num_cpus::get()).unwrap())
     }
 
-    pub fn new_with_workers(backend: B, worker_count: usize) -> Self {
+    pub fn new_with_workers(backend: B, worker_count: NonZeroUsize) -> Self {
         Self {
             worker_count,
             backend,
@@ -83,7 +84,7 @@ where
 
         debug!("Creating worker pool with {} workers", self.worker_count);
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.worker_count)
+            .num_threads(self.worker_count.get() + 1)
             .build()
             .unwrap();
 
@@ -266,7 +267,7 @@ impl ParModuleResolver {
         match self.add_module(import_path, location) {
             Ok(index) => Some(index),
             Err(err) => {
-                self.sender.send(ParMessage::Error(err)).unwrap();
+                self.sender.try_send(ParMessage::Error(err)).unwrap();
                 None
             }
         }
@@ -284,7 +285,7 @@ impl ParModuleResolver {
             Err(err) => ParMessage::Error(err),
         };
 
-        self.sender.send(message).unwrap();
+        self.sender.try_send(message).unwrap();
     }
 }
 
@@ -298,7 +299,7 @@ impl ModuleResolver for ParModuleResolver {
         let index = ModuleIdx::new();
 
         self.sender
-            .send(ParMessage::ModuleImport {
+            .try_send(ParMessage::ModuleImport {
                 index,
                 filename: resolved_path,
                 parent: self.parent,
@@ -433,7 +434,7 @@ impl<'modules> Module<'modules> {
     }
 
     pub fn ast(&self) -> &ast::Module {
-        &self.modules.modules_by_index.get(&self.index).unwrap()
+        self.modules.modules_by_index.get(&self.index).unwrap()
     }
 
     pub fn content(&self) -> &str {

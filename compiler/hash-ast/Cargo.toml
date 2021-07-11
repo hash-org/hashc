@@ -5,8 +5,7 @@ authors = ["The Hash Language authors"]
 edition = "2018"
 
 [dependencies]
-log = "0.4"
-pretty_env_logger = "0.4"
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_debug"] }
 lazy_static = "1.4.0"
 crossbeam-channel = "0.5.1"
 num_cpus = "1.13.0"
