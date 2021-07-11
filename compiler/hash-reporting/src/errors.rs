@@ -33,15 +33,8 @@ const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
 pub enum CompilerError {
     #[error("{0}")]
     IoError(#[from] io::Error),
-    #[error("Sorry :^(\nInternal panic: {message}\n{}", match .extra_info {
-        Some(x) => x,
-        None => "",
-    })]
-    #[allow(dead_code)]
-    InternalError {
-        message: String,
-        extra_info: Option<String>,
-    },
+    #[error("{message}")]
+    ArgumentError { message: String },
     #[error("{0}")]
     ParseError(#[from] ParseError),
     #[error("{0}")]
