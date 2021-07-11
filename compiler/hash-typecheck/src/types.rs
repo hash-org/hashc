@@ -151,8 +151,8 @@ pub enum Type {
     Ref(RefType),
     RawRef(RawRefType),
     Fn(FnType),
-    GenTypeVar(GenTypeVar),
-    TypeVar(TypeVar),
+    GenVar(GenTypeVar),
+    Var(TypeVar),
     User(UserType),
     Prim(PrimType),
 }
