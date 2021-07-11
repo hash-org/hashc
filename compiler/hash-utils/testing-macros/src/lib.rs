@@ -119,7 +119,7 @@ fn read_dir(
 /// will be generated.
 ///
 /// The format of this macro is as follows:
-/// ```
+/// ```notrust
 /// generate_tests!(TEST_DIR, TEST_PATTERN, TEST_FN);
 /// ```
 ///
