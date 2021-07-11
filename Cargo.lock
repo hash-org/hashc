@@ -159,6 +159,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6173fd61b610d15a7566dd7b7620775627441c4ab9dac8906e17cb93a24b782"
 
 [[package]]
+name = "convert_case"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -343,6 +349,7 @@ dependencies = [
  "crossbeam-channel",
  "dashmap",
  "hash-utils",
+ "hash-utils-testing-macros",
  "lazy_static",
  "log",
  "num",
@@ -399,6 +406,17 @@ name = "hash-utils"
 version = "0.1.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "hash-utils-testing-macros"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "hash-utils",
+ "quote",
+ "regex",
+ "syn",
 ]
 
 [[package]]
