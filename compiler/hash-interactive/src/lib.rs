@@ -72,7 +72,7 @@ fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
     let directory = env::current_dir().unwrap();
 
     // parse the input
-    match parser.parse_interactive(&expr, &directory) {
+    match parser.parse_interactive(expr, &directory) {
         Ok(result) => Some(result),
         Err(e) => {
             CompilerError::from(e).report();
@@ -87,7 +87,7 @@ fn execute(input: &str) {
         return;
     }
 
-    let command = InteractiveCommand::from(&input);
+    let command = InteractiveCommand::from(input);
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),

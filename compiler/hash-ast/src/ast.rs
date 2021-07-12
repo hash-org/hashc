@@ -6,7 +6,6 @@ use crate::ident::{Identifier, PathIdentifier};
 use crate::location::Location;
 use crate::parse::ModuleIdx;
 use hash_utils::counter;
-use num::BigInt;
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -218,8 +217,7 @@ pub enum Literal {
     /// A character literal.
     Char(char),
     /// An integer literal.
-    // @@TODO: does this really need to be a bigint? it is internally a vector :O
-    Int(BigInt),
+    Int(u64),
     /// A float literal.
     Float(f64),
     /// A set literal.
@@ -303,7 +301,7 @@ pub enum LiteralPattern {
     /// A character literal pattern.
     Char(char),
     /// An integer literal pattern.
-    Int(BigInt),
+    Int(u64),
     /// A float literal pattern.
     Float(f64),
 }
