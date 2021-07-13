@@ -40,38 +40,58 @@ counter! {
     method_visibility:,
 }
 
+pub struct TypeParams {
+    data: SmallVec<[TypeId; 6]>,
+}
+
+pub struct TraitBounds {
+    data: Vec<TraitBound>,
+}
+
 pub struct TraitBound {
-    trt: Trait,
-    params: Vec<Type>,
+    pub trt: Trait,
+    pub params: TypeParams,
 }
 
 pub struct Generics {
-    params: Vec<Type>,
-    bounds: Vec<TraitBound>,
+    pub bounds: TraitBounds,
+    pub params: TypeParams,
+}
+
+pub struct EnumVariantParams {
+    data: SmallVec<[TypeId; 6]>,
 }
 
 pub struct EnumVariant {
-    name: Identifier,
-    data: Vec<Type>,
+    pub name: Identifier,
+    pub data: EnumVariantParams,
+}
+
+pub struct EnumVariants {
+    data: HashMap<Identifier, EnumVariant>,
 }
 
 pub struct EnumDef {
-    name: Identifier,
-    generics: Generics,
-    variants: HashMap<Identifier, EnumVariant>,
+    pub name: Identifier,
+    pub generics: Generics,
+    pub variants: EnumVariants,
+}
+
+pub struct StructFields {
+    data: HashMap<Identifier, TypeId>,
 }
 
 pub struct StructDef {
-    name: Identifier,
-    generics: Generics,
-    fields: HashMap<Identifier, Type>,
+    pub name: Identifier,
+    pub generics: Generics,
+    pub fields: StructFields,
 }
 
 pub struct TypeDefs {
-    data: HashMap<TypeDefId, TypeDef>,
+    data: HashMap<TypeDefId, TypeDefValue>,
 }
 
-pub enum TypeDef {
+pub enum TypeDefValue {
     Enum(EnumDef),
     Struct(StructDef),
 }
@@ -124,30 +144,39 @@ impl fmt::Display for GenTypeVar {
 }
 
 pub struct TypeVar {
-    name: Identifier,
+    pub name: Identifier,
 }
 
 pub struct RefType {
-    inner: TypeId,
+    pub inner: Type,
 }
 
 pub struct RawRefType {
-    inner: TypeId,
+    pub inner: Type,
 }
 
-type TypeArgs = SmallVec<[TypeId; 6]>;
+pub struct TypeArgs {
+    data: SmallVec<[TypeId; 6]>,
+}
 
 pub struct UserType {
-    type_def_id: TypeDefId,
-    args: TypeArgs,
+    pub def: TypeDef,
+    pub args: TypeArgs,
 }
 
 pub struct FnType {
-    args: TypeArgs,
-    ret: TypeId,
+    pub args: TypeArgs,
+    pub ret: Type,
 }
 
-pub enum Type {
+pub struct Type {
+    id: TypeId,
+}
+pub struct TypeDef {
+    id: TypeDefId,
+}
+
+pub enum TypeValue {
     Ref(RefType),
     RawRef(RawRefType),
     Fn(FnType),
@@ -158,7 +187,7 @@ pub enum Type {
 }
 
 pub struct Types {
-    data: HashMap<TypeId, Type>,
+    data: HashMap<TypeId, TypeValue>,
 }
 
 #[cfg(test)]
@@ -167,6 +196,6 @@ mod tests {
 
     #[test]
     fn type_size() {
-        println!("{:?}", std::mem::size_of::<Type>());
+        println!("{:?}", std::mem::size_of::<TypeValue>());
     }
 }
