@@ -362,6 +362,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-parser"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+ "hash-ast",
+ "hash-utils",
+ "lazy_static",
+ "log",
+ "num_cpus",
+ "pretty_env_logger",
+ "rayon",
+]
+
+[[package]]
 name = "hash-pest-parser"
 version = "0.1.0"
 dependencies = [
