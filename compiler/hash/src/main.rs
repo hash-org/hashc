@@ -6,18 +6,19 @@ mod logger;
 
 use backtrace::Backtrace;
 use clap::{crate_version, AppSettings, Clap};
-use hash_ast::parse::{ParParser, Parser};
-use hash_pest_parser::grammar::HashGrammar;
+use hash_ast::error::ParseError;
+use hash_ast::parse::{timed, Modules};
+use hash_ast::parse::{ParParser, Parser, ParserBackend};
 use hash_reporting::errors::CompilerError;
-use log::{log_enabled, LevelFilter};
+use log::LevelFilter;
 use logger::CompilerLogger;
 use std::num::NonZeroUsize;
 use std::panic;
-use std::{
-    env, fs,
-    panic::PanicInfo,
-    time::{Duration, Instant},
-};
+use std::path::PathBuf;
+use std::{env, fs, panic::PanicInfo};
+
+use hash_parser::parse::HashParser;
+use hash_pest_parser::grammar::HashGrammar;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -118,6 +119,18 @@ fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
     }
 }
 
+fn run_parsing(
+    parser: ParParser<impl ParserBackend>,
+    filename: PathBuf,
+    directory: PathBuf,
+) -> Result<Modules, ParseError> {
+    timed(
+        || parser.parse(&filename, &directory),
+        log::Level::Debug,
+        |elapsed| println!("total: {:?}", elapsed),
+    )
+}
+
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(panic_handler));
@@ -156,15 +169,22 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-
-                let parser = ParParser::new_with_workers(HashGrammar, worker_count);
                 let directory = env::current_dir().unwrap();
 
-                let result = timed(
-                    || parser.parse(&filename, &directory),
-                    log::Level::Debug,
-                    |elapsed| println!("total: {:?}", elapsed),
-                );
+                // If we're using pest as a parsing backend, enable it via flags...
+                let result = if cfg!(feature = "use-pest") {
+                    run_parsing(
+                        ParParser::new_with_workers(HashGrammar, worker_count),
+                        filename,
+                        directory,
+                    )
+                } else {
+                    run_parsing(
+                        ParParser::new_with_workers(HashParser {}, worker_count),
+                        filename,
+                        directory,
+                    )
+                };
 
                 if let Err(e) = result {
                     CompilerError::from(e).report_and_exit();
@@ -178,16 +198,4 @@ fn main() {
             }
         }
     })
-}
-
-#[inline(always)]
-fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
-    if log_enabled!(level) {
-        let begin = Instant::now();
-        let result = op();
-        on_elapsed(begin.elapsed());
-        result
-    } else {
-        op()
-    }
 }

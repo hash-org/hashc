@@ -1,57 +1,118 @@
-//! File describing all the variants of Tokens that can be present within a 
+//! File describing all the variants of Tokens that can be present within a
 //! Hash source file.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
+#![allow(dead_code)]
 
-pub enum Token {
+use hash_ast::ident::Identifier;
+use hash_ast::location::Location;
+
+#[derive(Debug)]
+pub enum TokenError {
+    Unexpected(char),
+    Expected(TokenKind),
+}
+
+#[derive(Debug)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub span: Location,
+}
+
+impl Token {
+    pub fn new(kind: TokenKind, span: Location) -> Self {
+        Token { kind, span }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum LiteralKind {
+    Float,
+    Int,
+    String,
+    Char,
+}
+
+#[repr(packed(1))]
+#[derive(Debug, Copy, Clone)]
+pub struct Lit {
+    symbol: Identifier, // @@TODO: change this to a symbol type which could
+    kind: LiteralKind,
+}
+#[derive(Debug)]
+pub enum TokenKind {
+    /// '='
     Eq,
-    Neq,
-    Assign,
-    Not,
-    LogicalAnd,
-    LogicalOr,
+    /// '<'
+    Lt,
+    /// '>'
+    Gt,
+    /// '+'
     Plus,
+    /// '-'
     Minus,
-    Asterisk, // Named like so since it is used in various contexts
-    Ampersand,
-    Exp, // ^^
-    Div,
-    Modulo,
-    RightBitShift,
-    LeftBitShift,
-    BitNot,
-    BitXor, // ^
+    /// *
+    Star,
+    /// '/'
+    Slash,
+    /// '%'
+    Percent,
+    /// '^'
+    Caret,
 
-    Pipe, // |
-    // Arrow, // ->
-    ThickArrow, // =>
+    /// '&'
+    And,
 
-    // Keywords
-    Let,
-    As,
-    Struct,
-    Enum,
-    Trait,
-    Where,
-    Import,
-    Loop,
-    While,
-    For,
-    In,
-    If,
-    Else,
-    Match,
-    Break,
-    Continue,
-    Return,
+    /// Literal with variants of a [LiteralKind]
+    Literal(Lit),
+    /// Identifier
+    Ident(Identifier),
+    /// '~'
+    Tilde,
+    /// '|'
+    Pipe,
+    /// '!'
+    Exclamation,
+    /// '.'
+    Dot,
+    /// ':'
+    Colon,
+    /// ';'
+    Semi,
+    /// ','
+    Comma,
+    /// '"'
+    Quote,
+    // "'"
+    SingleQoute,
 
-    // Parenthesees
-    OpenCurly,
-    CloseCurly,
+    // '@'
+    // At,
+    /// '{'
+    OpenBrace,
+    /// '('
     OpenParen,
+    /// '['
+    OpenBracket,
+    /// '}'
+    CloseBrace,
+    /// ')'
     CloseParen,
-    OpenSquare,
-    CloseSquare,
-    OpenAngle,
-    CloseAngle,
+    /// ']'
+    CloseBracket,
+
+    /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
+    /// string literal.
+    Unexpected,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn type_size() {
+        println!("kind={:?}", std::mem::size_of::<Lit>());
+        println!("token={:?}", std::mem::size_of::<TokenKind>());
+    }
 }

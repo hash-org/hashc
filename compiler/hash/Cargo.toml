@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 clap = "3.0.0-beta.2"
 hash-ast = {path = "../hash-ast" }
+hash-parser = {path = "../hash-parser" }
 hash-pest-parser = {path = "../hash-pest-parser" }
 hash-interactive = {path = "../hash-interactive" } 
 hash-reporting = {path = "../hash-reporting" }
@@ -15,3 +16,8 @@ log = "0.4"
 pretty_env_logger = "0.4"
 backtrace = "0.3"
 num_cpus = "1.13.0"
+
+[features]
+use-pest = ["hash-interactive/use-pest"]
+
+# default = ["use-pest"]
