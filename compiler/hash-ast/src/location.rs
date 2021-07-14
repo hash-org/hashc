@@ -22,12 +22,16 @@ impl Location {
         Location(start.try_into().unwrap(), end.try_into().unwrap())
     }
 
-    pub fn row(&self) -> usize {
+    pub fn start(&self) -> usize {
         self.0.try_into().unwrap()
     }
 
-    pub fn col(&self) -> usize {
+    pub fn end(&self) -> usize {
         self.1.try_into().unwrap()
+    }
+
+    pub fn size(&self) -> usize {
+        self.end() - self.start()
     }
 }
 

@@ -327,6 +327,7 @@ dependencies = [
  "clap",
  "hash-ast",
  "hash-interactive",
+ "hash-parser",
  "hash-pest-parser",
  "hash-reporting",
  "log",
@@ -356,6 +357,7 @@ name = "hash-interactive"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-parser",
  "hash-pest-parser",
  "hash-reporting",
  "rustyline",

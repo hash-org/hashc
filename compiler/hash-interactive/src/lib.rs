@@ -8,8 +8,13 @@ use command::InteractiveCommand;
 use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
 use hash_ast::parse::{Modules, ParParser, Parser};
-use hash_pest_parser::grammar::HashGrammar;
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
+
+#[cfg(feature = "use-pest")]
+use hash_pest_parser::grammar::HashGrammar;
+
+#[cfg(not(feature = "use-pest"))]
+use hash_parser::parse::HashParser;
 
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -66,10 +71,29 @@ pub fn init() -> CompilerResult<()> {
     Ok(())
 }
 
+#[cfg(not(feature = "use-pest"))]
 fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+    let directory = env::current_dir().unwrap();
+
+    // setup the parser
+    let parser = ParParser::new(HashParser {});
+
+    // parse the input
+    match parser.parse_interactive(expr, &directory) {
+        Ok(result) => Some(result),
+        Err(e) => {
+            CompilerError::from(e).report();
+            None
+        }
+    }
+}
+
+#[cfg(feature = "use-pest")]
+fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+    let directory = env::current_dir().unwrap();
+
     // setup the parser
     let parser = ParParser::new(HashGrammar);
-    let directory = env::current_dir().unwrap();
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
