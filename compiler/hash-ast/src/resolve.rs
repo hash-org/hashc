@@ -74,7 +74,7 @@ where
         let resolved_import_path = resolve_path(import_path, &self.module_ctx.root_dir, location)?;
         let import_index = self.ctx.module_builder().reserve_index();
 
-        // Copy ctx and module_ctx so that they can be moved into the closure independent of self.
+        // Copy ctx so that it can be moved into the closure independent of self.
         let ctx = self.ctx;
 
         self.scope.spawn(move |scope| {
