@@ -112,17 +112,20 @@ where
             // The entry point root directory is the one given as argument to this function.
             let entry_root_dir = directory;
 
-            // The entry point has no parent module, or parent source.
-            let entry_parent_index = None;
-            let entry_parent_source = None;
-
-            // Create a module context and resolver for the entry point.
-            let entry_module_ctx =
-                ModuleParsingContext::new(entry_parent_source, entry_root_dir, entry_parent_index);
-            let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
-
             match entry {
                 EntryPoint::Module { filename } => {
+                    // The entry point has no parent module, or parent source.
+                    let entry_parent_index = None;
+                    let entry_parent_source = None;
+
+                    // Create a module context and resolver for the entry point.
+                    let entry_module_ctx = ModuleParsingContext::new(
+                        entry_parent_source,
+                        entry_root_dir,
+                        entry_parent_index,
+                    );
+                    let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
+
                     // No location for the first import
                     let entry_import_location = None;
 
@@ -139,11 +142,22 @@ where
                     // No interactive node for a module entry point
                     Ok(None)
                 }
-                EntryPoint::Interactive { contents } => {
+                EntryPoint::Interactive { contents: interactive_source } => {
+                    // The entry point has no parent module
+                    let entry_parent_index = None;
+
+                    // Create a module context and resolver for the entry point.
+                    let entry_module_ctx = ModuleParsingContext::new(
+                        Some(interactive_source),
+                        entry_root_dir,
+                        entry_parent_index,
+                    );
+                    let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
+
                     // Return the interactive node for interactive entry point.
                     Ok(Some(
                         self.backend
-                            .parse_interactive(&mut entry_resolver, contents)?,
+                            .parse_interactive(&mut entry_resolver, interactive_source)?,
                     ))
                 }
             }
