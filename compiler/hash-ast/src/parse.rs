@@ -149,6 +149,7 @@ where
             }
         })?;
 
+        // @@Todo: return errors.
         let modules = module_builder.build();
         Ok((maybe_interactive_node, modules))
     }
