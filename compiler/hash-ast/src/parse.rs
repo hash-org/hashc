@@ -1,28 +1,17 @@
-//! Hash compiler module for converting from tokens to an AST tree
+//! Hash compiler module for parsing source code into AST
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::module::ModuleIdx;
-use crate::resolve::ModuleResolver;
+
 use crate::{
     ast::{self, *},
     error::{ParseError, ParseResult},
-    module::Modules,
+    module::{ModuleBuilder, Modules},
+    resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
-use closure::closure;
-use crossbeam_channel::unbounded;
-use log::debug;
-use std::sync::atomic::AtomicUsize;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::atomic::Ordering,
-};
-
-#[derive(Debug, Copy, Clone)]
-enum EntryPoint<'a> {
-    Interactive { contents: &'a str },
-    Module { filename: &'a Path },
-}
+use derive_getters::Getters;
+use derive_more::Constructor;
+use std::path::Path;
+use std::sync::Mutex;
 
 pub trait Parser {
     fn parse(
@@ -38,26 +27,51 @@ pub trait Parser {
     ) -> ParseResult<(AstNode<BodyBlock>, Modules)>;
 }
 
+#[derive(Debug, Constructor, Copy, Clone)]
+pub(crate) struct ParseErrorHandler<'errors> {
+    errors: &'errors Mutex<Vec<ParseError>>,
+}
+
+impl ParseErrorHandler<'_> {
+    pub(crate) fn add_error(&self, error: ParseError) {
+        let mut errors = self.errors.lock().unwrap();
+        errors.push(error);
+    }
+
+    pub(crate) fn handle_error<R>(&self, op: impl FnOnce() -> Result<R, ParseError>) -> Option<R> {
+        match op() {
+            Ok(res) => Some(res),
+            Err(err) => {
+                self.add_error(err);
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug, Constructor, Getters)]
+pub(crate) struct ParsingContext<'ctx, B> {
+    module_builder: &'ctx ModuleBuilder,
+    backend: &'ctx B,
+    error_handler: ParseErrorHandler<'ctx>,
+}
+
+impl<B> Clone for ParsingContext<'_, B> {
+    fn clone(&self) -> Self {
+        Self { ..*self }
+    }
+}
+impl<B> Copy for ParsingContext<'_, B> {}
+
+#[derive(Debug, Copy, Clone)]
+enum EntryPoint<'a> {
+    Interactive { contents: &'a str },
+    Module { filename: &'a Path },
+}
+
 pub struct ParParser<B> {
     worker_count: usize,
     backend: B,
-}
-
-pub enum ParMessage {
-    ModuleImport {
-        filename: PathBuf,
-        parent: Option<ModuleIdx>,
-        index: ModuleIdx,
-    },
-    ParsedModule {
-        node: ast::Module,
-        index: ModuleIdx,
-    },
-    ReadContents {
-        filename: PathBuf,
-        contents: String,
-    },
-    Error(ParseError),
 }
 
 impl<B> ParParser<B>
@@ -84,106 +98,59 @@ where
         entry: EntryPoint,
         directory: &Path,
     ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
-        let mut modules = Modules::new();
-        let senders = AtomicUsize::new(0);
+        let module_builder = ModuleBuilder::new();
+        let errors: Mutex<Vec<ParseError>> = Default::default();
+        let error_handler = ParseErrorHandler::new(&errors);
+        let ctx = ParsingContext::new(&module_builder, &self.backend, error_handler);
 
-        debug!("Creating worker pool with {} workers", self.worker_count);
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.worker_count + 1)
             .build()
             .unwrap();
 
-        let interactive = pool.scope(|scope| -> ParseResult<_> {
-            let (s, r) = unbounded::<ParMessage>();
+        let maybe_interactive_node = pool.scope(|scope| -> ParseResult<_> {
+            // The entry point root directory is the one given as argument to this function.
+            let entry_root_dir = directory;
 
-            senders.fetch_add(1, Ordering::SeqCst);
+            // The entry point has no parent module, or parent source.
+            let entry_parent_index = None;
+            let entry_parent_source = None;
 
-            // if this is interactive mode we essentially have to state the filename is '<interactive>'..
-            let contents = match entry {
+            // Create a module context and resolver for the entry point.
+            let entry_module_ctx =
+                ModuleParsingContext::new(entry_parent_source, entry_root_dir, entry_parent_index);
+            let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
+
+            match entry {
                 EntryPoint::Module { filename } => {
-                    fs::read_to_string(filename).map_err(|e| (e, filename.to_owned()))?
-                }
-                EntryPoint::Interactive { contents } => contents.to_owned(),
-            };
+                    // No location for the first import
+                    let entry_import_location = None;
 
-            let mut resolver = ModuleResolver::new(s.clone(), contents, None, directory.to_owned());
-
-            let interactive = match entry {
-                EntryPoint::Module { filename } => {
-                    let entry_index = resolver.add_module_send_error(filename, None);
-                    if let Some(entry_index) = entry_index {
-                        modules.set_entry_point(entry_index);
+                    match entry_resolver.add_module(filename, entry_import_location) {
+                        Ok(index) => {
+                            // On success, mark the module as entry point.
+                            module_builder.set_entry_point(index);
+                        }
+                        Err(err) => {
+                            error_handler.add_error(err);
+                        }
                     }
-                    None
+
+                    // No interactive node for a module entry point
+                    Ok(None)
                 }
                 EntryPoint::Interactive { contents } => {
-                    Some(self.backend.parse_interactive(&mut resolver, contents)?)
-                }
-            };
-            senders.fetch_sub(1, Ordering::SeqCst);
-
-            // start the reciever and listen for any messages from the jobs, continue looping until all of the module
-            // dependencies were resovled from the initially supplied file.
-            loop {
-                match r.try_recv() {
-                    Ok(ParMessage::ModuleImport {
-                        filename,
-                        parent,
-                        index,
-                    }) => {
-                        if let Some(parent) = parent {
-                            modules.add_dependency(parent, index);
-                        }
-
-                        if !modules.has_path(&filename) {
-                            let root_dir = filename.parent().unwrap().to_owned();
-                            let s = s.clone();
-                            senders.fetch_add(1, Ordering::SeqCst);
-
-                            scope.spawn(closure!(ref senders, |_| {
-                                // read the file here and then pass a reference to the resolver with it's file name
-                                let contents = fs::read_to_string(filename)
-                                    .map_err(|e| (e, filename.to_owned()));
-
-                                match contents {
-                                    Ok(contents) => {
-                                        s.try_send(ParMessage::ReadContents { filename, contents })
-                                            .unwrap();
-
-                                        // let mut resolver = ModuleResolver::new(s, &source, parent, root_dir);
-
-                                        resolver.parse_file(&filename, &self.backend);
-                                        senders.fetch_sub(1, Ordering::SeqCst);
-                                    }
-                                    Err(e) => {
-                                        s.try_send(ParMessage::Error(ParseError::from(e))).unwrap();
-                                    }
-                                }
-                            }));
-                        } else {
-                            continue;
-                        }
-                    }
-                    Ok(ParMessage::ParsedModule { node, index }) => {
-                        modules.set_node(index, node);
-                    }
-                    Ok(ParMessage::ReadContents { filename, contents }) => {
-                        modules.add_module(filename, contents);
-                    }
-                    Ok(ParMessage::Error(e)) => {
-                        break Err(e);
-                    }
-                    Err(_) => {
-                        if senders.load(Ordering::SeqCst) == 0 {
-                            // All senders disconnected
-                            break Ok(interactive);
-                        }
-                    }
+                    // Return the interactive node for interactive entry point.
+                    Ok(Some(
+                        self.backend
+                            .parse_interactive(&mut entry_resolver, contents)?,
+                    ))
                 }
             }
         })?;
 
-        Ok((interactive, modules))
+        let modules = module_builder.build();
+        Ok((maybe_interactive_node, modules))
     }
 }
 
@@ -195,7 +162,7 @@ where
         &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Module> {
+    ) -> ParseResult<Modules> {
         let filename = filename.as_ref();
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
@@ -215,12 +182,17 @@ where
     }
 }
 
-pub trait ParserBackend: Sync {
-    fn parse_module(&self, resolver: &mut ModuleResolver, path: &Path) -> ParseResult<ast::Module>;
+pub trait ParserBackend: Sync + Sized {
+    fn parse_module(
+        &self,
+        resolver: &mut impl ModuleResolver,
+        path: &Path,
+        contents: &str,
+    ) -> ParseResult<ast::Module>;
 
     fn parse_interactive(
         &self,
-        resolver: &mut ModuleResolver,
+        resolver: &mut impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<AstNode<ast::BodyBlock>>;
 }

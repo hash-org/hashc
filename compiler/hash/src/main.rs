@@ -7,7 +7,7 @@ mod logger;
 use backtrace::Backtrace;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::parse::{ParParser, Parser};
-use hash_pest_parser::grammar::HashGrammar;
+use hash_pest_parser::backend::PestBackend;
 use hash_reporting::errors::CompilerError;
 use log::{log_enabled, LevelFilter};
 use logger::CompilerLogger;
@@ -147,7 +147,7 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let parser = ParParser::new_with_workers(HashGrammar, opts.worker_count);
+                let parser = ParParser::new_with_workers(PestBackend, opts.worker_count);
                 let directory = env::current_dir().unwrap();
 
                 let result = timed(

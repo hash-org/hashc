@@ -4,6 +4,7 @@
 
 mod error;
 pub mod grammar;
+pub mod backend;
 mod precedence;
 mod translate;
 mod utils;
