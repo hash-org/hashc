@@ -4,7 +4,10 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
+use std::fmt;
+
 use hash_ast::ident::Identifier;
+use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::location::Location;
 
 #[derive(Debug)]
@@ -13,6 +16,10 @@ pub enum TokenError {
     Expected(TokenKind),
 }
 
+/// A Lexeme token that represents the smallest code unit of a hash source file. The
+/// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
+/// source that is represented as a span. The span is the beginning byte offset, and the
+/// number of bytes for the said token.
 #[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
@@ -25,21 +32,32 @@ impl Token {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum LiteralKind {
-    Float,
-    Int,
-    String,
-    Char,
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            // @@TODO: actually implement proper display for when identifiers and literal format storage is finalised.
+            TokenKind::Ident(ident) => write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident)),
+            kind => write!(f, "{:?}", kind),
+        }
+    }
 }
 
-#[repr(packed(1))]
-#[derive(Debug, Copy, Clone)]
-pub struct Lit {
-    symbol: Identifier, // @@TODO: change this to a symbol type which could
-    kind: LiteralKind,
-}
-#[derive(Debug)]
+// #[derive(Debug, Clone)]
+// pub enum LiteralKind {
+//     Float(f64),
+//     Int(u64),
+//     String(String),
+//     Char(char),
+// }
+
+// #[repr(packed(1))]
+// #[derive(Debug, Copy, Clone)]
+// pub struct Lit {
+//     // value: Identifier,
+//     kind: LiteralKind,
+// }
+
+#[derive(Debug, PartialEq)]
 pub enum TokenKind {
     /// '='
     Eq,
@@ -63,8 +81,11 @@ pub enum TokenKind {
     /// '&'
     And,
 
-    /// Literal with variants of a [LiteralKind]
-    Literal(Lit),
+    IntLiteral(u64),
+    FloatLiteral(f64),
+    ChatLiteral(char),
+    StrLiteral(String),
+
     /// Identifier
     Ident(Identifier),
     /// '~'
@@ -85,9 +106,6 @@ pub enum TokenKind {
     Quote,
     // "'"
     SingleQoute,
-
-    // '@'
-    // At,
     /// '{'
     OpenBrace,
     /// '('
@@ -112,7 +130,7 @@ mod tests {
 
     #[test]
     fn type_size() {
-        println!("kind={:?}", std::mem::size_of::<Lit>());
+        // println!("kind={:?}", std::mem::size_of::<Lit>());
         println!("token={:?}", std::mem::size_of::<TokenKind>());
     }
 }

@@ -8,7 +8,7 @@ use hash_ast::{
 };
 use hash_utils::timed;
 
-use crate::{lexer::tokenise, token::Token};
+use crate::lexer::tokenise;
 
 pub struct HashParser {}
 
@@ -21,27 +21,15 @@ impl ParserBackend for HashParser {
     ) -> ParseResult<ast::Module> {
         let _tokens = timed(
             || {
-                let tokeniser = tokenise(contents);
+                let tokens = tokenise(contents);
 
-                println!("tokens: {:#?}", tokeniser.collect::<Vec<Token>>());
+                println!("tokens: {:#?}", tokens); //tokeniser.collect::<Vec<Token>>());
             },
             log::Level::Debug,
             |elapsed| println!("pest: {:?}", elapsed),
         );
 
         todo!()
-
-        // timed(
-        //     || {
-        //         Ok(ast::Module {
-        //             contents: pest_result
-        //                 .map(|x| builder.transform_statement(x))
-        //                 .collect::<Result<_, _>>()?,
-        //         })
-        //     },
-        //     log::Level::Debug,
-        //     |elapsed| println!("translation: {:?}", elapsed),
-        // )
     }
 
     fn parse_interactive(
@@ -49,10 +37,12 @@ impl ParserBackend for HashParser {
         _resolver: &mut impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
-        // let mut lexer = lexer::Lexer::new(contents);
-        let tokeniser = tokenise(contents);
+        let tokens = tokenise(contents);
 
-        println!("tokens: {:#?}", tokeniser.collect::<Vec<Token>>());
+        // println!("tokens: {:#?}", tokens); //tokeniser.collect::<Vec<Token>>());
+        for token in tokens.iter() {
+            println!("{}", token);
+        }
 
         Ok(AstNode::new(
             BodyBlock {
