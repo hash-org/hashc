@@ -85,6 +85,7 @@ where
         debug!("Creating worker pool with {} workers", self.worker_count);
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.worker_count.get() + 1)
+            .thread_name(|id| format!("parse-worker-{}", id))
             .build()
             .unwrap();
 
