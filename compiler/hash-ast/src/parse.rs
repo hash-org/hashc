@@ -8,7 +8,6 @@ use crate::{
     module::{ModuleBuilder, Modules},
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
-use derive_getters::Getters;
 use derive_more::Constructor;
 use std::path::Path;
 use std::sync::Mutex;
@@ -49,11 +48,11 @@ impl ParseErrorHandler<'_> {
     }
 }
 
-#[derive(Debug, Constructor, Getters)]
+#[derive(Debug, Constructor)]
 pub(crate) struct ParsingContext<'ctx, B> {
-    module_builder: &'ctx ModuleBuilder,
-    backend: &'ctx B,
-    error_handler: ParseErrorHandler<'ctx>,
+    pub(crate) module_builder: &'ctx ModuleBuilder,
+    pub(crate) backend: &'ctx B,
+    pub(crate) error_handler: ParseErrorHandler<'ctx>,
 }
 
 impl<B> Clone for ParsingContext<'_, B> {
