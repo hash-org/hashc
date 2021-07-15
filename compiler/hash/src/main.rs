@@ -2,9 +2,9 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+mod crash_handler;
 mod logger;
 
-use backtrace::Backtrace;
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::error::ParseError;
 use hash_ast::parse::{timed, Modules};
@@ -15,10 +15,12 @@ use logger::CompilerLogger;
 use std::num::NonZeroUsize;
 use std::panic;
 use std::path::PathBuf;
-use std::{env, fs, panic::PanicInfo};
+use std::{env, fs};
 
 use hash_parser::parse::HashParser;
 use hash_pest_parser::grammar::HashGrammar;
+
+use crate::crash_handler::panic_handler;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -85,32 +87,6 @@ struct IrGen {
 }
 
 pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
-
-fn panic_handler(info: &PanicInfo) {
-    if let Some(s) = info.payload().downcast_ref::<&str>() {
-        println!("Sorry :^(\nInternal Panic: {}\n", s);
-    } else {
-        println!("Sorry :^(\nInternal Panic\n");
-    }
-
-    // Display the location if we can...
-    if let Some(location) = info.location() {
-        println!(
-            "Occurred in file '{}' at {}:{}",
-            location.file(),
-            location.line(),
-            location.column()
-        );
-    }
-
-    // print the backtrace
-    println!("Backtrace:\n{:?}", Backtrace::new());
-
-    let msg = "This is an interpreter bug, please file a bug report at";
-    let uri = "https://github.com/hash-org/lang/issues";
-
-    println!("{}\n\n{:^len$}\n", msg, uri, len = msg.len());
-}
 
 fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
     match f() {
