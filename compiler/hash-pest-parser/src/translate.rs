@@ -14,10 +14,10 @@ use hash_ast::{
     error::{ParseError, ParseResult},
     ident::IDENTIFIER_MAP,
     location::{Location, SourceLocation},
-    parse::ModuleResolver,
+    resolve::ModuleResolver,
 };
 use iter::once;
-use pest::error::{Error, ErrorVariant, InputLocation};
+
 
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
@@ -61,16 +61,9 @@ impl NodeBuilder {
 
     /// Create a error from the location using Pest and then add a custom message on top of the location.
     pub fn error(&self, message: String) -> ParseError {
-        let err = Error::new_from_span(
-            ErrorVariant::CustomError {
-                message,
-            },
-            InputLocation::Span(self.site.location.0, self.site.location.1)
-        );
-
         ParseError::Parsing {
             src: self.site.clone(),
-            message: err.into(),
+            message,
         }
     }
 

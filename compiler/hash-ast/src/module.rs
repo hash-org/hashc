@@ -1,10 +1,13 @@
+//! Hash compiler data structures for storing parsed modules
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
+
+use dashmap::{lock::RwLock, DashMap, ReadOnlyView};
+use hash_utils::counter;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
 };
-
-use hash_utils::counter;
-
 use crate::ast;
 
 counter! {
@@ -14,24 +17,84 @@ counter! {
     method_visibility: pub(crate),
 }
 
-/// Represents a set of loaded modules.
+/// Creates a set of loaded modules.
 #[derive(Debug, Default)]
+pub struct ModuleBuilder {
+    indexes: DashMap<ModuleIdx, ()>,
+    path_to_index: DashMap<PathBuf, ModuleIdx>,
+    filenames_by_index: DashMap<ModuleIdx, PathBuf>,
+    modules_by_index: DashMap<ModuleIdx, ast::Module>,
+    contents_by_index: DashMap<ModuleIdx, String>,
+    deps_by_index: DashMap<ModuleIdx, DashMap<ModuleIdx, ()>>,
+    entry_point: RwLock<Option<ModuleIdx>>,
+}
+
+impl ModuleBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn add_module_at(
+        &self,
+        index: ModuleIdx,
+        path: PathBuf,
+        contents: String,
+        node: ast::Module,
+    ) {
+        self.path_to_index.insert(path.clone(), index);
+        self.filenames_by_index.insert(index, path);
+        self.contents_by_index.insert(index, contents);
+        self.modules_by_index.insert(index, node);
+    }
+
+    pub(crate) fn reserve_index(&self) -> ModuleIdx {
+        let next = ModuleIdx::new();
+        self.indexes.insert(next, ());
+        self.deps_by_index.insert(next, DashMap::new());
+        next
+    }
+
+    pub(crate) fn set_entry_point(&self, index: ModuleIdx) {
+        let mut entry = self.entry_point.write();
+        *entry = Some(index);
+    }
+
+    pub fn add_dependency(&self, parent: ModuleIdx, child: ModuleIdx) {
+        self.deps_by_index.get(&parent).unwrap().insert(child, ());
+    }
+
+    pub fn build(self) -> Modules {
+        Modules {
+            indexes: self.indexes.into_read_only(),
+            path_to_index: self.path_to_index.into_read_only(),
+            filenames_by_index: self.filenames_by_index.into_read_only(),
+            modules_by_index: self.modules_by_index.into_read_only(),
+            contents_by_index: self.contents_by_index.into_read_only(),
+            // @@Speed: This is unfortunate, especially since ReadOnlyView should be the same
+            // layout as DashMap.
+            deps_by_index: self
+                .deps_by_index
+                .into_iter()
+                .map(|(k, v)| (k, v.into_read_only()))
+                .collect(),
+            entry_point: self.entry_point.into_inner(),
+        }
+    }
+}
+
+/// Represents a set of loaded modules.
+#[derive(Debug)]
 pub struct Modules {
-    indexes: HashSet<ModuleIdx>,
-    path_to_index: HashMap<PathBuf, ModuleIdx>,
-    filenames_by_index: HashMap<ModuleIdx, PathBuf>,
-    modules_by_index: HashMap<ModuleIdx, ast::Module>,
-    contents_by_index: HashMap<ModuleIdx, String>,
-    deps_by_index: HashMap<ModuleIdx, HashSet<ModuleIdx>>,
+    indexes: ReadOnlyView<ModuleIdx, ()>,
+    path_to_index: ReadOnlyView<PathBuf, ModuleIdx>,
+    filenames_by_index: ReadOnlyView<ModuleIdx, PathBuf>,
+    modules_by_index: ReadOnlyView<ModuleIdx, ast::Module>,
+    contents_by_index: ReadOnlyView<ModuleIdx, String>,
+    deps_by_index: HashMap<ModuleIdx, ReadOnlyView<ModuleIdx, ()>>,
     entry_point: Option<ModuleIdx>,
 }
 
 impl Modules {
-    /// Create a new [Modules] object
-    pub fn new() -> Self {
-        Modules::default()
-    }
-
     pub fn has_path(&self, path: impl AsRef<Path>) -> bool {
         self.path_to_index.contains_key(path.as_ref())
     }
@@ -65,46 +128,6 @@ impl Modules {
         self.get_by_path(path).unwrap()
     }
 
-    pub(crate) fn add_module(&mut self, path: PathBuf, contents: String) -> Module<'_> {
-        let index = self.reserve_index();
-        self.add_module_at(index, path, contents)
-    }
-
-    pub(crate) fn set_node(&mut self, index: ModuleIdx, node: ast::Module) {
-        self.modules_by_index.insert(index, node);
-    }
-
-    pub(crate) fn add_module_at(
-        &mut self,
-        index: ModuleIdx,
-        path: PathBuf,
-        contents: String,
-    ) -> Module<'_> {
-        self.path_to_index.insert(path.clone(), index);
-        self.filenames_by_index.insert(index, path);
-        self.contents_by_index.insert(index, contents);
-
-        Module {
-            index,
-            modules: self,
-        }
-    }
-
-    pub(crate) fn reserve_index(&mut self) -> ModuleIdx {
-        let next = ModuleIdx::new();
-        self.indexes.insert(next);
-        self.deps_by_index.insert(next, HashSet::new());
-        next
-    }
-
-    pub(crate) fn set_entry_point(&mut self, index: ModuleIdx) {
-        self.entry_point = Some(index);
-    }
-
-    pub fn add_dependency(&mut self, parent: ModuleIdx, child: ModuleIdx) {
-        self.deps_by_index.get_mut(&parent).unwrap().insert(child);
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = Module<'_>> {
         self.filenames_by_index.keys().map(move |&index| Module {
             index,
@@ -119,7 +142,7 @@ pub struct Module<'modules> {
     modules: &'modules Modules,
 }
 
-impl<'modules> Module<'modules> {
+impl Module<'_> {
     pub fn all_modules(&self) -> &Modules {
         self.modules
     }
@@ -148,13 +171,13 @@ impl<'modules> Module<'modules> {
             .as_ref()
     }
 
-    pub fn dependencies(&'modules self) -> impl Iterator<Item = Module<'modules>> {
+    pub fn dependencies(&self) -> impl Iterator<Item = Module> {
         self.modules
             .deps_by_index
             .get(&self.index)
             .unwrap()
             .iter()
-            .map(move |&index| Module {
+            .map(move |(&index, _)| Module {
                 index,
                 modules: self.modules,
             })

@@ -1,7 +1,8 @@
-//! Hash Compiler Frontend library file
+//! Hash Compiler AST library file
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
+mod fs;
 pub mod ast;
 pub mod count;
 pub mod error;

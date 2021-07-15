@@ -14,3 +14,5 @@ thiserror = "1.0"
 closure = "0.3.0"
 hash-utils = { path = "../hash-utils" }
 dashmap = "4.0"
+derive_more = "0.99"
+derive-getters = "0.2"
