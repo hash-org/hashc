@@ -49,7 +49,7 @@ impl<'a> Lexer<'a> {
 
     /// Returns amount of already consumed symbols.
     pub(crate) fn len_consumed(&self) -> usize {
-        self.length - self.offset //- self.contents.as_str().len()
+        self.length - self.offset
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
@@ -86,11 +86,16 @@ impl<'a> Lexer<'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&mut self) -> Token {
+    pub(crate) fn advance_token(&mut self) -> Option<Token> {
         let token_kind = loop {
-            let next_char = self.next().unwrap();
+            let next_char = self.next();
 
-            match next_char {
+            // well if the next char is None, does that mean we hit EOF prematurely?
+            if matches!(next_char, None) {
+                return None;
+            }
+
+            match next_char.unwrap() {
                 // Slash, comment or block comment.
                 '/' => match self.peek() {
                     '/' => self.line_comment(),
@@ -99,7 +104,7 @@ impl<'a> Lexer<'a> {
                 },
 
                 // Whitespace sequence.
-                c if c.is_whitespace() => self.eat_while_and_throw(char::is_whitespace),
+                c if c.is_whitespace() => self.eat_while_and_discard(char::is_whitespace),
 
                 // One-symbol tokens.
                 ';' => break TokenKind::Semi,
@@ -141,13 +146,8 @@ impl<'a> Lexer<'a> {
             }
         };
 
-        // @@Temp: panic at unexpected char, this should later be handeled with a graceful error!
-        if token_kind == TokenKind::Unexpected {
-            panic!("Got unexpected token '{}' at {}", self.prev, self.offset)
-        }
-
         let location = Location::span(self.offset, self.len_consumed());
-        Token::new(token_kind, location)
+        Some(Token::new(token_kind, location))
     }
 
     /// Consume an identifier, at this stage keywords are also considered to be identfiers
@@ -289,7 +289,7 @@ impl<'a> Lexer<'a> {
     pub(crate) fn line_comment(&mut self) {
         debug_assert!(self.prev == '/' && self.peek() == '/');
         self.next();
-        self.eat_while(|c| c != '\n');
+        self.eat_while_and_discard(|c| c != '\n');
     }
 
     /// Consume a block comment after the first following '/*' sequence of characters. If the
@@ -325,7 +325,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn eat_while_and_throw(&mut self, mut condition: impl FnMut(char) -> bool) {
+    fn eat_while_and_discard(&mut self, mut condition: impl FnMut(char) -> bool) {
         while condition(self.peek()) && !self.is_eof() {
             self.next();
         }
@@ -342,17 +342,14 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub fn tokenise(input: &str) -> Vec<Token> {
-    let mut tokens = vec![];
-
-    if input.is_empty() {
-        return tokens;
-    }
-
+pub fn tokenise(input: &str) -> impl Iterator<Item = Token> + '_ {
     let mut lexer = Lexer::new(input);
-    while !lexer.is_eof() {
-        tokens.push(lexer.advance_token())
-    }
 
-    tokens
+    std::iter::from_fn(move || {
+        if input.is_empty() {
+            return None;
+        }
+
+        lexer.advance_token()
+    })
 }
