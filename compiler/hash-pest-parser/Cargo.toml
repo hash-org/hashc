@@ -17,4 +17,3 @@ num = "0.4"
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 derive_more = "0.99"
-derive-getters = "0.2"

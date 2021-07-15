@@ -9,7 +9,6 @@ use crate::{
     module::ModuleIdx,
     parse::{ParserBackend, ParsingContext},
 };
-use derive_getters::Getters;
 use derive_more::Constructor;
 use hash_utils::timed;
 use log::{debug, Level};
@@ -25,7 +24,7 @@ pub trait ModuleResolver {
     ) -> ParseResult<ModuleIdx>;
 }
 
-#[derive(Debug, Copy, Clone, Constructor, Getters)]
+#[derive(Debug, Copy, Clone, Constructor)]
 pub(crate) struct ModuleParsingContext<'mod_ctx> {
     source: Option<&'mod_ctx str>,
     root_dir: &'mod_ctx Path,
@@ -72,13 +71,13 @@ where
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx> {
         let resolved_import_path = resolve_path(import_path, &self.module_ctx.root_dir, location)?;
-        let import_index = self.ctx.module_builder().reserve_index();
+        let import_index = self.ctx.module_builder.reserve_index();
 
         // Copy ctx so that it can be moved into the closure independent of self.
         let ctx = self.ctx;
 
         self.scope.spawn(move |scope| {
-            ctx.error_handler().handle_error(move || {
+            ctx.error_handler.handle_error(move || {
                 // Get source and root directory of import
                 let import_source = fs::read_to_string(&resolved_import_path)
                     .map_err(|e| (e, resolved_import_path.to_owned()))?;
@@ -95,7 +94,7 @@ where
                 // Parse the import
                 let import_node = timed(
                     || {
-                        ctx.backend().parse_module(
+                        ctx.backend.parse_module(
                             &mut import_resolver,
                             &resolved_import_path,
                             &import_source,
@@ -106,7 +105,7 @@ where
                 )?;
 
                 // Add the import to modules
-                ctx.module_builder().add_module_at(
+                ctx.module_builder.add_module_at(
                     import_index,
                     resolved_import_path,
                     import_source,
