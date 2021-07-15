@@ -33,15 +33,3 @@ impl From<(io::Error, PathBuf)> for ParseError {
         }
     }
 }
-
-impl From<ParseIntError> for ParseError {
-    fn from(_: ParseIntError) -> Self {
-        todo!()
-    }
-}
-
-impl From<ParseFloatError> for ParseError {
-    fn from(_: ParseFloatError) -> Self {
-        todo!()
-    }
-}
