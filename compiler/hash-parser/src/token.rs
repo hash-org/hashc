@@ -42,21 +42,6 @@ impl fmt::Display for Token {
     }
 }
 
-// #[derive(Debug, Clone)]
-// pub enum LiteralKind {
-//     Float(f64),
-//     Int(u64),
-//     String(String),
-//     Char(char),
-// }
-
-// #[repr(packed(1))]
-// #[derive(Debug, Copy, Clone)]
-// pub struct Lit {
-//     // value: Identifier,
-//     kind: LiteralKind,
-// }
-
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {
     /// '='
@@ -81,11 +66,16 @@ pub enum TokenKind {
     /// '&'
     And,
 
-    IntLiteral(u64),
-    FloatLiteral(f64),
-    ChatLiteral(char),
-    StrLiteral(String),
+    // @@REMOVE ME
+    IntLiteral,
+    FloatLiteral,
+    CharLiteral,
+    StrLiteral,
 
+    // IntLiteral(u64),
+    // FloatLiteral(f64),
+    // ChatLiteral(char),
+    // StrLiteral(String),
     /// Identifier
     Ident(Identifier),
     /// '~'
