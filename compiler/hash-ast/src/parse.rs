@@ -12,13 +12,21 @@ use derive_more::Constructor;
 use std::path::Path;
 use std::sync::Mutex;
 
+/// A trait for types which can parse a source file into an AST tree.
 pub trait Parser {
+    /// Parse a source file with the given `filename` in the given `directory`.
     fn parse(
         &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
     ) -> ParseResult<Modules>;
 
+    /// Parse an interactive input string.
+    ///
+    /// # Arguments
+    ///
+    /// - `directory`: Input content
+    /// - `contents`: Current working directory
     fn parse_interactive(
         &self,
         contents: &str,
@@ -97,20 +105,39 @@ where
         entry: EntryPoint,
         directory: &Path,
     ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
-        let module_builder = ModuleBuilder::new();
-        let errors: Mutex<Vec<ParseError>> = Default::default();
-        let error_handler = ParseErrorHandler::new(&errors);
-        let ctx = ParsingContext::new(&module_builder, &self.backend, error_handler);
-
+        // Spawn threadpool to delegate jobs to. This delegation can occur by acquiring a copy of
+        // the `scope` parameter in the pool.scope call below.
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.worker_count + 1)
             .build()
             .unwrap();
 
+
+        // Data structure used to keep track of all the parsed modules.
+        let module_builder = ModuleBuilder::new();
+
+        // Store parsing errors in this vector. It is behind a mutex because it needs to be
+        // accessed by the pool threads.
+        let errors: Mutex<Vec<ParseError>> = Default::default();
+
+        // This is the handle used by the pool threads to communicate an error.
+        let error_handler = ParseErrorHandler::new(&errors);
+
+        // Create a parsing context from the existing variables.
+        let ctx = ParsingContext::new(&module_builder, &self.backend, error_handler);
+
         let maybe_interactive_node = pool.scope(|scope| -> ParseResult<_> {
+            // Here we parse the entry point module that has been given through the function
+            // parameters. A copy of `scope` gets passed into the module resolver, which allows it
+            // to spawn jobs of its own (notably, when encountering an import).
+            //
+            // @@Future: we could use the parallelisation capabilities provided by ParModuleResolver to
+            // make more aspects of the parser concurrent.
+
             // The entry point root directory is the one given as argument to this function.
             let entry_root_dir = directory;
 
+            // Determine whether the entry point is a module or interactive input.
             match entry {
                 EntryPoint::Module { filename } => {
                     // The entry point has no parent module, or parent source.
@@ -141,7 +168,9 @@ where
                     // No interactive node for a module entry point
                     Ok(None)
                 }
-                EntryPoint::Interactive { contents: interactive_source } => {
+                EntryPoint::Interactive {
+                    contents: interactive_source,
+                } => {
                     // The entry point has no parent module
                     let entry_parent_index = None;
 
@@ -154,10 +183,10 @@ where
                     let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
 
                     // Return the interactive node for interactive entry point.
-                    Ok(Some(
-                        self.backend
-                            .parse_interactive(&mut entry_resolver, interactive_source)?,
-                    ))
+                    Ok(Some(self.backend.parse_interactive(
+                        &mut entry_resolver,
+                        interactive_source,
+                    )?))
                 }
             }
         })?;
