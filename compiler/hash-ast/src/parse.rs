@@ -9,7 +9,7 @@ use crate::{
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
-use std::sync::Mutex;
+use std::{collections::VecDeque, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};
 
 /// A trait for types which can parse a source file into an AST tree.
@@ -36,13 +36,13 @@ pub trait Parser {
 
 #[derive(Debug, Constructor, Copy, Clone)]
 pub(crate) struct ParseErrorHandler<'errors> {
-    errors: &'errors Mutex<Vec<ParseError>>,
+    errors: &'errors Mutex<VecDeque<ParseError>>,
 }
 
 impl ParseErrorHandler<'_> {
     pub(crate) fn add_error(&self, error: ParseError) {
         let mut errors = self.errors.lock().unwrap();
-        errors.push(error);
+        errors.push_back(error);
     }
 
     pub(crate) fn handle_error<R>(&self, op: impl FnOnce() -> Result<R, ParseError>) -> Option<R> {
@@ -113,7 +113,7 @@ where
 
         // Store parsing errors in this vector. It is behind a mutex because it needs to be
         // accessed by the pool threads.
-        let errors: Mutex<Vec<ParseError>> = Default::default();
+        let errors: Mutex<VecDeque<ParseError>> = Default::default();
 
         // This is the handle used by the pool threads to communicate an error.
         let error_handler = ParseErrorHandler::new(&errors);
@@ -186,9 +186,14 @@ where
             }
         })?;
 
-        // @@Todo: return errors.
-        let modules = module_builder.build();
-        Ok((maybe_interactive_node, modules))
+        let mut errors = errors.into_inner().unwrap();
+        if let Some(err) = errors.pop_front() {
+            Err(err)
+        } else {
+            // @@Todo: return all errors.
+            let modules = module_builder.build();
+            Ok((maybe_interactive_node, modules))
+        }
     }
 }
 
