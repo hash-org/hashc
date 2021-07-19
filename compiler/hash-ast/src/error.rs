@@ -3,7 +3,11 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 use crate::location::SourceLocation;
-use std::{io, num::{ParseFloatError, ParseIntError}, path::PathBuf};
+use std::{
+    io,
+    num::{ParseFloatError, ParseIntError},
+    path::PathBuf,
+};
 use thiserror::Error;
 
 /// Hash ParseError enum represnting the variants of possible errors.
