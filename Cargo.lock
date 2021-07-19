@@ -368,6 +368,7 @@ name = "hash-parser"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
+ "dashmap",
  "hash-ast",
  "hash-utils",
  "lazy_static",
