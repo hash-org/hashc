@@ -57,7 +57,6 @@ impl InteractiveCommand<'_> {
     /// Attempt to convert a string into an interactive command
     pub fn from(input: &str) -> InteractiveResult<'_> {
         if !input.starts_with(':') {
-            // @@Efficiency: redudant copying here!
             return Ok(InteractiveCommand::Code(input));
         }
 

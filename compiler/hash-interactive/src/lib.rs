@@ -7,8 +7,9 @@ mod command;
 use command::InteractiveCommand;
 use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
-use hash_ast::parse::{Modules, ParParser, Parser};
-use hash_pest_parser::grammar::HashGrammar;
+use hash_ast::module::Modules;
+use hash_ast::parse::{ParParser, Parser};
+use hash_pest_parser::backend::PestBackend;
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 
 use rustyline::error::ReadlineError;
@@ -68,7 +69,7 @@ pub fn init() -> CompilerResult<()> {
 
 fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
     // setup the parser
-    let parser = ParParser::new(HashGrammar);
+    let parser = ParParser::new(PestBackend);
     let directory = env::current_dir().unwrap();
 
     // parse the input

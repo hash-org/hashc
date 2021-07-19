@@ -15,3 +15,4 @@ pest = "2.1"
 pest_derive = "2.1"
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
+derive_more = "0.99"
