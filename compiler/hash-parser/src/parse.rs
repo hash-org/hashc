@@ -8,7 +8,7 @@ use hash_ast::{
 };
 use hash_utils::timed;
 
-use crate::lexer::tokenise;
+use crate::{lexer::tokenise, token::Token};
 
 pub struct HashParser;
 
@@ -21,8 +21,7 @@ impl ParserBackend for HashParser {
     ) -> ParseResult<ast::Module> {
         let _tokens = timed(
             || {
-                let _tokens = tokenise(contents); //.collect::<Vec<Token>>();
-
+                let _tokens = tokenise(contents).collect::<Vec<Token>>();
                 // println!("tokens: {:#?}", tokens); //tokeniser.collect::<Vec<Token>>());
             },
             log::Level::Debug,

@@ -11,7 +11,6 @@ use crate::token::Token;
 use crate::token::TokenKind;
 use std::iter;
 use std::str::Chars;
-use std::vec;
 
 /// Representing the end of stream, or the initial character that is set as 'prev' in
 /// a [Lexer] since there is no character before the start.
@@ -88,12 +87,12 @@ impl<'a> Lexer<'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&'a mut self) -> Option<Token> {
+    pub(crate) fn advance_token(&mut self) -> Option<Token> {
         let token_kind = loop {
             let next_char = self.next();
 
             // well if the next char is None, does that mean we hit EOF prematurely?
-            if matches!(next_char, None) {
+            if next_char.is_none() {
                 return None;
             }
 
@@ -153,11 +152,11 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume an identifier, at this stage keywords are also considered to be identfiers
-    pub(crate) fn ident(&'a mut self) -> TokenKind {
+    pub(crate) fn ident(&mut self) -> TokenKind {
         debug_assert!(is_id_start(self.prev));
 
         let first = self.prev;
-        let suffix = self.eat_while(is_id_continue);
+        let suffix = std::iter::from_fn(|| self.eat_one(is_id_continue));
         let name: String = iter::once(first).chain(suffix).collect();
 
         // create the identifier here from the created map
@@ -186,12 +185,11 @@ impl<'a> Lexer<'a> {
                 '0'..='9' | '_' | '.' | 'e' | 'E' => {
                     todo!()
                 }
-                _ => TokenKind::IntLiteral, /*(0)*/
+                _ => TokenKind::IntLiteral(0),
             }
         } else {
-            self.eat_decimal_digits().parse::<u64>().unwrap();
-            TokenKind::IntLiteral
-            // TokenKind::IntLiteral(num)
+            let num = self.eat_decimal_digits().parse::<u64>().unwrap();
+            TokenKind::IntLiteral(num)
         }
     }
 
@@ -252,9 +250,9 @@ impl<'a> Lexer<'a> {
         // eat the next char and expect the second character to be a "\'" char...
         if self.peek_second() == '\'' {
             if self.peek() != '\\' {
-                let _c = self.next().unwrap();
-                return TokenKind::CharLiteral;
-                // return TokenKind::CharLiteral(c);
+                let c = self.next().unwrap();
+                // return TokenKind::CharLiteral;
+                return TokenKind::CharLiteral(c);
             }
 
             // otherwise, this is an escaped char and hence we eat the '\' and use the next char as
@@ -263,9 +261,10 @@ impl<'a> Lexer<'a> {
 
             // @@BadPanic: Don't panic here, just error, char_from_escape_seq should return a Result<char, ParseError>
             //             so that we can print it and give additional details about why the error occured.
-            self.char_from_escape_seq()
+            let ch = self
+                .char_from_escape_seq()
                 .unwrap_or_else(|| panic!("Unsuported escape sequence!"));
-            return TokenKind::CharLiteral; //TokenKind::CharLiteral(ch);
+            return /*TokenKind::CharLiteral;*/ TokenKind::CharLiteral(ch);
         }
 
         TokenKind::Unexpected
@@ -285,14 +284,13 @@ impl<'a> Lexer<'a> {
                 '\\' => {
                     // @@BadPanic: Don't panic here, just error, char_from_escape_seq should return a Result<char, ParseError>
                     //             so that we can print it and give additional details about why the error occured.
-                    self.char_from_escape_seq()
+                    let _ch = self
+                        .char_from_escape_seq()
                         .unwrap_or_else(|| panic!("Unsuported escape sequence!"));
-
-                    // self.next();
-                    // self.next();
+                    self.next();
                     // value.push(ch);
                 }
-                _ => {
+                _ch => {
                     self.next();
                 } // value.push(ch),
             }
@@ -358,18 +356,30 @@ impl<'a> Lexer<'a> {
     /// Iterator that will collect characters until a given predicate no longer passes.
     /// The function will increment the current stream position and collect characters on the
     /// way, returning an iterator so as to avoid allocating a string.
-    fn eat_while<'cond>(
-        &'a mut self,
-        mut condition: impl FnMut(char) -> bool + 'cond + 'a,
-    ) -> impl Iterator<Item = char> + 'a {
-        std::iter::from_fn(move || {
-            if condition(self.peek()) && !self.is_eof() {
-                return Some(self.next().unwrap());
-            }
+    fn eat_one(&mut self, condition: impl Fn(char) -> bool) -> Option<char> {
+        if condition(self.peek()) && !self.is_eof() {
+            return self.next();
+        }
 
-            None
-        })
+        None
     }
+
+    // fn eat_while<'cond, 's>(
+    //     &'s mut self,
+    //     condition: impl Fn(char) -> bool + 'cond + 's,
+    // ) -> impl Iterator<Item = char> + 's + 'cond
+    // where
+    //     's: 'cond,
+    // {
+
+    //     std::iter::from_fn(move || {
+    //         if condition(self.peek()) && !self.is_eof() {
+    //             return Some(self.next().unwrap());
+    //         }
+
+    //         None
+    //     })
+    // }
 }
 
 pub fn tokenise<'a>(input: &'a str) -> impl Iterator<Item = Token> + 'a {
