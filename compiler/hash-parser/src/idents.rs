@@ -24,26 +24,3 @@ pub fn is_ident(string: &str) -> bool {
     }
 }
 
-// Check if a given identifier is a keyword
-// fn ident_keyword_token(ident: &str) -> bool {
-//     matches!(
-//         ident,
-//         "let"
-//             | "as"
-//             | "where"
-//             | "struct"
-//             | "enum"
-//             | "trait"
-//             | "import"
-//             | "loop"
-//             | "while"
-//             | "for"
-//             | "in"
-//             | "if"
-//             | " else"
-//             | "match"
-//             | "break"
-//             | "continue"
-//             | "return"
-//     )
-// }

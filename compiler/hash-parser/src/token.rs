@@ -2,19 +2,13 @@
 //! Hash source file.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-#![allow(dead_code)]
 
 use std::fmt;
 
+use crate::caching::{StringIdentifier, STRING_LITERAL_MAP};
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::location::Location;
-
-#[derive(Debug)]
-pub enum TokenError {
-    Unexpected(char),
-    Expected(TokenKind),
-}
 
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
 /// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
@@ -35,8 +29,10 @@ impl Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            // @@TODO: actually implement proper display for when identifiers and literal format storage is finalised.
             TokenKind::Ident(ident) => write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident)),
+            TokenKind::StrLiteral(literal) => {
+                write!(f, "StringLiteral ({})", STRING_LITERAL_MAP.lookup(*literal))
+            }
             kind => write!(f, "{:?}", kind),
         }
     }
@@ -62,21 +58,16 @@ pub enum TokenKind {
     Percent,
     /// '^'
     Caret,
-
     /// '&'
     And,
-
-    // // @@REMOVE ME
-    // IntLiteral,
-    // FloatLiteral,
-    // CharLiteral,
-    // StrLiteral,
-
+    /// Integer Literal
     IntLiteral(u64),
+    /// Float literal
     FloatLiteral(f64),
+    /// Character literal
     CharLiteral(char),
-    StrLiteral,
-    // StrLiteral(String),
+    /// StrLiteral,
+    StrLiteral(StringIdentifier),
     /// Identifier
     Ident(Identifier),
     /// '~'
@@ -95,7 +86,7 @@ pub enum TokenKind {
     Comma,
     /// '"'
     Quote,
-    // "'"
+    /// "'"
     SingleQoute,
     /// '{'
     OpenBrace,
@@ -109,10 +100,15 @@ pub enum TokenKind {
     CloseParen,
     /// ']'
     CloseBracket,
-
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
     /// string literal.
     Unexpected,
+}
+
+#[derive(Debug)]
+pub enum TokenError {
+    Unexpected(char),
+    Expected(TokenKind),
 }
 
 #[cfg(test)]
