@@ -4,7 +4,7 @@
 
 use crate::ident::{Identifier, PathIdentifier};
 use crate::location::Location;
-use crate::parse::ModuleIdx;
+use crate::module::ModuleIdx;
 use hash_utils::counter;
 use std::borrow::Cow;
 use std::hash::Hash;
