@@ -11,6 +11,7 @@ use hash_pest_parser::backend::PestBackend;
 use hash_reporting::errors::CompilerError;
 use log::{log_enabled, LevelFilter};
 use logger::CompilerLogger;
+use std::num::NonZeroUsize;
 use std::panic;
 use std::{
     env, fs,
@@ -144,10 +145,18 @@ fn main() {
             return Ok(());
         }
 
+        // check that the job count is valid...
+        let worker_count = NonZeroUsize::new(opts.worker_count).unwrap_or_else(|| {
+            (CompilerError::ArgumentError {
+                message: "Invalid number of worker threads".to_owned(),
+            })
+            .report_and_exit()
+        });
+
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let parser = ParParser::new_with_workers(PestBackend, opts.worker_count);
+                let parser = ParParser::new_with_workers(PestBackend, worker_count);
                 let directory = env::current_dir().unwrap();
 
                 let result = timed(

@@ -2,13 +2,13 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
+use crate::ast;
 use dashmap::{lock::RwLock, DashMap, ReadOnlyView};
 use hash_utils::counter;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
-use crate::ast;
 
 counter! {
     name: ModuleIdx,

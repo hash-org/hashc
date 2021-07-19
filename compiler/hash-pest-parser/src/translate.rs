@@ -18,7 +18,6 @@ use hash_ast::{
 };
 use iter::once;
 
-
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
 const LIST_TYPE_NAME: &str = "List";
@@ -587,7 +586,7 @@ where
                         let mut components = inner.into_inner();
                         let num = components.next().unwrap();
 
-                        let val = u64::from_str_radix(num.as_str(), 10)?;
+                        let val = num.as_str().parse::<u64>()?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::hex_literal => {

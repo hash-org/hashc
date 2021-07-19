@@ -9,8 +9,8 @@ use crate::{
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
-use std::path::Path;
 use std::sync::Mutex;
+use std::{num::NonZeroUsize, path::Path};
 
 /// A trait for types which can parse a source file into an AST tree.
 pub trait Parser {
@@ -77,7 +77,7 @@ enum EntryPoint<'a> {
 }
 
 pub struct ParParser<B> {
-    worker_count: usize,
+    worker_count: NonZeroUsize,
     backend: B,
 }
 
@@ -86,14 +86,10 @@ where
     B: ParserBackend,
 {
     pub fn new(backend: B) -> Self {
-        Self::new_with_workers(backend, num_cpus::get())
+        Self::new_with_workers(backend, NonZeroUsize::new(num_cpus::get()).unwrap())
     }
 
-    pub fn new_with_workers(backend: B, worker_count: usize) -> Self {
-        if worker_count == 0 {
-            panic!("Cannot spawn a parallel parser with 0 threads");
-        }
-
+    pub fn new_with_workers(backend: B, worker_count: NonZeroUsize) -> Self {
         Self {
             worker_count,
             backend,
@@ -108,10 +104,9 @@ where
         // Spawn threadpool to delegate jobs to. This delegation can occur by acquiring a copy of
         // the `scope` parameter in the pool.scope call below.
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.worker_count + 1)
+            .num_threads(self.worker_count.get() + 1)
             .build()
             .unwrap();
-
 
         // Data structure used to keep track of all the parsed modules.
         let module_builder = ModuleBuilder::new();
