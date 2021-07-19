@@ -66,15 +66,16 @@ pub enum TokenKind {
     /// '&'
     And,
 
-    // @@REMOVE ME
-    IntLiteral,
-    FloatLiteral,
-    CharLiteral,
-    StrLiteral,
+    // // @@REMOVE ME
+    // IntLiteral,
+    // FloatLiteral,
+    // CharLiteral,
+    // StrLiteral,
 
-    // IntLiteral(u64),
-    // FloatLiteral(f64),
-    // ChatLiteral(char),
+    IntLiteral(u64),
+    FloatLiteral(f64),
+    CharLiteral(char),
+    StrLiteral,
     // StrLiteral(String),
     /// Identifier
     Ident(Identifier),
