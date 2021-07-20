@@ -1,4 +1,4 @@
-//! Hash compiler lexer utilities for identifiers.
+//! Hash compiler lexer utilities for identifiers and other character sequences.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
@@ -23,4 +23,3 @@ pub fn is_ident(string: &str) -> bool {
         false
     }
 }
-

@@ -1,3 +1,7 @@
+//! Hash compiler crash handler
+//
+// All rights reserved 2021 (c) The Hash Language authors
+
 use backtrace::Backtrace;
 use std::panic::PanicInfo;
 use std::process::exit;
@@ -11,10 +15,14 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
         let stdout = std::io::stdout();
         let mut stdout = stdout.lock();
 
+        let _ = write!(&mut stdout, "Sorry :^(\nInternal Panic");
+
         if let Some(s) = info.payload().downcast_ref::<&str>() {
-            let _ = writeln!(&mut stdout, "Sorry :^(\nInternal Panic: {}\n", s);
+            let _ = writeln!(&mut stdout, ": {}\n", s);
+        } else if let Some(s) = info.message() {
+            let _ = writeln!(&mut stdout, ": {}\n", s);
         } else {
-            let _ = writeln!(&mut stdout, "Sorry :^(\nInternal Panic\n");
+            let _ = writeln!(&mut stdout, "\n");
         }
 
         // Display the location if we can...
