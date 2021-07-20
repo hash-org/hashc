@@ -142,15 +142,17 @@ impl<'a> Lexer<'a> {
                 c if is_id_start(c) => break self.ident(),
 
                 // Numeric literal.
-                '0'..='9' => break self.number(),
+                '0'..='9' => {
+                    break self
+                        .number()
+                        .unwrap_or_else(|e| panic!("error: {:#?}", e.message))
+                }
                 // character literal.
-
-                // @@ErrorReporting: this is where we hook into error reporting to print the result
-                // and display it to the user
                 '\'' => {
                     break self
                         .char()
-                        .unwrap_or_else(|e| panic!("error: {:#?}", e.message))
+                        .unwrap_or_else(|e| panic!("error: {:#?}", e.message)); // @@ErrorReporting: this is where we hook into error reporting to print the result
+                                                                                // and display it to the user
                 }
 
                 // String literal.
@@ -178,55 +180,68 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a number literal, either float or integer
-    pub(crate) fn number(&self) -> TokenKind {
+    pub(crate) fn number(&self) -> TokenResult<TokenKind> {
         let prev = self.prev.get();
         debug_assert!(('0'..='9').contains(&prev));
+
+        // record the start location of the literal
+        let start = self.offset.get() - 1;
 
         // firstly, figure out if this literal has a base, if so then we need to perform
         // some magic at the end to cast it into the correct base...
         if prev == '0' {
-            match self.peek() {
-                'b' => {
-                    todo!()
+            let maybe_radix = match self.peek() {
+                'b' => Some(2),
+                'o' => Some(8),
+                'x' => Some(16),
+                _ => None,
+            };
+
+            // if this does have a radix then we need to handle the radix
+            if let Some(radix) = maybe_radix {
+                let chars = self.eat_while(|c| c.is_digit(radix)).collect::<String>();
+                let value = u64::from_str_radix(chars.as_str(), radix);
+
+                // @@ErrorHandling: We shouldn't error here, this should be handeled by the SmallVec<..> change to integers
+                if value.is_err() {
+                    return Err(TokenError::new(
+                        Some("Ineger literal too large".to_string()),
+                        TokenErrorKind::MalformedNumericalLiteral,
+                        Location::span(start, self.offset.get()),
+                    ));
                 }
-                'o' => {
-                    todo!()
+
+                Ok(TokenKind::IntLiteral(value.unwrap()))
+            } else {
+                match self.peek() {
+                    // Number literal without a prefix!
+                    '0'..='9' | '_' | '.' | 'e' | 'E' => {
+                        // @@Correctness: do we allow exponent notation here?
+                        todo!()
+                    }
+                    _ => Ok(TokenKind::IntLiteral(0)),
                 }
-                'x' => {
-                    todo!()
-                }
-                // Number literal without a prefix!
-                '0'..='9' | '_' | '.' | 'e' | 'E' => {
-                    todo!()
-                }
-                _ => TokenKind::IntLiteral(0),
             }
         } else {
-            let num = self.eat_decimal_digits().parse::<u64>().unwrap();
-            TokenKind::IntLiteral(num)
+            let num = self
+                .eat_decimal_digits()
+                .collect::<String>()
+                .parse::<u64>()
+                .unwrap();
+
+            Ok(TokenKind::IntLiteral(num))
         }
     }
 
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    pub(crate) fn eat_decimal_digits(&self) -> String {
-        let mut digits = String::from(self.prev.get());
+    pub(crate) fn eat_decimal_digits(&self) -> impl Iterator<Item = char> + '_ {
+        let digits = self.eat_while(|peeked| matches!(peeked, '0'..='9' | '_'));
 
-        // TODO: support floats here?
-        loop {
-            match self.peek() {
-                '_' => {
-                    self.next();
-                }
-                c @ '0'..='9' => {
-                    self.next();
-                    digits.push(c);
-                }
-                _ => break,
-            }
-        }
-        digits
+        iter::once(self.prev.get())
+            .chain(digits)
+            .filter(|e| *e != '_')
     }
 
     /// Transform an ordinary character into a well known escape sequence specified by the
@@ -284,8 +299,34 @@ impl<'a> Lexer<'a> {
                 Ok(char::from_u32(value.unwrap()).unwrap())
             }
             'x' => {
-                // Only expect 2 hex digits here
-                todo!()
+                // Examples of the \x.. Escape sequence would be things like `\x07` or `\x0b`, Essentially
+                // 2 hex_ascii_digits and the rest is not part of the escape sequence and can be left alone.
+                let chars: Result<String, TokenError> = (0..2)
+                    .map(|_| match self.peek() {
+                        c if c.is_ascii_hexdigit() => Ok(self.next().unwrap()),
+                        EOF_CHAR => Err(TokenError::new(
+                            Some("ASCII escape code too short".to_string()),
+                            TokenErrorKind::BadEscapeSequence,
+                            Location::span(start, self.offset.get()),
+                        )),
+                        c => Err(TokenError::new(
+                            Some("ASCII escape code must only contain hex digits".to_string()),
+                            TokenErrorKind::Unexpected(c),
+                            Location::span(start, self.offset.get()),
+                        )),
+                    })
+                    .collect();
+
+                // check that getting the 2 characters was ok, if not then propagate the error
+                if let Err(e) = chars {
+                    return Err(e);
+                }
+
+                // @@Safety: Safe to unwrap since we check that both chars are hex valid and two hex chars will
+                // always to fit into a u32
+                let value = u32::from_str_radix(chars.unwrap().as_str(), 16).unwrap();
+
+                Ok(char::from_u32(value).unwrap())
             }
             'a' => Ok('\x07'),
             'b' => Ok('\x08'),
@@ -309,6 +350,9 @@ impl<'a> Lexer<'a> {
     pub(crate) fn char(&self) -> TokenResult<TokenKind> {
         debug_assert!(self.prev.get() == '\'');
 
+        // Subtract one to capture the previous quote, since we know it's one byte in size
+        let start = self.offset.get() - 1;
+
         // check whether the next character is a backslash, as in escaping a char, if not
         // eat the next char and expect the second character to be a "\'" char...
         if self.peek_second() == '\'' && self.peek() != '\\' {
@@ -322,9 +366,28 @@ impl<'a> Lexer<'a> {
             self.next();
 
             let ch = self.char_from_escape_seq()?;
+            let next = self.peek();
 
             // eat the single qoute after the character
+            if next != '\'' {
+                // @@Improvement: Maybe make this a function to check if we're about to hit the end...
+                if next == EOF_CHAR {
+                    return Err(TokenError::new(
+                        Some("Unclosed character literal.".to_string()),
+                        TokenErrorKind::Expected(TokenKind::SingleQoute),
+                        Location::pos(self.offset.get()),
+                    ));
+                }
+
+                return Err(TokenError::new(
+                    Some("Character literal can only contain one codepoint.".to_string()),
+                    TokenErrorKind::BadEscapeSequence,
+                    Location::span(start, self.offset.get()),
+                ));
+            }
+
             self.next();
+
             return Ok(TokenKind::CharLiteral(ch));
         }
 
@@ -348,7 +411,6 @@ impl<'a> Lexer<'a> {
                 '"' => break,
                 '\\' => {
                     let ch = self.char_from_escape_seq()?;
-                    self.next();
                     value.push(ch);
                 }
                 ch => value.push(ch),
