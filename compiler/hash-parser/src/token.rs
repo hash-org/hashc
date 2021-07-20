@@ -120,6 +120,7 @@ pub struct TokenError {
 #[derive(Debug)]
 pub enum TokenErrorKind {
     BadEscapeSequence,
+    MalformedNumericalLiteral,
     Unexpected(char),
     Expected(TokenKind),
 }
