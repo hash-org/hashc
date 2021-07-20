@@ -10,6 +10,8 @@ use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::location::Location;
 
+pub type TokenResult<T> = Result<T, TokenError>;
+
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
 /// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
 /// source that is represented as a span. The span is the beginning byte offset, and the
@@ -32,6 +34,9 @@ impl fmt::Display for Token {
             TokenKind::Ident(ident) => write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident)),
             TokenKind::StrLiteral(literal) => {
                 write!(f, "StringLiteral ({})", STRING_LITERAL_MAP.lookup(*literal))
+            }
+            TokenKind::CharLiteral(ch) => {
+                write!(f, "CharLiteral ({})", ch)
             }
             kind => write!(f, "{:?}", kind),
         }
@@ -106,9 +111,27 @@ pub enum TokenKind {
 }
 
 #[derive(Debug)]
-pub enum TokenError {
+pub struct TokenError {
+    pub(crate) message: Option<String>,
+    kind: TokenErrorKind,
+    location: Location,
+}
+
+#[derive(Debug)]
+pub enum TokenErrorKind {
+    BadEscapeSequence,
     Unexpected(char),
     Expected(TokenKind),
+}
+
+impl TokenError {
+    pub fn new(message: Option<String>, kind: TokenErrorKind, location: Location) -> Self {
+        TokenError {
+            message,
+            kind,
+            location,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -117,7 +140,7 @@ mod tests {
 
     #[test]
     fn type_size() {
-        // println!("kind={:?}", std::mem::size_of::<Lit>());
-        println!("token={:?}", std::mem::size_of::<TokenKind>());
+        println!("token      ={:?}", std::mem::size_of::<Token>());
+        println!("token_kind ={:?}", std::mem::size_of::<TokenKind>());
     }
 }

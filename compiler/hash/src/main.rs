@@ -2,6 +2,8 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+#![feature(panic_info_message)]
+
 mod crash_handler;
 mod logger;
 

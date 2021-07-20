@@ -7,9 +7,12 @@ use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::location::Location;
 
 use crate::caching::STRING_LITERAL_MAP;
-use crate::idents::*;
 use crate::token::Token;
+use crate::token::TokenError;
+use crate::token::TokenErrorKind;
 use crate::token::TokenKind;
+use crate::token::TokenResult;
+use crate::utils::*;
 use std::cell::Cell;
 use std::iter;
 
@@ -141,10 +144,17 @@ impl<'a> Lexer<'a> {
                 // Numeric literal.
                 '0'..='9' => break self.number(),
                 // character literal.
-                '\'' => break self.char(),
+
+                // @@ErrorReporting: this is where we hook into error reporting to print the result
+                // and display it to the user
+                '\'' => {
+                    break self
+                        .char()
+                        .unwrap_or_else(|e| panic!("error: {:#?}", e.message))
+                }
 
                 // String literal.
-                '"' => break self.string(),
+                '"' => break self.string().unwrap_or_else(|e| panic!("error: {:?}", e)),
 
                 _ => break TokenKind::Unexpected,
             }
@@ -222,64 +232,113 @@ impl<'a> Lexer<'a> {
     /// Transform an ordinary character into a well known escape sequence specified by the
     /// escape literal rules. More information about the escape sequences can be found at
     /// [escape sequences](https://hash-org.github.io/lang/basics/intro.html)
-    fn char_from_escape_seq(&self) -> Option<char> {
+    fn char_from_escape_seq(&self) -> TokenResult<char> {
         debug_assert!(self.prev.get() == '\\');
 
         // @@Incomplete: come up with a better algorithm to transform escaped literals, rather than manual
         // transformations!
         let c = self.next().unwrap();
+
+        // we need to compute the old byte offset by accounting for both the 'u' character and the '\\' character,
+        // but since this is known to be 2 bytes, we can just subtract it from the current offset
+        let start = self.offset.get() - 1;
+
         match c {
-            'n' => Some('\n'),
-            't' => Some('\t'),
-            'u' => panic!("Unicode escape sequences not supported yet!"),
-            'a' => Some('\x07'),
-            'b' => Some('\x08'),
-            'f' => Some('\x1b'),
-            'r' => Some('\r'),
-            'v' => Some('\x0b'),
-            '\\' => Some('\\'),
-            '"' => Some('"'),
-            '\'' => Some('\''),
-            _ => None,
+            'n' => Ok('\n'),
+            't' => Ok('\t'),
+            'u' => {
+                // The next character should be a '{', otherwise this isn't a correct escaped
+                // literal
+                if self.peek() != '{' {
+                    return Err(TokenError::new(
+                        Some("Expected '{' after a '\\u' escape sequence".to_string()),
+                        TokenErrorKind::BadEscapeSequence,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
+                self.next();
+
+                // here we expect up to 6 hex digits, which is finally closed by a '}'
+                let chars: String = self.eat_while(|c| c.is_ascii_hexdigit()).collect();
+
+                if self.peek() != '}' {
+                    return Err(TokenError::new(
+                        Some("Expected '}' after a escape sequence".to_string()),
+                        TokenErrorKind::BadEscapeSequence,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+                self.next();
+
+                let value = u32::from_str_radix(chars.as_str(), 16);
+
+                if value.is_err() {
+                    return Err(TokenError::new(
+                        Some("Unicode literal too long".to_string()),
+                        TokenErrorKind::BadEscapeSequence,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
+                Ok(char::from_u32(value.unwrap()).unwrap())
+            }
+            'x' => {
+                // Only expect 2 hex digits here
+                todo!()
+            }
+            'a' => Ok('\x07'),
+            'b' => Ok('\x08'),
+            'f' => Ok('\x1b'),
+            'r' => Ok('\r'),
+            'v' => Ok('\x0b'),
+            '\\' => Ok('\\'),
+            '"' => Ok('"'),
+            '\'' => Ok('\''),
+            ch => Err(TokenError::new(
+                Some(format!("Unknown escape sequence '{}'", ch)),
+                TokenErrorKind::BadEscapeSequence,
+                Location::pos(start),
+            )),
         }
     }
 
     /// Consume a char literal provided that the current previous token is a single
     /// quote, this will produce a [TokenKind::CharLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
-    pub(crate) fn char(&self) -> TokenKind {
+    pub(crate) fn char(&self) -> TokenResult<TokenKind> {
         debug_assert!(self.prev.get() == '\'');
 
         // check whether the next character is a backslash, as in escaping a char, if not
         // eat the next char and expect the second character to be a "\'" char...
-        if self.peek_second() == '\'' {
+        if self.peek_second() == '\'' && self.peek() != '\\' {
             let ch = self.next().unwrap();
             self.next();
 
-            return TokenKind::CharLiteral(ch);
+            return Ok(TokenKind::CharLiteral(ch));
         } else if self.peek() == '\\' {
             // otherwise, this is an escaped char and hence we eat the '\' and use the next char as
             // the actual char by escaping it
             self.next();
 
-            // @@BadPanic: Don't panic here, just error, char_from_escape_seq should return a Result<char, ParseError>
-            //             so that we can print it and give additional details about why the error occured.
-            let ch = self
-                .char_from_escape_seq()
-                .unwrap_or_else(|| panic!("Unsuported escape sequence!"));
+            let ch = self.char_from_escape_seq()?;
 
             // eat the single qoute after the character
             self.next();
-            return TokenKind::CharLiteral(ch);
+            return Ok(TokenKind::CharLiteral(ch));
         }
 
-        TokenKind::Unexpected
+        Err(TokenError::new(
+            None,
+            TokenErrorKind::Unexpected(self.peek()),
+            Location::pos(self.offset.get()),
+        ))
     }
 
     /// Consume a string literal provided that the current previous token is a double
     /// quote, this will produce a [TokenKind::StrLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
-    pub(crate) fn string(&self) -> TokenKind {
+    pub(crate) fn string(&self) -> TokenResult<TokenKind> {
         debug_assert!(self.prev.get() == '"');
 
         let mut value = String::from("");
@@ -288,11 +347,7 @@ impl<'a> Lexer<'a> {
             match c {
                 '"' => break,
                 '\\' => {
-                    // @@BadPanic: Don't panic here, just error, char_from_escape_seq should return a Result<char, ParseError>
-                    //             so that we can print it and give additional details about why the error occured.
-                    let ch = self
-                        .char_from_escape_seq()
-                        .unwrap_or_else(|| panic!("Unsuported escape sequence!"));
+                    let ch = self.char_from_escape_seq()?;
                     self.next();
                     value.push(ch);
                 }
@@ -303,8 +358,7 @@ impl<'a> Lexer<'a> {
         // Essentially we put the string into the literal map and get an id out which we use for the
         // actual representation in the token
         let id = STRING_LITERAL_MAP.create_string(AstString::Owned(value.as_str().to_owned()));
-
-        TokenKind::StrLiteral(id)
+        Ok(TokenKind::StrLiteral(id))
     }
 
     /// Consume a line comment after the first folloing slash, essentially eating
