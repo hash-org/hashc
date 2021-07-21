@@ -33,16 +33,23 @@ impl fmt::Display for Token {
         match &self.kind {
             TokenKind::Ident(ident) => write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident)),
             TokenKind::StrLiteral(literal) => {
-                write!(f, "StringLiteral ({})", STRING_LITERAL_MAP.lookup(*literal))
+                write!(
+                    f,
+                    "StringLiteral (\"{}\")",
+                    STRING_LITERAL_MAP.lookup(*literal)
+                )
             }
+            // We want to print the actual character, instead of a potential escape code
             TokenKind::CharLiteral(ch) => {
-                write!(f, "CharLiteral ({})", ch)
+                write!(f, "CharLiteral ('{}')", ch)
             }
             kind => write!(f, "{:?}", kind),
         }
     }
 }
 
+/// A TokenKind represents all variants of a token that can be present in a source file. Must of the
+/// kinds only represen a single character, but some tokens account for an entire literal or an identifier.
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {
     /// '='
@@ -110,6 +117,9 @@ pub enum TokenKind {
     Unexpected,
 }
 
+/// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
+/// with the error, the [TokenErrorKind] which classifies the error, and a [ast::Location] that represents
+/// where the tokenisation error occured.
 #[derive(Debug)]
 pub struct TokenError {
     pub(crate) message: Option<String>,
@@ -117,11 +127,17 @@ pub struct TokenError {
     location: Location,
 }
 
+/// A [TokenErrorKind] represents the kind of [TokenError] which gives additional context to the error
+/// with the provided message in [TokenError]
 #[derive(Debug)]
 pub enum TokenErrorKind {
+    /// Occurs when a escape sequence (within a character or a string) is malformed.
     BadEscapeSequence,
+    /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
     MalformedNumericalLiteral,
+    /// Occurs when a char is unexpected in the current context
     Unexpected(char),
+    /// Occurs when the tokeniser expects a particular token next, but could not derive one.
     Expected(TokenKind),
 }
 
@@ -132,16 +148,5 @@ impl TokenError {
             kind,
             location,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn type_size() {
-        println!("token      ={:?}", std::mem::size_of::<Token>());
-        println!("token_kind ={:?}", std::mem::size_of::<TokenKind>());
     }
 }

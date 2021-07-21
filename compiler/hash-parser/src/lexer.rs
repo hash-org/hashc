@@ -238,7 +238,7 @@ impl<'a> Lexer<'a> {
                 let mut exp: i32 = 0;
                 if matches!(self.peek(), 'e' | 'E') {
                     self.next();
-                    exp = self.handle_exponent()?;
+                    exp = self.eat_exponent()?;
                 }
 
                 let num = num.collect::<String>().parse::<f64>();
@@ -253,11 +253,7 @@ impl<'a> Lexer<'a> {
 
                 // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
                 // the float literal.
-                let value = if exp != 0 {
-                    num.unwrap() * 10f64.powi(exp)
-                } else {
-                    num.unwrap()
-                };
+                let value = if exp != 0 { num.unwrap() * 10f64.powi(exp) } else { num.unwrap() };
 
                 Ok(TokenKind::FloatLiteral(value))
             }
@@ -275,15 +271,11 @@ impl<'a> Lexer<'a> {
                     ));
                 }
 
-                let exp = self.handle_exponent()?;
+                let exp = self.eat_exponent()?;
 
                 // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
                 // the float literal.
-                let value = if exp != 0 {
-                    num.unwrap() * 10f64.powi(exp)
-                } else {
-                    num.unwrap()
-                };
+                let value = if exp != 0 { num.unwrap() * 10f64.powi(exp) } else { num.unwrap() };
 
                 Ok(TokenKind::FloatLiteral(value))
             }
@@ -303,22 +295,20 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn handle_exponent(&self) -> TokenResult<i32> {
+    /// Consume an exponent for a float literal
+    fn eat_exponent(&self) -> TokenResult<i32> {
+        debug_assert!(matches!(self.prev.get(), 'e' | 'E'));
         let start = self.offset.get();
 
-        let (num, negated) = if self.peek() == '-' {
+        // Check if there is a sign before the digits start in the exponent...
+        let negated = if self.peek() == '-' {
             self.next();
-
-            (
-                self.eat_decimal_digits().collect::<String>().parse::<i32>(),
-                true,
-            )
+            true
         } else {
-            (
-                self.eat_decimal_digits().collect::<String>().parse::<i32>(),
-                false,
-            )
+            false
         };
+
+        let num = self.eat_decimal_digits().collect::<String>().parse::<i32>();
 
         // Ensure that the digit parsing was ok
         if num.is_err() {
@@ -597,6 +587,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
+/// Function to tokenise an input string. Resulting in an iterator of [Token]s
 pub fn tokenise(input: &str) -> impl Iterator<Item = Token> + '_ {
     let lexer = Lexer::new(input);
 
