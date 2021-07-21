@@ -1,3 +1,7 @@
+//! Self hosted hash parser, this function contains the implementations for `hash-ast`
+//! which provides a general interface to write a parser.
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
 use std::{path::Path, process::exit};
 
 use hash_ast::{

@@ -25,12 +25,15 @@ lazy_static! {
 }
 
 impl StringLiteralMap {
+    /// Add a new string to the map, this will add an additional entry even if the string is already
+    /// within the map.
     pub fn create_string(&self, value: AstString) -> StringIdentifier {
         let ident = StringIdentifier::new();
         self.string_data.insert(ident, value);
         ident
     }
 
+    /// Get the [String] behind the [StringIdentifier]
     pub fn lookup(&self, ident: StringIdentifier) -> String {
         self.string_data.get(&ident).unwrap().value().to_string()
     }
