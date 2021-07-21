@@ -1,3 +1,5 @@
+pub mod testing;
+
 use std::time::{Duration, Instant};
 
 use log::log_enabled;
