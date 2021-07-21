@@ -199,37 +199,142 @@ impl<'a> Lexer<'a> {
 
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
+                self.next(); // accounting for the radix
+
                 let chars = self.eat_while(|c| c.is_digit(radix)).collect::<String>();
                 let value = u64::from_str_radix(chars.as_str(), radix);
 
                 // @@ErrorHandling: We shouldn't error here, this should be handeled by the SmallVec<..> change to integers
                 if value.is_err() {
+                    println!("value={}, radix={}", chars, radix);
                     return Err(TokenError::new(
-                        Some("Ineger literal too large".to_string()),
+                        Some("Integer literal too large".to_string()),
                         TokenErrorKind::MalformedNumericalLiteral,
                         Location::span(start, self.offset.get()),
                     ));
                 }
 
-                Ok(TokenKind::IntLiteral(value.unwrap()))
-            } else {
-                match self.peek() {
-                    // Number literal without a prefix!
-                    '0'..='9' | '_' | '.' | 'e' | 'E' => {
-                        // @@Correctness: do we allow exponent notation here?
-                        todo!()
-                    }
-                    _ => Ok(TokenKind::IntLiteral(0)),
-                }
+                return Ok(TokenKind::IntLiteral(value.unwrap()));
             }
-        } else {
-            let num = self
-                .eat_decimal_digits()
-                .collect::<String>()
-                .parse::<u64>()
-                .unwrap();
+        }
 
-            Ok(TokenKind::IntLiteral(num))
+        let pre_digits = iter::once(self.prev.get())
+            .chain(self.eat_decimal_digits())
+            .collect::<String>();
+
+        // peek next to check if this is an actual float literal...
+        match self.peek() {
+            '.' => {
+                // Only eat the charach
+                self.next();
+
+                let after_digits = self.eat_decimal_digits().collect::<String>();
+
+                let num = pre_digits
+                    .chars()
+                    .chain(std::iter::once('.'))
+                    .chain(after_digits.chars());
+
+                let mut exp: i32 = 0;
+                if matches!(self.peek(), 'e' | 'E') {
+                    self.next();
+                    exp = self.handle_exponent()?;
+                }
+
+                let num = num.collect::<String>().parse::<f64>();
+
+                if num.is_err() {
+                    return Err(TokenError::new(
+                        Some("Malformed float literal.".to_string()),
+                        TokenErrorKind::MalformedNumericalLiteral,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
+                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
+                // the float literal.
+                let value = if exp != 0 {
+                    num.unwrap() * 10f64.powi(exp)
+                } else {
+                    num.unwrap()
+                };
+
+                Ok(TokenKind::FloatLiteral(value))
+            }
+            // Imediate exponent
+            'e' | 'E' => {
+                self.next();
+
+                let num = pre_digits.parse::<f64>();
+
+                if num.is_err() {
+                    return Err(TokenError::new(
+                        Some("Malformed float literal.".to_string()),
+                        TokenErrorKind::MalformedNumericalLiteral,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
+                let exp = self.handle_exponent()?;
+
+                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
+                // the float literal.
+                let value = if exp != 0 {
+                    num.unwrap() * 10f64.powi(exp)
+                } else {
+                    num.unwrap()
+                };
+
+                Ok(TokenKind::FloatLiteral(value))
+            }
+            _ => {
+                let num = pre_digits.parse::<u64>();
+
+                if num.is_err() {
+                    return Err(TokenError::new(
+                        Some("Integer literal too large.".to_string()),
+                        TokenErrorKind::MalformedNumericalLiteral,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
+                Ok(TokenKind::IntLiteral(num.unwrap()))
+            }
+        }
+    }
+
+    fn handle_exponent(&self) -> TokenResult<i32> {
+        let start = self.offset.get();
+
+        let (num, negated) = if self.peek() == '-' {
+            self.next();
+
+            (
+                self.eat_decimal_digits().collect::<String>().parse::<i32>(),
+                true,
+            )
+        } else {
+            (
+                self.eat_decimal_digits().collect::<String>().parse::<i32>(),
+                false,
+            )
+        };
+
+        // Ensure that the digit parsing was ok
+        if num.is_err() {
+            return Err(TokenError::new(
+                Some("Invalid float exponent.".to_string()),
+                TokenErrorKind::MalformedNumericalLiteral,
+                Location::span(start, self.offset.get()),
+            ));
+        }
+
+        let num = num.unwrap();
+
+        if negated {
+            Ok(-num)
+        } else {
+            Ok(num)
         }
     }
 
@@ -237,10 +342,7 @@ impl<'a> Lexer<'a> {
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
     pub(crate) fn eat_decimal_digits(&self) -> impl Iterator<Item = char> + '_ {
-        let digits = self.eat_while(|peeked| matches!(peeked, '0'..='9' | '_'));
-
-        iter::once(self.prev.get())
-            .chain(digits)
+        self.eat_while(|peeked| matches!(peeked, '0'..='9' | '_'))
             .filter(|e| *e != '_')
     }
 
@@ -321,7 +423,6 @@ impl<'a> Lexer<'a> {
                 if let Err(e) = chars {
                     return Err(e);
                 }
-
                 // @@Safety: Safe to unwrap since we check that both chars are hex valid and two hex chars will
                 // always to fit into a u32
                 let value = u32::from_str_radix(chars.unwrap().as_str(), 16).unwrap();

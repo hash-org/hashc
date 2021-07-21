@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, process::exit};
 
 use hash_ast::{
     ast::{self, AstNode, BodyBlock},
@@ -22,13 +22,12 @@ impl ParserBackend for HashParser {
         let _tokens = timed(
             || {
                 let _tokens = tokenise(contents).collect::<Vec<Token>>();
-                // println!("tokens: {:#?}", tokens); //tokeniser.collect::<Vec<Token>>());
             },
             log::Level::Debug,
             |elapsed| println!("tokenise: {:?}", elapsed),
         );
 
-        todo!()
+        exit(0) // @@Remove
     }
 
     fn parse_interactive(
@@ -38,7 +37,7 @@ impl ParserBackend for HashParser {
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let tokens = tokenise(contents);
 
-        // println!("tokens: {:#?}", tokens); //tokeniser.collect::<Vec<Token>>());
+        // @@Remove
         for token in tokens {
             println!("{}", token);
         }
