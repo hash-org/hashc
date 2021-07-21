@@ -2,6 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
+pub mod backend;
 mod error;
 pub mod grammar;
 mod precedence;

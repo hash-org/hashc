@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "compiler/hash-utils",
+  "compiler/hash-utils/testing-macros",
   "compiler/hash-ast",
   "compiler/hash-parser",
   "compiler/hash-pest-parser",
