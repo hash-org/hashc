@@ -28,7 +28,7 @@ pub(crate) struct Lexer<'a> {
 
     /// The previous character of the current stream, this is useful for keeping track
     /// of state when tokenising compound inputs that rely on previous context.
-    prev: Cell<char>,
+    prev: Cell<Option<char>>,
 }
 
 impl<'a> Lexer<'a> {
@@ -37,14 +37,9 @@ impl<'a> Lexer<'a> {
         Lexer {
             offset: Cell::new(0),
             contents,
-            prev: Cell::new(EOF_CHAR),
+            prev: Cell::new(None),
         }
     }
-
-    /// Returns a `Chars` iterator over the remaining characters.
-    // fn chars(&self) -> Chars<'a> {
-    //     self.contents.clone()
-    // }
 
     /// Returns amount of already consumed symbols.
     pub(crate) fn len_consumed(&self) -> usize {
@@ -61,10 +56,10 @@ impl<'a> Lexer<'a> {
         self.nth_char(1)
     }
 
-    // /// Returns nth character relative to the current position.
-    // /// If requested position doesn't exist, `EOF_CHAR` is returned.
-    // /// However, getting `EOF_CHAR` doesn't always mean actual end of file,
-    // /// it should be checked with `is_eof` method.
+    /// Returns nth character relative to the current position.
+    /// If requested position doesn't exist, `EOF_CHAR` is returned.
+    /// However, getting `EOF_CHAR` doesn't always mean actual end of file,
+    /// it should be checked with `is_eof` method.
     fn nth_char(&self, n: usize) -> char {
         let offset = self.offset.get();
 
@@ -85,9 +80,9 @@ impl<'a> Lexer<'a> {
         let ch = slice.chars().next()?;
 
         // only increment the offset by one if there is a next character
-        self.prev.set(ch);
+        self.prev.set(Some(ch));
 
-        self.offset.set(self.offset.get() + ch.len_utf8());
+        self.offset.set(offset + ch.len_utf8());
         Some(ch)
     }
 
@@ -99,84 +94,80 @@ impl<'a> Lexer<'a> {
     /// Parses a token from the input string.
     pub(crate) fn advance_token(&self) -> Option<Token> {
         let offset = self.offset.get();
-        let token_kind = loop {
-            let next_char = self.next()?;
 
-            match next_char {
-                // Slash, comment or block comment.
-                '/' => match self.peek() {
-                    '/' => self.line_comment(),
-                    '*' => self.block_comment(),
-                    _ => break TokenKind::Slash,
-                },
+        // skip whitespaces first...
+        if self.peek().is_whitespace() {
+            self.eat_while_and_discard(char::is_whitespace);
+        }
 
-                // Whitespace sequence.
-                c if c.is_whitespace() => self.eat_while_and_discard(char::is_whitespace),
+        // skip comments if there are any
+        if self.peek() == '/' {
+            self.eat_comments();
+        }
 
-                // One-symbol tokens.
-                ';' => break TokenKind::Semi,
-                ',' => break TokenKind::Comma,
-                '.' => break TokenKind::Dot,
+        let token_kind = match self.next()? {
+            // One-symbol tokens.
+            '/' => TokenKind::Slash,
+            ';' => TokenKind::Semi,
+            ',' => TokenKind::Comma,
+            '.' => TokenKind::Dot,
 
-                // @@Improvement(alex): We should work around parenthesees as trees, we can essentially create a new token
-                //                      stream each time we hit a Delimeter that uses some kind of brace. This could be very
-                //                      beneficial because we could parellilise the transformation of tokens into ASTs simply
-                //                      by observing the size and position of these children streams of tokens...
-                // >---------------------------------<
-                '(' => break TokenKind::OpenParen,
-                ')' => break TokenKind::CloseParen,
-                '{' => break TokenKind::OpenBrace,
-                '}' => break TokenKind::CloseBrace,
-                '[' => break TokenKind::OpenBracket,
-                ']' => break TokenKind::CloseBracket,
-                // >---------------------------------<
-                '~' => break TokenKind::Tilde,
-                '=' => break TokenKind::Eq,
-                '!' => break TokenKind::Exclamation,
-                '<' => break TokenKind::Lt,
-                '>' => break TokenKind::Gt,
-                '-' => break TokenKind::Minus,
-                '&' => break TokenKind::And,
-                '|' => break TokenKind::Pipe,
-                '+' => break TokenKind::Plus,
-                '*' => break TokenKind::Star,
-                '^' => break TokenKind::Caret,
-                '%' => break TokenKind::Percent,
+            // @@Improvement(alex): We should work around parenthesees as trees, we can essentially create a new token
+            //                      stream each time we hit a Delimeter that uses some kind of brace. This could be very
+            //                      beneficial because we could parellilise the transformation of tokens into ASTs simply
+            //                      by observing the size and position of these children streams of tokens...
+            // >---------------------------------<
+            '(' => TokenKind::OpenParen,
+            ')' => TokenKind::CloseParen,
+            '{' => TokenKind::OpenBrace,
+            '}' => TokenKind::CloseBrace,
+            '[' => TokenKind::OpenBracket,
+            ']' => TokenKind::CloseBracket,
+            // >---------------------------------<
+            '~' => TokenKind::Tilde,
+            '=' => TokenKind::Eq,
+            '!' => TokenKind::Exclamation,
+            '<' => TokenKind::Lt,
+            '>' => TokenKind::Gt,
+            '-' => TokenKind::Minus,
+            '&' => TokenKind::And,
+            '|' => TokenKind::Pipe,
+            '+' => TokenKind::Plus,
+            '*' => TokenKind::Star,
+            '^' => TokenKind::Caret,
+            '%' => TokenKind::Percent,
 
-                // @@Improvement: This can be a potentially made out as a compound token... the same could be done with other
-                //                tokens that are likely to be compound, it would also avoid doing the work later on...
-                // ':' => match self.peek() {
-                //     ':' => {
-                //         self.next();
-                //         break TokenKind::NameAccess
-                //     }
-                //     _ => break TokenKind::Colon
-                // },
-                ':' => break TokenKind::Colon,
+            // @@Improvement: This can be a potentially made out as a compound token... the same could be done with other
+            //                tokens that are likely to be compound, it would also avoid doing the work later on...
+            // ':' => match self.peek() {
+            //     ':' => {
+            //         self.next();
+            //         break TokenKind::NameAccess
+            //     }
+            //     _ => break TokenKind::Colon
+            // },
+            ':' => TokenKind::Colon,
 
-                // Identifier (this should be checked after other variant that can
-                // start as identifier).
-                c if is_id_start(c) => break self.ident(),
+            // Identifier (this should be checked after other variant that can
+            // start as identifier).
+            c if is_id_start(c) => self.ident(),
 
-                // Numeric literal.
-                '0'..='9' => {
-                    break self
-                        .number()
-                        .unwrap_or_else(|e| panic!("error: {:#?}", e.message))
-                }
-                // character literal.
-                '\'' => {
-                    break self
-                        .char()
-                        .unwrap_or_else(|e| panic!("error: {:#?}", e.message)); // @@ErrorReporting: this is where we hook into error reporting to print the result
-                                                                                // and display it to the user
-                }
+            // Numeric literal.
+            '0'..='9' => self
+                .number()
+                .unwrap_or_else(|e| panic!("error: {:#?}", e.message)),
 
-                // String literal.
-                '"' => break self.string().unwrap_or_else(|e| panic!("error: {:?}", e)),
+            // character literal.
+            // @@ErrorReporting: this is where we hook into error reporting to print the result
+            // and display it to the user
+            '\'' => self
+                .char()
+                .unwrap_or_else(|e| panic!("error: {:#?}", e.message)),
 
-                _ => break TokenKind::Unexpected,
-            }
+            // String literal.
+            '"' => self.string().unwrap_or_else(|e| panic!("error: {:?}", e)),
+
+            _ => TokenKind::Unexpected,
         };
 
         let location = Location::span(offset, self.len_consumed());
@@ -185,9 +176,9 @@ impl<'a> Lexer<'a> {
 
     /// Consume an identifier, at this stage keywords are also considered to be identfiers
     pub(crate) fn ident(&self) -> TokenKind {
-        debug_assert!(is_id_start(self.prev.get()));
+        let first = self.prev.get().unwrap();
+        debug_assert!(is_id_start(first));
 
-        let first = self.prev.get();
         let suffix = self.eat_while(is_id_continue);
         let name: String = iter::once(first).chain(suffix).collect();
 
@@ -198,7 +189,7 @@ impl<'a> Lexer<'a> {
 
     /// Consume a number literal, either float or integer
     pub(crate) fn number(&self) -> TokenResult<TokenKind> {
-        let prev = self.prev.get();
+        let prev = self.prev.get().unwrap();
         debug_assert!(('0'..='9').contains(&prev));
 
         // record the start location of the literal
@@ -210,6 +201,7 @@ impl<'a> Lexer<'a> {
             let maybe_radix = match self.peek() {
                 'b' => Some(2),
                 'o' => Some(8),
+                'd' => Some(10),
                 'x' => Some(16),
                 _ => None,
             };
@@ -218,12 +210,11 @@ impl<'a> Lexer<'a> {
             if let Some(radix) = maybe_radix {
                 self.next(); // accounting for the radix
 
-                let chars = self.eat_while(|c| c.is_digit(radix)).collect::<String>();
+                let chars = self.eat_decimal_digits(radix).collect::<String>();
                 let value = u64::from_str_radix(chars.as_str(), radix);
 
                 // @@ErrorHandling: We shouldn't error here, this should be handeled by the SmallVec<..> change to integers
                 if value.is_err() {
-                    println!("value={}, radix={}", chars, radix);
                     return Err(TokenError::new(
                         Some("Integer literal too large".to_string()),
                         TokenErrorKind::MalformedNumericalLiteral,
@@ -235,17 +226,18 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let pre_digits = iter::once(self.prev.get())
-            .chain(self.eat_decimal_digits())
+        let pre_digit = self.prev.get().unwrap();
+        let pre_digits = iter::once(pre_digit)
+            .chain(self.eat_decimal_digits(10))
             .collect::<String>();
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
             '.' => {
-                // Only eat the charach
+                // Only eat the char
                 self.next();
 
-                let after_digits = self.eat_decimal_digits().collect::<String>();
+                let after_digits = self.eat_decimal_digits(10).collect::<String>();
 
                 let num = pre_digits
                     .chars()
@@ -296,25 +288,20 @@ impl<'a> Lexer<'a> {
 
                 Ok(TokenKind::FloatLiteral(value))
             }
-            _ => {
-                let num = pre_digits.parse::<u64>();
-
-                if num.is_err() {
-                    return Err(TokenError::new(
-                        Some("Integer literal too large.".to_string()),
-                        TokenErrorKind::MalformedNumericalLiteral,
-                        Location::span(start, self.offset.get()),
-                    ));
-                }
-
-                Ok(TokenKind::IntLiteral(num.unwrap()))
-            }
+            _ => match pre_digits.parse::<u64>() {
+                Err(_) => Err(TokenError::new(
+                    Some("Integer literal too large.".to_string()),
+                    TokenErrorKind::MalformedNumericalLiteral,
+                    Location::span(start, self.offset.get()),
+                )),
+                Ok(value) => Ok(TokenKind::IntLiteral(value)),
+            },
         }
     }
 
     /// Consume an exponent for a float literal
     fn eat_exponent(&self) -> TokenResult<i32> {
-        debug_assert!(matches!(self.prev.get(), 'e' | 'E'));
+        debug_assert!(matches!(self.prev.get().unwrap(), 'e' | 'E'));
         let start = self.offset.get();
 
         // Check if there is a sign before the digits start in the exponent...
@@ -325,7 +312,10 @@ impl<'a> Lexer<'a> {
             false
         };
 
-        let num = self.eat_decimal_digits().collect::<String>().parse::<i32>();
+        let num = self
+            .eat_decimal_digits(10)
+            .collect::<String>()
+            .parse::<i32>();
 
         // Ensure that the digit parsing was ok
         if num.is_err() {
@@ -345,11 +335,30 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Eat while version to eat line and block comments until a character or sequence of characters
+    /// that does not begin the comment appears...
+    pub(crate) fn eat_comments(&self) {
+        self.eat_while_and_discard(|c| {
+            // Slash, comment or block comment.
+            match c {
+                '/' => {
+                    match self.peek_second() {
+                        '/' => self.line_comment(),
+                        '*' => self.block_comment(),
+                        _ => return false,
+                    };
+                    true
+                }
+                _ => false,
+            }
+        })
+    }
+
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    pub(crate) fn eat_decimal_digits(&self) -> impl Iterator<Item = char> + '_ {
-        self.eat_while(|peeked| matches!(peeked, '0'..='9' | '_'))
+    pub(crate) fn eat_decimal_digits(&self, radix: u32) -> impl Iterator<Item = char> + '_ {
+        self.eat_while(move |c| c.is_digit(radix) || c == '_')
             .filter(|e| *e != '_')
     }
 
@@ -357,10 +366,7 @@ impl<'a> Lexer<'a> {
     /// escape literal rules. More information about the escape sequences can be found at
     /// [escape sequences](https://hash-org.github.io/lang/basics/intro.html)
     fn char_from_escape_seq(&self) -> TokenResult<char> {
-        debug_assert!(self.prev.get() == '\\');
-
-        // @@Incomplete: come up with a better algorithm to transform escaped literals, rather than manual
-        // transformations!
+        debug_assert!(self.prev.get().unwrap() == '\\');
         let c = self.next().unwrap();
 
         // we need to compute the old byte offset by accounting for both the 'u' character and the '\\' character,
@@ -426,13 +432,11 @@ impl<'a> Lexer<'a> {
                     })
                     .collect();
 
-                // check that getting the 2 characters was ok, if not then propagate the error
-                if let Err(e) = chars {
-                    return Err(e);
-                }
+                let chars = chars?;
+
                 // @@Safety: Safe to unwrap since we check that both chars are hex valid and two hex chars will
                 // always to fit into a u32
-                let value = u32::from_str_radix(chars.unwrap().as_str(), 16).unwrap();
+                let value = u32::from_str_radix(chars.as_str(), 16).unwrap();
 
                 Ok(char::from_u32(value).unwrap())
             }
@@ -456,7 +460,7 @@ impl<'a> Lexer<'a> {
     /// quote, this will produce a [TokenKind::CharLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
     pub(crate) fn char(&self) -> TokenResult<TokenKind> {
-        debug_assert!(self.prev.get() == '\'');
+        debug_assert!(self.prev.get().unwrap() == '\'');
 
         // Subtract one to capture the previous quote, since we know it's one byte in size
         let start = self.offset.get() - 1;
@@ -510,7 +514,7 @@ impl<'a> Lexer<'a> {
     /// quote, this will produce a [TokenKind::StrLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
     pub(crate) fn string(&self) -> TokenResult<TokenKind> {
-        debug_assert!(self.prev.get() == '"');
+        debug_assert!(self.prev.get().unwrap() == '"');
 
         let mut value = String::from("");
 
@@ -527,7 +531,7 @@ impl<'a> Lexer<'a> {
 
         // Essentially we put the string into the literal map and get an id out which we use for the
         // actual representation in the token
-        let id = STRING_LITERAL_MAP.create_string(AstString::Owned(value.as_str().to_owned()));
+        let id = STRING_LITERAL_MAP.create_string(AstString::Owned(value));
         Ok(TokenKind::StrLiteral(id))
     }
 
@@ -536,7 +540,7 @@ impl<'a> Lexer<'a> {
     /// we stop eating there.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
     pub(crate) fn line_comment(&self) {
-        debug_assert!(self.prev.get() == '/' && self.peek() == '/');
+        debug_assert!(self.peek() == '/' && self.peek_second() == '/');
         self.next();
         self.eat_while_and_discard(|c| c != '\n');
     }
@@ -546,7 +550,7 @@ impl<'a> Lexer<'a> {
     /// counter to ensure that nested block comments are accounted for and handeled gracefully.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
     pub(crate) fn block_comment(&self) {
-        debug_assert!(self.prev.get() == '/' && self.peek() == '*');
+        debug_assert!(self.peek() == '/' && self.peek_second() == '*');
         self.next();
 
         // since we aren't as dumb as C++, we want to count the depth of block comments
