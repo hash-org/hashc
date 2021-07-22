@@ -199,6 +199,9 @@ pub struct Row<'c, T> {
     castle_lifetime: PhantomData<&'c ()>,
 }
 
+unsafe impl<T: Sync> Sync for Row<'_, T> {}
+unsafe impl<T: Send> Send for Row<'_, T> {}
+
 const ROW_INITIAL_REALLOC_SIZE: usize = 4;
 const ROW_REALLOC_MULTIPLIER: usize = 2;
 
@@ -279,9 +282,15 @@ impl<'c, T> Row<'c, T> {
     }
 }
 
+macro_rules! row {
+    ($wall:expr) => { Row::new($wall) };
+    ($wall:expr; $($item:expr),*) => { Row::from_iter([$($item,)*], $wall) };
+    ($wall:expr; $($item:expr,)*) => { Row::from_iter([$($item,)*], $wall) };
+    ($wall:expr; $item:expr; $count:expr) => { Row::from_iter(std::iter::repeat($item).take($count), $wall) };
+}
+
 impl<T: fmt::Debug> fmt::Debug for Row<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Row ")?;
         self.deref().fmt(f)
     }
 }
@@ -299,8 +308,6 @@ impl<T> DerefMut for Row<'_, T> {
         unsafe { std::slice::from_raw_parts_mut(self.data.as_ptr(), self.length) }
     }
 }
-
-unsafe impl<T: Send> Send for Row<'_, T> {}
 
 pub struct BrickString<'c> {
     inner: Row<'c, u8>,
@@ -358,26 +365,26 @@ mod test {
     #[derive(Debug)]
     struct MyComplexStructBoxed {
         a: Box<i32>,
-        b: Box<Box<[Box<i32>; 5]>>,
+        b: Box<Vec<Box<i32>>>,
     }
 
     #[derive(Debug)]
     struct MyComplexStructWref<'w> {
         a: Brick<'w, i32>,
-        b: Brick<'w, Brick<'w, [Brick<'w, i32>; 5]>>,
+        b: Brick<'w, Row<'w, Brick<'w, i32>>>,
     }
 
     impl MyComplexStructBoxed {
         pub fn new() -> Self {
             Self {
                 a: Box::new(3),
-                b: Box::new(Box::new([
+                b: Box::new(vec![
                     Box::new(4),
                     Box::new(5),
                     Box::new(6),
                     Box::new(7),
                     Box::new(8),
-                ])),
+                ]),
             }
         }
     }
@@ -387,16 +394,13 @@ mod test {
             Self {
                 a: Brick::new(3, wall),
                 b: Brick::new(
-                    Brick::new(
-                        [
-                            Brick::new(4, wall),
-                            Brick::new(5, wall),
-                            Brick::new(6, wall),
-                            Brick::new(7, wall),
-                            Brick::new(8, wall),
-                        ],
-                        wall,
-                    ),
+                    row![wall;
+                        Brick::new(4, wall),
+                        Brick::new(5, wall),
+                        Brick::new(6, wall),
+                        Brick::new(7, wall),
+                        Brick::new(8, wall),
+                    ],
                     wall,
                 ),
             }
@@ -477,13 +481,13 @@ mod test {
     fn row_test() {
         let castle = Castle::new();
         let wall = castle.wall();
-        let mut row = Row::<i64>::new(&wall);
-        row.reserve(10000000, &wall);
 
-        for i in 0..10000000 {
-            row.push(i, &wall);
-        }
+        let row: Row<i32> = row![&wall];
+        let row2 = row![&wall; 1, 2, 3];
+        let row3 = row![&wall; 10; 500];
 
         println!("{:?}", row);
+        println!("{:?}", row2);
+        println!("{:?}", row3);
     }
 }
