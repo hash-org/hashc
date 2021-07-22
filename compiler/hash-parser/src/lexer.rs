@@ -174,7 +174,8 @@ impl<'a> Lexer<'a> {
         Some(Token::new(token_kind, location))
     }
 
-    /// Consume an identifier, at this stage keywords are also considered to be identfiers
+    /// Consume an identifier, at this stage keywords are also considered to be identfiers. The function
+    /// expects that the first character of the identifier is consumed when the function is called.
     pub(crate) fn ident(&self) -> TokenKind {
         let first = self.prev.get().unwrap();
         debug_assert!(is_id_start(first));
@@ -187,7 +188,8 @@ impl<'a> Lexer<'a> {
         TokenKind::Ident(ident)
     }
 
-    /// Consume a number literal, either float or integer
+    /// Consume a number literal, either float or integer. The function expects that the first character of
+    /// the numeric literal is consumed when the function is called.
     pub(crate) fn number(&self) -> TokenResult<TokenKind> {
         let prev = self.prev.get().unwrap();
         debug_assert!(('0'..='9').contains(&prev));
@@ -210,8 +212,8 @@ impl<'a> Lexer<'a> {
             if let Some(radix) = maybe_radix {
                 self.next(); // accounting for the radix
 
-                let chars = self.eat_decimal_digits(radix).collect::<String>();
-                let value = u64::from_str_radix(chars.as_str(), radix);
+                let chars = self.eat_decimal_digits(radix);
+                let value = u64::from_str_radix(chars, radix);
 
                 // @@ErrorHandling: We shouldn't error here, this should be handeled by the SmallVec<..> change to integers
                 if value.is_err() {
@@ -227,9 +229,7 @@ impl<'a> Lexer<'a> {
         }
 
         let pre_digit = self.prev.get().unwrap();
-        let pre_digits = iter::once(pre_digit)
-            .chain(self.eat_decimal_digits(10))
-            .collect::<String>();
+        let pre_digits = iter::once(pre_digit).chain(self.eat_decimal_digits(10).chars());
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
@@ -237,58 +237,17 @@ impl<'a> Lexer<'a> {
                 // Only eat the char
                 self.next();
 
-                let after_digits = self.eat_decimal_digits(10).collect::<String>();
+                let after_digits = self.eat_decimal_digits(10);
 
                 let num = pre_digits
-                    .chars()
                     .chain(std::iter::once('.'))
                     .chain(after_digits.chars());
 
-                let mut exp: i32 = 0;
-                if matches!(self.peek(), 'e' | 'E') {
-                    self.next();
-                    exp = self.eat_exponent()?;
-                }
-
-                let num = num.collect::<String>().parse::<f64>();
-
-                if num.is_err() {
-                    return Err(TokenError::new(
-                        Some("Malformed float literal.".to_string()),
-                        TokenErrorKind::MalformedNumericalLiteral,
-                        Location::span(start, self.offset.get()),
-                    ));
-                }
-
-                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
-                // the float literal.
-                let value = if exp != 0 { num.unwrap() * 10f64.powi(exp) } else { num.unwrap() };
-
-                Ok(TokenKind::FloatLiteral(value))
+                self.eat_float_literal(num, start)
             }
             // Imediate exponent
-            'e' | 'E' => {
-                self.next();
-
-                let num = pre_digits.parse::<f64>();
-
-                if num.is_err() {
-                    return Err(TokenError::new(
-                        Some("Malformed float literal.".to_string()),
-                        TokenErrorKind::MalformedNumericalLiteral,
-                        Location::span(start, self.offset.get()),
-                    ));
-                }
-
-                let exp = self.eat_exponent()?;
-
-                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
-                // the float literal.
-                let value = if exp != 0 { num.unwrap() * 10f64.powi(exp) } else { num.unwrap() };
-
-                Ok(TokenKind::FloatLiteral(value))
-            }
-            _ => match pre_digits.parse::<u64>() {
+            'e' | 'E' => self.eat_float_literal(pre_digits, start),
+            _ => match pre_digits.collect::<String>().parse::<u64>() {
                 Err(_) => Err(TokenError::new(
                     Some("Integer literal too large.".to_string()),
                     TokenErrorKind::MalformedNumericalLiteral,
@@ -299,9 +258,41 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Consume an exponent for a float literal
+    /// Function to apply an exponent to a floating point literal.
+    fn eat_float_literal(
+        &self,
+        num: impl Iterator<Item = char>,
+        start: usize,
+    ) -> TokenResult<TokenKind> {
+        let num = num.collect::<String>().parse::<f64>();
+
+        match num {
+            Err(_) => Err(TokenError::new(
+                Some("Malformed float literal.".to_string()),
+                TokenErrorKind::MalformedNumericalLiteral,
+                Location::span(start, self.offset.get()),
+            )),
+            Ok(value) => {
+                let exp = self.eat_exponent()?;
+
+                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
+                // the float literal.
+                let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
+
+                Ok(TokenKind::FloatLiteral(value))
+            }
+        }
+    }
+
+    /// Consume an exponent for a float literal.
     fn eat_exponent(&self) -> TokenResult<i32> {
-        debug_assert!(matches!(self.prev.get().unwrap(), 'e' | 'E'));
+        if !matches!(self.peek(), 'e' | 'E') {
+            // @@Hack: we return a zero to signal that there was no exponent and therefore avoid applying it later
+            return Ok(0);
+        }
+
+        self.next(); // consume the exponent
+
         let start = self.offset.get();
 
         // Check if there is a sign before the digits start in the exponent...
@@ -312,26 +303,14 @@ impl<'a> Lexer<'a> {
             false
         };
 
-        let num = self
-            .eat_decimal_digits(10)
-            .collect::<String>()
-            .parse::<i32>();
-
-        // Ensure that the digit parsing was ok
-        if num.is_err() {
-            return Err(TokenError::new(
+        match self.eat_decimal_digits(10).parse::<i32>() {
+            Err(_) => Err(TokenError::new(
                 Some("Invalid float exponent.".to_string()),
                 TokenErrorKind::MalformedNumericalLiteral,
                 Location::span(start, self.offset.get()),
-            ));
-        }
-
-        let num = num.unwrap();
-
-        if negated {
-            Ok(-num)
-        } else {
-            Ok(num)
+            )),
+            Ok(num) if negated => Ok(-num),
+            Ok(num) => Ok(num),
         }
     }
 
@@ -357,9 +336,8 @@ impl<'a> Lexer<'a> {
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    pub(crate) fn eat_decimal_digits(&self, radix: u32) -> impl Iterator<Item = char> + '_ {
-        self.eat_while(move |c| c.is_digit(radix) || c == '_')
-            .filter(|e| *e != '_')
+    pub(crate) fn eat_decimal_digits(&self, radix: u32) -> &str {
+        self.eat_while_and_slice(move |c| c.is_digit(radix) || c == '_')
     }
 
     /// Transform an ordinary character into a well known escape sequence specified by the
@@ -390,7 +368,7 @@ impl<'a> Lexer<'a> {
                 self.next();
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
-                let chars: String = self.eat_while(|c| c.is_ascii_hexdigit()).collect();
+                let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
 
                 if self.peek() != '}' {
                     return Err(TokenError::new(
@@ -401,7 +379,7 @@ impl<'a> Lexer<'a> {
                 }
                 self.next();
 
-                let value = u32::from_str_radix(chars.as_str(), 16);
+                let value = u32::from_str_radix(chars, 16);
 
                 if value.is_err() {
                     return Err(TokenError::new(
@@ -458,7 +436,8 @@ impl<'a> Lexer<'a> {
 
     /// Consume a char literal provided that the current previous token is a single
     /// quote, this will produce a [TokenKind::CharLiteral] provided that the literal is
-    /// correctly formed and is ended before the end of file is reached.
+    /// correctly formed and is ended before the end of file is reached. This function expects
+    /// the the callee has previously eaten the starting single quote.
     pub(crate) fn char(&self) -> TokenResult<TokenKind> {
         debug_assert!(self.prev.get().unwrap() == '\'');
 
@@ -586,6 +565,19 @@ impl<'a> Lexer<'a> {
         while condition(self.peek()) && !self.is_eof() {
             self.next();
         }
+    }
+
+    /// Cousin of [Self::eat_while], it consumes the input, and produces a slice from where it began
+    /// to eat the input and where it finished, this is sometimes beneficial as the slice doesn't have
+    /// to be re-allocated as a string.
+    fn eat_while_and_slice(&self, mut condition: impl FnMut(char) -> bool) -> &str {
+        let start = self.offset.get();
+        while condition(self.peek()) && !self.is_eof() {
+            self.next();
+        }
+        let end = self.offset.get();
+
+        &self.contents[start..end]
     }
 
     /// Iterator that will collect characters until a given predicate no longer passes.
