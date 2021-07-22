@@ -90,6 +90,8 @@ pub enum TokenKind {
     Exclamation,
     /// '.'
     Dot,
+    // '::'
+    // NameAccess,
     /// ':'
     Colon,
     /// ';'
