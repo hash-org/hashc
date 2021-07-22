@@ -8,7 +8,8 @@ use hash_ast::{
     ast::{self, AstNode, BodyBlock},
     error::ParseResult,
     location::Location,
-    parse::{ModuleResolver, ParserBackend},
+    parse::ParserBackend,
+    resolve::ModuleResolver,
 };
 use hash_utils::timed;
 
