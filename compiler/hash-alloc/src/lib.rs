@@ -4,15 +4,19 @@
 
 #![allow(dead_code)] // @@REMOVE
 #![feature(llvm_asm)]
+#![feature(thread_local)]
 
-use atomicbox::AtomicBox;
-use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
+use crossbeam_channel::{unbounded, Receiver, Sender};
+use parking_lot::{Condvar, Mutex, RwLock, RwLockUpgradableReadGuard};
+use core::fmt;
 use std::{
     alloc::{alloc, dealloc, handle_alloc_error, Layout},
     cell::{Cell, UnsafeCell},
     collections::HashMap,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
-    ptr::NonNull,
+    pin::Pin,
+    ptr::{self, NonNull},
     sync::{
         atomic::{self, AtomicBool, AtomicI64, AtomicPtr, AtomicUsize, Ordering},
         Arc,
@@ -26,24 +30,16 @@ const BRICK_SIZE: usize = 1 << 20;
 
 #[derive(Debug)]
 struct Brick {
-    data: NonNull<u8>,
-    offset: AtomicUsize,
+    data: [u8; BRICK_SIZE],
+    offset: Cell<usize>,
 }
 
 impl Brick {
     fn new() -> Self {
-        let layout = Self::layout();
-        let data = {
-            let block = unsafe { alloc(layout) };
-            NonNull::new(block).unwrap_or_else(|| handle_alloc_error(layout))
-        };
-        let offset = AtomicUsize::new(0);
+        let data = [0; BRICK_SIZE];
+        let offset = Cell::new(0);
 
         Self { data, offset }
-    }
-
-    fn layout() -> Layout {
-        Layout::array::<u8>(BRICK_SIZE).unwrap()
     }
 
     fn alloc(&self, layout: Layout) -> Option<NonNull<u8>> {
@@ -51,56 +47,47 @@ impl Brick {
         let start = {
             let layout_size = layout.size();
 
-            // Here we perform a compare-exchange loop on the offset, to update it.
-            let mut curr_offset = self.offset.load(Ordering::Acquire);
-            loop {
-                let new_offset = curr_offset + layout_size;
-                if new_offset >= BRICK_SIZE {
-                    // We cannot allocate.
-                    return None;
+            let old_offset = self.offset.get();
+            let new_offset = old_offset + layout_size;
+            if new_offset >= BRICK_SIZE {
+                if layout_size > BRICK_SIZE {
+                    // This means we cannot even allocate this layout at all.
+                    panic!("Tried to allocate an object on the castle that is too large!");
                 }
 
-                match self.offset.compare_exchange_weak(
-                    curr_offset,
-                    new_offset,
-                    Ordering::AcqRel,
-                    Ordering::Acquire,
-                ) {
-                    Ok(_) => {
-                        break curr_offset;
-                    }
-                    Err(next_curr_offset) => {
-                        curr_offset = next_curr_offset;
-                        continue;
-                    }
-                }
+                // We cannot allocate.
+                return None;
             }
+            self.offset.set(new_offset);
+
+            old_offset
         };
 
         // Pointer to return is `start` offset from self.data.
-        let ptr = unsafe { NonNull::new_unchecked(self.data.as_ptr().offset(start as isize)) };
+        let ptr = unsafe {
+            NonNull::new_unchecked(self.data.as_ptr().offset(start as isize) as *mut u8)
+        };
         Some(ptr)
     }
 
     fn remaining_capacity(&self) -> usize {
-        BRICK_SIZE - self.offset.load(Ordering::Acquire)
+        BRICK_SIZE - self.offset.get()
     }
 }
 
-impl Drop for Brick {
-    fn drop(&mut self) {
-        let layout = Self::layout();
-        unsafe {
-            dealloc(self.data.as_ptr(), layout);
-        }
-    }
-}
+unsafe impl Send for Brick {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Wref<'w, T: ?Sized>(&'w T);
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Wmut<'w, T: ?Sized>(&'w mut T);
+
+impl<'w, T> Wmut<'w, T> {
+    pub fn as_wref(self) -> Wref<'w, T> {
+        Wref(self.0)
+    }
+}
 
 impl<T> Deref for Wmut<'_, T> {
     type Target = T;
@@ -127,58 +114,27 @@ impl<T> Deref for Wref<'_, T> {
 pub type Wstr<'w> = Wref<'w, str>;
 pub type Wslice<'w, T> = Wref<'w, [T]>;
 
-struct Wall {
-    curr_brick: AtomicPtr<Brick>,
-    allocating: AtomicBool,
-    past_bricks: Mutex<Vec<Box<Brick>>>,
+struct Wall<'c> {
+    curr_brick: Cell<NonNull<Brick>>,
+    past_bricks: &'c Mutex<Vec<Box<Brick>>>,
 }
 
-impl<'w> Wall
-where
-    Self: 'w,
-{
-    /// Create an arena
-    pub fn new() -> Self {
-        Self {
-            curr_brick: AtomicPtr::new(Box::leak(Box::new(Brick::new()))),
-            allocating: AtomicBool::new(false),
-            past_bricks: Mutex::new(vec![]),
-        }
-    }
-
+impl<'c> Wall<'c> {
     fn alloc_raw(&self, layout: Layout) -> NonNull<u8> {
         loop {
-            // Safety: pointer is owned, thus always valid.
-            let brick = unsafe { &*self.curr_brick.load(Ordering::Relaxed) };
-
-            // Should never be empty.
+            let brick = unsafe { self.curr_brick.get().as_ref() };
             match brick.alloc(layout) {
                 Some(result) => {
                     break result;
                 }
                 None => {
-                    // If no one is allocating, set to allocating.
-                    match self.allocating.compare_exchange_weak(
-                        false,
-                        true,
-                        Ordering::SeqCst,
-                        Ordering::SeqCst,
-                    ) {
-                        Ok(_) => {
-                            let new_brick = Box::leak(Box::new(Brick::new()));
-                            let old_brick = self.curr_brick.swap(new_brick, Ordering::SeqCst);
-                            self.allocating.store(false, Ordering::SeqCst);
-
-                            // Put in past bricks
-                            self.past_bricks
-                                .lock()
-                                // Safety: pointer was originally created from Box.
-                                .push(unsafe { Box::from_raw(old_brick) });
-                        }
-                        // Someone is already allocating, fallback to continue
-                        Err(_) => {}
-                    };
-
+                    let new_brick =
+                        unsafe { NonNull::new_unchecked(Box::leak(Box::new(Brick::new()))) };
+                    let old_brick = self.curr_brick.replace(new_brick);
+                    // Safety: pointer was originally created from Box.
+                    self.past_bricks
+                        .lock()
+                        .push(unsafe { Box::from_raw(old_brick.as_ptr()) });
                     continue;
                 }
             }
@@ -187,13 +143,13 @@ where
 
     /// Allocate some type onto the wall, returning a mutable reference to the item.
     #[inline]
-    pub fn make<T>(&self, object: T) -> Wmut<'w, T> {
+    pub fn make<T>(&self, object: T) -> Wmut<'c, T> {
         self.make_with(|| object)
     }
 
     /// Allocate some type onto the wall, returning a mutable reference to the item.
     #[inline]
-    pub fn make_with<T>(&self, f: impl FnOnce() -> T) -> Wmut<'w, T> {
+    pub fn make_with<T>(&self, f: impl FnOnce() -> T) -> Wmut<'c, T> {
         let layout = Layout::new::<T>();
         let mut ptr: NonNull<T> = self.alloc_raw(layout).cast();
         unsafe {
@@ -203,43 +159,115 @@ where
     }
 }
 
-unsafe impl Send for Wall {}
-unsafe impl Sync for Wall {}
+unsafe impl Send for Wall<'_> {}
+
+impl<'c> Drop for Wall<'c> {
+    fn drop(&mut self) {
+        drop(unsafe { Box::from_raw(self.curr_brick.get().as_ptr()) });
+    }
+}
+
+struct Castle {
+    past_bricks: Mutex<Vec<Box<Brick>>>,
+}
+
+impl Castle {
+    /// Create an arena
+    pub fn new() -> Self {
+        Self {
+            past_bricks: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn wall(&self) -> Wall {
+        let new_brick = unsafe { NonNull::new_unchecked(Box::leak(Box::new(Brick::new()))) };
+        Wall {
+            curr_brick: Cell::new(new_brick),
+            past_bricks: &self.past_bricks,
+        }
+    }
+}
+
+unsafe impl Sync for Castle {}
 
 pub fn black_box<T>(mut dummy: T) -> T {
     unsafe {
-        // FIXME: Cannot use `asm!` because it doesn't support MIPS and other architectures.
         llvm_asm!("" : : "r"(&mut dummy) : "memory" : "volatile");
     }
 
     dummy
 }
 
-fn run_alloc_test<R: Send + Sync + 'static>(
+#[derive(Debug)]
+struct MyComplexStructBoxed {
+    a: Box<i32>,
+    b: Box<Box<[Box<i32>; 5]>>,
+}
+
+#[derive(Debug)]
+struct MyComplexStructWref<'w> {
+    a: Wref<'w, i32>,
+    b: Wref<'w, Wref<'w, [Wref<'w, i32>; 5]>>,
+}
+
+impl MyComplexStructBoxed {
+    pub fn new() -> Self {
+        Self {
+            a: Box::new(3),
+            b: Box::new(Box::new([
+                Box::new(4),
+                Box::new(5),
+                Box::new(6),
+                Box::new(7),
+                Box::new(8),
+            ])),
+        }
+    }
+}
+
+impl<'w> MyComplexStructWref<'w> {
+    pub fn new(wall: &Wall<'w>) -> Self {
+        Self {
+            a: wall.make(3).as_wref(),
+            b: wall
+                .make(
+                    wall.make([
+                        wall.make(4).as_wref(),
+                        wall.make(5).as_wref(),
+                        wall.make(6).as_wref(),
+                        wall.make(7).as_wref(),
+                        wall.make(8).as_wref(),
+                    ])
+                    .as_wref(),
+                )
+                .as_wref(),
+        }
+    }
+}
+
+fn run_alloc_test<P, R: Send + Sync + fmt::Debug>(
     total_count: i32,
     total_threads: usize,
-    op: impl Fn(i32) -> R + Send + Sync + 'static,
+    pre_op: impl Fn() -> P + Send + Sync,
+    op: impl Fn(&mut P, i32) -> R + Send + Sync,
 ) -> Duration {
-    let mut wall_handles = Vec::with_capacity(total_threads);
-    let op = Arc::new(op);
+    let pool = rayon::ThreadPoolBuilder::new().build().unwrap();
+    let wall_elapsed = AtomicI64::new(0);
 
-    let wall_elapsed = Arc::new(AtomicI64::new(0));
-    for _ in 0..total_threads {
-        let wall_elapsed = wall_elapsed.clone();
-        let op = op.clone();
-        wall_handles.push(std::thread::spawn(move || {
-            for i in 0..total_count {
-                let start = Instant::now();
-                let result = op(i);
-                let elapsed = start.elapsed().as_nanos() as i64;
-                black_box(result);
-                wall_elapsed.fetch_add(elapsed, Ordering::SeqCst);
-            }
-        }));
-    }
-    for handle in wall_handles {
-        handle.join().unwrap();
-    }
+    pool.scope(|scope| {
+        for _ in 0..total_threads {
+            scope.spawn(|_| {
+                let mut p = pre_op();
+                for i in 0..total_count {
+                    let start = Instant::now();
+                    let result = op(&mut p, i);
+                    let elapsed = start.elapsed().as_nanos() as i64;
+                    black_box(result);
+                    wall_elapsed.fetch_add(elapsed, Ordering::SeqCst);
+                }
+            });
+        }
+    });
 
     Duration::from_nanos(wall_elapsed.load(Ordering::SeqCst) as u64)
 }
@@ -258,30 +286,40 @@ mod test {
 
     #[test]
     fn alloc_test() {
-        let total_count = 20000;
-        let total_threads = 1;
+        let total_count = 200;
+        let total_threads = 2;
 
         println!(
-            "Generating {} numbers inside {} thread(s)",
+            "Generating {} objects inside {} thread(s)",
             total_count, total_threads
         );
 
-        let wall = &*Box::leak(Box::new(Wall::new()));
-        let elapsed = run_alloc_test(total_count, total_threads, move |i| wall.make(i));
+        let castle = Castle::new();
+        let elapsed = run_alloc_test(
+            total_count,
+            total_threads,
+            || castle.wall(),
+            |wall, _| MyComplexStructWref::new(wall),
+        );
         println!(
             "Wall took {:?} in total, {:?} average",
             elapsed,
             elapsed / total_count as u32
         );
 
-        let elapsed = run_alloc_test(total_count, total_threads, |i| Box::new(i));
+        let elapsed = run_alloc_test(
+            total_count,
+            total_threads,
+            || {},
+            |_, _| MyComplexStructBoxed::new(),
+        );
         println!(
             "Box took {:?} in total, {:?} average",
             elapsed,
             elapsed / total_count as u32
         );
 
-        let elapsed = run_alloc_test(total_count, total_threads, |_| {});
+        let elapsed = run_alloc_test(total_count, total_threads, || {}, |_, _| {});
         println!(
             "Control took {:?} in total, {:?} average",
             elapsed,
