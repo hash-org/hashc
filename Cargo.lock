@@ -349,6 +349,7 @@ dependencies = [
  "hash-parser",
  "hash-pest-parser",
  "hash-reporting",
+ "hash-utils",
  "log",
  "num_cpus",
  "pretty_env_logger",

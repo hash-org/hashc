@@ -9,9 +9,10 @@ mod logger;
 
 use clap::{crate_version, AppSettings, Clap};
 use hash_ast::error::ParseError;
-use hash_ast::parse::{timed, Modules};
+use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
 use hash_reporting::errors::CompilerError;
+use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
 use std::num::NonZeroUsize;
@@ -19,8 +20,8 @@ use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
 
-use hash_parser::parse::HashParser;
-use hash_pest_parser::grammar::HashGrammar;
+use hash_parser::backend::HashParser;
+use hash_pest_parser::backend::PestBackend;
 
 use crate::crash_handler::panic_handler;
 
@@ -152,13 +153,13 @@ fn main() {
                 // If we're using pest as a parsing backend, enable it via flags...
                 let result = if cfg!(feature = "use-pest") {
                     run_parsing(
-                        ParParser::new_with_workers(HashGrammar, worker_count),
+                        ParParser::new_with_workers(PestBackend, worker_count),
                         filename,
                         directory,
                     )
                 } else {
                     run_parsing(
-                        ParParser::new_with_workers(HashParser {}, worker_count),
+                        ParParser::new_with_workers(HashParser, worker_count),
                         filename,
                         directory,
                     )

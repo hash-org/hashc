@@ -7,14 +7,15 @@ mod command;
 use command::InteractiveCommand;
 use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
-use hash_ast::parse::{Modules, ParParser, Parser};
+use hash_ast::module::Modules;
+use hash_ast::parse::{ParParser, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 
 #[cfg(feature = "use-pest")]
 use hash_pest_parser::grammar::HashGrammar;
 
 #[cfg(not(feature = "use-pest"))]
-use hash_parser::parse::HashParser;
+use hash_parser::backend::HashParser;
 
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
