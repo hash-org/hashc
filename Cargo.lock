@@ -27,12 +27,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomicbox"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edb660842935616be7ef06ad7d9f942a75c9edf4cb6c34a28ac6752fd26735d0"
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -345,7 +339,7 @@ dependencies = [
 name = "hash-alloc"
 version = "0.1.0"
 dependencies = [
- "atomicbox",
+ "crossbeam-channel",
  "dashmap",
  "parking_lot",
  "rayon",
