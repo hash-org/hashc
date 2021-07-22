@@ -95,19 +95,27 @@ impl<'a> Lexer<'a> {
     pub(crate) fn advance_token(&self) -> Option<Token> {
         let offset = self.offset.get();
 
-        // skip whitespaces first...
-        if self.peek().is_whitespace() {
-            self.eat_while_and_discard(char::is_whitespace);
-        }
+        // Eat any comments or whitespace before processing the token...
+        loop {
+            match self.peek() {
+                c if c.is_whitespace() => self.eat_while_and_discard(char::is_whitespace),
+                '/' => match self.peek_second() {
+                    '*' => self.block_comment(),
+                    '/' => self.line_comment(),
+                    _ => {
+                        self.next();
 
-        // skip comments if there are any
-        if self.peek() == '/' {
-            self.eat_comments();
+                        // @@Hack: since we already compare if the first item is a slash, we'll just
+                        // return here the slash and advance it by one.
+                        return Some(Token::new(TokenKind::Slash, Location::pos(offset)));
+                    }
+                },
+                _ => break,
+            }
         }
 
         let token_kind = match self.next()? {
             // One-symbol tokens.
-            '/' => TokenKind::Slash,
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
             '.' => TokenKind::Dot,
@@ -312,25 +320,6 @@ impl<'a> Lexer<'a> {
             Ok(num) if negated => Ok(-num),
             Ok(num) => Ok(num),
         }
-    }
-
-    /// Eat while version to eat line and block comments until a character or sequence of characters
-    /// that does not begin the comment appears...
-    pub(crate) fn eat_comments(&self) {
-        self.eat_while_and_discard(|c| {
-            // Slash, comment or block comment.
-            match c {
-                '/' => {
-                    match self.peek_second() {
-                        '/' => self.line_comment(),
-                        '*' => self.block_comment(),
-                        _ => return false,
-                    };
-                    true
-                }
-                _ => false,
-            }
-        })
     }
 
     /// Consume only decimal digits up to encountering a non-decimal digit
