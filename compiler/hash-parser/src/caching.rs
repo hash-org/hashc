@@ -10,7 +10,8 @@ use hash_ast::ast::AstString;
 /// multiple times even if it occurs within the source.
 #[derive(Debug, Default)]
 pub struct StringLiteralMap {
-    string_data: DashMap<StringIdentifier, AstString>,
+    string_table: DashMap<StringIdentifier, AstString>,
+    reverse_table: DashMap<AstString, StringIdentifier>,
 }
 
 counter! {
@@ -28,13 +29,22 @@ impl StringLiteralMap {
     /// Add a new string to the map, this will add an additional entry even if the string is already
     /// within the map.
     pub fn create_string(&self, value: AstString) -> StringIdentifier {
-        let ident = StringIdentifier::new();
-        self.string_data.insert(ident, value);
-        ident
+        if let Some(key) = self.reverse_table.get(&value) {
+            *key
+        } else {
+            let ident = StringIdentifier::new();
+
+            // copy over the string so that we can insert it into the reverse lookup table
+            let value_copy = value.clone();
+
+            self.reverse_table.insert(value, ident);
+            self.string_table.insert(ident, value_copy);
+            ident
+        }
     }
 
     /// Get the [String] behind the [StringIdentifier]
     pub fn lookup(&self, ident: StringIdentifier) -> String {
-        self.string_data.get(&ident).unwrap().value().to_string()
+        self.string_table.get(&ident).unwrap().value().to_string()
     }
 }

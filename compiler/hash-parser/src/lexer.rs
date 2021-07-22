@@ -117,14 +117,20 @@ impl<'a> Lexer<'a> {
                 ';' => break TokenKind::Semi,
                 ',' => break TokenKind::Comma,
                 '.' => break TokenKind::Dot,
+
+                // @@Improvement(alex): We should work around parenthesees as trees, we can essentially create a new token
+                //                      stream each time we hit a Delimeter that uses some kind of brace. This could be very
+                //                      beneficial because we could parellilise the transformation of tokens into ASTs simply
+                //                      by observing the size and position of these children streams of tokens...
+                // >---------------------------------<
                 '(' => break TokenKind::OpenParen,
                 ')' => break TokenKind::CloseParen,
                 '{' => break TokenKind::OpenBrace,
                 '}' => break TokenKind::CloseBrace,
                 '[' => break TokenKind::OpenBracket,
                 ']' => break TokenKind::CloseBracket,
+                // >---------------------------------<
                 '~' => break TokenKind::Tilde,
-                ':' => break TokenKind::Colon,
                 '=' => break TokenKind::Eq,
                 '!' => break TokenKind::Exclamation,
                 '<' => break TokenKind::Lt,
@@ -136,6 +142,17 @@ impl<'a> Lexer<'a> {
                 '*' => break TokenKind::Star,
                 '^' => break TokenKind::Caret,
                 '%' => break TokenKind::Percent,
+
+                // @@Improvement: This can be a potentially made out as a compound token... the same could be done with other
+                //                tokens that are likely to be compound, it would also avoid doing the work later on...
+                // ':' => match self.peek() {
+                //     ':' => {
+                //         self.next();
+                //         break TokenKind::NameAccess
+                //     }
+                //     _ => break TokenKind::Colon
+                // },
+                ':' => break TokenKind::Colon,
 
                 // Identifier (this should be checked after other variant that can
                 // start as identifier).

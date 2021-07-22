@@ -26,6 +26,9 @@ pub struct IdentifierMap {
 }
 
 lazy_static! {
+    // @@Improvement: Initialise the identifier map with all the keywords that are reserved in the language
+    //                so that it will be easier to perform comparisons on when a keyword is present, rather than
+    //                always looking them up...
     pub static ref IDENTIFIER_MAP: IdentifierMap = IdentifierMap::default();
 }
 
