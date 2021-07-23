@@ -7,6 +7,7 @@ use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::location::Location;
 
 use crate::caching::STRING_LITERAL_MAP;
+use crate::token::Delimiter;
 use crate::token::Token;
 use crate::token::TokenError;
 use crate::token::TokenErrorKind;
@@ -119,19 +120,6 @@ impl<'a> Lexer<'a> {
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
             '.' => TokenKind::Dot,
-
-            // @@Improvement(alex): We should work around parenthesees as trees, we can essentially create a new token
-            //                      stream each time we hit a Delimeter that uses some kind of brace. This could be very
-            //                      beneficial because we could parellilise the transformation of tokens into ASTs simply
-            //                      by observing the size and position of these children streams of tokens...
-            // >---------------------------------<
-            '(' => TokenKind::OpenParen,
-            ')' => TokenKind::CloseParen,
-            '{' => TokenKind::OpenBrace,
-            '}' => TokenKind::CloseBrace,
-            '[' => TokenKind::OpenBracket,
-            ']' => TokenKind::CloseBracket,
-            // >---------------------------------<
             '~' => TokenKind::Tilde,
             '=' => TokenKind::Eq,
             '!' => TokenKind::Exclamation,
@@ -156,6 +144,12 @@ impl<'a> Lexer<'a> {
             // },
             ':' => TokenKind::Colon,
 
+            // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed
+            // by a followiing delimiter...
+            ch @ ('(' | '{' | '[') => self
+                .eat_token_tree(Delimiter::from_left(ch).unwrap())
+                .unwrap(),
+
             // Identifier (this should be checked after other variant that can
             // start as identifier).
             c if is_id_start(c) => self.ident(),
@@ -175,11 +169,42 @@ impl<'a> Lexer<'a> {
             // String literal.
             '"' => self.string().unwrap_or_else(|e| panic!("error: {:?}", e)),
 
+            // We have to exit the current tree if we encounter a closing delimiter...
+            ')' | '}' | ']' => return None,
             _ => TokenKind::Unexpected,
         };
 
         let location = Location::span(offset, self.len_consumed());
         Some(Token::new(token_kind, location))
+    }
+
+    /// This will essentially recursively consume tokens until it reaches the right hand-side variant
+    /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
+    /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
+    /// perfoming complex delimiter depth analysis later on.
+    pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind> {
+        debug_assert!(self.prev.get().unwrap() == delimiter.left());
+
+        let mut children_tokens = vec![];
+
+        let start = self.offset.get();
+
+        while !self.is_eof() {
+            // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
+            match self.advance_token() {
+                Some(token) => children_tokens.push(token),
+                None => break,
+            };
+        }
+
+        match self.prev.get().unwrap() == delimiter.right() {
+            false => Err(TokenError::new(
+                None,
+                TokenErrorKind::Unclosed(delimiter),
+                Location::pos(start),
+            )),
+            true => Ok(TokenKind::Tree(delimiter, children_tokens)),
+        }
     }
 
     /// Consume an identifier, at this stage keywords are also considered to be identfiers. The function
