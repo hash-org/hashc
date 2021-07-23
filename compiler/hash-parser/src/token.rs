@@ -16,7 +16,7 @@ pub type TokenResult<T> = Result<T, TokenError>;
 /// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
 /// source that is represented as a span. The span is the beginning byte offset, and the
 /// number of bytes for the said token.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Location,
@@ -44,6 +44,42 @@ impl fmt::Display for Token {
                 write!(f, "CharLiteral ('{}')", ch)
             }
             kind => write!(f, "{:?}", kind),
+        }
+    }
+}
+
+#[derive(Debug, Hash, PartialEq)]
+pub enum Delimiter {
+    Paren,
+    Brace,
+    Bracket,
+}
+
+impl Delimiter {
+    pub fn from_left(ch: char) -> Option<Delimiter> {
+        match ch {
+            '(' => Some(Delimiter::Paren),
+            '[' => Some(Delimiter::Bracket),
+            '{' => Some(Delimiter::Brace),
+            _ => None,
+        }
+    }
+
+    /// Get the left-hand side variant of a coressponding delimiter
+    pub fn left(&self) -> char {
+        match self {
+            Delimiter::Paren => '(',
+            Delimiter::Bracket => '[',
+            Delimiter::Brace => '{',
+        }
+    }
+
+    /// Get the right-hand side variant of a coressponding delimiter
+    pub fn right(&self) -> char {
+        match self {
+            Delimiter::Paren => ')',
+            Delimiter::Bracket => ']',
+            Delimiter::Brace => '}',
         }
     }
 }
@@ -102,18 +138,12 @@ pub enum TokenKind {
     Quote,
     /// "'"
     SingleQoute,
-    /// '{'
-    OpenBrace,
-    /// '('
-    OpenParen,
-    /// '['
-    OpenBracket,
-    /// '}'
-    CloseBrace,
-    /// ')'
-    CloseParen,
-    /// ']'
-    CloseBracket,
+
+    /// A token tree is represnted by an arbitrary number of tokens that are surrounded by
+    /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
+    Tree(Delimiter, Vec<Token>),
+
+    /// @@Redundant: we should report an error on this?
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
     /// string literal.
     Unexpected,
@@ -141,6 +171,8 @@ pub enum TokenErrorKind {
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
     Expected(TokenKind),
+    /// Unclosed tree block
+    Unclosed(Delimiter)
 }
 
 impl TokenError {
@@ -150,5 +182,18 @@ impl TokenError {
             kind,
             location,
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn type_size() {
+        println!("{:?}", std::mem::size_of::<Delimiter>());
+        println!("{:?}", std::mem::size_of::<Token>());
+        println!("{:?}", std::mem::size_of::<TokenKind>());
     }
 }

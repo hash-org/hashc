@@ -44,7 +44,7 @@ impl ParserBackend for HashParser {
 
         // @@Remove
         for token in tokens {
-            println!("{}", token);
+            println!("{:#?}", token);
         }
 
         Ok(AstNode::new(
