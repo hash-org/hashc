@@ -349,13 +349,13 @@ impl<'c, T> Row<'c, T> {
     }
 
     pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
+        if new_capacity < self.len() {
+            panic!("Tried to reallocate with a capacity smaller than length");
+        }
+
         if new_capacity < self.capacity() {
             // no-op
             return;
-        }
-
-        if new_capacity < self.len() {
-            panic!("Tried to reallocate with a capacity smaller than length");
         }
 
         println!("Reserving {}, current {}", new_capacity, self.capacity());
