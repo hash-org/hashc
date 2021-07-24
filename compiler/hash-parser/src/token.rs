@@ -172,7 +172,7 @@ pub enum TokenErrorKind {
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
     Expected(TokenKind),
     /// Unclosed tree block
-    Unclosed(Delimiter)
+    Unclosed(Delimiter),
 }
 
 impl TokenError {
@@ -184,7 +184,6 @@ impl TokenError {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
