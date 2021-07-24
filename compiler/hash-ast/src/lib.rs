@@ -7,6 +7,7 @@ pub mod count;
 pub mod error;
 mod fs;
 pub mod ident;
+pub mod keyword;
 pub mod location;
 pub mod module;
 pub mod parse;
