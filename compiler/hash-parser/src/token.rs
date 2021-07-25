@@ -98,7 +98,7 @@ pub enum TokenKind {
     Plus,
     /// '-'
     Minus,
-    /// *
+    /// '*'
     Star,
     /// '/'
     Slash,
@@ -107,17 +107,7 @@ pub enum TokenKind {
     /// '^'
     Caret,
     /// '&'
-    And,
-    /// Integer Literal
-    IntLiteral(u64),
-    /// Float literal
-    FloatLiteral(f64),
-    /// Character literal
-    CharLiteral(char),
-    /// StrLiteral,
-    StrLiteral(StringIdentifier),
-    /// Identifier
-    Ident(Identifier),
+    Amp,
     /// '~'
     Tilde,
     /// '|'
@@ -126,8 +116,6 @@ pub enum TokenKind {
     Exclamation,
     /// '.'
     Dot,
-    // '::'
-    // NameAccess,
     /// ':'
     Colon,
     /// ';'
@@ -138,6 +126,17 @@ pub enum TokenKind {
     Quote,
     /// "'"
     SingleQoute,
+
+    /// Integer Literal
+    IntLiteral(u64),
+    /// Float literal
+    FloatLiteral(f64),
+    /// Character literal
+    CharLiteral(char),
+    /// StrLiteral,
+    StrLiteral(StringIdentifier),
+    /// Identifier
+    Ident(Identifier),
 
     /// A token tree is represnted by an arbitrary number of tokens that are surrounded by
     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.

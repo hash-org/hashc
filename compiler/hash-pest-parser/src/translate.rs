@@ -456,9 +456,14 @@ where
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<AccessName>> {
         match pair.as_rule() {
-            Rule::access_name => Ok(self.builder_from_pair(&pair).node(AccessName {
-                path: IDENTIFIER_MAP.create_path_ident(AstString::Owned(pair.as_str().to_owned())),
-            })),
+            Rule::access_name => {
+                let inner = pair.into_inner().next().unwrap();
+
+                Ok(self.builder_from_pair(&inner).node(AccessName {
+                    path: IDENTIFIER_MAP
+                        .create_path_ident(AstString::Owned(inner.as_str().to_owned())),
+                }))
+            }
             _ => unreachable!(),
         }
     }

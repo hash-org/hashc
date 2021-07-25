@@ -12,7 +12,7 @@ use hash_ast::parse::{ParParser, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 
 #[cfg(feature = "use-pest")]
-use hash_pest_parser::grammar::HashGrammar;
+use hash_pest_parser::backend::PestBackend;
 
 #[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
@@ -77,7 +77,7 @@ fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(HashParser {});
+    let parser = ParParser::new(HashParser);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
@@ -94,7 +94,7 @@ fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(HashGrammar);
+    let parser = ParParser::new(PestBackend);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
