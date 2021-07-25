@@ -4,15 +4,16 @@
 
 #![allow(dead_code)] // @@REMOVE
 #![feature(bench_black_box)]
-#![feature(maybe_uninit_extra)]
 
-use core::fmt;
+pub mod brick;
+pub mod collections;
+
 use parking_lot::Mutex;
 use std::{
     alloc::Layout,
     cell::{Cell, UnsafeCell},
+    convert::TryFrom,
     mem::{ManuallyDrop, MaybeUninit},
-    ops::{Deref, DerefMut},
     ptr::NonNull,
 };
 
@@ -43,7 +44,7 @@ impl WallSection {
     fn alloc(&self, layout: Layout) -> Option<NonNull<MaybeUninit<u8>>> {
         // Old value is start
         let start = {
-            let layout_size = layout.size();
+            let layout_size = layout.pad_to_align().size();
 
             let old_offset = self.offset.get();
             let new_offset = old_offset + layout_size;
@@ -59,21 +60,26 @@ impl WallSection {
             old_offset
         };
 
-        // Safety: no one has access to data right now, previous reference (max_offset) has been
-        // dropped.
-        let data_ptr = unsafe { &mut *self.data.get() }.as_mut_ptr();
+        match isize::try_from(start) {
+            Err(_) => panic!("Integer overflow when calculating allocation size"),
+            Ok(start) => {
+                // Safety: no one has access to data right now, previous reference (max_offset) has been
+                // dropped.
+                let data_ptr = unsafe { &mut *self.data.get() }.as_mut_ptr();
 
-        // Pointer to return is `start` offset from self.data.
-        // Safety: we have ensured that the layout fits on the brick.
-        //
-        // Safety: ranges are never overlapping, so we don't need to care about aliasing. We can
-        // safely return this pointer, given that the user only accesses data within
-        //  0..layout.size()
-        let ptr = unsafe {
-            // @@TODO: what about integer overflow on start?
-            NonNull::new_unchecked(data_ptr.offset(start as isize))
-        };
-        Some(ptr)
+                // Pointer to return is `start` offset from self.data.
+                // Safety: we have ensured that the layout fits on the brick.
+                //
+                // Safety: ranges are never overlapping, so we don't need to care about aliasing. We can
+                // safely return this pointer, given that the user only accesses data within
+                //  0..layout.pad_to_align().size()
+                let ptr = unsafe {
+                    // @@TODO: what about integer overflow on start?
+                    NonNull::new_unchecked(data_ptr.offset(start))
+                };
+                Some(ptr)
+            }
+        }
     }
 
     fn allocated_bytes(&self) -> usize {
@@ -128,12 +134,15 @@ impl<'c> Wall<'c> {
         }
     }
 
-    fn alloc_raw(&self, layout: Layout) -> NonNull<MaybeUninit<u8>> {
+    fn alloc_raw<T>(&self, layout: Layout) -> NonNull<MaybeUninit<ManuallyDrop<T>>> {
         loop {
+            // Safety: There are no other references to the current section anywhere, since this
+            // struct is single-threaded.
             let curr_section = unsafe { &*self.curr_section.get() };
             match curr_section.alloc(layout) {
                 Some(result) => {
-                    break result;
+                    // This is safe to do because result is a pointer to bytes.
+                    break result.cast();
                 }
                 None => {
                     // New capacity is largest of: requested size, or current allocated bytes * 2.
@@ -163,32 +172,42 @@ impl<'c> Wall<'c> {
         }
     }
 
-    fn alloc_value<T>(&self, value: T) -> &'c mut T {
+    fn alloc_value<T>(&self, value: T) -> &'c mut ManuallyDrop<T> {
         let layout = Layout::new::<T>();
-        let mut ptr: NonNull<MaybeUninit<T>> = self.alloc_raw(layout).cast();
+        let mut ptr: NonNull<MaybeUninit<ManuallyDrop<T>>> = self.alloc_raw::<T>(layout);
+
+        // Safety: ptr is always valid and large enough for T.
         unsafe {
-            *(ptr.as_ptr()) = MaybeUninit::new(value);
+            *(ptr.as_ptr()) = MaybeUninit::new(ManuallyDrop::new(value));
         }
+
+        // Safety: We initialised the value above.
         unsafe { ptr.as_mut().assume_init_mut() }
     }
 
-    fn alloc_uninit_slice<T>(&self, len: usize) -> &'c mut [MaybeUninit<T>] {
+    fn alloc_uninit_slice<T>(&self, len: usize) -> &'c mut [MaybeUninit<ManuallyDrop<T>>] {
+        // Safety: we can unwrap, arithmetic overflow should panic.
         let layout = Layout::array::<T>(len).unwrap();
-        let ptr: NonNull<MaybeUninit<T>> = self.alloc_raw(layout).cast();
+        let ptr: NonNull<MaybeUninit<ManuallyDrop<T>>> = self.alloc_raw::<T>(layout);
+
+        // Safety: ptr uses the layout above, which is of an array.
         unsafe { std::slice::from_raw_parts_mut(ptr.as_ptr(), len) }
     }
 }
 
 impl Drop for Wall<'_> {
     fn drop(&mut self) {
-        // Reclaim the last section
+        // Safety: this only happens when the destructor runs, which is once.
         let section = unsafe { ManuallyDrop::take(&mut self.curr_section) }.into_inner();
+
+        // Reclaim the last section
         self.castle.reclaim_section(section);
     }
 }
 
 impl Clone for Wall<'_> {
     fn clone(&self) -> Self {
+        // Make a new wall on clone.
         self.castle.wall()
     }
 }
@@ -278,233 +297,6 @@ impl Castle {
     }
 }
 
-pub struct Brick<'c, T> {
-    data: &'c mut T,
-}
-
-impl<'c, T> Brick<'c, T> {
-    pub fn new(x: T, wall: &Wall<'c>) -> Self {
-        Self {
-            data: wall.alloc_value(x),
-        }
-    }
-}
-
-impl<'c, T: Clone> Brick<'c, T> {
-    pub fn clone_out(&self) -> T {
-        (*self).clone()
-    }
-}
-
-impl<T: PartialEq> PartialEq for Brick<'_, T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.deref() == other.deref()
-    }
-}
-
-impl<T: Eq> Eq for Brick<'_, T> {}
-
-impl<T> Deref for Brick<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        self.data
-    }
-}
-
-impl<T> DerefMut for Brick<'_, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.data
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for Brick<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-
-pub struct Row<'c, T> {
-    data: &'c mut [MaybeUninit<T>],
-    length: usize,
-}
-
-const ROW_INITIAL_REALLOC_SIZE: usize = 4;
-const ROW_REALLOC_MULTIPLIER: usize = 2;
-
-impl<'c, T> Row<'c, T> {
-    pub fn new(wall: &Wall<'c>) -> Self {
-        Self::with_capacity(0, wall)
-    }
-
-    pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
-        Self {
-            data: wall.alloc_uninit_slice(initial_capacity),
-            length: 0,
-        }
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.data.len()
-    }
-
-    pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
-        if new_capacity < self.len() {
-            panic!("Tried to reallocate with a capacity smaller than length");
-        }
-
-        if new_capacity < self.capacity() {
-            // no-op
-            return;
-        }
-
-        println!("Reserving {}, current {}", new_capacity, self.capacity());
-        let new_data = wall.alloc_uninit_slice(new_capacity);
-
-        // Safety: Both ranges are valid because they originate from wall.alloc_raw.
-        // NB: self.data is now invalid, elements have been moved.
-        unsafe {
-            std::ptr::copy_nonoverlapping(self.data.as_ptr(), new_data.as_mut_ptr(), self.len());
-        }
-
-        self.data = new_data;
-    }
-
-    pub fn push(&mut self, element: T, wall: &Wall<'c>) {
-        if self.capacity() < self.len() + 1 {
-            if self.capacity() == 0 {
-                self.reserve(ROW_INITIAL_REALLOC_SIZE, wall);
-            } else {
-                let new_capacity = self.capacity() * ROW_REALLOC_MULTIPLIER;
-                if new_capacity > isize::MAX as usize {
-                    panic!("Reallocation target capacity is too large");
-                }
-
-                self.reserve(new_capacity, wall);
-            }
-        }
-
-        // Safety: we just reserved enough for this to be valid.
-        *unsafe { self.data.get_unchecked_mut(self.len()) } = MaybeUninit::new(element);
-        self.length += 1;
-    }
-
-    pub fn pop(&mut self) -> Option<T> {
-        if self.len() == 0 {
-            return None;
-        }
-
-        let last_element = std::mem::replace(
-            unsafe { self.data.get_unchecked_mut(self.len() - 1) },
-            MaybeUninit::uninit(),
-        );
-        self.length -= 1;
-
-        Some(unsafe { last_element.assume_init() })
-    }
-
-    pub fn from_iter<I>(iter: I, wall: &Wall<'c>) -> Self
-    where
-        I: IntoIterator<Item = T>,
-    {
-        let iter = iter.into_iter();
-        let (min_bound, max_bound) = iter.size_hint();
-        let initial_capacity = max_bound.unwrap_or(min_bound);
-
-        let mut row = Row::with_capacity(initial_capacity, wall);
-        for element in iter {
-            row.push(element, wall);
-        }
-
-        row
-    }
-}
-
-#[macro_export]
-macro_rules! row {
-    ($wall:expr) => { Row::new($wall) };
-    ($wall:expr; $($item:expr),*) => { Row::from_iter([$($item,)*], $wall) };
-    ($wall:expr; $($item:expr,)*) => { Row::from_iter([$($item,)*], $wall) };
-    ($wall:expr; $item:expr; $count:expr) => { Row::from_iter(std::iter::repeat($item).take($count), $wall) };
-}
-
-impl<T: fmt::Debug> fmt::Debug for Row<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-
-impl<T> Deref for Row<'_, T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        // Safety: values until self.length are initialised.
-        unsafe { std::mem::transmute::<&[MaybeUninit<T>], &[T]>(&self.data[0..self.length]) }
-    }
-}
-
-impl<T> DerefMut for Row<'_, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // Safety: values until self.length are initialised.
-        unsafe {
-            std::mem::transmute::<&mut [MaybeUninit<T>], &mut [T]>(&mut self.data[0..self.length])
-        }
-    }
-}
-
-impl<T> Drop for Row<'_, T> {
-    fn drop(&mut self) {
-        // Drop elements until self.length
-        for x in (&mut self.data[0..self.length]).into_iter() {
-            unsafe {
-                x.assume_init_drop();
-            }
-        }
-    }
-}
-
-pub struct BrickString<'c> {
-    inner: Row<'c, u8>,
-}
-
-impl<'c> BrickString<'c> {
-    pub fn new(value: &str, wall: &Wall<'c>) -> Self {
-        let mut brick_str = Self::with_capacity(value.len(), wall);
-        for v in value.bytes() {
-            brick_str.inner.push(v, wall);
-        }
-        brick_str
-    }
-
-    pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
-        Self {
-            inner: Row::with_capacity(initial_capacity, wall),
-        }
-    }
-
-    pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
-        self.inner.reserve(new_capacity, wall)
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
-    }
-}
-
-impl Deref for BrickString<'_> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { std::str::from_utf8_unchecked(self.inner.deref()) }
-    }
-}
-
-impl fmt::Debug for BrickString<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use core::fmt;
@@ -513,6 +305,8 @@ mod test {
         sync::atomic::{AtomicI64, Ordering},
         time::{Duration, Instant},
     };
+
+    use crate::{brick::Brick, collections::row::Row};
 
     use super::*;
 
@@ -642,7 +436,7 @@ mod test {
             wall.allocated_bytes()
         );
 
-        let row: Row<i32> = row![&wall];
+        let _row: Row<i32> = row![&wall];
 
         println!(
             "used {}, total {}",
