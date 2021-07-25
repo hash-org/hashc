@@ -115,34 +115,37 @@ impl<'a> Lexer<'a> {
             }
         }
 
+        // We avoid checking if the tokens are compound here because we don't really want to deal with commments
+        // and spaces in an awkard way... Once the whole stream is transformed into a bunch of tokens, we can then
+        // combine these tokens into more complex variants that might span multiple characters. For example, the code...
+        // > ':' => match self.peek() {
+        // >     ':' => {
+        // >         self.next();
+        // >         break TokenKind::NameAccess
+        // >     }
+        // >     _ => break TokenKind::Colon
+        // > },
+        //
+        // could work here, but however what about if there was a space or a comment between the colons, this might be
+        // problematic. Essentially, we pass the responsobility of forming more compound tokens to AST gen rather than here.
         let token_kind = match self.next()? {
-            // One-symbol tokens.
-            ';' => TokenKind::Semi,
-            ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
+            // One-symbol tokens
             '~' => TokenKind::Tilde,
             '=' => TokenKind::Eq,
             '!' => TokenKind::Exclamation,
-            '<' => TokenKind::Lt,
-            '>' => TokenKind::Gt,
             '-' => TokenKind::Minus,
-            '&' => TokenKind::And,
-            '|' => TokenKind::Pipe,
             '+' => TokenKind::Plus,
             '*' => TokenKind::Star,
-            '^' => TokenKind::Caret,
             '%' => TokenKind::Percent,
-
-            // @@Improvement: This can be a potentially made out as a compound token... the same could be done with other
-            //                tokens that are likely to be compound, it would also avoid doing the work later on...
-            // ':' => match self.peek() {
-            //     ':' => {
-            //         self.next();
-            //         break TokenKind::NameAccess
-            //     }
-            //     _ => break TokenKind::Colon
-            // },
+            '>' => TokenKind::Gt,
+            '<' => TokenKind::Lt,
+            '|' => TokenKind::Pipe,
+            '^' => TokenKind::Caret,
+            '&' => TokenKind::Amp,
             ':' => TokenKind::Colon,
+            ';' => TokenKind::Semi,
+            ',' => TokenKind::Comma,
+            '.' => TokenKind::Dot,
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed
             // by a followiing delimiter...

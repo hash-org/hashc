@@ -62,6 +62,10 @@ pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<OperatorFn> {
             name: "orb_eq",
             assigning: true,
         }),
+        Rule::exp_eq_op => Some(Named {
+            name: "exp_eq",
+            assigning: true,
+        }),
         Rule::xorb_eq_op => Some(Named {
             name: "xorb_eq",
             assigning: true,
