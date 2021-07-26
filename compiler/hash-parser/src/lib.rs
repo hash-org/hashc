@@ -4,6 +4,7 @@
 
 pub mod backend;
 pub mod caching;
+pub mod gen;
 pub mod lexer;
 pub mod token;
 pub mod utils;
