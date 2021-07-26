@@ -59,7 +59,7 @@ impl IdentifierMap {
         // always looking them up. Thi smeans that the names of each keyword is guaranteed to have a
         // identifier value in the ranges of 0...15
         for keyword in Keyword::VARIANTS {
-            map.create_ident(AstString::Borrowed(keyword.as_ref()));
+            map.create_ident(AstString::Borrowed(keyword));
         }
 
         // assert_eq!(map.ident_name(Identifier::from(0)), "let".to_string());
