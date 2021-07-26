@@ -2,6 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
+pub mod gen;
 pub mod backend;
 pub mod caching;
 pub mod lexer;

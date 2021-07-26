@@ -2,6 +2,7 @@ use crate::{ast::AstString, keyword::Keyword};
 use dashmap::DashMap;
 use hash_utils::counter;
 use lazy_static::lazy_static;
+use strum::VariantNames;
 
 counter! {
     name: Identifier,
@@ -57,8 +58,8 @@ impl IdentifierMap {
         // so that it will be easier to perform comparisons on when a keyword is present, rather than
         // always looking them up. Thi smeans that the names of each keyword is guaranteed to have a
         // identifier value in the ranges of 0...15
-        for keyword in Keyword::iterator() {
-            map.create_ident(AstString::Borrowed(keyword.to_str()));
+        for keyword in Keyword::VARIANTS {
+            map.create_ident(AstString::Borrowed(keyword.as_ref()));
         }
 
         // assert_eq!(map.ident_name(Identifier::from(0)), "let".to_string());
