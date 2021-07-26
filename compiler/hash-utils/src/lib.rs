@@ -22,6 +22,10 @@ macro_rules! counter {
                 Self($counter_name.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
             }
 
+            $method_visibility fn from(id: u32) -> Self {
+                $name(id)
+            }
+
             $method_visibility fn total() -> u32 {
                 $counter_name.load(std::sync::atomic::Ordering::SeqCst)
             }

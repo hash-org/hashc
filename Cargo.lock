@@ -346,8 +346,10 @@ dependencies = [
  "clap",
  "hash-ast",
  "hash-interactive",
+ "hash-parser",
  "hash-pest-parser",
  "hash-reporting",
+ "hash-utils",
  "log",
  "num_cpus",
  "pretty_env_logger",
@@ -368,6 +370,9 @@ dependencies = [
  "log",
  "num_cpus",
  "rayon",
+ "static_assertions",
+ "strum",
+ "strum_macros",
  "thiserror",
 ]
 
@@ -376,9 +381,25 @@ name = "hash-interactive"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-parser",
  "hash-pest-parser",
  "hash-reporting",
  "rustyline",
+]
+
+[[package]]
+name = "hash-parser"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+ "dashmap",
+ "hash-ast",
+ "hash-utils",
+ "lazy_static",
+ "log",
+ "num_cpus",
+ "pretty_env_logger",
+ "rayon",
 ]
 
 [[package]]
@@ -834,6 +855,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
 
 [[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
 name = "str-buf"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -844,6 +871,24 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "strum"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf86bbcfd1fa9670b7a129f64fc0c9fcbbfe4f1bc4210e9e98fe71ffc12cde2"
+
+[[package]]
+name = "strum_macros"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "syn"
