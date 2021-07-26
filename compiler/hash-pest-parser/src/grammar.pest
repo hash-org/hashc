@@ -177,6 +177,7 @@ orl_eq_op = { "||=" }
 andb_eq_op = { "&=" }
 orb_eq_op = { "|=" }
 xorb_eq_op = { "^=" }
+exp_eq_op = { "^^=" }
 assign_op = { 
     assign_eq_op |
     add_eq_op    |
@@ -188,6 +189,7 @@ assign_op = {
     orl_eq_op    |
     andb_eq_op   |
     orb_eq_op    |
+    exp_eq_op    |
     xorb_eq_op 
 }
 

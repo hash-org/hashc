@@ -105,6 +105,7 @@ where
         // the `scope` parameter in the pool.scope call below.
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.worker_count.get() + 1)
+            .thread_name(|id| format!("parse-worker-{}", id))
             .build()
             .unwrap();
 

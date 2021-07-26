@@ -11,7 +11,7 @@ use crate::{
 };
 use derive_more::Constructor;
 use hash_utils::timed;
-use log::{debug, Level};
+use log::Level;
 use rayon::Scope;
 use std::{fs, path::Path};
 
@@ -101,7 +101,7 @@ where
                         )
                     },
                     Level::Debug,
-                    |elapsed| debug!("ast: {:.2?}", elapsed),
+                    |elapsed| println!("ast: {:.2?}", elapsed),
                 )?;
 
                 // Add the import to modules
