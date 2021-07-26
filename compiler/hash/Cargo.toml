@@ -20,5 +20,3 @@ num_cpus = "1.13.0"
 
 [features]
 use-pest = ["hash-interactive/use-pest"]
-
-# default = ["use-pest"]

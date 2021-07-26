@@ -126,7 +126,6 @@ pub enum TokenKind {
     Quote,
     /// "'"
     SingleQoute,
-
     /// Integer Literal
     IntLiteral(u64),
     /// Float literal

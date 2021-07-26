@@ -116,7 +116,7 @@ impl<'a> Lexer<'a> {
         }
 
         // We avoid checking if the tokens are compound here because we don't really want to deal with commments
-        // and spaces in an awkard way... Once the whole stream is transformed into a bunch of tokens, we can then
+        // and spaces in an awkward way... Once the whole stream is transformed into a bunch of tokens, we can then
         // combine these tokens into more complex variants that might span multiple characters. For example, the code...
         // > ':' => match self.peek() {
         // >     ':' => {
