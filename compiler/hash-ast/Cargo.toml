@@ -19,3 +19,4 @@ static_assertions = "1.1.0"
 derive_more = "0.99"
 hash-utils = { path = "../hash-utils" }
 hash-utils-testing-macros = { path = "../hash-utils/testing-macros" }
+hash-alloc = { path = "../hash-alloc" }

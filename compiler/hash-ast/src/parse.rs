@@ -13,13 +13,13 @@ use std::{collections::VecDeque, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};
 
 /// A trait for types which can parse a source file into an AST tree.
-pub trait Parser {
+pub trait Parser<'c> {
     /// Parse a source file with the given `filename` in the given `directory`.
     fn parse(
         &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules>;
+    ) -> ParseResult<Modules<'c>>;
 
     /// Parse an interactive input string.
     ///
@@ -31,7 +31,7 @@ pub trait Parser {
         &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<(AstNode<BodyBlock>, Modules)>;
+    ) -> ParseResult<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)>;
 }
 
 #[derive(Debug, Constructor, Copy, Clone)]
@@ -57,18 +57,18 @@ impl ParseErrorHandler<'_> {
 }
 
 #[derive(Debug, Constructor)]
-pub(crate) struct ParsingContext<'ctx, B> {
-    pub(crate) module_builder: &'ctx ModuleBuilder,
+pub(crate) struct ParsingContext<'c, 'ctx, B> {
+    pub(crate) module_builder: &'ctx ModuleBuilder<'c>,
     pub(crate) backend: &'ctx B,
     pub(crate) error_handler: ParseErrorHandler<'ctx>,
 }
 
-impl<B> Clone for ParsingContext<'_, B> {
+impl<'c, 'ctx, B> Clone for ParsingContext<'c, 'ctx, B> {
     fn clone(&self) -> Self {
         Self { ..*self }
     }
 }
-impl<B> Copy for ParsingContext<'_, B> {}
+impl<'c, 'ctx, B> Copy for ParsingContext<'c, 'ctx, B> {}
 
 #[derive(Debug, Copy, Clone)]
 enum EntryPoint<'a> {
@@ -81,9 +81,9 @@ pub struct ParParser<B> {
     backend: B,
 }
 
-impl<B> ParParser<B>
+impl<'c, B> ParParser<B>
 where
-    B: ParserBackend,
+    B: ParserBackend<'c>,
 {
     pub fn new(backend: B) -> Self {
         Self::new_with_workers(backend, NonZeroUsize::new(num_cpus::get()).unwrap())
@@ -100,7 +100,7 @@ where
         &self,
         entry: EntryPoint,
         directory: &Path,
-    ) -> ParseResult<(Option<AstNode<BodyBlock>>, Modules)> {
+    ) -> ParseResult<(Option<AstNode<'c, BodyBlock<'c>>>, Modules<'c>)> {
         // Spawn threadpool to delegate jobs to. This delegation can occur by acquiring a copy of
         // the `scope` parameter in the pool.scope call below.
         let pool = rayon::ThreadPoolBuilder::new()
@@ -110,7 +110,7 @@ where
             .unwrap();
 
         // Data structure used to keep track of all the parsed modules.
-        let module_builder = ModuleBuilder::new();
+        let module_builder = ModuleBuilder::<'c>::new();
 
         // Store parsing errors in this vector. It is behind a mutex because it needs to be
         // accessed by the pool threads.
@@ -198,15 +198,15 @@ where
     }
 }
 
-impl<B> Parser for ParParser<B>
+impl<'c, B> Parser<'c> for ParParser<B>
 where
-    B: ParserBackend,
+    B: ParserBackend<'c>,
 {
     fn parse(
         &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules> {
+    ) -> ParseResult<Modules<'c>> {
         let filename = filename.as_ref();
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
@@ -218,7 +218,7 @@ where
         &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<(AstNode<BodyBlock>, Modules)> {
+    ) -> ParseResult<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
         let directory = directory.as_ref();
         let entry = EntryPoint::Interactive { contents };
         let (interactive, modules) = self.parse_main(entry, directory)?;
@@ -226,17 +226,17 @@ where
     }
 }
 
-pub trait ParserBackend: Sync + Sized {
+pub trait ParserBackend<'c>: Sync + Sized {
     fn parse_module(
         &self,
         resolver: &mut impl ModuleResolver,
         path: &Path,
         contents: &str,
-    ) -> ParseResult<ast::Module>;
+    ) -> ParseResult<ast::Module<'c>>;
 
     fn parse_interactive(
         &self,
         resolver: &mut impl ModuleResolver,
         contents: &str,
-    ) -> ParseResult<AstNode<ast::BodyBlock>>;
+    ) -> ParseResult<AstNode<'c, ast::BodyBlock<'c>>>;
 }

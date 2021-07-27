@@ -3,6 +3,8 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 pub mod ast;
+pub mod literal;
+pub mod storage;
 pub mod count;
 pub mod error;
 mod fs;

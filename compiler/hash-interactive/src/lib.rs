@@ -10,6 +10,7 @@ use hash_ast::count::NodeCount;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
+use hash_alloc::Castle;
 
 #[cfg(feature = "use-pest")]
 use hash_pest_parser::backend::PestBackend;
@@ -73,11 +74,11 @@ pub fn init() -> CompilerResult<()> {
 }
 
 #[cfg(not(feature = "use-pest"))]
-fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+fn parse_interactive<'c>(expr: &str, castle: &'c Castle) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(HashParser);
+    let parser = ParParser::new(HashParser::new(castle));
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
@@ -114,6 +115,9 @@ fn execute(input: &str) {
 
     let command = InteractiveCommand::from(input);
 
+
+    let castle = Castle::new();
+
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
         Ok(InteractiveCommand::Clear) => {
@@ -127,23 +131,23 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
-            if parse_interactive(expr).is_some() {
+            if parse_interactive(expr, &castle).is_some() {
                 println!("running code...");
                 // Typecheck and execute...
             }
         }
         Ok(InteractiveCommand::Type(expr)) => {
-            if let Some((block, _)) = parse_interactive(expr) {
+            if let Some((block, _)) = parse_interactive(expr, &castle) {
                 println!("typeof({:#?})", block);
             }
         }
         Ok(InteractiveCommand::Display(expr)) => {
-            if let Some((block, _)) = parse_interactive(expr) {
+            if let Some((block, _)) = parse_interactive(expr, &castle) {
                 println!("{}", block);
             }
         }
         Ok(InteractiveCommand::Count(expr)) => {
-            if let Some((block, _)) = parse_interactive(expr) {
+            if let Some((block, _)) = parse_interactive(expr, &castle) {
                 println!("{} nodes", block.node_count());
             }
         }
