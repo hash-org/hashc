@@ -8,6 +8,7 @@ use std::fmt;
 use crate::caching::{StringIdentifier, STRING_LITERAL_MAP};
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
+use hash_ast::keyword::Keyword;
 use hash_ast::location::Location;
 
 pub type TokenResult<T> = Result<T, TokenError>;
@@ -16,7 +17,7 @@ pub type TokenResult<T> = Result<T, TokenError>;
 /// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
 /// source that is represented as a span. The span is the beginning byte offset, and the
 /// number of bytes for the said token.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Location,
@@ -32,6 +33,15 @@ impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TokenKind::Ident(ident) => write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident)),
+            TokenKind::Tree(delim, tree) => {
+                writeln!(f, "Delimiter({})", delim.left())?;
+
+                for token in tree {
+                    writeln!(f, "{}", token)?;
+                }
+
+                write!(f, "Delimiter({})", delim.right())
+            }
             TokenKind::StrLiteral(literal) => {
                 write!(
                     f,
@@ -48,7 +58,7 @@ impl fmt::Display for Token {
     }
 }
 
-#[derive(Debug, Hash, PartialEq)]
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Delimiter {
     Paren,
     Brace,
@@ -86,7 +96,7 @@ impl Delimiter {
 
 /// A TokenKind represents all variants of a token that can be present in a source file. Must of the
 /// kinds only represen a single character, but some tokens account for an entire literal or an identifier.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     /// '='
     Eq,
@@ -134,6 +144,8 @@ pub enum TokenKind {
     CharLiteral(char),
     /// StrLiteral,
     StrLiteral(StringIdentifier),
+    /// Keyword
+    Keyword(Keyword),
     /// Identifier
     Ident(Identifier),
 

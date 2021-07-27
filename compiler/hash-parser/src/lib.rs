@@ -2,9 +2,9 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-pub mod gen;
 pub mod backend;
 pub mod caching;
+pub mod gen;
 pub mod lexer;
 pub mod token;
 pub mod utils;

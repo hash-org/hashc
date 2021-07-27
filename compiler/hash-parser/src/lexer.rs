@@ -3,7 +3,9 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_ast::ast::AstString;
+use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
+use hash_ast::keyword::get_variants;
 use hash_ast::location::Location;
 
 use crate::caching::STRING_LITERAL_MAP;
@@ -221,7 +223,13 @@ impl<'a> Lexer<'a> {
 
         // create the identifier here from the created map
         let ident = IDENTIFIER_MAP.create_ident(AstString::Owned(name.as_str().to_owned()));
-        TokenKind::Ident(ident)
+
+        match ident {
+            Identifier(c) if c <= 15 => {
+                TokenKind::Keyword(*get_variants().get(c as usize).unwrap())
+            }
+            ident => TokenKind::Ident(ident),
+        }
     }
 
     /// Consume a number literal, either float or integer. The function expects that the first character of
