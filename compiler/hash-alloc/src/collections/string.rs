@@ -1,6 +1,8 @@
 use super::row::Row;
 use crate::Wall;
 use core::fmt;
+use std::borrow::Borrow;
+use std::hash::Hash;
 use std::ops::Deref;
 
 pub struct BrickString<'c> {
@@ -29,6 +31,10 @@ impl<'c> BrickString<'c> {
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
+
+    pub fn as_str(&self) -> &'c str {
+        unsafe { std::str::from_utf8_unchecked(self.inner.as_slice()) }
+    }
 }
 
 impl Deref for BrickString<'_> {
@@ -39,8 +45,34 @@ impl Deref for BrickString<'_> {
     }
 }
 
+impl Borrow<str> for BrickString<'_> {
+    fn borrow(&self) -> &str {
+        self.deref()
+    }
+}
+
+impl AsRef<str> for BrickString<'_> {
+    fn as_ref(&self) -> &str {
+        self.deref()
+    }
+}
+
 impl fmt::Debug for BrickString<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.deref().fmt(f)
     }
 }
+
+impl Hash for BrickString<'_> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.deref().hash(state)
+    }
+}
+
+impl PartialEq for BrickString<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
+
+impl Eq for BrickString<'_> {}

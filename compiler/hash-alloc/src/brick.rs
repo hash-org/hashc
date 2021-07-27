@@ -1,6 +1,7 @@
 use crate::Wall;
 use core::fmt;
 use std::{
+    borrow::Borrow,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
 };
@@ -20,6 +21,10 @@ impl<'c, T> Brick<'c, T> {
 impl<'c, T: Clone> Brick<'c, T> {
     pub fn clone_out(&self) -> T {
         (*self).clone()
+    }
+
+    pub fn clone_in<'cc>(&self, wall: &Wall<'cc>) -> Brick<'cc, T> {
+        Brick::new(self.clone_out(), wall)
     }
 }
 
@@ -48,6 +53,18 @@ impl<T> DerefMut for Brick<'_, T> {
 impl<T: fmt::Debug> fmt::Debug for Brick<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.deref().fmt(f)
+    }
+}
+
+impl<T> AsRef<T> for Brick<'_, T> {
+    fn as_ref(&self) -> &T {
+        self.deref()
+    }
+}
+
+impl<T> Borrow<T> for Brick<'_, T> {
+    fn borrow(&self) -> &T {
+        self.deref()
     }
 }
 
