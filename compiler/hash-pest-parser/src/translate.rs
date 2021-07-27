@@ -14,7 +14,7 @@ use hash_ast::{
     error::{ParseError, ParseResult},
     ident::IDENTIFIER_MAP,
     location::{Location, SourceLocation},
-    parse::ModuleResolver,
+    resolve::ModuleResolver,
 };
 use iter::once;
 
@@ -58,6 +58,7 @@ impl NodeBuilder {
         AstNode::new(inner, self.site.location)
     }
 
+    /// Create a error from the location using Pest and then add a custom message on top of the location.
     pub fn error(&self, message: String) -> ParseError {
         ParseError::Parsing {
             src: self.site.clone(),
@@ -455,9 +456,14 @@ where
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<AccessName>> {
         match pair.as_rule() {
-            Rule::access_name => Ok(self.builder_from_pair(&pair).node(AccessName {
-                path: IDENTIFIER_MAP.create_path_ident(AstString::Owned(pair.as_str().to_owned())),
-            })),
+            Rule::access_name => {
+                let inner = pair.into_inner().next().unwrap();
+
+                Ok(self.builder_from_pair(&inner).node(AccessName {
+                    path: IDENTIFIER_MAP
+                        .create_path_ident(AstString::Owned(inner.as_str().to_owned())),
+                }))
+            }
             _ => unreachable!(),
         }
     }
@@ -585,22 +591,22 @@ where
                         let mut components = inner.into_inner();
                         let num = components.next().unwrap();
 
-                        let val = num.as_str().parse::<u64>().unwrap();
+                        let val = num.as_str().parse::<u64>()?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::hex_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 16).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 16)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::octal_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 8).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 8)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::bin_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 2).unwrap();
+                        let val = u64::from_str_radix(item.as_str(), 2)?;
                         Ok(ab.node(Literal::Int(val)))
                     }
                     _ => unreachable!(),
@@ -892,7 +898,6 @@ where
                         Ok(ab.node(Pattern::Binding(name)))
                     }
                     Rule::ignore_pattern => Ok(ab.node(Pattern::Ignore)),
-                    // @@Cleanup: is this right, can we avoid this by just using another AstNode here?
                     Rule::literal_pattern => {
                         let literal = self.transform_literal_pattern(pat)?;
                         Ok(ab.node(Pattern::Literal(literal)))

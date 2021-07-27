@@ -2,22 +2,28 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
+#![feature(panic_info_message)]
+
+mod crash_handler;
 mod logger;
 
-use backtrace::Backtrace;
 use clap::{crate_version, AppSettings, Clap};
-use hash_ast::parse::{ParParser, Parser};
-use hash_pest_parser::grammar::HashGrammar;
+use hash_ast::error::ParseError;
+use hash_ast::module::Modules;
+use hash_ast::parse::{ParParser, Parser, ParserBackend};
 use hash_reporting::errors::CompilerError;
-use log::{log_enabled, LevelFilter};
+use hash_utils::timed;
+use log::LevelFilter;
 use logger::CompilerLogger;
 use std::num::NonZeroUsize;
 use std::panic;
-use std::{
-    env, fs,
-    panic::PanicInfo,
-    time::{Duration, Instant},
-};
+use std::path::PathBuf;
+use std::{env, fs};
+
+use hash_parser::backend::HashParser;
+use hash_pest_parser::backend::PestBackend;
+
+use crate::crash_handler::panic_handler;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
@@ -85,37 +91,23 @@ struct IrGen {
 
 pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
 
-fn panic_handler(info: &PanicInfo) {
-    if let Some(s) = info.payload().downcast_ref::<&str>() {
-        println!("Sorry :^(\nInternal Panic: {}\n", s);
-    } else {
-        println!("Sorry :^(\nInternal Panic\n");
-    }
-
-    // Display the location if we can...
-    if let Some(location) = info.location() {
-        println!(
-            "Occurred in file '{}' at {}:{}",
-            location.file(),
-            location.line(),
-            location.column()
-        );
-    }
-
-    // print the backtrace
-    println!("Backtrace:\n{:?}", Backtrace::new());
-
-    let msg = "This is an interpreter bug, please file a bug report at";
-    let uri = "https://github.com/hash-org/lang/issues";
-
-    println!("{}\n\n{:^len$}\n", msg, uri, len = msg.len());
-}
-
 fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
     match f() {
         Ok(()) => (),
         Err(e) => e.report_and_exit(),
     }
+}
+
+fn run_parsing(
+    parser: ParParser<impl ParserBackend>,
+    filename: PathBuf,
+    directory: PathBuf,
+) -> Result<Modules, ParseError> {
+    timed(
+        || parser.parse(&filename, &directory),
+        log::Level::Debug,
+        |elapsed| println!("total: {:?}", elapsed),
+    )
 }
 
 fn main() {
@@ -156,15 +148,22 @@ fn main() {
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-
-                let parser = ParParser::new_with_workers(HashGrammar, worker_count);
                 let directory = env::current_dir().unwrap();
 
-                let result = timed(
-                    || parser.parse(&filename, &directory),
-                    log::Level::Debug,
-                    |elapsed| println!("total: {:?}", elapsed),
-                );
+                // If we're using pest as a parsing backend, enable it via flags...
+                let result = if cfg!(feature = "use-pest") {
+                    run_parsing(
+                        ParParser::new_with_workers(PestBackend, worker_count),
+                        filename,
+                        directory,
+                    )
+                } else {
+                    run_parsing(
+                        ParParser::new_with_workers(HashParser, worker_count),
+                        filename,
+                        directory,
+                    )
+                };
 
                 if let Err(e) = result {
                     CompilerError::from(e).report_and_exit();
@@ -178,16 +177,4 @@ fn main() {
             }
         }
     })
-}
-
-#[inline(always)]
-fn timed<T>(op: impl FnOnce() -> T, level: log::Level, on_elapsed: impl FnOnce(Duration)) -> T {
-    if log_enabled!(level) {
-        let begin = Instant::now();
-        let result = op();
-        on_elapsed(begin.elapsed());
-        result
-    } else {
-        op()
-    }
 }
