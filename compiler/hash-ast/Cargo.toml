@@ -14,4 +14,5 @@ thiserror = "1.0"
 num = "0.4"
 closure = "0.3.0"
 hash-utils = { path = "../hash-utils" }
+hash-utils-testing-macros = { path = "../hash-utils/testing-macros" }
 dashmap = "4.0"

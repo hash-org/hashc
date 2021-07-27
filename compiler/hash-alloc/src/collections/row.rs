@@ -39,7 +39,6 @@ impl<'c, T> Row<'c, T> {
             return;
         }
 
-        println!("Reserving {}, current {}", new_capacity, self.capacity());
         let new_data = wall.alloc_uninit_slice(new_capacity);
 
         // Safety: Both ranges are valid because they originate from wall.alloc_raw.
@@ -77,7 +76,7 @@ impl<'c, T> Row<'c, T> {
         }
 
         let last_element = std::mem::replace(
-            // Safety:
+            // Safety: @@TODO
             unsafe { self.data.get_unchecked_mut(self.len() - 1) },
             MaybeUninit::uninit(),
         );
@@ -175,6 +174,37 @@ impl<T> Drop for Row<'_, T> {
 mod tests {
     use crate::{collections::row::Row, Castle};
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn row_construction_test() {
+        let castle = Castle::new();
+        let wall = castle.wall();
+
+        let row = Row::<i32>::new(&wall);
+        assert_eq!(row.capacity(), 0);
+
+        let capacity = 10;
+        let row = Row::<i32>::with_capacity(capacity, &wall);
+        assert_eq!(row.capacity(), capacity);
+    }
+
+    #[test]
+    fn row_capacity_test() {
+        let castle = Castle::new();
+        let wall = castle.wall();
+
+        let mut row = Row::<i32>::new(&wall);
+        assert_eq!(row.capacity(), 0);
+
+        row.reserve(10, &wall);
+        assert_eq!(row.capacity(), 10);
+
+        row.reserve(20, &wall);
+        assert_eq!(row.capacity(), 20);
+
+        row.reserve(10, &wall);
+        assert_eq!(row.capacity(), 20);
+    }
 
     #[test]
     fn row_push_test() {
