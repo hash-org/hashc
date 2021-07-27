@@ -253,7 +253,7 @@ pub struct Castle {
     reclaimable_sections: PastSections,
 }
 
-impl Castle {
+impl<'c> Castle {
     pub fn new() -> Self {
         Self::default()
     }

@@ -105,6 +105,16 @@ impl<'c, T> Row<'c, T> {
 
         row
     }
+
+    pub fn as_slice(&self) -> &'c [T] {
+        // Safety: values until self.length are initialised.
+        // Also, the slice will live as long as 'c, which might outlive self.
+        unsafe {
+            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(
+                &self.data[0..self.length],
+            )
+        }
+    }
 }
 
 #[macro_export]
@@ -133,12 +143,7 @@ impl<T> Deref for Row<'_, T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        // Safety: values until self.length are initialised.
-        unsafe {
-            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(
-                &self.data[0..self.length],
-            )
-        }
+        self.as_slice()
     }
 }
 
@@ -167,6 +172,24 @@ impl<T> Drop for Row<'_, T> {
         unsafe {
             ManuallyDrop::drop(data_to_drop);
         }
+    }
+}
+
+impl<T: PartialEq> PartialEq for Row<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
+
+impl<T: Eq> Eq for Row<'_, T> {}
+
+impl<'c, T: Clone> Row<'c, T> {
+    pub fn clone_out(&self) -> Vec<T> {
+        self.into_iter().cloned().collect()
+    }
+
+    pub fn clone_in<'cc>(&self, wall: &Wall<'cc>) -> Row<'cc, T> {
+        Row::from_iter(self.into_iter().cloned(), wall)
     }
 }
 
