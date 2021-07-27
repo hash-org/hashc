@@ -32,17 +32,17 @@ pub(crate) struct ModuleParsingContext<'mod_ctx> {
 }
 
 #[derive(Debug)]
-pub struct ParModuleResolver<'ctx, 'mod_ctx, 'scope, 'scope_ref, B> {
-    ctx: ParsingContext<'ctx, B>,
+pub struct ParModuleResolver<'c, 'ctx, 'mod_ctx, 'scope, 'scope_ref, B> {
+    ctx: ParsingContext<'c, 'ctx, B>,
     module_ctx: ModuleParsingContext<'mod_ctx>,
     scope: &'scope_ref Scope<'scope>,
 }
 
-impl<'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
-    ParModuleResolver<'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
+impl<'c, 'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
+    ParModuleResolver<'c, 'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
 {
     pub(crate) fn new(
-        ctx: ParsingContext<'ctx, B>,
+        ctx: ParsingContext<'c, 'ctx, B>,
         module_ctx: ModuleParsingContext<'mod_ctx>,
         scope: &'scope_ref Scope<'scope>,
     ) -> Self {
@@ -54,10 +54,11 @@ impl<'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
     }
 }
 
-impl<'ctx, 'mod_ctx, 'scope, 'scope_ref, B> ModuleResolver
-    for ParModuleResolver<'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
+impl<'c, 'ctx, 'mod_ctx, 'scope, 'scope_ref, B> ModuleResolver
+    for ParModuleResolver<'c, 'ctx, 'mod_ctx, 'scope, 'scope_ref, B>
 where
-    B: ParserBackend,
+    B: ParserBackend<'c>,
+    'c: 'ctx,
     'ctx: 'scope,
     'scope: 'scope_ref,
 {

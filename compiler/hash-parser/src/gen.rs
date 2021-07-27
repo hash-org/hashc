@@ -4,30 +4,34 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
+use hash_alloc::{row, Castle, collections::row::Row};
 use hash_ast::{ast::*, error::ParseResult, location::Location, resolve::ModuleResolver};
 
 use crate::token::Token;
 
-pub struct AstGen<'resolver, R> {
+pub struct AstGen<'c, 'resolver, R> {
     offset: usize,
-    stream: Vec<Token>,
+    stream: Row<'c, Token<'c>>,
     resolver: &'resolver mut R,
+    castle: &'c Castle,
 }
 
-impl<'resolver, R> AstGen<'resolver, R>
+impl<'c, 'resolver, R> AstGen<'c, 'resolver, R>
 where
     R: ModuleResolver,
 {
-    pub fn new(stream: Vec<Token>, resolver: &'resolver mut R) -> Self {
+    pub fn new(stream: Row<'c, Token<'c>>, resolver: &'resolver mut R, castle: &'c Castle) -> Self {
         Self {
             stream,
             offset: 0,
             resolver,
+            castle,
         }
     }
 
-    pub fn generate_module(&mut self) -> ParseResult<Module> {
-        Ok(Module { contents: vec![] })
+    pub fn generate_module(&mut self) -> ParseResult<Module<'c>> {
+        let wall = self.castle.wall();
+        Ok(Module { contents: row![&wall] })
     }
 
     pub fn generate_statement(&mut self) -> ParseResult<AstNode<Statement>> {
@@ -36,13 +40,15 @@ where
 
     /// Special variant of expression to handle interactive statements that have relaxed rules about
     /// semi-colons for some statements.
-    pub fn generate_expression_from_interactive(&mut self) -> ParseResult<AstNode<BodyBlock>> {
+    pub fn generate_expression_from_interactive(&mut self) -> ParseResult<AstNode<'c, BodyBlock<'c>>> {
+        let wall = self.castle.wall();
         Ok(AstNode::new(
             BodyBlock {
-                statements: vec![],
+                statements: row![&wall],
                 expr: None,
             },
             Location::span(0, 0),
+            &wall,
         ))
     }
 

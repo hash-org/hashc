@@ -5,9 +5,10 @@
 
 use std::fmt;
 
-use crate::caching::{StringIdentifier, STRING_LITERAL_MAP};
+use hash_alloc::collections::row::Row;
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
+use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
 use hash_ast::location::Location;
 
 pub type TokenResult<T> = Result<T, TokenError>;
@@ -17,22 +18,24 @@ pub type TokenResult<T> = Result<T, TokenError>;
 /// source that is represented as a span. The span is the beginning byte offset, and the
 /// number of bytes for the said token.
 #[derive(Debug, PartialEq)]
-pub struct Token {
-    pub kind: TokenKind,
+pub struct Token<'c> {
+    pub kind: TokenKind<'c>,
     pub span: Location,
 }
 
-impl Token {
-    pub fn new(kind: TokenKind, span: Location) -> Self {
+impl<'c> Token<'c> {
+    pub fn new(kind: TokenKind<'c>, span: Location) -> Self {
         Token { kind, span }
     }
 }
 
-impl fmt::Display for Token {
+impl fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            TokenKind::Ident(ident) => write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident)),
-            TokenKind::StrLiteral(literal) => {
+            TokenKind::Atom(TokenAtom::Ident(ident)) => {
+                write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident))
+            }
+            TokenKind::Atom(TokenAtom::StrLiteral(literal)) => {
                 write!(
                     f,
                     "StringLiteral (\"{}\")",
@@ -40,7 +43,7 @@ impl fmt::Display for Token {
                 )
             }
             // We want to print the actual character, instead of a potential escape code
-            TokenKind::CharLiteral(ch) => {
+            TokenKind::Atom(TokenAtom::CharLiteral(ch)) => {
                 write!(f, "CharLiteral ('{}')", ch)
             }
             kind => write!(f, "{:?}", kind),
@@ -84,10 +87,10 @@ impl Delimiter {
     }
 }
 
-/// A TokenKind represents all variants of a token that can be present in a source file. Must of the
+/// An Atom represents all variants of a token that can be present in a source file. Must of the
 /// kinds only represen a single character, but some tokens account for an entire literal or an identifier.
 #[derive(Debug, PartialEq)]
-pub enum TokenKind {
+pub enum TokenAtom {
     /// '='
     Eq,
     /// '<'
@@ -125,7 +128,7 @@ pub enum TokenKind {
     /// '"'
     Quote,
     /// "'"
-    SingleQoute,
+    SingleQuote,
     /// Integer Literal
     IntLiteral(u64),
     /// Float literal
@@ -133,18 +136,23 @@ pub enum TokenKind {
     /// Character literal
     CharLiteral(char),
     /// StrLiteral,
-    StrLiteral(StringIdentifier),
+    StrLiteral(StringLiteral),
     /// Identifier
     Ident(Identifier),
-
-    /// A token tree is represnted by an arbitrary number of tokens that are surrounded by
-    /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
-    Tree(Delimiter, Vec<Token>),
 
     /// @@Redundant: we should report an error on this?
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
     /// string literal.
     Unexpected,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TokenKind<'c> {
+    Atom(TokenAtom),
+
+    /// A token tree is represnted by an arbitrary number of tokens that are surrounded by
+    /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
+    Tree(Delimiter, Row<'c, Token<'c>>),
 }
 
 /// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
@@ -168,7 +176,7 @@ pub enum TokenErrorKind {
     /// Occurs when a char is unexpected in the current context
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
-    Expected(TokenKind),
+    Expected(TokenAtom),
     /// Unclosed tree block
     Unclosed(Delimiter),
 }

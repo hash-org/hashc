@@ -8,7 +8,8 @@ edition = "2018"
 hash-ast = {path = "../hash-ast" }
 hash-parser = {path = "../hash-parser" }
 hash-reporting = {path = "../hash-reporting" }
-hash-pest-parser = {path = "../hash-pest-parser" }
+hash-alloc = {path = "../hash-alloc" }
+hash-pest-parser = {path = "../hash-pest-parser", optional = true }
 rustyline = "8.0.0"
 
 [features]
