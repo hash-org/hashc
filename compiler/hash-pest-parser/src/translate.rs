@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::{cell::Cell, iter, path::PathBuf};
+use std::{cell::Cell, iter};
 
 use crate::{
     grammar::{HashPair, Rule},
@@ -14,6 +14,7 @@ use hash_ast::{
     error::{ParseError, ParseResult},
     ident::IDENTIFIER_MAP,
     location::{Location, SourceLocation},
+    module::ModuleIdx,
     resolve::ModuleResolver,
 };
 use iter::once;
@@ -39,7 +40,7 @@ impl NodeBuilder {
         Self {
             site: SourceLocation {
                 location,
-                path: PathBuf::from(""), // @@TODO: actually get the filename here!
+                module_index: ModuleIdx(0),
             },
         }
     }
@@ -48,7 +49,7 @@ impl NodeBuilder {
         Self {
             site: SourceLocation {
                 location: node.location(),
-                path: PathBuf::from(""), // @@TODO: actually get the filename here!
+                module_index: ModuleIdx(0),
             },
         }
     }

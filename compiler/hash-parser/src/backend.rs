@@ -28,7 +28,7 @@ impl ParserBackend for HashParser {
         let mut gen = AstGen::new(tokens, resolver);
 
         timed(
-            || gen.generate_module(),
+            || gen.parse_module(),
             log::Level::Debug,
             |elapsed| println!("translation: {:?}", elapsed),
         )
@@ -46,6 +46,6 @@ impl ParserBackend for HashParser {
             println!("{}", token);
         }
 
-        gen.generate_expression_from_interactive()
+        gen.parse_expression_from_interactive()
     }
 }

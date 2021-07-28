@@ -75,7 +75,7 @@ impl Delimiter {
         }
     }
 
-    /// Get the left-hand side variant of a coressponding delimiter
+    /// Get the left-hand side variant of a corresponding delimiter
     pub fn left(&self) -> char {
         match self {
             Delimiter::Paren => '(',
@@ -84,7 +84,7 @@ impl Delimiter {
         }
     }
 
-    /// Get the right-hand side variant of a coressponding delimiter
+    /// Get the right-hand side variant of a corresponding delimiter
     pub fn right(&self) -> char {
         match self {
             Delimiter::Paren => ')',
@@ -95,7 +95,7 @@ impl Delimiter {
 }
 
 /// A TokenKind represents all variants of a token that can be present in a source file. Must of the
-/// kinds only represen a single character, but some tokens account for an entire literal or an identifier.
+/// kinds only represents a single character, but some tokens account for an entire literal or an identifier.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     /// '='
@@ -135,7 +135,7 @@ pub enum TokenKind {
     /// '"'
     Quote,
     /// "'"
-    SingleQoute,
+    SingleQuote,
     /// Integer Literal
     IntLiteral(u64),
     /// Float literal
@@ -149,19 +149,69 @@ pub enum TokenKind {
     /// Identifier
     Ident(Identifier),
 
-    /// A token tree is represnted by an arbitrary number of tokens that are surrounded by
+    /// A token tree is represented by an arbitrary number of tokens that are surrounded by
     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
     Tree(Delimiter, Vec<Token>),
+}
 
-    /// @@Redundant: we should report an error on this?
-    /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
-    /// string literal.
-    Unexpected,
+impl TokenKind {
+    /// Check if a [TokenKind] can be considered in a situation as a unary operator.
+    pub(crate) fn is_unary_op(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Plus
+                | TokenKind::Minus
+                | TokenKind::Star
+                | TokenKind::Slash
+                | TokenKind::Amp
+                | TokenKind::Tilde
+                | TokenKind::Exclamation
+        )
+    }
+}
+
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TokenKind::Eq => write!(f, "="),
+            TokenKind::Lt => write!(f, ">"),
+            TokenKind::Gt => write!(f, ">"),
+            TokenKind::Plus => write!(f, "+"),
+            TokenKind::Minus => write!(f, "-"),
+            TokenKind::Star => write!(f, "*"),
+            TokenKind::Slash => write!(f, "/"),
+            TokenKind::Percent => write!(f, "%"),
+            TokenKind::Caret => write!(f, "^"),
+            TokenKind::Amp => write!(f, "&"),
+            TokenKind::Tilde => write!(f, "~"),
+            TokenKind::Pipe => write!(f, "|"),
+            TokenKind::Exclamation => write!(f, "!"),
+            TokenKind::Dot => write!(f, "."),
+            TokenKind::Colon => write!(f, ":"),
+            TokenKind::Semi => write!(f, ";"),
+            TokenKind::Comma => write!(f, ","),
+            TokenKind::Quote => write!(f, "\""),
+            TokenKind::SingleQuote => write!(f, "'"),
+            TokenKind::IntLiteral(num) => write!(f, "{}", num),
+            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
+            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
+            TokenKind::StrLiteral(str) => {
+                write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
+            }
+            TokenKind::Keyword(kwd) => kwd.fmt(f),
+            TokenKind::Ident(ident) => {
+                write!(f, "{}", IDENTIFIER_MAP.ident_name(*ident))
+            },
+            TokenKind::Tree(delim, _) => {
+                write!(f, "{}", delim.left())
+            }
+        }
+    }
 }
 
 /// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
 /// with the error, the [TokenErrorKind] which classifies the error, and a [ast::Location] that represents
-/// where the tokenisation error occured.
+/// where the tokenisation error occurred.
 #[derive(Debug)]
 pub struct TokenError {
     pub(crate) message: Option<String>,

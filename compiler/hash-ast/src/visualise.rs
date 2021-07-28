@@ -676,7 +676,7 @@ impl NodeDisplay for Expression {
                 };
 
                 let next_lines = child_branch(&expr.node_display());
-                lines.extend(pad_lines(next_lines, 1));
+                lines.extend(next_lines);
 
                 lines
             }

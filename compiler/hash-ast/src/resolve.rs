@@ -17,6 +17,7 @@ use std::{fs, path::Path};
 
 pub trait ModuleResolver {
     fn module_source(&self) -> Option<&str>;
+    fn module_index(&self) -> Option<ModuleIdx>;
     fn add_module(
         &mut self,
         import_path: impl AsRef<Path>,
@@ -63,6 +64,10 @@ where
 {
     fn module_source(&self) -> Option<&str> {
         self.module_ctx.source
+    }
+
+    fn module_index(&self) -> Option<ModuleIdx> {
+        self.module_ctx.index
     }
 
     fn add_module(

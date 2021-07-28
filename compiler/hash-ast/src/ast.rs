@@ -471,7 +471,7 @@ pub struct MatchCase {
     pub pattern: AstNode<Pattern>,
     /// The expression corresponding to the match case.
     ///
-    /// Will be executed if the pattern succeeeds.
+    /// Will be executed if the pattern succeeds.
     pub expr: AstNode<Expression>,
 }
 
@@ -522,7 +522,7 @@ pub struct FunctionCallExpr {
     pub args: AstNode<FunctionCallArgs>,
 }
 
-/// A property access exprssion.
+/// A property access expression.
 #[derive(Debug, PartialEq, Clone)]
 pub struct PropertyAccessExpr {
     /// An expression which evaluates to a struct or tuple value.
@@ -554,15 +554,6 @@ pub struct VariableExpr {
     pub name: AstNode<AccessName>,
     /// Any type arguments of the variable. Only valid for traits.
     pub type_args: AstNodes<Type>,
-}
-
-/// A variable expression.
-#[derive(Debug, PartialEq, Clone)]
-pub struct IndexExpr {
-    /// The name of the variable.
-    pub subject: AstNode<Expression>,
-    /// Any type arguments of the variable. Only valid for traits.
-    pub index: AstNodes<Expression>,
 }
 
 /// The kind of an expression.
