@@ -95,7 +95,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&self) -> Option<Token> {
+    pub(crate) fn advance_token(&self) -> TokenResult<Option<Token>> {
         let offset = self.offset.get();
 
         // Eat any comments or whitespace before processing the token...
@@ -110,11 +110,17 @@ impl<'a> Lexer<'a> {
 
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
-                        return Some(Token::new(TokenKind::Slash, Location::pos(offset)));
+                        return Ok(Some(Token::new(TokenKind::Slash, Location::pos(offset))));
                     }
                 },
                 _ => break,
             }
+        }
+
+        let next_token = self.next();
+
+        if next_token.is_none() {
+            return Ok(None);
         }
 
         // We avoid checking if the tokens are compound here because we don't really want to deal with comments
@@ -130,7 +136,7 @@ impl<'a> Lexer<'a> {
         //
         // could work here, but however what about if there was a space or a comment between the colons, this might be
         // problematic. Essentially, we pass the responsibility of forming more compound tokens to AST gen rather than here.
-        let token_kind = match self.next()? {
+        let token_kind = match next_token.unwrap() {
             // One-symbol tokens
             '~' => TokenKind::Tilde,
             '=' => TokenKind::Eq,
@@ -148,39 +154,39 @@ impl<'a> Lexer<'a> {
             ';' => TokenKind::Semi,
             ',' => TokenKind::Comma,
             '.' => TokenKind::Dot,
+            '#' => TokenKind::Hash,
+            '?' => TokenKind::Question,
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed
             // by a following delimiter...
-            ch @ ('(' | '{' | '[') => self
-                .eat_token_tree(Delimiter::from_left(ch).unwrap())
-                .unwrap(),
+            ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap())?,
 
             // Identifier (this should be checked after other variant that can
             // start as identifier).
-            c if is_id_start(c) => self.ident(),
-
+            ch if is_id_start(ch) => self.ident(),
             // Numeric literal.
-            '0'..='9' => self
-                .number()
-                .unwrap_or_else(|e| panic!("error: {:#?}", e.message)),
-
+            '0'..='9' => self.number()?,
             // character literal.
-            // @@ErrorReporting: this is where we hook into error reporting to print the result
-            // and display it to the user
-            '\'' => self
-                .char()
-                .unwrap_or_else(|e| panic!("error: {:#?}", e.message)),
-
+            '\'' => self.char()?,
             // String literal.
-            '"' => self.string().unwrap_or_else(|e| panic!("error: {:?}", e)),
+            '"' => self.string()?,
 
             // We have to exit the current tree if we encounter a closing delimiter...
-            ')' | '}' | ']' => return None,
-            _ => return None,
+            ')' | '}' | ']' => return Ok(None),
+
+            // We didn't get a hit on the right token...
+            ch => TokenKind::Unexpected(ch)
+            // ch => {
+            //     return Err(TokenError::new(
+            //         Some(format!("Unexpected character '{}'", ch)),
+            //         TokenErrorKind::Unexpected(ch),
+            //         Location::pos(offset + self.len_consumed()),
+            //     ))
+            // }
         };
 
         let location = Location::span(offset, self.len_consumed());
-        Some(Token::new(token_kind, location))
+        Ok(Some(Token::new(token_kind, location)))
     }
 
     /// This will essentially recursively consume tokens until it reaches the right hand-side variant
@@ -196,7 +202,7 @@ impl<'a> Lexer<'a> {
 
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
-            match self.advance_token() {
+            match self.advance_token()? {
                 Some(token) => children_tokens.push(token),
                 None => break,
             };
@@ -634,6 +640,11 @@ pub fn tokenise(input: &str) -> impl Iterator<Item = Token> + '_ {
             return None;
         }
 
-        lexer.advance_token()
+        match lexer.advance_token() {
+            Ok(tok) => tok,
+            // @@ErrorReporting: this is where we hook into error reporting to print the result
+            // and display it to the user
+            Err(err) => panic!("Got error from tokenisation: {:?}", err),
+        }
     })
 }

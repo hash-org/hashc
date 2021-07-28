@@ -122,6 +122,8 @@ pub enum TokenKind {
     Tilde,
     /// '|'
     Pipe,
+    /// '?'
+    Question,
     /// '!'
     Exclamation,
     /// '.'
@@ -130,6 +132,8 @@ pub enum TokenKind {
     Colon,
     /// ';'
     Semi,
+    /// '#'
+    Hash,
     /// ','
     Comma,
     /// '"'
@@ -152,6 +156,10 @@ pub enum TokenKind {
     /// A token tree is represented by an arbitrary number of tokens that are surrounded by
     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
     Tree(Delimiter, Vec<Token>),
+
+    /// When the lexer hits an unexpected character, just label it as unexpected rather
+    /// than declaring it as an immediate error
+    Unexpected(char),
 }
 
 impl TokenKind {
@@ -185,12 +193,15 @@ impl fmt::Display for TokenKind {
             TokenKind::Amp => write!(f, "&"),
             TokenKind::Tilde => write!(f, "~"),
             TokenKind::Pipe => write!(f, "|"),
+            TokenKind::Question => write!(f, "?"),
             TokenKind::Exclamation => write!(f, "!"),
             TokenKind::Dot => write!(f, "."),
             TokenKind::Colon => write!(f, ":"),
             TokenKind::Semi => write!(f, ";"),
+            TokenKind::Hash => write!(f, "#"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
+            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::IntLiteral(num) => write!(f, "{}", num),
             TokenKind::FloatLiteral(num) => write!(f, "{}", num),
@@ -201,7 +212,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Keyword(kwd) => kwd.fmt(f),
             TokenKind::Ident(ident) => {
                 write!(f, "{}", IDENTIFIER_MAP.ident_name(*ident))
-            },
+            }
             TokenKind::Tree(delim, _) => {
                 write!(f, "{}", delim.left())
             }
