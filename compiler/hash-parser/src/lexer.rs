@@ -117,7 +117,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        // We avoid checking if the tokens are compound here because we don't really want to deal with commments
+        // We avoid checking if the tokens are compound here because we don't really want to deal with comments
         // and spaces in an awkward way... Once the whole stream is transformed into a bunch of tokens, we can then
         // combine these tokens into more complex variants that might span multiple characters. For example, the code...
         // > ':' => match self.peek() {
@@ -129,7 +129,7 @@ impl<'a> Lexer<'a> {
         // > },
         //
         // could work here, but however what about if there was a space or a comment between the colons, this might be
-        // problematic. Essentially, we pass the responsobility of forming more compound tokens to AST gen rather than here.
+        // problematic. Essentially, we pass the responsibility of forming more compound tokens to AST gen rather than here.
         let token_kind = match self.next()? {
             // One-symbol tokens
             '~' => TokenKind::Tilde,
@@ -150,7 +150,7 @@ impl<'a> Lexer<'a> {
             '.' => TokenKind::Dot,
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed
-            // by a followiing delimiter...
+            // by a following delimiter...
             ch @ ('(' | '{' | '[') => self
                 .eat_token_tree(Delimiter::from_left(ch).unwrap())
                 .unwrap(),
@@ -176,7 +176,7 @@ impl<'a> Lexer<'a> {
 
             // We have to exit the current tree if we encounter a closing delimiter...
             ')' | '}' | ']' => return None,
-            _ => TokenKind::Unexpected,
+            _ => return None,
         };
 
         let location = Location::span(offset, self.len_consumed());
@@ -186,7 +186,7 @@ impl<'a> Lexer<'a> {
     /// This will essentially recursively consume tokens until it reaches the right hand-side variant
     /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
-    /// perfoming complex delimiter depth analysis later on.
+    /// performing complex delimiter depth analysis later on.
     pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind> {
         debug_assert!(self.prev.get().unwrap() == delimiter.left());
 
@@ -212,7 +212,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Consume an identifier, at this stage keywords are also considered to be identfiers. The function
+    /// Consume an identifier, at this stage keywords are also considered to be identifiers. The function
     /// expects that the first character of the identifier is consumed when the function is called.
     pub(crate) fn ident(&self) -> TokenKind {
         let first = self.prev.get().unwrap();
@@ -259,7 +259,7 @@ impl<'a> Lexer<'a> {
                 let chars = self.eat_decimal_digits(radix);
                 let value = u64::from_str_radix(chars, radix);
 
-                // @@ErrorHandling: We shouldn't error here, this should be handeled by the SmallVec<..> change to integers
+                // @@ErrorHandling: We shouldn't error here, this should be handled by the SmallVec<..> change to integers
                 if value.is_err() {
                     return Err(TokenError::new(
                         Some("Integer literal too large".to_string()),
@@ -289,7 +289,7 @@ impl<'a> Lexer<'a> {
 
                 self.eat_float_literal(num, start)
             }
-            // Imediate exponent
+            // Immediate exponent
             'e' | 'E' => self.eat_float_literal(pre_digits, start),
             _ => match pre_digits.collect::<String>().parse::<u64>() {
                 Err(_) => Err(TokenError::new(
@@ -319,7 +319,7 @@ impl<'a> Lexer<'a> {
             Ok(value) => {
                 let exp = self.eat_exponent()?;
 
-                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
+                // if an exponent was specified, as in it is non-zero, we need to apply the exponent to
                 // the float literal.
                 let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
@@ -484,13 +484,13 @@ impl<'a> Lexer<'a> {
             let ch = self.char_from_escape_seq()?;
             let next = self.peek();
 
-            // eat the single qoute after the character
+            // eat the single quote after the character
             if next != '\'' {
                 // @@Improvement: Maybe make this a function to check if we're about to hit the end...
                 if next == EOF_CHAR {
                     return Err(TokenError::new(
                         Some("Unclosed character literal.".to_string()),
-                        TokenErrorKind::Expected(TokenKind::SingleQoute),
+                        TokenErrorKind::Expected(TokenKind::SingleQuote),
                         Location::pos(self.offset.get()),
                     ));
                 }
@@ -539,7 +539,7 @@ impl<'a> Lexer<'a> {
         Ok(TokenKind::StrLiteral(id))
     }
 
-    /// Consume a line comment after the first folloing slash, essentially eating
+    /// Consume a line comment after the first following slash, essentially eating
     /// characters up to the next '\n' encountered. If we reach EOF before a newline, then
     /// we stop eating there.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
@@ -551,7 +551,7 @@ impl<'a> Lexer<'a> {
 
     /// Consume a block comment after the first following '/*' sequence of characters. If the
     /// iterator encounters the start of another block comment, we increment a nested comment
-    /// counter to ensure that nested block comments are accounted for and handeled gracefully.
+    /// counter to ensure that nested block comments are accounted for and handled gracefully.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
     pub(crate) fn block_comment(&self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
@@ -572,7 +572,7 @@ impl<'a> Lexer<'a> {
                     depth -= 1;
 
                     // we finally reached the end of the block comment, if any subsequent '*/' sequences
-                    // are present after this one, they will be tokenised seperately
+                    // are present after this one, they will be tokenised separately
                     if depth == 0 {
                         break;
                     }
@@ -585,7 +585,7 @@ impl<'a> Lexer<'a> {
     /// Simplified version of [`Self::eat_while()`] since this function will discard
     /// any characters that it encounters whilst eating the input, this is useful
     /// because in some cases we don't want to preserve what the token represents,
-    /// such as comments or whitespaces...
+    /// such as comments or white-spaces...
     fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
         while condition(self.peek()) && !self.is_eof() {
             self.next();
