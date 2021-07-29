@@ -175,14 +175,13 @@ impl<'a> Lexer<'a> {
             ')' | '}' | ']' => return Ok(None),
 
             // We didn't get a hit on the right token...
-            ch => TokenKind::Unexpected(ch)
-            // ch => {
-            //     return Err(TokenError::new(
-            //         Some(format!("Unexpected character '{}'", ch)),
-            //         TokenErrorKind::Unexpected(ch),
-            //         Location::pos(offset + self.len_consumed()),
-            //     ))
-            // }
+            ch => TokenKind::Unexpected(ch), // ch => {
+                                             //     return Err(TokenError::new(
+                                             //         Some(format!("Unexpected character '{}'", ch)),
+                                             //         TokenErrorKind::Unexpected(ch),
+                                             //         Location::pos(offset + self.len_consumed()),
+                                             //     ))
+                                             // }
         };
 
         let location = Location::span(offset, self.len_consumed());

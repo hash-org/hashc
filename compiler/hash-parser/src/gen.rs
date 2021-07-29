@@ -4,22 +4,25 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
+use std::cell::Cell;
+
 use hash_ast::{
     ast::*,
     error::{ParseError, ParseResult},
-    ident::IDENTIFIER_MAP,
+    ident::{Identifier, IDENTIFIER_MAP},
     location::{Location, SourceLocation},
     module::ModuleIdx,
     resolve::ModuleResolver,
 };
+use smallvec::smallvec;
 
 use crate::{
     operator::Operator,
-    token::{Delimiter, Token, TokenKind},
+    token::{Delimiter, Token, TokenKind, TokenKindVector},
 };
 
 pub struct AstGen<'resolver, R> {
-    offset: usize,
+    offset: Cell<usize>,
     stream: Vec<Token>,
     resolver: &'resolver mut R,
 }
@@ -31,14 +34,19 @@ where
     pub fn new(stream: Vec<Token>, resolver: &'resolver mut R) -> Self {
         Self {
             stream,
-            offset: 0,
+            offset: Cell::new(0),
             resolver,
         }
     }
 
+    #[inline(always)]
+    pub(crate) fn offset(&self) -> usize {
+        self.offset.get()
+    }
+
     /// Function to peek at the nth token ahead of the current offset.
     pub(crate) fn peek_nth(&self, at: usize) -> Option<&Token> {
-        self.stream.get(self.offset + at)
+        self.stream.get(self.offset.get() + at)
     }
 
     pub(crate) fn peek(&self) -> Option<&Token> {
@@ -50,26 +58,42 @@ where
     }
 
     /// Function that increases the offset of the next token
-    pub(crate) fn next_token(&mut self) -> Option<&Token> {
-        let value = self.stream.get(self.offset);
+    pub(crate) fn next_token(&self) -> Option<&Token> {
+        let value = self.stream.get(self.offset.get());
 
         if value.is_some() {
-            self.offset += 1;
+            // @@Dumbness: because Cell::update is unsafe
+            self.offset.set(self.offset.get() + 1);
         }
 
         value
     }
 
     pub(crate) fn current_token(&self) -> &Token {
-        self.stream.get(self.offset - 1).unwrap()
+        self.stream.get(self.offset.get() - 1).unwrap()
     }
 
     /// Get the current location from the current token, if there is no token at the current
     /// offset, then the location of the last token is used,
     pub(crate) fn current_location(&self) -> Location {
-        match self.stream.get(self.offset) {
+        match self.stream.get(self.offset()) {
             Some(token) => token.span,
             None => (*self.stream.last().unwrap()).span,
+        }
+    }
+
+    pub(crate) fn unexpected_token(
+        &self,
+        kind: &TokenKind,
+        expected: &TokenKindVector,
+        location: &Location,
+    ) -> ParseError {
+        ParseError::Parsing {
+            message: format!("Unexpected token '{}', expecting {}", kind, expected),
+            src: SourceLocation {
+                location: *location,
+                module_index: ModuleIdx(0),
+            },
         }
     }
 
@@ -78,13 +102,32 @@ where
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.from_joined_location(
                     AccessName {
-                        path: IDENTIFIER_MAP.create_path_ident(name),
+                        path: smallvec![IDENTIFIER_MAP.create_ident(name)],
                     },
                     location,
                 ),
                 type_args: vec![],
             })),
             *location,
+        )
+    }
+
+    pub(crate) fn make_ident_from_id(
+        &self,
+        id: &Identifier,
+        location: Location,
+    ) -> AstNode<Expression> {
+        AstNode::new(
+            Expression::new(ExpressionKind::Variable(VariableExpr {
+                name: self.from_joined_location(
+                    AccessName {
+                        path: smallvec![*id],
+                    },
+                    &location,
+                ),
+                type_args: vec![],
+            })),
+            location,
         )
     }
 
@@ -135,7 +178,7 @@ where
 
         if token.is_none() {
             return Err(ParseError::Parsing {
-                message: "Expected a binary operator after an expression.".to_string(),
+                message: "Expected the beginning of an expression here.".to_string(),
                 src: SourceLocation {
                     location: self.current_location(),
                     module_index: ModuleIdx(0),
@@ -147,37 +190,93 @@ where
 
         match &token.kind {
             kind if kind.is_unary_op() => self.parse_unary_expression(),
+
+            // Handle primitive literals
+            kind if kind.is_literal() => Ok(self.parse_literal()),
             TokenKind::Keyword(_) => todo!(),
-            TokenKind::Ident(_) => todo!(),
+            TokenKind::Ident(_) => self.parse_singular_expression(),
 
             // Handle tree literals
             TokenKind::Tree(Delimiter::Brace, _) => self.parse_block_or_braced_literal(),
             TokenKind::Tree(Delimiter::Bracket, _) => self.parse_array_literal(), // Could be an array index?
             TokenKind::Tree(Delimiter::Paren, _) => self.parse_expression_or_tuple(),
 
-
-            // Handle primitive literals
-            TokenKind::IntLiteral(_)
-            | TokenKind::FloatLiteral(_)
-            | TokenKind::CharLiteral(_)
-            | TokenKind::StrLiteral(_) => Ok(self.parse_literal()),
-
-            // Handle a special error if... @@Incomplete
-            kind @ TokenKind::Semi => Err(ParseError::Parsing {
-                message: format!("Expected expression instead of empty item. Consider removing the additional '{}'", kind),
-                src: SourceLocation {
-                    location: (*token).span,
-                    module_index: ModuleIdx(0), // @@ModuleIdx: sort out locations with sources and paths
-                },
-            }),
             kind => Err(ParseError::Parsing {
                 message: format!("Unexpected token '{}' in the place of expression.", kind),
                 src: SourceLocation {
-                    location: (*token).span,
+                    location: token.span,
                     module_index: ModuleIdx(0), // @@ModuleIdx: sort out locations with sources and paths
                 },
             }),
         }
+    }
+
+    pub fn parse_singular_expression(&self) -> ParseResult<AstNode<Expression>> {
+        debug_assert!(matches!(self.current_token().kind, TokenKind::Ident(_)));
+
+        // extract the identifier value and span from the current token
+        let (ident, span) = match self.current_token() {
+            Token {
+                kind: TokenKind::Ident(id),
+                span,
+            } => (id, span),
+            _ => unreachable!(),
+        };
+
+        let mut lhs_expr = self.make_ident_from_id(ident, *span);
+        let mut last_is_type_args = false;
+
+        // so here we need to peek to see if this is either a access_name, index_access, field access or a
+        // function call...
+        loop {
+            if last_is_type_args {
+                break;
+            }
+
+            match self.peek() {
+                Some(next_token) => {
+                    match &next_token.kind {
+                        // Type arguments...
+                        TokenKind::Lt => {
+                            last_is_type_args = true;
+
+                            let type_args = self.parse_type_args()?;
+
+                            // we need to update the type args of the expression...
+                            lhs_expr = match lhs_expr.kind() {
+                                ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
+                                    AstNode::new(
+                                        Expression::new(ExpressionKind::Variable(VariableExpr {
+                                            name: name.clone(), // @@RedundantCopy: we should just update the type_args of the node rather than re-making it!
+                                            type_args,
+                                        })),
+                                        lhs_expr.location().join(self.current_location()),
+                                    )
+                                }
+
+                                // Is it even possible to get here?
+                                ExpressionKind::PropertyAccess(_) => todo!(),
+                                _ => unreachable!(),
+                            }
+                        }
+                        // Property access or infix function call
+                        TokenKind::Dot => todo!(),
+                        // Access name
+                        TokenKind::Colon => todo!(),
+                        // Array index access syntax: ident[...]
+                        TokenKind::Tree(Delimiter::Bracket, _) => todo!(),
+                        // Function call
+                        TokenKind::Tree(Delimiter::Paren, _) => todo!(),
+                        // Struct literal
+                        TokenKind::Tree(Delimiter::Brace, _) => todo!(),
+                        _ => break,
+                    }
+                }
+                None => break,
+            }
+        }
+
+        Ok(lhs_expr)
     }
 
     pub fn parse_unary_expression(&mut self) -> ParseResult<AstNode<Expression>> {
@@ -261,6 +360,10 @@ where
         }
 
         Ok(lhs)
+    }
+
+    pub fn parse_type_args(&self) -> ParseResult<AstNodes<Type>> {
+        todo!()
     }
 
     pub fn parse_block_or_braced_literal(&mut self) -> ParseResult<AstNode<Expression>> {
