@@ -82,7 +82,16 @@ where
         }
     }
 
-    pub(crate) fn unexpected_token(
+    /// Create a new [AstNode] from the information provided by the [AstGen]
+    pub fn node<T>(&self, inner: T) -> AstNode<T> {
+        AstNode::new(inner, self.current_location())
+    }
+
+    fn copy_name_node(&self, name: &AstNode<Name>) -> AstNode<Name> {
+        self.node(Name { ..*name.body() })
+    }
+
+    pub(crate) fn unexpected_token_error(
         &self,
         kind: &TokenKind,
         expected: &TokenKindVector,
@@ -253,9 +262,6 @@ where
                                         lhs_expr.location().join(self.current_location()),
                                     )
                                 }
-
-                                // Is it even possible to get here?
-                                ExpressionKind::PropertyAccess(_) => todo!(),
                                 _ => unreachable!(),
                             }
                         }

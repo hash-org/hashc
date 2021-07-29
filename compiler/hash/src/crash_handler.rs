@@ -29,7 +29,7 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
         if let Some(location) = info.location() {
             let _ = writeln!(
                 &mut stdout,
-                "Occurred in file '{}' at {}:{}",
+                "Occurred at '{}:{}:{}'",
                 location.file(),
                 location.line(),
                 location.column()

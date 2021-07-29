@@ -12,13 +12,13 @@ use crate::{
 use hash_ast::{
     ast::*,
     error::{ParseError, ParseResult},
-    ident::IDENTIFIER_MAP,
+    ident::{Identifier, IDENTIFIER_MAP},
     location::{Location, SourceLocation},
     module::ModuleIdx,
     resolve::ModuleResolver,
 };
 use iter::once;
-use smallvec::smallvec;
+use smallvec::{smallvec, SmallVec};
 
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
@@ -55,7 +55,7 @@ impl NodeBuilder {
         }
     }
 
-    /// Create a new [AstNode] from the information provided by the [AstBuilder]
+    /// Create a new [AstNode] from the some body at the currently stored location in [NodeBuilder]
     pub fn node<T>(&self, inner: T) -> AstNode<T> {
         AstNode::new(inner, self.site.location)
     }
@@ -70,7 +70,7 @@ impl NodeBuilder {
 
     fn make_single_access_name(&self, name: AstString) -> AstNode<AccessName> {
         self.node(AccessName {
-            path: smallvec![IDENTIFIER_MAP.create_ident(name)], // @@PathIdents: actually accept a vec of strings rather than a single one!
+            path: smallvec![IDENTIFIER_MAP.create_ident(name)],
         })
     }
 
@@ -92,9 +92,7 @@ impl NodeBuilder {
             true => "true",
         };
 
-        self.node(AccessName {
-            path: smallvec![IDENTIFIER_MAP.create_ident(AstString::Borrowed(name_ref))], // @@PathIdents
-        })
+        self.make_single_access_name(AstString::Borrowed(name_ref))
     }
 
     /// Utility function for creating a variable from a given name.
@@ -459,13 +457,17 @@ where
     ) -> ParseResult<AstNode<AccessName>> {
         match pair.as_rule() {
             Rule::access_name => {
-                let inner = pair.into_inner().next().unwrap();
+                let builder = self.builder_from_pair(&pair);
+                let inner = pair.into_inner();
 
-                Ok(self.builder_from_pair(&inner).node(AccessName {
-                    path: smallvec![
-                        IDENTIFIER_MAP.create_ident(AstString::Owned(inner.as_str().to_owned()))
-                    ],
-                }))
+                let path = inner
+                    .into_iter()
+                    .map(|chunk| {
+                        IDENTIFIER_MAP.create_ident(AstString::Owned(chunk.as_str().to_owned()))
+                    })
+                    .collect::<SmallVec<[Identifier; 4]>>();
+
+                Ok(builder.node(AccessName { path }))
             }
             _ => unreachable!(),
         }
