@@ -18,6 +18,7 @@ use hash_ast::{
     resolve::ModuleResolver,
 };
 use iter::once;
+use smallvec::smallvec;
 
 const FUNCTION_TYPE_NAME: &str = "Function";
 const TUPLE_TYPE_NAME: &str = "Tuple";
@@ -69,7 +70,7 @@ impl NodeBuilder {
 
     fn make_single_access_name(&self, name: AstString) -> AstNode<AccessName> {
         self.node(AccessName {
-            path: IDENTIFIER_MAP.create_path_ident(name),
+            path: smallvec![IDENTIFIER_MAP.create_ident(name)], // @@PathIdents: actually accept a vec of strings rather than a single one!
         })
     }
 
@@ -92,11 +93,11 @@ impl NodeBuilder {
         };
 
         self.node(AccessName {
-            path: IDENTIFIER_MAP.create_path_ident(AstString::Borrowed(name_ref)),
+            path: smallvec![IDENTIFIER_MAP.create_ident(AstString::Borrowed(name_ref))], // @@PathIdents
         })
     }
 
-    /// Utility finction for creating a variable from a given name.
+    /// Utility function for creating a variable from a given name.
     fn make_variable(&self, name: AstNode<AccessName>) -> AstNode<Expression> {
         self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
@@ -105,7 +106,7 @@ impl NodeBuilder {
     }
 
     /// Function to make a lambda from a given expression. This takes the expression
-    /// and put's the expression as the returning expression of a function body block
+    /// and puts the expression as the returning expression of a function body block
     fn make_single_lambda(&self, expr: AstNode<Expression>) -> AstNode<Expression> {
         self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
             Literal::Function(FunctionDef {
@@ -116,8 +117,8 @@ impl NodeBuilder {
         ))))
     }
 
-    /// Utility function to transform to some expression into a referenced expresison
-    /// given some condition. This function is useful when transpilling some types of
+    /// Utility function to transform to some expression into a referenced expression
+    /// given some condition. This function is useful when transpiling some types of
     /// operators which might have a side-effect to overwrite the lhs.
     fn transform_expr_into_ref(
         &self,
@@ -132,15 +133,15 @@ impl NodeBuilder {
     }
 
     // we love jon blow
-    fn transfrom_compound_ord_fn(
+    fn transform_compound_ord_fn(
         &self,
         fn_ty: CompoundFn,
-        assiging: bool,
+        assigning: bool,
         lhs: AstNode<Expression>,
         rhs: AstNode<Expression>,
     ) -> AstNode<Expression> {
         // we need to transform the lhs into a reference if the type of function is 'assigning'
-        let lhs = self.transform_expr_into_ref(lhs, assiging);
+        let lhs = self.transform_expr_into_ref(lhs, assigning);
 
         let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
             FunctionCallExpr {
@@ -244,7 +245,7 @@ pub(crate) fn build_binary(
                 FunctionCallExpr {
                     subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
                         name: ab.make_single_access_name(AstString::Borrowed(name)),
-                        type_args: vec![], // we dont need any kind of typeargs since were just transpiling here
+                        type_args: vec![], // we don't need any kind of type_args since were just transpiling here
                     }))),
                     args: ab.node(FunctionCallArgs {
                         entries: vec![ab.transform_expr_into_ref(lhs?, assigning), rhs?],
@@ -258,10 +259,10 @@ pub(crate) fn build_binary(
             // 'Ord' enum variants. This also happens for operators such as '>=' which
             // essentially means that we have to check if the result of 'ord()' is either
             // 'Eq' or 'Gt'.
-            Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
+            Ok(ab.transform_compound_ord_fn(name, assigning, lhs?, rhs?))
         }
         OperatorFn::LazyNamed { name, assigning } => {
-            // @@Copied: transform lhs into ref if assinging
+            // @@Copied: transform lhs into ref if assigning
 
             let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
@@ -398,7 +399,7 @@ where
                 let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
-                // firsly convertkk the type args by just iterating the inner component
+                // firstly convert the type args by just iterating the inner component
                 // of the type_args rule...
                 let type_args = ab.try_collect(
                     components
@@ -461,8 +462,9 @@ where
                 let inner = pair.into_inner().next().unwrap();
 
                 Ok(self.builder_from_pair(&inner).node(AccessName {
-                    path: IDENTIFIER_MAP
-                        .create_path_ident(AstString::Owned(inner.as_str().to_owned())),
+                    path: smallvec![
+                        IDENTIFIER_MAP.create_ident(AstString::Owned(inner.as_str().to_owned()))
+                    ],
                 }))
             }
             _ => unreachable!(),
@@ -480,7 +482,7 @@ where
             Rule::ref_type => {
                 let mut components = pair.into_inner();
 
-                // get the operator to see if it is a raw or unraw ref
+                // get the operator to see if it is a raw or non-raw ref
                 let op_type = components.next().unwrap();
 
                 // get the actual type
@@ -616,7 +618,7 @@ where
             Rule::float_literal => {
                 let mut components = pair.into_inner();
 
-                // float_literal is made of three parts, the integer part, fractical part
+                // float_literal is made of three parts, the integer part, fractional part
                 // and an optional exponent part...
                 let float = components.next().unwrap();
 
@@ -857,7 +859,7 @@ where
                         let name = self.transform_access_name(components.next().unwrap())?;
 
                         // If there is no binding part of the destructuring pattern, as in if
-                        // no pattern on the right-handside, we use the name of the field as a
+                        // no pattern on the right hand-side, we use the name of the field as a
                         // binding pattern here...
                         let entries =
                             ab.try_collect(components.next().unwrap().into_inner().map(|p| {
@@ -922,7 +924,7 @@ where
                 match pairs.next() {
                     None => Ok(first),
                     Some(pat) => {
-                        // collect any remaining patterns in the or secquence
+                        // collect any remaining patterns in the or sequence
                         let variants = ab.try_collect(
                             vec![Ok(first), self.transform_pattern(pat)]
                                 .into_iter()
@@ -1146,7 +1148,7 @@ where
                             let index_expr =
                                 self.transform_expression(accessor.into_inner().next().unwrap())?;
 
-                            // @@Cutnpaste: move this into a seprate function for transpilling built-in functions
+                            // @@Cutnpaste: move this into a separate function for transpiling built-in functions
                             Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
                                 FunctionCallExpr {
                                     subject: ab.node(Expression::new(ExpressionKind::Variable(
@@ -1181,9 +1183,10 @@ where
             }
             Rule::if_else_block => {
                 // we transpile if-else blocks into match blocks in order to simplify
-                // the typechecking process and optimisation effors.
+                // the typechecking process and optimisation efforts.
+                //
                 // Firstly, since we always want to check each case, we convert the
-                // if statement into a series of and-patterns, where the right handside
+                // if statement into a series of and-patterns, where the right hand-side
                 // pattern is the condition to execute the branch...
                 //
                 // For example:
@@ -1195,7 +1198,7 @@ where
                 //      _ => c_branch
                 //     }
                 //
-                // Adittionally, if no 'else' clause is specified, we fill it with an
+                // Additionally, if no 'else' clause is specified, we fill it with an
                 // empty block since an if-block could be assigned to any variable and therefore
                 // we need to know the outcome of all branches for typechecking.
                 let append_else = Cell::new(true);
@@ -1276,7 +1279,7 @@ where
             Rule::match_block => {
                 let mut match_block = pair.into_inner();
 
-                // firstly get the expresion condition from the match block, the
+                // firstly get the expression condition from the match block, the
                 // next rule will be a bunch of match_case rules which can be
                 // converted into ast using the pattern and block implementations...
                 let subject = self.transform_expression(match_block.next().unwrap())?;
@@ -1463,7 +1466,7 @@ where
             }
             // since we have block statements and semi statements, we can check here
             // to see which path it is, if this is a block statement, we just call
-            // into_ast(resolver) since there is an implementation for block convetsions
+            // into_ast(resolver) since there is an implementation for block conversions
             Rule::block => Ok(ab.node(Statement::Block(self.transform_block(pair)?))),
             Rule::break_st => Ok(ab.node(Statement::Break)),
             Rule::continue_st => Ok(ab.node(Statement::Continue)),
@@ -1574,7 +1577,7 @@ where
                                 Ok(ab.node(Statement::Expr(assign_call)))
                             }
                             Some(OperatorFn::LazyNamed { name, assigning }) => {
-                                // some functions have to ehxibit a short-circuiting behaviour, namely
+                                // some functions have to exhibit a short-circuiting behaviour, namely
                                 // the logical 'and' and 'or' operators. To do this, we expect the 'and'
                                 // 'or' trait (and their assignment counterparts) to expect the rhs part
                                 // as a lambda. So, we essentially create a lambda that calls the rhs, or
@@ -1613,7 +1616,7 @@ where
                                 // essentially means that we have to check if the result of 'ord()' is either
                                 // 'Eq' or 'Gt'.
                                 Ok(ab.node(Statement::Expr(
-                                    builder.transfrom_compound_ord_fn(name, assigning, lhs, rhs),
+                                    builder.transform_compound_ord_fn(name, assigning, lhs, rhs),
                                 )))
                             }
                             None => Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs }))),

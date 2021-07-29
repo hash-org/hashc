@@ -358,7 +358,12 @@ impl NodeDisplay for AccessName {
     fn node_display(&self) -> Vec<String> {
         vec![format!(
             "\"{}\"",
-            IDENTIFIER_MAP.path_ident_name(self.path).full()
+            (self
+                .path
+                .iter()
+                .map(|x| IDENTIFIER_MAP.ident_name(*x))
+                .collect::<Vec<String>>()
+                .join("::"))
         )]
     }
 }

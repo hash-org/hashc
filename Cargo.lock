@@ -370,6 +370,7 @@ dependencies = [
  "log",
  "num_cpus",
  "rayon",
+ "smallvec",
  "static_assertions",
  "strum",
  "strum_macros",
@@ -391,15 +392,12 @@ dependencies = [
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
- "crossbeam-channel",
  "dashmap",
  "hash-ast",
  "hash-utils",
  "lazy_static",
  "log",
- "num_cpus",
- "pretty_env_logger",
- "rayon",
+ "smallvec",
 ]
 
 [[package]]
@@ -412,11 +410,10 @@ dependencies = [
  "hash-utils",
  "lazy_static",
  "log",
- "num_cpus",
  "pest",
  "pest_derive",
- "pretty_env_logger",
  "rayon",
+ "smallvec",
 ]
 
 [[package]]

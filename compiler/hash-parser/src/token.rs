@@ -60,8 +60,11 @@ impl fmt::Display for Token {
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Delimiter {
+    /// '(' or ')'
     Paren,
+    /// '{' or '}'
     Brace,
+    /// '[' or ']'
     Bracket,
 }
 
@@ -153,6 +156,9 @@ pub enum TokenKind {
     /// Identifier
     Ident(Identifier),
 
+    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error reporting and messages
+    Delimiter(Delimiter, bool),
+
     /// A token tree is represented by an arbitrary number of tokens that are surrounded by
     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
     Tree(Delimiter, Vec<Token>),
@@ -174,6 +180,17 @@ impl TokenKind {
                 | TokenKind::Amp
                 | TokenKind::Tilde
                 | TokenKind::Exclamation
+        )
+    }
+
+    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
+    pub(crate) fn is_literal(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::IntLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::CharLiteral(_)
+                | TokenKind::StrLiteral(_)
         )
     }
 }
@@ -201,6 +218,13 @@ impl fmt::Display for TokenKind {
             TokenKind::Hash => write!(f, "#"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
+            TokenKind::Delimiter(delim, left) => {
+                if *left {
+                    write!(f, "{}", delim.left())
+                } else {
+                    write!(f, "{}", delim.right())
+                }
+            }
             TokenKind::Unexpected(ch) => write!(f, "{}", ch),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::IntLiteral(num) => write!(f, "{}", num),
@@ -215,6 +239,54 @@ impl fmt::Display for TokenKind {
             }
             TokenKind::Tree(delim, _) => {
                 write!(f, "{}", delim.left())
+            }
+        }
+    }
+}
+
+pub struct TokenKindVector(Vec<TokenKind>);
+
+impl TokenKindVector {
+    pub fn from_slice(items: &[TokenKind]) -> Self {
+        Self(items.to_vec())
+    }
+
+    // @@Naming
+    pub fn expression_glue() -> Self {
+        Self(vec![
+            TokenKind::Dot,
+            TokenKind::Colon,
+            TokenKind::Lt,
+            TokenKind::Delimiter(Delimiter::Paren, true),
+            TokenKind::Delimiter(Delimiter::Brace, true),
+            TokenKind::Delimiter(Delimiter::Bracket, true),
+        ])
+    }
+}
+
+/// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds
+/// after a particular token. This is useful for constructing re-usable error messages that might appear in multiple
+/// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
+/// length of the vector kind is one, we don't use conjunctives to glue kinds together.
+/// @@Improvement: Multiple language support ???
+impl fmt::Display for TokenKindVector {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // This is where Haskell would really shine...
+        match self.0.len() {
+            0 => write!(f, ""),
+            1 => write!(f, "{}", self.0.get(0).unwrap()),
+            _ => {
+                let mut items = self.0.iter().peekable();
+
+                while let Some(item) = items.next() {
+                    if items.peek().is_some() {
+                        write!(f, "'{}', ", item)?;
+                    } else {
+                        write!(f, "'{}'", item)?;
+                    };
+                }
+
+                write!(f, ".")
             }
         }
     }

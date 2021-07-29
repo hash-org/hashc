@@ -6,11 +6,8 @@ edition = "2018"
 
 [dependencies]
 log = "0.4"
-pretty_env_logger = "0.4"
 lazy_static = "1.4.0"
-crossbeam-channel = "0.5.1"
 dashmap = "4.0"
-num_cpus = "1.13.0"
-rayon = "1.5.0"
+smallvec = "1.6.1"
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }

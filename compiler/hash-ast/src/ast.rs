@@ -2,10 +2,11 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-use crate::ident::{Identifier, PathIdentifier};
+use crate::ident::Identifier;
 use crate::location::Location;
 use crate::module::ModuleIdx;
 use hash_utils::counter;
+use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -101,7 +102,8 @@ pub struct Name {
 #[derive(Debug, PartialEq, Clone)]
 pub struct AccessName {
     /// The list of names that make up the access name.
-    pub path: PathIdentifier,
+    /// 99% of cases are covered by having 4 identifiers being inlined, others are placed on the heap.
+    pub path: SmallVec<[Identifier; 4]>,
 }
 
 /// A concrete/"named" type.
