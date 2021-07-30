@@ -25,7 +25,7 @@ impl ParserBackend for HashParser {
             |elapsed| println!("tokenise:    {:?}", elapsed),
         );
 
-        let mut gen = AstGen::new(tokens, resolver);
+        let gen = AstGen::new(tokens, resolver);
 
         timed(
             || gen.parse_module(),
@@ -40,11 +40,11 @@ impl ParserBackend for HashParser {
         contents: &str,
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let tokens = tokenise(contents).collect::<Vec<_>>();
-        let mut gen = AstGen::new(tokens.clone(), resolver);
+        let gen = AstGen::new(tokens.clone(), resolver);
 
-        for token in tokens.into_iter() {
-            println!("{}", token);
-        }
+        // for token in tokens.into_iter() {
+        //     println!("{}", token);
+        // }
 
         gen.parse_expression_from_interactive()
     }

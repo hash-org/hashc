@@ -9,7 +9,7 @@ use hash_utils::counter;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::hash::Hash;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 counter! {
     name: AstNodeId,
@@ -56,6 +56,10 @@ impl<T> AstNode<T> {
         self.body.as_ref()
     }
 
+    pub fn body_mut(&mut self) -> &mut T {
+        self.body.as_mut()
+    }
+
     /// Take the value contained within this node.
     pub fn into_body(self) -> T {
         *self.body
@@ -81,6 +85,13 @@ impl<T> Deref for AstNode<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.body()
+    }
+}
+
+/// [AstNode] dereferences to its inner `body` type.
+impl<T> DerefMut for AstNode<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.body_mut()
     }
 }
 
@@ -596,6 +607,10 @@ impl Expression {
             kind,
             type_id: None,
         }
+    }
+
+    pub fn into_kind(self) -> ExpressionKind {
+        self.kind
     }
 
     pub fn kind(&self) -> &ExpressionKind {

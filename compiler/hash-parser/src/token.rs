@@ -27,6 +27,10 @@ impl Token {
     pub fn new(kind: TokenKind, span: Location) -> Self {
         Token { kind, span }
     }
+
+    pub fn has_kind(&self, right: TokenKind) -> bool {
+        self.kind == right
+    }
 }
 
 impl fmt::Display for Token {
