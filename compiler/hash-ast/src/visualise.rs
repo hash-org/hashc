@@ -123,10 +123,8 @@ where
     }
 }
 
-///
-/// We need a seperate implementation for [Module] since it won't be wrapped within
-/// an [AstNode] unlike all the other variants
-///
+/// We need a separate implementation for [Module] since it won't be wrapped within
+/// an [AstNode] unlike all the other variants.
 impl std::fmt::Display for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let nodes: Vec<Vec<String>> = self.contents.iter().map(|s| s.node_display()).collect();
@@ -325,7 +323,7 @@ impl NodeDisplay for Literal {
 
 impl NodeDisplay for FunctionDefArg {
     fn node_display(&self) -> Vec<String> {
-        // deal with the name and type as seperate branches
+        // deal with the name and type as separate branches
         let mut arg_components = vec![vec![format!("name {}", self.name.node_display().join(""))]];
 
         if let Some(ty) = &self.ty {
@@ -647,7 +645,7 @@ impl NodeDisplay for Expression {
                     lines.extend(draw_branches_for_children(&components));
                 } else {
                     // we don't construct a complex tree structure here since we want to avoid
-                    // verbosity as much, since most of the time variales aren't going to have
+                    // verbosity as much, since most of the time variables aren't going to have
                     // type arguments.
                     lines.extend(ident_lines);
                 }
@@ -691,7 +689,7 @@ impl NodeDisplay for Expression {
 
                 let TypedExpr { expr, ty } = expr;
 
-                // the type line is handeled by the implementation
+                // the type line is handled by the implementation
                 let type_lines = ty.node_display();
 
                 // now deal with the expression
@@ -732,11 +730,9 @@ impl NodeDisplay for Block {
                     components.push(case_lines);
                 }
 
-                let lines = iter::once("match".to_string())
+                iter::once("match".to_string())
                     .chain(draw_branches_for_children(&components))
-                    .collect::<Vec<String>>();
-
-                child_branch(&lines)
+                    .collect::<Vec<String>>()
             }
             Block::Loop(loop_body) => {
                 let mut lines = vec!["loop".to_string()];

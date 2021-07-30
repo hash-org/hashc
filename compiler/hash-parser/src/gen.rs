@@ -4,7 +4,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::{cell::Cell, vec};
 
 use hash_ast::{
     ast::*,
@@ -36,6 +36,20 @@ where
             stream,
             offset: Cell::new(0),
             resolver,
+        }
+    }
+
+    /// Function to create a [SourceLocation] from a [Location] by using the provided resolver
+    fn source_location(&self, location: &Location) -> SourceLocation {
+        match self.resolver.module_index() {
+            Some(module_index) => SourceLocation {
+                location: *location,
+                module_index,
+            },
+            None => SourceLocation {
+                location: *location,
+                module_index: ModuleIdx(0),
+            },
         }
     }
 
@@ -87,6 +101,11 @@ where
         AstNode::new(inner, self.current_location())
     }
 
+    /// Create a new [AstNode] from the information provided by the [AstGen]
+    pub fn node_with_location<T>(&self, inner: T, location: Location) -> AstNode<T> {
+        AstNode::new(inner, location)
+    }
+
     fn copy_name_node(&self, name: &AstNode<Name>) -> AstNode<Name> {
         self.node(Name { ..*name.body() })
     }
@@ -99,10 +118,7 @@ where
     ) -> ParseError {
         ParseError::Parsing {
             message: format!("Unexpected token '{}', expecting {}", kind, expected),
-            src: SourceLocation {
-                location: *location,
-                module_index: ModuleIdx(0),
-            },
+            src: self.source_location(location),
         }
     }
 
@@ -156,18 +172,36 @@ where
         AstNode::new(body, start.join(self.current_location()))
     }
 
-    pub fn parse_module(&mut self) -> ParseResult<Module> {
+    /// Function to peek ahead and match some parsing function that returns a [Option<T>] wrapped
+    /// in a [ParseResult]. If The result is an error, or the option is [None], the function will
+    /// reset the current offset of the token stream to where it was the function was peeked.
+    pub fn peek_fn<T>(
+        &self,
+        parse_fn: impl Fn() -> ParseResult<Option<T>>,
+    ) -> ParseResult<Option<T>> {
+        let start = self.offset.get();
+
+        match parse_fn() {
+            result @ Ok(Some(_)) => result,
+            err => {
+                self.offset.set(start);
+                err
+            }
+        }
+    }
+
+    pub fn parse_module(&self) -> ParseResult<Module> {
         // Let's begin by looping through
         Ok(Module { contents: vec![] })
     }
 
-    pub fn parse_statement(&mut self) -> ParseResult<AstNode<Statement>> {
+    pub fn parse_statement(&self) -> ParseResult<AstNode<Statement>> {
         todo!()
     }
 
-    pub fn parse_block(&mut self) {}
+    pub fn parse_block(&self) {}
 
-    pub fn parse_expression_from_interactive(&mut self) -> ParseResult<AstNode<BodyBlock>> {
+    pub fn parse_expression_from_interactive(&self) -> ParseResult<AstNode<BodyBlock>> {
         // get the starting position
         let start = self.current_location();
 
@@ -182,7 +216,7 @@ where
         ))
     }
 
-    pub fn parse_expression(&mut self) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_expression(&self) -> ParseResult<AstNode<Expression>> {
         let token = self.next_token();
 
         if token.is_none() {
@@ -212,10 +246,7 @@ where
 
             kind => Err(ParseError::Parsing {
                 message: format!("Unexpected token '{}' in the place of expression.", kind),
-                src: SourceLocation {
-                    location: token.span,
-                    module_index: ModuleIdx(0), // @@ModuleIdx: sort out locations with sources and paths
-                },
+                src: self.source_location(&token.span),
             }),
         }
     }
@@ -224,51 +255,97 @@ where
         debug_assert!(matches!(self.current_token().kind, TokenKind::Ident(_)));
 
         // extract the identifier value and span from the current token
-        let (ident, span) = match self.current_token() {
+        let ident = match self.current_token() {
             Token {
                 kind: TokenKind::Ident(id),
-                span,
-            } => (id, span),
+                span: _,
+            } => id,
             _ => unreachable!(),
         };
 
-        let mut lhs_expr = self.make_ident_from_id(ident, *span);
-        let mut last_is_type_args = false;
+        // record the starting span
+        let start = self.current_location();
 
-        // so here we need to peek to see if this is either a access_name, index_access, field access or a
-        // function call...
+        let (name, type_args) = self.parse_name_with_type_args(ident)?;
+
+        let mut lhs_expr = self.node_with_location(
+            Expression::new(ExpressionKind::Variable(VariableExpr {
+                name,
+                type_args: type_args.unwrap_or(vec![]),
+            })),
+            start.join(self.current_location()),
+        );
+
+        // so here we need to peek to see if this is either a index_access, field access or a function call...
         loop {
-            if last_is_type_args {
-                break;
-            }
-
             match self.peek() {
                 Some(next_token) => {
                     match &next_token.kind {
-                        // Type arguments...
-                        TokenKind::Lt => {
-                            last_is_type_args = true;
+                        // Property access or infix function call
+                        TokenKind::Dot => {
+                            self.next_token(); // eat the token since there isn't any alternative to being an ident or fn call.
 
-                            let type_args = self.parse_type_args()?;
+                            let name_or_fn_call = self.parse_name_or_infix_call()?;
+                            let kind = name_or_fn_call.into_body().into_kind();
 
-                            // we need to update the type args of the expression...
-                            lhs_expr = match lhs_expr.kind() {
-                                ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
-                                    AstNode::new(
-                                        Expression::new(ExpressionKind::Variable(VariableExpr {
-                                            name: name.clone(), // @@RedundantCopy: we should just update the type_args of the node rather than re-making it!
-                                            type_args,
-                                        })),
-                                        lhs_expr.location().join(self.current_location()),
-                                    )
+                            match kind {
+                                ExpressionKind::FunctionCall(FunctionCallExpr {
+                                    subject,
+                                    mut args,
+                                }) => {
+                                    // @@Future: @@FunctionArguments:
+                                    // In the future when we consider function named arguments and optional arguments and variadic arguments,
+                                    // is it correct to apply the same behaviour of placing the argument first if it is an infix call ?
+                                    // The current behaviour is that the lhs is inserted as the first argument, but that might change:
+                                    //
+                                    // >>> foo.bar()
+                                    // vvv Is transpiled to..
+                                    // >>> bar(foo)
+                                    //
+                                    // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
+                                    //
+                                    // >>> foo.bar(baz)
+                                    // vvv Is transpiled to..
+                                    // >>> bar(foo, baz)
+
+                                    // insert lhs_expr first...
+                                    args.entries.insert(0, lhs_expr);
+
+                                    lhs_expr = AstNode::new(
+                                        Expression::new(ExpressionKind::FunctionCall(
+                                            FunctionCallExpr { subject, args },
+                                        )),
+                                        start.join(self.current_location()),
+                                    );
                                 }
-                                _ => unreachable!(),
+                                ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
+                                    // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
+                                    let location = name.location();
+                                    let ident = name.body().path.get(0).unwrap();
+
+                                    let node =
+                                        self.node_with_location(Name { ident: *ident }, location);
+
+                                    lhs_expr = AstNode::new(
+                                        Expression::new(ExpressionKind::PropertyAccess(
+                                            PropertyAccessExpr {
+                                                subject: lhs_expr,
+                                                property: node,
+                                            },
+                                        )),
+                                        start.join(self.current_location()),
+                                    );
+                                }
+                                _ => {
+                                    return Err(ParseError::Parsing {
+                                        message: format!(
+                                            "Expected field name or an infix function call"
+                                        ),
+                                        src: self.source_location(&self.current_location()),
+                                    })
+                                }
                             }
                         }
-                        // Property access or infix function call
-                        TokenKind::Dot => todo!(),
-                        // Access name
-                        TokenKind::Colon => todo!(),
                         // Array index access syntax: ident[...]
                         TokenKind::Tree(Delimiter::Bracket, _) => todo!(),
                         // Function call
@@ -285,7 +362,7 @@ where
         Ok(lhs_expr)
     }
 
-    pub fn parse_unary_expression(&mut self) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_unary_expression(&self) -> ParseResult<AstNode<Expression>> {
         let token = self.current_token();
         let start = self.current_location();
 
@@ -317,9 +394,71 @@ where
         Ok(self.from_joined_location(Expression::new(expr_kind), &start))
     }
 
+    pub fn parse_name_with_type_args(
+        &self,
+        ident: &Identifier,
+    ) -> ParseResult<(AstNode<AccessName>, Option<AstNodes<Type>>)> {
+        let name = self.parse_access_name(ident)?;
+        let args = self.peek_fn(|| self.parse_type_args())?;
+
+        Ok((name, args))
+    }
+
+    /// Parse an [AccessName] from the current token stream. An [AccessName] is defined as
+    /// a number of identifiers that are separated by the namespace operator '::'. The function
+    /// presumes that the current token is an identifier an that the next token is a colon.
+    pub fn parse_access_name(&self, start_id: &Identifier) -> ParseResult<AstNode<AccessName>> {
+        let start = self.current_location();
+        let mut path = smallvec![*start_id];
+
+        // println!("token@name: {:?}", self.peek());
+
+        loop {
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Colon) => {
+                    self.next_token();
+
+                    let second_colon = self.peek();
+
+                    // Ensure the second colon is present...
+                    if second_colon.is_none() || !second_colon.unwrap().has_kind(TokenKind::Colon) {
+                        return Err(ParseError::Parsing {
+                            message: format!("Expected ':' after the beginning of an namespace"),
+                            src: self.source_location(&self.current_location()),
+                        });
+                    }
+
+                    self.next_token();
+
+                    match self.peek() {
+                        Some(Token {
+                            kind: TokenKind::Ident(id),
+                            span: _,
+                        }) => {
+                            self.next_token();
+                            path.push(*id);
+                        }
+                        _ => {
+                            return Err(ParseError::Parsing {
+                                message: format!("Expected identifier after a name access"),
+                                src: self.source_location(&self.current_location()),
+                            })
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        Ok(AstNode::new(
+            AccessName { path },
+            start.join(self.current_location()),
+        ))
+    }
+
     /// Special variant of expression to handle interactive statements that have relaxed rules about
     /// semi-colons for some statements.
-    pub fn parse_expression_bp(&mut self, min_prec: u8) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_expression_bp(&self, min_prec: u8) -> ParseResult<AstNode<Expression>> {
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
 
@@ -368,25 +507,141 @@ where
         Ok(lhs)
     }
 
-    pub fn parse_type_args(&self) -> ParseResult<AstNodes<Type>> {
+    /// This parses some type args after an [AccessName], however due to the nature of the
+    /// language grammar, since the [TokenKind] could be a `TokenKind::Lt` or `<`, it could
+    /// also be a comparison rather than the beginning of a type argument. Therefore, we have to
+    /// lookahead to see if there is another type followed by either a comma (which locks the
+    /// type_args) or a closing `TokenKind::Gt`. Otherwise, we back track and let the expression
+    /// be parsed as an order comparison.
+    pub fn parse_type_args(&self) -> ParseResult<Option<AstNodes<Type>>> {
+        // Ensure this is the beginning of a type_bound
+        if self.peek().is_none() || !self.peek().unwrap().has_kind(TokenKind::Lt) {
+            return Ok(None);
+        }
+
+        self.next_token();
+
+        let mut type_args = vec![];
+        let mut has_comma = false;
+
+        loop {
+            // Check if the type argument is parsed, if we have already encountered a comma, we
+            // return a hard error because it has already started on a comma.
+            match self.parse_type()? {
+                Some(ty) => type_args.push(ty),
+                _ if has_comma => {
+                    return Err(ParseError::Parsing {
+                        message: format!("Expected type argument in a type bound."),
+                        src: self.source_location(&self.current_location()),
+                    })
+                }
+                _ => return Ok(None),
+            };
+
+            // Now consider if the bound is closing or continuing with a comma...
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
+                    self.next_token();
+                    has_comma = true;
+                }
+                Some(token) if token.has_kind(TokenKind::Gt) => {
+                    self.next_token();
+                    break;
+                }
+                _ => return Ok(None),
+            }
+        }
+
+        Ok(Some(type_args))
+    }
+
+    /// Function to parse a type
+    pub fn parse_type(&self) -> ParseResult<Option<AstNode<Type>>> {
+        let start = self.current_location();
+        let token = self.peek();
+
+        if token.is_none() {
+            return Ok(None);
+        }
+
+        let variant = match token.unwrap().kind {
+            TokenKind::Amp => {
+                self.next_token();
+
+                // @@TODO: raw_refs...
+                match self.parse_type()? {
+                    Some(ty) => Type::Ref(ty),
+                    None => return Ok(None),
+                }
+            }
+            TokenKind::Question => {
+                self.next_token();
+                Type::Existential
+            }
+            TokenKind::Ident(id) => {
+                self.next_token();
+
+                let (name, args) = self.parse_name_with_type_args(&id)?;
+                // if the type_args are None, this means that the name could be either a
+                // infer_type, or a type_var...
+                match args {
+                    Some(type_args) => Type::Named(NamedType { name, type_args }),
+                    None => {
+                        // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
+                        let location = name.location();
+                        let ident = name.body().path.get(0).unwrap();
+
+                        match IDENTIFIER_MAP.ident_name(*ident).as_str() {
+                            "_" => Type::Infer,
+                            // @@TypeArgsNaming: Here the rules are built-in for what the name of a type-arg is,
+                            //                   a capital character of length 1...
+                            ident_name => {
+                                if ident_name.len() == 1
+                                    && ident_name.chars().all(|x| x.is_ascii_uppercase())
+                                {
+                                    let name =
+                                        self.node_with_location(Name { ident: *ident }, location);
+
+                                    Type::TypeVar(TypeVar { name })
+                                } else {
+                                    Type::Named(NamedType {
+                                        name,
+                                        type_args: vec![],
+                                    })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => return Ok(None),
+        };
+
+        Ok(Some(AstNode::new(
+            variant,
+            start.join(self.current_location()),
+        )))
+    }
+
+    pub fn parse_name_or_infix_call(&self) -> ParseResult<AstNode<Expression>> {
         todo!()
     }
 
-    pub fn parse_block_or_braced_literal(&mut self) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_block_or_braced_literal(&self) -> ParseResult<AstNode<Expression>> {
         todo!()
     }
 
-    pub fn parse_pattern(&mut self) -> ParseResult<AstNode<Pattern>> {
+    pub fn parse_pattern(&self) -> ParseResult<AstNode<Pattern>> {
         todo!()
     }
 
-    pub fn parse_expression_or_tuple(&mut self) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_expression_or_tuple(&self) -> ParseResult<AstNode<Expression>> {
         todo!()
     }
 
     /// Convert the current token (provided it is a primitive literal) into a [ExpressionKind::LiteralExpr]
     /// by simply matching on the type of the expr.
-    pub fn parse_literal(&mut self) -> AstNode<Expression> {
+    pub fn parse_literal(&self) -> AstNode<Expression> {
         let token = self.current_token();
         let literal = AstNode::new(
             match token.kind {
@@ -407,7 +662,7 @@ where
         )
     }
 
-    pub fn parse_array_literal(&mut self) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_array_literal(&self) -> ParseResult<AstNode<Expression>> {
         todo!()
     }
 }
