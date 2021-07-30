@@ -271,91 +271,82 @@ where
         let mut lhs_expr = self.node_with_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name,
-                type_args: type_args.unwrap_or(vec![]),
+                type_args: type_args.unwrap_or_default(),
             })),
             start.join(self.current_location()),
         );
 
         // so here we need to peek to see if this is either a index_access, field access or a function call...
-        loop {
-            match self.peek() {
-                Some(next_token) => {
-                    match &next_token.kind {
-                        // Property access or infix function call
-                        TokenKind::Dot => {
-                            self.next_token(); // eat the token since there isn't any alternative to being an ident or fn call.
+        while let Some(next_token) = self.peek() {
+            match &next_token.kind {
+                // Property access or infix function call
+                TokenKind::Dot => {
+                    self.next_token(); // eat the token since there isn't any alternative to being an ident or fn call.
 
-                            let name_or_fn_call = self.parse_name_or_infix_call()?;
-                            let kind = name_or_fn_call.into_body().into_kind();
+                    let name_or_fn_call = self.parse_name_or_infix_call()?;
+                    let kind = name_or_fn_call.into_body().into_kind();
 
-                            match kind {
-                                ExpressionKind::FunctionCall(FunctionCallExpr {
+                    match kind {
+                        ExpressionKind::FunctionCall(FunctionCallExpr { subject, mut args }) => {
+                            // @@Future: @@FunctionArguments:
+                            // In the future when we consider function named arguments and optional arguments and variadic arguments,
+                            // is it correct to apply the same behaviour of placing the argument first if it is an infix call ?
+                            // The current behaviour is that the lhs is inserted as the first argument, but that might change:
+                            //
+                            // >>> foo.bar()
+                            // vvv Is transpiled to..
+                            // >>> bar(foo)
+                            //
+                            // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
+                            //
+                            // >>> foo.bar(baz)
+                            // vvv Is transpiled to..
+                            // >>> bar(foo, baz)
+
+                            // insert lhs_expr first...
+                            args.entries.insert(0, lhs_expr);
+
+                            lhs_expr = AstNode::new(
+                                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                                     subject,
-                                    mut args,
-                                }) => {
-                                    // @@Future: @@FunctionArguments:
-                                    // In the future when we consider function named arguments and optional arguments and variadic arguments,
-                                    // is it correct to apply the same behaviour of placing the argument first if it is an infix call ?
-                                    // The current behaviour is that the lhs is inserted as the first argument, but that might change:
-                                    //
-                                    // >>> foo.bar()
-                                    // vvv Is transpiled to..
-                                    // >>> bar(foo)
-                                    //
-                                    // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
-                                    //
-                                    // >>> foo.bar(baz)
-                                    // vvv Is transpiled to..
-                                    // >>> bar(foo, baz)
-
-                                    // insert lhs_expr first...
-                                    args.entries.insert(0, lhs_expr);
-
-                                    lhs_expr = AstNode::new(
-                                        Expression::new(ExpressionKind::FunctionCall(
-                                            FunctionCallExpr { subject, args },
-                                        )),
-                                        start.join(self.current_location()),
-                                    );
-                                }
-                                ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
-                                    // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
-                                    let location = name.location();
-                                    let ident = name.body().path.get(0).unwrap();
-
-                                    let node =
-                                        self.node_with_location(Name { ident: *ident }, location);
-
-                                    lhs_expr = AstNode::new(
-                                        Expression::new(ExpressionKind::PropertyAccess(
-                                            PropertyAccessExpr {
-                                                subject: lhs_expr,
-                                                property: node,
-                                            },
-                                        )),
-                                        start.join(self.current_location()),
-                                    );
-                                }
-                                _ => {
-                                    return Err(ParseError::Parsing {
-                                        message: format!(
-                                            "Expected field name or an infix function call"
-                                        ),
-                                        src: self.source_location(&self.current_location()),
-                                    })
-                                }
-                            }
+                                    args,
+                                })),
+                                start.join(self.current_location()),
+                            );
                         }
-                        // Array index access syntax: ident[...]
-                        TokenKind::Tree(Delimiter::Bracket, _) => todo!(),
-                        // Function call
-                        TokenKind::Tree(Delimiter::Paren, _) => todo!(),
-                        // Struct literal
-                        TokenKind::Tree(Delimiter::Brace, _) => todo!(),
-                        _ => break,
+                        ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
+                            // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
+                            let location = name.location();
+                            let ident = name.body().path.get(0).unwrap();
+
+                            let node = self.node_with_location(Name { ident: *ident }, location);
+
+                            lhs_expr = AstNode::new(
+                                Expression::new(ExpressionKind::PropertyAccess(
+                                    PropertyAccessExpr {
+                                        subject: lhs_expr,
+                                        property: node,
+                                    },
+                                )),
+                                start.join(self.current_location()),
+                            );
+                        }
+                        _ => {
+                            return Err(ParseError::Parsing {
+                                message: "Expected field name or an infix function call"
+                                    .to_string(),
+                                src: self.source_location(&self.current_location()),
+                            })
+                        }
                     }
                 }
-                None => break,
+                // Array index access syntax: ident[...]
+                TokenKind::Tree(Delimiter::Bracket, _) => todo!(),
+                // Function call
+                TokenKind::Tree(Delimiter::Paren, _) => todo!(),
+                // Struct literal
+                TokenKind::Tree(Delimiter::Brace, _) => todo!(),
+                _ => break,
             }
         }
 
@@ -423,7 +414,7 @@ where
                     // Ensure the second colon is present...
                     if second_colon.is_none() || !second_colon.unwrap().has_kind(TokenKind::Colon) {
                         return Err(ParseError::Parsing {
-                            message: format!("Expected ':' after the beginning of an namespace"),
+                            message: "Expected ':' after the beginning of an namespace".to_string(),
                             src: self.source_location(&self.current_location()),
                         });
                     }
@@ -440,7 +431,7 @@ where
                         }
                         _ => {
                             return Err(ParseError::Parsing {
-                                message: format!("Expected identifier after a name access"),
+                                message: "Expected identifier after a name access".to_string(),
                                 src: self.source_location(&self.current_location()),
                             })
                         }
@@ -531,7 +522,7 @@ where
                 Some(ty) => type_args.push(ty),
                 _ if has_comma => {
                     return Err(ParseError::Parsing {
-                        message: format!("Expected type argument in a type bound."),
+                        message: "Expected type argument in a type bound.".to_string(),
                         src: self.source_location(&self.current_location()),
                     })
                 }
@@ -624,7 +615,29 @@ where
     }
 
     pub fn parse_name_or_infix_call(&self) -> ParseResult<AstNode<Expression>> {
-        todo!()
+        // println!("current_token={}", self.current_token());
+        // Ensure this is the beginning of a type_bound
+        debug_assert!(self.current_token().has_kind(TokenKind::Dot));
+        // let start = self.current_location();
+
+        match self.next_token() {
+            Some(Token {
+                kind: TokenKind::Ident(id),
+                span,
+            }) => match self.peek() {
+                Some(Token {
+                    kind: TokenKind::Tree(Delimiter::Paren, _),
+                    span: _,
+                }) => {
+                    todo!()
+                }
+                _ => Ok(self.make_ident_from_id(id, *span)),
+            },
+            _ => Err(ParseError::Parsing {
+                message: "Expecting field name after property access.".to_string(),
+                src: self.source_location(&self.current_location()),
+            }),
+        }
     }
 
     pub fn parse_block_or_braced_literal(&self) -> ParseResult<AstNode<Expression>> {

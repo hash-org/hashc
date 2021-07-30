@@ -40,7 +40,7 @@ impl ParserBackend for HashParser {
         contents: &str,
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let tokens = tokenise(contents).collect::<Vec<_>>();
-        let gen = AstGen::new(tokens.clone(), resolver);
+        let gen = AstGen::new(tokens, resolver);
 
         // for token in tokens.into_iter() {
         //     println!("{}", token);
