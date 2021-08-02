@@ -15,11 +15,11 @@ use log::Level;
 use rayon::Scope;
 use std::{fs, path::Path};
 
-pub trait ModuleResolver {
+pub trait ModuleResolver: Clone {
     fn module_source(&self) -> Option<&str>;
     fn module_index(&self) -> Option<ModuleIdx>;
     fn add_module(
-        &mut self,
+        &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx>;
@@ -32,7 +32,7 @@ pub(crate) struct ModuleParsingContext<'mod_ctx> {
     index: Option<ModuleIdx>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParModuleResolver<'ctx, 'mod_ctx, 'scope, 'scope_ref, B> {
     ctx: ParsingContext<'ctx, B>,
     module_ctx: ModuleParsingContext<'mod_ctx>,
@@ -71,7 +71,7 @@ where
     }
 
     fn add_module(
-        &mut self,
+        &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
     ) -> ParseResult<ModuleIdx> {
@@ -94,13 +94,13 @@ where
                     &import_root_dir,
                     Some(import_index),
                 );
-                let mut import_resolver = ParModuleResolver::new(ctx, import_module_ctx, scope);
+                let import_resolver = ParModuleResolver::new(ctx, import_module_ctx, scope);
 
                 // Parse the import
                 let import_node = timed(
                     || {
                         ctx.backend.parse_module(
-                            &mut import_resolver,
+                            import_resolver,
                             &resolved_import_path,
                             &import_source,
                         )

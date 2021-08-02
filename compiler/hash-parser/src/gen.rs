@@ -21,21 +21,29 @@ use crate::{
     token::{Delimiter, Token, TokenKind, TokenKindVector},
 };
 
-pub struct AstGen<'resolver, R> {
+pub struct AstGen<R> {
     offset: Cell<usize>,
     stream: Vec<Token>,
-    resolver: &'resolver mut R,
+    resolver: R,
 }
 
-impl<'resolver, R> AstGen<'resolver, R>
+impl<R> AstGen<R>
 where
     R: ModuleResolver,
 {
-    pub fn new(stream: Vec<Token>, resolver: &'resolver mut R) -> Self {
+    pub fn new(stream: Vec<Token>, resolver: R) -> Self {
         Self {
             stream,
             offset: Cell::new(0),
             resolver,
+        }
+    }
+
+    pub fn from_stream(&self, stream: Vec<Token>) -> Self {
+        Self {
+            stream,
+            offset: Cell::new(0),
+            resolver: self.resolver.clone(),
         }
     }
 
@@ -69,6 +77,17 @@ where
 
     pub(crate) fn peek_second(&self) -> Option<&Token> {
         self.peek_nth(1)
+    }
+
+    /// Function to check if the token stream has been exhausted based on the current
+    /// offset in the generator.
+    pub(crate) fn has_token(&self) -> bool {
+        let length = self.stream.len();
+
+        match length {
+            0 => false,
+            _ => self.offset.get() < self.stream.len(),
+        }
     }
 
     /// Function that increases the offset of the next token
@@ -199,14 +218,10 @@ where
         todo!()
     }
 
-    pub fn parse_block(&self) {}
-
     pub fn parse_expression_from_interactive(&self) -> ParseResult<AstNode<BodyBlock>> {
         // get the starting position
         let start = self.current_location();
 
-        // let mut statements = vec![];
-        // let mut expr = None;
         Ok(AstNode::new(
             BodyBlock {
                 statements: vec![],
@@ -215,6 +230,8 @@ where
             start.join(self.current_location()),
         ))
     }
+
+    pub fn parse_block(&self) {}
 
     pub fn parse_expression(&self) -> ParseResult<AstNode<Expression>> {
         let token = self.next_token();
@@ -267,11 +284,12 @@ where
         let start = self.current_location();
 
         let (name, type_args) = self.parse_name_with_type_args(ident)?;
+        let type_args = type_args.unwrap_or_default();
 
         let mut lhs_expr = self.node_with_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
-                name,
-                type_args: type_args.unwrap_or_default(),
+                name: name.clone(),
+                type_args: type_args.clone(),
             })),
             start.join(self.current_location()),
         );
@@ -341,16 +359,48 @@ where
                     }
                 }
                 // Array index access syntax: ident[...]
-                TokenKind::Tree(Delimiter::Bracket, _) => todo!(),
+                TokenKind::Tree(Delimiter::Bracket, tree) => {
+                    lhs_expr = self.parse_array_index(&lhs_expr, tree)?;
+                }
                 // Function call
-                TokenKind::Tree(Delimiter::Paren, _) => todo!(),
+                TokenKind::Tree(Delimiter::Paren, tree) => {
+                    lhs_expr = self.parse_function_call(&name, &type_args, tree)?;
+                }
                 // Struct literal
-                TokenKind::Tree(Delimiter::Brace, _) => todo!(),
+                TokenKind::Tree(Delimiter::Brace, tree) => {
+                    lhs_expr = self.parse_struct_literal(&name, &type_args, tree)?;
+                }
                 _ => break,
             }
         }
 
         Ok(lhs_expr)
+    }
+
+    pub fn parse_function_call(
+        &self,
+        _ident: &AstNode<AccessName>,
+        _type_args: &[AstNode<Type>],
+        _tree: &[Token],
+    ) -> ParseResult<AstNode<Expression>> {
+        todo!()
+    }
+
+    pub fn parse_struct_literal(
+        &self,
+        _ident: &AstNode<AccessName>,
+        _type_args: &[AstNode<Type>],
+        _tree: &[Token],
+    ) -> ParseResult<AstNode<Expression>> {
+        todo!()
+    }
+
+    pub fn parse_array_index(
+        &self,
+        _ident: &AstNode<Expression>,
+        _tree: &[Token],
+    ) -> ParseResult<AstNode<Expression>> {
+        todo!()
     }
 
     pub fn parse_unary_expression(&self) -> ParseResult<AstNode<Expression>> {
@@ -401,8 +451,6 @@ where
     pub fn parse_access_name(&self, start_id: &Identifier) -> ParseResult<AstNode<AccessName>> {
         let start = self.current_location();
         let mut path = smallvec![*start_id];
-
-        // println!("token@name: {:?}", self.peek());
 
         loop {
             match self.peek() {
@@ -615,23 +663,50 @@ where
     }
 
     pub fn parse_name_or_infix_call(&self) -> ParseResult<AstNode<Expression>> {
-        // println!("current_token={}", self.current_token());
-        // Ensure this is the beginning of a type_bound
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
-        // let start = self.current_location();
+
+        let start = self.current_location();
 
         match self.next_token() {
             Some(Token {
                 kind: TokenKind::Ident(id),
-                span,
+                span: id_span,
             }) => match self.peek() {
                 Some(Token {
-                    kind: TokenKind::Tree(Delimiter::Paren, _),
-                    span: _,
+                    kind: TokenKind::Tree(Delimiter::Paren, stream),
+                    span,
                 }) => {
-                    todo!()
+                    // Eat the generator now...
+                    self.next_token();
+
+                    // @@Parallelisable: Since this is a vector of tokens, we should be able to give the resolver, create a new
+                    //                   generator and form function call arguments from the stream...
+                    let mut args = AstNode::new(FunctionCallArgs { entries: vec![] }, *span);
+
+                    // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
+                    // of expressions separated by commas as arguments to the call.
+                    let gen = self.from_stream(stream.to_owned());
+
+                    while gen.has_token() {
+                        let arg = gen.parse_expression_bp(0);
+                        args.entries.push(arg?);
+
+                        // now we eat the next token, checking that it is a comma
+                        match gen.peek() {
+                            Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
+                            _ => break,
+                        };
+                    }
+
+                    Ok(self.node_with_location(
+                        Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                            subject: self.make_ident_from_id(id, *id_span),
+                            args,
+                        })),
+                        start.join(self.current_location()),
+                    ))
                 }
-                _ => Ok(self.make_ident_from_id(id, *span)),
+                _ => Ok(self.make_ident_from_id(id, *id_span)),
             },
             _ => Err(ParseError::Parsing {
                 message: "Expecting field name after property access.".to_string(),

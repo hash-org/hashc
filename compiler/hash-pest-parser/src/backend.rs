@@ -17,12 +17,13 @@ use hash_utils::timed;
 use pest::Parser;
 use std::path::Path;
 
+#[derive(Clone)]
 pub struct PestBackend;
 
 impl ParserBackend for PestBackend {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module> {
@@ -49,7 +50,7 @@ impl ParserBackend for PestBackend {
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let mut builder = PestAstBuilder::new(resolver);
