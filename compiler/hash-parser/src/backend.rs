@@ -10,12 +10,13 @@ use hash_utils::timed;
 
 use crate::{gen::AstGen, lexer::tokenise};
 
+#[derive(Clone)]
 pub struct HashParser;
 
 impl ParserBackend for HashParser {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         _path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module> {
@@ -36,7 +37,7 @@ impl ParserBackend for HashParser {
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let tokens = tokenise(contents).collect::<Vec<_>>();
@@ -47,5 +48,17 @@ impl ParserBackend for HashParser {
         // }
 
         gen.parse_expression_from_interactive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hash_ast::resolve::ParModuleResolver;
+
+    use super::*;
+
+    #[test]
+    fn type_size() {
+        println!("{:?}", std::mem::size_of::<ParModuleResolver<HashParser>>());
     }
 }

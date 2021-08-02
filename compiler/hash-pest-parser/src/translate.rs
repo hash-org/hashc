@@ -282,15 +282,15 @@ pub(crate) fn build_binary(
     }
 }
 
-pub(crate) struct PestAstBuilder<'resolver, R> {
-    resolver: &'resolver mut R,
+pub(crate) struct PestAstBuilder<R> {
+    resolver: R,
 }
 
-impl<'resolver, R> PestAstBuilder<'resolver, R>
+impl<R> PestAstBuilder<R>
 where
     R: ModuleResolver,
 {
-    pub(crate) fn new(resolver: &'resolver mut R) -> Self {
+    pub(crate) fn new(resolver: R) -> Self {
         Self { resolver }
     }
 
