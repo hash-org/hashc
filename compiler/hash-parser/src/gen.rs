@@ -21,17 +21,17 @@ use crate::{
     token::{Delimiter, Token, TokenKind, TokenKindVector},
 };
 
-pub struct AstGen<R> {
+pub struct AstGen<'a, R> {
     offset: Cell<usize>,
     stream: Vec<Token>,
-    resolver: R,
+    resolver: &'a R,
 }
 
-impl<R> AstGen<R>
+impl<'a, R> AstGen<'a, R>
 where
     R: ModuleResolver,
 {
-    pub fn new(stream: Vec<Token>, resolver: R) -> Self {
+    pub fn new(stream: Vec<Token>, resolver: &'a R) -> Self {
         Self {
             stream,
             offset: Cell::new(0),
@@ -43,7 +43,7 @@ where
         Self {
             stream,
             offset: Cell::new(0),
-            resolver: self.resolver.clone(),
+            resolver: self.resolver,
         }
     }
 
@@ -360,14 +360,17 @@ where
                 }
                 // Array index access syntax: ident[...]
                 TokenKind::Tree(Delimiter::Bracket, tree) => {
+                    self.next_token();
                     lhs_expr = self.parse_array_index(&lhs_expr, tree)?;
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree) => {
-                    lhs_expr = self.parse_function_call(&name, &type_args, tree)?;
+                    self.next_token();
+                    lhs_expr = self.parse_function_call(lhs_expr, tree, &next_token.span)?;
                 }
                 // Struct literal
                 TokenKind::Tree(Delimiter::Brace, tree) => {
+                    self.next_token();
                     lhs_expr = self.parse_struct_literal(&name, &type_args, tree)?;
                 }
                 _ => break,
@@ -379,11 +382,34 @@ where
 
     pub fn parse_function_call(
         &self,
-        _ident: &AstNode<AccessName>,
-        _type_args: &[AstNode<Type>],
-        _tree: &[Token],
+        ident: AstNode<Expression>,
+        tree: &[Token],
+        span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
-        todo!()
+        let gen = self.from_stream(tree.to_owned());
+        let mut args = AstNode::new(FunctionCallArgs { entries: vec![] }, *span);
+
+        while gen.has_token() {
+            let arg = gen.parse_expression_bp(0);
+            args.entries.push(arg?);
+
+            // now we eat the next token, checking that it is a comma
+            match gen.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
+                _ => break,
+            };
+        }
+
+        // form the span from the beginning variable expression to the end of the arguments...
+        let span = &ident.location().join(self.current_location());
+
+        Ok(self.node_with_location(
+            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                subject: ident,
+                args,
+            })),
+            *span,
+        ))
     }
 
     pub fn parse_struct_literal(
