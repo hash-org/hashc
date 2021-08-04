@@ -476,10 +476,20 @@ where
                     lhs_expr = self.parse_function_call(lhs_expr, tree, &next_token.span)?;
                 }
                 // Struct literal
-                TokenKind::Tree(Delimiter::Brace, _tree) => {
+                TokenKind::Tree(Delimiter::Brace, tree) => {
                     self.next_token();
-                    // lhs_expr = self.parse_struct_literal(&name, &type_args, tree)?;
-                    todo!()
+                    // Ensure that the LHS of the brace is a variable, since struct literals can only
+                    // be begun with variable names and type arguments, any other expression cannot be
+                    // the beginning of a struct literal.
+                    match lhs_expr.kind() {
+                        ExpressionKind::Variable(VariableExpr { name, type_args }) => {
+                            lhs_expr = self.parse_struct_literal(name, type_args, tree)?;
+                        }
+                        _ => return Err(ParseError::Parsing {
+                            message: "Unexpected beginning of a block, if this is a struct literal, it should begin with a variable name.".to_string(),
+                            src: self.source_location(&self.current_location()),
+                        })
+                    };
                 }
                 _ => break,
             }
@@ -520,13 +530,68 @@ where
         ))
     }
 
+    /// Function to parse the next token with the same kind as the specified kind, this
+    /// is a useful utility function for parsing singular tokens in the place of more complex
+    /// compound statements and expressions.
+    pub fn parse_token_kind(&self, kind: TokenKind) -> ParseResult<()> {
+        match self.peek() {
+            Some(token) if token.has_kind(kind.clone()) => {
+                self.next_token();
+                Ok(())
+            }
+            Some(token) => Err(ParseError::Parsing {
+                message: format!("Expected a '{}', but got a '{}'", kind, token.kind),
+                src: self.source_location(&token.span),
+            }),
+            _ => Err(ParseError::Parsing {
+                message: "Unexpected end of input".to_string(),
+                src: self.source_location(&self.current_location()),
+            }),
+        }
+    }
+
     pub fn parse_struct_literal(
         &self,
-        _ident: &AstNode<AccessName>,
-        _type_args: &[AstNode<Type>],
-        _tree: &[Token],
+        name: &AstNode<AccessName>,
+        type_args: &[AstNode<Type>],
+        tree: &[Token],
     ) -> ParseResult<AstNode<Expression>> {
-        todo!()
+        let gen = self.from_stream(tree.to_owned());
+        let start = self.current_location();
+
+        let mut entries = vec![];
+
+        while gen.has_token() {
+            let entry_start = gen.current_location();
+
+            let name = gen.parse_ident()?;
+            gen.parse_token_kind(TokenKind::Eq)?;
+            let value = gen.parse_expression_bp(0)?;
+
+            entries.push(gen.node_with_location(
+                StructLiteralEntry { name, value },
+                entry_start.join(gen.current_location()),
+            ));
+
+            // now we eat the next token, checking that it is a comma
+            match gen.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
+                _ => break,
+            };
+        }
+
+        Ok(AstNode::new(
+            Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
+                Literal::Struct(StructLiteral {
+                    // @@RedundantCopying @@RedundantCopying @@RedundantCopying
+                    name: name.to_owned(),
+                    type_args: type_args.to_vec(),
+                    entries,
+                }),
+                start.join(self.current_location()),
+            ))),
+            start.join(self.current_location()),
+        ))
     }
 
     pub fn parse_array_index(
@@ -537,6 +602,9 @@ where
         todo!()
     }
 
+    /// Parses a unary operator followed by a singular expression. Once the unary operator
+    /// is picked up, the expression is transformed into a function call to the corresponding
+    /// trait that implements the unary operator operation.
     pub fn parse_unary_expression(&self) -> ParseResult<AstNode<Expression>> {
         let token = self.current_token();
         let start = self.current_location();
@@ -596,6 +664,25 @@ where
         let args = self.peek_fn(|| self.parse_type_args())?;
 
         Ok((name, args))
+    }
+
+    /// Parses a single identifier, essentially converting the current [TokenKind::Ident] into
+    /// an [AstNode<Name>], assuming that the next token is an identifier.
+    pub fn parse_ident(&self) -> ParseResult<AstNode<Name>> {
+        match self.peek() {
+            Some(Token {
+                kind: TokenKind::Ident(ident),
+                span,
+            }) => {
+                self.next_token();
+
+                Ok(AstNode::new(Name { ident: *ident }, *span))
+            }
+            _ => Err(ParseError::Parsing {
+                message: "Expected an identifier".to_string(),
+                src: self.source_location(&self.current_location()),
+            }),
+        }
     }
 
     /// Parse an [AccessName] from the current token stream. An [AccessName] is defined as
@@ -770,6 +857,7 @@ where
                 self.next_token();
                 Type::Existential
             }
+            // TODO: bracketed types...
             TokenKind::Ident(id) => {
                 self.next_token();
 
@@ -893,7 +981,7 @@ where
     ///
     pub fn parse_expression_or_tuple(&self, tree: &Vec<Token>) -> ParseResult<AstNode<Expression>> {
         let gen = self.from_stream(tree.to_owned());
-        let start = gen.current_location();
+        let start = self.current_location();
 
         match gen.peek() {
             // Handle the empty tuple case

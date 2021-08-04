@@ -340,7 +340,7 @@ impl NodeDisplay for FunctionDefArg {
 
 impl NodeDisplay for StructLiteralEntry {
     fn node_display(&self) -> Vec<String> {
-        let name = self.name.node_display();
+        let name = vec![format!("field {}", self.name)];
 
         let value = iter::once("value".to_string())
             .chain(child_branch(&self.value.node_display()))
