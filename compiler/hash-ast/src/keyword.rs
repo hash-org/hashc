@@ -25,6 +25,7 @@ pub enum Keyword {
     Continue,
     Break,
     Return,
+    Import,
 }
 
 pub fn get_variants() -> Vec<Keyword> {
