@@ -458,7 +458,26 @@ where
         let expr_kind = match &token.kind {
             TokenKind::Star => ExpressionKind::Deref(self.parse_expression()?),
             TokenKind::Amp => ExpressionKind::Ref(self.parse_expression()?),
-            TokenKind::Plus | TokenKind::Minus => todo!(),
+            kind @ (TokenKind::Plus | TokenKind::Minus) => {
+                let expr = self.parse_expression()?;
+                let loc = expr.location();
+
+                let fn_name = match kind {
+                    TokenKind::Plus => "pos",
+                    TokenKind::Minus => "neg",
+                    _ => unreachable!(),
+                };
+
+                ExpressionKind::FunctionCall(FunctionCallExpr {
+                    subject: self.make_ident(AstString::Borrowed(fn_name), &start),
+                    args: self.from_location(
+                        FunctionCallArgs {
+                            entries: vec![expr],
+                        },
+                        &loc,
+                    ),
+                })
+            }
             TokenKind::Tilde => {
                 let arg = self.parse_expression()?;
                 let loc = arg.location();
