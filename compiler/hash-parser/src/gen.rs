@@ -853,8 +853,41 @@ where
     }
 
     pub fn parse_array_literal(&self, tree: &Vec<Token>) -> ParseResult<AstNode<Expression>> {
-        let _gen = self.from_stream(tree.to_owned());
-        todo!()
+        let gen = self.from_stream(tree.to_owned());
+        let start = gen.current_location();
+
+        let mut elements = vec![];
+
+        while gen.has_token() {
+            let expr = gen.parse_expression_bp(0)?;
+            elements.push(expr);
+
+            match gen.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
+                    gen.next_token();
+                }
+                Some(token) => {
+                    // if we haven't exhausted the whole token stream, then report this as a unexpected
+                    // token error
+                    return Err(ParseError::Parsing {
+                        message: format!(
+                            "Unexpected token '{}' in the place of an comma.",
+                            token.kind
+                        ),
+                        src: gen.source_location(&gen.current_location()),
+                    });
+                }
+                None => break,
+            }
+        }
+
+        Ok(AstNode::new(
+            Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
+                Literal::List(ListLiteral { elements }),
+                start.join(gen.current_location()),
+            ))),
+            start.join(gen.current_location()),
+        ))
     }
 
     /// Convert the current token (provided it is a primitive literal) into a [ExpressionKind::LiteralExpr]
