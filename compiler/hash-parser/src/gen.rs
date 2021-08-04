@@ -4,7 +4,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 #![allow(dead_code)]
 
-use std::{cell::Cell, vec};
+use std::{cell::Cell, iter, vec};
 
 use hash_ast::{
     ast::*,
@@ -252,47 +252,68 @@ where
             kind if kind.is_unary_op() => self.parse_unary_expression(),
 
             // Handle primitive literals
-            kind if kind.is_literal() => Ok(self.parse_literal()),
-            TokenKind::Keyword(_) => todo!(),
-            TokenKind::Ident(_) => self.parse_singular_expression(),
+            kind if kind.is_literal() => {
+                let literal = self.parse_literal();
+                self.parse_singular_expression(literal)
+            }
+
+            // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
+            // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
+            TokenKind::Ident(_) => {
+                // record the starting span
+                let start = self.current_location();
+
+                // extract the identifier value and span from the current token
+                let ident = match self.current_token() {
+                    Token {
+                        kind: TokenKind::Ident(id),
+                        span: _,
+                    } => id,
+                    _ => unreachable!(),
+                };
+
+                let (name, type_args) = self.parse_name_with_type_args(&ident)?;
+                let type_args = type_args.unwrap_or_default();
+
+                // create the lhs expr.
+                let lhs_expr = self.node_with_location(
+                    Expression::new(ExpressionKind::Variable(VariableExpr {
+                        name: name.clone(),
+                        type_args: type_args.clone(),
+                    })),
+                    start.join(self.current_location()),
+                );
+
+                self.parse_singular_expression(lhs_expr)
+            }
 
             // Handle tree literals
-            TokenKind::Tree(Delimiter::Brace, _) => self.parse_block_or_braced_literal(),
-            TokenKind::Tree(Delimiter::Bracket, _) => self.parse_array_literal(), // Could be an array index?
-            TokenKind::Tree(Delimiter::Paren, _) => self.parse_expression_or_tuple(),
+            TokenKind::Tree(Delimiter::Brace, tree) => self.parse_block_or_braced_literal(tree),
+            TokenKind::Tree(Delimiter::Bracket, tree) => self.parse_array_literal(tree), // Could be an array index?
+            TokenKind::Tree(Delimiter::Paren, tree) => self.parse_expression_or_tuple(tree),
 
+            TokenKind::Keyword(kw) => Err(ParseError::Parsing {
+                message: format!("Unexpected keyword '{}' in place of an expression.", kw),
+                src: self.source_location(&token.span),
+            }),
             kind => Err(ParseError::Parsing {
-                message: format!("Unexpected token '{}' in the place of expression.", kind),
+                message: format!("Unexpected token '{}' in the place of an expression.", kind),
                 src: self.source_location(&token.span),
             }),
         }
     }
 
-    pub fn parse_singular_expression(&self) -> ParseResult<AstNode<Expression>> {
-        debug_assert!(matches!(self.current_token().kind, TokenKind::Ident(_)));
-
-        // extract the identifier value and span from the current token
-        let ident = match self.current_token() {
-            Token {
-                kind: TokenKind::Ident(id),
-                span: _,
-            } => id,
-            _ => unreachable!(),
-        };
-
+    /// Provided an initial subject expression that is parsed by the parent caller, this function
+    /// will check if there are any additional components to the expression; in the form of either
+    /// property access, infix function calls, indexing, etc.
+    pub fn parse_singular_expression(
+        &self,
+        subject: AstNode<Expression>,
+    ) -> ParseResult<AstNode<Expression>> {
         // record the starting span
         let start = self.current_location();
 
-        let (name, type_args) = self.parse_name_with_type_args(ident)?;
-        let type_args = type_args.unwrap_or_default();
-
-        let mut lhs_expr = self.node_with_location(
-            Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: name.clone(),
-                type_args: type_args.clone(),
-            })),
-            start.join(self.current_location()),
-        );
+        let mut lhs_expr = subject;
 
         // so here we need to peek to see if this is either a index_access, field access or a function call...
         while let Some(next_token) = self.peek() {
@@ -369,9 +390,10 @@ where
                     lhs_expr = self.parse_function_call(lhs_expr, tree, &next_token.span)?;
                 }
                 // Struct literal
-                TokenKind::Tree(Delimiter::Brace, tree) => {
+                TokenKind::Tree(Delimiter::Brace, _tree) => {
                     self.next_token();
-                    lhs_expr = self.parse_struct_literal(&name, &type_args, tree)?;
+                    // lhs_expr = self.parse_struct_literal(&name, &type_args, tree)?;
+                    todo!()
                 }
                 _ => break,
             }
@@ -693,7 +715,7 @@ where
 
         let start = self.current_location();
 
-        match self.next_token() {
+        match &self.next_token() {
             Some(Token {
                 kind: TokenKind::Ident(id),
                 span: id_span,
@@ -741,7 +763,11 @@ where
         }
     }
 
-    pub fn parse_block_or_braced_literal(&self) -> ParseResult<AstNode<Expression>> {
+    pub fn parse_block_or_braced_literal(
+        &self,
+        tree: &Vec<Token>,
+    ) -> ParseResult<AstNode<Expression>> {
+        let _gen = self.from_stream(tree.to_owned());
         todo!()
     }
 
@@ -749,7 +775,85 @@ where
         todo!()
     }
 
-    pub fn parse_expression_or_tuple(&self) -> ParseResult<AstNode<Expression>> {
+    /// Function to either parse an expression that is wrapped in parentheses or a tuple literal. If this
+    /// is a tuple literal, the first expression must be followed by a comma separator, after that the comma
+    /// after the expression is optional.
+    ///
+    ///
+    /// Tuples have a familiar syntax with many other languages, but exhibit two distinct differences between the common syntax. These differences are:
+    ///
+    /// - Empty tuples: (,)
+    /// - Singleton tuple : (A,)
+    /// - Many membered tuple: (A, B, C) or (A, B, C,)
+    ///
+    pub fn parse_expression_or_tuple(&self, tree: &Vec<Token>) -> ParseResult<AstNode<Expression>> {
+        let gen = self.from_stream(tree.to_owned());
+        let start = gen.current_location();
+
+        match gen.peek() {
+            // Handle the empty tuple case
+            Some(token) if token.has_kind(TokenKind::Comma) => {
+                gen.next_token();
+
+                if gen.has_token() {
+                    return Err(ParseError::Parsing {
+                        message: "Unexpected comma in the place of a expression".to_string(),
+                        src: gen.source_location(&start),
+                    });
+                }
+
+                return Ok(AstNode::new(
+                    Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
+                        Literal::Tuple(TupleLiteral { elements: vec![] }),
+                        start.join(gen.current_location()),
+                    ))),
+                    start.join(gen.current_location()),
+                ));
+            }
+            // this is then either an wrapped expression or a tuple literal with multiple elements.
+            Some(_) => (),
+            None => todo!(), // Function body
+        };
+
+        let expr = gen.parse_expression_bp(0)?;
+        let mut elements = iter::once(expr.clone()).collect::<Vec<_>>();
+        let mut is_tuple = false;
+
+        loop {
+            match gen.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
+                    is_tuple = true;
+                    gen.next_token();
+
+                    // Handles the case where this is a trailing comma and no tokens after...
+                    if !gen.has_token() {
+                        break;
+                    }
+
+                    elements.push(gen.parse_expression_bp(0)?)
+                }
+                Some(_) => {
+                    return Err(ParseError::Parsing {
+                        message: "Unexpected comma in the place of a expression".to_string(),
+                        src: gen.source_location(&start),
+                    })
+                }
+                None if is_tuple => break,
+                None => return Ok(expr),
+            }
+        }
+
+        return Ok(AstNode::new(
+            Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
+                Literal::Tuple(TupleLiteral { elements }),
+                start.join(gen.current_location()),
+            ))),
+            start.join(gen.current_location()),
+        ));
+    }
+
+    pub fn parse_array_literal(&self, tree: &Vec<Token>) -> ParseResult<AstNode<Expression>> {
+        let _gen = self.from_stream(tree.to_owned());
         todo!()
     }
 
@@ -774,9 +878,5 @@ where
             Expression::new(ExpressionKind::LiteralExpr(literal)),
             token.span,
         )
-    }
-
-    pub fn parse_array_literal(&self) -> ParseResult<AstNode<Expression>> {
-        todo!()
     }
 }
