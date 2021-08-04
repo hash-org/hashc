@@ -10,6 +10,7 @@ use hash_ast::{
     ast::*,
     error::{ParseError, ParseResult},
     ident::{Identifier, IDENTIFIER_MAP},
+    keyword::Keyword,
     location::{Location, SourceLocation},
     module::ModuleIdx,
     resolve::ModuleResolver,
@@ -209,13 +210,98 @@ where
         }
     }
 
+    /// Parse a [ast::Module] which is simply made of a list of statements
     pub fn parse_module(&self) -> ParseResult<Module> {
-        // Let's begin by looping through
-        Ok(Module { contents: vec![] })
+        let mut contents = vec![];
+
+        while self.has_token() {
+            contents.push(self.parse_statement()?);
+        }
+
+        Ok(Module { contents })
     }
 
     pub fn parse_statement(&self) -> ParseResult<AstNode<Statement>> {
-        todo!()
+        let start = self.current_location();
+
+        match self.peek() {
+            Some(Token {
+                kind: TokenKind::Keyword(kw),
+                span: _,
+            }) => {
+                self.next_token();
+
+                let statement = match kw {
+                    Keyword::Let => todo!(),
+                    Keyword::For => todo!(),
+                    Keyword::While => todo!(),
+                    Keyword::Loop => todo!(),
+                    Keyword::If => todo!(),
+                    Keyword::Else => todo!(),
+                    Keyword::Match => todo!(),
+                    Keyword::Trait => todo!(),
+                    Keyword::Enum => todo!(),
+                    Keyword::Struct => todo!(),
+                    Keyword::Continue => Statement::Continue,
+                    Keyword::Break => Statement::Break,
+                    Keyword::Return => todo!(),
+                    kw => {
+                        return Err(ParseError::Parsing {
+                            message: format!(
+                                "Unexpected keyword '{}' at the beginning of a statement",
+                                kw
+                            ),
+                            src: self.source_location(&self.current_location()),
+                        })
+                    }
+                };
+
+                match self.next_token() {
+                    Some(token) if token.has_kind(TokenKind::Semi) => {
+                        Ok(AstNode::new(statement, start.join(self.current_location())))
+                    }
+                    Some(token) => Err(ParseError::Parsing {
+                        message: format!(
+                            "Expecting ';' at the end of a statement, but got '{}' ",
+                            token.kind
+                        ),
+                        src: self.source_location(&self.current_location()),
+                    }),
+                    None => Err(ParseError::Parsing {
+                        message: "Expecting ';' ending a statement, but reached the end of file."
+                            .to_string(),
+                        src: self.source_location(&self.current_location()),
+                    }),
+                }
+            }
+            Some(_) => {
+                let expr = self.parse_expression_bp(0)?;
+
+                // Ensure that the next token is a Semi
+                match self.next_token() {
+                    Some(token) if token.has_kind(TokenKind::Semi) => Ok(AstNode::new(
+                        Statement::Expr(expr),
+                        start.join(self.current_location()),
+                    )),
+                    Some(token) => Err(ParseError::Parsing {
+                        message: format!(
+                            "Expecting ';' at the end of a statement, but got '{}' ",
+                            token.kind
+                        ),
+                        src: self.source_location(&self.current_location()),
+                    }),
+                    None => Err(ParseError::Parsing {
+                        message: "Expecting ';' ending a statement, but reached the end of file."
+                            .to_string(),
+                        src: self.source_location(&self.current_location()),
+                    }),
+                }
+            }
+            _ => Err(ParseError::Parsing {
+                message: "Expected statement".to_string(),
+                src: self.source_location(&self.current_location()),
+            }),
+        }
     }
 
     pub fn parse_expression_from_interactive(&self) -> ParseResult<AstNode<BodyBlock>> {
