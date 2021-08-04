@@ -248,17 +248,13 @@ where
 
         let token = token.unwrap();
 
-        match &token.kind {
-            kind if kind.is_unary_op() => self.parse_unary_expression(),
+        // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
+        // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
+        let subject = match &token.kind {
+            kind if kind.is_unary_op() => return self.parse_unary_expression(),
 
             // Handle primitive literals
-            kind if kind.is_literal() => {
-                let literal = self.parse_literal();
-                self.parse_singular_expression(literal)
-            }
-
-            // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
-            // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
+            kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(_) => {
                 // record the starting span
                 let start = self.current_location();
@@ -276,31 +272,35 @@ where
                 let type_args = type_args.unwrap_or_default();
 
                 // create the lhs expr.
-                let lhs_expr = self.node_with_location(
+                self.node_with_location(
                     Expression::new(ExpressionKind::Variable(VariableExpr {
                         name: name.clone(),
                         type_args: type_args.clone(),
                     })),
                     start.join(self.current_location()),
-                );
-
-                self.parse_singular_expression(lhs_expr)
+                )
             }
 
             // Handle tree literals
-            TokenKind::Tree(Delimiter::Brace, tree) => self.parse_block_or_braced_literal(tree),
-            TokenKind::Tree(Delimiter::Bracket, tree) => self.parse_array_literal(tree), // Could be an array index?
-            TokenKind::Tree(Delimiter::Paren, tree) => self.parse_expression_or_tuple(tree),
+            TokenKind::Tree(Delimiter::Brace, tree) => self.parse_block_or_braced_literal(tree)?,
+            TokenKind::Tree(Delimiter::Bracket, tree) => self.parse_array_literal(tree)?, // Could be an array index?
+            TokenKind::Tree(Delimiter::Paren, tree) => self.parse_expression_or_tuple(tree)?,
 
-            TokenKind::Keyword(kw) => Err(ParseError::Parsing {
-                message: format!("Unexpected keyword '{}' in place of an expression.", kw),
-                src: self.source_location(&token.span),
-            }),
-            kind => Err(ParseError::Parsing {
-                message: format!("Unexpected token '{}' in the place of an expression.", kind),
-                src: self.source_location(&token.span),
-            }),
-        }
+            TokenKind::Keyword(kw) => {
+                return Err(ParseError::Parsing {
+                    message: format!("Unexpected keyword '{}' in place of an expression.", kw),
+                    src: self.source_location(&token.span),
+                })
+            }
+            kind => {
+                return Err(ParseError::Parsing {
+                    message: format!("Unexpected token '{}' in the place of an expression.", kind),
+                    src: self.source_location(&token.span),
+                })
+            }
+        };
+
+        self.parse_singular_expression(subject)
     }
 
     /// Provided an initial subject expression that is parsed by the parent caller, this function
