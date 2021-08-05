@@ -23,12 +23,30 @@ use crate::{
 };
 
 pub struct AstGen<'a, R> {
+    /// Current token stream offset.
     offset: Cell<usize>,
+
+    /// The span of the current generator, the root generator does not have a parent span,
+    /// whereas as child generators might need to use the span to report errors if their
+    /// token streams are empty (and they're expecting them to be non empty.) For example,
+    /// if the expression `k[]` was being parsed, the index component `[]` is expected to be
+    /// non-empty, so the error reporting can grab the span of the `[]` and report it as an
+    /// expected expression.
     parent_span: Option<Location>,
+
+    /// The token stream
     stream: Vec<Token>,
+
+    /// State set by expression parsers for parents to let them know if the parsed expression
+    /// was made up of multiple expressions with precedence operators.
+    is_compound_expr: Cell<bool>,
+
+    /// Instance of a [ModuleResolver] to notify the parser of encountered imports.
     resolver: &'a R,
 }
 
+/// Implementation of the [AstGen] with accompanying functions to parse specific
+/// language components.
 impl<'a, R> AstGen<'a, R>
 where
     R: ModuleResolver,
@@ -37,6 +55,7 @@ where
         Self {
             stream,
             parent_span: None,
+            is_compound_expr: Cell::new(false),
             offset: Cell::new(0),
             resolver,
         }
@@ -46,6 +65,7 @@ where
         Self {
             stream,
             offset: Cell::new(0),
+            is_compound_expr: Cell::new(false),
             parent_span: Some(parent_span),
             resolver: self.resolver,
         }
@@ -115,7 +135,7 @@ where
     pub(crate) fn current_location(&self) -> Location {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
-            return self.parent_span.unwrap();
+            return self.parent_span.unwrap_or_default();
         }
 
         match self.stream.get(self.offset()) {
@@ -153,7 +173,7 @@ where
     pub(crate) fn make_ident(&self, name: AstString, location: &Location) -> AstNode<Expression> {
         AstNode::new(
             Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.from_joined_location(
+                name: self.node_from_joined_location(
                     AccessName {
                         path: smallvec![IDENTIFIER_MAP.create_ident(name)],
                     },
@@ -172,7 +192,7 @@ where
     ) -> AstNode<Expression> {
         AstNode::new(
             Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.from_joined_location(
+                name: self.node_from_joined_location(
                     AccessName {
                         path: smallvec![*id],
                     },
@@ -192,11 +212,11 @@ where
         self.make_ident(AstString::Owned(op.as_str().to_owned()), location)
     }
 
-    pub(crate) fn from_location<T>(&self, body: T, location: &Location) -> AstNode<T> {
+    pub(crate) fn node_from_location<T>(&self, body: T, location: &Location) -> AstNode<T> {
         AstNode::new(body, *location)
     }
 
-    pub(crate) fn from_joined_location<T>(&self, body: T, start: &Location) -> AstNode<T> {
+    pub(crate) fn node_from_joined_location<T>(&self, body: T, start: &Location) -> AstNode<T> {
         AstNode::new(body, start.join(self.current_location()))
     }
 
@@ -312,18 +332,99 @@ where
         }
     }
 
+    /// This function is used to exclusively parse a interactive block which follows
+    /// similar rules to a an actual block. Interactive statements are like ghost blocks
+    /// without the actual braces to begin with. It follows that there are an arbitrary
+    /// number of statements, followed by an optional final expression which doesn't
+    /// need to be completed by a comma...
     pub fn parse_expression_from_interactive(&self) -> ParseResult<AstNode<BodyBlock>> {
         // get the starting position
         let start = self.current_location();
 
-        Ok(AstNode::new(
-            BodyBlock {
-                statements: vec![],
-                expr: Some(self.parse_expression_bp(0)?),
-            },
-            start.join(self.current_location()),
-        ))
+        let mut block = BodyBlock {
+            statements: vec![],
+            expr: None,
+        };
+
+        // Just return an empty block if we don't get anything
+        if self.stream.is_empty() {
+            return Ok(self.node_with_location(block, start));
+        }
+
+        // firstly check if the first token signals a beginning of a statement, we can tell
+        // this by checking for keywords that must begin a statement...
+        while self.has_token() {
+            let token = self.peek().unwrap();
+
+            if token.kind.begins_statement() {
+                block.statements.push(self.parse_statement()?)
+            }
+
+            // if we can't tell if this is a statement, we parse an expression, and if there
+            // is a following semi-colon, then we make this a statement and continue...
+            let expr = self.parse_expression_bp(0)?;
+            let expr_loc = expr.location();
+
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Semi) => {
+                    self.next_token();
+
+                    let expr_location = expr.location();
+                    block
+                        .statements
+                        .push(self.node_with_location(Statement::Expr(expr), expr_location));
+                }
+                Some(token) if token.has_kind(TokenKind::Eq) && !self.is_compound_expr.get() => {
+                    self.next_token();
+
+                    // since this is followed by an expression, we try to parse another expression, and then
+                    // ensure that after an expression there is a ending semi colon.
+                    let rhs = self.parse_expression_bp(0)?;
+
+                    self.parse_token_kind(TokenKind::Semi)?;
+
+                    block.statements.push(self.node_from_joined_location(
+                        Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                        &expr_loc,
+                    ));
+                }
+                Some(token) => {
+                    return Err(self.unexpected_token_error(
+                        &token.kind,
+                        &TokenKindVector::from_slice(&[TokenKind::Semi]),
+                        &self.current_location(),
+                    ))
+                }
+                None => {
+                    block.expr = Some(expr);
+                    break;
+                }
+            };
+        }
+
+        Ok(self.node_with_location(block, start.join(self.current_location())))
     }
+
+    // pub fn parse_assign_statement(
+    //     &self,
+    //     lhs: AstNode<Expression>,
+    // ) -> ParseResult<Option<AstNode<Statement>>> {
+    //     let start = lhs.location();
+
+    //     match self.peek() {
+    //         Some(token) if token.has_kind(TokenKind::Eq) => {
+    //             self.next_token(); // eat the assign operator
+
+    //             let rhs = self.parse_expression_bp(0)?;
+
+    //             Ok(Some(self.node_with_location(
+    //                 Statement::Assign(AssignStatement { lhs, rhs }),
+    //                 start.join(self.current_location()),
+    //             )))
+    //         }
+    //         _ => Ok(None),
+    //     }
+    // }
 
     pub fn parse_block(&self) {}
 
@@ -669,7 +770,7 @@ where
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident(AstString::Borrowed(fn_name), &start),
-                    args: self.from_location(
+                    args: self.node_from_location(
                         FunctionCallArgs {
                             entries: vec![expr],
                         },
@@ -683,7 +784,7 @@ where
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident(AstString::Borrowed("notb"), &start),
-                    args: self.from_location(FunctionCallArgs { entries: vec![arg] }, &loc),
+                    args: self.node_from_location(FunctionCallArgs { entries: vec![arg] }, &loc),
                 })
             }
             TokenKind::Exclamation => {
@@ -692,13 +793,13 @@ where
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident(AstString::Borrowed("not"), &start),
-                    args: self.from_location(FunctionCallArgs { entries: vec![arg] }, &loc),
+                    args: self.node_from_location(FunctionCallArgs { entries: vec![arg] }, &loc),
                 })
             }
             kind => panic!("Expected token to be a unary operator, but got '{}'", kind),
         };
 
-        Ok(self.from_joined_location(Expression::new(expr_kind), &start))
+        Ok(self.node_from_joined_location(Expression::new(expr_kind), &start))
     }
 
     pub fn parse_name_with_type_args(
@@ -786,6 +887,9 @@ where
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
 
+        // reset the compound_expr flag, since this is a new expression...
+        self.is_compound_expr.set(false);
+
         loop {
             let op_start = self.current_location();
             // this doesn't consider operators that have an 'eq' variant because that is handled at the statement level,
@@ -810,12 +914,13 @@ where
                     }
 
                     let rhs = self.parse_expression_bp(r_prec)?;
+                    self.is_compound_expr.set(true);
 
                     // now convert the Operator into a function call...
                     lhs = AstNode::new(
                         Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                             subject: self.make_ident_from_op(op, &op_span),
-                            args: self.from_joined_location(
+                            args: self.node_from_joined_location(
                                 FunctionCallArgs {
                                     entries: vec![lhs, rhs],
                                 },
