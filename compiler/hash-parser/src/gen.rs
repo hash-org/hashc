@@ -24,6 +24,7 @@ use crate::{
 
 pub struct AstGen<'a, R> {
     offset: Cell<usize>,
+    parent_span: Option<Location>,
     stream: Vec<Token>,
     resolver: &'a R,
 }
@@ -35,15 +36,17 @@ where
     pub fn new(stream: Vec<Token>, resolver: &'a R) -> Self {
         Self {
             stream,
+            parent_span: None,
             offset: Cell::new(0),
             resolver,
         }
     }
 
-    pub fn from_stream(&self, stream: Vec<Token>) -> Self {
+    pub fn from_stream(&self, stream: Vec<Token>, parent_span: Location) -> Self {
         Self {
             stream,
             offset: Cell::new(0),
+            parent_span: Some(parent_span),
             resolver: self.resolver,
         }
     }
@@ -110,6 +113,11 @@ where
     /// Get the current location from the current token, if there is no token at the current
     /// offset, then the location of the last token is used,
     pub(crate) fn current_location(&self) -> Location {
+        // check that the length of current generator is at least one...
+        if self.stream.is_empty() {
+            return self.parent_span.unwrap();
+        }
+
         match self.stream.get(self.offset()) {
             Some(token) => token.span,
             None => (*self.stream.last().unwrap()).span,
@@ -368,9 +376,15 @@ where
             }
 
             // Handle tree literals
-            TokenKind::Tree(Delimiter::Brace, tree) => self.parse_block_or_braced_literal(tree)?,
-            TokenKind::Tree(Delimiter::Bracket, tree) => self.parse_array_literal(tree)?, // Could be an array index?
-            TokenKind::Tree(Delimiter::Paren, tree) => self.parse_expression_or_tuple(tree)?,
+            TokenKind::Tree(Delimiter::Brace, tree) => {
+                self.parse_block_or_braced_literal(tree, &self.current_location())?
+            }
+            TokenKind::Tree(Delimiter::Bracket, tree) => {
+                self.parse_array_literal(tree, &self.current_location())?
+            } // Could be an array index?
+            TokenKind::Tree(Delimiter::Paren, tree) => {
+                self.parse_expression_or_tuple(tree, &self.current_location())?
+            }
 
             TokenKind::Keyword(kw) => {
                 return Err(ParseError::Parsing {
@@ -468,12 +482,13 @@ where
                 // Array index access syntax: ident[...]
                 TokenKind::Tree(Delimiter::Bracket, tree) => {
                     self.next_token();
-                    lhs_expr = self.parse_array_index(&lhs_expr, tree)?;
+                    lhs_expr = self.parse_array_index(&lhs_expr, tree, &self.current_location())?;
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree) => {
                     self.next_token();
-                    lhs_expr = self.parse_function_call(lhs_expr, tree, &next_token.span)?;
+                    lhs_expr =
+                        self.parse_function_call(lhs_expr, tree, &self.current_location())?;
                 }
                 // Struct literal
                 TokenKind::Tree(Delimiter::Brace, tree) => {
@@ -504,7 +519,7 @@ where
         tree: &[Token],
         span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree.to_owned());
+        let gen = self.from_stream(tree.to_owned(), *span);
         let mut args = AstNode::new(FunctionCallArgs { entries: vec![] }, *span);
 
         while gen.has_token() {
@@ -556,8 +571,8 @@ where
         type_args: &[AstNode<Type>],
         tree: &[Token],
     ) -> ParseResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree.to_owned());
         let start = self.current_location();
+        let gen = self.from_stream(tree.to_owned(), start);
 
         let mut entries = vec![];
 
@@ -596,10 +611,40 @@ where
 
     pub fn parse_array_index(
         &self,
-        _ident: &AstNode<Expression>,
-        _tree: &[Token],
+        ident: &AstNode<Expression>,
+        tree: &[Token],
+        span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
-        todo!()
+        let gen = self.from_stream(tree.to_vec(), *span);
+        let start = gen.current_location();
+
+        // parse the indexing expression between the square brackets...
+        let index_expr = gen.parse_expression_bp(0)?;
+        let index_loc = index_expr.location();
+
+        // since nothing should be after the expression, we can check that no tokens
+        // are left and the generator is empty, otherwise report this as an unexpected_token
+        if gen.has_token() {
+            let token = gen.next_token().unwrap();
+            return Err(self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::empty(),
+                &gen.current_location(),
+            ));
+        }
+
+        Ok(self.node_with_location(
+            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                subject: self.make_ident(AstString::Borrowed("index"), &start),
+                args: self.node_with_location(
+                    FunctionCallArgs {
+                        entries: vec![ident.to_owned(), index_expr],
+                    },
+                    index_loc,
+                ),
+            })),
+            gen.current_location(),
+        ))
     }
 
     /// Parses a unary operator followed by a singular expression. Once the unary operator
@@ -926,7 +971,7 @@ where
 
                     // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
                     // of expressions separated by commas as arguments to the call.
-                    let gen = self.from_stream(stream.to_owned());
+                    let gen = self.from_stream(stream.to_owned(), *span);
 
                     while gen.has_token() {
                         let arg = gen.parse_expression_bp(0);
@@ -959,8 +1004,9 @@ where
     pub fn parse_block_or_braced_literal(
         &self,
         tree: &Vec<Token>,
+        span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
-        let _gen = self.from_stream(tree.to_owned());
+        let _gen = self.from_stream(tree.to_owned(), *span);
         todo!()
     }
 
@@ -979,8 +1025,12 @@ where
     /// - Singleton tuple : (A,)
     /// - Many membered tuple: (A, B, C) or (A, B, C,)
     ///
-    pub fn parse_expression_or_tuple(&self, tree: &Vec<Token>) -> ParseResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree.to_owned());
+    pub fn parse_expression_or_tuple(
+        &self,
+        tree: &Vec<Token>,
+        span: &Location,
+    ) -> ParseResult<AstNode<Expression>> {
+        let gen = self.from_stream(tree.to_owned(), *span);
         let start = self.current_location();
 
         match gen.peek() {
@@ -1045,8 +1095,12 @@ where
         ));
     }
 
-    pub fn parse_array_literal(&self, tree: &Vec<Token>) -> ParseResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree.to_owned());
+    pub fn parse_array_literal(
+        &self,
+        tree: &Vec<Token>,
+        span: &Location,
+    ) -> ParseResult<AstNode<Expression>> {
+        let gen = self.from_stream(tree.to_owned(), *span);
         let start = gen.current_location();
 
         let mut elements = vec![];

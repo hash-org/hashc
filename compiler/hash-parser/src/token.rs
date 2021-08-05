@@ -4,6 +4,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use std::fmt;
+use std::vec;
 
 use crate::caching::{StringIdentifier, STRING_LITERAL_MAP};
 use hash_ast::ident::Identifier;
@@ -251,6 +252,10 @@ impl fmt::Display for TokenKind {
 pub struct TokenKindVector(Vec<TokenKind>);
 
 impl TokenKindVector {
+    pub fn empty() -> Self {
+        Self(vec![])
+    }
+
     pub fn from_slice(items: &[TokenKind]) -> Self {
         Self(items.to_vec())
     }
