@@ -42,6 +42,7 @@ impl ParserBackend for HashParser {
     ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
         let tokens = tokenise(contents).collect::<Vec<_>>();
         let gen = AstGen::new(tokens, &resolver);
+        // let gen = AstGen::new(tokens.clone(), &resolver);
 
         // for token in tokens.into_iter() {
         //     println!("{}", token);

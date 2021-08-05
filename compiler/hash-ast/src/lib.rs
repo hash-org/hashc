@@ -2,6 +2,10 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
+extern crate strum;
+#[macro_use]
+extern crate strum_macros;
+
 pub mod ast;
 pub mod count;
 pub mod error;

@@ -3,10 +3,12 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use std::fmt;
-use strum::IntoEnumIterator;
+use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{AsRefStr, EnumIter, EnumString, EnumVariantNames};
 
-#[derive(Debug, Copy, Clone, PartialEq, AsRefStr, EnumString, EnumIter, EnumVariantNames)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, AsRefStr, EnumString, EnumCount, EnumIter, EnumVariantNames,
+)]
 #[strum(serialize_all = "snake_case")]
 pub enum Keyword {
     Let,
@@ -28,8 +30,14 @@ pub enum Keyword {
     Import,
 }
 
-pub fn get_variants() -> Vec<Keyword> {
-    Keyword::iter().collect()
+impl Keyword {
+    pub fn get_variants() -> Vec<Keyword> {
+        Keyword::iter().collect()
+    }
+
+    pub fn size() -> usize {
+        Keyword::COUNT
+    }
 }
 
 /// Enum Variants for keywords
