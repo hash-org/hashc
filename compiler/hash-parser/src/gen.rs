@@ -238,7 +238,7 @@ where
         }
     }
 
-    /// Parse a [ast::Module] which is simply made of a list of statements
+    /// Parse a [Module] which is simply made of a list of statements
     pub fn parse_module(&self) -> ParseResult<Module> {
         let mut contents = vec![];
 
@@ -263,7 +263,9 @@ where
                     Keyword::Let => todo!(),
                     Keyword::For => todo!(),
                     Keyword::While => todo!(),
-                    Keyword::Loop => todo!(),
+                    Keyword::Loop => Statement::Block(
+                        self.node_from_joined_location(Block::Loop(self.parse_block()?), &start),
+                    ),
                     Keyword::If => todo!(),
                     Keyword::Else => todo!(),
                     Keyword::Match => todo!(),
@@ -357,7 +359,8 @@ where
             let token = self.peek().unwrap();
 
             if token.kind.begins_statement() {
-                block.statements.push(self.parse_statement()?)
+                block.statements.push(self.parse_statement()?);
+                continue;
             }
 
             // if we can't tell if this is a statement, we parse an expression, and if there
@@ -426,7 +429,92 @@ where
     //     }
     // }
 
-    pub fn parse_block(&self) {}
+    /// Function to parse a block body
+    pub fn parse_block(&self) -> ParseResult<AstNode<Block>> {
+        let (gen, start) = match self.peek() {
+            Some(Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree),
+                span,
+            }) => {
+                self.next_token();
+                (
+                    self.from_stream(tree.to_owned(), self.current_location()),
+                    *span,
+                )
+            }
+            _ => {
+                return Err(ParseError::Parsing {
+                    message: "Expected block body, which begins with a '{'.".to_string(),
+                    src: self.source_location(&self.current_location()),
+                })
+            }
+        };
+
+        let mut block = BodyBlock {
+            statements: vec![],
+            expr: None,
+        };
+
+        // Just return an empty block if we don't get anything
+        if !gen.has_token() {
+            return Ok(self.node_with_location(Block::Body(block), start));
+        }
+
+        // firstly check if the first token signals a beginning of a statement, we can tell
+        // this by checking for keywords that must begin a statement...
+        while gen.has_token() {
+            let token = gen.peek().unwrap();
+
+            // @@Incomplete: statements that begin with statement keywords shouldn't be bounded to having a semi-colon.
+            if token.kind.begins_statement() {
+                block.statements.push(gen.parse_statement()?);
+                continue;
+            }
+
+            // if we can't tell if this is a statement, we parse an expression, and if there
+            // is a following semi-colon, then we make this a statement and continue...
+            let expr = gen.parse_expression_bp(0)?;
+            let expr_loc = expr.location();
+
+            match gen.peek() {
+                Some(token) if token.has_kind(TokenKind::Semi) => {
+                    gen.next_token();
+
+                    let expr_location = expr.location();
+                    block
+                        .statements
+                        .push(gen.node_with_location(Statement::Expr(expr), expr_location));
+                }
+                Some(token) if token.has_kind(TokenKind::Eq) && !gen.is_compound_expr.get() => {
+                    gen.next_token();
+
+                    // since this is followed by an expression, we try to parse another expression, and then
+                    // ensure that after an expression there is a ending semi colon.
+                    let rhs = gen.parse_expression_bp(0)?;
+
+                    gen.parse_token_kind(TokenKind::Semi)?;
+
+                    block.statements.push(gen.node_from_joined_location(
+                        Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                        &expr_loc,
+                    ));
+                }
+                Some(token) => {
+                    return Err(gen.unexpected_token_error(
+                        &token.kind,
+                        &TokenKindVector::from_slice(&[TokenKind::Semi]),
+                        &gen.current_location(),
+                    ))
+                }
+                None => {
+                    block.expr = Some(expr);
+                    break;
+                }
+            };
+        }
+
+        Ok(self.node_from_joined_location(Block::Body(block), &start))
+    }
 
     pub fn parse_expression(&self) -> ParseResult<AstNode<Expression>> {
         let token = self.next_token();
