@@ -323,7 +323,7 @@ impl fmt::Display for TokenKindVector {
 }
 
 /// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
-/// with the error, the [TokenErrorKind] which classifies the error, and a [ast::Location] that represents
+/// with the error, the [TokenErrorKind] which classifies the error, and a [Location] that represents
 /// where the tokenisation error occurred.
 #[derive(Debug)]
 pub struct TokenError {

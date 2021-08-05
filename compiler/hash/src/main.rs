@@ -27,7 +27,7 @@ use crate::crash_handler::panic_handler;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
-/// https://hash-org.github.io/hash-arxiv/interpreter-options.html
+/// <https://hash-org.github.io/hash-arxiv/interpreter-options.html>
 #[derive(Clap)]
 #[clap(
     name = "Hash Interpreter",
