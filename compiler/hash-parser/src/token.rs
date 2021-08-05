@@ -188,6 +188,27 @@ impl TokenKind {
         )
     }
 
+    /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
+    /// follow a specific syntax, and must be statements.
+    pub(crate) fn begins_statement(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Keyword(Keyword::Let)
+                | TokenKind::Keyword(Keyword::For)
+                | TokenKind::Keyword(Keyword::While)
+                | TokenKind::Keyword(Keyword::Loop)
+                | TokenKind::Keyword(Keyword::If)
+                | TokenKind::Keyword(Keyword::Else)
+                | TokenKind::Keyword(Keyword::Match)
+                | TokenKind::Keyword(Keyword::Trait)
+                | TokenKind::Keyword(Keyword::Enum)
+                | TokenKind::Keyword(Keyword::Struct)
+                | TokenKind::Keyword(Keyword::Continue)
+                | TokenKind::Keyword(Keyword::Break)
+                | TokenKind::Keyword(Keyword::Return)
+        )
+    }
+
     /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
     pub(crate) fn is_literal(&self) -> bool {
         matches!(

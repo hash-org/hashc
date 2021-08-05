@@ -7,7 +7,7 @@ use std::{convert::TryInto, fmt};
 /// Enum representing a location of a token within the source.
 ///
 /// The first element of the tuple represents the line number of the locations
-/// and the second element rerpresents the row number.
+/// and the second element represents the row number.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
 pub struct Location(u32, u32);
 
@@ -28,7 +28,7 @@ impl Location {
     /// created with start pos of the lhs, and the end position of the rhs. If that is not the case, the
     /// lhs span is returned.
     ///
-    /// In essense, if this was the source stream:
+    /// In essence, if this was the source stream:
     /// > --------------------------------------------------------------
     /// >  ( <- lhs-start    lhs-end -> )   ( <- rhs-start rhs-end -> )
     /// > --------------------------------------------------------------
@@ -55,6 +55,13 @@ impl Location {
     /// Compute the actual size of the span by subtracting the end from start
     pub fn size(&self) -> usize {
         self.end() - self.start()
+    }
+}
+
+/// Default value for a new [Location]
+impl Default for Location {
+    fn default() -> Self {
+        Self::pos(0)
     }
 }
 
