@@ -260,21 +260,30 @@ where
                 self.next_token();
 
                 let statement = match kw {
-                    Keyword::Let => todo!(),
-                    Keyword::For => todo!(),
-                    Keyword::While => todo!(),
+                    Keyword::Let => Statement::Let(self.parse_let_statement()?),
+                    Keyword::For => Statement::Block(self.parse_for_loop()?),
+                    Keyword::While => Statement::Block(self.parse_while_loop()?),
                     Keyword::Loop => Statement::Block(
                         self.node_from_joined_location(Block::Loop(self.parse_block()?), &start),
                     ),
-                    Keyword::If => todo!(),
-                    Keyword::Else => todo!(),
-                    Keyword::Match => todo!(),
-                    Keyword::Trait => todo!(),
-                    Keyword::Enum => todo!(),
-                    Keyword::Struct => todo!(),
+                    Keyword::If => Statement::Block(self.parse_if_statement()?),
+                    Keyword::Match => Statement::Block(self.parse_match_block()?),
+                    Keyword::Trait => Statement::TraitDef(self.parse_trait_defn()?),
+                    Keyword::Enum => Statement::EnumDef(self.parse_enum_defn()?),
+                    Keyword::Struct => Statement::StructDef(self.parse_struct_defn()?),
                     Keyword::Continue => Statement::Continue,
                     Keyword::Break => Statement::Break,
-                    Keyword::Return => todo!(),
+                    Keyword::Return => {
+                        // @@Hack: check if the next token is a semi-colon, if so the return statement
+                        // has no returned expression...
+                        match self.peek() {
+                            Some(token) if token.has_kind(TokenKind::Semi) => {
+                                Statement::Return(None)
+                            }
+                            Some(_) => Statement::Return(Some(self.parse_expression_bp(0)?)),
+                            None => Statement::Return(None),
+                        }
+                    }
                     kw => {
                         return Err(ParseError::Parsing {
                             message: format!(
@@ -408,26 +417,41 @@ where
         Ok(self.node_with_location(block, start.join(self.current_location())))
     }
 
-    // pub fn parse_assign_statement(
-    //     &self,
-    //     lhs: AstNode<Expression>,
-    // ) -> ParseResult<Option<AstNode<Statement>>> {
-    //     let start = lhs.location();
+    pub fn parse_trait_defn(&self) -> ParseResult<TraitDef> {
+        todo!()
+    }
 
-    //     match self.peek() {
-    //         Some(token) if token.has_kind(TokenKind::Eq) => {
-    //             self.next_token(); // eat the assign operator
+    pub fn parse_struct_defn(&self) -> ParseResult<StructDef> {
+        todo!()
+    }
 
-    //             let rhs = self.parse_expression_bp(0)?;
+    pub fn parse_enum_defn(&self) -> ParseResult<EnumDef> {
+        todo!()
+    }
 
-    //             Ok(Some(self.node_with_location(
-    //                 Statement::Assign(AssignStatement { lhs, rhs }),
-    //                 start.join(self.current_location()),
-    //             )))
-    //         }
-    //         _ => Ok(None),
-    //     }
-    // }
+    pub fn parse_type_bound(&self) -> ParseResult<AstNode<Bound>> {
+        todo!()
+    }
+
+    pub fn parse_for_loop(&self) -> ParseResult<AstNode<Block>> {
+        todo!()
+    }
+
+    pub fn parse_while_loop(&self) -> ParseResult<AstNode<Block>> {
+        todo!()
+    }
+
+    pub fn parse_match_block(&self) -> ParseResult<AstNode<Block>> {
+        todo!()
+    }
+
+    pub fn parse_if_statement(&self) -> ParseResult<AstNode<Block>> {
+        todo!()
+    }
+
+    pub fn parse_let_statement(&self) -> ParseResult<LetStatement> {
+        todo!()
+    }
 
     /// Function to parse a block body
     pub fn parse_block(&self) -> ParseResult<AstNode<Block>> {
