@@ -5,7 +5,7 @@
 use hash_ast::ast::AstString;
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
-use hash_ast::keyword::get_variants;
+use hash_ast::keyword::Keyword;
 use hash_ast::location::Location;
 
 use crate::caching::STRING_LITERAL_MAP;
@@ -229,9 +229,10 @@ impl<'a> Lexer<'a> {
         // create the identifier here from the created map
         let ident = IDENTIFIER_MAP.create_ident(AstString::Owned(name.as_str().to_owned()));
 
+        // check if this is an actual keyword instead of an ident, and if it is convert the token type...
         match ident {
-            Identifier(c) if c <= 15 => {
-                TokenKind::Keyword(*get_variants().get(c as usize).unwrap())
+            Identifier(c) if c < Keyword::size() as u32 => {
+                TokenKind::Keyword(*Keyword::get_variants().get(c as usize).unwrap())
             }
             ident => TokenKind::Ident(ident),
         }
