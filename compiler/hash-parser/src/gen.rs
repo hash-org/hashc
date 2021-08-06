@@ -41,6 +41,10 @@ pub struct AstGen<'a, R> {
     /// was made up of multiple expressions with precedence operators.
     is_compound_expr: Cell<bool>,
 
+    /// State to prevent from struct literals being parsed in the current expression, because
+    /// the parent has specifically checked ahead to ensure it isn't a struct literal.
+    disallow_struct_literals: Cell<bool>,
+
     /// Instance of a [ModuleResolver] to notify the parser of encountered imports.
     resolver: &'a R,
 }
@@ -56,6 +60,7 @@ where
             stream,
             parent_span: None,
             is_compound_expr: Cell::new(false),
+            disallow_struct_literals: Cell::new(false),
             offset: Cell::new(0),
             resolver,
         }
@@ -66,6 +71,7 @@ where
             stream,
             offset: Cell::new(0),
             is_compound_expr: Cell::new(false),
+            disallow_struct_literals: Cell::new(false),
             parent_span: Some(parent_span),
             resolver: self.resolver,
         }
@@ -445,8 +451,135 @@ where
         todo!()
     }
 
+    // we transpile if-else blocks into match blocks in order to simplify
+    /// the typechecking process and optimisation efforts.
+    ///
+    /// Firstly, since we always want to check each case, we convert the
+    /// if statement into a series of and-patterns, where the right hand-side
+    /// pattern is the condition to execute the branch...
+    ///
+    /// For example:
+    /// >>> if a {a_branch} else if b {b_branch} else {c_branch}
+    /// will be transpiled into...
+    /// >>> match true {
+    ///      _ if a => a_branch
+    ///      _ if b => b_branch
+    ///      _ => c_branch
+    ///     }
+    ///
+    /// Additionally, if no 'else' clause is specified, we fill it with an
+    /// empty block since an if-block could be assigned to any variable and therefore
+    /// we need to know the outcome of all branches for typechecking.
     pub fn parse_if_statement(&self) -> ParseResult<AstNode<Block>> {
-        todo!()
+        debug_assert!(matches!(
+            self.current_token().kind,
+            TokenKind::Keyword(Keyword::If)
+        ));
+
+        let start = self.current_location();
+
+        let mut cases = vec![];
+        let mut has_else_branch = false;
+
+        while self.has_token() {
+            // @@Cleanup: @@Hack: essentially because struct literals begin with an ident and then a block
+            //    this creates an ambiguity for the parser because it could also just be an ident
+            //    and then a block, therefore, we have to peek ahead to see if we can see two following
+            //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
+            //    only one token tree, we prevent it from being parsed as a struct literal
+            //    by updating the global state...
+            self.disallow_struct_literals
+                .set(self.lookahead_for_struct_literal());
+
+            let clause = self.parse_expression_bp(0)?;
+            let clause_loc = clause.location();
+
+            let branch = self.parse_block()?;
+            let branch_loc = branch.location();
+
+            cases.push(self.node_from_location(
+                MatchCase {
+                    pattern: self.node_from_location(
+                        Pattern::If(IfPattern {
+                            pattern: self.node_from_location(Pattern::Ignore, &clause_loc),
+                            condition: clause,
+                        }),
+                        &clause_loc,
+                    ),
+                    expr: self.node_from_location(
+                        Expression::new(ExpressionKind::Block(branch)),
+                        &branch_loc,
+                    ),
+                },
+                &clause_loc.join(branch_loc),
+            ));
+
+            //    cases.push((condition, branch));
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
+                    // This must be another branch
+                    self.next_token();
+
+                    self.parse_token_kind(TokenKind::Keyword(Keyword::Else))?;
+                }
+                Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Else)) => {
+                    // this is the final branch of the if statement, and it is added to the end
+                    // of the statements...
+                    let start = self.current_location();
+                    self.next_token();
+
+                    let else_branch = self.parse_block()?;
+                    let loc = start.join(else_branch.location());
+
+                    has_else_branch = true;
+
+                    cases.push(self.node_from_location(
+                        MatchCase {
+                            pattern: self.node(Pattern::Ignore),
+                            expr: self.node_from_location(
+                                Expression::new(ExpressionKind::Block(else_branch)),
+                                &loc,
+                            ),
+                        },
+                        &loc,
+                    ));
+
+                    break;
+                }
+                _ => break,
+            };
+        }
+
+        if !has_else_branch {
+            cases.push(self.node(MatchCase {
+                pattern: self.node(Pattern::Ignore),
+                expr: self.node(Expression::new(ExpressionKind::Block(self.node(
+                    Block::Body(BodyBlock {
+                        statements: vec![],
+                        expr: None,
+                    }),
+                )))),
+            }));
+        }
+
+        Ok(self.node_from_joined_location(
+            Block::Match(MatchBlock {
+                subject: self.make_ident(AstString::Borrowed("true"), &self.current_location()),
+                cases,
+            }),
+            &start,
+        ))
+    }
+
+    /// This is a utility function used to prevent struct literals from being
+    /// parsed by some parsing function given that if there is an access name followed
+    /// by two token trees that follow the access name.
+    fn lookahead_for_struct_literal(&self) -> bool {
+        // record the current location...
+        let _start = self.current_location();
+
+        // if self.peek_fn(self.parse_name_with_type_args(ident))
+        false
     }
 
     pub fn parse_let_statement(&self) -> ParseResult<LetStatement> {
@@ -575,15 +708,12 @@ where
                     _ => unreachable!(),
                 };
 
-                let (name, type_args) = self.parse_name_with_type_args(&ident)?;
+                let (name, type_args) = self.parse_name_with_type_args(ident)?;
                 let type_args = type_args.unwrap_or_default();
 
                 // create the lhs expr.
                 self.node_with_location(
-                    Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: name.clone(),
-                        type_args: type_args.clone(),
-                    })),
+                    Expression::new(ExpressionKind::Variable(VariableExpr { name, type_args })),
                     start.join(self.current_location()),
                 )
             }
@@ -596,6 +726,7 @@ where
                 self.parse_array_literal(tree, &self.current_location())?
             } // Could be an array index?
             TokenKind::Tree(Delimiter::Paren, tree) => {
+                self.disallow_struct_literals.set(true); // @@Cleanup
                 self.parse_expression_or_tuple(tree, &self.current_location())?
             }
 
@@ -704,7 +835,7 @@ where
                         self.parse_function_call(lhs_expr, tree, &self.current_location())?;
                 }
                 // Struct literal
-                TokenKind::Tree(Delimiter::Brace, tree) => {
+                TokenKind::Tree(Delimiter::Brace, tree) if !self.disallow_struct_literals.get() => {
                     self.next_token();
                     // Ensure that the LHS of the brace is a variable, since struct literals can only
                     // be begun with variable names and type arguments, any other expression cannot be
@@ -722,6 +853,9 @@ where
                 _ => break,
             }
         }
+
+        // reset disallowing struct literals
+        self.disallow_struct_literals.set(false);
 
         Ok(lhs_expr)
     }
@@ -1220,7 +1354,7 @@ where
 
     pub fn parse_block_or_braced_literal(
         &self,
-        tree: &Vec<Token>,
+        tree: &[Token],
         span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
         let _gen = self.from_stream(tree.to_owned(), *span);
@@ -1244,7 +1378,7 @@ where
     ///
     pub fn parse_expression_or_tuple(
         &self,
-        tree: &Vec<Token>,
+        tree: &[Token],
         span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
         let gen = self.from_stream(tree.to_owned(), *span);
@@ -1303,18 +1437,18 @@ where
             }
         }
 
-        return Ok(AstNode::new(
+        Ok(AstNode::new(
             Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
                 Literal::Tuple(TupleLiteral { elements }),
                 start.join(gen.current_location()),
             ))),
             start.join(gen.current_location()),
-        ));
+        ))
     }
 
     pub fn parse_array_literal(
         &self,
-        tree: &Vec<Token>,
+        tree: &[Token],
         span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
         let gen = self.from_stream(tree.to_owned(), *span);
