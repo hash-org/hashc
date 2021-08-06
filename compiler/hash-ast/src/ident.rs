@@ -90,7 +90,7 @@ impl IdentifierMap {
         }
     }
 
-    pub fn create_path_ident(&self, path_ident_str: &'static str) -> PathIdentifier {
+    pub fn create_path_ident(&self, path_ident_str: &str) -> PathIdentifier {
         if let Some(key) = self.path_ident_data.get(path_ident_str) {
             *key
         } else {

@@ -422,6 +422,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "derive_more",
+ "hash-alloc",
  "hash-ast",
  "hash-utils",
  "lazy_static",

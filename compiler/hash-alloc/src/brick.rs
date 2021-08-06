@@ -16,6 +16,17 @@ impl<'c, T> Brick<'c, T> {
             data: wall.alloc_value(x),
         }
     }
+
+    pub fn move_out(self) -> T {
+        let no_drop_self = ManuallyDrop::new(self);
+        // Safety: this value will never be used again (and no destructors will run), so it is safe
+        // to bitwise copy out of the castle.
+        //
+        // @@Todo: verify this
+        unsafe { 
+            ManuallyDrop::into_inner(std::ptr::read(no_drop_self.data as *const ManuallyDrop<T>))
+        }
+    }
 }
 
 impl<'c, T: Clone> Brick<'c, T> {

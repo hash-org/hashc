@@ -163,7 +163,7 @@ pub struct TupleLiteral<'c> {
 #[derive(Debug, PartialEq)]
 pub struct MapLiteral<'c> {
     /// The elements of the map literal (key-value pairs).
-    pub elements: Vec<(AstNode<'c, Expression<'c>>, AstNode<'c, Expression<'c>>)>,
+    pub elements: Row<'c, (AstNode<'c, Expression<'c>>, AstNode<'c, Expression<'c>>)>,
 }
 
 /// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
