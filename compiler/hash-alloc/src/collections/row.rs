@@ -90,6 +90,22 @@ impl<'c, T> Row<'c, T> {
         }))
     }
 
+    pub fn try_from_iter<I, E>(iter: I, wall: &Wall<'c>) -> Result<Self, E>
+    where
+        I: IntoIterator<Item = Result<T, E>>,
+    {
+        let iter = iter.into_iter();
+        let (min_bound, max_bound) = iter.size_hint();
+        let initial_capacity = max_bound.unwrap_or(min_bound);
+
+        let mut row = Row::with_capacity(initial_capacity, wall);
+        for element in iter {
+            row.push(element?, wall);
+        }
+
+        Ok(row)
+    }
+
     pub fn from_iter<I>(iter: I, wall: &Wall<'c>) -> Self
     where
         I: IntoIterator<Item = T>,
