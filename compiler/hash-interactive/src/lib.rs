@@ -5,12 +5,12 @@
 mod command;
 
 use command::InteractiveCommand;
+use hash_alloc::Castle;
 use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
-use hash_alloc::Castle;
 
 #[cfg(feature = "use-pest")]
 use hash_pest_parser::backend::PestBackend;
@@ -74,7 +74,10 @@ pub fn init() -> CompilerResult<()> {
 }
 
 #[cfg(not(feature = "use-pest"))]
-fn parse_interactive<'c>(expr: &str, castle: &'c Castle) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
+fn parse_interactive<'c>(
+    expr: &str,
+    castle: &'c Castle,
+) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
     let directory = env::current_dir().unwrap();
 
     // setup the parser
@@ -114,7 +117,6 @@ fn execute(input: &str) {
     }
 
     let command = InteractiveCommand::from(input);
-
 
     let castle = Castle::new();
 

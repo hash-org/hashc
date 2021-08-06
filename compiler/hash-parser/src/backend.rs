@@ -39,7 +39,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
 
         println!("Tokens bro: {:#?}", tokens);
 
-        let mut gen = AstGen::new(tokens, resolver, &self.castle);
+        let mut gen = AstGen::new(tokens, resolver, self.castle);
 
         timed(
             || gen.generate_module(),
@@ -56,7 +56,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let wall = self.castle.wall();
 
         let tokens = Lexer::new(contents, &wall).tokenise();
-        let mut gen = AstGen::new(tokens, resolver, &self.castle);
+        let mut gen = AstGen::new(tokens, resolver, self.castle);
 
         gen.generate_expression_from_interactive()
     }

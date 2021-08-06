@@ -23,7 +23,7 @@ impl<'c, T> Brick<'c, T> {
         // to bitwise copy out of the castle.
         //
         // @@Todo: verify this
-        unsafe { 
+        unsafe {
             ManuallyDrop::into_inner(std::ptr::read(no_drop_self.data as *const ManuallyDrop<T>))
         }
     }

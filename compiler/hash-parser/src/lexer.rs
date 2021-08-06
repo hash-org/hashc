@@ -190,14 +190,14 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind<'c>> {
         debug_assert!(self.prev.get().unwrap() == delimiter.left());
 
-        let mut children_tokens = row![&self.wall];
+        let mut children_tokens = row![self.wall];
 
         let start = self.offset.get();
 
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
             match self.advance_token() {
-                Some(token) => children_tokens.push(token, &self.wall),
+                Some(token) => children_tokens.push(token, self.wall),
                 None => break,
             };
         }

@@ -3,15 +3,15 @@
 // All rights reserved 2021 (c) The Hash Language authors
 
 use crate::ident::{Identifier, PathIdentifier};
+use crate::literal::StringLiteral;
 use crate::location::Location;
 use crate::module::ModuleIdx;
-use hash_alloc::Wall;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
+use hash_alloc::Wall;
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::Deref;
-use crate::literal::StringLiteral;
 
 counter! {
     name: AstNodeId,

@@ -157,7 +157,7 @@ impl<'c> Wall<'c> {
                         .new_or_reclaimed_section_with_capacity(new_capacity);
 
                     // Drop read access to curr_section.
-                    drop(curr_section);
+                    // drop(curr_section);
 
                     // Safety: no one has read access to self.curr_section right now.
                     let old_wall_section = std::mem::replace(
