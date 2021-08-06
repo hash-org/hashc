@@ -1,10 +1,7 @@
-use hash_alloc::collections::string::BrickString;
 use hash_utils::counter;
 use lazy_static::lazy_static;
 
 use dashmap::DashMap;
-
-use crate::storage::STATIC_CASTLE;
 
 /// A map containing identifiers that essentially point to a string literal that has been parsed
 /// during the tokenisation process. This is so that we don't have to unecessarilly allocate a string

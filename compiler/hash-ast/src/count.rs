@@ -54,9 +54,7 @@ impl NodeCount for Statement<'_> {
 
                 1 + defn.bound.node_count() + entries
             }
-            Statement::TraitDef(defn) => {
-                1 + defn.bound.node_count() + defn.trait_type.node_count()
-            }
+            Statement::TraitDef(defn) => 1 + defn.bound.node_count() + defn.trait_type.node_count(),
         }
     }
 }

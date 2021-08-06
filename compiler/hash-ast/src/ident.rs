@@ -1,7 +1,6 @@
-use crate::storage::STATIC_CASTLE;
 use crate::keyword::Keyword;
 use dashmap::DashMap;
-use hash_alloc::collections::string::BrickString;
+
 use hash_utils::counter;
 use lazy_static::lazy_static;
 use strum::VariantNames;
@@ -39,7 +38,7 @@ pub struct PathIdentifierName(&'static str);
 
 impl PathIdentifierName {
     pub fn full(&self) -> &str {
-        self.0.as_ref()
+        self.0
     }
 
     pub fn components(&self) -> impl Iterator<Item = &str> {

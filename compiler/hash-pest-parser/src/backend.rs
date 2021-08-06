@@ -7,7 +7,7 @@ use crate::{
     grammar::{Grammar, Rule},
     translate::PestAstBuilder,
 };
-use hash_alloc::{Castle, collections::row::Row};
+use hash_alloc::{collections::row::Row, Castle};
 use hash_ast::{
     ast,
     error::{ParseError, ParseResult},
@@ -42,8 +42,10 @@ impl<'c> ParserBackend<'c> for PestBackend<'c> {
         timed(
             || {
                 Ok(ast::Module {
-                    contents: Row::try_from_iter(pest_result
-                        .map(|x| builder.transform_statement(x)), &wall)?,
+                    contents: Row::try_from_iter(
+                        pest_result.map(|x| builder.transform_statement(x)),
+                        &wall,
+                    )?,
                 })
             },
             log::Level::Debug,
