@@ -1253,6 +1253,7 @@ where
                             // when the expression is evaluated, hence the `append_else` might be true when it should
                             // be false!
                             iter::from_fn(|| {
+                                // if no else-block was provided, we need to add one manually
                                 if append_else.get() {
                                     Some(Ok(ab.node(MatchCase {
                                         pattern: ab.node(Pattern::Ignore),
@@ -1270,8 +1271,6 @@ where
                             .take(1),
                         ),
                 )?;
-
-                // if no else-block was provided, we need to add one manually
 
                 Ok(ab.node(Block::Match(MatchBlock {
                     subject: ab.make_variable(ab.make_boolean(true)),
