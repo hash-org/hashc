@@ -3,7 +3,11 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use hash_ast::{ast::TypeId, ident::Identifier};
+use hash_ast::{
+    ast::TypeId,
+    ident::Identifier,
+    module::{ModuleIdx, Modules},
+};
 use hash_utils::counter;
 use smallvec::SmallVec;
 
@@ -36,7 +40,7 @@ pub struct Trait {
 counter! {
     name: TraitId,
     counter_name: TRAIT_COUNTER,
-    visibility:,
+    visibility: pub,
     method_visibility:,
 }
 
@@ -99,7 +103,7 @@ pub enum TypeDefValue {
 counter! {
     name: TypeDefId,
     counter_name: TYPE_DEF_COUNTER,
-    visibility:,
+    visibility: pub,
     method_visibility:,
 }
 
@@ -110,6 +114,7 @@ counter! {
     method_visibility:,
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub enum PrimType {
     USize,
     U8,
@@ -143,37 +148,38 @@ impl fmt::Display for GenTypeVar {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub struct TypeVar {
     pub name: Identifier,
 }
 
 pub struct RefType {
-    pub inner: Type,
+    pub inner: TypeId,
 }
 
 pub struct RawRefType {
-    pub inner: Type,
+    pub inner: TypeId,
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct TypeArgs {
     data: SmallVec<[TypeId; 6]>,
 }
 
+impl TypeArgs {
+    pub fn iter(&self) -> impl Iterator<Item=TypeId> + '_ {
+        self.data.iter().map(|&x| x)
+    }
+}
+
 pub struct UserType {
-    pub def: TypeDef,
+    pub def: TypeDefId,
     pub args: TypeArgs,
 }
 
 pub struct FnType {
     pub args: TypeArgs,
-    pub ret: Type,
-}
-
-pub struct Type {
-    id: TypeId,
-}
-pub struct TypeDef {
-    id: TypeDefId,
+    pub ret: TypeId,
 }
 
 pub enum TypeValue {
@@ -189,6 +195,42 @@ pub enum TypeValue {
 pub struct Types {
     data: HashMap<TypeId, TypeValue>,
 }
+
+impl Types {
+    pub fn get(&self, ty: TypeId) -> &TypeValue {
+        self.data.get(&ty).unwrap()
+    }
+}
+
+pub struct Traits {
+    data: HashMap<TraitId, Trait>,
+}
+
+pub struct GenTypeVars {
+    data: HashMap<GenTypeVarId, TraitBounds>,
+}
+
+pub struct TypecheckState {
+    in_loop: bool,
+    ret_once: bool,
+    func_ret_type: Option<TypeId>,
+    gen_type_vars: GenTypeVars,
+    current_module: ModuleIdx,
+}
+
+pub struct TypecheckCtx<'m> {
+    types: Types,
+    type_defs: TypeDefs,
+    traits: Traits,
+    state: TypecheckState,
+    modules: &'m Modules,
+}
+
+pub enum TypecheckError {
+    TypeMismatch(TypeId, TypeId),
+}
+
+pub type TypecheckResult<T> = Result<T, TypecheckError>;
 
 #[cfg(test)]
 mod tests {
