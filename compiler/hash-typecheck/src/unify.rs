@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::types::{TypecheckCtx, TypecheckError, TypecheckResult};
+use hash_ast::ast::TypeId;
+
+use crate::types::{GenTypeVarId, TypeValue, TypecheckCtx, TypecheckError, TypecheckResult};
 
 struct Substitutions {
     data: HashMap<GenTypeVarId, TypeId>,
@@ -19,8 +21,15 @@ impl Substitutions {
         todo!()
     }
 
-    pub fn combine(&mut self, other: Substitutions) {
-        todo!()
+    pub fn combine(&mut self, ctx: &TypecheckCtx, other: &Substitutions) {
+        for (from, to) in self.data {
+            match ctx.types.get(to) {
+                TypeValue::GenVar(to_gen_var) if other.data.contains_key(&to_gen_var.id) => {
+
+                }
+                _ => {}
+            }
+        }
     }
 }
 
