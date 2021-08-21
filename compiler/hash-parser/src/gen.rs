@@ -265,41 +265,49 @@ where
             }) => {
                 self.next_token();
 
-                let statement = match kw {
-                    Keyword::Let => Statement::Let(self.parse_let_statement()?),
-                    Keyword::For => Statement::Block(self.parse_for_loop()?),
-                    Keyword::While => Statement::Block(self.parse_while_loop()?),
-                    Keyword::Loop => Statement::Block(
-                        self.node_from_joined_location(Block::Loop(self.parse_block()?), &start),
-                    ),
-                    Keyword::If => Statement::Block(self.parse_if_statement()?),
-                    Keyword::Match => Statement::Block(self.parse_match_block()?),
-                    Keyword::Trait => Statement::TraitDef(self.parse_trait_defn()?),
-                    Keyword::Enum => Statement::EnumDef(self.parse_enum_defn()?),
-                    Keyword::Struct => Statement::StructDef(self.parse_struct_defn()?),
-                    Keyword::Continue => Statement::Continue,
-                    Keyword::Break => Statement::Break,
-                    Keyword::Return => {
-                        // @@Hack: check if the next token is a semi-colon, if so the return statement
-                        // has no returned expression...
-                        match self.peek() {
-                            Some(token) if token.has_kind(TokenKind::Semi) => {
-                                Statement::Return(None)
-                            }
-                            Some(_) => Statement::Return(Some(self.parse_expression_bp(0)?)),
-                            None => Statement::Return(None),
+                let statement =
+                    match kw {
+                        Keyword::Let => Statement::Let(self.parse_let_statement()?),
+                        Keyword::For => Statement::Block(self.parse_for_loop()?),
+                        Keyword::While => Statement::Block(self.parse_while_loop()?),
+                        Keyword::Loop => {
+                            // @@Hack: advance the token by one expecting it to be a tree, since parse block looks at the current
+                            //         token instead of peeking ahead, this should be changed in the future.
+                            self.next_token();
+
+                            Statement::Block(self.node_from_joined_location(
+                                Block::Loop(self.parse_block()?),
+                                &start,
+                            ))
                         }
-                    }
-                    kw => {
-                        return Err(ParseError::Parsing {
-                            message: format!(
-                                "Unexpected keyword '{}' at the beginning of a statement",
-                                kw
-                            ),
-                            src: self.source_location(&self.current_location()),
-                        })
-                    }
-                };
+                        Keyword::If => Statement::Block(self.parse_if_statement()?),
+                        Keyword::Match => Statement::Block(self.parse_match_block()?),
+                        Keyword::Trait => Statement::TraitDef(self.parse_trait_defn()?),
+                        Keyword::Enum => Statement::EnumDef(self.parse_enum_defn()?),
+                        Keyword::Struct => Statement::StructDef(self.parse_struct_defn()?),
+                        Keyword::Continue => Statement::Continue,
+                        Keyword::Break => Statement::Break,
+                        Keyword::Return => {
+                            // @@Hack: check if the next token is a semi-colon, if so the return statement
+                            // has no returned expression...
+                            match self.peek() {
+                                Some(token) if token.has_kind(TokenKind::Semi) => {
+                                    Statement::Return(None)
+                                }
+                                Some(_) => Statement::Return(Some(self.parse_expression_bp(0)?)),
+                                None => Statement::Return(None),
+                            }
+                        }
+                        kw => {
+                            return Err(ParseError::Parsing {
+                                message: format!(
+                                    "Unexpected keyword '{}' at the beginning of a statement",
+                                    kw
+                                ),
+                                src: self.source_location(&self.current_location()),
+                            })
+                        }
+                    };
 
                 match self.next_token() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
@@ -514,19 +522,24 @@ where
                 &clause_loc.join(branch_loc),
             ));
 
-            //    cases.push((condition, branch));
+            // Now check if there is another branch after the else or if, and loop onwards...
             match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
-                    // This must be another branch
+                Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Else)) => {
                     self.next_token();
 
-                    self.parse_token_kind(TokenKind::Keyword(Keyword::Else))?;
-                }
-                Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Else)) => {
+                    match self.peek() {
+                        Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
+                            // skip trying to convert just an 'else' branch since this is another if-branch
+                            self.next_token();
+                            continue;
+                        }
+                        _ => (),
+                    };
+
                     // this is the final branch of the if statement, and it is added to the end
                     // of the statements...
-                    let start = self.current_location();
                     self.next_token();
+                    let start = self.current_location();
 
                     let else_branch = self.parse_block()?;
                     let loc = start.join(else_branch.location());
@@ -588,22 +601,22 @@ where
 
     /// Function to parse a block body
     pub fn parse_block(&self) -> ParseResult<AstNode<Block>> {
-        let (gen, start) = match self.peek() {
-            Some(Token {
+        let (gen, start) = match self.current_token() {
+            Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
                 span,
-            }) => {
-                self.next_token();
-                (
-                    self.from_stream(tree.to_owned(), self.current_location()),
-                    *span,
-                )
-            }
-            _ => {
+            } => (
+                self.from_stream(tree.to_owned(), self.current_location()),
+                *span,
+            ),
+            token => {
                 return Err(ParseError::Parsing {
-                    message: "Expected block body, which begins with a '{'.".to_string(),
+                    message: format!(
+                        "Expected block body, which begins with a '{{' but got a {}",
+                        token
+                    ),
                     src: self.source_location(&self.current_location()),
-                })
+                });
             }
         };
 
@@ -844,10 +857,10 @@ where
                         ExpressionKind::Variable(VariableExpr { name, type_args }) => {
                             lhs_expr = self.parse_struct_literal(name, type_args, tree)?;
                         }
-                        _ => return Err(ParseError::Parsing {
-                            message: "Unexpected beginning of a block, if this is a struct literal, it should begin with a variable name.".to_string(),
-                            src: self.source_location(&self.current_location()),
-                        })
+                        _ => break, // _ => return Err(ParseError::Parsing {
+                                    //     message: "Unexpected beginning of a block, if this is a struct literal, it should begin with a variable name.".to_string(),
+                                    //     src: self.source_location(&self.current_location()),
+                                    // })
                     };
                 }
                 _ => break,
