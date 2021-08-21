@@ -110,7 +110,7 @@ counter! {
 counter! {
     name: GenTypeVarId,
     counter_name: GEN_TYPE_VAR_COUNTER,
-    visibility:,
+    visibility: pub,
     method_visibility:,
 }
 
@@ -131,7 +131,7 @@ pub enum PrimType {
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct GenTypeVar {
-    id: GenTypeVarId,
+    pub id: GenTypeVarId,
 }
 
 impl GenTypeVar {
@@ -211,19 +211,19 @@ pub struct GenTypeVars {
 }
 
 pub struct TypecheckState {
-    in_loop: bool,
-    ret_once: bool,
-    func_ret_type: Option<TypeId>,
-    gen_type_vars: GenTypeVars,
-    current_module: ModuleIdx,
+    pub in_loop: bool,
+    pub ret_once: bool,
+    pub func_ret_type: Option<TypeId>,
+    pub gen_type_vars: GenTypeVars,
+    pub current_module: ModuleIdx,
 }
 
 pub struct TypecheckCtx<'m> {
-    types: Types,
-    type_defs: TypeDefs,
-    traits: Traits,
-    state: TypecheckState,
-    modules: &'m Modules,
+    pub types: Types,
+    pub type_defs: TypeDefs,
+    pub traits: Traits,
+    pub state: TypecheckState,
+    pub modules: &'m Modules,
 }
 
 pub enum TypecheckError {
