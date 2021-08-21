@@ -2,261 +2,173 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-#![allow(dead_code)] // @@REMOVE
-#![feature(bench_black_box)]
-
 pub mod brick;
 pub mod collections;
 
 use std::mem::{ManuallyDrop, MaybeUninit};
 
-pub struct Wall<'c> {
-    member: bumpalo_herd::Member<'c>,
-}
-
-impl<'c> Wall<'c> {
-    pub fn new(castle: &'c Castle) -> Self {
-        castle.wall()
-    }
-
-    pub fn allocated_bytes(&self) -> usize {
-        self.member.as_bump().chunk_capacity()
-    }
-
-    pub fn used_bytes(&self) -> usize {
-        self.member.as_bump().allocated_bytes()
-    }
-
-    fn with_member(member: bumpalo_herd::Member<'c>) -> Self {
-        Self { member }
-    }
-
-    fn alloc_value<T>(&self, value: T) -> &'c mut ManuallyDrop<T> {
-        self.member.alloc(ManuallyDrop::new(value))
-    }
-
-    fn alloc_uninit_slice<T>(&self, len: usize) -> &'c mut [MaybeUninit<ManuallyDrop<T>>] {
-        self.member
-            .alloc_slice_fill_with(len, |_| MaybeUninit::uninit())
-    }
-}
-
+/// The root primitive of arena allocation.
+///
+/// A `Castle` can create [`Wall`]s, which in turn can allocate values onto an arena. The existence
+/// of these two primitives, rather than a single one, is due to the requirement of thread-safety
+/// in memory allocation. Each [`Wall`] in a `Castle` lives inside its own thread, and it cannot
+/// cross thread boundaries (although the allocations themselves can).
+///
+/// This means that there is no need to acquire any mutex or lock whenever an allocation occurs,
+/// but this is needed when a new [`Wall`] is created.
 #[derive(Default)]
 pub struct Castle {
     herd: bumpalo_herd::Herd,
 }
 
 impl Castle {
+    /// Create a new [`Castle`]. All values allocated within [`Wall`]s created from this castle
+    /// will be dropped once the `Castle` is dropped.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create a new [`Wall`] inside this `Castle`. The created [`Wall`] lives as long as the
+    /// reference to this `Castle`.
     pub fn wall<'c>(&'c self) -> Wall<'c> {
         Wall::with_member(self.herd.get())
     }
 }
 
+/// A thread-unsafe object which can allocate memory inside a memory arena.
+///
+/// Some features of this style of allocation:
+///
+/// * Cost of allocation is really tiny (just an integer comparison and a pointer incrementation).
+///
+/// * All allocations are very well spatially localised---they are arranged sequentially in
+/// memory. This means that traversing graph/tree structures allocated on the [`Wall`] is very
+/// cache-friendly, as the elements will be right next to each other.
+///
+/// * All allocations live for the same amount of time, which is the lifetime of the underlying
+/// [`Castle`]. However, values allocated inside a [`Wall`] can be dropped because the allocations
+/// are wrapped in [`ManuallyDrop`]. For a more ergonomic way of allocating values and collections,
+/// take a look at the [`collections`] and [`brick`] modules.
+///
+///
+///  Currently, this is implemented using [`bumpalo`], but this will (probably) change in the
+///  future as the compiler acquires more niche requirements.
+pub struct Wall<'c> {
+    member: bumpalo_herd::Member<'c>,
+}
+
+impl<'c> Wall<'c> {
+    /// Create a new [`Wall`] inside the given [`Castle`].
+    ///
+    /// Synonym for `castle.wall()`.
+    pub fn new(castle: &'c Castle) -> Self {
+        castle.wall()
+    }
+
+    /// *Bumpalo-specific*: create a wall with the given [`bumpalo_herd::Member`], which is the
+    /// underlying `bumpalo` primitive that [`Wall`] uses.
+    fn with_member(member: bumpalo_herd::Member<'c>) -> Self {
+        Self { member }
+    }
+
+    /// Allocate a given value on the [`Wall`].
+    ///
+    /// This returns a mutable reference to the given value, wrapped in [`ManuallyDrop`] which
+    /// allows one to drop the value even though it is still physically present in the arena. Keep
+    /// in mind that this sort of manually dropping is an unsafe operation.
+    pub fn alloc_value<T>(&self, value: T) -> &'c mut ManuallyDrop<T> {
+        self.member.alloc(ManuallyDrop::new(value))
+    }
+
+    /// Allocate an uninitialised slice on the [`Wall`] with the given length.
+    ///
+    /// This returns a mutable reference to the allocated slice, wrapped in [`MaybeUninit`] and
+    /// [`ManuallyDrop`]. All the values are initially set to `MaybeUninit::uninit()`.
+    ///
+    /// Despite the fact that `MaybeUninit` implies `ManuallyDrop`, Rust does not yet provide a stable
+    /// way of in-place dropping a `MaybeUninit` (until [#63567](https://github.com/rust-lang/rust/issues/63567) lands).
+    pub fn alloc_uninit_slice<T>(&self, len: usize) -> &'c mut [MaybeUninit<ManuallyDrop<T>>] {
+        self.member
+            .alloc_slice_fill_with(len, |_| MaybeUninit::uninit())
+    }
+}
+
+// We will probably need more tests here once we replace bumpalo with a custom implementation
+// again.
 #[cfg(test)]
 mod test {
-    use core::fmt;
-    use std::{
-        hint::black_box,
-        sync::atomic::{AtomicI64, Ordering},
-        time::{Duration, Instant},
-    };
-
-    use crate::{brick::Brick, collections::row::Row};
-
     use super::*;
 
-    #[derive(Debug)]
-    struct MyComplexStructBoxed {
-        a: Box<i32>,
-        b: Box<Vec<Box<i32>>>,
-    }
-
-    #[derive(Debug)]
-    struct MyComplexStructWref<'w> {
-        a: Brick<'w, i32>,
-        b: Brick<'w, Row<'w, Brick<'w, i32>>>,
-    }
-
-    impl MyComplexStructBoxed {
-        pub fn new() -> Self {
-            Self {
-                a: Box::new(3),
-                b: Box::new(vec![
-                    Box::new(4),
-                    Box::new(5),
-                    Box::new(6),
-                    Box::new(7),
-                    Box::new(8),
-                ]),
-            }
-        }
-    }
-
-    impl<'w> MyComplexStructWref<'w> {
-        pub fn new(wall: &Wall<'w>) -> Self {
-            Self {
-                a: Brick::new(3, wall),
-                b: Brick::new(
-                    row![wall;
-                        Brick::new(4, wall),
-                        Brick::new(5, wall),
-                        Brick::new(6, wall),
-                        Brick::new(7, wall),
-                        Brick::new(8, wall),
-                    ],
-                    wall,
-                ),
-            }
-        }
-    }
-
-    fn run_alloc_test<P, R: Send + Sync + fmt::Debug>(
-        total_count: i32,
-        total_threads: usize,
-        pre_op: impl Fn() -> P + Send + Sync,
-        op: impl Fn(&mut P, i32) -> R + Send + Sync,
-    ) -> Duration {
-        let pool = rayon::ThreadPoolBuilder::new().build().unwrap();
-        let wall_elapsed = AtomicI64::new(0);
-
-        pool.scope(|scope| {
-            for _ in 0..total_threads {
-                scope.spawn(|_| {
-                    let mut p = pre_op();
-                    for i in 0..total_count {
-                        let start = Instant::now();
-                        let result = op(&mut p, i);
-                        let elapsed = start.elapsed().as_nanos() as i64;
-                        black_box(result);
-                        wall_elapsed.fetch_add(elapsed, Ordering::SeqCst);
-                    }
-                });
-            }
-        });
-
-        Duration::from_nanos(wall_elapsed.load(Ordering::SeqCst) as u64)
-    }
-
     #[test]
-    fn alloc_test() {
-        let total_count = 2000;
-        let total_threads = 20;
+    fn alloc_simple_test() {
+        const SIMPLE_VALUE: i32 = 42;
 
-        println!(
-            "Generating {} objects inside {} thread(s)",
-            total_count, total_threads
-        );
-
-        let castle = Castle::new();
-        let elapsed = run_alloc_test(
-            total_count,
-            total_threads,
-            || castle.wall(),
-            |wall, _| MyComplexStructWref::new(wall),
-        );
-        println!(
-            "Wall took {:?} in total, {:?} average",
-            elapsed,
-            elapsed / total_count as u32
-        );
-
-        let elapsed = run_alloc_test(
-            total_count,
-            total_threads,
-            || {},
-            |_, _| MyComplexStructBoxed::new(),
-        );
-        println!(
-            "Box took {:?} in total, {:?} average",
-            elapsed,
-            elapsed / total_count as u32
-        );
-
-        let elapsed = run_alloc_test(total_count, total_threads, || {}, |_, _| {});
-        println!(
-            "Control took {:?} in total, {:?} average",
-            elapsed,
-            elapsed / total_count as u32
-        );
-    }
-
-    #[test]
-    fn row_test() {
         let castle = Castle::new();
         let wall = castle.wall();
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
+        let value = wall.alloc_value(SIMPLE_VALUE);
 
-        let _row: Row<i32> = row![&wall];
+        let mut value_eq = ManuallyDrop::new(SIMPLE_VALUE);
+        assert_eq!(value, &mut value_eq);
+    }
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
-        let mut row2 = row![&wall; 1, 2, 3];
+    #[test]
+    fn alloc_complex_test() {
+        #[derive(Debug, PartialEq)]
+        enum Color {
+            Red,
+            Blue,
+            Green,
+        }
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
-        let mut row3 = row![&wall; 10; 5000000];
+        #[derive(Debug, PartialEq)]
+        struct MyComplexStruct {
+            a: i32,
+            b: char,
+            c: [Color; 3],
+        }
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
+        const COMPLEX_VALUE: MyComplexStruct = MyComplexStruct {
+            a: 43,
+            b: 'R',
+            c: [Color::Red, Color::Green, Color::Blue],
+        };
 
-        row3.push(4, &wall);
-        let el = row2.pop();
-        println!("{:?}", el);
+        let castle = Castle::new();
+        let wall = castle.wall();
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
-        let el = row2.pop();
-        println!("{:?}", el);
+        let value = wall.alloc_value(COMPLEX_VALUE);
+        let mut value_eq = ManuallyDrop::new(COMPLEX_VALUE);
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
-        let el = row2.pop();
-        println!("{:?}", el);
+        assert_eq!(value, &mut value_eq);
+    }
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
-        let el = row2.pop();
-        println!("{:?}", el);
+    #[test]
+    fn alloc_array_test() {
+        const ARRAY_SIZE: usize = 100;
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
-        );
-        let el = row2.pop();
-        println!("{:?}", el);
+        let castle = Castle::new();
+        let wall = castle.wall();
 
-        println!(
-            "used {}, total {}",
-            wall.used_bytes(),
-            wall.allocated_bytes()
+        let values = wall.alloc_uninit_slice(ARRAY_SIZE);
+
+        // initialise all
+        for (i, v) in values.iter_mut().enumerate() {
+            *v = MaybeUninit::new(ManuallyDrop::new(i.pow(2)));
+        }
+
+        let mut values_eq = (0..ARRAY_SIZE)
+            .map(|i| ManuallyDrop::new(i.pow(2)))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            unsafe {
+                std::mem::transmute::<
+                    &mut [MaybeUninit<ManuallyDrop<usize>>],
+                    &mut [ManuallyDrop<usize>],
+                >(values)
+            },
+            &mut values_eq
         );
     }
 }
