@@ -32,6 +32,10 @@ impl Token {
     pub fn has_kind(&self, right: TokenKind) -> bool {
         self.kind == right
     }
+
+    pub fn is_brace_tree(&self) -> bool {
+        matches!(self.kind, TokenKind::Tree(Delimiter::Brace, _))
+    }
 }
 
 impl fmt::Display for Token {
