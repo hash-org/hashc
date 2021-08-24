@@ -366,69 +366,13 @@ where
         // get the starting position
         let start = self.current_location();
 
-        let mut block = BodyBlock {
-            statements: vec![],
-            expr: None,
-        };
+        let block = self.parse_block_from_gen(self, start)?;
 
-        // Just return an empty block if we don't get anything
-        if self.stream.is_empty() {
-            return Ok(self.node_with_location(block, start));
+        // We just need to unwrap the BodyBlock from Block since parse_block_from_gen is generic...
+        match block.into_body() {
+            Block::Body(body) => Ok(self.node_from_joined_location(body, &start)),
+            _ => unreachable!(),
         }
-
-        // firstly check if the first token signals a beginning of a statement, we can tell
-        // this by checking for keywords that must begin a statement...
-        while self.has_token() {
-            let token = self.peek().unwrap();
-
-            if token.kind.begins_statement() {
-                block.statements.push(self.parse_statement()?);
-                continue;
-            }
-
-            // if we can't tell if this is a statement, we parse an expression, and if there
-            // is a following semi-colon, then we make this a statement and continue...
-            let expr = self.parse_expression_bp(0)?;
-            let expr_loc = expr.location();
-
-            match self.peek() {
-                Some(token) if token.has_kind(TokenKind::Semi) => {
-                    self.next_token();
-
-                    let expr_location = expr.location();
-                    block
-                        .statements
-                        .push(self.node_with_location(Statement::Expr(expr), expr_location));
-                }
-                Some(token) if token.has_kind(TokenKind::Eq) && !self.is_compound_expr.get() => {
-                    self.next_token();
-
-                    // since this is followed by an expression, we try to parse another expression, and then
-                    // ensure that after an expression there is a ending semi colon.
-                    let rhs = self.parse_expression_bp(0)?;
-
-                    self.parse_token_kind(TokenKind::Semi)?;
-
-                    block.statements.push(self.node_from_joined_location(
-                        Statement::Assign(AssignStatement { lhs: expr, rhs }),
-                        &expr_loc,
-                    ));
-                }
-                Some(token) => {
-                    return Err(self.unexpected_token_error(
-                        &token.kind,
-                        &TokenKindVector::from_slice(&[TokenKind::Semi]),
-                        &self.current_location(),
-                    ))
-                }
-                None => {
-                    block.expr = Some(expr);
-                    break;
-                }
-            };
-        }
-
-        Ok(self.node_with_location(block, start.join(self.current_location())))
     }
 
     pub fn parse_trait_defn(&self) -> ParseResult<TraitDef> {
@@ -459,7 +403,7 @@ where
         todo!()
     }
 
-    // we transpile if-else blocks into match blocks in order to simplify
+    /// we transpile if-else blocks into match blocks in order to simplify
     /// the typechecking process and optimisation efforts.
     ///
     /// Firstly, since we always want to check each case, we convert the
@@ -538,7 +482,6 @@ where
 
                     // this is the final branch of the if statement, and it is added to the end
                     // of the statements...
-                    self.next_token();
                     let start = self.current_location();
 
                     let else_branch = self.parse_block()?;
@@ -599,17 +542,20 @@ where
         todo!()
     }
 
-    /// Function to parse a block body
     pub fn parse_block(&self) -> ParseResult<AstNode<Block>> {
-        let (gen, start) = match self.current_token() {
-            Token {
+        let (gen, start) = match self.peek() {
+            Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
                 span,
-            } => (
-                self.from_stream(tree.to_owned(), self.current_location()),
-                *span,
-            ),
-            token => {
+            }) => {
+                self.next_token(); // step-along since we matched a block...
+
+                (
+                    self.from_stream(tree.to_owned(), self.current_location()),
+                    *span,
+                )
+            }
+            Some(token) => {
                 return Err(ParseError::Parsing {
                     message: format!(
                         "Expected block body, which begins with a '{{' but got a {}",
@@ -618,8 +564,21 @@ where
                     src: self.source_location(&self.current_location()),
                 });
             }
+            None => {
+                return Err(ParseError::Parsing {
+                    message: format!(
+                        "Expected block body, which begins with a '{{', but reached end of input", // @@ErrorReporting
+                    ),
+                    src: self.source_location(&self.current_location()),
+                });
+            }
         };
 
+        self.parse_block_from_gen(&gen, start)
+    }
+
+    /// Function to parse a block body
+    pub fn parse_block_from_gen(&self, gen: &Self, start: Location) -> ParseResult<AstNode<Block>> {
         let mut block = BodyBlock {
             statements: vec![],
             expr: None,
@@ -857,10 +816,7 @@ where
                         ExpressionKind::Variable(VariableExpr { name, type_args }) => {
                             lhs_expr = self.parse_struct_literal(name, type_args, tree)?;
                         }
-                        _ => break, // _ => return Err(ParseError::Parsing {
-                                    //     message: "Unexpected beginning of a block, if this is a struct literal, it should begin with a variable name.".to_string(),
-                                    //     src: self.source_location(&self.current_location()),
-                                    // })
+                        _ => break,
                     };
                 }
                 _ => break,
@@ -1370,8 +1326,12 @@ where
         tree: &[Token],
         span: &Location,
     ) -> ParseResult<AstNode<Expression>> {
-        let _gen = self.from_stream(tree.to_owned(), *span);
-        todo!()
+        let gen = self.from_stream(tree.to_owned(), *span);
+
+        // @@Temporary: just parse a block at the moment
+        let block = self.parse_block_from_gen(&gen, *span)?;
+
+        Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
     }
 
     pub fn parse_pattern(&self) -> ParseResult<AstNode<Pattern>> {
