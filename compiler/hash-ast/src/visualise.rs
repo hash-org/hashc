@@ -591,12 +591,8 @@ impl NodeDisplay for Import {
 
 impl NodeDisplay for Expression {
     fn node_display(&self) -> Vec<String> {
-        let mut lines = vec![];
-
         match self.kind() {
             ExpressionKind::FunctionCall(func) => {
-                lines.push("function_call".to_string());
-
                 let mut components = vec![iter::once("subject".to_string())
                     .chain(child_branch(&func.subject.node_display()))
                     .collect()];
@@ -621,40 +617,35 @@ impl NodeDisplay for Expression {
 
                     components.push(arg_lines);
                 }
-                lines.extend(draw_branches_for_children(&components));
-                lines
+                iter::once("function_call".to_string())
+                    .chain(draw_branches_for_children(&components))
+                    .collect()
             }
             ExpressionKind::Intrinsic(intrinsic) => {
-                lines.push(format!(
+                vec![format!(
                     "intrinsic \"{}\"",
                     IDENTIFIER_MAP.ident_name(intrinsic.name)
-                ));
-                lines
+                )]
             }
             ExpressionKind::Variable(var) => {
                 // check if the length of type_args to this ident, if not
                 // we don't produce any children nodes for it
-                let name = var.name.node_display().join("");
-                let ident_lines = vec![format!("ident {}", name)];
+                let ident = format!("ident {}", var.name.node_display().join(""));
 
                 if !var.type_args.is_empty() {
-                    lines.push("variable".to_string());
+                    let components = vec![vec![ident], var.type_args.node_display()];
 
-                    let components = vec![ident_lines, var.type_args.node_display()];
-
-                    lines.extend(draw_branches_for_children(&components));
+                    iter::once("variable".to_string())
+                        .chain(draw_branches_for_children(&components))
+                        .collect()
                 } else {
                     // we don't construct a complex tree structure here since we want to avoid
                     // verbosity as much, since most of the time variables aren't going to have
                     // type arguments.
-                    lines.extend(ident_lines);
+                    vec![ident]
                 }
-
-                lines
             }
             ExpressionKind::PropertyAccess(expr) => {
-                lines.push("property_access".to_string());
-
                 // deal with the subject
                 let subject_lines = vec!["subject".to_string()]
                     .into_iter()
@@ -667,26 +658,25 @@ impl NodeDisplay for Expression {
                     IDENTIFIER_MAP.ident_name(expr.property.body().ident)
                 )];
 
-                lines.extend(draw_branches_for_children(&[subject_lines, field_lines]));
-                lines
+                iter::once("property_access".to_string())
+                    .chain(draw_branches_for_children(&[subject_lines, field_lines]))
+                    .collect()
             }
             ExpressionKind::Ref(expr) | ExpressionKind::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
-                match self.kind() {
-                    ExpressionKind::Ref(_) => lines.push("ref".to_string()),
-                    ExpressionKind::Deref(_) => lines.push("deref".to_string()),
+                let prefix = match self.kind() {
+                    ExpressionKind::Ref(_) => "ref",
+                    ExpressionKind::Deref(_) => "deref",
                     _ => unreachable!(),
-                };
+                }
+                .to_string();
 
-                let next_lines = child_branch(&expr.node_display());
-                lines.extend(next_lines);
-
-                lines
+                iter::once(prefix)
+                    .chain(child_branch(&expr.node_display()))
+                    .collect()
             }
             ExpressionKind::LiteralExpr(literal) => literal.node_display(),
             ExpressionKind::Typed(expr) => {
-                lines.push("typed_expr".to_string());
-
                 let TypedExpr { expr, ty } = expr;
 
                 // the type line is handled by the implementation
@@ -697,11 +687,13 @@ impl NodeDisplay for Expression {
                 expr_lines.extend(child_branch(&expr.node_display()));
 
                 let next_lines = draw_branches_for_children(&[expr_lines, type_lines]);
-
-                lines.extend(pad_lines(next_lines, 1));
-                lines
+                iter::once("typed_expr".to_string())
+                    .chain(pad_lines(next_lines, 1))
+                    .collect()
             }
-            ExpressionKind::Block(block) => block.node_display(),
+            ExpressionKind::Block(block) => iter::once("block".to_string())
+                .chain(block.node_display())
+                .collect::<Vec<_>>(),
             ExpressionKind::Import(import) => import.node_display(),
         }
     }
@@ -757,7 +749,7 @@ impl NodeDisplay for MatchCase {
         // deal with the block for this case
         let branch_lines = vec!["branch".to_string()]
             .into_iter()
-            .chain(child_branch(&self.expr.node_display()))
+            .chain(self.expr.node_display())
             .collect();
 
         // append child_lines with padding and vertical lines being drawn
