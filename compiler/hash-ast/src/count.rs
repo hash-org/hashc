@@ -220,7 +220,7 @@ impl NodeCount for Type<'_> {
     }
 }
 
-impl NodeCount for AccessName {
+impl NodeCount for AccessName<'_> {
     fn children_count(&self) -> usize {
         1
     }

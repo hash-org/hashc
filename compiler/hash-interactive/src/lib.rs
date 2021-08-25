@@ -18,15 +18,14 @@ use hash_pest_parser::backend::PestBackend;
 #[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
 
-use rustyline::error::ReadlineError;
-use rustyline::Editor;
+use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
 
 type CompilerResult<T> = Result<T, CompilerError>;
 
 /// Interactive backend version
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("EXECUTABLE_VERSION");
 
 /// Utility to print the version of the current interactive backend
 #[inline(always)]

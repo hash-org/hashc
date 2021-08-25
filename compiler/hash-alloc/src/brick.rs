@@ -5,7 +5,7 @@
 use crate::Wall;
 use core::fmt;
 use std::{
-    borrow::Borrow,
+    borrow::{Borrow, BorrowMut},
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
 };
@@ -90,10 +90,21 @@ impl<T> AsRef<T> for Brick<'_, T> {
         self.deref()
     }
 }
+impl<T> AsMut<T> for Brick<'_, T> {
+    fn as_mut(&mut self) -> &mut T {
+        self.deref_mut()
+    }
+}
 
 impl<T> Borrow<T> for Brick<'_, T> {
     fn borrow(&self) -> &T {
         self.deref()
+    }
+}
+
+impl<T> BorrowMut<T> for Brick<'_, T> {
+    fn borrow_mut(&mut self) -> &mut T {
+        self.deref_mut()
     }
 }
 

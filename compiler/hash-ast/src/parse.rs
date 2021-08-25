@@ -146,7 +146,7 @@ where
                         entry_root_dir,
                         entry_parent_index,
                     );
-                    let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
+                    let entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
 
                     // No location for the first import
                     let entry_import_location = None;
@@ -176,13 +176,13 @@ where
                         entry_root_dir,
                         entry_parent_index,
                     );
-                    let mut entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
+                    let entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
 
                     // Return the interactive node for interactive entry point.
-                    Ok(Some(self.backend.parse_interactive(
-                        &mut entry_resolver,
-                        interactive_source,
-                    )?))
+                    Ok(Some(
+                        self.backend
+                            .parse_interactive(entry_resolver, interactive_source)?,
+                    ))
                 }
             }
         })?;
@@ -229,14 +229,14 @@ where
 pub trait ParserBackend<'c>: Sync + Sized {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module<'c>>;
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<AstNode<'c, ast::BodyBlock<'c>>>;
 }

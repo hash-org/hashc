@@ -1,8 +1,8 @@
 //! Frontend-agnostic Hash abstract syntax tree type definitions.
-//
-// All rights reserved 2021 (c) The Hash Language authors
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
 
-use crate::ident::{Identifier, PathIdentifier};
+use crate::ident::Identifier;
 use crate::literal::StringLiteral;
 use crate::location::Location;
 use crate::module::ModuleIdx;
@@ -11,7 +11,7 @@ use hash_alloc::collections::row::Row;
 use hash_alloc::Wall;
 use hash_utils::counter;
 use std::hash::Hash;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 counter! {
     name: AstNodeId,
@@ -58,6 +58,10 @@ impl<'c, T> AstNode<'c, T> {
         self.body.as_ref()
     }
 
+    pub fn body_mut(&mut self) -> &mut T {
+        self.body.as_mut()
+    }
+
     /// Take the value contained within this node.
     pub fn into_body(self) -> Brick<'c, T> {
         self.body
@@ -84,6 +88,13 @@ impl<T> Deref for AstNode<'_, T> {
     }
 }
 
+/// [AstNode] dereferences to its inner `body` type.
+impl<T> DerefMut for AstNode<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.body_mut()
+    }
+}
+
 /// An intrinsic identifier.
 #[derive(Hash, PartialEq, Debug)]
 pub struct IntrinsicKey {
@@ -100,16 +111,16 @@ pub struct Name {
 
 /// A namespaced name, i.e. access name.
 #[derive(Debug, PartialEq)]
-pub struct AccessName {
+pub struct AccessName<'c> {
     /// The list of names that make up the access name.
-    pub path: PathIdentifier,
+    pub path: Row<'c, Identifier>,
 }
 
 /// A concrete/"named" type.
 #[derive(Debug, PartialEq)]
 pub struct NamedType<'c> {
     /// The name of the type.
-    pub name: AstNode<'c, AccessName>,
+    pub name: AstNode<'c, AccessName<'c>>,
     /// The type arguments of the type, if any.
     pub type_args: AstNodes<'c, Type<'c>>,
 }
@@ -179,7 +190,7 @@ pub struct StructLiteralEntry<'c> {
 #[derive(Debug, PartialEq)]
 pub struct StructLiteral<'c> {
     /// The name of the struct literal.
-    pub name: AstNode<'c, AccessName>,
+    pub name: AstNode<'c, AccessName<'c>>,
     /// Type arguments to the struct literal, if any.
     pub type_args: AstNodes<'c, Type<'c>>,
     /// The fields (entries) of the struct literal.
@@ -255,7 +266,7 @@ pub struct IfPattern<'c> {
 #[derive(Debug, PartialEq)]
 pub struct EnumPattern<'c> {
     /// The name of the enum variant.
-    pub name: AstNode<'c, AccessName>,
+    pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
     pub args: AstNodes<'c, Pattern<'c>>,
 }
@@ -275,7 +286,7 @@ pub struct DestructuringPattern<'c> {
 #[derive(Debug, PartialEq)]
 pub struct StructPattern<'c> {
     /// The name of the struct.
-    pub name: AstNode<'c, AccessName>,
+    pub name: AstNode<'c, AccessName<'c>>,
     /// The entries of the struct, as [DestructuringPattern] entries.
     pub entries: AstNodes<'c, DestructuringPattern<'c>>,
 }
@@ -334,7 +345,7 @@ pub enum Pattern<'c> {
 #[derive(Debug, PartialEq)]
 pub struct TraitBound<'c> {
     /// The name of the trait.
-    pub name: AstNode<'c, AccessName>,
+    pub name: AstNode<'c, AccessName<'c>>,
     /// The type arguments of the trait.
     pub type_args: AstNodes<'c, Type<'c>>,
 }
@@ -552,18 +563,9 @@ pub struct Import {
 #[derive(Debug, PartialEq)]
 pub struct VariableExpr<'c> {
     /// The name of the variable.
-    pub name: AstNode<'c, AccessName>,
+    pub name: AstNode<'c, AccessName<'c>>,
     /// Any type arguments of the variable. Only valid for traits.
     pub type_args: AstNodes<'c, Type<'c>>,
-}
-
-/// A variable expression.
-#[derive(Debug, PartialEq)]
-pub struct IndexExpr<'c> {
-    /// The name of the variable.
-    pub subject: AstNode<'c, Expression<'c>>,
-    /// Any type arguments of the variable. Only valid for traits.
-    pub index: AstNodes<'c, Expression<'c>>,
 }
 
 /// The kind of an expression.
@@ -604,6 +606,10 @@ impl<'c> Expression<'c> {
             kind,
             type_id: None,
         }
+    }
+
+    pub fn into_kind(self) -> ExpressionKind<'c> {
+        self.kind
     }
 
     pub fn kind(&self) -> &ExpressionKind<'c> {

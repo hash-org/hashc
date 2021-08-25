@@ -129,6 +129,41 @@ impl<'c, T> Row<'c, T> {
         }))
     }
 
+    /// Insert an element at a given index inside the `Row`.
+    ///
+    /// # Panics
+    ///
+    /// If index is not within the range `(0..=self.len())`. Also see [`Row::reserve`].
+    pub fn insert(&mut self, index: usize, element: T, wall: &Wall<'c>) {
+        // Insert at the end means push.
+        if index == self.len() {
+            return self.push(element, wall);
+        }
+
+        if !(0..self.len()).contains(&index) {
+            panic!("Out of bounds index when inserting an element into Row");
+        }
+
+        // Reserve one more element
+        self.reserve(self.len() + 1, wall);
+
+        // Shift elements after insertion point by 1.
+        let current_point = &self.data[index] as *const _;
+        let target_point = &mut self.data[index + 1] as *mut _;
+        let shift_length = self.len() - index;
+
+        // Safety: We have reserved one more element than the length so the shift is valid.
+        unsafe {
+            std::ptr::copy(current_point, target_point, shift_length);
+        }
+
+        // Set the element
+        self.data[index] = MaybeUninit::new(ManuallyDrop::new(element));
+
+        // Increment the length
+        self.length += 1;
+    }
+
     /// Construct a `Row` from an iterator, allocating inside the given [`Wall`].
     ///
     /// This uses `Iterator::size_hint` to predict how many elements are inside the iterator, and
@@ -191,7 +226,7 @@ impl<'c, T: Clone> Row<'c, T> {
     }
 
     /// Clone the data inside `self` into a [`Row`] allocated using the given [`Wall`].
-    pub fn clone_row<'cc>(&self, wall: &Wall<'cc>) -> Row<'cc, T> {
+    pub fn clone_in<'cc>(&self, wall: &Wall<'cc>) -> Row<'cc, T> {
         Row::from_iter(self.iter().cloned(), wall)
     }
 }
@@ -402,5 +437,23 @@ mod tests {
         // Dropping the row calls drop on the rest.
         drop(row);
         assert_eq!(DROP_COUNT.load(Ordering::SeqCst), foo_count);
+    }
+
+    #[test]
+    fn row_insert_test() {
+        let castle = Castle::new();
+        let wall = castle.wall();
+
+        let mut r = row![&wall; 1, 2, 3, 5];
+        assert_eq!(r.len(), 4);
+        r.insert(3, 4, &wall);
+        assert_eq!(r.len(), 5);
+        assert_eq!(r.as_ref(), &[1, 2, 3, 4, 5]);
+
+        let mut r = row![&wall];
+        assert_eq!(r.len(), 0);
+        r.insert(0, 1, &wall);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r.as_ref(), &[1]);
     }
 }

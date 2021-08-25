@@ -18,6 +18,7 @@ use hash_utils::timed;
 use pest::Parser;
 use std::path::Path;
 
+#[derive(Copy, Clone)]
 pub struct PestBackend<'c> {
     castle: &'c Castle,
 }
@@ -25,13 +26,13 @@ pub struct PestBackend<'c> {
 impl<'c> ParserBackend<'c> for PestBackend<'c> {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module<'c>> {
-        let wall = self.castle.wall();
+        let builder = PestAstBuilder::new(resolver, self.castle.wall());
+        let wall = builder.wall();
 
-        let mut builder = PestAstBuilder::new(resolver, &wall);
         let pest_result = timed(
             || Grammar::parse(Rule::module, contents),
             log::Level::Debug,
@@ -44,7 +45,7 @@ impl<'c> ParserBackend<'c> for PestBackend<'c> {
                 Ok(ast::Module {
                     contents: Row::try_from_iter(
                         pest_result.map(|x| builder.transform_statement(x)),
-                        &wall,
+                        wall,
                     )?,
                 })
             },
@@ -55,12 +56,12 @@ impl<'c> ParserBackend<'c> for PestBackend<'c> {
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>> {
         let wall = self.castle.wall();
 
-        let mut builder = PestAstBuilder::new(resolver, &wall);
+        let builder = PestAstBuilder::new(resolver, wall);
         match Grammar::parse(Rule::interactive, contents) {
             Ok(mut result) => {
                 let pair = result.next().unwrap();
