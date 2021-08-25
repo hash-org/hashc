@@ -33,8 +33,8 @@ impl<'c, T> Brick<'c, T> {
     /// This will always perform a bitwise-copy of the data stored in the arena.
     pub fn move_out(self) -> T {
         let no_drop_self = ManuallyDrop::new(self);
-        // Safety: this value will never be used again (and no destructors will run), so it is safe
-        // to bitwise copy out of the castle.
+        // ##Safety: this value will never be used again (and no destructors will run), so it is
+        // safe to bitwise copy out of the castle.
         //
         // @@Verify: make sure that this is completely valid in all cases.
         unsafe {
@@ -110,7 +110,7 @@ impl<T> BorrowMut<T> for Brick<'_, T> {
 
 impl<T> Drop for Brick<'_, T> {
     fn drop(&mut self) {
-        // Safety: destructor only runs once.
+        // ##Safety: destructor only runs once.
         unsafe {
             ManuallyDrop::drop(self.data);
         }
