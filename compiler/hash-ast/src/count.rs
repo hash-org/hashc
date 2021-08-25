@@ -213,7 +213,7 @@ impl NodeCount for Type<'_> {
                 ty.name.node_count() + arg_count
             }
 
-            // TypeVar variant just counts for one<'_> node since it just wrapper for Name<'_>,
+            // TypeVar variant just counts for one node since it just wrapper for Name,
             // which is of made of a single AstNode.
             _ => 0,
         }

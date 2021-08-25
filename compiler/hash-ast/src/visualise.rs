@@ -85,7 +85,7 @@ fn child_branch(lines: &[String]) -> Vec<String> {
     draw_branches_for_lines(lines, END_PIPE, PADDING)
 }
 
-/// Function to draw branches for a<'_> Vector of lines, connecting each line with the appropriate
+/// Function to draw branches for a Vector of lines, connecting each line with the appropriate
 /// connector and vertical connector
 fn draw_branches_for_children(line_collections: &[Vec<String>]) -> Vec<String> {
     let mut lines = vec![];
@@ -137,7 +137,7 @@ impl std::fmt::Display for Module<'_> {
     }
 }
 
-/// Implementation for Type_Args<'_> specifically!
+/// Implementation for Type_Args specifically!
 impl NodeDisplay for AstNodes<'_, Type<'_>> {
     fn node_display(&self) -> Vec<String> {
         let args: Vec<Vec<String>> = self.iter().map(|arg| arg.node_display()).collect();
@@ -161,7 +161,7 @@ impl NodeDisplay for Type<'_> {
             Type::Named(named_ty) => {
                 let mut components = vec![];
 
-                // add a mid connector for the<'_> lhs section, and then add vertical pipe
+                // add a mid connector for the lhs section, and then add vertical pipe
                 // to the lhs so that it can be joined with the rhs of the assign expr
                 let NamedType { name, type_args } = &named_ty;
 
@@ -413,7 +413,7 @@ impl NodeDisplay for Statement<'_> {
                 )
             }
             Statement::Assign(decl) => {
-                // add a mid connector for the<'_> lhs section, and then add vertical pipe
+                // add a mid connector for the lhs section, and then add vertical pipe
                 // to the lhs so that it can be joined with the rhs of the assign expr
                 let lhs_lines = iter::once("lhs".to_string())
                     .chain(child_branch(&decl.lhs.node_display()))
@@ -634,7 +634,7 @@ impl NodeDisplay for Expression<'_> {
             }
             ExpressionKind::Variable(var) => {
                 // check if the length of type_args to this ident, if not
-                // we don't produce any children nodes for it<'_>
+                // we don't produce any children nodes for it
                 let name = var.name.node_display().join("");
                 let ident_lines = vec![format!("ident {}", name)];
 
@@ -754,10 +754,10 @@ impl NodeDisplay for MatchCase<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut lines = vec!["case".to_string()];
 
-        // deal with the pattern for this<'_> case
+        // deal with the pattern for this case
         let pattern_lines = self.pattern.node_display();
 
-        // deal with the block for this<'_> case
+        // deal with the block for this case
         let branch_lines = vec!["branch".to_string()]
             .into_iter()
             .chain(child_branch(&self.expr.node_display()))
