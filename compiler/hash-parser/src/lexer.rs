@@ -3,7 +3,9 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
+use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
+use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
 
@@ -92,7 +94,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&self) -> Option<Token<'c>> {
+    pub(crate) fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
         let offset = self.offset.get();
 
         // Eat any comments or whitespace before processing the token...
@@ -107,17 +109,23 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
-                        return Some(Token::new(
+                        return Ok(Some(Token::new(
                             TokenKind::Atom(TokenAtom::Slash),
                             Location::pos(offset),
-                        ));
+                        )));
                     }
                 },
                 _ => break,
             }
         }
 
-        // We avoid checking if the tokens are compound here because we don't really want to deal with commments
+        let next_token = self.next();
+
+        if next_token.is_none() {
+            return Ok(None);
+        }
+
+        // We avoid checking if the tokens are compound here because we don't really want to deal with comments
         // and spaces in an awkward way... Once the whole stream is transformed into a bunch of tokens, we can then
         // combine these tokens into more complex variants that might span multiple characters. For example, the code...
         // > ':' => match self.peek() {
@@ -129,8 +137,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // > },
         //
         // could work here, but however what about if there was a space or a comment between the colons, this might be
-        // problematic. Essentially, we pass the responsobility of forming more compound tokens to AST gen rather than here.
-        let token_kind = match self.next()? {
+        // problematic. Essentially, we pass the responsibility of forming more compound tokens to AST gen rather than here.
+        let token_kind = match next_token.unwrap() {
             // One-symbol tokens
             '~' => TokenKind::Atom(TokenAtom::Tilde),
             '=' => TokenKind::Atom(TokenAtom::Eq),
@@ -148,39 +156,38 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             ';' => TokenKind::Atom(TokenAtom::Semi),
             ',' => TokenKind::Atom(TokenAtom::Comma),
             '.' => TokenKind::Atom(TokenAtom::Dot),
+            '#' => TokenKind::Atom(TokenAtom::Hash),
+            '?' => TokenKind::Atom(TokenAtom::Question),
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed
-            // by a followiing delimiter...
-            ch @ ('(' | '{' | '[') => self
-                .eat_token_tree(Delimiter::from_left(ch).unwrap())
-                .unwrap(),
+            // by a following delimiter...
+            ch @ ('(' | '{' | '[') => self.eat_token_tree(Delimiter::from_left(ch).unwrap())?,
 
             // Identifier (this should be checked after other variant that can
             // start as identifier).
-            c if is_id_start(c) => self.ident(),
-
+            ch if is_id_start(ch) => self.ident(),
             // Numeric literal.
-            '0'..='9' => self
-                .number()
-                .unwrap_or_else(|e| panic!("error: {:#?}", e.message)),
-
+            '0'..='9' => self.number()?,
             // character literal.
-            // @@ErrorReporting: this is where we hook into error reporting to print the result
-            // and display it to the user
-            '\'' => self
-                .char()
-                .unwrap_or_else(|e| panic!("error: {:#?}", e.message)),
-
+            '\'' => self.char()?,
             // String literal.
-            '"' => self.string().unwrap_or_else(|e| panic!("error: {:?}", e)),
+            '"' => self.string()?,
 
             // We have to exit the current tree if we encounter a closing delimiter...
-            ')' | '}' | ']' => return None,
-            _ => TokenKind::Atom(TokenAtom::Unexpected),
+            ')' | '}' | ']' => return Ok(None),
+
+            // We didn't get a hit on the right token...
+            ch => TokenKind::Atom(TokenAtom::Unexpected(ch)), // ch => {
+                                                              //     return Err(TokenError::new(
+                                                              //         Some(format!("Unexpected character '{}'", ch)),
+                                                              //         TokenErrorKind::Unexpected(ch),
+                                                              //         Location::pos(offset + self.len_consumed()),
+                                                              //     ))
+                                                              // }
         };
 
         let location = Location::span(offset, self.len_consumed());
-        Some(Token::new(token_kind, location))
+        Ok(Some(Token::new(token_kind, location)))
     }
 
     /// This will essentially recursively consume tokens until it reaches the right hand-side variant
@@ -196,7 +203,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
-            match self.advance_token() {
+            match self.advance_token()? {
                 Some(token) => children_tokens.push(token, self.wall),
                 None => break,
             };
@@ -212,7 +219,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         }
     }
 
-    /// Consume an identifier, at this stage keywords are also considered to be identfiers. The function
+    /// Consume an identifier, at this stage keywords are also considered to be identifiers. The function
     /// expects that the first character of the identifier is consumed when the function is called.
     pub(crate) fn ident(&self) -> TokenKind<'c> {
         let first = self.prev.get().unwrap();
@@ -223,7 +230,14 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
         // create the identifier here from the created map
         let ident = IDENTIFIER_MAP.create_ident(&name);
-        TokenKind::Atom(TokenAtom::Ident(ident))
+
+        // check if this is an actual keyword instead of an ident, and if it is convert the token type...
+        match ident {
+            Identifier(c) if c < Keyword::size() as u32 => TokenKind::Atom(TokenAtom::Keyword(
+                *Keyword::get_variants().get(c as usize).unwrap(),
+            )),
+            ident => TokenKind::Atom(TokenAtom::Ident(ident)),
+        }
     }
 
     /// Consume a number literal, either float or integer. The function expects that the first character of
@@ -253,7 +267,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 let chars = self.eat_decimal_digits(radix);
                 let value = u64::from_str_radix(chars, radix);
 
-                // @@ErrorHandling: We shouldn't error here, this should be handeled by the SmallVec<..> change to integers
+                // @@ErrorHandling: We shouldn't error here, this should be handled by the SmallVec<..> change to integers
                 if value.is_err() {
                     return Err(TokenError::new(
                         Some("Integer literal too large".to_string()),
@@ -283,7 +297,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 self.eat_float_literal(num, start)
             }
-            // Imediate exponent
+            // Immediate exponent
             'e' | 'E' => self.eat_float_literal(pre_digits, start),
             _ => match pre_digits.collect::<String>().parse::<u64>() {
                 Err(_) => Err(TokenError::new(
@@ -313,7 +327,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             Ok(value) => {
                 let exp = self.eat_exponent()?;
 
-                // if an exponent was speified, as in it is non-zero, we need to apply the exponent to
+                // if an exponent was specified, as in it is non-zero, we need to apply the exponent to
                 // the float literal.
                 let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
@@ -478,7 +492,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             let ch = self.char_from_escape_seq()?;
             let next = self.peek();
 
-            // eat the single qoute after the character
+            // eat the single quote after the character
             if next != '\'' {
                 // @@Improvement: Maybe make this a function to check if we're about to hit the end...
                 if next == EOF_CHAR {
@@ -533,7 +547,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         Ok(TokenKind::Atom(TokenAtom::StrLiteral(id)))
     }
 
-    /// Consume a line comment after the first folloing slash, essentially eating
+    /// Consume a line comment after the first following slash, essentially eating
     /// characters up to the next '\n' encountered. If we reach EOF before a newline, then
     /// we stop eating there.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
@@ -545,7 +559,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Consume a block comment after the first following '/*' sequence of characters. If the
     /// iterator encounters the start of another block comment, we increment a nested comment
-    /// counter to ensure that nested block comments are accounted for and handeled gracefully.
+    /// counter to ensure that nested block comments are accounted for and handled gracefully.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
     pub(crate) fn block_comment(&self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
@@ -566,7 +580,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     depth -= 1;
 
                     // we finally reached the end of the block comment, if any subsequent '*/' sequences
-                    // are present after this one, they will be tokenised seperately
+                    // are present after this one, they will be tokenised separately
                     if depth == 0 {
                         break;
                     }
@@ -579,7 +593,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Simplified version of [`Self::eat_while()`] since this function will discard
     /// any characters that it encounters whilst eating the input, this is useful
     /// because in some cases we don't want to preserve what the token represents,
-    /// such as comments or whitespaces...
+    /// such as comments or white-spaces...
     fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
         while condition(self.peek()) && !self.is_eof() {
             self.next();
@@ -626,7 +640,12 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 return None;
             }
 
-            self.advance_token()
+            match self.advance_token() {
+                Ok(tok) => tok,
+                // @@ErrorReporting: this is where we hook into error reporting to print the result
+                // and display it to the user
+                Err(err) => panic!("Got error from tokenisation: {:?}", err),
+            }
         })
         .for_each(|el| row.push(el, self.wall));
 

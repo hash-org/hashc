@@ -25,7 +25,7 @@ impl<'c> HashParser<'c> {
 impl<'c> ParserBackend<'c> for HashParser<'c> {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         _path: &Path,
         contents: &str,
     ) -> ParseResult<ast::Module<'c>> {
@@ -37,12 +37,10 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
             |elapsed| println!("tokenise:    {:?}", elapsed),
         );
 
-        println!("Tokens bro: {:#?}", tokens);
-
-        let mut gen = AstGen::new(tokens, resolver, self.castle);
+        let gen = AstGen::new(tokens, &resolver, wall);
 
         timed(
-            || gen.generate_module(),
+            || gen.parse_module(),
             log::Level::Debug,
             |elapsed| println!("translation: {:?}", elapsed),
         )
@@ -50,14 +48,30 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         contents: &str,
     ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>> {
         let wall = self.castle.wall();
 
         let tokens = Lexer::new(contents, &wall).tokenise();
-        let mut gen = AstGen::new(tokens, resolver, self.castle);
+        let gen = AstGen::new(tokens, &resolver, wall);
 
-        gen.generate_expression_from_interactive()
+        // for token in tokens.into_iter() {
+        //     println!("{}", token);
+        // }
+
+        gen.parse_expression_from_interactive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hash_ast::resolve::ParModuleResolver;
+
+    use super::*;
+
+    #[test]
+    fn type_size() {
+        println!("{:?}", std::mem::size_of::<ParModuleResolver<HashParser>>());
     }
 }

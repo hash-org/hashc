@@ -31,7 +31,7 @@ impl Castle {
     /// Create a new [`Wall`] inside this `Castle`. The created [`Wall`] lives as long as the
     /// reference to this `Castle`.
     pub fn wall(&self) -> Wall {
-        Wall::with_member(self.herd.get())
+        Wall::with_member(self.herd.get(), self)
     }
 }
 
@@ -54,6 +54,7 @@ impl Castle {
 ///  Currently, this is implemented using [`bumpalo`], but this will (probably) change in the
 ///  future as the compiler acquires more niche requirements.
 pub struct Wall<'c> {
+    castle: &'c Castle,
     member: bumpalo_herd::Member<'c>,
 }
 
@@ -67,8 +68,13 @@ impl<'c> Wall<'c> {
 
     /// *Bumpalo-specific*: create a wall with the given [`bumpalo_herd::Member`], which is the
     /// underlying `bumpalo` primitive that [`Wall`] uses.
-    fn with_member(member: bumpalo_herd::Member<'c>) -> Self {
-        Self { member }
+    fn with_member(member: bumpalo_herd::Member<'c>, castle: &'c Castle) -> Self {
+        Self { member, castle }
+    }
+
+    /// Get a reference to the [`Castle`] which this wall is part of.
+    pub fn owning_castle(&self) -> &'c Castle {
+        self.castle
     }
 
     /// Allocate a given value on the [`Wall`].

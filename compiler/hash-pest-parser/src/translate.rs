@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::{cell::Cell, iter, path::PathBuf};
+use std::{cell::Cell, iter};
 
 use crate::{
     grammar::{HashPair, Rule},
@@ -16,6 +16,7 @@ use hash_ast::{
     ident::IDENTIFIER_MAP,
     literal::STRING_LITERAL_MAP,
     location::{Location, SourceLocation},
+    module::ModuleIdx,
     resolve::ModuleResolver,
 };
 use iter::once;
@@ -42,7 +43,7 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         Self {
             site: SourceLocation {
                 location,
-                path: PathBuf::from(""), // @@TODO: actually get the filename here!
+                module_index: ModuleIdx(0),
             },
             wall,
         }
@@ -52,7 +53,7 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         Self {
             site: SourceLocation {
                 location: node.location(),
-                path: PathBuf::from(""), // @@TODO: actually get the filename here!
+                module_index: ModuleIdx(0),
             },
             wall,
         }
@@ -71,9 +72,9 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         }
     }
 
-    fn make_single_access_name(&self, name: &str) -> AstNode<'c, AccessName> {
+    fn make_single_access_name(&self, name: &str) -> AstNode<'c, AccessName<'c>> {
         self.node(AccessName {
-            path: IDENTIFIER_MAP.create_path_ident(name),
+            path: row![self.wall; IDENTIFIER_MAP.create_ident(name)],
         })
     }
 
@@ -89,19 +90,19 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
     }
 
     /// Utility for creating a boolean in enum representation
-    fn make_boolean(&self, variant: bool) -> AstNode<'c, AccessName> {
+    fn make_boolean(&self, variant: bool) -> AstNode<'c, AccessName<'c>> {
         let name_ref = match variant {
             false => "false",
             true => "true",
         };
 
         self.node(AccessName {
-            path: IDENTIFIER_MAP.create_path_ident(name_ref),
+            path: row![self.wall; IDENTIFIER_MAP.create_ident(name_ref)],
         })
     }
 
     /// Utility finction for creating a variable from a given name.
-    fn make_variable(&self, name: AstNode<'c, AccessName>) -> AstNode<'c, Expression<'c>> {
+    fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
             type_args: row![self.wall],
@@ -120,8 +121,8 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         ))))
     }
 
-    /// Utility function to transform to some expression into a referenced expresison
-    /// given some condition. This function is useful when transpilling some types of
+    /// Utility function to transform to some expression into a referenced expression
+    /// given some condition. This function is useful when transpiling some types of
     /// operators which might have a side-effect to overwrite the lhs.
     fn transform_expr_into_ref(
         &self,
@@ -136,15 +137,15 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
     }
 
     // we love jon blow
-    fn transfrom_compound_ord_fn(
+    fn transform_compound_ord_fn(
         &self,
         fn_ty: CompoundFn,
-        assiging: bool,
+        assigning: bool,
         lhs: AstNode<'c, Expression<'c>>,
         rhs: AstNode<'c, Expression<'c>>,
     ) -> AstNode<'c, Expression<'c>> {
         // we need to transform the lhs into a reference if the type of function is 'assigning'
-        let lhs = self.transform_expr_into_ref(lhs, assiging);
+        let lhs = self.transform_expr_into_ref(lhs, assigning);
 
         let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
             FunctionCallExpr {
@@ -266,10 +267,10 @@ pub(crate) fn build_binary<'c>(
             // 'Ord' enum variants. This also happens for operators such as '>=' which
             // essentially means that we have to check if the result of 'ord()' is either
             // 'Eq' or 'Gt'.
-            Ok(ab.transfrom_compound_ord_fn(name, assigning, lhs?, rhs?))
+            Ok(ab.transform_compound_ord_fn(name, assigning, lhs?, rhs?))
         }
         OperatorFn::LazyNamed { name, assigning } => {
-            // @@Copied: transform lhs into ref if assinging
+            // @@Copied: transform lhs into ref if assigning
 
             let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
@@ -291,32 +292,36 @@ pub(crate) fn build_binary<'c>(
     }
 }
 
-pub(crate) struct PestAstBuilder<'resolver, 'w, 'c, R> {
-    resolver: &'resolver mut R,
-    wall: &'w Wall<'c>,
+pub(crate) struct PestAstBuilder<'c, R> {
+    resolver: R,
+    wall: Wall<'c>,
 }
 
-impl<'resolver, 'w, 'c, R> PestAstBuilder<'resolver, 'w, 'c, R>
+impl<'c, R> PestAstBuilder<'c, R>
 where
     R: ModuleResolver,
 {
-    pub(crate) fn new(resolver: &'resolver mut R, wall: &'w Wall<'c>) -> Self {
+    pub(crate) fn new(resolver: R, wall: Wall<'c>) -> Self {
         Self { resolver, wall }
     }
 
-    pub(crate) fn builder_from_pair(&self, pair: &HashPair<'_>) -> NodeBuilder<'w, 'c> {
-        NodeBuilder::from_pair(pair, self.wall)
+    pub(crate) fn wall(&self) -> &Wall<'c> {
+        &self.wall
     }
 
-    pub(crate) fn builder_from_node<T>(&self, node: &AstNode<'c, T>) -> NodeBuilder<'w, 'c> {
-        NodeBuilder::from_node(node, self.wall)
+    pub(crate) fn builder_from_pair<'w>(&'w self, pair: &HashPair<'_>) -> NodeBuilder<'w, 'c> {
+        NodeBuilder::from_pair(pair, &self.wall)
     }
 
-    pub(crate) fn climb<'i, P>(&mut self, pairs: P) -> ParseResult<AstNode<'c, Expression<'c>>>
+    pub(crate) fn builder_from_node<'w, T>(&'w self, node: &AstNode<'c, T>) -> NodeBuilder<'w, 'c> {
+        NodeBuilder::from_node(node, &self.wall)
+    }
+
+    pub(crate) fn climb<'i, P>(&self, pairs: P) -> ParseResult<AstNode<'c, Expression<'c>>>
     where
         P: Iterator<Item = HashPair<'i>>,
     {
-        let wall = self.wall;
+        let wall = &self.wall;
         PREC_CLIMBER.climb(
             pairs,
             |pair| self.transform_expression(pair),
@@ -324,7 +329,7 @@ where
         )
     }
 
-    pub(crate) fn transform_name(&mut self, pair: HashPair<'_>) -> ParseResult<AstNode<'c, Name>> {
+    pub(crate) fn transform_name(&self, pair: HashPair<'_>) -> ParseResult<AstNode<'c, Name>> {
         match pair.as_rule() {
             Rule::ident => Ok(self.builder_from_pair(&pair).node(Name {
                 ident: IDENTIFIER_MAP.create_ident(pair.as_str()),
@@ -334,7 +339,7 @@ where
     }
 
     pub(crate) fn transform_struct_def_entry(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, StructDefEntry<'c>>> {
         match pair.as_rule() {
@@ -371,7 +376,7 @@ where
     }
 
     pub(crate) fn transform_struct_literal_entry(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, StructLiteralEntry<'c>>> {
         match pair.as_rule() {
@@ -389,7 +394,7 @@ where
     }
 
     pub(crate) fn transform_enum_def_entry(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, EnumDefEntry<'c>>> {
         match pair.as_rule() {
@@ -407,7 +412,7 @@ where
     }
 
     pub(crate) fn transform_bound(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Bound<'c>>> {
         match pair.as_rule() {
@@ -415,7 +420,7 @@ where
                 let ab = self.builder_from_pair(&pair);
                 let mut components = pair.into_inner();
 
-                // firsly convertkk the type args by just iterating the inner component
+                // firstly convert the type args by just iterating the inner component
                 // of the type_args rule...
                 let type_args = ab.try_collect(
                     components
@@ -430,7 +435,7 @@ where
                     Some(pair) => {
                         ab.try_collect(pair.into_inner().map(|x| self.transform_trait_bound(x)))?
                     }
-                    None => row![self.wall],
+                    None => row![&self.wall],
                 };
 
                 Ok(ab.node(Bound {
@@ -443,7 +448,7 @@ where
     }
 
     pub(crate) fn transform_trait_bound(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, TraitBound<'c>>> {
         match pair.as_rule() {
@@ -460,7 +465,7 @@ where
                     Some(pair) => {
                         ab.try_collect(pair.into_inner().map(|x| self.transform_type(x)))?
                     }
-                    None => row![self.wall],
+                    None => row![&self.wall],
                 };
 
                 Ok(ab.node(TraitBound { name, type_args }))
@@ -470,25 +475,28 @@ where
     }
 
     pub(crate) fn transform_access_name(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
-    ) -> ParseResult<AstNode<'c, AccessName>> {
+    ) -> ParseResult<AstNode<'c, AccessName<'c>>> {
         match pair.as_rule() {
             Rule::access_name => {
-                let inner = pair.into_inner().next().unwrap();
+                let builder = self.builder_from_pair(&pair);
+                let inner = pair.into_inner();
 
-                Ok(self.builder_from_pair(&inner).node(AccessName {
-                    path: IDENTIFIER_MAP.create_path_ident(inner.as_str()),
-                }))
+                let path = Row::from_iter(
+                    inner
+                        .into_iter()
+                        .map(|chunk| IDENTIFIER_MAP.create_ident(chunk.as_str())),
+                    &self.wall,
+                );
+
+                Ok(builder.node(AccessName { path }))
             }
             _ => unreachable!(),
         }
     }
 
-    pub(crate) fn transform_type(
-        &mut self,
-        pair: HashPair<'_>,
-    ) -> ParseResult<AstNode<'c, Type<'c>>> {
+    pub(crate) fn transform_type(&self, pair: HashPair<'_>) -> ParseResult<AstNode<'c, Type<'c>>> {
         let ab = self.builder_from_pair(&pair);
 
         match pair.as_rule() {
@@ -499,7 +507,7 @@ where
             Rule::ref_type => {
                 let mut components = pair.into_inner();
 
-                // get the operator to see if it is a raw or unraw ref
+                // get the operator to see if it is a raw or non-raw ref
                 let op_type = components.next().unwrap();
 
                 // get the actual type
@@ -524,7 +532,7 @@ where
                 let type_args = in_named
                     .next()
                     .map(|n| ab.try_collect(n.into_inner().map(|x| self.transform_type(x))))
-                    .unwrap_or_else(|| Ok(row![self.wall]))?;
+                    .unwrap_or_else(|| Ok(row![&self.wall]))?;
 
                 Ok(ab.node(Type::Named(NamedType { name, type_args })))
             }
@@ -592,7 +600,7 @@ where
     }
 
     pub(crate) fn transform_literal(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Literal<'c>>> {
         let ab = self.builder_from_pair(&pair);
@@ -635,7 +643,7 @@ where
             Rule::float_literal => {
                 let mut components = pair.into_inner();
 
-                // float_literal is made of three parts, the integer part, fractical part
+                // float_literal is made of three parts, the integer part, fractional part
                 // and an optional exponent part...
                 let float = components.next().unwrap();
 
@@ -781,7 +789,7 @@ where
                         (type_args, fields)
                     }
                     Rule::struct_literal_fields => (
-                        row![self.wall],
+                        row![&self.wall],
                         ab.try_collect(
                             type_args_or_fields
                                 .into_inner()
@@ -802,7 +810,7 @@ where
     }
 
     pub(crate) fn transform_literal_pattern(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<LiteralPattern> {
         match pair.as_rule() {
@@ -830,7 +838,7 @@ where
     }
 
     pub(crate) fn transform_pattern(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Pattern<'c>>> {
         let ab = self.builder_from_pair(&pair);
@@ -876,7 +884,7 @@ where
                         let name = self.transform_access_name(components.next().unwrap())?;
 
                         // If there is no binding part of the destructuring pattern, as in if
-                        // no pattern on the right-handside, we use the name of the field as a
+                        // no pattern on the right hand-side, we use the name of the field as a
                         // binding pattern here...
                         let entries =
                             ab.try_collect(components.next().unwrap().into_inner().map(|p| {
@@ -941,7 +949,7 @@ where
                 match pairs.next() {
                     None => Ok(first),
                     Some(pat) => {
-                        // collect any remaining patterns in the or secquence
+                        // collect any remaining patterns in the or sequence
                         let variants = ab.try_collect(
                             iter::once(Ok(first))
                                 .chain(iter::once(self.transform_pattern(pat)))
@@ -957,7 +965,7 @@ where
     }
 
     pub(crate) fn transform_expression(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
         let ab = self.builder_from_pair(&pair);
@@ -1041,11 +1049,11 @@ where
                                             name: ab.make_single_access_name(
                                                 fn_call,
                                             ),
-                                            type_args: row![self.wall],
+                                            type_args: row![&self.wall],
                                         },
                                     ))),
                                     args: ab.node(FunctionCallArgs {
-                                        entries: row![self.wall; self.transform_expression(operand)?],
+                                        entries: row![&self.wall; self.transform_expression(operand)?],
                                     }),
                                 }),
                             ))),
@@ -1098,7 +1106,7 @@ where
                         let mut var_expr = subject_expr.into_inner();
                         let access_name_inner = var_expr.next().unwrap();
                         let access_name = self.transform_access_name(access_name_inner)?;
-                        let type_args = var_expr.next().map_or(Ok(row![self.wall]), |ty| {
+                        let type_args = var_expr.next().map_or(Ok(row![&self.wall]), |ty| {
                             ab.try_collect(ty.into_inner().map(|x| self.transform_type(x)))
                         })?;
 
@@ -1164,17 +1172,17 @@ where
                             let index_expr =
                                 self.transform_expression(accessor.into_inner().next().unwrap())?;
 
-                            // @@Cutnpaste: move this into a seprate function for transpilling built-in functions
+                            // @@Cutnpaste: move this into a separate function for transpiling built-in functions
                             Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
                                 FunctionCallExpr {
                                     subject: ab.node(Expression::new(ExpressionKind::Variable(
                                         VariableExpr {
                                             name: ab.make_single_access_name("index"),
-                                            type_args: row![self.wall],
+                                            type_args: row![&self.wall],
                                         },
                                     ))),
                                     args: ab.node(FunctionCallArgs {
-                                        entries: row![self.wall; prev_subject, index_expr],
+                                        entries: row![&self.wall; prev_subject, index_expr],
                                     }),
                                 },
                             ))))
@@ -1188,7 +1196,7 @@ where
     }
 
     pub(crate) fn transform_block(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Block<'c>>> {
         let ab = self.builder_from_pair(&pair);
@@ -1200,9 +1208,10 @@ where
             }
             Rule::if_else_block => {
                 // we transpile if-else blocks into match blocks in order to simplify
-                // the typechecking process and optimisation effors.
+                // the typechecking process and optimisation efforts.
+                //
                 // Firstly, since we always want to check each case, we convert the
-                // if statement into a series of and-patterns, where the right handside
+                // if statement into a series of and-patterns, where the right hand-side
                 // pattern is the condition to execute the branch...
                 //
                 // For example:
@@ -1214,11 +1223,11 @@ where
                 //      _ => c_branch
                 //     }
                 //
-                // Adittionally, if no 'else' clause is specified, we fill it with an
+                // Additionally, if no 'else' clause is specified, we fill it with an
                 // empty block since an if-block could be assigned to any variable and therefore
                 // we need to know the outcome of all branches for typechecking.
                 let append_else = Cell::new(true);
-                let wall = self.wall;
+                let wall = &self.wall;
 
                 let cases = ab.try_collect(
                     pair.into_inner()
@@ -1268,6 +1277,7 @@ where
                             // when the expression is evaluated, hence the `append_else` might be true when it should
                             // be false!
                             iter::from_fn(|| {
+                                // if no else-block was provided, we need to add one manually
                                 if append_else.get() {
                                     Some(Ok(ab.node(MatchCase {
                                         pattern: ab.node(Pattern::Ignore),
@@ -1286,8 +1296,6 @@ where
                         ),
                 )?;
 
-                // if no else-block was provided, we need to add one manually
-
                 Ok(ab.node(Block::Match(MatchBlock {
                     subject: ab.make_variable(ab.make_boolean(true)),
                     cases,
@@ -1296,7 +1304,7 @@ where
             Rule::match_block => {
                 let mut match_block = pair.into_inner();
 
-                // firstly get the expresion condition from the match block, the
+                // firstly get the expression condition from the match block, the
                 // next rule will be a bunch of match_case rules which can be
                 // converted into ast using the pattern and block implementations...
                 let subject = self.transform_expression(match_block.next().unwrap())?;
@@ -1342,15 +1350,15 @@ where
                             subject: iter_builder.node(Expression::new(ExpressionKind::Variable(
                                 VariableExpr {
                                     name: ab.make_single_access_name("next"),
-                                    type_args: row![self.wall],
+                                    type_args: row![&self.wall],
                                 },
                             ))),
                             args: iter_builder.node(FunctionCallArgs {
-                                entries: row![self.wall; iterator],
+                                entries: row![&self.wall; iterator],
                             }),
                         },
                     ))),
-                    cases: row![self.wall; body_builder.node(MatchCase {
+                    cases: row![&self.wall; body_builder.node(MatchCase {
                             pattern: pat_builder.node(
                                 Pattern::Enum(
                                     EnumPattern {
@@ -1358,7 +1366,7 @@ where
                                             iter_builder.make_single_access_name(
                                                 "Some",
                                             ),
-                                        args: row![self.wall; pattern],
+                                        args: row![&self.wall; pattern],
                                     },
                                 ),
                             ),
@@ -1372,13 +1380,13 @@ where
                                             iter_builder.make_single_access_name(
                                                 "None",
                                             ),
-                                        args: row![self.wall],
+                                        args: row![&self.wall],
                                     },
                                 ),
                             ),
                             expr: body_builder.node(Expression::new(ExpressionKind::Block(
                                 body_builder.node(Block::Body(BodyBlock {
-                                    statements: row![self.wall; body_builder.node(Statement::Break)],
+                                    statements: row![&self.wall; body_builder.node(Statement::Break)],
                                     expr: None,
                                 })),
                             ))),
@@ -1397,21 +1405,21 @@ where
 
                 Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
                     subject: condition,
-                    cases: row![self.wall; body_builder.node(MatchCase {
+                    cases: row![&self.wall; body_builder.node(MatchCase {
                             pattern: condition_builder.node(Pattern::Enum(EnumPattern {
                                 name: condition_builder.make_boolean(true),
-                                args: row![self.wall],
+                                args: row![&self.wall],
                             })),
                             expr: body_builder.node(Expression::new(ExpressionKind::Block(body))),
                         }),
                         body_builder.node(MatchCase {
                             pattern: condition_builder.node(Pattern::Enum(EnumPattern {
                                 name: condition_builder.make_boolean(false),
-                                args: row![self.wall],
+                                args: row![&self.wall],
                             })),
                             expr: body_builder.node(Expression::new(ExpressionKind::Block(
                                 body_builder.node(Block::Body(BodyBlock {
-                                    statements: row![self.wall; body_builder.node(Statement::Break)],
+                                    statements: row![&self.wall; body_builder.node(Statement::Break)],
                                     expr: None,
                                 })),
                             ))),
@@ -1427,10 +1435,7 @@ where
         }
     }
 
-    pub(crate) fn transform_body_block(
-        &mut self,
-        pair: HashPair<'_>,
-    ) -> ParseResult<BodyBlock<'c>> {
+    pub(crate) fn transform_body_block(&self, pair: HashPair<'_>) -> ParseResult<BodyBlock<'c>> {
         let mut statements = pair.into_inner();
         let last_statement = statements.next_back();
 
@@ -1454,14 +1459,14 @@ where
                     ),
                 }
             }
-            None => (row![self.wall], None),
+            None => (row![&self.wall], None),
         };
 
         Ok(BodyBlock { statements, expr })
     }
 
     pub(crate) fn transform_statement_or_expression(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Statement<'c>>> {
         let ab = self.builder_from_pair(&pair);
@@ -1472,7 +1477,7 @@ where
     }
 
     pub(crate) fn transform_statement(
-        &mut self,
+        &self,
         pair: HashPair<'_>,
     ) -> ParseResult<AstNode<'c, Statement<'c>>> {
         let ab = self.builder_from_pair(&pair);
@@ -1484,7 +1489,7 @@ where
             }
             // since we have block statements and semi statements, we can check here
             // to see which path it is, if this is a block statement, we just call
-            // into_ast(resolver) since there is an implementation for block convetsions
+            // into_ast(resolver) since there is an implementation for block conversions
             Rule::block => Ok(ab.node(Statement::Block(self.transform_block(pair)?))),
             Rule::break_st => Ok(ab.node(Statement::Break)),
             Rule::continue_st => Ok(ab.node(Statement::Continue)),
@@ -1579,11 +1584,11 @@ where
                                         subject: builder.node(Expression::new(
                                             ExpressionKind::Variable(VariableExpr {
                                                 name: builder.make_single_access_name(name),
-                                                type_args: row![self.wall],
+                                                type_args: row![&self.wall],
                                             }),
                                         )),
                                         args: self.builder_from_node(&rhs).node(FunctionCallArgs {
-                                            entries: row![self.wall;
+                                            entries: row![&self.wall;
                                                 ab.transform_expr_into_ref(lhs, assigning),
                                                 rhs,
                                             ],
@@ -1593,7 +1598,7 @@ where
                                 Ok(ab.node(Statement::Expr(assign_call)))
                             }
                             Some(OperatorFn::LazyNamed { name, assigning }) => {
-                                // some functions have to ehxibit a short-circuiting behaviour, namely
+                                // some functions have to exhibit a short-circuiting behaviour, namely
                                 // the logical 'and' and 'or' operators. To do this, we expect the 'and'
                                 // 'or' trait (and their assignment counterparts) to expect the rhs part
                                 // as a lambda. So, we essentially create a lambda that calls the rhs, or
@@ -1609,11 +1614,11 @@ where
                                         subject: builder.node(Expression::new(
                                             ExpressionKind::Variable(VariableExpr {
                                                 name: builder.make_single_access_name(name),
-                                                type_args: row![self.wall],
+                                                type_args: row![&self.wall],
                                             }),
                                         )),
                                         args: ab.node(FunctionCallArgs {
-                                            entries: row![self.wall;
+                                            entries: row![&self.wall;
                                                 ab.transform_expr_into_ref(lhs, assigning),
                                                 ab.make_single_lambda(rhs),
                                             ],
@@ -1630,7 +1635,7 @@ where
                                 // essentially means that we have to check if the result of 'ord()' is either
                                 // 'Eq' or 'Gt'.
                                 Ok(ab.node(Statement::Expr(
-                                    builder.transfrom_compound_ord_fn(name, assigning, lhs, rhs),
+                                    builder.transform_compound_ord_fn(name, assigning, lhs, rhs),
                                 )))
                             }
                             None => Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs }))),
@@ -1765,7 +1770,7 @@ mod tests {
     //     assert_eq!(
     //         AstNode {
     //             body: Box::new(AccessName {
-    //                 names: row![self.wall;
+    //                 names: row![&self.wall;
     //                     AstNode {
     //                         body: Box::new(Name {
     //                             string: "iter".to_owned()
