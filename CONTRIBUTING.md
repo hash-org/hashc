@@ -10,11 +10,18 @@ Before submitting a PR, make sure that:
 
 - All the tests pass, you can run the `cargo test` command to run the provided language test suite.
 
+- You have updated the relevant `README.md`/`CONTRIBUTING.md`/other documentation files.
+
 # Style guide
 
 ## Code notes
 
-Use `@@` as a prefix for TODOs, FIXMEs and other such code notes.
+Code notes can have a label using the `##` or `@@` prefix (see below), which
+makes it easy to `grep` through all occurrences.
+
+### Actionable
+
+Use `@@` as a prefix for TODOs, FIXMEs and other such actionable code notes.
 For example:
 
 ```rust
@@ -22,5 +29,13 @@ For example:
 let v = my_vec.into_iter().map(|x| *x).collect();
 ```
 
-This helps to easily find all such occurrences through `grep '@@'` or
-equivalent.
+### Informational
+
+Use the `##` as a prefix for other code notes which aren't actionable, but
+purely informational.
+For example:
+
+```rust
+// ##Safety: this is okay I promise bla bla bla
+let dog = unsafe { std::mem::transmute<Cat, Dog>(cat) };
+```
