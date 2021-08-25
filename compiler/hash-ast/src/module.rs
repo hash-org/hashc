@@ -19,17 +19,17 @@ counter! {
 
 /// Creates a set of loaded modules.
 #[derive(Debug, Default)]
-pub struct ModuleBuilder {
+pub struct ModuleBuilder<'c> {
     indexes: DashMap<ModuleIdx, ()>,
     path_to_index: DashMap<PathBuf, ModuleIdx>,
     filenames_by_index: DashMap<ModuleIdx, PathBuf>,
-    modules_by_index: DashMap<ModuleIdx, ast::Module>,
+    modules_by_index: DashMap<ModuleIdx, ast::Module<'c>>,
     contents_by_index: DashMap<ModuleIdx, String>,
     deps_by_index: DashMap<ModuleIdx, DashMap<ModuleIdx, ()>>,
     entry_point: RwLock<Option<ModuleIdx>>,
 }
 
-impl ModuleBuilder {
+impl<'c> ModuleBuilder<'c> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -39,7 +39,7 @@ impl ModuleBuilder {
         index: ModuleIdx,
         path: PathBuf,
         contents: String,
-        node: ast::Module,
+        node: ast::Module<'c>,
     ) {
         self.path_to_index.insert(path.clone(), index);
         self.filenames_by_index.insert(index, path);
@@ -63,7 +63,7 @@ impl ModuleBuilder {
         self.deps_by_index.get(&parent).unwrap().insert(child, ());
     }
 
-    pub fn build(self) -> Modules {
+    pub fn build(self) -> Modules<'c> {
         Modules {
             indexes: self.indexes.into_read_only(),
             path_to_index: self.path_to_index.into_read_only(),
@@ -84,17 +84,17 @@ impl ModuleBuilder {
 
 /// Represents a set of loaded modules.
 #[derive(Debug)]
-pub struct Modules {
+pub struct Modules<'c> {
     indexes: ReadOnlyView<ModuleIdx, ()>,
     path_to_index: ReadOnlyView<PathBuf, ModuleIdx>,
     filenames_by_index: ReadOnlyView<ModuleIdx, PathBuf>,
-    modules_by_index: ReadOnlyView<ModuleIdx, ast::Module>,
+    modules_by_index: ReadOnlyView<ModuleIdx, ast::Module<'c>>,
     contents_by_index: ReadOnlyView<ModuleIdx, String>,
     deps_by_index: HashMap<ModuleIdx, ReadOnlyView<ModuleIdx, ()>>,
     entry_point: Option<ModuleIdx>,
 }
 
-impl Modules {
+impl<'c> Modules<'c> {
     pub fn has_path(&self, path: impl AsRef<Path>) -> bool {
         self.path_to_index.contains_key(path.as_ref())
     }
@@ -103,32 +103,32 @@ impl Modules {
         self.entry_point.is_some()
     }
 
-    pub fn get_entry_point(&self) -> Option<Module<'_>> {
+    pub fn get_entry_point<'m>(&'m self) -> Option<Module<'c, 'm>> {
         Some(self.get_by_index(self.entry_point?))
     }
 
-    pub fn get_entry_point_unchecked(&self) -> Module<'_> {
+    pub fn get_entry_point_unchecked<'m>(&'m self) -> Module<'c, 'm> {
         self.get_entry_point().unwrap()
     }
 
-    pub fn get_by_index(&self, index: ModuleIdx) -> Module<'_> {
+    pub fn get_by_index<'m>(&'m self, index: ModuleIdx) -> Module<'c, 'm> {
         Module {
             index,
             modules: self,
         }
     }
 
-    pub fn get_by_path(&self, path: impl AsRef<Path>) -> Option<Module<'_>> {
+    pub fn get_by_path<'m>(&'m self, path: impl AsRef<Path>) -> Option<Module<'c, 'm>> {
         self.path_to_index
             .get(path.as_ref())
             .map(|&idx| self.get_by_index(idx))
     }
 
-    pub fn get_by_path_unchecked(&self, path: impl AsRef<Path>) -> Module<'_> {
+    pub fn get_by_path_unchecked<'m>(&'m self, path: impl AsRef<Path>) -> Module<'c, 'm> {
         self.get_by_path(path).unwrap()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Module<'_>> {
+    pub fn iter<'m>(&'m self) -> impl Iterator<Item = Module<'c, 'm>> {
         self.filenames_by_index.keys().map(move |&index| Module {
             index,
             modules: self,
@@ -137,13 +137,13 @@ impl Modules {
 }
 
 /// Represents a single module.
-pub struct Module<'modules> {
+pub struct Module<'c, 'm> {
     index: ModuleIdx,
-    modules: &'modules Modules,
+    modules: &'m Modules<'c>,
 }
 
-impl Module<'_> {
-    pub fn all_modules(&self) -> &Modules {
+impl<'c, 'm> Module<'c, 'm> {
+    pub fn all_modules(&self) -> &Modules<'c> {
         self.modules
     }
 
@@ -155,11 +155,11 @@ impl Module<'_> {
         self.modules.entry_point == Some(self.index)
     }
 
-    pub fn ast_checked(&self) -> Option<&ast::Module> {
+    pub fn ast_checked(&self) -> Option<&ast::Module<'c>> {
         self.modules.modules_by_index.get(&self.index)
     }
 
-    pub fn ast(&self) -> &ast::Module {
+    pub fn ast(&self) -> &ast::Module<'c> {
         self.ast_checked().unwrap()
     }
 
@@ -171,7 +171,7 @@ impl Module<'_> {
             .as_ref()
     }
 
-    pub fn dependencies(&self) -> impl Iterator<Item = Module> {
+    pub fn dependencies(&self) -> impl Iterator<Item = Module<'c, '_>> {
         self.modules
             .deps_by_index
             .get(&self.index)

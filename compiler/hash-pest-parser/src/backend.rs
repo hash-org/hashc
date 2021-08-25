@@ -7,6 +7,7 @@ use crate::{
     grammar::{Grammar, Rule},
     translate::PestAstBuilder,
 };
+use hash_alloc::{collections::row::Row, Castle};
 use hash_ast::{
     ast,
     error::{ParseError, ParseResult},
@@ -17,16 +18,21 @@ use hash_utils::timed;
 use pest::Parser;
 use std::path::Path;
 
-pub struct PestBackend;
+#[derive(Copy, Clone)]
+pub struct PestBackend<'c> {
+    castle: &'c Castle,
+}
 
-impl ParserBackend for PestBackend {
+impl<'c> ParserBackend<'c> for PestBackend<'c> {
     fn parse_module(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         path: &Path,
         contents: &str,
-    ) -> ParseResult<ast::Module> {
-        let mut builder = PestAstBuilder::new(resolver);
+    ) -> ParseResult<ast::Module<'c>> {
+        let builder = PestAstBuilder::new(resolver, self.castle.wall());
+        let wall = builder.wall();
+
         let pest_result = timed(
             || Grammar::parse(Rule::module, contents),
             log::Level::Debug,
@@ -37,9 +43,10 @@ impl ParserBackend for PestBackend {
         timed(
             || {
                 Ok(ast::Module {
-                    contents: pest_result
-                        .map(|x| builder.transform_statement(x))
-                        .collect::<Result<_, _>>()?,
+                    contents: Row::try_from_iter(
+                        pest_result.map(|x| builder.transform_statement(x)),
+                        wall,
+                    )?,
                 })
             },
             log::Level::Debug,
@@ -49,10 +56,12 @@ impl ParserBackend for PestBackend {
 
     fn parse_interactive(
         &self,
-        resolver: &mut impl ModuleResolver,
+        resolver: impl ModuleResolver,
         contents: &str,
-    ) -> ParseResult<ast::AstNode<ast::BodyBlock>> {
-        let mut builder = PestAstBuilder::new(resolver);
+    ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>> {
+        let wall = self.castle.wall();
+
+        let builder = PestAstBuilder::new(resolver, wall);
         match Grammar::parse(Rule::interactive, contents) {
             Ok(mut result) => {
                 let pair = result.next().unwrap();

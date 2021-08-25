@@ -9,12 +9,12 @@ clap = "3.0.0-beta.2"
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-parser = {path = "../hash-parser" }
-hash-pest-parser = {path = "../hash-pest-parser" }
+hash-alloc = {path = "../hash-alloc" }
+hash-pest-parser = {path = "../hash-pest-parser", optional = true }
 hash-interactive = {path = "../hash-interactive" } 
 hash-reporting = {path = "../hash-reporting" }
 thiserror = "1.0"
 log = "0.4"
-pretty_env_logger = "0.4"
 backtrace = "0.3"
 num_cpus = "1.13.0"
 
