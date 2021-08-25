@@ -8,6 +8,7 @@ mod crash_handler;
 mod logger;
 
 use clap::{crate_version, AppSettings, Clap};
+use hash_alloc::Castle;
 use hash_ast::error::ParseError;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
@@ -21,13 +22,15 @@ use std::path::PathBuf;
 use std::{env, fs};
 
 use hash_parser::backend::HashParser;
+
+#[cfg(feature = "use-pest")]
 use hash_pest_parser::backend::PestBackend;
 
 use crate::crash_handler::panic_handler;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
-/// https://hash-org.github.io/hash-arxiv/interpreter-options.html
+/// <https://hash-org.github.io/hash-arxiv/interpreter-options.html>
 #[derive(Clap)]
 #[clap(
     name = "Hash Interpreter",
@@ -98,11 +101,11 @@ fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
     }
 }
 
-fn run_parsing(
-    parser: ParParser<impl ParserBackend>,
+fn run_parsing<'c>(
+    parser: ParParser<impl ParserBackend<'c>>,
     filename: PathBuf,
     directory: PathBuf,
-) -> Result<Modules, ParseError> {
+) -> Result<Modules<'c>, ParseError> {
     timed(
         || parser.parse(&filename, &directory),
         log::Level::Debug,
@@ -121,6 +124,8 @@ fn main() {
     if opts.debug {
         log::set_max_level(LevelFilter::Debug);
     }
+
+    let castle = Castle::new();
 
     execute(|| {
         // check here if we are operating in a special mode...
@@ -151,19 +156,19 @@ fn main() {
                 let directory = env::current_dir().unwrap();
 
                 // If we're using pest as a parsing backend, enable it via flags...
-                let result = if cfg!(feature = "use-pest") {
-                    run_parsing(
-                        ParParser::new_with_workers(PestBackend, worker_count),
-                        filename,
-                        directory,
-                    )
-                } else {
-                    run_parsing(
-                        ParParser::new_with_workers(HashParser, worker_count),
-                        filename,
-                        directory,
-                    )
-                };
+                #[cfg(feature = "use-pest")]
+                let result = run_parsing(
+                    ParParser::new_with_workers(PestBackend, worker_count),
+                    filename,
+                    directory,
+                );
+
+                #[cfg(not(feature = "use-pest"))]
+                let result = run_parsing(
+                    ParParser::new_with_workers(HashParser::new(&castle), worker_count),
+                    filename,
+                    directory,
+                );
 
                 if let Err(e) = result {
                     CompilerError::from(e).report_and_exit();

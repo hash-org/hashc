@@ -23,13 +23,13 @@ impl<T: NodeCount> NodeCount for Option<T> {
     }
 }
 
-impl<T: NodeCount> NodeCount for AstNode<T> {
+impl<T: NodeCount> NodeCount for AstNode<'_, T> {
     fn children_count(&self) -> usize {
         self.body().children_count()
     }
 }
 
-impl NodeCount for Statement {
+impl NodeCount for Statement<'_> {
     fn children_count(&self) -> usize {
         match &self {
             Statement::Expr(k) => k.node_count(),
@@ -59,14 +59,14 @@ impl NodeCount for Statement {
     }
 }
 
-impl NodeCount for BodyBlock {
+impl NodeCount for BodyBlock<'_> {
     fn children_count(&self) -> usize {
         let arg_count: usize = self.statements.iter().map(|s| s.node_count()).sum();
         arg_count + self.expr.node_count()
     }
 }
 
-impl NodeCount for Block {
+impl NodeCount for Block<'_> {
     fn children_count(&self) -> usize {
         match &self {
             Block::Match(match_block) => {
@@ -79,7 +79,7 @@ impl NodeCount for Block {
     }
 }
 
-impl NodeCount for Expression {
+impl NodeCount for Expression<'_> {
     fn children_count(&self) -> usize {
         match self.kind() {
             ExpressionKind::FunctionCall(e) => {
@@ -103,7 +103,7 @@ impl NodeCount for Expression {
     }
 }
 
-impl NodeCount for Literal {
+impl NodeCount for Literal<'_> {
     fn children_count(&self) -> usize {
         match &self {
             // count string, number, char literals as zero since they are wrapped in AstNode and should count
@@ -137,13 +137,13 @@ impl NodeCount for Literal {
     }
 }
 
-impl NodeCount for MatchCase {
+impl NodeCount for MatchCase<'_> {
     fn children_count(&self) -> usize {
         self.pattern.node_count() + self.expr.node_count()
     }
 }
 
-impl NodeCount for Pattern {
+impl NodeCount for Pattern<'_> {
     fn children_count(&self) -> usize {
         match &self {
             Pattern::Enum(pat) => {
@@ -169,24 +169,24 @@ impl NodeCount for Pattern {
     }
 }
 
-impl NodeCount for DestructuringPattern {
+impl NodeCount for DestructuringPattern<'_> {
     fn children_count(&self) -> usize {
         1 + self.pattern.node_count()
     }
 }
 
-impl NodeCount for StructDefEntry {
+impl NodeCount for StructDefEntry<'_> {
     fn children_count(&self) -> usize {
         self.ty.node_count() + self.default.node_count()
     }
 }
 
-impl NodeCount for EnumDefEntry {
+impl NodeCount for EnumDefEntry<'_> {
     fn children_count(&self) -> usize {
         self.args.iter().map(|t| t.node_count()).sum()
     }
 }
-impl NodeCount for Bound {
+impl NodeCount for Bound<'_> {
     fn children_count(&self) -> usize {
         let args_count: usize = self.type_args.iter().map(|t| t.node_count()).sum();
         let bound_count: usize = self.trait_bounds.iter().map(|t| t.node_count()).sum();
@@ -195,7 +195,7 @@ impl NodeCount for Bound {
     }
 }
 
-impl NodeCount for TraitBound {
+impl NodeCount for TraitBound<'_> {
     fn children_count(&self) -> usize {
         let count = self.name.node_count();
         let args_count: usize = self.type_args.iter().map(|t| t.node_count()).sum();
@@ -204,7 +204,7 @@ impl NodeCount for TraitBound {
     }
 }
 
-impl NodeCount for Type {
+impl NodeCount for Type<'_> {
     fn children_count(&self) -> usize {
         match &self {
             Type::Named(ty) => {
@@ -220,7 +220,7 @@ impl NodeCount for Type {
     }
 }
 
-impl NodeCount for AccessName {
+impl NodeCount for AccessName<'_> {
     fn children_count(&self) -> usize {
         1
     }

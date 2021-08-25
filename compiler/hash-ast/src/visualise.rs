@@ -6,6 +6,7 @@ use std::{fmt::Alignment, iter};
 
 use crate::ast::*;
 use crate::ident::IDENTIFIER_MAP;
+use crate::literal::STRING_LITERAL_MAP;
 
 const VERT_PIPE: &str = "│ ";
 const PADDING: &str = "  ";
@@ -108,13 +109,13 @@ pub trait NodeDisplay {
     fn node_display(&self) -> Vec<String>;
 }
 
-impl<T: NodeDisplay> NodeDisplay for AstNode<T> {
+impl<T: NodeDisplay> NodeDisplay for AstNode<'_, T> {
     fn node_display(&self) -> Vec<String> {
         self.body().node_display()
     }
 }
 
-impl<T> std::fmt::Display for AstNode<T>
+impl<T> std::fmt::Display for AstNode<'_, T>
 where
     Self: NodeDisplay,
 {
@@ -127,7 +128,7 @@ where
 /// We need a seperate implementation for [Module] since it won't be wrapped within
 /// an [AstNode] unlike all the other variants
 ///
-impl std::fmt::Display for Module {
+impl std::fmt::Display for Module<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let nodes: Vec<Vec<String>> = self.contents.iter().map(|s| s.node_display()).collect();
 
@@ -137,7 +138,7 @@ impl std::fmt::Display for Module {
 }
 
 /// Implementation for Type_Args specifically!
-impl NodeDisplay for AstNodes<Type> {
+impl NodeDisplay for AstNodes<'_, Type<'_>> {
     fn node_display(&self) -> Vec<String> {
         let args: Vec<Vec<String>> = self.iter().map(|arg| arg.node_display()).collect();
 
@@ -148,7 +149,7 @@ impl NodeDisplay for AstNodes<Type> {
     }
 }
 
-impl NodeDisplay for Type {
+impl NodeDisplay for Type<'_> {
     fn node_display(&self) -> Vec<String> {
         let lines = match &self {
             Type::Ref(_) => vec!["ref_type".to_string()],
@@ -185,13 +186,13 @@ impl NodeDisplay for Type {
     }
 }
 
-impl NodeDisplay for Literal {
+impl NodeDisplay for Literal<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut lines = vec![];
         let mut next_lines = vec![];
 
         match &self {
-            Literal::Str(s) => lines.push(format!("string \"{}\"", s)),
+            Literal::Str(s) => lines.push(format!("string \"{}\"", STRING_LITERAL_MAP.lookup(*s))),
             Literal::Char(c) => lines.push(format!("char \'{}\'", c)),
             Literal::Int(i) => lines.push(format!("number {}", i)),
             Literal::Float(f) => lines.push(format!("float {}", f)),
@@ -323,9 +324,9 @@ impl NodeDisplay for Literal {
     }
 }
 
-impl NodeDisplay for FunctionDefArg {
+impl NodeDisplay for FunctionDefArg<'_> {
     fn node_display(&self) -> Vec<String> {
-        // deal with the name and type as seperate branches
+        // deal with the name and type as separate branches
         let mut arg_components = vec![vec![format!("name {}", self.name.node_display().join(""))]];
 
         if let Some(ty) = &self.ty {
@@ -340,9 +341,9 @@ impl NodeDisplay for FunctionDefArg {
     }
 }
 
-impl NodeDisplay for StructLiteralEntry {
+impl NodeDisplay for StructLiteralEntry<'_> {
     fn node_display(&self) -> Vec<String> {
-        let name = self.name.node_display();
+        let name = vec![format!("field {}", self.name)];
 
         let value = iter::once("value".to_string())
             .chain(child_branch(&self.value.node_display()))
@@ -354,11 +355,16 @@ impl NodeDisplay for StructLiteralEntry {
     }
 }
 
-impl NodeDisplay for AccessName {
+impl NodeDisplay for AccessName<'_> {
     fn node_display(&self) -> Vec<String> {
         vec![format!(
             "\"{}\"",
-            IDENTIFIER_MAP.path_ident_name(self.path).full()
+            (self
+                .path
+                .iter()
+                .map(|x| IDENTIFIER_MAP.ident_name(*x).to_owned())
+                .collect::<Vec<String>>()
+                .join("::"))
         )]
     }
 }
@@ -369,7 +375,7 @@ impl NodeDisplay for Name {
     }
 }
 
-impl NodeDisplay for Statement {
+impl NodeDisplay for Statement<'_> {
     fn node_display(&self) -> Vec<String> {
         let (node_name, child_lines) = match &self {
             Statement::Expr(expr) => (None, expr.node_display()),
@@ -506,7 +512,7 @@ impl NodeDisplay for Statement {
     }
 }
 
-impl NodeDisplay for EnumDefEntry {
+impl NodeDisplay for EnumDefEntry<'_> {
     fn node_display(&self) -> Vec<String> {
         let components = vec![
             vec![format!("name {}", self.name.node_display().join(""))],
@@ -519,7 +525,7 @@ impl NodeDisplay for EnumDefEntry {
     }
 }
 
-impl NodeDisplay for StructDefEntry {
+impl NodeDisplay for StructDefEntry<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut components = vec![vec![format!("name {}", self.name.node_display().join(""))]];
 
@@ -541,7 +547,7 @@ impl NodeDisplay for StructDefEntry {
     }
 }
 
-impl NodeDisplay for Bound {
+impl NodeDisplay for Bound<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut components = vec![self.type_args.node_display()];
 
@@ -567,7 +573,7 @@ impl NodeDisplay for Bound {
     }
 }
 
-impl NodeDisplay for TraitBound {
+impl NodeDisplay for TraitBound<'_> {
     fn node_display(&self) -> Vec<String> {
         let components = vec![
             vec![format!("name {}", self.name.node_display().join(""))],
@@ -582,18 +588,17 @@ impl NodeDisplay for TraitBound {
 
 impl NodeDisplay for Import {
     fn node_display(&self) -> Vec<String> {
-        vec![format!("import \"{}\"", self.path)]
+        vec![format!(
+            "import \"{}\"",
+            STRING_LITERAL_MAP.lookup(self.path)
+        )]
     }
 }
 
-impl NodeDisplay for Expression {
+impl NodeDisplay for Expression<'_> {
     fn node_display(&self) -> Vec<String> {
-        let mut lines = vec![];
-
         match self.kind() {
             ExpressionKind::FunctionCall(func) => {
-                lines.push("function_call".to_string());
-
                 let mut components = vec![iter::once("subject".to_string())
                     .chain(child_branch(&func.subject.node_display()))
                     .collect()];
@@ -618,40 +623,35 @@ impl NodeDisplay for Expression {
 
                     components.push(arg_lines);
                 }
-                lines.extend(draw_branches_for_children(&components));
-                lines
+                iter::once("function_call".to_string())
+                    .chain(draw_branches_for_children(&components))
+                    .collect()
             }
             ExpressionKind::Intrinsic(intrinsic) => {
-                lines.push(format!(
+                vec![format!(
                     "intrinsic \"{}\"",
                     IDENTIFIER_MAP.ident_name(intrinsic.name)
-                ));
-                lines
+                )]
             }
             ExpressionKind::Variable(var) => {
                 // check if the length of type_args to this ident, if not
                 // we don't produce any children nodes for it
-                let name = var.name.node_display().join("");
-                let ident_lines = vec![format!("ident {}", name)];
+                let ident = format!("ident {}", var.name.node_display().join(""));
 
                 if !var.type_args.is_empty() {
-                    lines.push("variable".to_string());
+                    let components = vec![vec![ident], var.type_args.node_display()];
 
-                    let components = vec![ident_lines, var.type_args.node_display()];
-
-                    lines.extend(draw_branches_for_children(&components));
+                    iter::once("variable".to_string())
+                        .chain(draw_branches_for_children(&components))
+                        .collect()
                 } else {
                     // we don't construct a complex tree structure here since we want to avoid
-                    // verbosity as much, since most of the time variales aren't going to have
+                    // verbosity as much, since most of the time variables aren't going to have
                     // type arguments.
-                    lines.extend(ident_lines);
+                    vec![ident]
                 }
-
-                lines
             }
             ExpressionKind::PropertyAccess(expr) => {
-                lines.push("property_access".to_string());
-
                 // deal with the subject
                 let subject_lines = vec!["subject".to_string()]
                     .into_iter()
@@ -664,29 +664,28 @@ impl NodeDisplay for Expression {
                     IDENTIFIER_MAP.ident_name(expr.property.body().ident)
                 )];
 
-                lines.extend(draw_branches_for_children(&[subject_lines, field_lines]));
-                lines
+                iter::once("property_access".to_string())
+                    .chain(draw_branches_for_children(&[subject_lines, field_lines]))
+                    .collect()
             }
             ExpressionKind::Ref(expr) | ExpressionKind::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
-                match self.kind() {
-                    ExpressionKind::Ref(_) => lines.push("ref".to_string()),
-                    ExpressionKind::Deref(_) => lines.push("deref".to_string()),
+                let prefix = match self.kind() {
+                    ExpressionKind::Ref(_) => "ref",
+                    ExpressionKind::Deref(_) => "deref",
                     _ => unreachable!(),
-                };
+                }
+                .to_string();
 
-                let next_lines = child_branch(&expr.node_display());
-                lines.extend(pad_lines(next_lines, 1));
-
-                lines
+                iter::once(prefix)
+                    .chain(child_branch(&expr.node_display()))
+                    .collect()
             }
             ExpressionKind::LiteralExpr(literal) => literal.node_display(),
             ExpressionKind::Typed(expr) => {
-                lines.push("typed_expr".to_string());
-
                 let TypedExpr { expr, ty } = expr;
 
-                // the type line is handeled by the implementation
+                // the type line is handled by the implementation
                 let type_lines = ty.node_display();
 
                 // now deal with the expression
@@ -694,17 +693,19 @@ impl NodeDisplay for Expression {
                 expr_lines.extend(child_branch(&expr.node_display()));
 
                 let next_lines = draw_branches_for_children(&[expr_lines, type_lines]);
-
-                lines.extend(pad_lines(next_lines, 1));
-                lines
+                iter::once("typed_expr".to_string())
+                    .chain(pad_lines(next_lines, 1))
+                    .collect()
             }
-            ExpressionKind::Block(block) => block.node_display(),
+            ExpressionKind::Block(block) => iter::once("block".to_string())
+                .chain(block.node_display())
+                .collect::<Vec<_>>(),
             ExpressionKind::Import(import) => import.node_display(),
         }
     }
 }
 
-impl NodeDisplay for Block {
+impl NodeDisplay for Block<'_> {
     fn node_display(&self) -> Vec<String> {
         match &self {
             Block::Match(match_block) => {
@@ -727,11 +728,9 @@ impl NodeDisplay for Block {
                     components.push(case_lines);
                 }
 
-                let lines = iter::once("match".to_string())
+                iter::once("match".to_string())
                     .chain(draw_branches_for_children(&components))
-                    .collect::<Vec<String>>();
-
-                child_branch(&lines)
+                    .collect::<Vec<String>>()
             }
             Block::Loop(loop_body) => {
                 let mut lines = vec!["loop".to_string()];
@@ -746,7 +745,7 @@ impl NodeDisplay for Block {
     }
 }
 
-impl NodeDisplay for MatchCase {
+impl NodeDisplay for MatchCase<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut lines = vec!["case".to_string()];
 
@@ -756,7 +755,7 @@ impl NodeDisplay for MatchCase {
         // deal with the block for this case
         let branch_lines = vec!["branch".to_string()]
             .into_iter()
-            .chain(child_branch(&self.expr.node_display()))
+            .chain(self.expr.node_display())
             .collect();
 
         // append child_lines with padding and vertical lines being drawn
@@ -768,7 +767,7 @@ impl NodeDisplay for MatchCase {
 impl NodeDisplay for LiteralPattern {
     fn node_display(&self) -> Vec<String> {
         vec![match &self {
-            LiteralPattern::Str(s) => format!("string \"{}\"", s),
+            LiteralPattern::Str(s) => format!("string \"{}\"", STRING_LITERAL_MAP.lookup(*s)),
             LiteralPattern::Char(c) => format!("char \'{}\'", c),
             LiteralPattern::Int(i) => format!("number {}", i),
             LiteralPattern::Float(f) => format!("float {}", f),
@@ -776,7 +775,7 @@ impl NodeDisplay for LiteralPattern {
     }
 }
 
-impl NodeDisplay for DestructuringPattern {
+impl NodeDisplay for DestructuringPattern<'_> {
     fn node_display(&self) -> Vec<String> {
         let name = vec![format!("ident {}", self.name.node_display().join(""))];
         let pat = self.pattern.node_display();
@@ -785,7 +784,7 @@ impl NodeDisplay for DestructuringPattern {
     }
 }
 
-impl NodeDisplay for Pattern {
+impl NodeDisplay for Pattern<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut lines = vec!["pattern".to_string()];
 
@@ -885,7 +884,7 @@ impl NodeDisplay for Pattern {
     }
 }
 
-impl NodeDisplay for BodyBlock {
+impl NodeDisplay for BodyBlock<'_> {
     fn node_display(&self) -> Vec<String> {
         let mut statements: Vec<Vec<String>> = self
             .statements
