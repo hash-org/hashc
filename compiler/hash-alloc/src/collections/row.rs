@@ -1,23 +1,42 @@
+//! Contains a [`Vec`]-like implementation for allocating contiguous sequences within a [`Wall`].
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
+
 use crate::Wall;
 use core::fmt;
 use std::{
+    borrow::{Borrow, BorrowMut},
     mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
 };
 
+/// A [`Vec`]-like implementation for allocating contiguous sequences within a [`Wall`].
+///
+/// This is generic over the castle `'c` lifetime, and implements `Deref<Target=T>`.
+///
+/// It should mostly be used in the same way as [`Vec`].
+///
+/// Note: Reallocations require copying the data every time, as opposed to [`Vec`] (which calls
+/// `realloc`, which in turn might grow the memory block without extra copying). This means that
+/// reserving space is even more important when using `Row` than when using [`Vec`].
 pub struct Row<'c, T> {
     data: &'c mut [MaybeUninit<ManuallyDrop<T>>],
     length: usize,
 }
 
+/// How much to initially reserve in the row.
 const ROW_INITIAL_REALLOC_SIZE: usize = 4;
-const ROW_REALLOC_MULTIPLIER: usize = 2;
+
+/// How much to multiply (.0) and divide (.1) the current capacity by when reallocating.
+const ROW_REALLOC_MULT_DIV: (usize, usize) = (2, 1);
 
 impl<'c, T> Row<'c, T> {
+    /// Create a new `Row` within the given [`Wall`] with zero length and capacity.
     pub fn new(wall: &Wall<'c>) -> Self {
         Self::with_capacity(0, wall)
     }
 
+    /// Create a new `Row` within the given [`Wall`] with zero length and a given capacity.
     pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
         Self {
             data: wall.alloc_uninit_slice(initial_capacity),
@@ -25,17 +44,28 @@ impl<'c, T> Row<'c, T> {
         }
     }
 
+    /// Get the current capacity of the `Row`.
     pub fn capacity(&self) -> usize {
         self.data.len()
     }
 
+    /// Reserve some capacity within the `Row` by reallocating inside the given [`Wall`].
+    ///
+    /// # Panics
+    ///
+    /// - Panics if `new_capacity` is greater than [`isize::MAX`].
+    /// - Panics if `new_capacity` is less than the current length of the `Row`.
     pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
+        if new_capacity > isize::MAX as usize {
+            panic!("Reallocation target capacity is too large");
+        }
+
         if new_capacity < self.len() {
             panic!("Tried to reallocate with a capacity smaller than length");
         }
 
         if new_capacity < self.capacity() {
-            // no-op
+            // no-op, already have enough capacity.
             return;
         }
 
@@ -50,16 +80,21 @@ impl<'c, T> Row<'c, T> {
         self.data = new_data;
     }
 
+    /// Push an element to the end of the `Row`.
+    ///
+    /// This will reallocate the data inside the given [`Wall`] if there is not enough capacity to
+    /// add the element.
+    ///
+    /// # Panics
+    ///
+    /// See [`Row::reserve`].
     pub fn push(&mut self, element: T, wall: &Wall<'c>) {
         if self.capacity() < self.len() + 1 {
             if self.capacity() == 0 {
                 self.reserve(ROW_INITIAL_REALLOC_SIZE, wall);
             } else {
-                let new_capacity = self.capacity() * ROW_REALLOC_MULTIPLIER;
-                if new_capacity > isize::MAX as usize {
-                    panic!("Reallocation target capacity is too large");
-                }
-
+                let new_capacity =
+                    (self.capacity() * ROW_REALLOC_MULT_DIV.0) / ROW_REALLOC_MULT_DIV.1;
                 self.reserve(new_capacity, wall);
             }
         }
@@ -70,19 +105,23 @@ impl<'c, T> Row<'c, T> {
         self.length += 1;
     }
 
+    /// Pop an element from the end of the `Row`
+    ///
+    /// Returns `None` if there are no elements in the `Row`, otherwise the popped element.
     pub fn pop(&mut self) -> Option<T> {
         if self.len() == 0 {
             return None;
         }
 
         let last_element = std::mem::replace(
-            // Safety: @@TODO
+            // Safety: self.len() - 1 is always a valid index as long as self.len() != 0 (which has
+            // just been checked).
             unsafe { self.data.get_unchecked_mut(self.len() - 1) },
             MaybeUninit::uninit(),
         );
         self.length -= 1;
 
-        // Safety: value has beem initialised.
+        // Safety: value has been initialised because it was within (0..self.len()).
         //
         // We give responsibility of dropping to the caller.
         Some(ManuallyDrop::into_inner(unsafe {
@@ -90,22 +129,10 @@ impl<'c, T> Row<'c, T> {
         }))
     }
 
-    pub fn try_from_iter<I, E>(iter: I, wall: &Wall<'c>) -> Result<Self, E>
-    where
-        I: IntoIterator<Item = Result<T, E>>,
-    {
-        let iter = iter.into_iter();
-        let (min_bound, max_bound) = iter.size_hint();
-        let initial_capacity = max_bound.unwrap_or(min_bound);
-
-        let mut row = Row::with_capacity(initial_capacity, wall);
-        for element in iter {
-            row.push(element?, wall);
-        }
-
-        Ok(row)
-    }
-
+    /// Construct a `Row` from an iterator, allocating inside the given [`Wall`].
+    ///
+    /// This uses `Iterator::size_hint` to predict how many elements are inside the iterator, and
+    /// avoid extraneous reallocations.
     pub fn from_iter<I>(iter: I, wall: &Wall<'c>) -> Self
     where
         I: IntoIterator<Item = T>,
@@ -122,15 +149,70 @@ impl<'c, T> Row<'c, T> {
         row
     }
 
-    pub fn as_slice(&self) -> &'c [T] {
+    /// Construct a `Row` from an iterator of [`Result`]s, allocating inside the given [`Wall`].
+    ///
+    /// Returns a `Result` of either the collected `Row` or the first error encountered in the
+    /// iterator.
+    ///
+    /// This uses `Iterator::size_hint` to predict how many elements are inside the iterator, and
+    /// avoid extraneous reallocations.
+    pub fn try_from_iter<I, E>(iter: I, wall: &Wall<'c>) -> Result<Self, E>
+    where
+        I: IntoIterator<Item = Result<T, E>>,
+    {
+        let iter = iter.into_iter();
+        let (min_bound, max_bound) = iter.size_hint();
+        let initial_capacity = max_bound.unwrap_or(min_bound);
+
+        let mut row = Row::with_capacity(initial_capacity, wall);
+        for element in iter {
+            row.push(element?, wall);
+        }
+
+        Ok(row)
+    }
+
+    /// Produce a reference to the data inside the `Row` as a mutable slice, consuming `self`.
+    pub fn into_slice(self) -> &'c mut [T] {
         // Safety: values until self.length are initialised.
         // Also, the slice will live as long as 'c, which might outlive self.
         unsafe {
-            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(&self.data[0..self.length])
+            std::mem::transmute::<&mut [MaybeUninit<ManuallyDrop<T>>], &mut [T]>(
+                &mut self.data[0..self.length],
+            )
         }
     }
 }
 
+impl<'c, T: Clone> Row<'c, T> {
+    /// Clone the data inside `self` into a [`Vec`].
+    pub fn clone_vec(&self) -> Vec<T> {
+        self.iter().cloned().collect()
+    }
+
+    /// Clone the data inside `self` into a [`Row`] allocated using the given [`Wall`].
+    pub fn clone_row<'cc>(&self, wall: &Wall<'cc>) -> Row<'cc, T> {
+        Row::from_iter(self.iter().cloned(), wall)
+    }
+}
+
+/// A macro to help in the creation of [`Row`] objects. Similar to the [`vec!`] macro.
+///
+/// Usage is the same as `vec!`, but with an explicit argument providing the [`Wall`] to allocate into.
+///
+/// # Examples
+///
+/// ```
+/// use hash_alloc::{Castle, Wall, row};
+/// let castle = Castle::new();
+/// let wall = castle.wall();
+///
+/// let r = row![&wall; 1, 2, 3];
+/// assert_eq!(r.as_ref(), &[1, 2, 3]);
+///
+/// let r = row![&wall; 1; 5];
+/// assert_eq!(r.as_ref(), &[1, 1, 1, 1, 1]);
+/// ```
 #[macro_export]
 macro_rules! row {
     ($wall:expr) => {
@@ -157,7 +239,11 @@ impl<T> Deref for Row<'_, T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        self.as_slice()
+        // Safety: values until self.length are initialised.
+        // Also, the slice will live as long as 'c, which might outlive self.
+        unsafe {
+            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(&self.data[0..self.length])
+        }
     }
 }
 
@@ -170,6 +256,30 @@ impl<T> DerefMut for Row<'_, T> {
                 &mut self.data[0..self.length],
             )
         }
+    }
+}
+
+impl<T> AsRef<[T]> for Row<'_, T> {
+    fn as_ref(&self) -> &[T] {
+        self.deref()
+    }
+}
+
+impl<T> AsMut<[T]> for Row<'_, T> {
+    fn as_mut(&mut self) -> &mut [T] {
+        self.deref_mut()
+    }
+}
+
+impl<T> Borrow<[T]> for Row<'_, T> {
+    fn borrow(&self) -> &[T] {
+        self.deref()
+    }
+}
+
+impl<T> BorrowMut<[T]> for Row<'_, T> {
+    fn borrow_mut(&mut self) -> &mut [T] {
+        self.deref_mut()
     }
 }
 
@@ -196,16 +306,6 @@ impl<T: PartialEq> PartialEq for Row<'_, T> {
 }
 
 impl<T: Eq> Eq for Row<'_, T> {}
-
-impl<'c, T: Clone> Row<'c, T> {
-    pub fn clone_out(&self) -> Vec<T> {
-        self.iter().cloned().collect()
-    }
-
-    pub fn clone_in<'cc>(&self, wall: &Wall<'cc>) -> Row<'cc, T> {
-        Row::from_iter(self.iter().cloned(), wall)
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -30,7 +30,7 @@ impl Castle {
 
     /// Create a new [`Wall`] inside this `Castle`. The created [`Wall`] lives as long as the
     /// reference to this `Castle`.
-    pub fn wall<'c>(&'c self) -> Wall<'c> {
+    pub fn wall(&self) -> Wall {
         Wall::with_member(self.herd.get())
     }
 }
