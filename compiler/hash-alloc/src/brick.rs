@@ -105,3 +105,49 @@ impl<T> Drop for Brick<'_, T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Castle;
+
+    #[test]
+    fn brick_construction_test() {
+        let castle = Castle::new();
+        let wall = castle.wall();
+
+        let b = Brick::new(42, &wall);
+        assert_eq!(*b, 42);
+    }
+
+    #[test]
+    fn brick_move_test() {
+        let castle = Castle::new();
+        let wall = castle.wall();
+
+        #[derive(Debug, PartialEq)]
+        struct Foo(i32);
+
+        let b = Brick::new(Foo(12), &wall);
+
+        let f = b.move_out();
+        assert_eq!(f, Foo(12));
+    }
+
+    #[test]
+    fn brick_clone_test() {
+        let castle = Castle::new();
+        let wall = castle.wall();
+
+        #[derive(Debug, PartialEq, Clone)]
+        struct Bar(char);
+
+        let b = Brick::new(Bar('a'), &wall);
+
+        let b2 = b.clone_out();
+        assert_eq!(b2, Bar('a'));
+
+        let b3 = b.clone_in(&wall);
+        assert_eq!(*b3, Bar('a'));
+    }
+}
