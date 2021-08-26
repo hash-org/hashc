@@ -8,3 +8,4 @@ edition = "2018"
 hash-ast = { path = "../hash-ast" }
 hash-utils = { path = "../hash-utils" }
 smallvec = { version = "1.6", features = ["union"] }
+dashmap = "4.0"

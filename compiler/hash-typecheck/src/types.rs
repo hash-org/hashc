@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 use core::fmt;
-use std::collections::HashMap;
+use std::{borrow::Borrow, cell::RefCell, collections::HashMap, ops::Deref};
 
+use dashmap::DashMap;
 use hash_ast::{
     ast::TypeId,
     ident::Identifier,
@@ -11,6 +12,9 @@ use hash_ast::{
 use hash_utils::counter;
 use smallvec::SmallVec;
 
+use crate::unify::Substitutions;
+
+#[derive(Debug)]
 pub struct Trait {
     id: TraitId,
 }
@@ -22,53 +26,59 @@ counter! {
     method_visibility:,
 }
 
-pub struct TypeParams {
-    data: SmallVec<[TypeId; 6]>,
-}
-
+#[derive(Debug)]
 pub struct TraitBounds {
     data: Vec<TraitBound>,
 }
 
+#[derive(Debug)]
 pub struct TraitBound {
     pub trt: Trait,
-    pub params: TypeParams,
+    pub params: TypeArgs,
 }
 
+#[derive(Debug)]
 pub struct Generics {
     pub bounds: TraitBounds,
-    pub params: TypeParams,
+    pub params: TypeArgs,
 }
 
+#[derive(Debug)]
 pub struct EnumVariantParams {
     data: SmallVec<[TypeId; 6]>,
 }
 
+#[derive(Debug)]
 pub struct EnumVariant {
     pub name: Identifier,
     pub data: EnumVariantParams,
 }
 
+#[derive(Debug)]
 pub struct EnumVariants {
     data: HashMap<Identifier, EnumVariant>,
 }
 
+#[derive(Debug)]
 pub struct EnumDef {
     pub name: Identifier,
     pub generics: Generics,
     pub variants: EnumVariants,
 }
 
+#[derive(Debug)]
 pub struct StructFields {
     data: HashMap<Identifier, TypeId>,
 }
 
+#[derive(Debug)]
 pub struct StructDef {
     pub name: Identifier,
     pub generics: Generics,
     pub fields: StructFields,
 }
 
+#[derive(Debug)]
 pub struct TypeDefs {
     data: HashMap<TypeDefId, TypeDefValue>,
 }
@@ -79,6 +89,7 @@ impl TypeDefs {
     }
 }
 
+#[derive(Debug)]
 pub enum TypeDefValue {
     Enum(EnumDef),
     Struct(StructDef),
@@ -137,35 +148,46 @@ pub struct TypeVar {
     pub name: Identifier,
 }
 
+#[derive(Debug)]
 pub struct RefType {
     pub id: TypeId,
 }
 
+#[derive(Debug)]
 pub struct RawRefType {
     pub id: TypeId,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct TypeArgs {
     data: SmallVec<[TypeId; 6]>,
 }
 
 impl TypeArgs {
-    pub fn iter(&self) -> impl Iterator<Item=TypeId> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = TypeId> + '_ {
         self.data.iter().map(|&x| x)
     }
 }
 
+impl Extend<TypeId> for TypeArgs {
+    fn extend<T: IntoIterator<Item = TypeId>>(&mut self, iter: T) {
+        self.data.extend(iter);
+    }
+}
+
+#[derive(Debug)]
 pub struct UserType {
-    pub def: TypeDefId,
+    pub def_id: TypeDefId,
     pub args: TypeArgs,
 }
 
+#[derive(Debug)]
 pub struct FnType {
     pub args: TypeArgs,
     pub ret: TypeId,
 }
 
+#[derive(Debug)]
 pub enum TypeValue {
     Ref(RefType),
     RawRef(RawRefType),
@@ -176,13 +198,110 @@ pub enum TypeValue {
     Prim(PrimType),
 }
 
+#[derive(Default)]
 pub struct Types {
-    data: HashMap<TypeId, TypeValue>,
+    data: RefCell<HashMap<TypeId, TypeValue>>,
 }
 
 impl Types {
+    pub fn new() -> Self {
+        Self {
+            data: RefCell::new(HashMap::new()),
+        }
+    }
+
     pub fn get(&self, ty: TypeId) -> &TypeValue {
-        self.data.get(&ty).unwrap()
+        self.data.borrow().get(&ty).unwrap()
+    }
+
+    pub fn create(&self, value: TypeValue) -> TypeId {
+        let id = TypeId::new();
+        self.data.borrow_mut().insert(id, value);
+        id
+    }
+
+    pub fn unify(&self, a: TypeId, b: TypeId) -> TypecheckResult<(TypeId, Substitutions)> {
+        let ty_a = self.get(a);
+        let ty_b = self.get(b);
+
+        // @@TODO: Figure out covariance, contravariance, and invariance rules.
+
+        use TypeValue::*;
+        match (ty_a, ty_b) {
+            (Ref(ref_a), Ref(ref_b)) => self.unify(ref_a.id, ref_b.id),
+            (RawRef(raw_a), RawRef(raw_b)) => self.unify(raw_a.id, raw_b.id),
+            (Fn(fn_a), Fn(fn_b)) => {
+                let (unified_args, args_sub) =
+                    self.unify_pairs::<TypeArgs, _, _>(fn_a.args.iter().zip(fn_b.args.iter()))?;
+                // Maybe this should be flipped (see variance comment above)
+                let (unified_ret, ret_sub) = self.unify(fn_a.ret, fn_b.ret)?;
+
+                let mut merged_sub = args_sub;
+                merged_sub.update(self, &ret_sub);
+
+                let unified_ty_id = self.create(Fn(FnType {
+                    args: unified_args,
+                    ret: unified_ret,
+                }));
+
+                Ok((unified_ty_id, merged_sub))
+            }
+            (GenVar(gen_a), GenVar(gen_b)) => {
+                // Ensure that trait bounds are compatible
+                // Copy over each bound (?)
+                // Substitute. (?)
+                todo!()
+            }
+            (GenVar(gen_a), _) => {
+                // @@TODO: Ensure that trait bounds are compatible
+
+                Ok((b, Substitutions::single(gen_a.id, b)))
+            }
+            (_, GenVar(gen_b)) => {
+                // @@TODO: Ensure that trait bounds are compatible
+
+                Ok((a, Substitutions::single(gen_b.id, a)))
+            }
+            (Var(var_a), Var(var_b)) if var_a == var_b => Ok((a, Substitutions::empty())),
+            (User(user_a), User(user_b)) if user_a.def_id == user_b.def_id => {
+                // Unify type arguments.
+                let (unified_args, sub) = self
+                    .unify_pairs::<TypeArgs, _, _>((user_a.args.iter()).zip(user_b.args.iter()))?;
+
+                let unified_ty_id = self.create(User(UserType {
+                    def_id: user_a.def_id,
+                    args: unified_args,
+                }));
+
+                Ok((unified_ty_id, sub))
+            }
+            (Prim(prim_a), Prim(prim_b)) if prim_a == prim_b => Ok((a, Substitutions::empty())),
+            _ => Err(TypecheckError::TypeMismatch(a, b)),
+        }
+    }
+
+    pub fn unify_pairs<'ctx, C, P, T>(&self, pairs: P) -> TypecheckResult<(C, Substitutions)>
+    where
+        C: Default + Extend<TypeId>,
+        P: Iterator<Item = (T, T)>,
+        T: Borrow<TypeId>,
+    {
+        let mut acc_sub = Substitutions::empty();
+        let mut type_ids = C::default();
+
+        let size_hint = pairs.size_hint();
+        type_ids.extend_reserve(size_hint.1.unwrap_or(size_hint.0));
+
+        for (a, b) in pairs {
+            let a_ty = *a.borrow();
+            let b_ty = *b.borrow();
+            let (ty, sub) = self.unify(a_ty, b_ty)?;
+
+            type_ids.extend_one(ty);
+            acc_sub.update(self, &sub);
+        }
+
+        Ok((type_ids, acc_sub))
     }
 }
 
@@ -202,12 +321,12 @@ pub struct TypecheckState {
     pub current_module: ModuleIdx,
 }
 
-pub struct TypecheckCtx<'m> {
+pub struct TypecheckCtx<'c, 'm> {
     pub types: Types,
     pub type_defs: TypeDefs,
     pub traits: Traits,
     pub state: TypecheckState,
-    pub modules: &'m Modules,
+    pub modules: &'m Modules<'c>,
 }
 
 pub enum TypecheckError {
