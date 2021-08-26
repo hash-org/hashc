@@ -11,28 +11,6 @@ use hash_ast::{
 use hash_utils::counter;
 use smallvec::SmallVec;
 
-//
-// struct str = { contents: [u8] }
-//
-// trait size = <T> => (T) => usize;
-//
-// struct ArrayData = <T> => {
-//     data: &raw T,
-//     len: usize,
-//     capacity: usize,
-// }
-//
-// let drop<ArrayData<T>> = (array: ArrayData<T>) => {
-//     free(array.data);
-// };
-//
-// struct Array = <T> => {
-//     data: &ArrayData<T>,
-// }
-//
-//
-//
-
 pub struct Trait {
     id: TraitId,
 }
@@ -95,6 +73,12 @@ pub struct TypeDefs {
     data: HashMap<TypeDefId, TypeDefValue>,
 }
 
+impl TypeDefs {
+    pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue {
+        self.data.get(&ty_def).unwrap()
+    }
+}
+
 pub enum TypeDefValue {
     Enum(EnumDef),
     Struct(StructDef),
@@ -154,11 +138,11 @@ pub struct TypeVar {
 }
 
 pub struct RefType {
-    pub inner: TypeId,
+    pub id: TypeId,
 }
 
 pub struct RawRefType {
-    pub inner: TypeId,
+    pub id: TypeId,
 }
 
 #[derive(Debug, Eq, PartialEq)]
