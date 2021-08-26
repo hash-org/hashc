@@ -435,6 +435,7 @@ dependencies = [
 name = "hash-typechecker"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "hash-ast",
  "hash-utils",
  "smallvec",

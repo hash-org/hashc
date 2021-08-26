@@ -1,8 +1,15 @@
-use std::{borrow::Borrow, collections::HashMap};
+use std::{
+    borrow::Borrow,
+    collections::HashMap,
+    iter::{self, FromIterator},
+};
 
 use hash_ast::ast::TypeId;
+use smallvec::SmallVec;
 
-use crate::types::{GenTypeVarId, TypeValue, TypecheckCtx, TypecheckError, TypecheckResult};
+use crate::types::{
+    GenTypeVarId, TypeValue, TypecheckCtx, TypecheckError, TypecheckResult, Types,
+};
 
 pub struct Substitutions {
     data: HashMap<GenTypeVarId, TypeId>,
@@ -15,15 +22,21 @@ impl Substitutions {
         }
     }
 
+    pub fn single(from: GenTypeVarId, to: TypeId) -> Self {
+        Self {
+            data: HashMap::from_iter(iter::once((from, to))),
+        }
+    }
+
     pub fn try_merge(
-        ctx: &TypecheckCtx,
+        types: &Types,
         mut subs: impl Iterator<Item = TypecheckResult<Substitutions>>,
     ) -> TypecheckResult<Substitutions> {
         match subs.next() {
             Some(accumulating_sub) => {
                 let mut accumulating_sub = accumulating_sub?;
                 for sub in subs {
-                    accumulating_sub.update(ctx, &sub?);
+                    accumulating_sub.update(types, &sub?);
                 }
 
                 Ok(accumulating_sub)
@@ -33,14 +46,11 @@ impl Substitutions {
         }
     }
 
-    pub fn merge(
-        ctx: &TypecheckCtx,
-        mut subs: impl Iterator<Item = Substitutions>,
-    ) -> Substitutions {
+    pub fn merge(types: &Types, mut subs: impl Iterator<Item = Substitutions>) -> Substitutions {
         match subs.next() {
             Some(mut accumulating_sub) => {
                 for sub in subs {
-                    accumulating_sub.update(ctx, &sub);
+                    accumulating_sub.update(types, &sub);
                 }
 
                 accumulating_sub
@@ -50,10 +60,10 @@ impl Substitutions {
         }
     }
 
-    pub fn update(&mut self, ctx: &TypecheckCtx, other: &Substitutions) {
+    pub fn update(&mut self, types: &Types, other: &Substitutions) {
         // Update current values with substitutions.
         for v in self.data.values_mut() {
-            if let TypeValue::GenVar(gen_var) = ctx.types.get(*v) {
+            if let TypeValue::GenVar(gen_var) = *types.get(*v) {
                 if let Some(resolved_type_id) = other.data.get(&gen_var.id) {
                     *v = *resolved_type_id;
                 }
@@ -100,34 +110,16 @@ pub fn unify(
             todo!()
         }
         (Var(var_a), Var(var_b)) if var_a == var_b => Ok((a, Substitutions::empty())),
-        (User(user_a), User(user_b)) if user_a.def == user_b.def => {
+        (User(user_a), User(user_b)) if user_a.def_id == user_b.def_id => {
             // Unify type arguments.
-            let sub = unify_pairs_and_merge_subs(ctx, (user_a.args.iter()).zip(user_b.args.iter()))?;
+            let (ty, sub) = unify_pairs::<SmallVec<[TypeId; 6]>, _, _>(
+                ctx,
+                (user_a.args.iter()).zip(user_b.args.iter()),
+            )?;
+
             Ok((a, sub))
         }
         (Prim(prim_a), Prim(prim_b)) if prim_a == prim_b => Ok((a, Substitutions::empty())),
         _ => Err(TypecheckError::TypeMismatch(a, b)),
     }
-}
-
-pub fn unify_pairs<'ctx>(
-    ctx: &'ctx TypecheckCtx,
-    pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)> + 'ctx,
-) -> impl Iterator<Item = TypecheckResult<(TypeId, Substitutions)>> + 'ctx {
-    pairs.map(move |(ty_a, ty_b)| unify(ctx, *ty_a.borrow(), *ty_b.borrow()))
-}
-
-pub fn unify_pairs_and_merge_subs<'ctx, Collection: Default + Extend<TypeId>>(
-    ctx: &TypecheckCtx,
-    pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
-) -> TypecheckResult<(Collection, Substitutions)> {
-    let type_ids = Collection::default();
-    type_ids.extend_reserve(pairs.size_hint());
-
-    let (type_ids, substitutions) = unify_pairs(ctx, pairs).fold((Collection::default(), Substitutions::empty()), |(mut type_ids, mut subs), mut x| {
-        type_ids.extend_reserve()
-        (type_ids.extend, x)
-    }).try_unzip();
-
-    Substitutions::merge(substitutions.)
 }
