@@ -1,18 +1,23 @@
 #![allow(dead_code)]
 
 use core::fmt;
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, ops::Deref};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::{Cell, Ref, RefCell, RefMut},
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 use dashmap::DashMap;
+use hash_alloc::{brick::Brick, Wall};
 use hash_ast::{
     ast::TypeId,
     ident::Identifier,
     module::{ModuleIdx, Modules},
 };
 use hash_utils::counter;
+use smallvec::smallvec;
 use smallvec::SmallVec;
-
-use crate::unify::Substitutions;
 
 #[derive(Debug)]
 pub struct Trait {
@@ -150,30 +155,15 @@ pub struct TypeVar {
 
 #[derive(Debug)]
 pub struct RefType {
-    pub id: TypeId,
+    pub inner: TypeId,
 }
 
 #[derive(Debug)]
 pub struct RawRefType {
-    pub id: TypeId,
+    pub inner: TypeId,
 }
 
-#[derive(Debug, Eq, PartialEq, Default)]
-pub struct TypeArgs {
-    data: SmallVec<[TypeId; 6]>,
-}
-
-impl TypeArgs {
-    pub fn iter(&self) -> impl Iterator<Item = TypeId> + '_ {
-        self.data.iter().map(|&x| x)
-    }
-}
-
-impl Extend<TypeId> for TypeArgs {
-    fn extend<T: IntoIterator<Item = TypeId>>(&mut self, iter: T) {
-        self.data.extend(iter);
-    }
-}
+pub type TypeArgs = SmallVec<[TypeId; 6]>;
 
 #[derive(Debug)]
 pub struct UserType {
@@ -188,120 +178,131 @@ pub struct FnType {
 }
 
 #[derive(Debug)]
+pub struct NamespaceType {
+    pub module_idx: ModuleIdx,
+}
+
+#[derive(Debug)]
 pub enum TypeValue {
     Ref(RefType),
     RawRef(RawRefType),
     Fn(FnType),
-    GenVar(GenTypeVar),
     Var(TypeVar),
     User(UserType),
     Prim(PrimType),
+    Unknown,
+    Namespace(NamespaceType),
 }
 
-#[derive(Default)]
-pub struct Types {
-    data: RefCell<HashMap<TypeId, TypeValue>>,
+pub struct Types<'c> {
+    wall: Wall<'c>,
+    data: HashMap<TypeId, Cell<&'c TypeValue>>,
 }
 
-impl Types {
-    pub fn new() -> Self {
+impl<'c> Types<'c> {
+    pub fn new(wall: Wall<'c>) -> Self {
         Self {
-            data: RefCell::new(HashMap::new()),
+            wall,
+            data: HashMap::new(),
         }
     }
 
-    pub fn get(&self, ty: TypeId) -> &TypeValue {
-        self.data.borrow().get(&ty).unwrap()
+    pub fn get(&self, ty: TypeId) -> &'c TypeValue {
+        self.data.get(&ty).unwrap().get()
     }
 
-    pub fn create(&self, value: TypeValue) -> TypeId {
+    pub fn set(&self, target: TypeId, source: TypeId) {
+        if target == source {
+            return;
+        }
+        let other_val = self.data.get(&source).unwrap().get();
+        self.data.get(&target).unwrap().set(other_val);
+    }
+
+    pub fn create(&mut self, value: TypeValue) -> TypeId {
         let id = TypeId::new();
-        self.data.borrow_mut().insert(id, value);
+        self.data
+            .borrow_mut()
+            .insert(id, Cell::new(Brick::new(value, &self.wall).disown()));
         id
     }
 
-    pub fn unify(&self, a: TypeId, b: TypeId) -> TypecheckResult<(TypeId, Substitutions)> {
-        let ty_a = self.get(a);
-        let ty_b = self.get(b);
+    pub fn unify(&mut self, target: TypeId, source: TypeId) -> TypecheckResult<()> {
+        // Already the same type
+        if target == source {
+            return Ok(());
+        }
 
         // @@TODO: Figure out covariance, contravariance, and invariance rules.
+        let target_ty = self.get(target);
+        let source_ty = self.get(source);
 
         use TypeValue::*;
-        match (ty_a, ty_b) {
-            (Ref(ref_a), Ref(ref_b)) => self.unify(ref_a.id, ref_b.id),
-            (RawRef(raw_a), RawRef(raw_b)) => self.unify(raw_a.id, raw_b.id),
-            (Fn(fn_a), Fn(fn_b)) => {
-                let (unified_args, args_sub) =
-                    self.unify_pairs::<TypeArgs, _, _>(fn_a.args.iter().zip(fn_b.args.iter()))?;
+        match (&*target_ty, &*source_ty) {
+            (Ref(ref_target), Ref(ref_source)) => {
+                self.unify(ref_target.inner, ref_source.inner)?;
+            }
+            (RawRef(raw_target), RawRef(raw_source)) => {
+                self.unify(raw_target.inner, raw_source.inner)?;
+            }
+            (Fn(fn_target), Fn(fn_source)) => {
+                self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()))?;
                 // Maybe this should be flipped (see variance comment above)
-                let (unified_ret, ret_sub) = self.unify(fn_a.ret, fn_b.ret)?;
+                self.unify(fn_target.ret, fn_source.ret)?;
 
-                let mut merged_sub = args_sub;
-                merged_sub.update(self, &ret_sub);
+                // let merged_sub = args_sub.merge(self, &ret_sub);
 
-                let unified_ty_id = self.create(Fn(FnType {
-                    args: unified_args,
-                    ret: unified_ret,
-                }));
-
-                Ok((unified_ty_id, merged_sub))
+                // let unified_ty = Fn(FnType {
+                //     args: unified_args,
+                //     ret: Box::new(unified_ret),
+                // });
             }
-            (GenVar(gen_a), GenVar(gen_b)) => {
-                // Ensure that trait bounds are compatible
-                // Copy over each bound (?)
-                // Substitute. (?)
-                todo!()
-            }
-            (GenVar(gen_a), _) => {
+            (Unknown, Unknown) => {
                 // @@TODO: Ensure that trait bounds are compatible
-
-                Ok((b, Substitutions::single(gen_a.id, b)))
             }
-            (_, GenVar(gen_b)) => {
+            (Unknown, _) => {
                 // @@TODO: Ensure that trait bounds are compatible
-
-                Ok((a, Substitutions::single(gen_b.id, a)))
+                self.set(target, source);
             }
-            (Var(var_a), Var(var_b)) if var_a == var_b => Ok((a, Substitutions::empty())),
-            (User(user_a), User(user_b)) if user_a.def_id == user_b.def_id => {
+            (_, Unknown) => {
+                // @@TODO: Ensure that trait bounds are compatible
+                self.set(source, target);
+            }
+            (Var(var_target), Var(var_source)) if var_target == var_source => {}
+            (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
+                // Make sure we got same number of type arguments
+                assert_eq!(user_target.args.len(), user_source.args.len());
+
                 // Unify type arguments.
-                let (unified_args, sub) = self
-                    .unify_pairs::<TypeArgs, _, _>((user_a.args.iter()).zip(user_b.args.iter()))?;
+                self.unify_pairs((user_target.args.iter()).zip(user_source.args.iter()))?;
 
-                let unified_ty_id = self.create(User(UserType {
-                    def_id: user_a.def_id,
-                    args: unified_args,
-                }));
-
-                Ok((unified_ty_id, sub))
+                // let unified_ty_id = self.create(User(UserType {
+                //     def_id: user_target.def_id,
+                //     args: unified_args,
+                // }));
             }
-            (Prim(prim_a), Prim(prim_b)) if prim_a == prim_b => Ok((a, Substitutions::empty())),
-            _ => Err(TypecheckError::TypeMismatch(a, b)),
+            (Prim(prim_target), Prim(prim_source)) if prim_target == prim_source => {}
+            (Namespace(ns_target), Namespace(ns_source))
+                if ns_target.module_idx == ns_source.module_idx => {}
+            _ => {
+                return Err(TypecheckError::TypeMismatch(target, source));
+            }
         }
+
+        Ok(())
     }
 
-    pub fn unify_pairs<'ctx, C, P, T>(&self, pairs: P) -> TypecheckResult<(C, Substitutions)>
-    where
-        C: Default + Extend<TypeId>,
-        P: Iterator<Item = (T, T)>,
-        T: Borrow<TypeId>,
-    {
-        let mut acc_sub = Substitutions::empty();
-        let mut type_ids = C::default();
-
-        let size_hint = pairs.size_hint();
-        type_ids.extend_reserve(size_hint.1.unwrap_or(size_hint.0));
-
+    pub fn unify_pairs(
+        &mut self,
+        pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
+    ) -> TypecheckResult<()> {
         for (a, b) in pairs {
             let a_ty = *a.borrow();
             let b_ty = *b.borrow();
-            let (ty, sub) = self.unify(a_ty, b_ty)?;
-
-            type_ids.extend_one(ty);
-            acc_sub.update(self, &sub);
+            self.unify(a_ty, b_ty)?;
         }
 
-        Ok((type_ids, acc_sub))
+        Ok(())
     }
 }
 
@@ -322,13 +323,14 @@ pub struct TypecheckState {
 }
 
 pub struct TypecheckCtx<'c, 'm> {
-    pub types: Types,
+    pub types: Types<'c>,
     pub type_defs: TypeDefs,
     pub traits: Traits,
     pub state: TypecheckState,
     pub modules: &'m Modules<'c>,
 }
 
+#[derive(Debug)]
 pub enum TypecheckError {
     TypeMismatch(TypeId, TypeId),
 }
@@ -337,10 +339,39 @@ pub type TypecheckResult<T> = Result<T, TypecheckError>;
 
 #[cfg(test)]
 mod tests {
+    use hash_alloc::Castle;
+
     use super::*;
 
     #[test]
     fn type_size() {
-        println!("{:?}", std::mem::size_of::<TypeValue>());
+        let castle = Castle::new();
+        let wall = castle.wall();
+        let mut types = Types::new(wall);
+
+        let char = types.create(TypeValue::Prim(PrimType::Char));
+        let int = types.create(TypeValue::Prim(PrimType::I32));
+        let unknown = types.create(TypeValue::Unknown);
+
+        let fn1 = types.create(TypeValue::Fn(FnType {
+            args: smallvec![unknown],
+            ret: int,
+        }));
+        let fn2 = types.create(TypeValue::Fn(FnType {
+            args: smallvec![char],
+            ret: int,
+        }));
+
+        let unify_res = types.unify(fn1, fn2);
+
+        println!("{:?}", unify_res);
+
+        match types.get(fn1) {
+            TypeValue::Fn(FnType { args, ret }) => {
+                println!("args of fn1: {:?}", args.iter().map(|&a| types.get(a)).collect::<Vec<_>>());
+                println!("ret of fn1: {:?}", types.get(*ret));
+            }
+            _ => {}
+        }
     }
 }
