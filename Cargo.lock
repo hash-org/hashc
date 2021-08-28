@@ -432,10 +432,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-typechecker"
+name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
  "dashmap",
+ "hash-alloc",
  "hash-ast",
  "hash-utils",
  "smallvec",
