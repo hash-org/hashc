@@ -46,6 +46,10 @@ impl<'c> Token<'c> {
         matches!(self.kind, TokenKind::Tree(Delimiter::Brace, _))
     }
 
+    pub fn is_paren_tree(&self) -> bool {
+        matches!(self.kind, TokenKind::Tree(Delimiter::Brace, _))
+    }
+
     pub fn clone_in(&self, wall: &Wall<'c>) -> Self {
         Token {
             kind: self.kind.clone_in(wall),

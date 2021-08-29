@@ -189,6 +189,22 @@ where
         }
     }
 
+    /// Create a generalised "Reached end of file..." error.
+    pub(crate) fn unexpected_eof(&self) -> ParseError {
+        ParseError::Parsing {
+            message: "Unexpectedly reached the end of file.".to_string(),
+            src: self.source_location(&self.current_location()),
+        }
+    }
+
+    /// Create a generalised "Reached end of file..." error.
+    pub(crate) fn unexpected_eof_with_ctx(&self, ctx: &str) -> ParseError {
+        ParseError::Parsing {
+            message: format!("{}: but unexpectedly reached the end of file.", ctx),
+            src: self.source_location(&self.current_location()),
+        }
+    }
+
     pub(crate) fn make_ident(
         &self,
         name: &str,
@@ -206,6 +222,19 @@ where
             })),
             *location,
             &self.wall,
+        )
+    }
+
+    pub(crate) fn make_access_name(
+        &self,
+        name: Identifier,
+        location: Location,
+    ) -> AstNode<'c, AccessName<'c>> {
+        self.node_with_location(
+            AccessName {
+                path: row![&self.wall; name],
+            },
+            location,
         )
     }
 
@@ -341,11 +370,7 @@ where
                         ),
                         src: self.source_location(&self.current_location()),
                     }),
-                    None => Err(ParseError::Parsing {
-                        message: "Expecting ';' ending a statement, but reached the end of file."
-                            .to_string(),
-                        src: self.source_location(&self.current_location()),
-                    }),
+                    None => Err(self.unexpected_eof_with_ctx("Expecting ';' ending a statement.")),
                 }
             }
             Some(_) => {
@@ -365,11 +390,7 @@ where
                         ),
                         src: self.source_location(&self.current_location()),
                     }),
-                    None => Err(ParseError::Parsing {
-                        message: "Expecting ';' ending a statement, but reached the end of file."
-                            .to_string(),
-                        src: self.source_location(&self.current_location()),
-                    }),
+                    None => Err(self.unexpected_eof_with_ctx("Expecting ';' ending a statement")),
                 }
             }
             _ => Err(ParseError::Parsing {
@@ -403,12 +424,27 @@ where
             .has_atom(TokenAtom::Keyword(Keyword::Trait)));
 
         let name = self.parse_ident()?;
+
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Eq))?;
         let bound = self.parse_type_bound()?;
 
         // the next token should be a TokenTree delimited with a
         self.parse_arrow()?;
 
-        todo!()
+        let trait_type = self.parse_fn_type()?;
+
+        // @@Incomplete: we might want to have some kind of stacked errors to give more context rather
+        //               than bubling up from the simplest parsing functions to functions like these...
+        // .ok_or_else(|| ParseError::Parsing {
+        //     message: "Expected trait type here.".to_string(),
+        //     src: self.source_location(&self.current_location()),
+        // })?;
+
+        Ok(TraitDef {
+            name,
+            bound,
+            trait_type,
+        })
     }
 
     pub fn parse_struct_defn(&self) -> ParseResult<StructDef<'c>> {
@@ -520,7 +556,42 @@ where
         let trait_bounds = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Where)) => {
                 self.next_token();
-                todo!()
+
+                let mut trait_bounds = row![&self.wall;];
+
+                loop {
+                    match self.peek() {
+                        Some(Token {
+                            kind: TokenKind::Atom(TokenAtom::Ident(ident)),
+                            span: _,
+                        }) => {
+                            self.next_token();
+
+                            let bound_start = self.current_location();
+                            let (name, type_args) = self.parse_trait_bound(ident)?;
+
+                            trait_bounds.push(
+                                self.node_from_joined_location(
+                                    TraitBound { name, type_args },
+                                    &bound_start,
+                                ),
+                                &self.wall,
+                            );
+
+                            // ensure that the bound is followed by a comma, if not then break...
+                            match self.peek() {
+                                Some(token) if token.has_atom(TokenAtom::Comma) => {
+                                    self.next_token();
+                                }
+                                _ => break,
+                            }
+                        }
+                        None => return Err(self.unexpected_eof()),
+                        _ => break,
+                    }
+                }
+
+                trait_bounds
             }
             _ => row![&self.wall;],
         };
@@ -1063,7 +1134,7 @@ where
                 src: self.source_location(&token.span),
             }),
             _ => Err(ParseError::Parsing {
-                message: "Unexpected end of input".to_string(),
+                message: format!("Expected a '{}', but reached end of input", kind),
                 src: self.source_location(&self.current_location()),
             }),
         }
@@ -1229,6 +1300,26 @@ where
         };
 
         Ok(self.node_from_joined_location(Expression::new(expr_kind), &start))
+    }
+
+    pub fn parse_trait_bound(
+        &self,
+        ident: &Identifier,
+    ) -> ParseResult<(AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
+        let name = self.parse_access_name(ident)?;
+
+        let args_location = self.current_location();
+        let args = self.parse_type_args()?;
+
+        // re-map the error specifing that we expected type arguments here...
+        if args.is_none() {
+            return Err(ParseError::Parsing {
+                message: "Expected type arguments after identifier.".to_string(),
+                src: self.source_location(&args_location),
+            });
+        }
+
+        Ok((name, args.unwrap()))
     }
 
     pub fn parse_name_with_type_args(
@@ -1429,6 +1520,70 @@ where
         }
 
         Ok(Some(type_args))
+    }
+
+    /// Parses a function type which involves a parenthesis token tree with some arbitrary
+    /// number of comma separated types followed by a return type that is preceeded by an
+    /// arrow after the parenthesees.
+    ///
+    ///  (e.g. (i32) => str)
+    ///
+    pub fn parse_fn_type(&self) -> ParseResult<AstNode<'c, Type<'c>>> {
+        let start = self.current_location();
+
+        // handle the function arguments first by checking for parenthesees
+        let mut type_args = match self.peek() {
+            Some(Token { kind: TokenKind::Tree(_, tree), span}) => {
+                self.next_token();
+
+                // @@Performance: unnecessary copy
+                let gen = self.from_stream(
+                    Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
+                    *span,
+                );
+
+                let mut type_args = row![&self.wall; ];
+
+                while gen.has_token() {
+                    match gen.peek_fn(|| gen.parse_type())? {
+                        Some(t) => {
+                            type_args.push(t, &self.wall);
+
+                            // If we reach the end of the parenthesis don't try to parse the comma...
+                            if gen.has_token() {
+                                gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+                            }
+                        }
+                        None => break,
+                    }
+                };
+
+                type_args
+            }
+            Some(token) => return Err(self.unexpected_token_error(&token.kind, &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, false))]), &self.current_location())) ,
+            None => return Err(self.unexpected_eof())
+        };
+
+        self.parse_arrow()?;
+
+        // push the return type to the type_args of the Fn type...
+        let return_ty = self.parse_type()?.ok_or_else(|| ParseError::Parsing {
+            message: "Expected return type within a function type.".to_string(),
+            src: self.source_location(&self.current_location()),
+        })?;
+
+        type_args.push(return_ty, &self.wall);
+
+        // @@Incomplete: inline type names into ident map...
+        let name = IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME);
+
+        Ok(self.node_from_joined_location(
+            Type::Named(NamedType {
+                name: self.make_access_name(name, start),
+                type_args,
+            }),
+            &start,
+        ))
     }
 
     /// Function to parse a type
