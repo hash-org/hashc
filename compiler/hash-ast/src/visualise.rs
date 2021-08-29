@@ -177,7 +177,7 @@ impl NodeDisplay for Type<'_> {
             }
             Type::Ref(ref_ty) => child_branch(&ref_ty.node_display()),
             Type::RawRef(ref_ty) => child_branch(&ref_ty.node_display()),
-            Type::TypeVar(var) => child_branch(&[format!("var \"{}\"", var.name)]),
+            Type::TypeVar(var) => child_branch(&[format!("var {}", var.name)]),
             Type::Existential => child_branch(&["existential".to_string()]),
             Type::Infer => child_branch(&["infer".to_string()]),
         };

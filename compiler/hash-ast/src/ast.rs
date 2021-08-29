@@ -132,6 +132,14 @@ pub struct TypeVar<'c> {
     pub name: AstNode<'c, Name>,
 }
 
+/// Names for compound types that represent data structures or functions are
+/// translated into string form, and thus are represented by these names.
+pub const FUNCTION_TYPE_NAME: &str = "Function";
+pub const TUPLE_TYPE_NAME: &str = "Tuple";
+pub const LIST_TYPE_NAME: &str = "List";
+pub const SET_TYPE_NAME: &str = "Set";
+pub const MAP_TYPE_NAME: &str = "Map";
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
@@ -534,7 +542,7 @@ pub struct FunctionCallExpr<'c> {
     pub args: AstNode<'c, FunctionCallArgs<'c>>,
 }
 
-/// A property access exprssion.
+/// A property access expression.
 #[derive(Debug, PartialEq)]
 pub struct PropertyAccessExpr<'c> {
     /// An expression which evaluates to a struct or tuple value.

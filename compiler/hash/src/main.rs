@@ -158,7 +158,7 @@ fn main() {
                 // If we're using pest as a parsing backend, enable it via flags...
                 #[cfg(feature = "use-pest")]
                 let result = run_parsing(
-                    ParParser::new_with_workers(PestBackend, worker_count),
+                    ParParser::new_with_workers(PestBackend::new(&castle), worker_count),
                     filename,
                     directory,
                 );

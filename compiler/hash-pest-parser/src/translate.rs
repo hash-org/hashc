@@ -21,12 +21,6 @@ use hash_ast::{
 };
 use iter::once;
 
-const FUNCTION_TYPE_NAME: &str = "Function";
-const TUPLE_TYPE_NAME: &str = "Tuple";
-const LIST_TYPE_NAME: &str = "List";
-const SET_TYPE_NAME: &str = "Set";
-const MAP_TYPE_NAME: &str = "Map";
-
 /// A wrapper around AstNode to build [AstNode]s with the same information as the builder
 /// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
