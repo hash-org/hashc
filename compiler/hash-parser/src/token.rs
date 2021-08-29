@@ -124,8 +124,8 @@ impl Delimiter {
     }
 }
 
-/// An Atom represents all variants of a token that can be present in a source file. Must of the
-/// kinds only represen a single character, but some tokens account for an entire literal or an identifier.
+/// An Atom represents all variants of a token that can be present in a source file. Atom token
+/// kinds can represent a single character, literal or an identifier.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenAtom {
     /// '='
@@ -294,7 +294,7 @@ impl fmt::Display for TokenKindVector<'_> {
 pub enum TokenKind<'c> {
     Atom(TokenAtom),
 
-    /// A token tree is represnted by an arbitrary number of tokens that are surrounded by
+    /// A token tree is represented by an arbitrary number of tokens that are surrounded by
     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
     Tree(Delimiter, Row<'c, Token<'c>>),
 }
@@ -312,8 +312,8 @@ impl<'c> TokenKind<'c> {
     pub(crate) fn clone_in(&self, wall: &Wall<'c>) -> Self {
         match self {
             TokenKind::Atom(atom) => TokenKind::Atom(*atom),
-            TokenKind::Tree(delimeter, tokens) => TokenKind::Tree(
-                *delimeter,
+            TokenKind::Tree(delimiter, tokens) => TokenKind::Tree(
+                *delimiter,
                 Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
             ),
         }

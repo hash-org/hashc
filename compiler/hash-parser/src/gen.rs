@@ -398,19 +398,140 @@ where
     }
 
     pub fn parse_trait_defn(&self) -> ParseResult<TraitDef<'c>> {
+        debug_assert!(self
+            .current_token()
+            .has_atom(TokenAtom::Keyword(Keyword::Trait)));
+
+        let name = self.parse_ident()?;
+        let bound = self.parse_type_bound()?;
+
+        // the next token should be a TokenTree delimited with a
+        self.parse_arrow()?;
+
         todo!()
     }
 
     pub fn parse_struct_defn(&self) -> ParseResult<StructDef<'c>> {
-        todo!()
+        debug_assert!(self
+            .current_token()
+            .has_atom(TokenAtom::Keyword(Keyword::Struct)));
+
+        let name = self.parse_ident()?;
+
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Eq))?;
+
+        let (bound, entries) = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Lt) => {
+                let bound = Some(self.parse_type_bound()?);
+                self.parse_arrow()?;
+
+                let entries = self.parse_struct_def_entries()?;
+
+                (bound, entries)
+            }
+
+            Some(token) if token.is_brace_tree() => {
+                self.next_token();
+                let entries = self.parse_struct_def_entries()?;
+
+                (None, entries)
+            }
+            _ => {
+                return Err(ParseError::Parsing {
+                    message: "Expected struct type args or struct definition entries here"
+                        .to_string(),
+                    src: self.source_location(&self.current_location()),
+                })
+            }
+        };
+
+        Ok(StructDef {
+            name,
+            bound,
+            entries,
+        })
     }
 
     pub fn parse_enum_defn(&self) -> ParseResult<EnumDef<'c>> {
+        debug_assert!(self
+            .current_token()
+            .has_atom(TokenAtom::Keyword(Keyword::Enum)));
+
+        let name = self.parse_ident()?;
+
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Eq))?;
+
+        // now parse the optional type bound and the enum definition entries, if a type bound is
+        // spe
+        let (bound, entries) = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Lt) => {
+                let bound = Some(self.parse_type_bound()?);
+                self.parse_arrow()?;
+
+                self.next_token(); // @@Temp
+                let entries = self.parse_enum_def_entries()?;
+
+                (bound, entries)
+            }
+
+            Some(token) if token.is_brace_tree() => {
+                self.next_token();
+                let entries = self.parse_enum_def_entries()?;
+
+                (None, entries)
+            }
+            _ => {
+                return Err(ParseError::Parsing {
+                    message: "Expected struct type args or struct definition entries here"
+                        .to_string(),
+                    src: self.source_location(&self.current_location()),
+                })
+            }
+        };
+
+        Ok(EnumDef {
+            name,
+            bound,
+            entries,
+        })
+    }
+
+    pub fn parse_enum_def_entries(&self) -> ParseResult<AstNodes<'c, EnumDefEntry<'c>>> {
+        todo!()
+    }
+
+    pub fn parse_struct_def_entries(&self) -> ParseResult<AstNodes<'c, StructDefEntry<'c>>> {
         todo!()
     }
 
     pub fn parse_type_bound(&self) -> ParseResult<AstNode<'c, Bound<'c>>> {
-        todo!()
+        let start = self.current_location();
+        let type_args = self.parse_type_args()?;
+
+        if type_args.is_none() {
+            return Err(ParseError::Parsing {
+                message: "Expected type arguments.".to_string(),
+                src: self.source_location(&self.current_location()),
+            });
+        }
+
+        let type_args = type_args.unwrap();
+
+        let trait_bounds = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Where)) => {
+                self.next_token();
+                todo!()
+            }
+            _ => row![&self.wall;],
+        };
+
+        Ok(self.node_from_joined_location(
+            Bound {
+                type_args,
+                trait_bounds,
+            },
+            &start,
+        ))
     }
 
     pub fn parse_for_loop(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
@@ -556,6 +677,14 @@ where
             }),
             &start,
         ))
+    }
+
+    fn parse_arrow(&self) -> ParseResult<()> {
+        // @@ TODO: map error into 'Expecting '=>' instead of just individual components.
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Eq))?;
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Gt))?;
+
+        Ok(())
     }
 
     /// This is a utility function used to prevent struct literals from being
@@ -1609,9 +1738,7 @@ where
                 TokenKind::Atom(TokenAtom::IntLiteral(num)) => Literal::Int(num),
                 TokenKind::Atom(TokenAtom::FloatLiteral(num)) => Literal::Float(num),
                 TokenKind::Atom(TokenAtom::CharLiteral(ch)) => Literal::Char(ch),
-                TokenKind::Atom(TokenAtom::StrLiteral(_str)) => {
-                    panic!("StringLiteral ids haven't been implemented yet!")
-                } //Literal::Str(str),
+                TokenKind::Atom(TokenAtom::StrLiteral(str)) => Literal::Str(str),
                 _ => unreachable!(),
             },
             token.span,

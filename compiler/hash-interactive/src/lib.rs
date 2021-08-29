@@ -93,11 +93,14 @@ fn parse_interactive<'c>(
 }
 
 #[cfg(feature = "use-pest")]
-fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+fn parse_interactive<'c>(
+    expr: &str,
+    castle: &'c Castle,
+) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(PestBackend);
+    let parser = ParParser::new(PestBackend::new(castle));
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
