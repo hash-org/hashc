@@ -190,9 +190,8 @@ where
         if expected.is_empty() {
             self.error_with_location(format!("Unexpected token '{}'", kind), location)
         } else {
-            println!("{:?}", kind);
             self.error_with_location(
-                format!("Unexpected token '{}', expecting a {}", kind, expected),
+                format!("Unexpected token '{}', expecting a '{}'", kind, expected),
                 location,
             )
         }
@@ -432,10 +431,7 @@ where
                     None => self.unexpected_eof_with_ctx("Expecting ';' ending a statement")?,
                 }
             }
-            _ => Err(ParseError::Parsing {
-                message: "Expected statement".to_string(),
-                src: self.source_location(&self.current_location()),
-            }),
+            _ => self.error("Expected statement.")?,
         }
     }
 
@@ -499,7 +495,6 @@ where
             Some(token) if token.has_atom(TokenAtom::Lt) => {
                 let bound = Some(self.parse_type_bound()?);
                 self.parse_arrow()?;
-
                 let entries = self.parse_struct_def_entries()?;
 
                 (bound, entries)
@@ -543,7 +538,6 @@ where
                 let bound = Some(self.parse_type_bound()?);
                 self.parse_arrow()?;
 
-                self.next_token(); // @@Temp
                 let entries = self.parse_enum_def_entries()?;
 
                 (bound, entries)
@@ -566,11 +560,126 @@ where
     }
 
     pub fn parse_enum_def_entries(&self) -> ParseResult<AstNodes<'c, EnumDefEntry<'c>>> {
-        todo!()
+        match self.peek() {
+            Some(Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree),
+                span,
+            }) => {
+                self.next_token();
+
+                let gen = self.from_stream(tree, *span);
+                let mut entries = row![&self.wall;];
+                while gen.has_token() {
+                    let defn = gen.parse_enum_def_entry()?;
+                    entries.push(defn, &self.wall);
+
+                    if gen.has_token() {
+                        gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+                    }
+                }
+
+                   // Ensure the whole generator was exhausted
+                   if gen.has_token() {
+                    gen.next_token();
+                    gen.expected_eof()?;
+                }
+
+                Ok(entries)
+            }
+            Some(token) => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, false))]),
+                &self.current_location(),
+            )?,
+            None => self.unexpected_eof(),
+        }
+    }
+
+    /// Parse an Enum definition entry.
+    pub fn parse_enum_def_entry(&self) -> ParseResult<AstNode<'c, EnumDefEntry<'c>>> {
+        let start = self.current_location();
+        let name = self.parse_ident()?;
+
+        let mut args = row![&self.wall;];
+
+        if let Some(Token {
+            kind: TokenKind::Tree(Delimiter::Paren, tree),
+            span,
+        }) = self.peek()
+        {
+            self.next_token();
+            let gen = self.from_stream(tree, *span);
+            while gen.has_token() {
+                let ty = gen.parse_type()?;
+                args.push(ty, &self.wall);
+
+                if gen.has_token() {
+                    gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+                }
+            }
+        }
+
+        Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &start))
     }
 
     pub fn parse_struct_def_entries(&self) -> ParseResult<AstNodes<'c, StructDefEntry<'c>>> {
-        todo!()
+        match self.peek() {
+            Some(Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree),
+                span,
+            }) => {
+                self.next_token();
+
+                let gen = self.from_stream(tree, *span);
+                let mut entries = row![&self.wall;];
+                while gen.has_token() {
+                    let defn = gen.parse_struct_def_entry()?;
+                    entries.push(defn, &self.wall);
+
+                    if gen.has_token() {
+                        gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+                    }
+                }
+
+                // Ensure the whole generator was exhausted
+                if gen.has_token() {
+                    gen.next_token();
+                    gen.expected_eof()?;
+                }
+
+                Ok(entries)
+            }
+            Some(token) => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, false))]),
+                &self.current_location(),
+            )?,
+            None => self.unexpected_eof(),
+        }
+    }
+
+    pub fn parse_struct_def_entry(&self) -> ParseResult<AstNode<'c, StructDefEntry<'c>>> {
+        let start = self.current_location();
+        let name = self.parse_ident()?;
+
+        let ty = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Colon) => {
+                self.next_token();
+                Some(self.parse_type()?)
+            }
+            _ => None,
+        };
+
+        let default = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Eq) => {
+                self.next_token();
+
+                Some(self.parse_expression_bp(0)?)
+            }
+            _ => None,
+        };
+
+        Ok(self.node_from_joined_location(StructDefEntry { name, ty, default }, &start))
     }
 
     pub fn parse_type_bound(&self) -> ParseResult<AstNode<'c, Bound<'c>>> {

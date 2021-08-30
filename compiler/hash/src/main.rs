@@ -76,6 +76,10 @@ struct AstGen {
     #[clap(required = true)]
     filename: String,
 
+    /// Visualise the generated AST
+    #[clap(short, long)]
+    visualise: bool,
+
     /// Run the AST generation in debug mode
     #[clap(short, long)]
     debug: bool,
@@ -86,6 +90,10 @@ struct IrGen {
     /// Input file to generate IR from
     #[clap(required = true)]
     filename: String,
+
+    /// Visualise the generated IR
+    #[clap(short, long)]
+    _visualise: bool,
 
     /// Run the IR generation in debug mode
     #[clap(short, long)]
@@ -125,50 +133,59 @@ fn main() {
         log::set_max_level(LevelFilter::Debug);
     }
 
+    // check that the job count is valid...
+    let worker_count = NonZeroUsize::new(opts.worker_count).unwrap_or_else(|| {
+        (CompilerError::ArgumentError {
+            message: "Invalid number of worker threads".to_owned(),
+        })
+        .report_and_exit()
+    });
+
     let castle = Castle::new();
 
+    // determine the parser backend that we're using...
+    #[cfg(feature = "use-pest")]
+    let mut parser_backend =
+        ParParser::new_with_workers(PestBackend::new(&castle), worker_count, false);
+
+    #[cfg(not(feature = "use-pest"))]
+    let mut parser_backend =
+        ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
+
     execute(|| {
-        // check here if we are operating in a special mode...
+        let directory = env::current_dir().unwrap();
+
+        // check here if we are operating in a special mode
         if let Some(mode) = opts.mode {
-            match mode {
-                SubCmd::AstGen(a) => {
-                    println!("Generating ast for: {} with debug={}", a.filename, a.debug)
+            let result = match mode {
+                SubCmd::AstGen(settings) => {
+                    let filename = fs::canonicalize(&settings.filename)?;
+
+                    if settings.debug {
+                        log::set_max_level(LevelFilter::Debug);
+                    }
+
+                    parser_backend.set_visualisation(settings.visualise);
+                    run_parsing(parser_backend, filename, directory)
                 }
                 SubCmd::IrGen(i) => {
-                    println!("Generating ir for: {} with debug={}", i.filename, i.debug)
+                    println!("Generating ir for: {} with debug={}", i.filename, i.debug);
+                    todo!()
                 }
+            };
+
+            if let Err(e) = result {
+                CompilerError::from(e).report_and_exit();
             }
 
             return Ok(());
         }
 
-        // check that the job count is valid...
-        let worker_count = NonZeroUsize::new(opts.worker_count).unwrap_or_else(|| {
-            (CompilerError::ArgumentError {
-                message: "Invalid number of worker threads".to_owned(),
-            })
-            .report_and_exit()
-        });
-
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-                let directory = env::current_dir().unwrap();
 
-                // If we're using pest as a parsing backend, enable it via flags...
-                #[cfg(feature = "use-pest")]
-                let result = run_parsing(
-                    ParParser::new_with_workers(PestBackend::new(&castle), worker_count),
-                    filename,
-                    directory,
-                );
-
-                #[cfg(not(feature = "use-pest"))]
-                let result = run_parsing(
-                    ParParser::new_with_workers(HashParser::new(&castle), worker_count),
-                    filename,
-                    directory,
-                );
+                let result = run_parsing(parser_backend, filename, directory);
 
                 if let Err(e) = result {
                     CompilerError::from(e).report_and_exit();

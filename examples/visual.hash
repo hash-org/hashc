@@ -1,6 +1,14 @@
-let some_var: &raw int = 3;
-// let conv<T, str> = (x) => "<unknown>";
+struct MyStruct = <T> => {
+    field: T,
+    other_field: int,
+    default_field: float = 6.0e2,
+    a_flag: bool
+};
 
-// match x {
-//     2 => k;
-// }
+enum MyEnum = <T, Y> => {
+    MyVariant(T),
+    OtherVariant(int, Y),
+    InnerVariant(MyEnum<int, str>, str),
+    PointVariant(Point<int>),
+    EmptyVariant,
+};
