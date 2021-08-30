@@ -77,7 +77,11 @@ enum EntryPoint<'a> {
 }
 
 pub struct ParParser<B> {
+    /// Number of workers the parser should use to parse a job.
     worker_count: NonZeroUsize,
+    /// Whether or not to visualise the generated AST
+    visualise: bool,
+    /// What backend to use for parsing, whether PEST or self hosted.
     backend: B,
 }
 
@@ -85,15 +89,24 @@ impl<'c, B> ParParser<B>
 where
     B: ParserBackend<'c>,
 {
-    pub fn new(backend: B) -> Self {
-        Self::new_with_workers(backend, NonZeroUsize::new(num_cpus::get()).unwrap())
+    pub fn new(backend: B, visualise: bool) -> Self {
+        Self::new_with_workers(
+            backend,
+            NonZeroUsize::new(num_cpus::get()).unwrap(),
+            visualise,
+        )
     }
 
-    pub fn new_with_workers(backend: B, worker_count: NonZeroUsize) -> Self {
+    pub fn new_with_workers(backend: B, worker_count: NonZeroUsize, visualise: bool) -> Self {
         Self {
             worker_count,
             backend,
+            visualise,
         }
+    }
+
+    pub fn set_visualisation(&mut self, visualise: bool) {
+        self.visualise = visualise;
     }
 
     fn parse_main(
@@ -101,7 +114,7 @@ where
         entry: EntryPoint,
         directory: &Path,
     ) -> ParseResult<(Option<AstNode<'c, BodyBlock<'c>>>, Modules<'c>)> {
-        // Spawn threadpool to delegate jobs to. This delegation can occur by acquiring a copy of
+        // Spawn thread pool to delegate jobs to. This delegation can occur by acquiring a copy of
         // the `scope` parameter in the pool.scope call below.
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.worker_count.get() + 1)
@@ -211,6 +224,19 @@ where
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
         let (_, modules) = self.parse_main(entry, directory)?;
+
+        // If we need to visualise the file... then do so after the parser has finished
+        // the whole tree.
+        if self.visualise {
+            for module in modules.iter() {
+                println!(
+                    "file \"{}\":\n{}",
+                    module.filename().display(),
+                    module.ast()
+                );
+            }
+        }
+
         Ok(modules)
     }
 

@@ -80,7 +80,7 @@ fn parse_interactive<'c>(
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(HashParser::new(castle));
+    let parser = ParParser::new(HashParser::new(castle), false);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
@@ -100,7 +100,7 @@ fn parse_interactive<'c>(
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(PestBackend::new(castle));
+    let parser = ParParser::new(PestBackend::new(castle), false);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
