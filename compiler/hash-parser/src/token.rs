@@ -253,17 +253,20 @@ impl<'c> TokenKindVector<'c> {
         Self(items)
     }
 
-    // @@Naming
-    pub fn expression_glue(wall: &Wall<'c>) -> Self {
-        Self(row![wall;
-            TokenKind::Atom(TokenAtom::Dot),
-            TokenKind::Atom(TokenAtom::Colon),
-            TokenKind::Atom(TokenAtom::Lt),
-            TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, true)),
-            TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, true)),
-            TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Bracket, true)),
-        ])
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
+
+    // pub fn expression_glue(wall: &Wall<'c>) -> Self {
+    //     Self(row![wall;
+    //         TokenKind::Atom(TokenAtom::Dot),
+    //         TokenKind::Atom(TokenAtom::Colon),
+    //         TokenKind::Atom(TokenAtom::Lt),
+    //         TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, true)),
+    //         TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, true)),
+    //         TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Bracket, true)),
+    //     ])
+    // }
 }
 
 /// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds
@@ -306,8 +309,8 @@ pub enum TokenKind<'c> {
 impl<'c> fmt::Display for TokenKind<'c> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TokenKind::Atom(atom) => atom.fmt(f),
-            TokenKind::Tree(_, tokens) => write!(f, "{:?}", tokens),
+            TokenKind::Atom(atom) => write!(f, "{}", atom),
+            TokenKind::Tree(_, tokens) => write!(f, "{:#?}", tokens),
         }
     }
 }
