@@ -78,7 +78,10 @@ where
         })
     }
 
-    pub fn from_stream(&self, stream: Row<'c, Token<'c>>, parent_span: Location) -> Self {
+    pub fn from_stream(&self, stream: &Row<'c, Token<'c>>, parent_span: Location) -> Self {
+        // @@Performance: don't copy the row...
+        let stream = Row::from_iter(stream.iter().map(|t| t.clone_in(&self.wall)), &self.wall);
+
         Self {
             stream,
             offset: Cell::new(0),
@@ -150,7 +153,8 @@ where
     }
 
     /// Get the current location from the current token, if there is no token at the current
-    /// offset, then the location of the last token is used,
+    /// offset, then the location of the last token is used.
+    #[inline(always)]
     pub(crate) fn current_location(&self) -> Location {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
@@ -750,10 +754,18 @@ where
         ))
     }
 
+    /// Function to parse a fat arrow component '=>' in any given context.
     fn parse_arrow(&self) -> ParseResult<()> {
-        // @@ TODO: map error into 'Expecting '=>' instead of just individual components.
-        self.parse_token_kind(TokenKind::Atom(TokenAtom::Eq))?;
-        self.parse_token_kind(TokenKind::Atom(TokenAtom::Gt))?;
+        // map error into 'Expecting '=>' instead of just individual components.
+        let err = |loc| ParseError::Parsing {
+            message: "Expected an arrow '=>' here.".to_string(),
+            src: self.source_location(&loc),
+        };
+
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Eq))
+            .map_err(|_| err(self.current_location()))?;
+        self.parse_token_kind(TokenKind::Atom(TokenAtom::Gt))
+            .map_err(|_| err(self.current_location()))?;
 
         Ok(())
     }
@@ -781,14 +793,7 @@ where
             }) => {
                 self.next_token(); // step-along since we matched a block...
 
-                (
-                    self.from_stream(
-                        // @@Performance: unnecessary copying
-                        Row::from_iter(tree.iter().map(|t| t.clone_in(&self.wall)), &self.wall),
-                        self.current_location(),
-                    ),
-                    *span,
-                )
+                (self.from_stream(tree, self.current_location()), *span)
             }
             Some(token) => {
                 return Err(ParseError::Parsing {
@@ -1045,13 +1050,12 @@ where
                 // Array index access syntax: ident[...]
                 TokenKind::Tree(Delimiter::Bracket, tree) => {
                     self.next_token();
-                    lhs_expr = self.parse_array_index(lhs_expr, tree, &self.current_location())?;
+                    lhs_expr = self.parse_array_index(lhs_expr, tree, self.current_location())?;
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree) => {
                     self.next_token();
-                    lhs_expr =
-                        self.parse_function_call(lhs_expr, tree, &self.current_location())?;
+                    lhs_expr = self.parse_function_call(lhs_expr, tree, self.current_location())?;
                 }
                 // Struct literal
                 TokenKind::Tree(Delimiter::Brace, tree) if !self.disallow_struct_literals.get() => {
@@ -1081,19 +1085,15 @@ where
     pub fn parse_function_call(
         &self,
         ident: AstNode<'c, Expression<'c>>,
-        tree: &[Token<'c>],
-        span: &Location,
+        tree: &Row<'c, Token<'c>>,
+        span: Location,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
-        // @@Performance: unnecessary copy
-        let gen = self.from_stream(
-            Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-            *span,
-        );
+        let gen = self.from_stream(tree, span);
         let mut args = AstNode::new(
             FunctionCallArgs {
                 entries: row![&self.wall],
             },
-            *span,
+            span,
             &self.wall,
         );
 
@@ -1144,14 +1144,10 @@ where
         &self,
         name: AstNode<'c, AccessName<'c>>,
         type_args: Row<'c, AstNode<'c, Type<'c>>>,
-        tree: &[Token<'c>],
+        tree: &Row<'c, Token<'c>>,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
         let start = self.current_location();
-        // @@Performance: unnecessary copy
-        let gen = self.from_stream(
-            Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-            start,
-        );
+        let gen = self.from_stream(tree, start);
 
         let mut entries = row![&self.wall];
 
@@ -1182,7 +1178,6 @@ where
         Ok(AstNode::new(
             Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
                 Literal::Struct(StructLiteral {
-                    // @@RedundantCopying @@RedundantCopying @@RedundantCopying
                     name,
                     type_args,
                     entries,
@@ -1198,15 +1193,10 @@ where
     pub fn parse_array_index(
         &self,
         ident: AstNode<'c, Expression<'c>>,
-        tree: &[Token<'c>],
-        // @@Simplify: is a ref needed, Location is copy?
-        span: &Location,
+        tree: &Row<'c, Token<'c>>,
+        span: Location,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
-        // @@Performance: unnecessary copy
-        let gen = self.from_stream(
-            Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-            *span,
-        );
+        let gen = self.from_stream(tree, span);
         let start = gen.current_location();
 
         // parse the indexing expression between the square brackets...
@@ -1536,9 +1526,8 @@ where
             Some(Token { kind: TokenKind::Tree(_, tree), span}) => {
                 self.next_token();
 
-                // @@Performance: unnecessary copy
                 let gen = self.from_stream(
-                    Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
+                    tree,
                     *span,
                 );
 
@@ -1595,7 +1584,7 @@ where
             return Ok(None);
         }
 
-        let variant = match token.unwrap().kind {
+        let variant = match &token.unwrap().kind {
             TokenKind::Atom(TokenAtom::Amp) => {
                 self.next_token();
 
@@ -1609,7 +1598,6 @@ where
                 self.next_token();
                 Type::Existential
             }
-            // @@TODO: bracketed types...
             TokenKind::Atom(TokenAtom::Ident(id)) => {
                 self.next_token();
 
@@ -1625,7 +1613,7 @@ where
 
                         match IDENTIFIER_MAP.ident_name(*ident) {
                             "_" => Type::Infer,
-                            // @@TypeArgsNaming: Here the rules are built-in for what the name of a type-arg is,
+                            // ##TypeArgsNaming: Here the rules are built-in for what the name of a type-arg is,
                             //                   a capital character of length 1...
                             ident_name => {
                                 if ident_name.len() == 1
@@ -1645,6 +1633,21 @@ where
                         }
                     }
                 }
+            }
+
+            // Map or set type
+            TokenKind::Tree(Delimiter::Brace, _tree) => {
+                todo!()
+            }
+
+            // Array type
+            TokenKind::Tree(Delimiter::Bracket, _tree) => {
+                todo!()
+            }
+
+            // Tuple or function type
+            TokenKind::Tree(Delimiter::Paren, _tree) => {
+                todo!()
             }
             _ => return Ok(None),
         };
@@ -1686,11 +1689,7 @@ where
                     // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
                     // of expressions separated by commas as arguments to the call.
 
-                    // @@Performance: unnecessary copy
-                    let gen = self.from_stream(
-                        Row::from_iter(stream.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-                        *span,
-                    );
+                    let gen = self.from_stream(stream, *span);
 
                     while gen.has_token() {
                         let arg = gen.parse_expression_bp(0);
@@ -1722,14 +1721,10 @@ where
 
     pub fn parse_block_or_braced_literal(
         &self,
-        tree: &[Token<'c>],
+        tree: &Row<'c, Token<'c>>,
         span: &Location,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
-        // @@Performance: unnecessary copy
-        let gen = self.from_stream(
-            Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-            *span,
-        );
+        let gen = self.from_stream(tree, *span);
 
         // @@Temporary: just parse a block at the moment
         let block = self.parse_block_from_gen(&gen, *span)?;
@@ -1754,14 +1749,10 @@ where
     ///
     pub fn parse_expression_or_tuple(
         &self,
-        tree: &[Token<'c>],
+        tree: &Row<'c, Token<'c>>,
         span: &Location,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
-        // @@Performance: unnecessary copy
-        let gen = self.from_stream(
-            Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-            *span,
-        );
+        let gen = self.from_stream(tree, *span);
         let start = self.current_location();
 
         match gen.peek() {
@@ -1815,9 +1806,8 @@ where
                     elements.push(gen.parse_expression_bp(0)?, &self.wall)
                 }
                 Some(_) => {
-                    // @@Reporting: shouldn't this say "Unexpected expression in place of comma"?
                     return Err(ParseError::Parsing {
-                        message: "Unexpected comma in the place of a expression".to_string(),
+                        message: "Unexpected expression in place of a comma.".to_string(),
                         src: gen.source_location(&start),
                     });
                 }
@@ -1838,14 +1828,10 @@ where
 
     pub fn parse_array_literal(
         &self,
-        tree: &[Token<'c>],
+        tree: &Row<'c, Token<'c>>,
         span: &Location,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
-        // @@Performance: unnecessary copy
-        let gen = self.from_stream(
-            Row::from_iter(tree.iter().map(|x| x.clone_in(&self.wall)), &self.wall),
-            *span,
-        );
+        let gen = self.from_stream(tree, *span);
         let start = gen.current_location();
 
         let mut elements = row![&self.wall];
