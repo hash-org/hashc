@@ -470,10 +470,10 @@ where
         // the next token should be a TokenTree delimited with a
         self.parse_arrow()?;
 
-        let trait_type = self.parse_fn_type()?;
+        let trait_type = self.parse_function_or_tuple_type()?;
 
         // @@Incomplete: we might want to have some kind of stacked errors to give more context rather
-        //               than bubling up from the simplest parsing functions to functions like these...
+        //               than bubbling up from the simplest parsing functions to functions like these...
         // .ok_or_else(|| ParseError::Parsing {
         //     message: "Expected trait type here.".to_string(),
         //     src: self.source_location(&self.current_location()),
@@ -1318,7 +1318,7 @@ where
         let args_location = self.current_location();
         let args = self.parse_type_args()?;
 
-        // re-map the error specifing that we expected type arguments here...
+        // re-map the error specifying that we expected type arguments here...
         if args.is_none() {
             return Err(ParseError::Parsing {
                 message: "Expected type arguments after identifier.".to_string(),
@@ -1530,15 +1530,15 @@ where
     }
 
     /// Parses a function type which involves a parenthesis token tree with some arbitrary
-    /// number of comma separated types followed by a return type that is preceeded by an
-    /// arrow after the parenthesees.
+    /// number of comma separated types followed by a return type that is preceded by an
+    /// arrow after the parentheses.
     ///
     ///  (e.g. (i32) => str)
     ///
-    pub fn parse_fn_type(&self) -> ParseResult<AstNode<'c, Type<'c>>> {
+    pub fn parse_function_or_tuple_type(&self) -> ParseResult<AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
-        // handle the function arguments first by checking for parenthesees
+        // handle the function arguments first by checking for parentheses
         let mut type_args = match self.peek() {
             Some(Token { kind: TokenKind::Tree(_, tree), span}) => {
                 self.next_token();
@@ -1550,14 +1550,28 @@ where
 
                 let mut type_args = row![&self.wall; ];
 
-                while gen.has_token() {
-                    type_args.push(self.parse_type()?, &self.wall);
-
-                    // If we reach the end of the parenthesis don't try to parse the comma...
-                    if gen.has_token() {
-                        gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+                // Handle special case where there is only one comma and no following items...
+                 // Special edge case for '(,)' or an empty tuple type...
+                 match gen.peek() {
+                    Some(token) if token.has_atom(TokenAtom::Comma) => {
+                        if gen.stream.length() == 1 {
+                            gen.next_token();
+                        }
                     }
-                }
+                    _ => {
+                        while gen.has_token() {
+                            match gen.peek_resultant_fn(|| gen.parse_type()) {
+                                Some(ty) => type_args.push(ty, &self.wall),
+                                None => break,
+                            };
+        
+                            // If we reach the end of the parenthesis don't try to parse the comma...
+                            if gen.has_token() {
+                                gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+                            }
+                        }
+                    }
+                };
 
                 type_args
             }
@@ -1565,19 +1579,19 @@ where
             None => self.unexpected_eof()?
         };
 
-        self.parse_arrow()?;
-
-        // push the return type to the type_args of the Fn type...
-        let return_ty = self.parse_type()?;
-
-        type_args.push(return_ty, &self.wall);
-
-        // @@Incomplete: inline type names into ident map...
-        let name = IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME);
+        // If there is an arrow '=>', then this must be a function type
+        let name = match self.peek_resultant_fn(|| self.parse_arrow()) {
+            Some(_) => {
+                // Parse the return type here, and then give the function name
+                type_args.push(self.parse_type()?, &self.wall);
+                IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
+            }
+            None => IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME),
+        };
 
         Ok(self.node_from_joined_location(
             Type::Named(NamedType {
-                name: self.make_access_name(name, start),
+                name: self.make_access_name(name, start.join(self.current_location())),
                 type_args,
             }),
             &start,
@@ -1712,88 +1726,8 @@ where
             }
 
             // Tuple or function type
-            TokenKind::Tree(Delimiter::Paren, tree) => {
-                self.next_token();
-
-                let gen = self.from_stream(tree, token.span);
-                let start = gen.current_location();
-
-                // First parse the (...) component, which we can later use to determine
-                // if this is in fact a tuple type or a function type
-                let mut inner_types = row![&self.wall;];
-
-                // Some cases where the parenthesees type indicates that this must
-                // be a tuple type, otherwise it doesn't make syntactic sense
-                let mut is_tuple_type = false;
-                let mut trailling_comma = false;
-
-                // Special edge case for '(,)' or an empty tuple type...
-                match gen.peek() {
-                    Some(token) if token.has_atom(TokenAtom::Comma) => {
-                        if gen.stream.length() == 1 {
-                            gen.next_token();
-                            is_tuple_type = true;
-                        }
-                    }
-                    _ => {
-                        while gen.has_token() {
-                            match gen.peek_resultant_fn(|| gen.parse_type()) {
-                                Some(ty) => {
-                                    inner_types.push(ty, &gen.wall);
-                                    trailling_comma = false;
-                                }
-                                None => {
-                                    break;
-                                }
-                            };
-
-                            // Let's see if this has a trailling comma, if so it must be
-                            // a tuple type, since function arguments aren't allowed trailling commas in
-                            // the type definition.
-                            match gen.peek() {
-                                Some(token) if token.has_atom(TokenAtom::Comma) => {
-                                    gen.next_token();
-                                    trailling_comma = true;
-                                }
-                                Some(token) => gen.unexpected_token_error(
-                                    &token.kind,
-                                    &TokenKindVector::from_row(
-                                        row![&gen.wall; TokenKind::Atom(TokenAtom::Comma)],
-                                    ),
-                                    &gen.current_location(),
-                                )?,
-                                None => break,
-                            }
-                        }
-                    }
-                };
-
-                is_tuple_type |= trailling_comma;
-
-                // If there is an arrow '=>', then this must be a function type
-                let name = match self.peek_resultant_fn(|| self.parse_arrow()) {
-                    Some(_) => {
-                        let message = r#"
-The parenthesised type before the arrow indicated that this should be a tuple type. 
-However, specifying the arrow indicated that this is a function type. 
-Consider removing the trailing comma from the members."#;
-
-                        // Flag this syntactic issue if we're actually expecting a tuple type
-                        if is_tuple_type {
-                            self.error_with_location(message, &start.join(gen.current_location()))?;
-                        }
-
-                        // Parse the return type here, and then give the function name
-                        inner_types.push(self.parse_type()?, &self.wall);
-                        IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
-                    }
-                    None => IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME),
-                };
-
-                Type::Named(NamedType {
-                    name: self.make_access_name(name, token.span),
-                    type_args: inner_types,
-                })
+            TokenKind::Tree(Delimiter::Paren, _) => {
+                self.parse_function_or_tuple_type()?.into_body().move_out()
             }
             _ => {
                 return Err(ParseError::Parsing {
