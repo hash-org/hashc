@@ -3,7 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use crate::Wall;
-use core::fmt;
+use core::{fmt, slice};
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::{ManuallyDrop, MaybeUninit},
@@ -24,6 +24,12 @@ pub struct Row<'c, T> {
     length: usize,
 }
 
+impl<T> Default for Row<'_, T> {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 /// How much to initially reserve in the row.
 const ROW_INITIAL_REALLOC_SIZE: usize = 4;
 
@@ -34,6 +40,13 @@ impl<'c, T> Row<'c, T> {
     /// Create a new `Row` within the given [`Wall`] with zero length and capacity.
     pub fn new(wall: &Wall<'c>) -> Self {
         Self::with_capacity(0, wall)
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            data: &mut [],
+            length: 0,
+        }
     }
 
     /// Create a new `Row` within the given [`Wall`] with zero length and a given capacity.
@@ -285,7 +298,9 @@ impl<T> Deref for Row<'_, T> {
         // ##Safety: values until self.length are initialised.
         // Also, the slice will live as long as 'c, which might outlive self.
         unsafe {
-            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(&self.data[0..self.length])
+            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(
+                &self.data[0..self.length],
+            )
         }
     }
 }
