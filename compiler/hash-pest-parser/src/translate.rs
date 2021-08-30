@@ -613,22 +613,22 @@ where
                         let mut components = inner.into_inner();
                         let num = components.next().unwrap();
 
-                        let val = num.as_str().parse::<u64>()?;
+                        let val = num.as_str().parse::<u64>().unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::hex_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 16)?;
+                        let val = u64::from_str_radix(item.as_str(), 16).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::octal_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 8)?;
+                        let val = u64::from_str_radix(item.as_str(), 8).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::bin_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 2)?;
+                        let val = u64::from_str_radix(item.as_str(), 2).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     _ => unreachable!(),

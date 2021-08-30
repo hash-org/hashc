@@ -181,32 +181,61 @@ where
         self.node(Name { ..*name.body() })
     }
 
-    pub(crate) fn unexpected_token_error(
+    pub(crate) fn unexpected_token_error<T>(
         &self,
         kind: &TokenKind,
         expected: &TokenKindVector,
         location: &Location,
-    ) -> ParseError {
-        ParseError::Parsing {
-            message: format!("Unexpected token '{}', expecting {}", kind, expected),
+    ) -> ParseResult<T> {
+        if expected.is_empty() {
+            self.error_with_location(format!("Unexpected token '{}'", kind), location)
+        } else {
+            println!("{:?}", kind);
+            self.error_with_location(
+                format!("Unexpected token '{}', expecting a {}", kind, expected),
+                location,
+            )
+        }
+    }
+
+    /// Create an error at the current location.
+    pub fn error<T, S: Into<String>>(&self, message: S) -> ParseResult<T> {
+        Err(ParseError::Parsing {
+            message: message.into(),
+            src: self.source_location(&self.current_location()),
+        })
+    }
+
+    /// Create an error at the current location.
+    pub fn error_with_location<T, S: Into<String>>(
+        &self,
+        message: S,
+        location: &Location,
+    ) -> ParseResult<T> {
+        Err(ParseError::Parsing {
+            message: message.into(),
             src: self.source_location(location),
-        }
+        })
+    }
+
+    pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
+        self.error(format!(
+            "Expected the end of a definition, but got '{}'.",
+            self.current_token().kind
+        ))
     }
 
     /// Create a generalised "Reached end of file..." error.
-    pub(crate) fn unexpected_eof(&self) -> ParseError {
-        ParseError::Parsing {
-            message: "Unexpectedly reached the end of file.".to_string(),
-            src: self.source_location(&self.current_location()),
-        }
+    pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
+        self.error("Unexpectedly reached the end of file.")
     }
 
     /// Create a generalised "Reached end of file..." error.
-    pub(crate) fn unexpected_eof_with_ctx(&self, ctx: &str) -> ParseError {
-        ParseError::Parsing {
-            message: format!("{}: but unexpectedly reached the end of file.", ctx),
-            src: self.source_location(&self.current_location()),
-        }
+    pub(crate) fn unexpected_eof_with_ctx<T>(&self, ctx: &str) -> ParseResult<T> {
+        self.error(format!(
+            "{}: but unexpectedly reached the end of file.",
+            ctx
+        ))
     }
 
     pub(crate) fn make_ident(
@@ -285,13 +314,30 @@ where
         &self,
         parse_fn: impl Fn() -> ParseResult<Option<T>>,
     ) -> ParseResult<Option<T>> {
-        let start = self.offset.get();
+        let start = self.offset();
 
         match parse_fn() {
             result @ Ok(Some(_)) => result,
             err => {
                 self.offset.set(start);
                 err
+            }
+        }
+    }
+
+    /// Function to peek ahead and match some parsing function that returns a [Option<T>].
+    /// If The result is an error, the function wil reset the current offset of the token stream
+    /// to where it was the function was peeked. This is essentially a convertor from a [ParseResult<T>]
+    /// into an [Option<T>] with the side effect of resetting the parser state back to it's original
+    /// settings.
+    pub fn peek_resultant_fn<T>(&self, parse_fn: impl Fn() -> ParseResult<T>) -> Option<T> {
+        let start = self.offset();
+
+        match parse_fn() {
+            Ok(result) => Some(result),
+            Err(_) => {
+                self.offset.set(start);
+                None
             }
         }
     }
@@ -350,15 +396,10 @@ where
                                 None => Statement::Return(None),
                             }
                         }
-                        kw => {
-                            return Err(ParseError::Parsing {
-                                message: format!(
-                                    "Unexpected keyword '{}' at the beginning of a statement",
-                                    kw
-                                ),
-                                src: self.source_location(&self.current_location()),
-                            })
-                        }
+                        kw => self.error(format!(
+                            "Unexpected keyword '{}' at the beginning of a statement",
+                            kw
+                        ))?,
                     };
 
                 match self.next_token() {
@@ -367,14 +408,11 @@ where
                         start.join(self.current_location()),
                         &self.wall,
                     )),
-                    Some(token) => Err(ParseError::Parsing {
-                        message: format!(
-                            "Expecting ';' at the end of a statement, but got '{}' ",
-                            token.kind
-                        ),
-                        src: self.source_location(&self.current_location()),
-                    }),
-                    None => Err(self.unexpected_eof_with_ctx("Expecting ';' ending a statement.")),
+                    Some(token) => self.error(format!(
+                        "Expecting ';' at the end of a statement, but got '{}' ",
+                        token.kind
+                    )),
+                    None => self.unexpected_eof_with_ctx("Expecting ';' ending a statement.")?,
                 }
             }
             Some(_) => {
@@ -387,14 +425,11 @@ where
                         start.join(self.current_location()),
                         &self.wall,
                     )),
-                    Some(token) => Err(ParseError::Parsing {
-                        message: format!(
-                            "Expecting ';' at the end of a statement, but got '{}' ",
-                            token.kind
-                        ),
-                        src: self.source_location(&self.current_location()),
-                    }),
-                    None => Err(self.unexpected_eof_with_ctx("Expecting ';' ending a statement")),
+                    Some(token) => self.error(format!(
+                        "Expecting ';' at the end of a statement, but got '{}' ",
+                        token.kind
+                    ))?,
+                    None => self.unexpected_eof_with_ctx("Expecting ';' ending a statement")?,
                 }
             }
             _ => Err(ParseError::Parsing {
@@ -520,13 +555,7 @@ where
 
                 (None, entries)
             }
-            _ => {
-                return Err(ParseError::Parsing {
-                    message: "Expected struct type args or struct definition entries here"
-                        .to_string(),
-                    src: self.source_location(&self.current_location()),
-                })
-            }
+            _ => self.error("Expected struct type args or struct definition entries here")?,
         };
 
         Ok(EnumDef {
@@ -549,10 +578,7 @@ where
         let type_args = self.parse_type_args()?;
 
         if type_args.is_none() {
-            return Err(ParseError::Parsing {
-                message: "Expected type arguments.".to_string(),
-                src: self.source_location(&self.current_location()),
-            });
+            self.error("Expected type arguments.")?;
         }
 
         let type_args = type_args.unwrap();
@@ -590,7 +616,7 @@ where
                                 _ => break,
                             }
                         }
-                        None => return Err(self.unexpected_eof()),
+                        None => self.unexpected_eof()?,
                         _ => break,
                     }
                 }
@@ -804,14 +830,9 @@ where
                     src: self.source_location(&self.current_location()),
                 });
             }
-            None => {
-                return Err(ParseError::Parsing {
-                    message:
-                        "Expected block body, which begins with a '{{', but reached end of input"
-                            .to_string(), // @@ErrorReporting
-                    src: self.source_location(&self.current_location()),
-                });
-            }
+            // @@ErrorReporting
+            None => self
+                .error("Expected block body, which begins with a '{{', but reached end of input")?,
         };
 
         self.parse_block_from_gen(&gen, start)
@@ -877,13 +898,13 @@ where
                     );
                 }
                 Some(token) => {
-                    return Err(gen.unexpected_token_error(
+                    gen.unexpected_token_error(
                         &token.kind,
                         &TokenKindVector::from_row(
                             row![&self.wall; TokenKind::Atom(TokenAtom::Semi)],
                         ),
                         &gen.current_location(),
-                    ))
+                    )?;
                 }
                 None => {
                     block.expr = Some(expr);
@@ -1206,12 +1227,8 @@ where
         // since nothing should be after the expression, we can check that no tokens
         // are left and the generator is empty, otherwise report this as an unexpected_token
         if gen.has_token() {
-            let token = gen.next_token().unwrap();
-            return Err(self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::empty(&self.wall),
-                &gen.current_location(),
-            ));
+            gen.next_token();
+            gen.expected_eof()?;
         }
 
         Ok(self.node_with_location(
@@ -1354,33 +1371,33 @@ where
         loop {
             match self.peek() {
                 Some(token) if token.has_atom(TokenAtom::Colon) => {
-                    self.next_token();
-
-                    let second_colon = self.peek();
-
-                    // Ensure the second colon is present...
-                    if second_colon.is_none() || !second_colon.unwrap().has_atom(TokenAtom::Colon) {
-                        return Err(ParseError::Parsing {
-                            message: "Expected ':' after the beginning of an namespace".to_string(),
-                            src: self.source_location(&self.current_location()),
-                        });
-                    }
-
-                    self.next_token();
+                    self.next_token(); // :
 
                     match self.peek() {
-                        Some(Token {
-                            kind: TokenKind::Atom(TokenAtom::Ident(id)),
-                            span: _,
-                        }) => {
-                            self.next_token();
-                            path.push(*id, &self.wall);
+                        Some(token) if token.has_atom(TokenAtom::Colon) => {
+                            self.next_token(); // :
+
+                            match self.peek() {
+                                Some(Token {
+                                    kind: TokenKind::Atom(TokenAtom::Ident(id)),
+                                    span: _,
+                                }) => {
+                                    self.next_token();
+                                    path.push(*id, &self.wall);
+                                }
+                                _ => {
+                                    return Err(ParseError::Parsing {
+                                        message: "Expected identifier after a name access"
+                                            .to_string(),
+                                        src: self.source_location(&self.current_location()),
+                                    })
+                                }
+                            }
                         }
                         _ => {
-                            return Err(ParseError::Parsing {
-                                message: "Expected identifier after a name access".to_string(),
-                                src: self.source_location(&self.current_location()),
-                            })
+                            // backtrack the token count by one
+                            self.offset.set(self.offset() - 1);
+                            break;
                         }
                     }
                 }
@@ -1484,15 +1501,15 @@ where
         loop {
             // Check if the type argument is parsed, if we have already encountered a comma, we
             // return a hard error because it has already started on a comma.
-            match self.parse_type()? {
-                Some(ty) => type_args.push(ty, &self.wall),
-                _ if has_comma => {
-                    return Err(ParseError::Parsing {
-                        message: "Expected type argument in a type bound.".to_string(),
-                        src: self.source_location(&self.current_location()),
-                    })
+            match self.parse_type() {
+                Ok(ty) => type_args.push(ty, &self.wall),
+                Err(err) if has_comma => {
+                    self.error(format!(
+                        "{}. Expected type argument in a type bound.",
+                        err.into_message()
+                    ))?;
                 }
-                _ => return Ok(None),
+                Err(err) => return Err(err),
             };
 
             // Now consider if the bound is closing or continuing with a comma...
@@ -1534,32 +1551,24 @@ where
                 let mut type_args = row![&self.wall; ];
 
                 while gen.has_token() {
-                    match gen.peek_fn(|| gen.parse_type())? {
-                        Some(t) => {
-                            type_args.push(t, &self.wall);
+                    type_args.push(self.parse_type()?, &self.wall);
 
-                            // If we reach the end of the parenthesis don't try to parse the comma...
-                            if gen.has_token() {
-                                gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
-                            }
-                        }
-                        None => break,
+                    // If we reach the end of the parenthesis don't try to parse the comma...
+                    if gen.has_token() {
+                        gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
                     }
-                };
+                }
 
                 type_args
             }
-            Some(token) => return Err(self.unexpected_token_error(&token.kind, &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, false))]), &self.current_location())) ,
-            None => return Err(self.unexpected_eof())
+            Some(token) => self.unexpected_token_error(&token.kind, &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, false))]), &self.current_location())?,
+            None => self.unexpected_eof()?
         };
 
         self.parse_arrow()?;
 
         // push the return type to the type_args of the Fn type...
-        let return_ty = self.parse_type()?.ok_or_else(|| ParseError::Parsing {
-            message: "Expected return type within a function type.".to_string(),
-            src: self.source_location(&self.current_location()),
-        })?;
+        let return_ty = self.parse_type()?;
 
         type_args.push(return_ty, &self.wall);
 
@@ -1576,22 +1585,20 @@ where
     }
 
     /// Function to parse a type
-    pub fn parse_type(&self) -> ParseResult<Option<AstNode<'c, Type<'c>>>> {
+    pub fn parse_type(&self) -> ParseResult<AstNode<'c, Type<'c>>> {
         let start = self.current_location();
-        let token = self.peek();
+        let token = self
+            .peek()
+            .ok_or_else(|| self.unexpected_eof::<()>().err().unwrap())?;
 
-        if token.is_none() {
-            return Ok(None);
-        }
-
-        let variant = match &token.unwrap().kind {
+        let variant = match &token.kind {
             TokenKind::Atom(TokenAtom::Amp) => {
                 self.next_token();
 
                 // @@TODO: raw_refs...
-                match self.parse_type()? {
-                    Some(ty) => Type::Ref(ty),
-                    None => return Ok(None),
+                match self.parse_type() {
+                    Ok(ty) => Type::Ref(ty),
+                    err => return err,
                 }
             }
             TokenKind::Atom(TokenAtom::Question) => {
@@ -1601,7 +1608,7 @@ where
             TokenKind::Atom(TokenAtom::Ident(id)) => {
                 self.next_token();
 
-                let (name, args) = self.parse_name_with_type_args(&id)?;
+                let (name, args) = self.parse_name_with_type_args(id)?;
                 // if the type_args are None, this means that the name could be either a
                 // infer_type, or a type_var...
                 match args {
@@ -1636,27 +1643,167 @@ where
             }
 
             // Map or set type
-            TokenKind::Tree(Delimiter::Brace, _tree) => {
-                todo!()
+            TokenKind::Tree(Delimiter::Brace, tree) => {
+                self.next_token();
+
+                let gen = self.from_stream(tree, token.span);
+
+                let lhs_type = gen.parse_type()?;
+
+                match gen.peek() {
+                    // This must be a map
+                    Some(token) if token.has_atom(TokenAtom::Colon) => {
+                        gen.next_token();
+
+                        let rhs_type = gen.parse_type()?;
+
+                        // @@CopyPasta
+                        if gen.has_token() {
+                            gen.next_token();
+
+                            gen.expected_eof()?;
+                        }
+
+                        // @@Incomplete: inline type names into ident map...
+                        let name = IDENTIFIER_MAP.create_ident(MAP_TYPE_NAME);
+
+                        Type::Named(NamedType {
+                            name: self.make_access_name(name, token.span),
+                            type_args: row![&self.wall; lhs_type, rhs_type],
+                        })
+                    }
+                    Some(tok) => {
+                        println!("{}", tok);
+                        gen.expected_eof()?
+                    }
+                    None => {
+                        // @@Incomplete: inline type names into ident map...
+                        let name = IDENTIFIER_MAP.create_ident(SET_TYPE_NAME);
+
+                        Type::Named(NamedType {
+                            name: self.make_access_name(name, token.span),
+                            type_args: row![&self.wall; lhs_type],
+                        })
+                    }
+                }
             }
 
-            // Array type
-            TokenKind::Tree(Delimiter::Bracket, _tree) => {
-                todo!()
+            // List type
+            TokenKind::Tree(Delimiter::Bracket, tree) => {
+                self.next_token();
+
+                let gen = self.from_stream(tree, token.span);
+                let inner_type = gen.parse_type()?;
+
+                // @@CopyPasta
+                if gen.has_token() {
+                    gen.next_token();
+
+                    gen.expected_eof()?;
+                }
+
+                // @@Incomplete: inline type names into ident map...
+                let name = IDENTIFIER_MAP.create_ident(LIST_TYPE_NAME);
+
+                Type::Named(NamedType {
+                    name: self.make_access_name(name, token.span),
+                    type_args: row![&self.wall; inner_type],
+                })
             }
 
             // Tuple or function type
-            TokenKind::Tree(Delimiter::Paren, _tree) => {
-                todo!()
+            TokenKind::Tree(Delimiter::Paren, tree) => {
+                self.next_token();
+
+                let gen = self.from_stream(tree, token.span);
+                let start = gen.current_location();
+
+                // First parse the (...) component, which we can later use to determine
+                // if this is in fact a tuple type or a function type
+                let mut inner_types = row![&self.wall;];
+
+                // Some cases where the parenthesees type indicates that this must
+                // be a tuple type, otherwise it doesn't make syntactic sense
+                let mut is_tuple_type = false;
+                let mut trailling_comma = false;
+
+                // Special edge case for '(,)' or an empty tuple type...
+                match gen.peek() {
+                    Some(token) if token.has_atom(TokenAtom::Comma) => {
+                        if gen.stream.length() == 1 {
+                            gen.next_token();
+                            is_tuple_type = true;
+                        }
+                    }
+                    _ => {
+                        while gen.has_token() {
+                            match gen.peek_resultant_fn(|| gen.parse_type()) {
+                                Some(ty) => {
+                                    inner_types.push(ty, &gen.wall);
+                                    trailling_comma = false;
+                                }
+                                None => {
+                                    break;
+                                }
+                            };
+
+                            // Let's see if this has a trailling comma, if so it must be
+                            // a tuple type, since function arguments aren't allowed trailling commas in
+                            // the type definition.
+                            match gen.peek() {
+                                Some(token) if token.has_atom(TokenAtom::Comma) => {
+                                    gen.next_token();
+                                    trailling_comma = true;
+                                }
+                                Some(token) => gen.unexpected_token_error(
+                                    &token.kind,
+                                    &TokenKindVector::from_row(
+                                        row![&gen.wall; TokenKind::Atom(TokenAtom::Comma)],
+                                    ),
+                                    &gen.current_location(),
+                                )?,
+                                None => break,
+                            }
+                        }
+                    }
+                };
+
+                is_tuple_type |= trailling_comma;
+
+                // If there is an arrow '=>', then this must be a function type
+                let name = match self.peek_resultant_fn(|| self.parse_arrow()) {
+                    Some(_) => {
+                        let message = r#"
+The parenthesised type before the arrow indicated that this should be a tuple type. 
+However, specifying the arrow indicated that this is a function type. 
+Consider removing the trailing comma from the members."#;
+
+                        // Flag this syntactic issue if we're actually expecting a tuple type
+                        if is_tuple_type {
+                            self.error_with_location(message, &start.join(gen.current_location()))?;
+                        }
+
+                        // Parse the return type here, and then give the function name
+                        inner_types.push(self.parse_type()?, &self.wall);
+                        IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
+                    }
+                    None => IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME),
+                };
+
+                Type::Named(NamedType {
+                    name: self.make_access_name(name, token.span),
+                    type_args: inner_types,
+                })
             }
-            _ => return Ok(None),
+            _ => {
+                return Err(ParseError::Parsing {
+                    message: "Expected type here.".to_string(),
+                    src: self.source_location(&self.current_location()),
+                })
+            }
         };
 
-        Ok(Some(AstNode::new(
-            variant,
-            start.join(self.current_location()),
-            &self.wall,
-        )))
+        Ok(self.node_from_joined_location(variant, &start))
     }
 
     pub fn parse_name_or_infix_call(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
