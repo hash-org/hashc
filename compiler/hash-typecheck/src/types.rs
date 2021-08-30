@@ -3,9 +3,8 @@
 use core::fmt;
 use std::{
     borrow::{Borrow, BorrowMut},
-    cell::{Cell, Ref, RefCell, RefMut},
+    cell::Cell,
     collections::HashMap,
-    ops::{Deref, DerefMut},
 };
 
 use dashmap::DashMap;
@@ -31,9 +30,15 @@ counter! {
     method_visibility:,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TraitBounds {
     data: Vec<TraitBound>,
+}
+
+impl TraitBounds {
+    pub fn empty() -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Debug)]
@@ -59,9 +64,15 @@ pub struct EnumVariant {
     pub data: EnumVariantParams,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EnumVariants {
     data: HashMap<Identifier, EnumVariant>,
+}
+
+impl EnumVariants {
+    pub fn empty() -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Debug)]
@@ -83,14 +94,24 @@ pub struct StructDef {
     pub fields: StructFields,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypeDefs {
     data: HashMap<TypeDefId, TypeDefValue>,
 }
 
 impl TypeDefs {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue {
         self.data.get(&ty_def).unwrap()
+    }
+
+    pub fn create(&mut self, def: TypeDefValue) -> TypeDefId {
+        let id = TypeDefId::new();
+        self.data.insert(id, def);
+        id
     }
 }
 
@@ -127,25 +148,6 @@ pub enum PrimType {
     I32,
     I64,
     Char,
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
-pub struct GenTypeVar {
-    pub id: GenTypeVarId,
-}
-
-impl GenTypeVar {
-    pub fn new() -> Self {
-        Self {
-            id: GenTypeVarId::new(),
-        }
-    }
-}
-
-impl fmt::Display for GenTypeVar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "T{}", self.id.0)
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -234,11 +236,15 @@ impl<'c> Types<'c> {
         }
 
         // @@TODO: Figure out covariance, contravariance, and invariance rules.
+        // Right now, there are no sub/super types, so these variance rules aren't applicable. In
+        // other words, unify is symmetric over target/source. However it is not foreseeable that
+        // this will continue to be the case in the future.
+
         let target_ty = self.get(target);
         let source_ty = self.get(source);
 
         use TypeValue::*;
-        match (&*target_ty, &*source_ty) {
+        match (target_ty, source_ty) {
             (Ref(ref_target), Ref(ref_source)) => {
                 self.unify(ref_target.inner, ref_source.inner)?;
             }
@@ -306,20 +312,34 @@ impl<'c> Types<'c> {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct Traits {
     data: HashMap<TraitId, Trait>,
 }
 
-pub struct GenTypeVars {
-    data: HashMap<GenTypeVarId, TraitBounds>,
+impl Traits {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
+#[derive(Debug)]
 pub struct TypecheckState {
     pub in_loop: bool,
     pub ret_once: bool,
     pub func_ret_type: Option<TypeId>,
-    pub gen_type_vars: GenTypeVars,
     pub current_module: ModuleIdx,
+}
+
+impl Default for TypecheckState {
+    fn default() -> Self {
+        Self {
+            in_loop: false,
+            ret_once: false,
+            func_ret_type: None,
+            current_module: ModuleIdx(0),
+        }
+    }
 }
 
 pub struct TypecheckCtx<'c, 'm> {
@@ -340,6 +360,9 @@ pub type TypecheckResult<T> = Result<T, TypecheckError>;
 #[cfg(test)]
 mod tests {
     use hash_alloc::Castle;
+    use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleBuilder};
+
+    use crate::writer::TypeWriter;
 
     use super::*;
 
@@ -347,31 +370,43 @@ mod tests {
     fn type_size() {
         let castle = Castle::new();
         let wall = castle.wall();
-        let mut types = Types::new(wall);
 
-        let char = types.create(TypeValue::Prim(PrimType::Char));
-        let int = types.create(TypeValue::Prim(PrimType::I32));
-        let unknown = types.create(TypeValue::Unknown);
+        let modules = ModuleBuilder::new().build();
 
-        let fn1 = types.create(TypeValue::Fn(FnType {
-            args: smallvec![unknown],
+        let mut ctx = TypecheckCtx {
+            types: Types::new(wall),
+            type_defs: TypeDefs::new(),
+            traits: Traits::new(),
+            state: TypecheckState::default(),
+            modules: &modules,
+        };
+
+        let t_arg = ctx.types.create(TypeValue::Var(TypeVar {
+            name: IDENTIFIER_MAP.create_ident("T"),
+        }));
+
+        let foo_def = ctx.type_defs.create(TypeDefValue::Enum(EnumDef {
+            name: IDENTIFIER_MAP.create_ident("Option"),
+            generics: Generics {
+                bounds: TraitBounds::empty(),
+                params: smallvec![t_arg],
+            },
+            variants: EnumVariants::empty(),
+        }));
+
+        let char = ctx.types.create(TypeValue::Prim(PrimType::Char));
+        let int = ctx.types.create(TypeValue::Prim(PrimType::I32));
+        let unknown = ctx.types.create(TypeValue::Unknown);
+        let foo = ctx.types.create(TypeValue::User(UserType {
+            def_id: foo_def,
+            args: smallvec![int, unknown],
+        }));
+
+        let fn1 = ctx.types.create(TypeValue::Fn(FnType {
+            args: smallvec![foo, unknown, char, int, foo],
             ret: int,
         }));
-        let fn2 = types.create(TypeValue::Fn(FnType {
-            args: smallvec![char],
-            ret: int,
-        }));
 
-        let unify_res = types.unify(fn1, fn2);
-
-        println!("{:?}", unify_res);
-
-        match types.get(fn1) {
-            TypeValue::Fn(FnType { args, ret }) => {
-                println!("args of fn1: {:?}", args.iter().map(|&a| types.get(a)).collect::<Vec<_>>());
-                println!("ret of fn1: {:?}", types.get(*ret));
-            }
-            _ => {}
-        }
+        println!("{}", TypeWriter::new(fn1, &ctx));
     }
 }
