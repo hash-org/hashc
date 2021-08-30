@@ -8,7 +8,7 @@ use std::{
 };
 
 use dashmap::DashMap;
-use hash_alloc::{brick::Brick, Wall};
+use hash_alloc::{brick::Brick, collections::row::Row, Wall};
 use hash_ast::{
     ast::TypeId,
     ident::Identifier,
@@ -31,55 +31,49 @@ counter! {
 }
 
 #[derive(Debug, Default)]
-pub struct TraitBounds {
-    data: Vec<TraitBound>,
-}
-
-impl TraitBounds {
-    pub fn empty() -> Self {
-        Self::default()
-    }
+pub struct TraitBounds<'c> {
+    data: Row<'c, TraitBound<'c>>,
 }
 
 #[derive(Debug)]
-pub struct TraitBound {
+pub struct TraitBound<'c> {
     pub trt: Trait,
-    pub params: TypeArgs,
+    pub params: TypeArgs<'c>,
 }
 
 #[derive(Debug)]
-pub struct Generics {
-    pub bounds: TraitBounds,
-    pub params: TypeArgs,
+pub struct Generics<'c> {
+    pub bounds: TraitBounds<'c>,
+    pub params: TypeArgs<'c>,
 }
 
 #[derive(Debug)]
-pub struct EnumVariantParams {
-    data: SmallVec<[TypeId; 6]>,
+pub struct EnumVariantParams<'c> {
+    data: Row<'c, TypeId>,
 }
 
 #[derive(Debug)]
-pub struct EnumVariant {
+pub struct EnumVariant<'c> {
     pub name: Identifier,
-    pub data: EnumVariantParams,
+    pub data: EnumVariantParams<'c>,
 }
 
 #[derive(Debug, Default)]
-pub struct EnumVariants {
-    data: HashMap<Identifier, EnumVariant>,
+pub struct EnumVariants<'c> {
+    data: HashMap<Identifier, EnumVariant<'c>>,
 }
 
-impl EnumVariants {
+impl EnumVariants<'_> {
     pub fn empty() -> Self {
         Self::default()
     }
 }
 
 #[derive(Debug)]
-pub struct EnumDef {
+pub struct EnumDef<'c> {
     pub name: Identifier,
-    pub generics: Generics,
-    pub variants: EnumVariants,
+    pub generics: Generics<'c>,
+    pub variants: EnumVariants<'c>,
 }
 
 #[derive(Debug)]
@@ -88,27 +82,27 @@ pub struct StructFields {
 }
 
 #[derive(Debug)]
-pub struct StructDef {
+pub struct StructDef<'c> {
     pub name: Identifier,
-    pub generics: Generics,
+    pub generics: Generics<'c>,
     pub fields: StructFields,
 }
 
 #[derive(Debug, Default)]
-pub struct TypeDefs {
-    data: HashMap<TypeDefId, TypeDefValue>,
+pub struct TypeDefs<'c> {
+    data: HashMap<TypeDefId, TypeDefValue<'c>>,
 }
 
-impl TypeDefs {
+impl<'c> TypeDefs<'c> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue {
+    pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue<'c> {
         self.data.get(&ty_def).unwrap()
     }
 
-    pub fn create(&mut self, def: TypeDefValue) -> TypeDefId {
+    pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
         let id = TypeDefId::new();
         self.data.insert(id, def);
         id
@@ -116,9 +110,9 @@ impl TypeDefs {
 }
 
 #[derive(Debug)]
-pub enum TypeDefValue {
-    Enum(EnumDef),
-    Struct(StructDef),
+pub enum TypeDefValue<'c> {
+    Enum(EnumDef<'c>),
+    Struct(StructDef<'c>),
 }
 
 counter! {
@@ -165,17 +159,17 @@ pub struct RawRefType {
     pub inner: TypeId,
 }
 
-pub type TypeArgs = SmallVec<[TypeId; 6]>;
+pub type TypeArgs<'c> = Row<'c, TypeId>;
 
 #[derive(Debug)]
-pub struct UserType {
+pub struct UserType<'c> {
     pub def_id: TypeDefId,
-    pub args: TypeArgs,
+    pub args: TypeArgs<'c>,
 }
 
 #[derive(Debug)]
-pub struct FnType {
-    pub args: TypeArgs,
+pub struct FnType<'c> {
+    pub args: TypeArgs<'c>,
     pub ret: TypeId,
 }
 
@@ -185,31 +179,29 @@ pub struct NamespaceType {
 }
 
 #[derive(Debug)]
-pub enum TypeValue {
+pub enum TypeValue<'c> {
     Ref(RefType),
     RawRef(RawRefType),
-    Fn(FnType),
+    Fn(FnType<'c>),
     Var(TypeVar),
-    User(UserType),
+    User(UserType<'c>),
     Prim(PrimType),
     Unknown,
     Namespace(NamespaceType),
 }
 
 pub struct Types<'c> {
-    wall: Wall<'c>,
-    data: HashMap<TypeId, Cell<&'c TypeValue>>,
+    data: HashMap<TypeId, Cell<&'c TypeValue<'c>>>,
 }
 
 impl<'c> Types<'c> {
-    pub fn new(wall: Wall<'c>) -> Self {
+    pub fn new() -> Self {
         Self {
-            wall,
             data: HashMap::new(),
         }
     }
 
-    pub fn get(&self, ty: TypeId) -> &'c TypeValue {
+    pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
         self.data.get(&ty).unwrap().get()
     }
 
@@ -221,11 +213,11 @@ impl<'c> Types<'c> {
         self.data.get(&target).unwrap().set(other_val);
     }
 
-    pub fn create(&mut self, value: TypeValue) -> TypeId {
+    pub fn create(&mut self, value: TypeValue<'c>, wall: &Wall<'c>) -> TypeId {
         let id = TypeId::new();
         self.data
             .borrow_mut()
-            .insert(id, Cell::new(Brick::new(value, &self.wall).disown()));
+            .insert(id, Cell::new(Brick::new(value, wall).disown()));
         id
     }
 
@@ -344,7 +336,7 @@ impl Default for TypecheckState {
 
 pub struct TypecheckCtx<'c, 'm> {
     pub types: Types<'c>,
-    pub type_defs: TypeDefs,
+    pub type_defs: TypeDefs<'c>,
     pub traits: Traits,
     pub state: TypecheckState,
     pub modules: &'m Modules<'c>,
@@ -359,7 +351,7 @@ pub type TypecheckResult<T> = Result<T, TypecheckError>;
 
 #[cfg(test)]
 mod tests {
-    use hash_alloc::Castle;
+    use hash_alloc::{row, Castle};
     use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleBuilder};
 
     use crate::writer::TypeWriter;
@@ -374,38 +366,47 @@ mod tests {
         let modules = ModuleBuilder::new().build();
 
         let mut ctx = TypecheckCtx {
-            types: Types::new(wall),
+            types: Types::new(),
             type_defs: TypeDefs::new(),
             traits: Traits::new(),
             state: TypecheckState::default(),
             modules: &modules,
         };
 
-        let t_arg = ctx.types.create(TypeValue::Var(TypeVar {
-            name: IDENTIFIER_MAP.create_ident("T"),
-        }));
+        let t_arg = ctx.types.create(
+            TypeValue::Var(TypeVar {
+                name: IDENTIFIER_MAP.create_ident("T"),
+            }),
+            &wall,
+        );
 
         let foo_def = ctx.type_defs.create(TypeDefValue::Enum(EnumDef {
             name: IDENTIFIER_MAP.create_ident("Option"),
             generics: Generics {
-                bounds: TraitBounds::empty(),
-                params: smallvec![t_arg],
+                bounds: TraitBounds::default(),
+                params: row![&wall; t_arg],
             },
             variants: EnumVariants::empty(),
         }));
 
-        let char = ctx.types.create(TypeValue::Prim(PrimType::Char));
-        let int = ctx.types.create(TypeValue::Prim(PrimType::I32));
-        let unknown = ctx.types.create(TypeValue::Unknown);
-        let foo = ctx.types.create(TypeValue::User(UserType {
-            def_id: foo_def,
-            args: smallvec![int, unknown],
-        }));
+        let char = ctx.types.create(TypeValue::Prim(PrimType::Char), &wall);
+        let int = ctx.types.create(TypeValue::Prim(PrimType::I32), &wall);
+        let unknown = ctx.types.create(TypeValue::Unknown, &wall);
+        let foo = ctx.types.create(
+            TypeValue::User(UserType {
+                def_id: foo_def,
+                args: row![&wall; int, unknown],
+            }),
+            &wall,
+        );
 
-        let fn1 = ctx.types.create(TypeValue::Fn(FnType {
-            args: smallvec![foo, unknown, char, int, foo],
-            ret: int,
-        }));
+        let fn1 = ctx.types.create(
+            TypeValue::Fn(FnType {
+                args: row![&wall; foo, unknown, char, int, foo],
+                ret: int,
+            }),
+            &wall,
+        );
 
         println!("{}", TypeWriter::new(fn1, &ctx));
     }
