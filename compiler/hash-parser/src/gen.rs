@@ -187,11 +187,18 @@ where
         expected: &TokenKindVector,
         location: &Location,
     ) -> ParseResult<T> {
+        // we need to convert a token-tree into just the delimiter since we don't want
+        // to print the whole tree...
+        let atom = kind.to_atom();
+
         if expected.is_empty() {
-            self.error_with_location(format!("Unexpected token '{}'", kind), location)
+            self.error_with_location(format!("Unexpected token '{}'", atom), location)
         } else {
             self.error_with_location(
-                format!("Unexpected token '{}', expecting a '{}'", kind, expected),
+                format!(
+                    "Unexpected token '{}', expecting either a {}",
+                    atom, expected
+                ),
                 location,
             )
         }
@@ -268,6 +275,15 @@ where
             },
             location,
         )
+    }
+
+    /// Make a [AstNode<Name>] from an identifier and provided span.
+    pub(crate) fn make_name_from_id(
+        &self,
+        id: &Identifier,
+        location: &Location,
+    ) -> AstNode<'c, Name> {
+        AstNode::new(Name { ident: *id }, *location, &self.wall)
     }
 
     pub(crate) fn make_ident_from_id(
@@ -466,7 +482,7 @@ where
         // the next token should be a TokenTree delimited with a
         self.parse_arrow()?;
 
-        let trait_type = self.parse_function_or_tuple_type()?;
+        let trait_type = self.parse_function_or_tuple_type(true)?;
 
         // @@Incomplete: we might want to have some kind of stacked errors to give more context rather
         //               than bubbling up from the simplest parsing functions to functions like these...
@@ -578,8 +594,8 @@ where
                     }
                 }
 
-                   // Ensure the whole generator was exhausted
-                   if gen.has_token() {
+                // Ensure the whole generator was exhausted
+                if gen.has_token() {
                     gen.next_token();
                     gen.expected_eof()?;
                 }
@@ -588,7 +604,9 @@ where
             }
             Some(token) => self.unexpected_token_error(
                 &token.kind,
-                &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, false))]),
+                &TokenKindVector::from_row(
+                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, false)],
+                ),
                 &self.current_location(),
             )?,
             None => self.unexpected_eof(),
@@ -651,7 +669,9 @@ where
             }
             Some(token) => self.unexpected_token_error(
                 &token.kind,
-                &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, false))]),
+                &TokenKindVector::from_row(
+                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, false)],
+                ),
                 &self.current_location(),
             )?,
             None => self.unexpected_eof(),
@@ -916,8 +936,187 @@ where
         false
     }
 
+    /// Parse a let declaration statement.
+    ///
+    /// Let statement parser which parses three possible variations. The let keyword
+    /// is parsed and then either a variable declaration, function declaration, or both.
+    /// As such a name is returned before parsing a type, function, or both.
+    /// Let keyword statement, a destructuring pattern, potential for-all statement, optional
+    /// type definition and a potential definition of the right hand side. For example:
+    /// ```text
+    /// let some_var...<int>: float = ...;
+    ///     ^^^^^^^^   ^^^^^  ^^^^^   ^^^─────┐
+    ///    pattern     bound   type    the right hand-side expr
+    /// ```
     pub fn parse_let_statement(&self) -> ParseResult<LetStatement<'c>> {
+        debug_assert!(matches!(
+            self.current_token().kind,
+            TokenKind::Atom(TokenAtom::Keyword(Keyword::Let))
+        ));
+
+        let pattern = self.parse_irrefutable_pattern()?;
+
+        let bound = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Lt) => Some(self.parse_type_bound()?),
+            _ => None,
+        };
+
+        let ty = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Colon) => {
+                self.next_token();
+                Some(self.parse_type()?)
+            }
+            _ => None,
+        };
+
+        let value = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Eq) => {
+                self.next_token();
+                Some(self.parse_expression_bp(0)?)
+            }
+            _ => None,
+        };
+
+        Ok(LetStatement {
+            pattern,
+            ty,
+            bound,
+            value,
+        })
+    }
+
+    pub fn parse_pattern_collection(
+        &self,
+        tree: &Row<'c, Token<'c>>,
+        span: Location,
+    ) -> ParseResult<AstNodes<'c, Pattern<'c>>> {
+        let gen = self.from_stream(tree, span);
+
+        let mut elements = row![&self.wall;];
+
+        while gen.has_token() {
+            match gen.peek_resultant_fn(|| gen.parse_irrefutable_pattern()) {
+                Some(pattern) => elements.push(pattern, &self.wall),
+                None => break,
+            }
+
+            if gen.has_token() {
+                gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
+            }
+        }
+
+        if gen.has_token() {
+            gen.next_token();
+            gen.expected_eof()?;
+        }
+
+        Ok(elements)
+    }
+
+    pub fn parse_pattern_namespace(
+        &self,
+        _tree: &Row<'c, Token<'c>>,
+        _span: Location,
+    ) -> ParseResult<AstNodes<'c, DestructuringPattern<'c>>> {
         todo!()
+    }
+
+    pub fn parse_irrefutable_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
+        let token = self.peek().ok_or(ParseError::Parsing {
+            message: "Unexpected eof".to_string(),
+            src: self.source_location(&self.current_location()),
+        })?;
+
+        let start = self.current_location();
+
+        let pattern = match token {
+            Token {
+                kind: TokenKind::Atom(TokenAtom::Ident(k)),
+                span,
+            } => {
+                // this could be either just a binding pattern, enum, or a struct pattern
+                self.next_token();
+
+                // So here we try to parse an access name, if it is only made of a single binding
+                // name, we'll just return this as a binding pattern, otherwise it must follow that
+                // it is either a enum or struct pattern, if not we report it as an error since
+                // access names cannot be used as binding patterns on their own...
+                let name = self.parse_access_name(k)?;
+
+                match self.peek() {
+                    Some(Token {
+                        kind: TokenKind::Tree(Delimiter::Brace, tree),
+                        span,
+                    }) => {
+                        self.next_token();
+
+                        Pattern::Struct(StructPattern {
+                            name,
+                            entries: self.parse_pattern_namespace(tree, *span)?,
+                        })
+                    }
+                    Some(Token {
+                        kind: TokenKind::Tree(Delimiter::Paren, tree),
+                        span,
+                    }) => {
+                        // enum_pattern
+                        self.next_token();
+
+                        Pattern::Enum(EnumPattern {
+                            name,
+                            args: self.parse_pattern_collection(tree, *span)?,
+                        })
+                    }
+                    // Some(_) if name.path.len() == 1 => {
+                    //     Pattern::Binding(self.make_name_from_id(k, span))
+                    // }
+                    Some(token) if name.path.len() > 1 => self.unexpected_token_error(
+                        &token.kind,
+                        &TokenKindVector::begin_pattern_collection(&self.wall),
+                        &self.current_location(),
+                    )?,
+                    _ => Pattern::Binding(self.make_name_from_id(k, span)),
+                }
+            }
+            token if token.kind.is_literal() => {
+                self.next_token();
+                Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
+            }
+            Token {
+                kind: TokenKind::Tree(Delimiter::Paren, tree),
+                span,
+            } => {
+                self.next_token();
+
+                // this is a tuple pattern
+                Pattern::Tuple(TuplePattern {
+                    elements: self.parse_pattern_collection(tree, *span)?,
+                })
+            }
+            Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree),
+                span,
+            } => {
+                self.next_token();
+
+                Pattern::Namespace(NamespacePattern {
+                    patterns: self.parse_pattern_namespace(tree, *span)?,
+                })
+            }
+            // @@Future: List patterns aren't supported yet.
+            // Token {kind: TokenKind::Tree(Delimiter::Bracket, tree), span} => {
+            //                 self.next_token();
+            //     // this is a list pattern
+            //
+            // }
+            token => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::begin_pattern(&self.wall),
+                &token.span,
+            )?,
+        };
+
+        Ok(self.node_from_joined_location(pattern, &start))
     }
 
     pub fn parse_block(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
@@ -1009,9 +1208,7 @@ where
                 Some(token) => {
                     gen.unexpected_token_error(
                         &token.kind,
-                        &TokenKindVector::from_row(
-                            row![&self.wall; TokenKind::Atom(TokenAtom::Semi)],
-                        ),
+                        &TokenKindVector::from_row(row![&self.wall; TokenAtom::Semi]),
                         &gen.current_location(),
                     )?;
                 }
@@ -1448,7 +1645,7 @@ where
         Ok((name, args))
     }
 
-    /// Parses a single identifier, essentially converting the current [TokenKind::Ident] into
+    /// Parses a single identifier, essentially converting the current [TokenAtom::Ident] into
     /// an [AstNode<Name>], assuming that the next token is an identifier.
     pub fn parse_ident(&self) -> ParseResult<AstNode<'c, Name>> {
         match self.peek() {
@@ -1644,24 +1841,27 @@ where
     ///
     ///  (e.g. (i32) => str)
     ///
-    pub fn parse_function_or_tuple_type(&self) -> ParseResult<AstNode<'c, Type<'c>>> {
+    pub fn parse_function_or_tuple_type(
+        &self,
+        must_be_function: bool,
+    ) -> ParseResult<AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
         // handle the function arguments first by checking for parentheses
         let mut type_args = match self.peek() {
-            Some(Token { kind: TokenKind::Tree(_, tree), span}) => {
+            Some(Token {
+                kind: TokenKind::Tree(_, tree),
+                span,
+            }) => {
                 self.next_token();
 
-                let gen = self.from_stream(
-                    tree,
-                    *span,
-                );
+                let gen = self.from_stream(tree, *span);
 
                 let mut type_args = row![&self.wall; ];
 
                 // Handle special case where there is only one comma and no following items...
-                 // Special edge case for '(,)' or an empty tuple type...
-                 match gen.peek() {
+                // Special edge case for '(,)' or an empty tuple type...
+                match gen.peek() {
                     Some(token) if token.has_atom(TokenAtom::Comma) => {
                         if gen.stream.length() == 1 {
                             gen.next_token();
@@ -1673,7 +1873,7 @@ where
                                 Some(ty) => type_args.push(ty, &self.wall),
                                 None => break,
                             };
-        
+
                             // If we reach the end of the parenthesis don't try to parse the comma...
                             if gen.has_token() {
                                 gen.parse_token_kind(TokenKind::Atom(TokenAtom::Comma))?;
@@ -1684,8 +1884,14 @@ where
 
                 type_args
             }
-            Some(token) => self.unexpected_token_error(&token.kind, &TokenKindVector::from_row(row![&self.wall; TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, false))]), &self.current_location())?,
-            None => self.unexpected_eof()?
+            Some(token) => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::from_row(
+                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, false)],
+                ),
+                &self.current_location(),
+            )?,
+            None => self.unexpected_eof()?,
         };
 
         // If there is an arrow '=>', then this must be a function type
@@ -1695,7 +1901,15 @@ where
                 type_args.push(self.parse_type()?, &self.wall);
                 IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
             }
-            None => IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME),
+            None => {
+                if must_be_function {
+                    self.error(
+                        "Expected an arrow '=>' after type arguments denoting a function type.",
+                    )?;
+                }
+
+                IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME)
+            }
         };
 
         Ok(self.node_from_joined_location(
@@ -1835,9 +2049,10 @@ where
             }
 
             // Tuple or function type
-            TokenKind::Tree(Delimiter::Paren, _) => {
-                self.parse_function_or_tuple_type()?.into_body().move_out()
-            }
+            TokenKind::Tree(Delimiter::Paren, _) => self
+                .parse_function_or_tuple_type(false)?
+                .into_body()
+                .move_out(),
             _ => {
                 return Err(ParseError::Parsing {
                     message: "Expected type here.".to_string(),
@@ -2058,6 +2273,16 @@ where
             start.join(gen.current_location()),
             &self.wall,
         ))
+    }
+
+    pub fn convert_literal_kind_into_pattern(&self, kind: &TokenKind) -> LiteralPattern {
+        match kind {
+            TokenKind::Atom(TokenAtom::StrLiteral(s)) => LiteralPattern::Str(*s),
+            TokenKind::Atom(TokenAtom::CharLiteral(s)) => LiteralPattern::Char(*s),
+            TokenKind::Atom(TokenAtom::IntLiteral(s)) => LiteralPattern::Int(*s),
+            TokenKind::Atom(TokenAtom::FloatLiteral(s)) => LiteralPattern::Float(*s),
+            _ => unreachable!(),
+        }
     }
 
     /// Convert the current token (provided it is a primitive literal) into a [ExpressionKind::LiteralExpr]
