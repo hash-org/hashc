@@ -187,10 +187,13 @@ pub enum TokenAtom {
 
     Keyword(Keyword),
 
+    /// General classification of an identifier
+    // @@Cleanup: find a better way to describe when we expect an identifier
+    GenericIdent,
+
     /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error reporting and messages
     Delimiter(Delimiter, bool),
 
-    /// @@Redundant: we should report an error on this?
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
     /// string literal.
     Unexpected(char),
@@ -235,6 +238,7 @@ impl fmt::Display for TokenAtom {
                 write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
             }
             TokenAtom::Keyword(kwd) => kwd.fmt(f),
+            TokenAtom::GenericIdent => write!(f, "identifier"),
             TokenAtom::Ident(ident) => {
                 write!(f, "{}", IDENTIFIER_MAP.ident_name(*ident))
             }
@@ -242,14 +246,14 @@ impl fmt::Display for TokenAtom {
     }
 }
 
-pub struct TokenKindVector<'c>(Row<'c, TokenKind<'c>>);
+pub struct TokenKindVector<'c>(Row<'c, TokenAtom>);
 
 impl<'c> TokenKindVector<'c> {
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall])
     }
 
-    pub fn from_row(items: Row<'c, TokenKind<'c>>) -> Self {
+    pub fn from_row(items: Row<'c, TokenAtom>) -> Self {
         Self(items)
     }
 
@@ -257,16 +261,21 @@ impl<'c> TokenKindVector<'c> {
         self.0.is_empty()
     }
 
-    // pub fn expression_glue(wall: &Wall<'c>) -> Self {
-    //     Self(row![wall;
-    //         TokenKind::Atom(TokenAtom::Dot),
-    //         TokenKind::Atom(TokenAtom::Colon),
-    //         TokenKind::Atom(TokenAtom::Lt),
-    //         TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Paren, true)),
-    //         TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Brace, true)),
-    //         TokenKind::Atom(TokenAtom::Delimiter(Delimiter::Bracket, true)),
-    //     ])
-    // }
+    pub fn begin_pattern_collection(wall: &Wall<'c>) -> Self {
+        Self(row![wall;
+            TokenAtom::Delimiter(Delimiter::Paren, true),
+            TokenAtom::Delimiter(Delimiter::Brace, true),
+        ])
+    }
+
+    pub fn begin_pattern(wall: &Wall<'c>) -> Self {
+        Self(row![wall;
+            TokenAtom::GenericIdent,
+            TokenAtom::Delimiter(Delimiter::Paren, true),
+            TokenAtom::Delimiter(Delimiter::Brace, true),
+            TokenAtom::Delimiter(Delimiter::Bracket, true),
+        ])
+    }
 }
 
 /// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds
@@ -323,6 +332,13 @@ impl<'c> TokenKind<'c> {
                 *delimiter,
                 Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
             ),
+        }
+    }
+
+    pub(crate) fn to_atom(&self) -> TokenAtom {
+        match self {
+            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(*delim, true),
+            TokenKind::Atom(atom) => *atom,
         }
     }
 
