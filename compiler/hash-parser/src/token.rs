@@ -246,6 +246,7 @@ impl fmt::Display for TokenAtom {
     }
 }
 
+#[derive(Debug)]
 pub struct TokenKindVector<'c>(Row<'c, TokenAtom>);
 
 impl<'c> TokenKindVector<'c> {
@@ -288,16 +289,25 @@ impl fmt::Display for TokenKindVector<'_> {
         // This is where Haskell would really shine...
         match self.0.len() {
             0 => write!(f, ""),
-            1 => write!(f, "{}", self.0.get(0).unwrap()),
+            1 => write!(f, "a '{}'", self.0.get(0).unwrap()),
             _ => {
+                let len = self.0.len();
                 let mut items = self.0.iter().peekable();
+
+                write!(f, "either a ")?;
+                let mut count = 0;
 
                 while let Some(item) = items.next() {
                     if items.peek().is_some() {
-                        write!(f, "'{}', ", item)?;
+                        if count == len - 2 {
+                            write!(f, "'{}', or ", item)?;
+                        } else {
+                            write!(f, "'{}', ", item)?;
+                        }
                     } else {
                         write!(f, "'{}'", item)?;
                     };
+                    count += 1;
                 }
 
                 write!(f, ".")
