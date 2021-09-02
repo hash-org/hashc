@@ -261,6 +261,21 @@ where
         )
     }
 
+    pub(crate) fn make_access_name_from_str<T: Into<String>>(
+        &self,
+        name: T,
+        location: Location,
+    ) -> AstNode<'c, AccessName<'c>> {
+        let name = IDENTIFIER_MAP.create_ident(&name.into());
+
+        self.node_with_location(
+            AccessName {
+                path: row![&self.wall; name],
+            },
+            location,
+        )
+    }
+
     pub(crate) fn make_access_name(
         &self,
         name: Identifier,
@@ -761,15 +776,170 @@ where
         ))
     }
 
+    /// transpile the for-loop into a simpler loop as described by the documentation.
+    /// Since for loops are used for iterators in hash, we transpile the construct into a primitive loop.
+    /// An iterator can be traversed by calling the next function on the iterator.
+    /// Since next returns a Option type, we need to check if there is a value or if it returns None.
+    /// If a value does exist, we essentially perform an assignment to the pattern provided.
+    /// If None, the branch immediately breaks the for loop.
+    ///
+    /// A rough outline of what the transpilation process for a for loop looks like:
+    ///
+    /// For example, the for loop can be expressed using loop as:
+    ///
+    /// >>> for <pat> in <iterator> {
+    /// >>>     <block>
+    /// >>> }
+    ///
+    /// converted to:
+    /// >>> loop {
+    /// >>>     match next(<iterator>) {
+    /// >>>         Some(<pat>) => <block>;
+    /// >>>         None        => break;
+    /// >>>     }
+    /// >>> }
     pub fn parse_for_loop(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
-        todo!()
+        debug_assert!(self
+            .current_token()
+            .has_atom(TokenAtom::Keyword(Keyword::For)));
+
+        let start = self.current_location();
+
+        // now we parse the singular pattern that begins at the for-loop
+        let pattern = self.parse_irrefutable_pattern()?;
+        let pattern_location = pattern.location();
+
+        self.parse_token_atom(TokenAtom::Keyword(Keyword::In))?;
+
+        self.disallow_struct_literals.set(true);
+        let iterator = self.parse_expression_bp(0)?;
+        let iterator_location = iterator.location();
+        self.disallow_struct_literals.set(false);
+
+        let body = self.parse_block()?;
+        let body_location = body.location();
+
+        // transpile the for loop
+        Ok(self.node_from_joined_location(Block::Loop(self.node_from_location(
+            Block::Match(MatchBlock {
+            subject: self.node(Expression::new(ExpressionKind::FunctionCall(
+                FunctionCallExpr {
+                    subject: self.node(Expression::new(ExpressionKind::Variable(
+                        VariableExpr {
+                            name: self.make_access_name_from_str("next", iterator.location()),
+                            type_args: row![&self.wall],
+                        },
+                    ))),
+                    args: self.node_from_location(FunctionCallArgs {
+                        entries: row![&self.wall; iterator],
+                    }, &iterator_location),
+                },
+            ))),
+            cases: row![&self.wall; self.node_from_location(MatchCase {
+                    pattern: self.node_from_location(
+                        Pattern::Enum(
+                            EnumPattern {
+                                name:
+                                    self.make_access_name_from_str(
+                                        "Some",
+                                        self.current_location()
+                                    ),
+                                args: row![&self.wall; pattern],
+                            },
+                        ), &pattern_location
+                    ),
+                    expr: self.node_from_location(Expression::new(ExpressionKind::Block(body)), &body_location),
+                }, &start),
+                self.node(MatchCase {
+                    pattern: self.node(
+                        Pattern::Enum(
+                            EnumPattern {
+                                name:
+                                    self.make_access_name_from_str(
+                                        "None",
+                                        self.current_location()
+                                    ),
+                                args: row![&self.wall],
+                            },
+                        ),
+                    ),
+                    expr: self.node(Expression::new(ExpressionKind::Block(
+                        self.node(Block::Body(BodyBlock {
+                            statements: row![&self.wall; self.node(Statement::Break)],
+                            expr: None,
+                        })),
+                    ))),
+                }),
+            ],
+        }), &start)), &start))
     }
 
+    /// In general, a while loop transpilation process occurs by transferring the looping
+    /// condition into a match block, which compares a boolean condition. If the boolean condition
+    /// evaluates to false, the loop will immediately break. Otherwise the body expression is expected.
+    /// A rough outline of what the transpilation process for a while loop looks like:
+    ///
+    /// >>> while <condition> {
+    /// >>>     <block>
+    /// >>> }
+    /// >>>
+    /// >>> // converted to
+    /// >>> loop {
+    /// >>>     match <condition> {
+    /// >>>         true  => <block>;
+    /// >>>         false => break;
+    /// >>>     }
+    /// >>> }
     pub fn parse_while_loop(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
-        todo!()
+        debug_assert!(self
+            .current_token()
+            .has_atom(TokenAtom::Keyword(Keyword::While)));
+
+        let start = self.current_location();
+
+        self.disallow_struct_literals.set(true);
+        let condition = self.parse_expression_bp(0)?;
+        let condition_location = condition.location();
+        self.disallow_struct_literals.set(false);
+
+        let body = self.parse_block()?;
+        let body_location = body.location();
+
+        Ok(self.node_from_joined_location(
+            Block::Loop(self.node_with_location(
+                Block::Match(MatchBlock {
+                    subject: condition,
+                    cases: row![&self.wall; self.node(MatchCase {
+                            pattern: self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_access_name_from_str("true", body_location),
+                                args: row![&self.wall],
+                            })),
+                            expr: self.node(Expression::new(ExpressionKind::Block(body))),
+                        }),
+                        self.node(MatchCase {
+                            pattern: self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_access_name_from_str("false", body_location),
+                                args: row![&self.wall],
+                            })),
+                            expr: self.node(Expression::new(ExpressionKind::Block(
+                                self.node(Block::Body(BodyBlock {
+                                    statements: row![&self.wall; self.node(Statement::Break)],
+                                    expr: None,
+                                })),
+                            ))),
+                        }),
+                    ],
+                }),
+                condition_location,
+            )),
+            &start,
+        ))
     }
 
     pub fn parse_match_block(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
+        debug_assert!(self
+            .current_token()
+            .has_atom(TokenAtom::Keyword(Keyword::Match)));
         todo!()
     }
 

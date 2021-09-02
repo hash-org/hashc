@@ -728,17 +728,18 @@ impl NodeDisplay for Block<'_> {
                     components.push(case_lines);
                 }
 
-                iter::once("match".to_string())
+                let lines = iter::once("match".to_string())
                     .chain(draw_branches_for_children(&components))
-                    .collect::<Vec<String>>()
+                    .collect::<Vec<String>>();
+
+                child_branch(&lines)
             }
             Block::Loop(loop_body) => {
-                let mut lines = vec!["loop".to_string()];
+                let lines = iter::once("loop".to_string())
+                    .chain(loop_body.node_display())
+                    .collect::<Vec<String>>();
 
-                // @@Cleanup: This is a block but we don't display this as a block with the branch because
-                // it doesn't go through the Statement implementation which deals with the block
-                lines.extend(pad_lines(loop_body.node_display(), 2));
-                draw_branches_for_lines(&lines, END_PIPE, "")
+                child_branch(&lines)
             }
             Block::Body(body) => body.node_display(),
         }
@@ -755,7 +756,7 @@ impl NodeDisplay for MatchCase<'_> {
         // deal with the block for this case
         let branch_lines = vec!["branch".to_string()]
             .into_iter()
-            .chain(self.expr.node_display())
+            .chain(child_branch(&self.expr.node_display()))
             .collect();
 
         // append child_lines with padding and vertical lines being drawn
