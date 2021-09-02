@@ -1,14 +1,29 @@
-struct MyStruct = <T> => {
-    field: T,
-    other_field: int,
-    default_field: float = 6.0e2,
-    a_flag: bool
-};
+// struct MyStruct = <T> => {
+//     field: T,
+//     other_field: int,
+//     default_field: float = 6.0e2,
+//     a_flag: bool
+// };
 
-enum MyEnum = <T, Y> => {
-    MyVariant(T),
-    OtherVariant(int, Y),
-    InnerVariant(MyEnum<int, str>, str),
-    PointVariant(Point<int>),
-    EmptyVariant,
+// enum MyEnum = <T, Y> => {
+//     MyVariant(T),
+//     OtherVariant(int, Y),
+//     InnerVariant(MyEnum<int, str>, str),
+//     PointVariant(Point<int>),
+//     EmptyVariant,
+// };
+
+let other_func = (t: str) => {
+    match t {
+        "one" => 1;
+        "two" => 2;
+        "three" => 3;
+        "four" | "five" if var => 4.5;
+        alpha if var == 2 => {
+            print(alpha)
+        };
+        _ => -1;
+    }
+
+    return alpha;
 };
