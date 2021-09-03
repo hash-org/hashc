@@ -491,7 +491,7 @@ pub struct MatchCase<'c> {
     pub pattern: AstNode<'c, Pattern<'c>>,
     /// The expression corresponding to the match case.
     ///
-    /// Will be executed if the pattern succeeeds.
+    /// Will be executed if the pattern succeeds.
     pub expr: AstNode<'c, Expression<'c>>,
 }
 

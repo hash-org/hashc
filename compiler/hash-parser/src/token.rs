@@ -42,6 +42,17 @@ impl<'c> Token<'c> {
         }
     }
 
+    pub fn into_tree(&self) -> (&Row<'c, Token<'c>>, Location) {
+        let location = self.span;
+
+        let tree = match &self.kind {
+            TokenKind::Tree(_, tree) => tree,
+            _ => unreachable!("Cannot convert token into tree"),
+        };
+
+        (tree, location)
+    }
+
     pub fn is_brace_tree(&self) -> bool {
         matches!(self.kind, TokenKind::Tree(Delimiter::Brace, _))
     }
@@ -86,6 +97,95 @@ impl fmt::Display for Token<'_> {
             }
             kind => write!(f, "{:?}", kind),
         }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TokenKind<'c> {
+    Atom(TokenAtom),
+
+    /// A token tree is represented by an arbitrary number of tokens that are surrounded by
+    /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
+    Tree(Delimiter, Row<'c, Token<'c>>),
+}
+
+impl<'c> fmt::Display for TokenKind<'c> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TokenKind::Atom(atom) => write!(f, "{}", atom),
+            TokenKind::Tree(_, tokens) => write!(f, "{:#?}", tokens),
+        }
+    }
+}
+
+impl<'c> TokenKind<'c> {
+    pub(crate) fn clone_in(&self, wall: &Wall<'c>) -> Self {
+        match self {
+            TokenKind::Atom(atom) => TokenKind::Atom(*atom),
+            TokenKind::Tree(delimiter, tokens) => TokenKind::Tree(
+                *delimiter,
+                Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
+            ),
+        }
+    }
+
+    pub(crate) fn to_atom(&self) -> TokenAtom {
+        match self {
+            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(*delim, true),
+            TokenKind::Atom(atom) => *atom,
+        }
+    }
+
+    /// Check if a [TokenKind] can be considered in a situation as a unary operator.
+    pub(crate) fn is_unary_op(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Atom(
+                TokenAtom::Plus
+                    | TokenAtom::Minus
+                    | TokenAtom::Star
+                    | TokenAtom::Slash
+                    | TokenAtom::Amp
+                    | TokenAtom::Tilde
+                    | TokenAtom::Exclamation
+            )
+        )
+    }
+
+    /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
+    /// follow a specific syntax, and must be statements.
+    pub(crate) fn begins_statement(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Atom(
+                TokenAtom::Keyword(Keyword::Let)
+                    | TokenAtom::Keyword(Keyword::For)
+                    | TokenAtom::Keyword(Keyword::While)
+                    | TokenAtom::Keyword(Keyword::Loop)
+                    | TokenAtom::Keyword(Keyword::If)
+                    | TokenAtom::Keyword(Keyword::Else)
+                    | TokenAtom::Keyword(Keyword::Match)
+                    | TokenAtom::Keyword(Keyword::Trait)
+                    | TokenAtom::Keyword(Keyword::Enum)
+                    | TokenAtom::Keyword(Keyword::Struct)
+                    | TokenAtom::Keyword(Keyword::Continue)
+                    | TokenAtom::Keyword(Keyword::Break)
+                    | TokenAtom::Keyword(Keyword::Return)
+            )
+        )
+    }
+
+    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
+    pub(crate) fn is_literal(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Atom(
+                TokenAtom::IntLiteral(_)
+                    | TokenAtom::FloatLiteral(_)
+                    | TokenAtom::CharLiteral(_)
+                    | TokenAtom::StrLiteral(_)
+            )
+        )
     }
 }
 
@@ -313,95 +413,6 @@ impl fmt::Display for TokenKindVector<'_> {
                 write!(f, ".")
             }
         }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum TokenKind<'c> {
-    Atom(TokenAtom),
-
-    /// A token tree is represented by an arbitrary number of tokens that are surrounded by
-    /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
-    Tree(Delimiter, Row<'c, Token<'c>>),
-}
-
-impl<'c> fmt::Display for TokenKind<'c> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TokenKind::Atom(atom) => write!(f, "{}", atom),
-            TokenKind::Tree(_, tokens) => write!(f, "{:#?}", tokens),
-        }
-    }
-}
-
-impl<'c> TokenKind<'c> {
-    pub(crate) fn clone_in(&self, wall: &Wall<'c>) -> Self {
-        match self {
-            TokenKind::Atom(atom) => TokenKind::Atom(*atom),
-            TokenKind::Tree(delimiter, tokens) => TokenKind::Tree(
-                *delimiter,
-                Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
-            ),
-        }
-    }
-
-    pub(crate) fn to_atom(&self) -> TokenAtom {
-        match self {
-            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(*delim, true),
-            TokenKind::Atom(atom) => *atom,
-        }
-    }
-
-    /// Check if a [TokenKind] can be considered in a situation as a unary operator.
-    pub(crate) fn is_unary_op(&self) -> bool {
-        matches!(
-            self,
-            TokenKind::Atom(
-                TokenAtom::Plus
-                    | TokenAtom::Minus
-                    | TokenAtom::Star
-                    | TokenAtom::Slash
-                    | TokenAtom::Amp
-                    | TokenAtom::Tilde
-                    | TokenAtom::Exclamation
-            )
-        )
-    }
-
-    /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
-    /// follow a specific syntax, and must be statements.
-    pub(crate) fn begins_statement(&self) -> bool {
-        matches!(
-            self,
-            TokenKind::Atom(
-                TokenAtom::Keyword(Keyword::Let)
-                    | TokenAtom::Keyword(Keyword::For)
-                    | TokenAtom::Keyword(Keyword::While)
-                    | TokenAtom::Keyword(Keyword::Loop)
-                    | TokenAtom::Keyword(Keyword::If)
-                    | TokenAtom::Keyword(Keyword::Else)
-                    | TokenAtom::Keyword(Keyword::Match)
-                    | TokenAtom::Keyword(Keyword::Trait)
-                    | TokenAtom::Keyword(Keyword::Enum)
-                    | TokenAtom::Keyword(Keyword::Struct)
-                    | TokenAtom::Keyword(Keyword::Continue)
-                    | TokenAtom::Keyword(Keyword::Break)
-                    | TokenAtom::Keyword(Keyword::Return)
-            )
-        )
-    }
-
-    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
-    pub(crate) fn is_literal(&self) -> bool {
-        matches!(
-            self,
-            TokenKind::Atom(
-                TokenAtom::IntLiteral(_)
-                    | TokenAtom::FloatLiteral(_)
-                    | TokenAtom::CharLiteral(_)
-                    | TokenAtom::StrLiteral(_)
-            )
-        )
     }
 }
 
