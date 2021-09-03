@@ -72,7 +72,7 @@ let abs: (i64: x) => i64 = if x < 0 { -x }
 of what should happen for the `else` case.
 
 ## If statements and Enums 🚧
-You can destruct enum values within if statments using the `if-let` syntax, like so:
+You can destruct enum values within if statements using the `if-let` syntax, like so:
 
 ```rust
 enum Result = <T, E> => {

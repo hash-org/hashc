@@ -53,7 +53,7 @@ error: Failed to typecheck:
 Cannot match type 'char' with 'str'.
 ```
 
-## Usefullness
+## Usefulness
  
 Why are type assertions when there is already type inference within the language? Well, sometimes the type inference
 system does not have enough information to infer the types of variables and declarations. 

@@ -15,7 +15,7 @@ Given the project structure:
 └── main.hash
 ```
 
-Modules in hash allow for a source to be split up into smaller code fragments, allowing for better source code organisation and maintainance.
+Modules in hash allow for a source to be split up into smaller code fragments, allowing for better source code organisation and maintenance.
 
 You can import modules by specifying the path relative to the current path. 
 
@@ -83,7 +83,7 @@ let p1 = LibPoint { x=2; y=3 };
 
 ### Cyclic imports 🚧
 
-Hash does not currently support cyclical dependencies within a project. Two modules within a project cannot be dependent on each other. As much as this might be an inconvienience, this is done to avoid "behaviour" which is implied by supporting cyclical imports. Other languages such as JavaScript support cyclical imports but can sometimes exhibit strange behaviour when using modules with cyclical imports.
+Hash does not currently support cyclical dependencies within a project. Two modules within a project cannot be dependent on each other. As much as this might be an inconvenience, this is done to avoid "behaviour" which is implied by supporting cyclical imports. Other languages such as JavaScript support cyclical imports but can sometimes exhibit strange behaviour when using modules with cyclical imports.
 
 It is currently under consideration to lift this restriction, but at the same time avoid strange behaviours when supporting cyclical imports.
 
