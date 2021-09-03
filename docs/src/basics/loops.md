@@ -1,7 +1,7 @@
 # Loop constructs
 
 Hash contains 3 distinct loop control constructs: `for`, `while` and `loop`. Each construct has
-a distinct usage case, but they can often be used interchangebly without hastle and are merely
+a distinct usage case, but they can often be used interchangeably without hassle and are merely
 a style choice.
 
 ## General
@@ -9,10 +9,10 @@ a style choice.
 Each construct supports the basic `break` and `continue` loop control flow statements. These statements
 have the same properties as in many other languages like C, Rust, Python etc.
 
-`break` - Using this control flow statements immediatelly terminates the loop and continues
+`break` - Using this control flow statements immediately terminates the loop and continues
 to any statement after the loop (if any).
 
-`continue` - Using this control flow statement will immediatelly skip the current iteration
+`continue` - Using this control flow statement will immediately skip the current iteration
 of the loop body and move on to the next iteration (if any). Obviously, if no iterations
 remain, `continue` behaves just like `break`.
 
@@ -64,7 +64,7 @@ More details about generics are [here](./generics-polymorphism.md).
 
 While loops are identical to 'while' constructs in other languages such as Java, C, JavaScript, etc.
 The loop will check a given conditional expression ( must evaluate to a `bool`), and if it evaluates
-to `true`, the loop body is executed, oterhwise the interpreter moves on. The loop body can also
+to `true`, the loop body is executed, otherwise the interpreter moves on. The loop body can also
 use loop control flow statements like `break` or `continue` to prematurely stop looping for a
 given condition.
 
@@ -144,7 +144,7 @@ error: Failed to Typecheck:
 
 ## Loop
 
-The loop consturct is the simplest of the three. The basic syntax for a loop is as follows:
+The loop construct is the simplest of the three. The basic syntax for a loop is as follows:
 
 ```rust
 
@@ -180,122 +180,3 @@ loop {
     print("I loop and I print when I get a  " + c);
 } // this will loop 10 times, and print only when c is even
 ```
-<<<<<<< HEAD:docs/loops.md
-
-## Miscellaneous
-
-As mentioned at the start of the introduction, the `loop` control flow keyword
-is the most universal control flow since to you can use `loop` to represent 
-both the `for` and `while` loops. 
-
-### for loop transpillation
-
-Since `for` loops are used for iterators in hash, we transpile the construct into
-a primitive loop. An iterator can be traversed by calling the `next` function on the
-iterator. Since `next` returns a `Option` type, we need to check if there is a value
-or if it returns `None`. If a value does exist, we essentially perform an assignment
-to the pattern provided. If `None`, the branch immediatelly breaks the `for` loop.
-A rough outline of what the transpillation process for a `for` loop looks like:
-
-For example, the `for` loop can be expressed using `loop` as:
-
- ```
- for <pat> in <iterator> {
-     <block>
- }
-
- // converted to
- loop {
-     match next(<iterator>) {
-         Some(<pat>) => <block>;
-         None        => break;
-     }
- }
-```
-
-An example of the transpillation process:
-
-```rust
-let i = [1,2,3,5].into_iter();
-
-for x in i {
-    print("x is " + x);
-}
-
-
-// the same as...
-let i = [1,2,3,5].into_iter();
-
-loop {
-  match next(i) {
-    Some(x) => {print("x is " + x)};
-    None => break;
-  }
-}
-```
-
-### While loop internal representation
-
- In general, a while loop transpilation process occurs by transferring the looping 
- condition into a match block, which compares a boolean condition. If the boolean
- conditionb evaluates to `false`, the loop will immediatelly `break`. Otherwise
- the body expression is exected. A rough outline of what the transpillation process for a `while` loop looks like:
-
- ```
- while <condition> {
-     <block>
- }
-
- // converted to
- loop {
-     match <condition> {
-         true  => <block>;
-         false => break;
-     }
- }
- ```
-
-This is why the condition must explicitly return a boolean value.
-
-An example of a transpilation:
-
-And the `while` loop can be written using the `loop` directive
-like so:
-
-```rust
-let c = 0;
-
-loop {
-    match c < 5 { // where 'x' is the condition for the while loop
-        true  => c += 1;
-        false => break;
-    }
-}
-
-// same as...
-let c = 0;
-
-while c < 5 {
-    c+=1;
-}
-```
-
-
-### Loop construct
-
-Similarly, the `loop` keyword is equivalent of someone writing a `while` loop that has
-a conditional expression that always evaluate to `true`; like so,
-
-```rust
-while true {
-    // do something
-}
-
-// is the same as...
-
-loop {
-    // do something
-}
-```
-=======
->>>>>>> main:docs/src/basics/loops.md

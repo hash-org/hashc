@@ -25,7 +25,7 @@ They can be `match`ed to discover what they contain:
 let handle_error = (error: NetworkError) => match error {
    NoBytesReceived => print("No bytes received, stopping");
    ConnectionTerminated => print("Connection was terminated");
-   Unexpected(err, code) => print("An unexpected error occured: " + err + " (" + conv(code) + ") ");
+   Unexpected(err, code) => print("An unexpected error occurred: " + err + " (" + conv(code) + ") ");
 };
 ```
 

@@ -95,7 +95,7 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         })
     }
 
-    /// Utility finction for creating a variable from a given name.
+    /// Utility function for creating a variable from a given name.
     fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
@@ -247,7 +247,7 @@ pub(crate) fn build_binary<'c>(
                 FunctionCallExpr {
                     subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
                         name: ab.make_single_access_name(name),
-                        type_args: row![wall], // we dont need any kind of typeargs since were just transpiling here
+                        type_args: row![wall], // we don't need any kind of type_args since were just transpiling here
                     }))),
                     args: ab.node(FunctionCallArgs {
                         entries: row![wall; ab.transform_expr_into_ref(lhs?, assigning), rhs?],

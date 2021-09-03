@@ -125,7 +125,7 @@ where
 }
 
 ///
-/// We need a seperate implementation for [Module] since it won't be wrapped within
+/// We need a separate implementation for [Module] since it won't be wrapped within
 /// an [AstNode] unlike all the other variants
 ///
 impl std::fmt::Display for Module<'_> {

@@ -29,7 +29,7 @@ to the literal.
 
 ## Destructuring patterns
 
-Destructuring patterns are used to assign parts of an object to seperate variables within `let`, `for`, and
+Destructuring patterns are used to assign parts of an object to separate variables within `let`, `for`, and
 `match`statements. A very simple example of a destructuring pattern in a `let` statement would be:
 
 ```rust
@@ -64,12 +64,12 @@ for Point {x, y} in points.iter() {
 }
 ```
 As you can see within the `for` loop, the pattern `Point{x, y}` is being used to
-destruct each point in the array into the seperate fields.
+destruct each point in the array into the separate fields.
 
 ## Struct patterns
 
-Struct patterns follow a simiar syntax to struct literals in Hash. You can discard and
-access fields available within a struct by specifiying the field name and then followed
+Struct patterns follow a similar syntax to struct literals in Hash. You can discard and
+access fields available within a struct by specifying the field name and then followed
 by an optional right-hand side pattern to either rename the field or use a literal pattern.
 
 ### Basic
@@ -134,11 +134,11 @@ let compare_id = (car: Car, id: int) => {
 ```
 
 So, in the above example (which is admittedly unrealistic) we rename the cars `id` field to
-`car_id` by specifing the right-hand side binding pattern `= car_id`.
+`car_id` by specifying the right-hand side binding pattern `= car_id`.
 
 ## Namespace patterns
 
-Namspace patterns are very similar to struct patterns, but they can only be used within `let`
+Namespace patterns are very similar to struct patterns, but they can only be used within `let`
 statements and when importing symbols from other modules. They follow a simple syntax:
 
 ```rust
@@ -186,7 +186,7 @@ let [a, b] = arr;
 ```
 
 Now in this example, the compiler will assume that the size of `arr` is of length 2, and if not it will error since
-parts of the array are essentially unhandeled. To circumvent this issue you can use the `...`, (spread) operator which
+parts of the array are essentially unhandled. To circumvent this issue you can use the `...`, (spread) operator which
 used as a capturing group for some elements. With the example above, you can ignore all of the following elements after
 the first two by writing:
 

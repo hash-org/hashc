@@ -6,7 +6,7 @@ use crate::location::SourceLocation;
 use std::{io, path::PathBuf};
 use thiserror::Error;
 
-/// Hash ParseError enum represnting the variants of possible errors.
+/// Hash ParseError enum representing the variants of possible errors.
 #[derive(Debug, Clone, Error)]
 pub enum ParseError {
     #[error("An IO error occurred when reading {filename}: {message}")]
