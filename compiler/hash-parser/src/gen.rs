@@ -806,7 +806,7 @@ where
         let start = self.current_location();
 
         // now we parse the singular pattern that begins at the for-loop
-        let pattern = self.parse_irrefutable_pattern()?;
+        let pattern = self.parse_singular_pattern()?;
         let pattern_location = pattern.location();
 
         self.parse_token_atom(TokenAtom::Keyword(Keyword::In))?;
@@ -936,11 +936,53 @@ where
         ))
     }
 
+    pub fn parse_match_case(&self) -> ParseResult<AstNode<'c, MatchCase<'c>>> {
+        let start = self.current_location();
+        let pattern = self.parse_pattern()?;
+
+        self.parse_arrow()?;
+        let expr = self.parse_expression_bp(0)?;
+
+        Ok(self.node_from_joined_location(MatchCase { pattern, expr }, &start))
+    }
+
+    /// Parse a match block statement, which is composed of a subject and an arbitrary
+    /// number of match cases that are surrounded in braces.
     pub fn parse_match_block(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::Match)));
-        todo!()
+
+        let start = self.current_location();
+
+        self.disallow_struct_literals.set(true);
+        let subject = self.parse_expression_bp(0)?;
+        self.disallow_struct_literals.set(false);
+
+        let mut cases = row![&self.wall];
+        // cases are wrapped in a brace tree
+        match self.peek() {
+            Some(token) if token.is_brace_tree() => {
+                let (tree, span) = self.next_token().unwrap().into_tree();
+                let gen = self.from_stream(tree, span);
+
+                while gen.has_token() {
+                    cases.push(gen.parse_match_case()?, &self.wall);
+
+                    gen.parse_token_atom(TokenAtom::Colon)?;
+                }
+            }
+            Some(token) => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::from_row(
+                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
+                ),
+                &self.current_location(),
+            )?,
+            _ => self.unexpected_eof()?,
+        };
+
+        Ok(self.node_from_joined_location(Block::Match(MatchBlock { subject, cases }), &start))
     }
 
     /// we transpile if-else blocks into match blocks in order to simplify
@@ -1121,7 +1163,7 @@ where
             TokenKind::Atom(TokenAtom::Keyword(Keyword::Let))
         ));
 
-        let pattern = self.parse_irrefutable_pattern()?;
+        let pattern = self.parse_singular_pattern()?;
 
         let bound = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Lt) => Some(self.parse_type_bound()?),
@@ -1162,7 +1204,7 @@ where
         let mut elements = row![&self.wall;];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_irrefutable_pattern()) {
+            match gen.peek_resultant_fn(|| gen.parse_singular_pattern()) {
                 Some(pattern) => elements.push(pattern, &self.wall),
                 None => break,
             }
@@ -1188,7 +1230,7 @@ where
         todo!()
     }
 
-    pub fn parse_irrefutable_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
+    pub fn parse_singular_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
         let token = self.peek().ok_or(ParseError::Parsing {
             message: "Unexpected eof".to_string(),
             src: self.source_location(&self.current_location()),
@@ -1249,25 +1291,19 @@ where
                 self.next_token();
                 Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
             }
-            Token {
-                kind: TokenKind::Tree(Delimiter::Paren, tree),
-                span,
-            } => {
-                self.next_token();
+            token if token.is_paren_tree() => {
+                let (tree, span) = self.next_token().unwrap().into_tree();
 
                 // this is a tuple pattern
                 Pattern::Tuple(TuplePattern {
-                    elements: self.parse_pattern_collection(tree, *span)?,
+                    elements: self.parse_pattern_collection(tree, span)?,
                 })
             }
-            Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree),
-                span,
-            } => {
-                self.next_token();
+            token if token.is_brace_tree() => {
+                let (tree, span) = self.next_token().unwrap().into_tree();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_pattern_namespace(tree, *span)?,
+                    patterns: self.parse_pattern_namespace(tree, span)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.
