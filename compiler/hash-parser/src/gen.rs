@@ -303,14 +303,14 @@ where
 
     pub(crate) fn make_ident_from_id(
         &self,
-        id: &Identifier,
+        id: Identifier,
         location: Location,
     ) -> AstNode<'c, Expression<'c>> {
         AstNode::new(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.node_from_joined_location(
                     AccessName {
-                        path: row![&self.wall; *id],
+                        path: row![&self.wall; id],
                     },
                     &location,
                 ),
@@ -1855,6 +1855,20 @@ where
                     ),
                 })
             }
+            TokenKind::Atom(TokenAtom::Hash) => {
+                // First get the intrinsic subject, and expect a possible singular expression
+                // followed by the intrinsic.
+                let subject = self.parse_ident()?;
+                let name = subject.ident;
+
+                // create the subject node
+                let subject_node = self.node_from_joined_location(
+                    Expression::new(ExpressionKind::Intrinsic(IntrinsicKey { name })),
+                    &start,
+                );
+
+                return self.parse_singular_expression(subject_node);
+            }
             TokenKind::Atom(TokenAtom::Exclamation) => {
                 let arg = self.parse_expression()?;
                 let loc = arg.location();
@@ -1917,10 +1931,12 @@ where
 
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
-            _ => Err(ParseError::Parsing {
-                message: "Expected an identifier".to_string(),
-                src: self.source_location(&self.current_location()),
-            }),
+            Some(token) => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::from_row(row![&self.wall; TokenAtom::GenericIdent]),
+                &self.current_location(),
+            ),
+            None => self.unexpected_eof(),
         }
     }
 
@@ -2361,13 +2377,13 @@ where
 
                     Ok(self.node_with_location(
                         Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                            subject: self.make_ident_from_id(id, *id_span),
+                            subject: self.make_ident_from_id(*id, *id_span),
                             args,
                         })),
                         start.join(self.current_location()),
                     ))
                 }
-                _ => Ok(self.make_ident_from_id(id, *id_span)),
+                _ => Ok(self.make_ident_from_id(*id, *id_span)),
             },
             _ => Err(ParseError::Parsing {
                 message: "Expecting field name after property access.".to_string(),

@@ -145,6 +145,7 @@ impl<'c> TokenKind<'c> {
                     | TokenAtom::Minus
                     | TokenAtom::Star
                     | TokenAtom::Slash
+                    | TokenAtom::Hash // intrinsics
                     | TokenAtom::Amp
                     | TokenAtom::Tilde
                     | TokenAtom::Exclamation
