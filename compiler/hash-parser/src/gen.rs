@@ -14,6 +14,7 @@ use hash_ast::{
     error::{ParseError, ParseResult},
     ident::{Identifier, IDENTIFIER_MAP},
     keyword::Keyword,
+    literal::STRING_LITERAL_MAP,
     location::{Location, SourceLocation},
     module::ModuleIdx,
     resolve::ModuleResolver,
@@ -970,7 +971,7 @@ where
                 while gen.has_token() {
                     cases.push(gen.parse_match_case()?, &self.wall);
 
-                    gen.parse_token_atom(TokenAtom::Colon)?;
+                    gen.parse_token_atom(TokenAtom::Semi)?;
                 }
             }
             Some(token) => self.unexpected_token_error(
@@ -1470,13 +1471,8 @@ where
         let token = self.next_token();
 
         if token.is_none() {
-            return Err(ParseError::Parsing {
-                message: "Expected the beginning of an expression here.".to_string(),
-                src: SourceLocation {
-                    location: self.current_location(),
-                    module_index: ModuleIdx(0),
-                },
-            });
+            return self
+                .unexpected_eof_with_ctx("Expected the beginning of an expression here.")?;
         }
 
         let token = token.unwrap();
@@ -1488,18 +1484,9 @@ where
 
             // Handle primitive literals
             kind if kind.is_literal() => self.parse_literal(),
-            TokenKind::Atom(TokenAtom::Ident(_)) => {
+            TokenKind::Atom(TokenAtom::Ident(ident)) => {
                 // record the starting span
                 let start = self.current_location();
-
-                // extract the identifier value and span from the current token
-                let ident = match self.current_token() {
-                    Token {
-                        kind: TokenKind::Atom(TokenAtom::Ident(id)),
-                        span: _,
-                    } => id,
-                    _ => unreachable!(),
-                };
 
                 let (name, type_args) = self.parse_name_with_type_args(ident)?;
                 let type_args = type_args.unwrap_or_else(|| row![&self.wall]);
@@ -1511,6 +1498,8 @@ where
                 )
             }
 
+            // Import
+            TokenKind::Atom(TokenAtom::Keyword(Keyword::Import)) => self.parse_import()?,
             // Handle tree literals
             TokenKind::Tree(Delimiter::Brace, tree) => {
                 self.parse_block_or_braced_literal(tree, &self.current_location())?
@@ -1670,6 +1659,58 @@ where
         Ok(lhs_expr)
     }
 
+    /// Parsing module import statement which are in the form of a function
+    /// call that have a single argument in the form of a string literal.
+    /// The syntax is as follows:
+    ///
+    /// import("./relative/path/to/module")
+    ///
+    /// The path argument to imports automatically assumes that the path you provide
+    /// is references '.hash' extension file or a directory with a 'index.hash' file
+    /// contained within the directory.
+    pub fn parse_import(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
+        let start = self.current_location();
+
+        let (tree, span) = match self.peek() {
+            Some(token) if token.is_paren_tree() => token.into_tree(),
+            Some(token) => self.unexpected_token_error(
+                &token.kind,
+                &TokenKindVector::from_row(
+                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, true)],
+                ),
+                &self.current_location(),
+            )?,
+            None => self.unexpected_eof()?,
+        };
+
+        let gen = self.from_stream(tree, span);
+
+        let (raw, path, span) = match gen.peek() {
+            Some(Token {
+                kind: TokenKind::Atom(TokenAtom::StrLiteral(str)),
+                span,
+            }) => (str, STRING_LITERAL_MAP.lookup(*str), span),
+            _ => gen.error("Expected an import path.")?,
+        };
+
+        gen.next_token(); // eat the string argument
+
+        if gen.has_token() {
+            gen.expected_eof()?;
+        }
+
+        let module_idx = self.resolver.add_module(path, Some(self.source_location(span)))?;
+
+        Ok(self.node_from_joined_location(Expression::new(ExpressionKind::Import(
+            self.node_from_joined_location(Import {
+                path: *raw,
+                index: module_idx,
+            }, &start),
+        )), &start))
+    }
+
+    /// Parse a function call which requires that the [AccessName] is pre-parsed and passed
+    /// into the function which deals with the call arguments.
     pub fn parse_function_call(
         &self,
         ident: AstNode<'c, Expression<'c>>,
