@@ -21,6 +21,7 @@ use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
 
+#[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
 
 #[cfg(feature = "use-pest")]
