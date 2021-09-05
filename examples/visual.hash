@@ -23,10 +23,15 @@
 //             print(alpha)
 //         };
 //         _ => -1;
-//     }
+//     };
 
 //     return alpha;
 // };
 
-let {items: my_itemsa} = t;//import("./prelude");
+let conv<bool, str> = (x: bool) => match x {
+    true => "true";
+    false => "false";
+};
+
+// let {items: my_itemsa} = t;//import("./prelude");
 // let Token { pat = cat, rat } = get_token();
