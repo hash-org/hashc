@@ -748,8 +748,6 @@ impl NodeDisplay for Block<'_> {
 
 impl NodeDisplay for MatchCase<'_> {
     fn node_display(&self) -> Vec<String> {
-        let mut lines = vec!["case".to_string()];
-
         // deal with the pattern for this case
         let pattern_lines = self.pattern.node_display();
 
@@ -759,9 +757,9 @@ impl NodeDisplay for MatchCase<'_> {
             .chain(child_branch(&self.expr.node_display()))
             .collect();
 
-        // append child_lines with padding and vertical lines being drawn
-        lines.extend(draw_branches_for_children(&[pattern_lines, branch_lines]));
-        lines
+        iter::once("case".to_string())
+            .chain(draw_branches_for_children(&[pattern_lines, branch_lines]))
+            .collect()
     }
 }
 
@@ -781,7 +779,9 @@ impl NodeDisplay for DestructuringPattern<'_> {
         let name = vec![format!("ident {}", self.name.node_display().join(""))];
         let pat = self.pattern.node_display();
 
-        draw_branches_for_children(&[name, pat])
+        iter::once("destructuring".to_string())
+            .chain(draw_branches_for_children(&[name, pat]))
+            .collect()
     }
 }
 

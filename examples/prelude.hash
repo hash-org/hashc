@@ -164,7 +164,7 @@ let eq<{A:B}> where eq<A>, hash<A>, eq<B> = (a, b) => #intrinsic_eq_map(a, b, (a
 
 // Ordering
 // Implemented for numeric primitives and strings.
-enum Ordering = { Lt; Eq; Gt; };
+enum Ordering = { Lt, Eq, Gt, };
 let eq<Ordering> = (a: Ordering, b: Ordering) => match (a, b) {
     (Eq, Eq) => true;
     (Lt, Lt) => true;

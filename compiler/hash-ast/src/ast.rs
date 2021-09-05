@@ -290,7 +290,7 @@ pub struct DestructuringPattern<'c> {
     pub pattern: AstNode<'c, Pattern<'c>>,
 }
 
-/// A struct pattern, e.g. `Dog { name = "Frank"; age; }`
+/// A struct pattern, e.g. `Dog { name = "Frank", age, }`
 #[derive(Debug, PartialEq)]
 pub struct StructPattern<'c> {
     /// The name of the struct.
@@ -299,7 +299,7 @@ pub struct StructPattern<'c> {
     pub entries: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
-/// A namespace pattern, e.g. `{ fgets; fputs; }`
+/// A namespace pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq)]
 pub struct NamespacePattern<'c> {
     /// The entries of the namespace, as [DestructuringPattern] entries.
