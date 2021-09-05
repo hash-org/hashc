@@ -1160,7 +1160,7 @@ where
                         // current variable
                         Rule::index_arg => {
                             // if subject isn't a variable, how tf did we end up here
-                            debug_assert_eq!(subject_rule, Rule::variable_expr);
+                            assert!(matches!(subject_rule, Rule::variable_expr | Rule::intrinsic_expr));
 
                             // this is the expression within the brackets.
                             let index_expr =
