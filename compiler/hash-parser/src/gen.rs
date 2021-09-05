@@ -222,6 +222,9 @@ where
     }
 
     pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
+        // move onto the next token
+        self.offset.set(self.offset.get() + 1);
+
         self.error(format!(
             "Expected the end of a definition, but got '{}'.",
             self.current_token().kind
@@ -608,7 +611,6 @@ where
 
                 // Ensure the whole generator was exhausted
                 if gen.has_token() {
-                    gen.next_token();
                     gen.expected_eof()?;
                 }
 
@@ -673,7 +675,6 @@ where
 
                 // Ensure the whole generator was exhausted
                 if gen.has_token() {
-                    gen.next_token();
                     gen.expected_eof()?;
                 }
 
@@ -806,7 +807,7 @@ where
         let start = self.current_location();
 
         // now we parse the singular pattern that begins at the for-loop
-        let pattern = self.parse_singular_pattern()?;
+        let pattern = self.parse_pattern()?;
         let pattern_location = pattern.location();
 
         self.parse_token_atom(TokenAtom::Keyword(Keyword::In))?;
@@ -1163,7 +1164,7 @@ where
             TokenKind::Atom(TokenAtom::Keyword(Keyword::Let))
         ));
 
-        let pattern = self.parse_singular_pattern()?;
+        let pattern = self.parse_pattern()?;
 
         let bound = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Lt) => Some(self.parse_type_bound()?),
@@ -1200,11 +1201,10 @@ where
         span: Location,
     ) -> ParseResult<AstNodes<'c, Pattern<'c>>> {
         let gen = self.from_stream(tree, span);
-
         let mut elements = row![&self.wall;];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_singular_pattern()) {
+            match gen.peek_resultant_fn(|| gen.parse_pattern()) {
                 Some(pattern) => elements.push(pattern, &self.wall),
                 None => break,
             }
@@ -1215,7 +1215,6 @@ where
         }
 
         if gen.has_token() {
-            gen.next_token();
             gen.expected_eof()?;
         }
 
@@ -1293,11 +1292,17 @@ where
             }
             token if token.is_paren_tree() => {
                 let (tree, span) = self.next_token().unwrap().into_tree();
+                // @@Hack: here it might actually be a nested pattern in parenthesees. So we perform a slight
+                // transformation if the number of parsed patterns is only one. So essentially we handle the case
+                // where a pattern is wrapped in parentheses and so we just unwrap it.
+                let mut elements = self.parse_pattern_collection(tree, span)?;
 
-                // this is a tuple pattern
-                Pattern::Tuple(TuplePattern {
-                    elements: self.parse_pattern_collection(tree, span)?,
-                })
+                if elements.len() == 1 {
+                    let element = elements.pop().unwrap();
+                    return Ok(element);
+                } else {
+                    Pattern::Tuple(TuplePattern { elements })
+                }
             }
             token if token.is_brace_tree() => {
                 let (tree, span) = self.next_token().unwrap().into_tree();
@@ -1753,7 +1758,6 @@ where
         // since nothing should be after the expression, we can check that no tokens
         // are left and the generator is empty, otherwise report this as an unexpected_token
         if gen.has_token() {
-            gen.next_token();
             gen.expected_eof()?;
         }
 
@@ -2216,8 +2220,6 @@ where
 
                         // @@CopyPasta
                         if gen.has_token() {
-                            gen.next_token();
-
                             gen.expected_eof()?;
                         }
 
@@ -2229,10 +2231,7 @@ where
                             type_args: row![&self.wall; lhs_type, rhs_type],
                         })
                     }
-                    Some(tok) => {
-                        println!("{}", tok);
-                        gen.expected_eof()?
-                    }
+                    Some(_) => gen.expected_eof()?,
                     None => {
                         // @@Incomplete: inline type names into ident map...
                         let name = IDENTIFIER_MAP.create_ident(SET_TYPE_NAME);
@@ -2254,8 +2253,6 @@ where
 
                 // @@CopyPasta
                 if gen.has_token() {
-                    gen.next_token();
-
                     gen.expected_eof()?;
                 }
 
@@ -2356,8 +2353,54 @@ where
         Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
     }
 
+    pub fn parse_pattern_with_if(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
+        let start = self.current_location();
+        let pattern = self.parse_singular_pattern()?;
+
+        match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::If)) => {
+                self.next_token();
+
+                let condition = self.parse_expression_bp(0)?;
+
+                Ok(self.node_from_joined_location(
+                    Pattern::If(IfPattern { pattern, condition }),
+                    &start,
+                ))
+            }
+            _ => Ok(pattern),
+        }
+    }
+
     pub fn parse_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
-        todo!()
+        let start = self.current_location();
+
+        // Parse the first pattern, but throw away the location information since that will be
+        // computed at the end anyway...
+        let mut patterns = row![&self.wall;];
+
+        while self.has_token() {
+            let pattern = self.parse_pattern_with_if()?;
+            patterns.push(pattern, &self.wall);
+
+            // Check if this is going to be another pattern following the current one.
+            match self.peek() {
+                Some(token) if token.has_atom(TokenAtom::Pipe) => {
+                    self.next_token();
+                }
+                _ => break,
+            }
+        }
+
+        // if the length of patterns is greater than one, we return an 'OR' pattern,
+        // otherwise just the first pattern.
+        if patterns.length() == 1 {
+            let pat = patterns.pop().unwrap();
+            Ok(pat)
+        } else {
+            Ok(self
+                .node_from_joined_location(Pattern::Or(OrPattern { variants: patterns }), &start))
+        }
     }
 
     pub fn parse_function_def_arg(&self) -> ParseResult<AstNode<'c, FunctionDefArg<'c>>> {
