@@ -1221,12 +1221,54 @@ where
         Ok(elements)
     }
 
-    pub fn parse_pattern_namespace(
+    pub fn parse_destructuring_pattern(
         &self,
-        _tree: &Row<'c, Token<'c>>,
-        _span: Location,
+        assigning_op: TokenAtom,
+    ) -> ParseResult<AstNode<'c, DestructuringPattern<'c>>> {
+        let start = self.current_location();
+        let name = self.parse_ident()?;
+
+        // if the next token is the correct assigning operator, attempt to parse a
+        // pattern here, if not then we copy the parsed ident and make a binding
+        // pattern.
+        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(assigning_op)) {
+            Some(_) => self.parse_pattern()?,
+            None => {
+                let copy = self.copy_name_node(&name);
+                let loc = copy.location();
+                self.node_with_location(Pattern::Binding(copy), loc)
+            }
+        };
+
+        Ok(self.node_from_joined_location(DestructuringPattern { name, pattern }, &start))
+    }
+
+    pub fn parse_destructuring_patterns(
+        &self,
+        tree: &Row<'c, Token<'c>>,
+        span: Location,
+        struct_syntax: bool,
     ) -> ParseResult<AstNodes<'c, DestructuringPattern<'c>>> {
-        todo!()
+        let gen = self.from_stream(tree, span);
+
+        // Since struct and namespace destructuring patterns use different operators
+        // to rename/assign patterns to the specific fields, determine which to use here...
+        let renaming_operator = if struct_syntax { TokenAtom::Eq } else { TokenAtom::Colon };
+
+        let mut patterns = row![&self.wall;];
+
+        while gen.has_token() {
+            match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern(renaming_operator)) {
+                Some(pat) => patterns.push(pat, &self.wall),
+                None => break,
+            }
+
+            if gen.has_token() {
+                gen.parse_token_atom(TokenAtom::Comma)?;
+            }
+        }
+
+        Ok(patterns)
     }
 
     pub fn parse_singular_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
@@ -1252,27 +1294,21 @@ where
                 let name = self.parse_access_name(k)?;
 
                 match self.peek() {
-                    Some(Token {
-                        kind: TokenKind::Tree(Delimiter::Brace, tree),
-                        span,
-                    }) => {
-                        self.next_token();
+                    Some(token) if token.is_brace_tree() => {
+                        let (tree, span) = self.next_token().unwrap().into_tree();
 
                         Pattern::Struct(StructPattern {
                             name,
-                            entries: self.parse_pattern_namespace(tree, *span)?,
+                            entries: self.parse_destructuring_patterns(tree, span, true)?,
                         })
                     }
-                    Some(Token {
-                        kind: TokenKind::Tree(Delimiter::Paren, tree),
-                        span,
-                    }) => {
+                    Some(token) if token.is_paren_tree() => {
                         // enum_pattern
-                        self.next_token();
+                        let (tree, span) = self.next_token().unwrap().into_tree();
 
                         Pattern::Enum(EnumPattern {
                             name,
-                            args: self.parse_pattern_collection(tree, *span)?,
+                            args: self.parse_pattern_collection(tree, span)?,
                         })
                     }
                     // Some(_) if name.path.len() == 1 => {
@@ -1308,7 +1344,7 @@ where
                 let (tree, span) = self.next_token().unwrap().into_tree();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_pattern_namespace(tree, span)?,
+                    patterns: self.parse_destructuring_patterns(tree, span, false)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.
