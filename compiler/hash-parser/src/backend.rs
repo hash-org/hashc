@@ -38,7 +38,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
             |elapsed| println!("tokenise:    {:?}", elapsed),
         )?;
 
-        let gen = AstGen::new(tokens, &resolver, wall);
+        let gen = AstGen::new(&tokens, &resolver, wall);
 
         timed(
             || gen.parse_module(),
@@ -56,7 +56,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
 
         let index = resolver.module_index().unwrap_or(ModuleIdx(0));
         let tokens = Lexer::new(contents, index, &wall).tokenise()?;
-        let gen = AstGen::new(tokens, &resolver, wall);
+        let gen = AstGen::new(&tokens, &resolver, wall);
 
         // for token in tokens.into_iter() {
         //     println!("{}", token);
