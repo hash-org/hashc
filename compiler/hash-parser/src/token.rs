@@ -460,7 +460,9 @@ impl From<TokenErrorWithFuckingIndexDtoPublic> for ParseError {
         TokenErrorWithFuckingIndexDtoPublic(idx, err): TokenErrorWithFuckingIndexDtoPublic,
     ) -> Self {
         ParseError::Parsing {
-            message: err.message.unwrap_or_else(|| "Tokenisation error".to_string()),
+            message: err
+                .message
+                .unwrap_or_else(|| "Tokenisation error".to_string()),
             src: SourceLocation {
                 location: err.location,
                 module_index: idx,

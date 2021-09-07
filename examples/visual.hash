@@ -28,10 +28,10 @@
 //     return alpha;
 // };
 
-// let conv<bool, str> = (x: bool) => match x {
-//     true => "true";
-//     false => "false";
-// };
+let conv<bool, str> = (x: bool) => match x {
+    true => "true";
+    false => "false";
+};
 
 // let {items: my_itemsa} = t;//import("./prelude");
-let Token { pat = cat, rat } = get_token();
+// let Token { pat = cat, rat } = get_token();
