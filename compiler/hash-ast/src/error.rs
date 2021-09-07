@@ -16,6 +16,11 @@ pub enum ParseError {
         message: String,
         src: SourceLocation,
     },
+    #[error("Tokeniser error at {src}:\n{message}")]
+    Token {
+        message: String,
+        src: SourceLocation,
+    },
     #[error("Cannot locate module {import_name} at {src}")]
     ImportError {
         import_name: PathBuf,
@@ -30,7 +35,9 @@ impl ParseError {
                 filename: _,
                 message,
             } => message,
-            ParseError::Parsing { message, src: _ } => message,
+            ParseError::Parsing { message, src: _ } | ParseError::Token { message, src: _ } => {
+                message
+            }
             ParseError::ImportError {
                 import_name: _,
                 src: _,

@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use hash_alloc::Castle;
-use hash_ast::ast;
+use hash_ast::{ast, module::ModuleIdx};
 use hash_ast::{error::ParseResult, parse::ParserBackend, resolve::ModuleResolver};
 use hash_utils::timed;
 
@@ -31,11 +31,12 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
     ) -> ParseResult<ast::Module<'c>> {
         let wall = self.castle.wall();
 
+        let index = resolver.module_index().unwrap_or(ModuleIdx(0));
         let tokens = timed(
-            || Lexer::new(contents, &wall).tokenise(),
+            || Lexer::new(contents, index, &wall).tokenise(),
             log::Level::Debug,
             |elapsed| println!("tokenise:    {:?}", elapsed),
-        );
+        )?;
 
         let gen = AstGen::new(tokens, &resolver, wall);
 
@@ -53,7 +54,8 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
     ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>> {
         let wall = self.castle.wall();
 
-        let tokens = Lexer::new(contents, &wall).tokenise();
+        let index = resolver.module_index().unwrap_or(ModuleIdx(0));
+        let tokens = Lexer::new(contents, index, &wall).tokenise()?;
         let gen = AstGen::new(tokens, &resolver, wall);
 
         // for token in tokens.into_iter() {

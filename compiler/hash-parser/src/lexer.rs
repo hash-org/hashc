@@ -3,14 +3,17 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::ident::Identifier;
-use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
+use hash_ast::{error::ParseResult, ident::Identifier};
+use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
-    token::{Delimiter, Token, TokenAtom, TokenError, TokenErrorKind, TokenKind, TokenResult},
+    token::{
+        Delimiter, Token, TokenAtom, TokenError, TokenErrorKind,
+        TokenErrorWithFuckingIndexDtoPublic, TokenKind, TokenResult,
+    },
     utils::*,
 };
 use std::{cell::Cell, iter};
@@ -25,6 +28,9 @@ pub(crate) struct Lexer<'w, 'c, 'a> {
 
     contents: &'a str,
 
+    /// Representative module index of the current source.
+    module_idx: ModuleIdx,
+
     /// The previous character of the current stream, this is useful for keeping track
     /// of state when tokenising compound inputs that rely on previous context.
     prev: Cell<Option<char>>,
@@ -34,9 +40,10 @@ pub(crate) struct Lexer<'w, 'c, 'a> {
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Create a new [Lexer] from the given string input.
-    pub(crate) fn new(contents: &'a str, wall: &'w Wall<'c>) -> Self {
+    pub(crate) fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
         Lexer {
             offset: Cell::new(0),
+            module_idx,
             contents,
             prev: Cell::new(None),
             wall,
@@ -177,13 +184,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             ')' | '}' | ']' => return Ok(None),
 
             // We didn't get a hit on the right token...
-            ch => TokenKind::Atom(TokenAtom::Unexpected(ch)), // ch => {
-                                                              //     return Err(TokenError::new(
-                                                              //         Some(format!("Unexpected character '{}'", ch)),
-                                                              //         TokenErrorKind::Unexpected(ch),
-                                                              //         Location::pos(offset + self.len_consumed()),
-                                                              //     ))
-                                                              // }
+            ch => TokenKind::Atom(TokenAtom::Unexpected(ch)),
         };
 
         let location = Location::span(offset, self.len_consumed());
@@ -193,7 +194,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// This will essentially recursively consume tokens until it reaches the right hand-side variant
     /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
-    /// perfoming complex delimiter depth analysis later on.
+    /// performing complex delimiter depth analysis later on.
     pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind<'c>> {
         debug_assert!(self.prev.get().unwrap() == delimiter.left());
 
@@ -281,7 +282,9 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         }
 
         let pre_digit = self.prev.get().unwrap();
-        let pre_digits = iter::once(pre_digit).chain(self.eat_decimal_digits(10).chars());
+        let pre_digits = iter::once(pre_digit)
+            .chain(self.eat_decimal_digits(10).chars())
+            .filter(|c| *c != '_');
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
@@ -299,14 +302,18 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             }
             // Immediate exponent
             'e' | 'E' => self.eat_float_literal(pre_digits, start),
-            _ => match pre_digits.collect::<String>().parse::<u64>() {
-                Err(_) => Err(TokenError::new(
-                    Some("Integer literal too large.".to_string()),
-                    TokenErrorKind::MalformedNumericalLiteral,
-                    Location::span(start, self.offset.get()),
-                )),
-                Ok(value) => Ok(TokenKind::Atom(TokenAtom::IntLiteral(value))),
-            },
+            _ => {
+                let digits = pre_digits.collect::<String>();
+
+                match digits.parse::<u64>() {
+                    Err(e) => Err(TokenError::new(
+                        Some(format!("Malformed integer literal '{}'. {:?}", digits, e)),
+                        TokenErrorKind::MalformedNumericalLiteral,
+                        Location::span(start, self.offset.get()),
+                    )),
+                    Ok(value) => Ok(TokenKind::Atom(TokenAtom::IntLiteral(value))),
+                }
+            }
         }
     }
 
@@ -632,32 +639,11 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         })
     }
 
-    pub fn tokenise(self) -> Row<'c, Token<'c>> {
-        let mut row = Row::with_capacity(10000, self.wall);
+    /// Tokenise the given input stream
+    pub fn tokenise(self) -> ParseResult<Row<'c, Token<'c>>> {
+        let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        std::iter::from_fn(|| {
-            if self.contents.is_empty() {
-                return None;
-            }
-
-            match self.advance_token() {
-                Ok(tok) => tok,
-                // @@ErrorReporting: this is where we hook into error reporting to print the result
-                // and display it to the user
-                Err(err) => panic!("Got error from tokenisation: {:?}", err),
-            }
-        })
-        .for_each(|el| row.push(el, self.wall));
-
-        row
+        Ok(Row::try_from_iter(iter, self.wall)
+            .map_err(|err| TokenErrorWithFuckingIndexDtoPublic(self.module_idx, err))?)
     }
 }
-
-// /// Function to tokenise an input string. Resulting in an iterator of [Token]s
-// pub fn tokenise<'r, 'c: 'w + 'r, 'a: 'r, 'w: 'r>(
-//     input: &'a str,
-//     wall: &'w Wall<'c>,
-// ) -> impl Iterator<Item = Token<'c>> + 'w {
-//     let lexer = Lexer::new(input, wall);
-
-// }
