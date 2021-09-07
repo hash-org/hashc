@@ -26,7 +26,7 @@ use crate::{
     token::{Delimiter, Token, TokenKind, TokenKindVector},
 };
 
-pub struct AstGen<'c, 'resolver, R> {
+pub struct AstGen<'c, 'stream, 'resolver, R> {
     /// Current token stream offset.
     offset: Cell<usize>,
 
@@ -39,7 +39,7 @@ pub struct AstGen<'c, 'resolver, R> {
     parent_span: Option<Location>,
 
     /// The token stream
-    stream: Row<'c, Token<'c>>,
+    stream: &'stream [Token<'c>],
 
     /// State set by expression parsers for parents to let them know if the parsed expression
     /// was made up of multiple expressions with precedence operators.
@@ -57,11 +57,11 @@ pub struct AstGen<'c, 'resolver, R> {
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
 /// language components.
-impl<'c, 'resolver, R> AstGen<'c, 'resolver, R>
+impl<'c, 'stream, 'resolver, R> AstGen<'c, 'stream, 'resolver, R>
 where
     R: ModuleResolver,
 {
-    pub fn new(stream: Row<'c, Token<'c>>, resolver: &'resolver R, wall: Wall<'c>) -> Self {
+    pub fn new(stream: &'stream [Token<'c>], resolver: &'resolver R, wall: Wall<'c>) -> Self {
         Self {
             stream,
             parent_span: None,
@@ -79,10 +79,7 @@ where
         })
     }
 
-    pub fn from_stream(&self, stream: &Row<'c, Token<'c>>, parent_span: Location) -> Self {
-        // @@Performance: don't copy the row...
-        let stream = Row::from_iter(stream.iter().map(|t| t.clone_in(&self.wall)), &self.wall);
-
+    pub fn from_stream(&self, stream: &'stream [Token<'c>], parent_span: Location) -> Self {
         Self {
             stream,
             offset: Cell::new(0),
@@ -2180,7 +2177,7 @@ where
                 // Special edge case for '(,)' or an empty tuple type...
                 match gen.peek() {
                     Some(token) if token.has_atom(TokenAtom::Comma) => {
-                        if gen.stream.length() == 1 {
+                        if gen.stream.len() == 1 {
                             gen.next_token();
                         }
                     }
@@ -2487,7 +2484,7 @@ where
 
         // if the length of patterns is greater than one, we return an 'OR' pattern,
         // otherwise just the first pattern.
-        if patterns.length() == 1 {
+        if patterns.len() == 1 {
             let pat = patterns.pop().unwrap();
             Ok(pat)
         } else {

@@ -44,11 +44,6 @@ impl<'c, T> Row<'c, T> {
         }
     }
 
-    /// Get the current length of the `Row`.
-    pub fn length(&self) -> usize {
-        self.length
-    }
-
     /// Get the current capacity of the `Row`.
     pub fn capacity(&self) -> usize {
         self.data.len()
