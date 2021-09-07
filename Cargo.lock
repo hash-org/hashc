@@ -446,6 +446,7 @@ dependencies = [
 name = "hash-utils"
 version = "0.1.0"
 dependencies = [
+ "hash-alloc",
  "log",
 ]
 

@@ -4,11 +4,11 @@ use core::fmt;
 use std::{
     borrow::{Borrow, BorrowMut},
     cell::Cell,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
 };
 
 use dashmap::DashMap;
-use hash_alloc::{brick::Brick, collections::row::Row, Wall};
+use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
 use hash_ast::{
     ast::TypeId,
     ident::Identifier,
@@ -19,9 +19,7 @@ use smallvec::smallvec;
 use smallvec::SmallVec;
 
 #[derive(Debug)]
-pub struct Trait {
-    id: TraitId,
-}
+pub struct Trait {}
 
 counter! {
     name: TraitId,
@@ -35,16 +33,24 @@ pub struct TraitBounds<'c> {
     data: Row<'c, TraitBound<'c>>,
 }
 
-#[derive(Debug)]
-pub struct TraitBound<'c> {
-    pub trt: Trait,
-    pub params: TypeArgs<'c>,
+impl TraitBounds<'_> {
+    pub fn empty() -> Self {
+        Self { data: row![] }
+    }
 }
 
 #[derive(Debug)]
+pub struct TraitBound<'c> {
+    pub trt: TraitId,
+    pub params: TypeList<'c>,
+}
+
+impl TraitBound<'_> {}
+
+#[derive(Debug)]
 pub struct Generics<'c> {
+    pub params: TypeList<'c>,
     pub bounds: TraitBounds<'c>,
-    pub params: TypeArgs<'c>,
 }
 
 #[derive(Debug)]
@@ -159,23 +165,36 @@ pub struct RawRefType {
     pub inner: TypeId,
 }
 
-pub type TypeArgs<'c> = Row<'c, TypeId>;
+pub type TypeList<'c> = Row<'c, TypeId>;
 
 #[derive(Debug)]
 pub struct UserType<'c> {
     pub def_id: TypeDefId,
-    pub args: TypeArgs<'c>,
+    pub args: TypeList<'c>,
 }
 
 #[derive(Debug)]
 pub struct FnType<'c> {
-    pub args: TypeArgs<'c>,
+    pub args: TypeList<'c>,
     pub ret: TypeId,
 }
 
 #[derive(Debug)]
 pub struct NamespaceType {
     pub module_idx: ModuleIdx,
+}
+
+#[derive(Debug)]
+pub struct UnknownType<'c> {
+    pub bounds: TraitBounds<'c>,
+}
+
+impl UnknownType<'_> {
+    pub fn unbounded() -> Self {
+        Self {
+            bounds: TraitBounds::empty(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -186,12 +205,57 @@ pub enum TypeValue<'c> {
     Var(TypeVar),
     User(UserType<'c>),
     Prim(PrimType),
-    Unknown,
+    Unknown(UnknownType<'c>),
     Namespace(NamespaceType),
+}
+
+counter! {
+    name: TraitImplId,
+    counter_name: TRAIT_IMPL_COUNTER,
+    visibility: pub,
+    method_visibility:,
+}
+
+pub struct TraitImpl<'c> {
+    pub args: TypeList<'c>,
+    pub bounds: TraitBounds<'c>,
+}
+
+impl<'c> TraitImpl<'c> {
+    pub fn instantiate(&self, given_args: &TypeList<'c>, ctx: &TypecheckCtx) -> Option<()> {
+        if given_args.len() != self.args.len() {
+            // @@TODO: error
+            return None;
+        }
+
+        for (&trait_arg, &given_arg) in self.args.iter().zip(given_args.iter()) {}
+
+        None
+    }
+}
+
+pub struct ImplsForTrait<'c> {
+    trt: TraitId,
+    impls: BTreeMap<TraitImplId, TraitImpl<'c>>,
+}
+
+pub struct TraitImpls<'c> {
+    data: HashMap<TraitId, ImplsForTrait<'c>>,
 }
 
 pub struct Types<'c> {
     data: HashMap<TypeId, Cell<&'c TypeValue<'c>>>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum TypeVarStrategy {
+    Match,
+    Instantiate,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct UnifyOptions {
+    type_var_strategy: TypeVarStrategy,
 }
 
 impl<'c> Types<'c> {
@@ -221,7 +285,12 @@ impl<'c> Types<'c> {
         id
     }
 
-    pub fn unify(&mut self, target: TypeId, source: TypeId) -> TypecheckResult<()> {
+    pub fn unify(
+        &mut self,
+        target: TypeId,
+        source: TypeId,
+        opts: &UnifyOptions,
+    ) -> TypecheckResult<()> {
         // Already the same type
         if target == source {
             return Ok(());
@@ -238,15 +307,19 @@ impl<'c> Types<'c> {
         use TypeValue::*;
         match (target_ty, source_ty) {
             (Ref(ref_target), Ref(ref_source)) => {
-                self.unify(ref_target.inner, ref_source.inner)?;
+                self.unify(ref_target.inner, ref_source.inner, opts)?;
+
+                Ok(())
             }
             (RawRef(raw_target), RawRef(raw_source)) => {
-                self.unify(raw_target.inner, raw_source.inner)?;
+                self.unify(raw_target.inner, raw_source.inner, opts)?;
+
+                Ok(())
             }
             (Fn(fn_target), Fn(fn_source)) => {
-                self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()))?;
+                self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), opts)?;
                 // Maybe this should be flipped (see variance comment above)
-                self.unify(fn_target.ret, fn_source.ret)?;
+                self.unify(fn_target.ret, fn_source.ret, opts)?;
 
                 // let merged_sub = args_sub.merge(self, &ret_sub);
 
@@ -254,50 +327,63 @@ impl<'c> Types<'c> {
                 //     args: unified_args,
                 //     ret: Box::new(unified_ret),
                 // });
+
+                Ok(())
             }
-            (Unknown, Unknown) => {
+            (Unknown(_), Unknown(_)) => {
                 // @@TODO: Ensure that trait bounds are compatible
+
+                Ok(())
             }
-            (Unknown, _) => {
+            (Unknown(_), _) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 self.set(target, source);
+
+                Ok(())
             }
-            (_, Unknown) => {
+            (_, Unknown(_)) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 self.set(source, target);
+
+                Ok(())
             }
-            (Var(var_target), Var(var_source)) if var_target == var_source => {}
+            (Var(var_target), Var(var_source)) if var_target == var_source => Ok(()),
+            (Var(var_target), _) if opts.type_var_strategy == TypeVarStrategy::Instantiate => {
+                Ok(())
+            }
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
                 // Make sure we got same number of type arguments
                 assert_eq!(user_target.args.len(), user_source.args.len());
 
                 // Unify type arguments.
-                self.unify_pairs((user_target.args.iter()).zip(user_source.args.iter()))?;
+                self.unify_pairs((user_target.args.iter()).zip(user_source.args.iter()), opts)?;
 
                 // let unified_ty_id = self.create(User(UserType {
                 //     def_id: user_target.def_id,
                 //     args: unified_args,
                 // }));
-            }
-            (Prim(prim_target), Prim(prim_source)) if prim_target == prim_source => {}
-            (Namespace(ns_target), Namespace(ns_source))
-                if ns_target.module_idx == ns_source.module_idx => {}
-            _ => {
-                return Err(TypecheckError::TypeMismatch(target, source));
-            }
-        }
 
-        Ok(())
+                Ok(())
+            }
+            (Prim(prim_target), Prim(prim_source)) if prim_target == prim_source => Ok(()),
+            (Namespace(ns_target), Namespace(ns_source))
+                if ns_target.module_idx == ns_source.module_idx =>
+            {
+                Ok(())
+            }
+            _ => Err(TypecheckError::TypeMismatch(target, source)),
+        }
     }
 
     pub fn unify_pairs(
         &mut self,
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
+        opts: &UnifyOptions,
     ) -> TypecheckResult<()> {
         for (a, b) in pairs {
             let a_ty = *a.borrow();
             let b_ty = *b.borrow();
-            self.unify(a_ty, b_ty)?;
+            self.unify(a_ty, b_ty, opts)?;
         }
 
         Ok(())
@@ -312,6 +398,91 @@ pub struct Traits {
 impl Traits {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymbolType {
+    Variable(TypeId),
+    Type(TypeId),
+}
+
+#[derive(Debug, Default)]
+pub struct Scope {
+    symbols: HashMap<Identifier, SymbolType>,
+}
+
+impl Scope {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn resolve_symbol(&self, symbol: Identifier) -> Option<SymbolType> {
+        self.symbols.get(&symbol).map(|&s| s)
+    }
+
+    pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: SymbolType) {
+        // @@TODO: naming clashes
+        self.symbols.insert(symbol, symbol_type);
+    }
+}
+
+pub struct ScopeStack {
+    scopes: Vec<Scope>,
+}
+
+impl Default for ScopeStack {
+    fn default() -> Self {
+        Self {
+            scopes: vec![Scope::new()],
+        }
+    }
+}
+
+impl ScopeStack {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn resolve_symbol(&self, symbol: Identifier) -> Option<SymbolType> {
+        for scope in self.iter_up() {
+            if let Some(symbol_type) = scope.resolve_symbol(symbol) {
+                return Some(symbol_type);
+            }
+        }
+
+        None
+    }
+
+    pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: SymbolType) {
+        self.current_scope_mut().add_symbol(symbol, symbol_type);
+    }
+
+    pub fn current_scope(&self) -> &Scope {
+        self.scopes.last().unwrap()
+    }
+
+    pub fn current_scope_mut(&self) -> &mut Scope {
+        self.scopes.last_mut().unwrap()
+    }
+
+    pub fn enter_scope(&mut self) {
+        self.scopes.push(Scope::new());
+    }
+
+    pub fn iter_up(&self) -> impl Iterator<Item = &Scope> {
+        self.scopes.iter().rev()
+    }
+
+    pub fn iter_up_mut(&mut self) -> impl Iterator<Item = &mut Scope> {
+        self.scopes.iter_mut().rev()
+    }
+
+    pub fn pop_scope(&self) -> Scope {
+        match self.scopes.pop() {
+            Some(scope) => scope,
+            None => panic!("Cannot pop root scope"),
+        }
     }
 }
 
@@ -339,6 +510,7 @@ pub struct TypecheckCtx<'c, 'm> {
     pub type_defs: TypeDefs<'c>,
     pub traits: Traits,
     pub state: TypecheckState,
+    pub scopes: ScopeStack,
     pub modules: &'m Modules<'c>,
 }
 
@@ -370,6 +542,7 @@ mod tests {
             type_defs: TypeDefs::new(),
             traits: Traits::new(),
             state: TypecheckState::default(),
+            scopes: ScopeStack::new(),
             modules: &modules,
         };
 
@@ -391,7 +564,9 @@ mod tests {
 
         let char = ctx.types.create(TypeValue::Prim(PrimType::Char), &wall);
         let int = ctx.types.create(TypeValue::Prim(PrimType::I32), &wall);
-        let unknown = ctx.types.create(TypeValue::Unknown, &wall);
+        let unknown = ctx
+            .types
+            .create(TypeValue::Unknown(UnknownType::unbounded()), &wall);
         let foo = ctx.types.create(
             TypeValue::User(UserType {
                 def_id: foo_def,
