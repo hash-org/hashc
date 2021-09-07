@@ -1699,14 +1699,20 @@ where
             gen.expected_eof()?;
         }
 
-        let module_idx = self.resolver.add_module(path, Some(self.source_location(span)))?;
+        let module_idx = self
+            .resolver
+            .add_module(path, Some(self.source_location(span)))?;
 
-        Ok(self.node_from_joined_location(Expression::new(ExpressionKind::Import(
-            self.node_from_joined_location(Import {
-                path: *raw,
-                index: module_idx,
-            }, &start),
-        )), &start))
+        Ok(self.node_from_joined_location(
+            Expression::new(ExpressionKind::Import(self.node_from_joined_location(
+                Import {
+                    path: *raw,
+                    index: module_idx,
+                },
+                &start,
+            ))),
+            &start,
+        ))
     }
 
     /// Parse a function call which requires that the [AccessName] is pre-parsed and passed

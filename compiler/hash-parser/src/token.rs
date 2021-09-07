@@ -8,11 +8,11 @@ use std::fmt;
 use hash_alloc::collections::row::Row;
 use hash_alloc::row;
 use hash_alloc::Wall;
-use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
 use hash_ast::location::Location;
+use hash_ast::{error::ParseError, ident::Identifier, location::SourceLocation, module::ModuleIdx};
 
 pub type TokenResult<T> = Result<T, TokenError>;
 
@@ -449,6 +449,22 @@ impl TokenError {
             message,
             kind,
             location,
+        }
+    }
+}
+
+pub struct TokenErrorWithFuckingIndexDtoPublic(pub ModuleIdx, pub TokenError);
+
+impl From<TokenErrorWithFuckingIndexDtoPublic> for ParseError {
+    fn from(
+        TokenErrorWithFuckingIndexDtoPublic(idx, err): TokenErrorWithFuckingIndexDtoPublic,
+    ) -> Self {
+        ParseError::Parsing {
+            message: err.message.unwrap_or_else(|| "Tokenisation error".to_string()),
+            src: SourceLocation {
+                location: err.location,
+                module_index: idx,
+            },
         }
     }
 }
