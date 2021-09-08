@@ -1309,15 +1309,19 @@ where
                             args: self.parse_pattern_collection(tree, span)?,
                         })
                     }
-                    // Some(_) if name.path.len() == 1 => {
-                    //     Pattern::Binding(self.make_name_from_id(k, span))
-                    // }
                     Some(token) if name.path.len() > 1 => self.unexpected_token_error(
                         &token.kind,
                         &TokenKindVector::begin_pattern_collection(&self.wall),
                         &self.current_location(),
                     )?,
-                    _ => Pattern::Binding(self.make_name_from_id(k, span)),
+                    _ => {
+                        // @@Speed: Always performing a lookup?
+                        if IDENTIFIER_MAP.ident_name(*k) == "_" {
+                            Pattern::Ignore
+                        } else {
+                            Pattern::Binding(self.make_name_from_id(k, span))
+                        }
+                    }
                 }
             }
             token if token.kind.is_literal() => {
