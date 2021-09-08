@@ -178,11 +178,18 @@ pub struct TupleLiteral<'c> {
     pub elements: AstNodes<'c, Expression<'c>>,
 }
 
+/// A map literal entry, e.g. `"foo": 1`.
+#[derive(Debug, PartialEq)]
+pub struct MapLiteralEntry<'c> {
+    pub key: AstNode<'c, Expression<'c>>,
+    pub value: AstNode<'c, Expression<'c>>,
+}
+
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
 #[derive(Debug, PartialEq)]
 pub struct MapLiteral<'c> {
     /// The elements of the map literal (key-value pairs).
-    pub elements: Row<'c, (AstNode<'c, Expression<'c>>, AstNode<'c, Expression<'c>>)>,
+    pub elements: AstNodes<'c, MapLiteralEntry<'c>>,
 }
 
 /// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.

@@ -116,7 +116,10 @@ impl NodeCount for Literal<'_> {
             Literal::Map(l) => l
                 .elements
                 .iter()
-                .map(|(lhs, rhs)| lhs.node_count() + rhs.node_count())
+                .map(|entry| {
+                    let MapLiteralEntry { key, value } = entry.body();
+                    key.node_count() + value.node_count() + 1
+                })
                 .sum(),
             Literal::List(l) => l.elements.iter().map(|e| e.node_count()).sum(),
             Literal::Tuple(l) => l.elements.iter().map(|e| e.node_count()).sum(),

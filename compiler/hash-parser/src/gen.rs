@@ -473,7 +473,7 @@ where
         // get the starting position
         let start = self.current_location();
 
-        let block = self.parse_block_from_gen(self, start)?;
+        let block = self.parse_block_from_gen(self, start, None)?;
 
         // We just need to unwrap the BodyBlock from Block since parse_block_from_gen is generic...
         match block.into_body().move_out() {
@@ -1385,7 +1385,7 @@ where
                 .error("Expected block body, which begins with a '{{', but reached end of input")?,
         };
 
-        self.parse_block_from_gen(&gen, start)
+        self.parse_block_from_gen(&gen, start, None)
     }
 
     /// Function to parse a block body
@@ -1393,10 +1393,19 @@ where
         &self,
         gen: &Self,
         start: Location,
+        initial_statement: Option<AstNode<'c, Statement<'c>>>,
     ) -> ParseResult<AstNode<'c, Block<'c>>> {
-        let mut block = BodyBlock {
-            statements: row![&self.wall],
-            expr: None,
+        // Append the initial statement if there is one.
+        let mut block = if initial_statement.is_some() {
+            BodyBlock {
+                statements: row![&self.wall; initial_statement.unwrap()],
+                expr: None,
+            }
+        } else {
+            BodyBlock {
+                statements: row![&self.wall],
+                expr: None,
+            }
         };
 
         // Just return an empty block if we don't get anything
@@ -2086,11 +2095,13 @@ where
                     // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
                     // where we transform the AstNode into a different
                     if matches!(op, Operator::As) {
-                        lhs = self.node_from_joined_location(Expression::new(ExpressionKind::Typed(TypedExpr {
-                            expr: lhs,
-                            ty: self.parse_type()?,
-
-                        })), &op_span)
+                        lhs = self.node_from_joined_location(
+                            Expression::new(ExpressionKind::Typed(TypedExpr {
+                                expr: lhs,
+                                ty: self.parse_type()?,
+                            })),
+                            &op_span,
+                        )
                     } else {
                         let rhs = self.parse_expression_bp(r_prec)?;
                         self.is_compound_expr.set(true);
@@ -2445,6 +2456,19 @@ where
         }
     }
 
+    pub fn empty_block(&self, span: &Location) -> AstNode<'c, Expression<'c>> {
+        self.node_from_location(
+            Expression::new(ExpressionKind::Block(self.node_from_location(
+                Block::Body(BodyBlock {
+                    statements: row![&self.wall],
+                    expr: None,
+                }),
+                span,
+            ))),
+            span,
+        )
+    }
+
     pub fn parse_block_or_braced_literal(
         &self,
         tree: &Row<'c, Token<'c>>,
@@ -2452,10 +2476,191 @@ where
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
 
-        // @@Temporary: just parse a block at the moment
-        let block = self.parse_block_from_gen(&gen, *span)?;
+        // handle two special cases for empty map and set literals, if the only token
+        // is a colon, this must be a map literal, or if the only token is a comma it is
+        // an empty set literal.
+        if gen.stream.len() == 1 {
+            match gen.peek().unwrap() {
+                token if token.has_atom(TokenAtom::Colon) => {
+                    return Ok(self.node_from_location(
+                        Expression::new(ExpressionKind::LiteralExpr(self.node_from_location(
+                            Literal::Map(MapLiteral {
+                                elements: row![&self.wall],
+                            }),
+                            span,
+                        ))),
+                        span,
+                    ))
+                }
+                token if token.has_atom(TokenAtom::Comma) => {
+                    return Ok(self.node_from_location(
+                        Expression::new(ExpressionKind::LiteralExpr(self.node_from_location(
+                            Literal::Set(SetLiteral {
+                                elements: row![&self.wall],
+                            }),
+                            span,
+                        ))),
+                        span,
+                    ))
+                }
+                _ => (),
+            }
+        }
 
-        Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
+        // Is this an empty block?
+        if !gen.has_token() {
+            return Ok(self.empty_block(span));
+        }
+
+        // Here we have to parse the initial expression and then check if there is a specific
+        // separator. We have to check:
+        //
+        // - If an expression is followed by a comma separator, it must be a set literal.
+        //
+        // - If an expression is followed by a ':' (colon), it must be a map literal.
+        //
+        // - Otherwise, it must be a block and we should continue parsing the block from here
+        let initial_expr = gen.parse_expression_bp(0)?;
+
+        match gen.peek() {
+            Some(token) if token.has_atom(TokenAtom::Comma) => {
+                gen.next_token(); // ','
+
+                let literal = self.parse_set_literal(gen, initial_expr)?;
+
+                Ok(self.node_from_location(
+                    Expression::new(ExpressionKind::LiteralExpr(literal)),
+                    span,
+                ))
+            }
+            Some(token) if token.has_atom(TokenAtom::Colon) => {
+                gen.next_token(); // ':'
+
+                let start_pos = initial_expr.location();
+                let entry = self.node_from_joined_location(
+                    MapLiteralEntry {
+                        key: initial_expr,
+                        value: gen.parse_expression_bp(0)?,
+                    },
+                    &start_pos,
+                );
+
+                // Peek ahead to check if there is a comma, if there is then we'll parse more map entries,
+                // and pass it into parse_map_literal.
+                match gen.peek() {
+                    Some(token) if token.has_atom(TokenAtom::Comma) => {
+                        gen.next_token();
+
+                        let literal = self.parse_map_literal(gen, entry)?;
+
+                        Ok(self.node_from_location(
+                            Expression::new(ExpressionKind::LiteralExpr(literal)),
+                            span,
+                        ))
+                    }
+                    _ => Ok(self.node_from_location(
+                        Expression::new(ExpressionKind::LiteralExpr(self.node_from_location(
+                            Literal::Map(MapLiteral {
+                                elements: row![&self.wall; entry],
+                            }),
+                            span,
+                        ))),
+                        span,
+                    )),
+                }
+            }
+            Some(_) => {
+                gen.parse_token_atom(TokenAtom::Semi)?;
+
+                let statement_loc = initial_expr.location().join(gen.current_location());
+                let statement =
+                    self.node_with_location(Statement::Expr(initial_expr), statement_loc);
+
+                // check here if there is a 'semi', and then convert the expression into a statement.
+                let block = self.parse_block_from_gen(&gen, *span, Some(statement))?;
+
+                Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
+            }
+            None => {
+                // This block is just a block with a single expression
+
+                Ok(self.node_from_location(
+                    Expression::new(ExpressionKind::Block(self.node_from_location(
+                        Block::Body(BodyBlock {
+                            statements: row![&self.wall],
+                            expr: Some(initial_expr),
+                        }),
+                        span,
+                    ))),
+                    span,
+                ))
+            }
+        }
+    }
+
+    pub fn parse_map_entry(&self) -> ParseResult<AstNode<'c, MapLiteralEntry<'c>>> {
+        let start = self.current_location();
+
+        let key = self.parse_expression_bp(0)?;
+        self.parse_token_atom(TokenAtom::Colon)?;
+        let value = self.parse_expression_bp(0)?;
+
+        Ok(self.node_from_joined_location(MapLiteralEntry { key, value }, &start))
+    }
+
+    pub fn parse_map_literal(
+        &self,
+        gen: Self,
+        initial_entry: AstNode<'c, MapLiteralEntry<'c>>,
+    ) -> ParseResult<AstNode<'c, Literal<'c>>> {
+        let start = gen.current_location();
+        let mut elements = row![&self.wall; initial_entry];
+
+        // so parse the arguments to the function here... with potential type annotations
+        while gen.has_token() {
+            match gen.peek_resultant_fn(|| gen.parse_map_entry()) {
+                Some(element) => elements.push(element, &self.wall),
+                None => break,
+            }
+
+            if gen.has_token() {
+                gen.parse_token_atom(TokenAtom::Comma)?;
+            }
+        }
+
+        if gen.has_token() {
+            gen.expected_eof()?;
+        }
+
+        Ok(self.node_from_joined_location(Literal::Map(MapLiteral { elements }), &start))
+    }
+
+    pub fn parse_set_literal(
+        &self,
+        gen: Self,
+        initial_entry: AstNode<'c, Expression<'c>>,
+    ) -> ParseResult<AstNode<'c, Literal<'c>>> {
+        let start = self.current_location();
+
+        let mut elements = row![&self.wall; initial_entry];
+
+        // so parse the arguments to the function here... with potential type annotations
+        while gen.has_token() {
+            match gen.peek_resultant_fn(|| gen.parse_expression_bp(0)) {
+                Some(element) => elements.push(element, &self.wall),
+                None => break,
+            }
+
+            if gen.has_token() {
+                gen.parse_token_atom(TokenAtom::Comma)?;
+            }
+        }
+
+        if gen.has_token() {
+            gen.expected_eof()?;
+        }
+
+        Ok(self.node_from_joined_location(Literal::Set(SetLiteral { elements }), &start))
     }
 
     pub fn parse_pattern_with_if(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
@@ -2575,7 +2780,8 @@ where
     /// after the expression is optional.
     ///
     ///
-    /// Tuples have a familiar syntax with many other languages, but exhibit two distinct differences between the common syntax. These differences are:
+    /// Tuples have a familiar syntax with many other languages, but exhibit two distinct differences between the common syntax.
+    /// These differences are:
     ///
     /// - Empty tuples: (,)
     /// - Singleton tuple : (A,)
