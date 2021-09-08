@@ -230,17 +230,17 @@ impl NodeDisplay for Literal<'_> {
                 let entries: Vec<Vec<String>> = map
                     .elements
                     .iter()
-                    .map(|(key, value)| {
+                    .map(|map_entry| {
                         let mut entry = vec!["entry".to_string()];
 
                         // deal with they key, and then value
                         let key_lines = vec!["key".to_string()]
                             .into_iter()
-                            .chain(child_branch(&key.node_display()))
+                            .chain(child_branch(&map_entry.body().key.node_display()))
                             .collect();
                         let value_lines = vec!["value".to_string()]
                             .into_iter()
-                            .chain(child_branch(&value.node_display()))
+                            .chain(child_branch(&map_entry.body().value.node_display()))
                             .collect();
 
                         entry.extend(draw_branches_for_children(&[key_lines, value_lines]));

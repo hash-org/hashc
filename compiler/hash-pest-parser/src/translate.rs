@@ -704,7 +704,11 @@ where
                 // expressions.
                 let elements = ab.try_collect(pair.into_inner().map(|p| {
                     let mut items = p.into_inner().map(|p| self.transform_expression(p));
-                    Ok((items.next().unwrap()?, items.next().unwrap()?))
+
+                    Ok(ab.node(MapLiteralEntry {
+                        key: items.next().unwrap()?,
+                        value: items.next().unwrap()?,
+                    }))
                 }))?;
 
                 Ok(ab.node(Literal::Map(MapLiteral { elements })))
