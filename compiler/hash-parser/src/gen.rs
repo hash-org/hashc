@@ -1567,7 +1567,7 @@ where
 
                     match kind {
                         ExpressionKind::FunctionCall(FunctionCallExpr { subject, mut args }) => {
-                            // @@Future: @@FunctionArguments:
+                            // @@Future: ##FunctionArguments:
                             // In the future when we consider function named arguments and optional arguments and variadic arguments,
                             // is it correct to apply the same behaviour of placing the argument first if it is an infix call ?
                             // The current behaviour is that the lhs is inserted as the first argument, but that might change:
@@ -2083,23 +2083,32 @@ where
                         break;
                     }
 
-                    let rhs = self.parse_expression_bp(r_prec)?;
-                    self.is_compound_expr.set(true);
+                    // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
+                    // where we transform the AstNode into a different
+                    if matches!(op, Operator::As) {
+                        lhs = self.node_from_joined_location(Expression::new(ExpressionKind::Typed(TypedExpr {
+                            expr: lhs,
+                            ty: self.parse_type()?,
 
-                    // now convert the Operator into a function call...
-                    lhs = AstNode::new(
-                        Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                            subject: self.make_ident_from_op(op, &op_span),
-                            args: self.node_from_joined_location(
-                                FunctionCallArgs {
-                                    entries: row![&self.wall; lhs, rhs],
-                                },
-                                &op_span,
-                            ),
-                        })),
-                        op_span,
-                        &self.wall,
-                    )
+                        })), &op_span)
+                    } else {
+                        let rhs = self.parse_expression_bp(r_prec)?;
+                        self.is_compound_expr.set(true);
+
+                        // now convert the Operator into a function call...
+                        lhs = self.node_from_joined_location(
+                            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                                subject: self.make_ident_from_op(op, &op_span),
+                                args: self.node_from_joined_location(
+                                    FunctionCallArgs {
+                                        entries: row![&self.wall; lhs, rhs],
+                                    },
+                                    &op_span,
+                                ),
+                            })),
+                            &op_start,
+                        );
+                    }
                 }
             }
         }
@@ -2532,7 +2541,6 @@ where
         }
 
         if gen.has_token() {
-            gen.next_token();
             gen.expected_eof()?;
         }
 

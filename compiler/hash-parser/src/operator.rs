@@ -48,61 +48,66 @@ impl Operator {
         }
 
         match &(token.unwrap()).kind {
-            // Since the 'as' keyword is also a binary operator, we have to handle it here...
-            TokenKind::Atom(TokenAtom::Keyword(Keyword::As)) => (Some(Operator::As), 1),
-            TokenKind::Atom(TokenAtom::Eq) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                    (Some(Operator::EqEq), 2)
+            TokenKind::Atom(atom) => {
+                match atom {
+                    // Since the 'as' keyword is also a binary operator, we have to handle it here...
+                    TokenAtom::Keyword(Keyword::As) => (Some(Operator::As), 1),
+                    TokenAtom::Eq => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
+                            (Some(Operator::EqEq), 2)
+                        }
+                        _ => (None, 0),
+                    },
+                    TokenAtom::Lt => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
+                            (Some(Operator::LtEq), 2)
+                        }
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Lt) => {
+                            (Some(Operator::Shl), 2)
+                        }
+                        _ => (Some(Operator::Lt), 1),
+                    },
+                    TokenAtom::Gt => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
+                            (Some(Operator::GtEq), 2)
+                        }
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Gt) => {
+                            (Some(Operator::Shr), 2)
+                        }
+                        _ => (Some(Operator::Gt), 1),
+                    },
+                    TokenAtom::Plus => (Some(Operator::Add), 1),
+                    TokenAtom::Minus => (Some(Operator::Sub), 1),
+                    TokenAtom::Star => (Some(Operator::Mul), 1),
+                    TokenAtom::Slash => (Some(Operator::Div), 1),
+                    TokenAtom::Percent => (Some(Operator::Mod), 1),
+                    TokenAtom::Caret => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Caret) => {
+                            (Some(Operator::Exp), 2)
+                        }
+                        _ => (Some(Operator::BitXor), 1),
+                    },
+                    TokenAtom::Amp => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Amp) => {
+                            (Some(Operator::And), 2)
+                        }
+                        _ => (Some(Operator::BitAnd), 1),
+                    },
+                    TokenAtom::Pipe => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Pipe) => {
+                            (Some(Operator::Or), 2)
+                        }
+                        _ => (Some(Operator::BitOr), 1),
+                    },
+                    TokenAtom::Exclamation => match gen.peek_second() {
+                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
+                            (Some(Operator::NotEq), 2)
+                        }
+                        _ => (None, 0), // this is a unary operator '!'
+                    },
+                    _ => (None, 0),
                 }
-                _ => (None, 0),
-            },
-            TokenKind::Atom(TokenAtom::Lt) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                    (Some(Operator::LtEq), 2)
-                }
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Lt) => {
-                    (Some(Operator::Shl), 2)
-                }
-                _ => (Some(Operator::Lt), 1),
-            },
-            TokenKind::Atom(TokenAtom::Gt) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                    (Some(Operator::GtEq), 2)
-                }
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Gt) => {
-                    (Some(Operator::Shr), 2)
-                }
-                _ => (Some(Operator::Gt), 1),
-            },
-            TokenKind::Atom(TokenAtom::Plus) => (Some(Operator::Add), 1),
-            TokenKind::Atom(TokenAtom::Minus) => (Some(Operator::Sub), 1),
-            TokenKind::Atom(TokenAtom::Star) => (Some(Operator::Mul), 1),
-            TokenKind::Atom(TokenAtom::Slash) => (Some(Operator::Div), 1),
-            TokenKind::Atom(TokenAtom::Percent) => (Some(Operator::Mod), 1),
-            TokenKind::Atom(TokenAtom::Caret) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Caret) => {
-                    (Some(Operator::Exp), 2)
-                }
-                _ => (Some(Operator::BitXor), 1),
-            },
-            TokenKind::Atom(TokenAtom::Amp) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Amp) => {
-                    (Some(Operator::And), 2)
-                }
-                _ => (Some(Operator::BitAnd), 1),
-            },
-            TokenKind::Atom(TokenAtom::Pipe) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Pipe) => {
-                    (Some(Operator::Or), 2)
-                }
-                _ => (Some(Operator::BitOr), 1),
-            },
-            TokenKind::Atom(TokenAtom::Exclamation) => match gen.peek_second() {
-                Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                    (Some(Operator::NotEq), 2)
-                }
-                _ => (None, 0), // this is a unary operator '!'
-            },
+            }
             _ => (None, 0),
         }
     }
@@ -128,14 +133,14 @@ impl Operator {
             Operator::Mul => "mul",
             Operator::Div => "div",
             Operator::Mod => "mod",
-            Operator::As => todo!(),
+            Operator::As => "as",
         }
     }
 
     /// Compute the precedence for an operator
     pub(crate) fn infix_binding_power(&self) -> (u8, u8) {
         match self {
-            Operator::As => todo!(),
+            Operator::As => (0, 1),
             Operator::And | Operator::Or => (1, 2),
             Operator::EqEq | Operator::NotEq => (3, 4),
             Operator::Gt | Operator::GtEq | Operator::Lt | Operator::LtEq => (5, 6),
