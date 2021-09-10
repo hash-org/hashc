@@ -4,3 +4,5 @@
 
 pub mod errors;
 pub mod report;
+pub mod reporting;
+pub mod highlight;

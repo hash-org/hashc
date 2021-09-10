@@ -6,8 +6,8 @@ use std::{convert::TryInto, fmt};
 
 /// Enum representing a location of a token within the source.
 ///
-/// The first element of the tuple represents the line number of the locations
-/// and the second element represents the row number.
+/// The first element of the tuple represents the starting byte offset and the second element
+/// represents the ending byte offset.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
 pub struct Location(u32, u32);
 
