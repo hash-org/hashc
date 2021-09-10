@@ -290,6 +290,7 @@ impl<'c> Types<'c> {
         target: TypeId,
         source: TypeId,
         opts: &UnifyOptions,
+        type_vars: &mut TypeVars,
     ) -> TypecheckResult<()> {
         // Already the same type
         if target == source {
@@ -348,9 +349,16 @@ impl<'c> Types<'c> {
                 Ok(())
             }
             (Var(var_target), Var(var_source)) if var_target == var_source => Ok(()),
-            (Var(var_target), _) if opts.type_var_strategy == TypeVarStrategy::Instantiate => {
-                Ok(())
-            }
+            (Var(var_target), _) => match type_vars.resolve(*var_target) {
+                Some(resolved) => self.unify(resolved, source, opts, type_vars),
+                None => match opts.type_var_strategy {
+                    TypeVarStrategy::Match => Err(TypecheckError::TypeMismatch(target, source)),
+                    TypeVarStrategy::Instantiate => {
+                        type_vars.assign(*var_target, source);
+                        Ok(())
+                    }
+                },
+            },
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
                 // Make sure we got same number of type arguments
                 assert_eq!(user_target.args.len(), user_source.args.len());
@@ -462,7 +470,7 @@ impl ScopeStack {
         self.scopes.last().unwrap()
     }
 
-    pub fn current_scope_mut(&self) -> &mut Scope {
+    pub fn current_scope_mut(&mut self) -> &mut Scope {
         self.scopes.last_mut().unwrap()
     }
 
@@ -478,7 +486,7 @@ impl ScopeStack {
         self.scopes.iter_mut().rev()
     }
 
-    pub fn pop_scope(&self) -> Scope {
+    pub fn pop_scope(&mut self) -> Scope {
         match self.scopes.pop() {
             Some(scope) => scope,
             None => panic!("Cannot pop root scope"),
@@ -505,9 +513,29 @@ impl Default for TypecheckState {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct TypeVars {
+    data: HashMap<TypeVar, TypeId>,
+}
+
+impl TypeVars {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn resolve(&self, var: TypeVar) -> Option<TypeId> {
+        self.data.get(&var).map(|&x| x)
+    }
+
+    pub fn assign(&mut self, var: TypeVar, ty: TypeId) {
+        self.data.insert(var, ty);
+    }
+}
+
 pub struct TypecheckCtx<'c, 'm> {
     pub types: Types<'c>,
     pub type_defs: TypeDefs<'c>,
+    pub type_vars: TypeVars,
     pub traits: Traits,
     pub state: TypecheckState,
     pub scopes: ScopeStack,
@@ -526,7 +554,7 @@ mod tests {
     use hash_alloc::{row, Castle};
     use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleBuilder};
 
-    use crate::writer::TypeWriter;
+    use crate::writer::TypeWithCtx;
 
     use super::*;
 
@@ -583,6 +611,6 @@ mod tests {
             &wall,
         );
 
-        println!("{}", TypeWriter::new(fn1, &ctx));
+        println!("{}", TypeWithCtx::new(fn1, &ctx));
     }
 }

@@ -4,16 +4,16 @@ use hash_ast::{ast::TypeId, ident::IDENTIFIER_MAP};
 use hash_utils::tree_writing::{TreeNode, TreeWriter};
 
 use crate::types::{
-    EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypecheckCtx, Types,
+    EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypecheckCtx,
     UserType,
 };
 
-pub struct TypeWriter<'t, 'c, 'm> {
+pub struct TypeWithCtx<'t, 'c, 'm> {
     ty: TypeId,
     ctx: &'t TypecheckCtx<'c, 'm>,
 }
 
-impl<'t, 'c, 'm> TypeWriter<'t, 'c, 'm> {
+impl<'t, 'c, 'm> TypeWithCtx<'t, 'c, 'm> {
     pub fn new(ty: TypeId, ctx: &'t TypecheckCtx<'c, 'm>) -> Self {
         Self { ty, ctx }
     }
@@ -81,7 +81,8 @@ impl<'t, 'c, 'm> TypeWriter<'t, 'c, 'm> {
                     )],
                 )
             }
-            crate::types::TypeValue::Unknown => TreeNode::leaf("unknown".to_owned()),
+            // @@Todo: print trait bounds
+            crate::types::TypeValue::Unknown(_) => TreeNode::leaf("unknown".to_owned()),
             crate::types::TypeValue::Namespace(NamespaceType { module_idx }) => {
                 TreeNode::leaf(format!("namespace ({:?})", module_idx))
             }
@@ -89,7 +90,7 @@ impl<'t, 'c, 'm> TypeWriter<'t, 'c, 'm> {
     }
 }
 
-impl<'t, 'c, 'm> fmt::Display for TypeWriter<'t, 'c, 'm> {
+impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c, 'm> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let tree_node = self.to_tree_node();
         let tree_writer = TreeWriter::new(&tree_node);
