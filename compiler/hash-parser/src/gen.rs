@@ -385,50 +385,37 @@ where
         let start = self.current_location();
 
         match self.peek() {
-            Some(Token {
-                kind: TokenKind::Atom(TokenAtom::Keyword(kw)),
-                span: _,
-            }) => {
+            Some(Token { kind, span: _ }) if kind.begins_statement() => {
                 self.next_token();
 
-                let statement =
-                    match kw {
-                        Keyword::Let => Statement::Let(self.parse_let_statement()?),
-                        Keyword::For => Statement::Block(self.parse_for_loop()?),
-                        Keyword::While => Statement::Block(self.parse_while_loop()?),
-                        Keyword::Loop => {
-                            // @@Hack: advance the token by one expecting it to be a tree, since parse block looks at the current
-                            //         token instead of peeking ahead, this should be changed in the future.
-                            self.next_token();
+                let atom = kind.to_atom();
 
-                            Statement::Block(self.node_from_joined_location(
-                                Block::Loop(self.parse_block()?),
-                                &start,
-                            ))
-                        }
-                        Keyword::If => Statement::Block(self.parse_if_statement()?),
-                        Keyword::Match => Statement::Block(self.parse_match_block()?),
-                        Keyword::Trait => Statement::TraitDef(self.parse_trait_defn()?),
-                        Keyword::Enum => Statement::EnumDef(self.parse_enum_defn()?),
-                        Keyword::Struct => Statement::StructDef(self.parse_struct_defn()?),
-                        Keyword::Continue => Statement::Continue,
-                        Keyword::Break => Statement::Break,
-                        Keyword::Return => {
-                            // @@Hack: check if the next token is a semi-colon, if so the return statement
-                            // has no returned expression...
-                            match self.peek() {
-                                Some(token) if token.has_atom(TokenAtom::Semi) => {
-                                    Statement::Return(None)
-                                }
-                                Some(_) => Statement::Return(Some(self.parse_expression_bp(0)?)),
-                                None => Statement::Return(None),
+                let statement = match atom {
+                    TokenAtom::Keyword(Keyword::Let) => Statement::Let(self.parse_let_statement()?),
+                    TokenAtom::Keyword(Keyword::Trait) => {
+                        Statement::TraitDef(self.parse_trait_defn()?)
+                    }
+                    TokenAtom::Keyword(Keyword::Enum) => {
+                        Statement::EnumDef(self.parse_enum_defn()?)
+                    }
+                    TokenAtom::Keyword(Keyword::Struct) => {
+                        Statement::StructDef(self.parse_struct_defn()?)
+                    }
+                    TokenAtom::Keyword(Keyword::Continue) => Statement::Continue,
+                    TokenAtom::Keyword(Keyword::Break) => Statement::Break,
+                    TokenAtom::Keyword(Keyword::Return) => {
+                        // @@Hack: check if the next token is a semi-colon, if so the return statement
+                        // has no returned expression...
+                        match self.peek() {
+                            Some(token) if token.has_atom(TokenAtom::Semi) => {
+                                Statement::Return(None)
                             }
+                            Some(_) => Statement::Return(Some(self.parse_expression_bp(0)?)),
+                            None => Statement::Return(None),
                         }
-                        kw => self.error(format!(
-                            "Unexpected keyword '{}' at the beginning of a statement",
-                            kw
-                        ))?,
-                    };
+                    }
+                    _ => unreachable!(),
+                };
 
                 match self.next_token() {
                     Some(token) if token.has_atom(TokenAtom::Semi) => Ok(AstNode::new(
@@ -447,17 +434,32 @@ where
                 let expr = self.parse_expression_bp(0)?;
 
                 // Ensure that the next token is a Semi
-                match self.next_token() {
-                    Some(token) if token.has_atom(TokenAtom::Semi) => Ok(AstNode::new(
-                        Statement::Expr(expr),
-                        start.join(self.current_location()),
-                        &self.wall,
-                    )),
-                    Some(token) => self.error(format!(
-                        "Expecting ';' at the end of a statement, but got '{}' ",
-                        token.kind
-                    ))?,
-                    None => self.unexpected_eof_with_ctx("Expecting ';' ending a statement")?,
+                match self.peek() {
+                    Some(token) if token.has_atom(TokenAtom::Semi) => {
+                        self.next_token();
+                        Ok(self.node_from_location(Statement::Expr(expr), &start))
+                    }
+                    Some(token) if token.has_atom(TokenAtom::Eq) => {
+                        self.next_token();
+
+                        // Parse the rhs and the semi
+                        let rhs = self.parse_expression_bp(0)?;
+                        self.parse_token_atom(TokenAtom::Semi)?;
+
+                        Ok(self.node_from_joined_location(Statement::Assign(AssignStatement { lhs: expr, rhs }), &start))
+                    } 
+                    token => match (token, expr.into_body().move_out().into_kind()) {
+                        (_, ExpressionKind::Block(block)) => {
+                            Ok(self.node_from_location(Statement::Block(block), &start))
+                        }
+                        (Some(token), _) => self.error(format!(
+                            "Expecting ';' at the end of a statement, but got '{}' ",
+                            token.kind
+                        ))?,
+                        (None, _) => {
+                            self.unexpected_eof_with_ctx("Expecting ';' ending a statement")?
+                        }
+                    },
                 }
             }
             _ => self.error("Expected statement.")?,
@@ -1508,6 +1510,31 @@ where
                 )
             }
 
+            // @@Note: This doesn't cover '{' case.
+            kind if kind.begins_block() => {
+                let start = self.current_location();
+                let atom = kind.to_atom();
+
+                let block = match atom {
+                    TokenAtom::Keyword(Keyword::For) => self.parse_for_loop()?,
+                    TokenAtom::Keyword(Keyword::While) => self.parse_while_loop()?,
+                    TokenAtom::Keyword(Keyword::Loop) => {
+                        // @@Hack: advance the token by one expecting it to be a tree, since parse block looks at the current
+                        //         token instead of peeking ahead, this should be changed in the future.
+                        self.next_token();
+
+                        self.node_from_joined_location(Block::Loop(self.parse_block()?), &start)
+                    }
+                    TokenAtom::Keyword(Keyword::If) => self.parse_if_statement()?,
+                    TokenAtom::Keyword(Keyword::Match) => self.parse_match_block()?,
+                    _ => unreachable!(),
+                };
+
+                self.node_from_joined_location(
+                    Expression::new(ExpressionKind::Block(block)),
+                    &start,
+                )
+            }
             // Import
             TokenKind::Atom(TokenAtom::Keyword(Keyword::Import)) => self.parse_import()?,
             // Handle tree literals
@@ -2066,7 +2093,10 @@ where
         ))
     }
 
-    pub fn parse_expression_bp(&self, min_prec: u8) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    pub fn parse_expression_bp(
+        &self,
+        mut min_prec: u8,
+    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
 
@@ -2093,6 +2123,7 @@ where
                     let (l_prec, r_prec) = op.infix_binding_power();
 
                     if l_prec < min_prec {
+                        self.offset.set(self.offset() - consumed_tokens as usize);
                         break;
                     }
 
@@ -2105,7 +2136,11 @@ where
                                 ty: self.parse_type()?,
                             })),
                             &op_span,
-                        )
+                        );
+
+                        // since we don't descend, we still need to update the precedence to
+                        // being 'r_prec'.
+                        min_prec = r_prec;
                     } else {
                         let rhs = self.parse_expression_bp(r_prec)?;
                         self.is_compound_expr.set(true);
@@ -2799,32 +2834,27 @@ where
         let gen = self.from_stream(tree, *span);
         let start = self.current_location();
 
-        match gen.peek() {
-            // Handle the empty tuple case
-            Some(token) if token.has_atom(TokenAtom::Comma) => {
-                gen.next_token();
+        // Handle the empty tuple case
+        if gen.stream.len() == 1 {
+            match gen.peek().unwrap() {
+                token if token.has_atom(TokenAtom::Comma) => {
+                    gen.next_token();
 
-                if gen.has_token() {
-                    return Err(ParseError::Parsing {
-                        message: "Unexpected comma in the place of a expression".to_string(),
-                        src: gen.source_location(&start),
-                    });
-                }
-
-                return Ok(gen.node_from_joined_location(
-                    Expression::new(ExpressionKind::LiteralExpr(gen.node_from_joined_location(
-                        Literal::Tuple(TupleLiteral {
-                            elements: row![&self.wall;],
-                        }),
+                    return Ok(gen.node_from_joined_location(
+                        Expression::new(ExpressionKind::LiteralExpr(
+                            gen.node_from_joined_location(
+                                Literal::Tuple(TupleLiteral {
+                                    elements: row![&self.wall;],
+                                }),
+                                &start,
+                            ),
+                        )),
                         &start,
-                    ))),
-                    &start,
-                ));
-            }
-            // this is then either an wrapped expression or a tuple literal with multiple elements.
-            Some(_) => (),
-            None => self.error("An empty tuple must be denoted with a ','")?,
-        };
+                    ));
+                }
+                _ => (),
+            };
+        }
 
         let expr = gen.parse_expression_bp(0)?;
 

@@ -48,7 +48,7 @@ let other_func = (t: str) => {
             print(alpha)
         };
         _ => -1;
-    }
+    };
 
     return alpha;
 };
@@ -91,7 +91,7 @@ let c = {1,2,3,4,5,6,7,};
 let d = (1,2,3,4,5);
 
 // Import
-let num = import("../stdlib/num");
+let {exp, tan} = import("../stdlib/num");
 
 // A character
 let ch: char = 'c';

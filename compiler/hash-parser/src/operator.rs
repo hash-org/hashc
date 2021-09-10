@@ -140,15 +140,17 @@ impl Operator {
     /// Compute the precedence for an operator
     pub(crate) fn infix_binding_power(&self) -> (u8, u8) {
         match self {
-            Operator::As => (0, 1),
-            Operator::And | Operator::Or => (1, 2),
-            Operator::EqEq | Operator::NotEq => (3, 4),
-            Operator::Gt | Operator::GtEq | Operator::Lt | Operator::LtEq => (5, 6),
-            Operator::BitOr | Operator::BitAnd | Operator::BitXor => (3, 4),
-            Operator::Add | Operator::Sub => (7, 8),
-            Operator::Shr | Operator::Shl => (9, 10),
-            Operator::Mul | Operator::Div | Operator::Mod => (9, 10),
-            Operator::Exp => (11, 12),
+            Operator::Or => (2, 3),
+            Operator::And => (4, 5),
+            Operator::EqEq | Operator::NotEq => (6, 5),
+            Operator::Gt | Operator::GtEq | Operator::Lt | Operator::LtEq => (7, 8),
+            Operator::BitOr | Operator::BitXor => (9, 10),
+            Operator::BitAnd => (11, 12),
+            Operator::Shr | Operator::Shl => (13, 14),
+            Operator::Add | Operator::Sub => (15, 16),
+            Operator::Mul | Operator::Div | Operator::Mod => (17, 18),
+            Operator::Exp => (20, 19),
+            Operator::As => (21, 22),
         }
     }
 }

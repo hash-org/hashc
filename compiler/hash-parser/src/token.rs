@@ -153,6 +153,21 @@ impl<'c> TokenKind<'c> {
         )
     }
 
+    /// Checks if the [TokenKind] must begin a block, as in the specified keywords that
+    /// follow a specific syntax, and must be statements.
+    pub(crate) fn begins_block(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Atom(
+                TokenAtom::Keyword(Keyword::For)
+                    | TokenAtom::Keyword(Keyword::While)
+                    | TokenAtom::Keyword(Keyword::Loop)
+                    | TokenAtom::Keyword(Keyword::If)
+                    | TokenAtom::Keyword(Keyword::Match)
+            )
+        )
+    }
+
     /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
     /// follow a specific syntax, and must be statements.
     pub(crate) fn begins_statement(&self) -> bool {
@@ -160,12 +175,6 @@ impl<'c> TokenKind<'c> {
             self,
             TokenKind::Atom(
                 TokenAtom::Keyword(Keyword::Let)
-                    | TokenAtom::Keyword(Keyword::For)
-                    | TokenAtom::Keyword(Keyword::While)
-                    | TokenAtom::Keyword(Keyword::Loop)
-                    | TokenAtom::Keyword(Keyword::If)
-                    | TokenAtom::Keyword(Keyword::Else)
-                    | TokenAtom::Keyword(Keyword::Match)
                     | TokenAtom::Keyword(Keyword::Trait)
                     | TokenAtom::Keyword(Keyword::Enum)
                     | TokenAtom::Keyword(Keyword::Struct)
