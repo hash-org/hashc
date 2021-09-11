@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 thiserror = "1.0"
 hash-ast = {path = "../hash-ast" }
+hash-alloc = {path = "../hash-alloc" }
