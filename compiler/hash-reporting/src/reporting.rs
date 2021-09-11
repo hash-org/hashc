@@ -4,24 +4,12 @@ use std::{
     iter::{once, repeat},
 };
 
-use hash_ast::{
-    location::SourceLocation,
-    module::Modules,
+use hash_ast::{location::SourceLocation, module::Modules};
+
+use crate::{
+    errors::ErrorCode,
+    highlight::{highlight, Colour, Modifier},
 };
-
-use crate::highlight::{highlight, Colour, Modifier};
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-#[repr(u32)]
-pub enum ErrorCode {
-    Parsing = 0001,
-}
-
-impl fmt::Display for ErrorCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:0>4}", *self as u32)
-    }
-}
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ReportKind {
@@ -399,8 +387,7 @@ impl fmt::Display for ReportWriter<'_, '_> {
                 Some(note) => {
                     note.render(f, self.modules, longest_indent_width, self.report.kind)?;
 
-                    if matches!(iter.peek(), Some(ReportElement::CodeBlock(_)))
-                    {
+                    if matches!(iter.peek(), Some(ReportElement::CodeBlock(_))) {
                         writeln!(f, "")?;
                     }
                 }
@@ -428,13 +415,13 @@ mod tests {
 
         let builder = ModuleBuilder::new();
 
-        let path = PathBuf::from("/Users/constantine/Git/hash-org/lang/examples/prelude.hash");
+        let path = PathBuf::from("./../../examples/prelude.hash");
         let contents = std::fs::read_to_string(&path).unwrap();
         let test_idx = builder.reserve_index();
+
+        builder.add_contents(test_idx, path, contents);
         builder.add_module_at(
             test_idx,
-            path,
-            contents,
             ast::Module {
                 contents: row![&wall],
             },
@@ -446,10 +433,6 @@ mod tests {
             .with_message("Bro what you wrote here is wrong.")
             .with_kind(ReportKind::Error)
             .with_error_code(ErrorCode::Parsing)
-            .add_element(ReportElement::Note(ReportNote::new(
-                "note",
-                "You really are a dummy.",
-            )))
             .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                 SourceLocation {
                     location: Location::span(10223, 10224),

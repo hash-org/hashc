@@ -9,14 +9,13 @@ mod logger;
 
 use clap::{crate_version, AppSettings, Clap};
 use hash_alloc::Castle;
-use hash_ast::error::ParseError;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
-use hash_reporting::errors::CompilerError;
+use hash_reporting::{errors::CompilerError, reporting::{Report, ReportWriter}};
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, process::exit};
 use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
@@ -114,12 +113,25 @@ fn run_parsing<'c>(
     parser: ParParser<impl ParserBackend<'c>>,
     filename: PathBuf,
     directory: PathBuf,
-) -> Result<Modules<'c>, ParseError> {
-    timed(
+) -> Modules<'c> {
+    let (result, modules) = timed(
         || parser.parse(&filename, &directory),
         log::Level::Debug,
         |elapsed| println!("total: {:?}", elapsed),
-    )
+    );
+
+    match result {
+        Ok(_) => modules,
+        Err(errors) => {
+            for report in errors.into_iter().map(Report::from) {
+                let report_writer = ReportWriter::new(report, &modules);
+                println!("{}", report_writer);
+            };
+
+            exit(-1)
+        }
+    }
+
 }
 
 fn main() {
@@ -158,7 +170,7 @@ fn main() {
 
         // check here if we are operating in a special mode
         if let Some(mode) = opts.mode {
-            let result = match mode {
+            let _modules = match mode {
                 SubCmd::AstGen(settings) => {
                     let filename = fs::canonicalize(&settings.filename)?;
 
@@ -175,22 +187,13 @@ fn main() {
                 }
             };
 
-            if let Err(e) = result {
-                CompilerError::from(e).report_and_exit();
-            }
-
             return Ok(());
         }
 
         match opts.execute {
             Some(path) => {
                 let filename = fs::canonicalize(&path)?;
-
-                let result = run_parsing(parser_backend, filename, directory);
-
-                if let Err(e) = result {
-                    CompilerError::from(e).report_and_exit();
-                }
+                let _modules = run_parsing(parser_backend, filename, directory);
 
                 Ok(())
             }
