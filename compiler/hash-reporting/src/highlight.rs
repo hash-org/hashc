@@ -39,7 +39,7 @@ impl BitOr<Colour> for Modifier {
     }
 }
 
-trait Highlighter {
+pub trait Highlighter {
     fn escape_code(&self) -> String;
 }
 
@@ -85,14 +85,13 @@ impl Highlighter for Decoration {
     }
 }
 
-pub fn highlight(highlighter: impl Highlighter, message: &str) -> String {
-    const COLOUR_ESCAPE_SIZE: usize = 7;
+pub fn highlight(highlighter: impl Highlighter, message: impl ToString) -> String {
     const RESET: &str = "\u{001b}[0m";
 
     highlighter
         .escape_code()
         .chars()
-        .chain(message.chars())
+        .chain(message.to_string().chars())
         .chain(RESET.chars())
         .collect()
 }
