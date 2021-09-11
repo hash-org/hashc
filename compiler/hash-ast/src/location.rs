@@ -15,11 +15,16 @@ pub struct Location(u32, u32);
 impl Location {
     /// Create a 'Pos' variant by providing a single position
     pub fn pos(pos: usize) -> Self {
-        Location(pos.try_into().unwrap(), 0)
+        let pos = pos.try_into().unwrap();
+        Location(pos, pos + 1)
     }
 
-    /// Create a 'Span' variant by providing a single position and the span of the input token
+    /// Create a 'Span' variant by providing a start and end byte position.
     pub fn span(start: usize, end: usize) -> Self {
+        if end <= start {
+            panic!("Got invalid span for Location::span. Start needs to be smaller than end.");
+        }
+
         Location(start.try_into().unwrap(), end.try_into().unwrap())
     }
 
