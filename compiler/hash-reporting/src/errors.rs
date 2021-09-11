@@ -2,21 +2,26 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
+use hash_ast::error::ParseError;
+use std::fmt;
 use std::{io, process::exit};
 use thiserror::Error;
 
-use hash_ast::error::ParseError;
+use crate::{
+    highlight::{highlight, Colour},
+    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+};
 
 /// Enum representing the variants of error that can occur when running an interactive session
 #[derive(Error, Debug)]
 pub enum InteractiveCommandError {
-    #[error("Unkown command `{0}`.")]
+    #[error("Unknown command `{0}`.")]
     UnrecognisedCommand(String),
 
     #[error("Command `{0}` does not take any arguments.")]
     ZeroArguments(String),
 
-    // @Future: Maybe provide a second paramater to support multiple argument command
+    // @Future: Maybe provide a second parameter to support multiple argument command
     #[error("Command `{0}` requires one argument.")]
     ArgumentMismatchError(String),
 
@@ -24,8 +29,60 @@ pub enum InteractiveCommandError {
     InternalError(String),
 }
 
-/// Error message prefix
-const ERR: &str = "\x1b[31m\x1b[1merror\x1b[0m";
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[repr(u32)]
+pub enum ErrorCode {
+    Parsing = 0001,
+}
+
+impl fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:0>4}", *self as u32)
+    }
+}
+
+impl From<ParseError> for Report {
+    fn from(error: ParseError) -> Self {
+        let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message("Failed to parse")
+            .with_error_code(ErrorCode::Parsing);
+
+        match error {
+            ParseError::Parsing { message, src } | ParseError::Token { message, src } => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new("note", message)));
+            }
+            ParseError::IoError { filename, message } => {
+                builder
+                    .add_element(ReportElement::Note(ReportNote::new("note", message)))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("file path '{}'", filename.to_string_lossy()),
+                    )));
+            }
+            ParseError::ImportError {
+                import_name: _,
+                src,
+            } => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        src,
+                        "Unknown path",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        "Couldn't import this file path.",
+                    )));
+            }
+        };
+
+        // @@ErrorReporting: we might want to properly handle incomplete reports?
+        builder.build().unwrap()
+    }
+}
 
 /// Errors that might occur when attempting to compile and or interpret a
 /// program.
@@ -35,8 +92,6 @@ pub enum CompilerError {
     IoError(#[from] io::Error),
     #[error("{message}")]
     ArgumentError { message: String },
-    #[error("{0}")]
-    ParseError(#[from] ParseError),
     #[error("{0}")]
     InterpreterError(#[from] InteractiveCommandError),
 }
@@ -48,6 +103,6 @@ impl CompilerError {
     }
 
     pub fn report(&self) {
-        println!("{}: {}", ERR, self);
+        println!("{}: {}", highlight(Colour::Red, "error"), self);
     }
 }

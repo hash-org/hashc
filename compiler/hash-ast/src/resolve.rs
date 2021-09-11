@@ -97,6 +97,7 @@ where
                 // Get source and root directory of import
                 let import_source = fs::read_to_string(&resolved_import_path)
                     .map_err(|e| (e, resolved_import_path.to_owned()))?;
+
                 let import_root_dir = resolved_import_path.parent().unwrap().to_owned();
 
                 // Create a module parsing context and resolver for the import
@@ -105,6 +106,7 @@ where
                     &import_root_dir,
                     Some(import_index),
                 );
+
                 let import_resolver = ParModuleResolver::new(ctx, import_module_ctx, scope);
 
                 // Parse the import
@@ -118,15 +120,14 @@ where
                     },
                     Level::Debug,
                     |elapsed| println!("ast: {:.2?}", elapsed),
-                )?;
-
-                // Add the import to modules
-                ctx.module_builder.add_module_at(
-                    import_index,
-                    resolved_import_path,
-                    import_source,
-                    import_node,
                 );
+
+                // @@Hack: we still need to add the contents of the file into the map
+                ctx.module_builder.add_contents(import_index, resolved_import_path, import_source);
+                
+                // Add the import to modules
+                ctx.module_builder
+                    .add_module_at(import_index, import_node?);
 
                 Ok(())
             });

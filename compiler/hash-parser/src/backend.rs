@@ -58,10 +58,6 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let tokens = Lexer::new(contents, index, &wall).tokenise()?;
         let gen = AstGen::new(&tokens, &resolver, wall);
 
-        // for token in tokens.into_iter() {
-        //     println!("{}", token);
-        // }
-
         gen.parse_expression_from_interactive()
     }
 }
