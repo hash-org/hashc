@@ -72,7 +72,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     fn nth_char(&self, n: usize) -> char {
         let offset = self.offset.get();
 
-        // @@Safety: We rely that the byte offset is correctly computed when stepping over the
+        // ##Safety: We rely that the byte offset is correctly computed when stepping over the
         //           characters in the iterator.
         let slice = unsafe { std::str::from_utf8_unchecked(&self.contents.as_bytes()[offset..]) };
 
@@ -83,7 +83,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     pub(crate) fn next(&self) -> Option<char> {
         let offset = self.offset.get();
 
-        // @@Safety: We rely that the byte offset is correctly computed when stepping over the
+        // ##Safety: We rely that the byte offset is correctly computed when stepping over the
         //           characters in the iterator.
         let slice = unsafe { std::str::from_utf8_unchecked(&self.contents.as_bytes()[offset..]) };
         let ch = slice.chars().next()?;
@@ -456,7 +456,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 let chars = chars?;
 
-                // @@Safety: Safe to unwrap since we check that both chars are hex valid and two hex chars will
+                // ##Safety: Safe to unwrap since we check that both chars are hex valid and two hex chars will
                 // always to fit into a u32
                 let value = u32::from_str_radix(chars.as_str(), 16).unwrap();
 

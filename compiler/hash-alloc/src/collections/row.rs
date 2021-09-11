@@ -71,7 +71,7 @@ impl<'c, T> Row<'c, T> {
 
         let new_data = wall.alloc_uninit_slice(new_capacity);
 
-        // Safety: Both ranges are valid because they originate from wall.alloc_raw.
+        // ##Safety: Both ranges are valid because they originate from wall.alloc_raw.
         // NB: self.data is now invalid, elements have been moved.
         unsafe {
             std::ptr::copy_nonoverlapping(self.data.as_ptr(), new_data.as_mut_ptr(), self.len());
@@ -99,7 +99,7 @@ impl<'c, T> Row<'c, T> {
             }
         }
 
-        // Safety: we just reserved enough for this to be valid.
+        // ##Safety: we just reserved enough for this to be valid.
         *unsafe { self.data.get_unchecked_mut(self.len()) } =
             MaybeUninit::new(ManuallyDrop::new(element));
         self.length += 1;
@@ -114,14 +114,14 @@ impl<'c, T> Row<'c, T> {
         }
 
         let last_element = std::mem::replace(
-            // Safety: self.len() - 1 is always a valid index as long as self.len() != 0 (which has
+            // ##Safety: self.len() - 1 is always a valid index as long as self.len() != 0 (which has
             // just been checked).
             unsafe { self.data.get_unchecked_mut(self.len() - 1) },
             MaybeUninit::uninit(),
         );
         self.length -= 1;
 
-        // Safety: value has been initialised because it was within (0..self.len()).
+        // ##Safety: value has been initialised because it was within (0..self.len()).
         //
         // We give responsibility of dropping to the caller.
         Some(ManuallyDrop::into_inner(unsafe {
@@ -152,7 +152,7 @@ impl<'c, T> Row<'c, T> {
         let target_point = &mut self.data[index + 1] as *mut _;
         let shift_length = self.len() - index;
 
-        // Safety: We have reserved one more element than the length so the shift is valid.
+        // ##Safety: We have reserved one more element than the length so the shift is valid.
         unsafe {
             std::ptr::copy(current_point, target_point, shift_length);
         }
@@ -209,7 +209,7 @@ impl<'c, T> Row<'c, T> {
 
     /// Produce a reference to the data inside the `Row` as a mutable slice, consuming `self`.
     pub fn into_slice(self) -> &'c mut [T] {
-        // Safety: values until self.length are initialised.
+        // ##Safety: values until self.length are initialised.
         // Also, the slice will live as long as 'c, which might outlive self.
         unsafe {
             std::mem::transmute::<&mut [MaybeUninit<ManuallyDrop<T>>], &mut [T]>(
@@ -274,7 +274,7 @@ impl<T> Deref for Row<'_, T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        // Safety: values until self.length are initialised.
+        // ##Safety: values until self.length are initialised.
         // Also, the slice will live as long as 'c, which might outlive self.
         unsafe {
             std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(&self.data[0..self.length])
@@ -284,7 +284,7 @@ impl<T> Deref for Row<'_, T> {
 
 impl<T> DerefMut for Row<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // Safety: values until self.length are initialised.
+        // ##Safety: values until self.length are initialised.
         // Cast from ManuallyDrop is safe because user can't drop through a reference.
         unsafe {
             std::mem::transmute::<&mut [MaybeUninit<ManuallyDrop<T>>], &mut [T]>(
@@ -320,14 +320,14 @@ impl<T> BorrowMut<[T]> for Row<'_, T> {
 
 impl<T> Drop for Row<'_, T> {
     fn drop(&mut self) {
-        // Safety: values until self.length are initialised, and ManuallyDrop<T> has the same layout as T.
+        // ##Safety: values until self.length are initialised, and ManuallyDrop<T> has the same layout as T.
         let data_to_drop = unsafe {
             std::mem::transmute::<&mut [MaybeUninit<ManuallyDrop<T>>], &mut ManuallyDrop<[T]>>(
                 &mut self.data[0..self.length],
             )
         };
 
-        // Safety: will never be accessed again.
+        // ##Safety: will never be accessed again.
         unsafe {
             ManuallyDrop::drop(data_to_drop);
         }
