@@ -34,7 +34,7 @@ impl<'c> ModuleBuilder<'c> {
         Self::default()
     }
 
-    pub(crate) fn add_module_at(
+    pub fn add_module_at(
         &self,
         index: ModuleIdx,
         path: PathBuf,
@@ -47,14 +47,14 @@ impl<'c> ModuleBuilder<'c> {
         self.modules_by_index.insert(index, node);
     }
 
-    pub(crate) fn reserve_index(&self) -> ModuleIdx {
+    pub fn reserve_index(&self) -> ModuleIdx {
         let next = ModuleIdx::new();
         self.indexes.insert(next, ());
         self.deps_by_index.insert(next, DashMap::new());
         next
     }
 
-    pub(crate) fn set_entry_point(&self, index: ModuleIdx) {
+    pub fn set_entry_point(&self, index: ModuleIdx) {
         let mut entry = self.entry_point.write();
         *entry = Some(index);
     }
