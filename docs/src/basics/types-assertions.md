@@ -43,14 +43,12 @@ For example, if you were to specify the expression:
 The compiler will report this error as:
 
 ```
-error: Failed to typecheck:
+error[0052]: Failed to typecheck: Mismatching types
 --> 1:1 - 1:3
   |
-  |
 1 | "2" as char
-  | ^^^    
+  | ^^^  Cannot match type 'char' with 'str'.
   |
-Cannot match type 'char' with 'str'.
 ```
 
 ## Usefulness

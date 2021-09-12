@@ -79,17 +79,4 @@ let p1 = LibPoint { x=2; y=3 };
 ```
 
 > **Note**: Naming is entirely up to the developer, there are no restrictions on naming
-> except the language naming 
-
-### Cyclic imports 🚧
-
-Hash does not currently support cyclical dependencies within a project. Two modules within a project cannot be dependent on each other. As much as this might be an inconvenience, this is done to avoid "behaviour" which is implied by supporting cyclical imports. Other languages such as JavaScript support cyclical imports but can sometimes exhibit strange behaviour when using modules with cyclical imports.
-
-It is currently under consideration to lift this restriction, but at the same time avoid strange behaviours when supporting cyclical imports.
-
-If you attempt to run a module which has a cyclical import, the compiler will error and refuse to run the module like so:
-
-```sh
-$ hash -e ./module_with_cyclic_imports.hash
-error: Found circular dependency in "./module_with_cyclic_imports.hash"
-```
+> except the language naming.
