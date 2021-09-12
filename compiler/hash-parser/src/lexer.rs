@@ -102,8 +102,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Parses a token from the input string.
     pub(crate) fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
-        let offset = self.offset.get();
-
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -113,19 +111,20 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     '/' => self.line_comment(),
                     _ => {
                         self.next();
-
+                        
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
                         return Ok(Some(Token::new(
                             TokenKind::Atom(TokenAtom::Slash),
-                            Location::pos(offset),
+                            Location::pos(self.offset.get()),
                         )));
                     }
                 },
                 _ => break,
             }
         }
-
+        
+        let offset = self.offset.get();
         let next_token = self.next();
 
         if next_token.is_none() {
