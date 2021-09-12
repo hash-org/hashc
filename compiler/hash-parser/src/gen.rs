@@ -446,8 +446,11 @@ where
                         let rhs = self.parse_expression_bp(0)?;
                         self.parse_token_atom(TokenAtom::Semi)?;
 
-                        Ok(self.node_from_joined_location(Statement::Assign(AssignStatement { lhs: expr, rhs }), &start))
-                    } 
+                        Ok(self.node_from_joined_location(
+                            Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                            &start,
+                        ))
+                    }
                     token => match (token, expr.into_body().move_out().into_kind()) {
                         (_, ExpressionKind::Block(block)) => {
                             Ok(self.node_from_location(Statement::Block(block), &start))
@@ -718,12 +721,6 @@ where
     pub fn parse_type_bound(&self) -> ParseResult<AstNode<'c, Bound<'c>>> {
         let start = self.current_location();
         let type_args = self.parse_type_args()?;
-
-        if type_args.is_none() {
-            self.error("Expected type arguments.")?;
-        }
-
-        let type_args = type_args.unwrap();
 
         let trait_bounds = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Where)) => {
@@ -1979,18 +1976,9 @@ where
     ) -> ParseResult<(AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
         let name = self.parse_access_name(ident)?;
 
-        let args_location = self.current_location();
         let args = self.parse_type_args()?;
 
-        // re-map the error specifying that we expected type arguments here...
-        if args.is_none() {
-            return Err(ParseError::Parsing {
-                message: "Expected type arguments after identifier.".to_string(),
-                src: self.source_location(&args_location),
-            });
-        }
-
-        Ok((name, args.unwrap()))
+        Ok((name, args))
     }
 
     pub fn parse_name_with_type_args(
@@ -1998,7 +1986,7 @@ where
         ident: &Identifier,
     ) -> ParseResult<(AstNode<'c, AccessName<'c>>, Option<AstNodes<'c, Type<'c>>>)> {
         let name = self.parse_access_name(ident)?;
-        let args = self.peek_fn(|| self.parse_type_args())?;
+        let args = self.peek_resultant_fn(|| self.parse_type_args());
 
         Ok((name, args))
     }
@@ -2172,28 +2160,15 @@ where
     /// lookahead to see if there is another type followed by either a comma (which locks the
     /// type_args) or a closing `TokenKind::Gt`. Otherwise, we back track and let the expression
     /// be parsed as an order comparison.
-    pub fn parse_type_args(&self) -> ParseResult<Option<AstNodes<'c, Type<'c>>>> {
-        // Ensure this is the beginning of a type_bound
-        if self.peek().is_none() || !self.peek().unwrap().has_atom(TokenAtom::Lt) {
-            return Ok(None);
-        }
-
-        self.next_token();
-
+    pub fn parse_type_args(&self) -> ParseResult<AstNodes<'c, Type<'c>>> {
+        self.parse_token_atom(TokenAtom::Lt)?;
         let mut type_args = row![&self.wall];
-        let mut has_comma = false;
 
         loop {
             // Check if the type argument is parsed, if we have already encountered a comma, we
             // return a hard error because it has already started on a comma.
             match self.parse_type() {
                 Ok(ty) => type_args.push(ty, &self.wall),
-                Err(err) if has_comma => {
-                    self.error(format!(
-                        "{}. Expected type argument in a type bound.",
-                        err.into_message()
-                    ))?;
-                }
                 Err(err) => return Err(err),
             };
 
@@ -2201,17 +2176,21 @@ where
             match self.peek() {
                 Some(token) if token.has_atom(TokenAtom::Comma) => {
                     self.next_token();
-                    has_comma = true;
                 }
                 Some(token) if token.has_atom(TokenAtom::Gt) => {
                     self.next_token();
                     break;
                 }
-                _ => return Ok(None),
+                Some(token) => self.unexpected_token_error(
+                    &token.kind,
+                    &TokenKindVector::from_row(row![&self.wall; TokenAtom::Comma, TokenAtom::Gt]),
+                    &self.current_location(),
+                )?,
+                None => self.unexpected_eof()?,
             }
         }
 
-        Ok(Some(type_args))
+        Ok(type_args)
     }
 
     /// Parses a function type which involves a parenthesis token tree with some arbitrary

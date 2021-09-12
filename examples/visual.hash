@@ -1,1 +1,10 @@
-var=2;
+let func = () => {
+    if (max <= min || ((min + step) >= max)) {         
+        return RangeIterator<int>{current=min, final=min, step=0}; // essentially no iterations occur
+    }
+
+    if ((step < 0) && (max > 0)) {
+        return RangeIterator<int>{current=min, final=min, step=0}; // essentially no iterations occur
+    }
+}
+
