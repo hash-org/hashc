@@ -133,12 +133,14 @@ while c -= 1 {
 ```
 Running the following code snippet produces the following error:
 ```
-error: Failed to Typecheck:
+error[0052]: Failed to Typecheck: Mismatching types.
  --> 3:7 - 3:12
-  |
+1 | let c: u32 = 100;
+2 |
 3 | while c -= 1 {
-  |       ^^^^^^
-  |       Expression does not have a boolean type 
+  |       ^^^^^^  Expression does not have a 'boolean' type 
+  |
+  = note: The type of the expression was `(,)` but expected an explicit `boolean`.
 ```
 
 

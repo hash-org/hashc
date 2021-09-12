@@ -21,18 +21,18 @@ print(x) // :^( error
 Will result in the compiler error:
 
 ```
-error: Failed to typecheck:
- --> 1:5
+error[0057]: Failed to typecheck: Un-initialised symbol
+ --> src/file.hash:3:7
   |
 1 | let x:u8;
-  |     ^--- symbol 'x' declared here without initialisation.
+  |     ^ symbol 'x' declared here without initialisation.
   |
+  = note: Consider giving 'x' an initial value.
 
- --> 3:7
+ --> src/file.hash:3:7
   |
 3 | print(x)
-  |       ^
-  |   symbol 'x' is uninitialised.
+  |       ^ symbol 'x' is uninitialised.
 ```
 
 ## Type inference
