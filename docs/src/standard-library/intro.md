@@ -14,6 +14,6 @@ The standard library included the following modules:
 
 These modules are currently under construction or proposed:
 
-- `time`: Useful constrcuts for time orientated data
+- `time`: Useful constructs for time orientated data
 - `sys`: System information about the host OS
 - `path`: Path utilities

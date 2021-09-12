@@ -10,7 +10,6 @@ a specific group of operations or are used to convey meaning within the language
 
 | Operator             | Example              | Description                   | Overloadable trait |
 |----------------------|----------------------|-------------------------------|--------------------|
-| `===`, `!==`         | `a === b`, `a !== c` | Referential equality          | `ref_eq`           |
 | `->`                 | N/A                  | `Reserved`                    | N/A                |
 | `=>`                 | `(a) => a + 2`       | Function notation             | N/A                |
 | `==`, `!=`           | `a == 2`, `b != 'a'` | Equality                      | `eq`               |
@@ -61,4 +60,5 @@ This table represents the syntax for different types of comments in Hash:
 |-----------|-----------------------------|
 | `//...`   | Line comment                |
 | `/*...*/` | Block comment               |
-| N/A       | Module/function doc comment |
+| `///`     | function doc comment    🚧  |
+| `//!`     | module doc comment      🚧  |

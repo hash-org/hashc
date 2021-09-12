@@ -15,12 +15,12 @@ However, there are advantages to having a VM implementation for the language, wh
 primarily:
 
 - We can have an interactive mode, execute code on the fly (with a minor performance hit)
-- We can run compile-time code functions that are beyound just templates and constant
+- We can run compile-time code functions that are beyond just templates and constant
 folding expressions.
 
 ## Planned backends
 
-Here are the currently planned backends, that will be worked on and stabalised some time in the future:
+Here are the currently planned backends, that will be worked on and stabilised some time in the future:
 
 | Name            | Description                                                                         | Target platform | Status |
 |-----------------|-------------------------------------------------------------------------------------|-----------------|--------|
