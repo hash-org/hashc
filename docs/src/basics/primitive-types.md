@@ -23,7 +23,7 @@ like `3.0`, `3e2`, `30e-1`, etc.
 
 ### Number types like `usize` & `isize` & `ibig` & `ubig`
 
-These number primitives are added for convienience when working with a variety of
+These number primitives are added for convenience when working with a variety of
 problems and host operating systems. The primitives `usize` and `isize` are intended
 for list indexing. This is because on some systems (which are 32bit) may not be able
 to support indexing a contiguous region of memory that is larger than '32bit' max value. So, the `usize` and `isize` primitives are host system dependent. 
@@ -32,7 +32,7 @@ The `ibig` and `ubig` number primitives are integer types that have no upper
 or lower bound and will grow until the host operating system memory is exhausted 
 when storing them. These types are intended to be used when working with heavy mathematical problems which may exceed the maximum '64bit' integer boundary.
 
-## Bracketted type syntax
+## Bracketed type syntax
 
 ### List
 Lists are denoted using the the common square bracket syntax where the values are
@@ -44,7 +44,7 @@ let y = [];
 let z = [1,]; // optional trailing comma
 ```
 
-To explictly declare a variable is of a `list` type, you do so:
+To explicitly declare a variable is of a `list` type, you do so:
 
 ```rs
 let some_list: [u64] = [];
@@ -62,7 +62,7 @@ differences between the common syntax. These differences are:
 - Singleton tuple : `(A,)`
 - Many membered tuple: `(A, B, C)` or `(A, B, C,)` 
 
-To explictly declare a variable is of a `tuple` type, you do so:
+To explicitly declare a variable is of a `tuple` type, you do so:
 
 ```rs
 let empty_tuple: (,) = (,);
@@ -73,7 +73,7 @@ let some_tuple: (str, u32) = ("string", 12);
 //              ^^^^^^^^^^
 //                 type
 ```
-**Note**: Trailing commas are not allowed within type defintions.
+**Note**: Trailing commas are not allowed within type definitions.
 
 
 It's worth noting that tuples are fancy syntax for structures and are indexed
@@ -91,7 +91,7 @@ Like tuples, sets have the same syntactic differences:
 - Singleton set : `{A,}`
 - Many membered set: `{A, B, C}` or `{A, B, C,}` 
 
-To explictly declare a variable is of a `set` type, you do so:
+To explicitly declare a variable is of a `set` type, you do so:
 
 ```rs
 let some_map: {str} = {,};
@@ -107,7 +107,7 @@ Like tuples, sets have the same syntactic differences:
 - Singleton map : `{A:1}` or `{A:1,}`
 - Many membered map: `{A: 1, B: 2, C: 3}` or `{A: 1, B: 2, C: 3,}` 
 
-To explictly declare a variable is of a `map` type, you do so:
+To explicitly declare a variable is of a `map` type, you do so:
 
 ```rs
 let some_map: {str: u8} = {:};

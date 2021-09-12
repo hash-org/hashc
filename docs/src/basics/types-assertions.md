@@ -43,17 +43,15 @@ For example, if you were to specify the expression:
 The compiler will report this error as:
 
 ```
-error: Failed to typecheck:
+error[0052]: Failed to typecheck: Mismatching types
 --> 1:1 - 1:3
   |
-  |
 1 | "2" as char
-  | ^^^    
+  | ^^^  Cannot match type 'char' with 'str'.
   |
-Cannot match type 'char' with 'str'.
 ```
 
-## Usefullness
+## Usefulness
  
 Why are type assertions when there is already type inference within the language? Well, sometimes the type inference
 system does not have enough information to infer the types of variables and declarations. 

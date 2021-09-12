@@ -62,6 +62,11 @@ can also specifically return a type as you would normally do within a function b
 let abs: (i64: x) => i64 = if x < 0 { -x } else { x }
 ```
 
+You can also assign values since `if` statements are just blocks
+```rust
+let my_value: i32 = if some_condition == x { 3 } else { 5 };
+```
+
 However, you cannot do something like this:
 
 ```rust
@@ -72,7 +77,7 @@ let abs: (i64: x) => i64 = if x < 0 { -x }
 of what should happen for the `else` case.
 
 ## If statements and Enums 🚧
-You can destruct enum values within if statments using the `if-let` syntax, like so:
+You can destruct enum values within if statements using the `if-let` syntax, like so:
 
 ```rust
 enum Result = <T, E> => {

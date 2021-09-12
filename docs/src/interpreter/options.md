@@ -38,5 +38,13 @@ Adjust the stack size of the Virtual Machine. Default value is `10,0000`
 ## `ast-gen`: Generate AST from input file only
 This mode tells the compiler to finish at the Abstract Syntax Tree stage and not produce any other kind of output.
 
+### `-v` : Whilst generating AST, output a visual representation of the AST.
+
+### `-d` : Run in debug mode.
+
 ## `ir-gen`: : Generate IR from input file only
 This mode tells the compiler to finish at the IR stage and not produce any other kind of output.
+
+### `-v` : Whilst generating IR, output a visual representation of the IR.
+
+### `-d` : Run in debug mode.

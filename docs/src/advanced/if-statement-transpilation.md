@@ -1,7 +1,7 @@
 # If Statement transpilation
 
 As mentioned at the start of the conditionals section in the basics chapter, if statements can be
-represnted as `match` statements. This is especially adviced when you have many `if` branched and 
+represented as `match` statements. This is especially advised when you have many `if` branched and 
 more complicated branch conditions.
 
 Internally, the compiler will convert `if` statements into match cases so that it has to do
@@ -31,7 +31,7 @@ match true {
 ```
 
 
-For example, the following `if` statment will be converted as follows:
+For example, the following `if` statement will be converted as follows:
 
 ```rust
 if conditionA {
