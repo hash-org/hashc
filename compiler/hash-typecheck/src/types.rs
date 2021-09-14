@@ -5,6 +5,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     cell::Cell,
     collections::{BTreeMap, HashMap},
+    ops::Deref,
 };
 
 use dashmap::DashMap;
@@ -15,8 +16,6 @@ use hash_ast::{
     module::{ModuleIdx, Modules},
 };
 use hash_utils::counter;
-use smallvec::smallvec;
-use smallvec::SmallVec;
 
 #[derive(Debug)]
 pub struct Trait {}
@@ -33,9 +32,15 @@ pub struct TraitBounds<'c> {
     data: Row<'c, TraitBound<'c>>,
 }
 
-impl TraitBounds<'_> {
+impl<'c> TraitBounds<'c> {
     pub fn empty() -> Self {
         Self { data: row![] }
+    }
+
+    pub fn map(&self, wall: &Wall<'c>, f: impl FnMut(&TraitBound<'c>) -> TraitBound<'c>) -> Self {
+        TraitBounds {
+            data: Row::from_iter(self.data.iter().map(f), wall),
+        }
     }
 }
 
@@ -529,6 +534,64 @@ impl TypeVars {
 
     pub fn assign(&mut self, var: TypeVar, ty: TypeId) {
         self.data.insert(var, ty);
+    }
+
+    pub fn substitute_many<'c>(
+        &self,
+        ty: impl IntoIterator<Item = impl Deref<Target = TypeId>>,
+        types: &mut Types<'c>,
+        wall: &Wall<'c>,
+    ) -> Row<'c, TypeId> {
+        Row::from_iter(
+            ty.into_iter().map(|ty| self.substitute(*ty, types, wall)),
+            wall,
+        )
+    }
+
+    pub fn substitute<'c>(&self, ty: TypeId, types: &mut Types<'c>, wall: &Wall<'c>) -> TypeId {
+        match types.get(ty) {
+            TypeValue::Ref(RefType { inner }) => types.create(
+                TypeValue::Ref(RefType {
+                    inner: self.substitute(*inner, types, wall),
+                }),
+                wall,
+            ),
+            TypeValue::RawRef(RawRefType { inner }) => types.create(
+                TypeValue::RawRef(RawRefType {
+                    inner: self.substitute(*inner, types, wall),
+                }),
+                wall,
+            ),
+            TypeValue::Fn(FnType { args, ret }) => types.create(
+                TypeValue::Fn(FnType {
+                    args: self.substitute_many(args, types, wall),
+                    ret: self.substitute(*ret, types, wall),
+                }),
+                wall,
+            ),
+            TypeValue::Var(type_var) => match self.resolve(*type_var) {
+                Some(resolved) => resolved,
+                None => ty,
+            },
+            TypeValue::User(UserType { def_id, args }) => types.create(
+                TypeValue::User(UserType {
+                    def_id: *def_id,
+                    args: self.substitute_many(args, types, wall),
+                }),
+                wall,
+            ),
+            TypeValue::Prim(_) => ty,
+            TypeValue::Unknown(UnknownType { bounds }) => types.create(
+                TypeValue::Unknown(UnknownType {
+                    bounds: bounds.map(wall, |bound| TraitBound {
+                        params: self.substitute_many(&bound.params, types, wall),
+                        trt: bound.trt,
+                    }),
+                }),
+                wall,
+            ),
+            TypeValue::Namespace(_) => ty,
+        }
     }
 }
 
