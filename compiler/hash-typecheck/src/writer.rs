@@ -3,10 +3,7 @@ use core::fmt;
 use hash_ast::{ast::TypeId, ident::IDENTIFIER_MAP};
 use hash_utils::tree_writing::{TreeNode, TreeWriter};
 
-use crate::types::{
-    EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypecheckCtx,
-    UserType,
-};
+use crate::types::{EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypeVars, TypecheckCtx, UserType};
 
 pub struct TypeWithCtx<'t, 'c, 'm> {
     ty: TypeId,
