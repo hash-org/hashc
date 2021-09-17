@@ -10,11 +10,7 @@ use std::{
 
 use dashmap::DashMap;
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_ast::{
-    ast::TypeId,
-    ident::Identifier,
-    module::{ModuleIdx, Modules},
-};
+use hash_ast::{ast::TypeId, ident::Identifier, location::Location, module::{ModuleIdx, Modules}};
 use hash_utils::counter;
 
 #[derive(Debug)]
@@ -152,6 +148,8 @@ pub enum PrimType {
     I16,
     I32,
     I64,
+    F32,
+    F64,
     Char,
     Void,
 }
@@ -272,6 +270,7 @@ impl<'c> Types<'c> {
     }
 
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
+        // @@Todo: resolve type variables bro!
         self.data.get(&ty).unwrap().get()
     }
 
@@ -604,6 +603,9 @@ pub struct TypecheckCtx<'c, 'm> {
 #[derive(Debug)]
 pub enum TypecheckError {
     TypeMismatch(TypeId, TypeId),
+    UsingBreakOutsideLoop(Location),
+    UsingContinueOutsideLoop(Location),
+    UsingReturnOutsideFunction(Location),
     // @@Todo: turn this into variants
     Message(String),
 }
