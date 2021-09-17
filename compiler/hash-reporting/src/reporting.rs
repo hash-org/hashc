@@ -335,7 +335,7 @@ impl ReportBuilder {
             kind: self.kind.take().ok_or(IncompleteReportError)?,
             message: self.message.take().ok_or(IncompleteReportError)?,
             error_code: self.error_code.take(),
-            contents: std::mem::replace(&mut self.contents, vec![]),
+            contents: std::mem::take(&mut self.contents),
         })
     }
 }
@@ -382,16 +382,11 @@ impl fmt::Display for ReportWriter<'_, '_> {
 
         let mut iter = self.report.contents.iter().peekable();
 
-        loop {
-            match iter.next() {
-                Some(note) => {
-                    note.render(f, self.modules, longest_indent_width, self.report.kind)?;
+        while let Some(note) = iter.next() {
+            note.render(f, self.modules, longest_indent_width, self.report.kind)?;
 
-                    if matches!(iter.peek(), Some(ReportElement::CodeBlock(_))) {
-                        writeln!(f, "")?;
-                    }
-                }
-                None => break,
+            if matches!(iter.peek(), Some(ReportElement::CodeBlock(_))) {
+                writeln!(f)?;
             }
         }
 

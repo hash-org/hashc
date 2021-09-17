@@ -72,12 +72,6 @@ where
         }
     }
 
-    pub fn generate_module(&mut self) -> ParseResult<Module<'c>> {
-        Ok(Module {
-            contents: row![&self.wall],
-        })
-    }
-
     pub fn from_stream(&self, stream: &'stream [Token<'c>], parent_span: Location) -> Self {
         Self {
             stream,
@@ -131,6 +125,13 @@ where
             0 => false,
             _ => self.offset.get() < self.stream.len(),
         }
+    }
+
+    /// Function that skips the next token without explicitly looking up the
+    /// token in the stream and avoiding the additional computation.
+    #[inline(always)]
+    pub(crate) fn skip_token(&self) {
+        self.offset.update(|x| x + 1);
     }
 
     /// Function that increases the offset of the next token
@@ -385,7 +386,7 @@ where
 
         match self.peek() {
             Some(Token { kind, span: _ }) if kind.begins_statement() => {
-                self.next_token();
+                self.skip_token();
 
                 let atom = kind.to_atom();
 
@@ -433,32 +434,29 @@ where
             Some(_) => {
                 let expr = self.parse_expression_bp(0)?;
 
-                match self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
-                    Some(_op) => {
-                        // @@TODO: actually transform the op into a function call.
+                if let Some(_op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
+                    // @@TODO: actually transform the op into a function call.
 
-                        // Parse the rhs and the semi
-                        let rhs = self.parse_expression_bp(0)?;
-                        self.parse_token_atom(TokenAtom::Semi)?;
+                    // Parse the rhs and the semi
+                    let rhs = self.parse_expression_bp(0)?;
+                    self.parse_token_atom(TokenAtom::Semi)?;
 
-                        // Now we need to transform the re-assignment operator into a function call
+                    // Now we need to transform the re-assignment operator into a function call
 
-                        return Ok(self.node_from_joined_location(
-                            Statement::Assign(AssignStatement { lhs: expr, rhs }),
-                            &start,
-                        ));
-                    }
-                    None => (),
+                    return Ok(self.node_from_joined_location(
+                        Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                        &start,
+                    ));
                 }
 
                 // Ensure that the next token is a Semi
                 match self.peek() {
                     Some(token) if token.has_atom(TokenAtom::Semi) => {
-                        self.next_token();
+                        self.skip_token();
                         Ok(self.node_from_location(Statement::Expr(expr), &start))
                     }
                     Some(token) if token.has_atom(TokenAtom::Eq) => {
-                        self.next_token();
+                        self.skip_token();
 
                         // Parse the rhs and the semi
                         let rhs = self.parse_expression_bp(0)?;
@@ -520,9 +518,7 @@ where
                 assignable: true,
             }) => {
                 // consume the number of tokens eaten whilst getting the operator...
-                (0..consumed_tokens).for_each(|_| {
-                    self.next_token();
-                });
+                self.offset.update(|x| x + consumed_tokens as usize);
 
                 Ok(kind)
             }
@@ -634,7 +630,7 @@ where
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
                 span,
             }) => {
-                self.next_token();
+                self.skip_token();
 
                 let gen = self.from_stream(tree, *span);
                 let mut entries = row![&self.wall;];
@@ -677,7 +673,7 @@ where
             span,
         }) = self.peek()
         {
-            self.next_token();
+            self.skip_token();
             let gen = self.from_stream(tree, *span);
             while gen.has_token() {
                 let ty = gen.parse_type()?;
@@ -698,7 +694,7 @@ where
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
                 span,
             }) => {
-                self.next_token();
+                self.skip_token();
 
                 let gen = self.from_stream(tree, *span);
                 let mut entries = row![&self.wall;];
@@ -735,7 +731,7 @@ where
 
         let ty = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Colon) => {
-                self.next_token();
+                self.skip_token();
                 Some(self.parse_type()?)
             }
             _ => None,
@@ -743,7 +739,7 @@ where
 
         let default = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Eq) => {
-                self.next_token();
+                self.skip_token();
 
                 Some(self.parse_expression_bp(0)?)
             }
@@ -759,7 +755,7 @@ where
 
         let trait_bounds = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Where)) => {
-                self.next_token();
+                self.skip_token();
 
                 let mut trait_bounds = row![&self.wall;];
 
@@ -769,7 +765,7 @@ where
                             kind: TokenKind::Atom(TokenAtom::Ident(ident)),
                             span: _,
                         }) => {
-                            self.next_token();
+                            self.skip_token();
 
                             let bound_start = self.current_location();
                             let (name, type_args) = self.parse_trait_bound(ident)?;
@@ -785,7 +781,7 @@ where
                             // ensure that the bound is followed by a comma, if not then break...
                             match self.peek() {
                                 Some(token) if token.has_atom(TokenAtom::Comma) => {
-                                    self.next_token();
+                                    self.skip_token();
                                 }
                                 _ => break,
                             }
@@ -1087,12 +1083,12 @@ where
             // Now check if there is another branch after the else or if, and loop onwards...
             match self.peek() {
                 Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Else)) => {
-                    self.next_token();
+                    self.skip_token();
 
                     match self.peek() {
                         Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::If)) => {
                             // skip trying to convert just an 'else' branch since this is another if-branch
-                            self.next_token();
+                            self.skip_token();
                             continue;
                         }
                         _ => (),
@@ -1205,7 +1201,7 @@ where
 
         let ty = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Colon) => {
-                self.next_token();
+                self.skip_token();
                 Some(self.parse_type()?)
             }
             _ => None,
@@ -1213,7 +1209,7 @@ where
 
         let value = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Eq) => {
-                self.next_token();
+                self.skip_token();
                 Some(self.parse_expression_bp(0)?)
             }
             _ => None,
@@ -1317,7 +1313,7 @@ where
                 span,
             } => {
                 // this could be either just a binding pattern, enum, or a struct pattern
-                self.next_token();
+                self.skip_token();
 
                 // So here we try to parse an access name, if it is only made of a single binding
                 // name, we'll just return this as a binding pattern, otherwise it must follow that
@@ -1359,7 +1355,7 @@ where
                 }
             }
             token if token.kind.is_literal() => {
-                self.next_token();
+                self.skip_token();
                 Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
             }
             token if token.is_paren_tree() => {
@@ -1385,7 +1381,7 @@ where
             }
             // @@Future: List patterns aren't supported yet.
             // Token {kind: TokenKind::Tree(Delimiter::Bracket, tree), span} => {
-            //                 self.next_token();
+            //                 self.skip_token();
             //     // this is a list pattern
             //
             // }
@@ -1405,19 +1401,14 @@ where
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
                 span,
             }) => {
-                self.next_token(); // step-along since we matched a block...
+                self.skip_token(); // step-along since we matched a block...
 
                 (self.from_stream(tree, self.current_location()), *span)
             }
-            Some(token) => {
-                return Err(ParseError::Parsing {
-                    message: format!(
-                        "Expected block body, which begins with a '{{' but got a {}",
-                        token
-                    ),
-                    src: self.source_location(&self.current_location()),
-                });
-            }
+            Some(token) => self.error(format!(
+                "Expected block body, which begins with a '{{' but got a {}",
+                token
+            ))?,
             // @@ErrorReporting
             None => self
                 .error("Expected block body, which begins with a '{{', but reached end of input")?,
@@ -1491,7 +1482,7 @@ where
                 None => {
                     match gen.peek() {
                         Some(token) if token.has_atom(TokenAtom::Semi) => {
-                            gen.next_token();
+                            gen.skip_token();
 
                             block.statements.push(
                                 gen.node_from_joined_location(Statement::Expr(expr), &expr_loc),
@@ -1499,7 +1490,7 @@ where
                             );
                         }
                         Some(token) if token.has_atom(TokenAtom::Eq) => {
-                            gen.next_token();
+                            gen.skip_token();
 
                             // Parse the rhs and the semi
                             let rhs = gen.parse_expression_bp(0)?;
@@ -1583,7 +1574,7 @@ where
                     TokenAtom::Keyword(Keyword::Loop) => {
                         // @@Hack: advance the token by one expecting it to be a tree, since parse block looks at the current
                         //         token instead of peeking ahead, this should be changed in the future.
-                        self.next_token();
+                        self.skip_token();
 
                         self.node_from_joined_location(Block::Loop(self.parse_block()?), &start)
                     }
@@ -1615,15 +1606,18 @@ where
 
                 // Now here we have to look ahead after the token_tree to see if there is an arrow
                 if !is_func {
-
                     // @@Speed: avoid using parse_token_atom() because we don't care about error messages
                     //          We just want to purely look if there are is a combination of symbols following
                     //          which make up an '=>'.
-                    if self.peek_resultant_fn(|| -> Result<(), ()> {
-                        self.parse_token_atom_fast(TokenAtom::Eq).ok_or_else(|| ())?;
-                        self.parse_token_atom_fast(TokenAtom::Gt).ok_or_else(|| ())?;
-                        Ok(())
-                    }).is_some() {
+                    let has_arrow = self
+                        .peek_resultant_fn(|| -> Result<(), ()> {
+                            self.parse_token_atom_fast(TokenAtom::Eq).ok_or(())?;
+                            self.parse_token_atom_fast(TokenAtom::Gt).ok_or(())?;
+                            Ok(())
+                        })
+                        .is_some();
+
+                    if has_arrow {
                         self.offset.set(self.offset.get() - 2);
                         is_func = true;
                     }
@@ -1672,7 +1666,7 @@ where
             match &next_token.kind {
                 // Property access or infix function call
                 TokenKind::Atom(TokenAtom::Dot) => {
-                    self.next_token(); // eat the token since there isn't any alternative to being an ident or fn call.
+                    self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
 
                     let name_or_fn_call = self.parse_name_or_infix_call()?;
                     let kind = name_or_fn_call.into_body().move_out().into_kind();
@@ -1735,17 +1729,17 @@ where
                 }
                 // Array index access syntax: ident[...]
                 TokenKind::Tree(Delimiter::Bracket, tree) => {
-                    self.next_token();
+                    self.skip_token();
                     lhs_expr = self.parse_array_index(lhs_expr, tree, self.current_location())?;
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree) => {
-                    self.next_token();
+                    self.skip_token();
                     lhs_expr = self.parse_function_call(lhs_expr, tree, self.current_location())?;
                 }
                 // Struct literal
                 TokenKind::Tree(Delimiter::Brace, tree) if !self.disallow_struct_literals.get() => {
-                    self.next_token();
+                    self.skip_token();
                     // Ensure that the LHS of the brace is a variable, since struct literals can only
                     // be begun with variable names and type arguments, any other expression cannot be
                     // the beginning of a struct literal.
@@ -1802,7 +1796,7 @@ where
             _ => gen.error("Expected an import path.")?,
         };
 
-        gen.next_token(); // eat the string argument
+        gen.skip_token(); // eat the string argument
 
         if gen.has_token() {
             gen.expected_eof()?;
@@ -1869,7 +1863,7 @@ where
     pub fn parse_token_atom_fast(&self, atom: TokenAtom) -> Option<()> {
         match self.peek() {
             Some(token) if token.has_atom(atom) => {
-                self.next_token();
+                self.skip_token();
                 Some(())
             }
             _ => None,
@@ -1882,7 +1876,7 @@ where
     pub fn parse_token_atom(&self, atom: TokenAtom) -> ParseResult<()> {
         match self.peek() {
             Some(token) if token.has_atom(atom) => {
-                self.next_token();
+                self.skip_token();
                 Ok(())
             }
             Some(token) => Err(ParseError::Parsing {
@@ -2095,7 +2089,7 @@ where
                 kind: TokenKind::Atom(TokenAtom::Ident(ident)),
                 span,
             }) => {
-                self.next_token();
+                self.skip_token();
 
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
@@ -2121,18 +2115,18 @@ where
         loop {
             match self.peek() {
                 Some(token) if token.has_atom(TokenAtom::Colon) => {
-                    self.next_token(); // :
+                    self.skip_token(); // :
 
                     match self.peek() {
                         Some(token) if token.has_atom(TokenAtom::Colon) => {
-                            self.next_token(); // :
+                            self.skip_token(); // :
 
                             match self.peek() {
                                 Some(Token {
                                     kind: TokenKind::Atom(TokenAtom::Ident(id)),
                                     span: _,
                                 }) => {
-                                    self.next_token();
+                                    self.skip_token();
                                     path.push(*id, &self.wall);
                                 }
                                 _ => {
@@ -2199,9 +2193,7 @@ where
                 // Only perform this check if know prior that the expression is not made of compounded components.
                 Some(op) if !op.assignable => {
                     // consume the number of tokens eaten whilst getting the operator...
-                    (0..consumed_tokens).for_each(|_| {
-                        self.next_token();
-                    });
+                    self.offset.update(|x| x + consumed_tokens as usize);
 
                     let op_span = op_start.join(self.current_location());
 
@@ -2274,10 +2266,10 @@ where
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
                 Some(token) if token.has_atom(TokenAtom::Comma) => {
-                    self.next_token();
+                    self.skip_token();
                 }
                 Some(token) if token.has_atom(TokenAtom::Gt) => {
-                    self.next_token();
+                    self.skip_token();
                     break;
                 }
                 Some(token) => self.unexpected_token_error(
@@ -2310,7 +2302,7 @@ where
                 kind: TokenKind::Tree(_, tree),
                 span,
             }) => {
-                self.next_token();
+                self.skip_token();
 
                 let gen = self.from_stream(tree, *span);
 
@@ -2321,7 +2313,7 @@ where
                 match gen.peek() {
                     Some(token) if token.has_atom(TokenAtom::Comma) => {
                         if gen.stream.len() == 1 {
-                            gen.next_token();
+                            gen.skip_token();
                         }
                     }
                     _ => {
@@ -2387,7 +2379,7 @@ where
 
         let variant = match &token.kind {
             TokenKind::Atom(TokenAtom::Amp) => {
-                self.next_token();
+                self.skip_token();
 
                 // @@TODO: raw_refs...
                 match self.parse_type() {
@@ -2396,11 +2388,11 @@ where
                 }
             }
             TokenKind::Atom(TokenAtom::Question) => {
-                self.next_token();
+                self.skip_token();
                 Type::Existential
             }
             TokenKind::Atom(TokenAtom::Ident(id)) => {
-                self.next_token();
+                self.skip_token();
 
                 let (name, args) = self.parse_name_with_type_args(id)?;
                 // if the type_args are None, this means that the name could be either a
@@ -2438,7 +2430,7 @@ where
 
             // Map or set type
             TokenKind::Tree(Delimiter::Brace, tree) => {
-                self.next_token();
+                self.skip_token();
 
                 let gen = self.from_stream(tree, token.span);
 
@@ -2447,7 +2439,7 @@ where
                 match gen.peek() {
                     // This must be a map
                     Some(token) if token.has_atom(TokenAtom::Colon) => {
-                        gen.next_token();
+                        gen.skip_token();
 
                         let rhs_type = gen.parse_type()?;
 
@@ -2479,7 +2471,7 @@ where
 
             // List type
             TokenKind::Tree(Delimiter::Bracket, tree) => {
-                self.next_token();
+                self.skip_token();
 
                 let gen = self.from_stream(tree, token.span);
                 let inner_type = gen.parse_type()?;
@@ -2529,7 +2521,7 @@ where
                     span,
                 }) => {
                     // Eat the generator now...
-                    self.next_token();
+                    self.skip_token();
 
                     // @@Parallelisable: Since this is a vector of tokens, we should be able to give the resolver, create a new
                     //                   generator and form function call arguments from the stream...
@@ -2643,7 +2635,7 @@ where
 
         match (gen.peek(), initial_statement) {
             (Some(token), Statement::Expr(initial_expr)) if token.has_atom(TokenAtom::Comma) => {
-                gen.next_token(); // ','
+                gen.skip_token(); // ','
 
                 let literal = self.parse_set_literal(gen, initial_expr)?;
 
@@ -2653,7 +2645,7 @@ where
                 ))
             }
             (Some(token), Statement::Expr(initial_expr)) if token.has_atom(TokenAtom::Colon) => {
-                gen.next_token(); // ':'
+                gen.skip_token(); // ':'
 
                 let start_pos = initial_expr.location();
                 let entry = self.node_from_joined_location(
@@ -2668,7 +2660,7 @@ where
                 // and pass it into parse_map_literal.
                 match gen.peek() {
                     Some(token) if token.has_atom(TokenAtom::Comma) => {
-                        gen.next_token();
+                        gen.skip_token();
 
                         let literal = self.parse_map_literal(gen, entry)?;
 
@@ -2794,7 +2786,7 @@ where
 
         match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::If)) => {
-                self.next_token();
+                self.skip_token();
 
                 let condition = self.parse_expression_bp(0)?;
 
@@ -2821,7 +2813,7 @@ where
             // Check if this is going to be another pattern following the current one.
             match self.peek() {
                 Some(token) if token.has_atom(TokenAtom::Pipe) => {
-                    self.next_token();
+                    self.skip_token();
                 }
                 _ => break,
             }
@@ -2844,7 +2836,7 @@ where
 
         let ty = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Colon) => {
-                self.next_token();
+                self.skip_token();
                 Some(self.parse_type()?)
             }
             _ => None,
@@ -2924,7 +2916,7 @@ where
         if gen.stream.len() == 1 {
             match gen.peek().unwrap() {
                 token if token.has_atom(TokenAtom::Comma) => {
-                    gen.next_token();
+                    gen.skip_token();
 
                     return Ok(gen.node_from_joined_location(
                         Expression::new(ExpressionKind::LiteralExpr(
@@ -2954,7 +2946,7 @@ where
         loop {
             match gen.peek() {
                 Some(token) if token.has_atom(TokenAtom::Comma) => {
-                    gen.next_token();
+                    gen.skip_token();
 
                     // Handles the case where this is a trailing comma and no tokens after...
                     if !gen.has_token() {
@@ -2998,7 +2990,7 @@ where
 
             match gen.peek() {
                 Some(token) if token.has_atom(TokenAtom::Comma) => {
-                    gen.next_token();
+                    gen.skip_token();
                 }
                 Some(token) => {
                     // if we haven't exhausted the whole token stream, then report this as a unexpected

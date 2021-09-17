@@ -32,7 +32,7 @@ pub enum InteractiveCommandError {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[repr(u32)]
 pub enum ErrorCode {
-    Parsing = 0001,
+    Parsing = 1,
 }
 
 impl fmt::Display for ErrorCode {
