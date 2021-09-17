@@ -5,6 +5,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
-mod types;
+pub mod types;
 // mod substitute;
-mod writer;
+pub mod writer;
+pub mod traverse;

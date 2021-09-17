@@ -142,9 +142,31 @@ fn execute(input: &str) {
         }
         Ok(InteractiveCommand::Version) => print_version(),
         Ok(InteractiveCommand::Code(expr)) => {
-            if parse_interactive(expr, &castle).is_some() {
-                println!("running code...");
-                // Typecheck and execute...
+            match parse_interactive(expr, &castle) {
+                Some((block, modules)) => {
+                    let wall = castle.wall();
+                    let ctx = TypecheckCtx {
+                        types: Types::new(),
+                        type_defs: TypeDefs::new(),
+                        type_vars: TypeVars::new(),
+                        traits: Traits::new(),
+                        state: TypecheckState::default(),
+                        scopes: ScopeStack::new(),
+                        modules: &modules,
+                    };
+
+                    let mut traverser = Traverser::new(ctx, wall);
+
+                    match traverser.traverse_body_block(block.ast_ref()) {
+                        Ok(block_ty) => {
+                            let (ctx, _) = traverser.into_inner();
+                            println!("{}", TypeWithCtx::new(block_ty, &ctx));
+                        }
+                        Err(err) => println!("Error: {:?}", err)
+                    }
+
+                }
+                None => {},
             }
         }
         Ok(InteractiveCommand::Type(expr)) => {
