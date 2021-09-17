@@ -153,6 +153,7 @@ pub enum PrimType {
     I32,
     I64,
     Char,
+    Void,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -294,7 +295,6 @@ impl<'c> Types<'c> {
         &mut self,
         target: TypeId,
         source: TypeId,
-        opts: &UnifyOptions,
         type_vars: &mut TypeVars,
     ) -> TypecheckResult<()> {
         // Already the same type
@@ -313,19 +313,19 @@ impl<'c> Types<'c> {
         use TypeValue::*;
         match (target_ty, source_ty) {
             (Ref(ref_target), Ref(ref_source)) => {
-                self.unify(ref_target.inner, ref_source.inner, opts)?;
+                self.unify(ref_target.inner, ref_source.inner, type_vars)?;
 
                 Ok(())
             }
             (RawRef(raw_target), RawRef(raw_source)) => {
-                self.unify(raw_target.inner, raw_source.inner, opts)?;
+                self.unify(raw_target.inner, raw_source.inner, type_vars)?;
 
                 Ok(())
             }
             (Fn(fn_target), Fn(fn_source)) => {
-                self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), opts)?;
+                self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), type_vars)?;
                 // Maybe this should be flipped (see variance comment above)
-                self.unify(fn_target.ret, fn_source.ret, opts)?;
+                self.unify(fn_target.ret, fn_source.ret, type_vars)?;
 
                 // let merged_sub = args_sub.merge(self, &ret_sub);
 
@@ -354,22 +354,23 @@ impl<'c> Types<'c> {
                 Ok(())
             }
             (Var(var_target), Var(var_source)) if var_target == var_source => Ok(()),
+            (_, Var(var_source)) => match type_vars.resolve(*var_source) {
+                Some(resolved) => self.unify(target, resolved, type_vars),
+                None => Err(TypecheckError::TypeMismatch(target, source)),
+            },
             (Var(var_target), _) => match type_vars.resolve(*var_target) {
-                Some(resolved) => self.unify(resolved, source, opts, type_vars),
-                None => match opts.type_var_strategy {
-                    TypeVarStrategy::Match => Err(TypecheckError::TypeMismatch(target, source)),
-                    TypeVarStrategy::Instantiate => {
-                        type_vars.assign(*var_target, source);
-                        Ok(())
-                    }
-                },
+                Some(resolved) => self.unify(resolved, source, type_vars),
+                None => Err(TypecheckError::TypeMismatch(target, source)),
             },
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
                 // Make sure we got same number of type arguments
                 assert_eq!(user_target.args.len(), user_source.args.len());
 
                 // Unify type arguments.
-                self.unify_pairs((user_target.args.iter()).zip(user_source.args.iter()), opts)?;
+                self.unify_pairs(
+                    (user_target.args.iter()).zip(user_source.args.iter()),
+                    type_vars,
+                )?;
 
                 // let unified_ty_id = self.create(User(UserType {
                 //     def_id: user_target.def_id,
@@ -391,12 +392,12 @@ impl<'c> Types<'c> {
     pub fn unify_pairs(
         &mut self,
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
-        opts: &UnifyOptions,
+        type_vars: &mut TypeVars,
     ) -> TypecheckResult<()> {
         for (a, b) in pairs {
             let a_ty = *a.borrow();
             let b_ty = *b.borrow();
-            self.unify(a_ty, b_ty, opts)?;
+            self.unify(a_ty, b_ty, type_vars)?;
         }
 
         Ok(())
@@ -550,46 +551,41 @@ impl TypeVars {
 
     pub fn substitute<'c>(&self, ty: TypeId, types: &mut Types<'c>, wall: &Wall<'c>) -> TypeId {
         match types.get(ty) {
-            TypeValue::Ref(RefType { inner }) => types.create(
-                TypeValue::Ref(RefType {
-                    inner: self.substitute(*inner, types, wall),
-                }),
-                wall,
-            ),
-            TypeValue::RawRef(RawRefType { inner }) => types.create(
-                TypeValue::RawRef(RawRefType {
-                    inner: self.substitute(*inner, types, wall),
-                }),
-                wall,
-            ),
-            TypeValue::Fn(FnType { args, ret }) => types.create(
-                TypeValue::Fn(FnType {
-                    args: self.substitute_many(args, types, wall),
-                    ret: self.substitute(*ret, types, wall),
-                }),
-                wall,
-            ),
+            TypeValue::Ref(RefType { inner }) => {
+                let inner = self.substitute(*inner, types, wall);
+                types.create(TypeValue::Ref(RefType { inner }), wall)
+            }
+            TypeValue::RawRef(RawRefType { inner }) => {
+                let inner = self.substitute(*inner, types, wall);
+                types.create(TypeValue::RawRef(RawRefType { inner }), wall)
+            }
+            TypeValue::Fn(FnType { args, ret }) => {
+                let args = self.substitute_many(args, types, wall);
+                let ret = self.substitute(*ret, types, wall);
+                types.create(TypeValue::Fn(FnType { args, ret }), wall)
+            }
             TypeValue::Var(type_var) => match self.resolve(*type_var) {
                 Some(resolved) => resolved,
                 None => ty,
             },
-            TypeValue::User(UserType { def_id, args }) => types.create(
-                TypeValue::User(UserType {
-                    def_id: *def_id,
-                    args: self.substitute_many(args, types, wall),
-                }),
-                wall,
-            ),
-            TypeValue::Prim(_) => ty,
-            TypeValue::Unknown(UnknownType { bounds }) => types.create(
-                TypeValue::Unknown(UnknownType {
-                    bounds: bounds.map(wall, |bound| TraitBound {
-                        params: self.substitute_many(&bound.params, types, wall),
-                        trt: bound.trt,
+            TypeValue::User(UserType { def_id, args }) => {
+                let args = self.substitute_many(args, types, wall);
+                types.create(
+                    TypeValue::User(UserType {
+                        def_id: *def_id,
+                        args,
                     }),
-                }),
-                wall,
-            ),
+                    wall,
+                )
+            }
+            TypeValue::Prim(_) => ty,
+            TypeValue::Unknown(UnknownType { bounds }) => {
+                let bounds = bounds.map(wall, |bound| TraitBound {
+                    trt: bound.trt,
+                    params: self.substitute_many(&bound.params, types, wall),
+                });
+                types.create(TypeValue::Unknown(UnknownType { bounds }), wall)
+            }
             TypeValue::Namespace(_) => ty,
         }
     }
@@ -608,6 +604,8 @@ pub struct TypecheckCtx<'c, 'm> {
 #[derive(Debug)]
 pub enum TypecheckError {
     TypeMismatch(TypeId, TypeId),
+    // @@Todo: turn this into variants
+    Message(String),
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
@@ -631,6 +629,7 @@ mod tests {
         let mut ctx = TypecheckCtx {
             types: Types::new(),
             type_defs: TypeDefs::new(),
+            type_vars: TypeVars::new(),
             traits: Traits::new(),
             state: TypecheckState::default(),
             scopes: ScopeStack::new(),

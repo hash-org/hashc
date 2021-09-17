@@ -1,12 +1,10 @@
 use core::fmt;
-use std::borrow::Cow;
 
 use hash_ast::{ast::TypeId, ident::IDENTIFIER_MAP};
-use hash_utils::tree_writing::{TreeNode, TreeWriter};
+use hash_utils::tree_writing::TreeNode;
 
 use crate::types::{
-    EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypeVars,
-    TypecheckCtx, UserType,
+    EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypecheckCtx, UserType,
 };
 
 pub struct TypeWithCtx<'t, 'c, 'm> {
@@ -60,6 +58,7 @@ impl<'t, 'c, 'm> TypeWithCtx<'t, 'c, 'm> {
                     crate::types::PrimType::I32 => "i32",
                     crate::types::PrimType::I64 => "i64",
                     crate::types::PrimType::Char => "char",
+                    crate::types::PrimType::Void => "void",
                 }
             )),
             crate::types::TypeValue::User(UserType { def_id, args }) => {
@@ -152,15 +151,16 @@ impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c, 'm> {
                         crate::types::PrimType::I32 => "i32",
                         crate::types::PrimType::I64 => "i64",
                         crate::types::PrimType::Char => "char",
+                        crate::types::PrimType::Void => "void",
                     }
                 )?;
             }
             crate::types::TypeValue::Unknown(_) => {
                 write!(f, "unknown")?;
-            },
+            }
             crate::types::TypeValue::Namespace(_) => {
                 write!(f, "{{module}}")?;
-            },
+            }
         }
 
         Ok(())
