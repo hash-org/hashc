@@ -93,6 +93,8 @@ pub enum CompilerError {
     #[error("{message}")]
     ArgumentError { message: String },
     #[error("{0}")]
+    ParseError(#[from] ParseError),
+    #[error("{0}")]
     InterpreterError(#[from] InteractiveCommandError),
 }
 

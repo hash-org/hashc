@@ -5,7 +5,7 @@
 use crate::{
     ast::{self, *},
     error::{ParseError, ParseResult},
-    module::{ModuleBuilder, Modules, ModuleIdx},
+    module::{ModuleBuilder, ModuleIdx, Modules},
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
@@ -199,7 +199,7 @@ where
 
                     // @@Cleanup: we need to insert the contents of interactive into the module builder...
                     //            At the moment, this isn't the cleanest way of going about the problem, we're
-                    //            overwriting the previous content of the interactive session with the current 
+                    //            overwriting the previous content of the interactive session with the current
                     //            input. This is incorrect because we want to preserve the lines of interactive
                     //            that are considered to be valid (this is a much deeper problem actually.)
                     //
@@ -258,13 +258,11 @@ where
         let entry = EntryPoint::Module { filename };
         let (state, modules) = self.parse_main(entry, directory);
 
-
         // check if the parser returned an error whilst parsing, if so
         // extract the errors and pass them upwards
         if state.is_err() {
             return (Err(state.unwrap_err()), modules);
         }
-
 
         // If we need to visualise the file... then do so after the parser has finished
         // the whole tree.
@@ -292,14 +290,13 @@ where
         let directory = directory.as_ref();
         let entry = EntryPoint::Interactive { contents };
         let (result, modules) = self.parse_main(entry, directory);
-    
-    
-        // Ensure that this method always returns a body block or an 
+
+        // Ensure that this method always returns a body block or an
         // error since it can never be `None`.
         match result {
             Ok(Some(block)) => (Ok(block), modules),
             Ok(None) => unreachable!(),
-            Err(errors) => (Err(errors), modules)
+            Err(errors) => (Err(errors), modules),
         }
     }
 }

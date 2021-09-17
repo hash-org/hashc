@@ -109,9 +109,11 @@ fn parse_interactive<'c>(
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
-        Ok(result) => Some(result),
-        Err(e) => {
-            CompilerError::from(e).report();
+        (Ok(result), modules) => Some((result, modules)),
+        (Err(errors), _) => {
+            for error in errors {
+                CompilerError::from(error).report()
+            }
             None
         }
     }

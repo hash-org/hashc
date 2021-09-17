@@ -11,14 +11,17 @@ use clap::{crate_version, AppSettings, Clap};
 use hash_alloc::Castle;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
-use hash_reporting::{errors::CompilerError, reporting::{Report, ReportWriter}};
+use hash_reporting::{
+    errors::CompilerError,
+    reporting::{Report, ReportWriter},
+};
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::{num::NonZeroUsize, process::exit};
 use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
+use std::{num::NonZeroUsize, process::exit};
 
 #[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
@@ -126,12 +129,11 @@ fn run_parsing<'c>(
             for report in errors.into_iter().map(Report::from) {
                 let report_writer = ReportWriter::new(report, &modules);
                 println!("{}", report_writer);
-            };
+            }
 
             exit(-1)
         }
     }
-
 }
 
 fn main() {

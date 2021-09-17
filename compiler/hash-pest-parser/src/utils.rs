@@ -1,17 +1,6 @@
+use hash_ast::operator::{CompoundFn, OperatorFn};
+
 use crate::grammar::Rule;
-
-pub enum CompoundFn {
-    Leq,
-    Geq,
-    Lt,
-    Gt,
-}
-
-pub enum OperatorFn {
-    Named { name: &'static str, assigning: bool },
-    LazyNamed { name: &'static str, assigning: bool },
-    Compound { name: CompoundFn, assigning: bool },
-}
 
 /// Function to convert a pest rule denoting operators into a named function symbols
 /// that represent their function call, more details about names of functions is
@@ -23,9 +12,9 @@ pub fn convert_rule_into_fn_call(rule: &Rule) -> Option<OperatorFn> {
         // special case of just the assignment operator
         Rule::assign_eq_op => None,
 
-        // assinging operators, ones that will overwrite the lhs of the expression
+        // assigning operators, ones that will overwrite the lhs of the expression
         // with a new value. This is important since it needs to have different
-        // traits and handeled differently using references...
+        // traits and handled differently using references...
         Rule::add_eq_op => Some(Named {
             name: "add_eq",
             assigning: true,

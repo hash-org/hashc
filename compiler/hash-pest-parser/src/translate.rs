@@ -7,7 +7,7 @@ use std::{cell::Cell, iter};
 use crate::{
     grammar::{HashPair, Rule},
     precedence::PREC_CLIMBER,
-    utils::{convert_rule_into_fn_call, CompoundFn, OperatorFn},
+    utils::convert_rule_into_fn_call,
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::{
@@ -17,6 +17,7 @@ use hash_ast::{
     literal::STRING_LITERAL_MAP,
     location::{Location, SourceLocation},
     module::ModuleIdx,
+    operator::{CompoundFn, OperatorFn},
     resolve::ModuleResolver,
 };
 use iter::once;
@@ -1734,71 +1735,4 @@ where
             k => panic!("unexpected rule within statement: {:?}", k),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use pest::Parser;
-
-    // use super::*;
-
-    // pub(crate) fn parse_input<T>(rule: Rule, input: &str) -> AstNode<'c, T<'c>>
-    // where
-    //     for<'a> HashPair<'a>: IntoAstNode<'c, T<'c>>,
-    // {
-    //     let resolver = SeqModuleResolver::new();
-    //     let mut result = grammar::HashGrammar::parse(rule, input).unwrap();
-    //     let parsed: AstNode<'c, T<'c>> = result.next().unwrap().into_ast(&resolver);
-    //     parsed
-    // }
-
-    // #[test]
-    // pub(crate) fn test_name() {
-    //     assert_eq!(
-    //         AstNode {
-    //             body: Box::new(Name {
-    //                 string: "universe".to_owned()
-    //             }),
-    //             pos: Location::Span(0, 8,),
-    //             module: 0,
-    //         },
-    //         parse_input::<Name>(Rule::name, "universe"),
-    //     );
-    // }
-
-    // #[test]
-    // pub(crate) fn test_access_name() {
-    //     assert_eq!(
-    //         AstNode {
-    //             body: Box::new(AccessName {
-    //                 names: row![&self.wall;
-    //                     AstNode {
-    //                         body: Box::new(Name {
-    //                             string: "iter".to_owned()
-    //                         }),
-    //                         pos: Location::Span(0, 4,),
-    //                         module: 0,
-    //                     },
-    //                     AstNode {
-    //                         body: Box::new(Name {
-    //                             string: "next".to_owned()
-    //                         }),
-    //                         pos: Location::Span(6, 10,),
-    //                         module: 0,
-    //                     },
-    //                     AstNode {
-    //                         body: Box::new(Name {
-    //                             string: "Then".to_owned()
-    //                         }),
-    //                         pos: Location::Span(12, 16,),
-    //                         module: 0,
-    //                     },
-    //                 ],
-    //             }),
-    //             pos: Location::Span(0, 16,),
-    //             module: 0,
-    //         },
-    //         parse_input::<AccessName>(Rule::access_name, "iter::next::Then"),
-    //     );
-    // }
 }
