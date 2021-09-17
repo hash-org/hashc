@@ -105,6 +105,11 @@ impl<'c, T> Row<'c, T> {
         self.length += 1;
     }
 
+    // pub fn extend(&mut self, elements: Row<T>, wall: &Wall<'c>) {
+    //     if self.capacity() < self.len() + elements.len() {
+    //     }
+    // }
+
     /// Pop an element from the end of the `Row`
     ///
     /// Returns `None` if there are no elements in the `Row`, otherwise the popped element.
