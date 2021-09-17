@@ -15,6 +15,7 @@ pub mod keyword;
 pub mod literal;
 pub mod location;
 pub mod module;
+pub mod operator;
 pub mod parse;
 pub mod resolve;
 pub mod storage;

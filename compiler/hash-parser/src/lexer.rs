@@ -111,7 +111,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     '/' => self.line_comment(),
                     _ => {
                         self.next();
-                        
+
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
                         return Ok(Some(Token::new(
@@ -123,7 +123,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 _ => break,
             }
         }
-        
+
         let offset = self.offset.get();
         let next_token = self.next();
 

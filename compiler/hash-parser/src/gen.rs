@@ -2,7 +2,6 @@
 //! that transforms tokens into an AST.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-#![allow(dead_code)]
 
 use std::cell::Cell;
 
@@ -20,9 +19,9 @@ use hash_ast::{
     resolve::ModuleResolver,
 };
 
-use crate::token::TokenAtom;
+use crate::{operator::Operator, token::TokenAtom};
 use crate::{
-    operator::Operator,
+    operator::OperatorKind,
     token::{Delimiter, Token, TokenKind, TokenKindVector},
 };
 
@@ -139,8 +138,8 @@ where
         let value = self.stream.get(self.offset.get());
 
         if value.is_some() {
-            // @@Dumbness: because Cell::update is unsafe
-            self.offset.set(self.offset.get() + 1);
+            // @@UnsafeLibUsage
+            self.offset.update::<_>(|x| x + 1);
         }
 
         value
@@ -235,10 +234,10 @@ where
     }
 
     /// Create a generalised "Reached end of file..." error.
-    pub(crate) fn unexpected_eof_with_ctx<T>(&self, ctx: &str) -> ParseResult<T> {
+    pub(crate) fn unexpected_eof_with_ctx<T>(&self, ctx: impl Into<String>) -> ParseResult<T> {
         self.error(format!(
             "{}: but unexpectedly reached the end of file.",
-            ctx
+            ctx.into()
         ))
     }
 
@@ -321,7 +320,7 @@ where
 
     pub(crate) fn make_ident_from_op(
         &self,
-        op: Operator,
+        op: OperatorKind,
         location: &Location,
     ) -> AstNode<'c, Expression<'c>> {
         self.make_ident(op.as_str(), location)
@@ -358,7 +357,7 @@ where
     /// to where it was the function was peeked. This is essentially a convertor from a [ParseResult<T>]
     /// into an [Option<T>] with the side effect of resetting the parser state back to it's original
     /// settings.
-    pub fn peek_resultant_fn<T>(&self, parse_fn: impl Fn() -> ParseResult<T>) -> Option<T> {
+    pub fn peek_resultant_fn<T, E>(&self, parse_fn: impl Fn() -> Result<T, E>) -> Option<T> {
         let start = self.offset();
 
         match parse_fn() {
@@ -418,20 +417,39 @@ where
                 };
 
                 match self.next_token() {
-                    Some(token) if token.has_atom(TokenAtom::Semi) => Ok(AstNode::new(
-                        statement,
-                        start.join(self.current_location()),
-                        &self.wall,
-                    )),
+                    Some(token) if token.has_atom(TokenAtom::Semi) => {
+                        Ok(self.node_from_joined_location(statement, &start))
+                    }
                     Some(token) => self.error(format!(
                         "Expecting ';' at the end of a statement, but got '{}' ",
                         token.kind
                     )),
-                    None => self.unexpected_eof_with_ctx("Expecting ';' ending a statement.")?,
+                    None => self.unexpected_eof_with_ctx(format!(
+                        "'{}', Expecting ';' ending a statement",
+                        atom
+                    ))?,
                 }
             }
             Some(_) => {
                 let expr = self.parse_expression_bp(0)?;
+
+                match self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
+                    Some(_op) => {
+                        // @@TODO: actually transform the op into a function call.
+
+                        // Parse the rhs and the semi
+                        let rhs = self.parse_expression_bp(0)?;
+                        self.parse_token_atom(TokenAtom::Semi)?;
+
+                        // Now we need to transform the re-assignment operator into a function call
+
+                        return Ok(self.node_from_joined_location(
+                            Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                            &start,
+                        ));
+                    }
+                    None => (),
+                }
 
                 // Ensure that the next token is a Semi
                 match self.peek() {
@@ -451,6 +469,11 @@ where
                             &start,
                         ))
                     }
+
+                    // Special case where there is a expression at the end of the stream and therefore it
+                    // is signifying that it is returning the expression value here
+                    None => Ok(self.node_from_location(Statement::Expr(expr), &start)),
+
                     token => match (token, expr.into_body().move_out().into_kind()) {
                         (_, ExpressionKind::Block(block)) => {
                             Ok(self.node_from_location(Statement::Block(block), &start))
@@ -459,9 +482,7 @@ where
                             "Expecting ';' at the end of a statement, but got '{}' ",
                             token.kind
                         ))?,
-                        (None, _) => {
-                            self.unexpected_eof_with_ctx("Expecting ';' ending a statement")?
-                        }
+                        (None, _) => unreachable!(),
                     },
                 }
             }
@@ -484,6 +505,28 @@ where
         match block.into_body().move_out() {
             Block::Body(body) => Ok(self.node_from_joined_location(body, &start)),
             _ => unreachable!(),
+        }
+    }
+
+    /// This will parse an operator and check that it is re-assignable, if the operator is not
+    /// re-assignable then the result of the function is an [ParseError] since it expects there
+    /// to be this operator.
+    pub fn parse_re_assignment_op(&self) -> ParseResult<OperatorKind> {
+        let (operator, consumed_tokens) = Operator::from_token_stream(self);
+
+        match operator {
+            Some(Operator {
+                kind,
+                assignable: true,
+            }) => {
+                // consume the number of tokens eaten whilst getting the operator...
+                (0..consumed_tokens).for_each(|_| {
+                    self.next_token();
+                });
+
+                Ok(kind)
+            }
+            _ => self.error("Expected re-assignment operator here."),
         }
     }
 
@@ -535,18 +578,11 @@ where
             }
 
             Some(token) if token.is_brace_tree() => {
-                self.next_token();
                 let entries = self.parse_struct_def_entries()?;
 
                 (None, entries)
             }
-            _ => {
-                return Err(ParseError::Parsing {
-                    message: "Expected struct type args or struct definition entries here"
-                        .to_string(),
-                    src: self.source_location(&self.current_location()),
-                })
-            }
+            _ => self.error("Expected struct type args or struct definition entries here")?,
         };
 
         Ok(StructDef {
@@ -578,7 +614,6 @@ where
             }
 
             Some(token) if token.is_brace_tree() => {
-                self.next_token();
                 let entries = self.parse_enum_def_entries()?;
 
                 (None, entries)
@@ -686,7 +721,7 @@ where
             Some(token) => self.unexpected_token_error(
                 &token.kind,
                 &TokenKindVector::from_row(
-                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, false)],
+                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
                 ),
                 &self.current_location(),
             )?,
@@ -1398,6 +1433,9 @@ where
         start: Location,
         initial_statement: Option<AstNode<'c, Statement<'c>>>,
     ) -> ParseResult<AstNode<'c, Block<'c>>> {
+        // Edge case where the statement is parsed and the 'last_statement_is_expr' is set, here
+        // we take the expression and return a block that has the expression left here.
+
         // Append the initial statement if there is one.
         let mut block = if initial_statement.is_some() {
             BodyBlock {
@@ -1421,7 +1459,6 @@ where
         while gen.has_token() {
             let token = gen.peek().unwrap();
 
-            // @@Incomplete: statements that begin with statement keywords shouldn't be bounded to having a semi-colon.
             if token.kind.begins_statement() {
                 block.statements.push(gen.parse_statement()?, &self.wall);
                 continue;
@@ -1432,23 +1469,15 @@ where
             let expr = gen.parse_expression_bp(0)?;
             let expr_loc = expr.location();
 
-            match gen.peek() {
-                Some(token) if token.has_atom(TokenAtom::Semi) => {
-                    gen.next_token();
-
-                    let expr_location = expr.location();
-                    block.statements.push(
-                        gen.node_with_location(Statement::Expr(expr), expr_location),
-                        &self.wall,
-                    );
-                }
-                Some(token) if token.has_atom(TokenAtom::Eq) && !gen.is_compound_expr.get() => {
-                    gen.next_token();
+            // check for assigning operators here if the lhs expression is not compound
+            match gen.peek_resultant_fn(|| gen.parse_re_assignment_op()) {
+                Some(_op_kind) => {
+                    // @@TODO: transform the operator kind into a function call rather than trying to just put it as a
+                    //         assignment op
 
                     // since this is followed by an expression, we try to parse another expression, and then
                     // ensure that after an expression there is a ending semi colon.
                     let rhs = gen.parse_expression_bp(0)?;
-
                     gen.parse_token_atom(TokenAtom::Semi)?;
 
                     block.statements.push(
@@ -1459,18 +1488,54 @@ where
                         &self.wall,
                     );
                 }
-                Some(token) => {
-                    gen.unexpected_token_error(
-                        &token.kind,
-                        &TokenKindVector::from_row(row![&self.wall; TokenAtom::Semi]),
-                        &gen.current_location(),
-                    )?;
-                }
                 None => {
-                    block.expr = Some(expr);
-                    break;
+                    match gen.peek() {
+                        Some(token) if token.has_atom(TokenAtom::Semi) => {
+                            gen.next_token();
+
+                            block.statements.push(
+                                gen.node_from_joined_location(Statement::Expr(expr), &expr_loc),
+                                &self.wall,
+                            );
+                        }
+                        Some(token) if token.has_atom(TokenAtom::Eq) => {
+                            gen.next_token();
+
+                            // Parse the rhs and the semi
+                            let rhs = gen.parse_expression_bp(0)?;
+                            gen.parse_token_atom(TokenAtom::Semi)?;
+
+                            block.statements.push(
+                                gen.node_from_joined_location(
+                                    Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                                    &start,
+                                ),
+                                &self.wall,
+                            );
+                        }
+                        Some(token) => {
+                            match expr.into_body().move_out().into_kind() {
+                                ExpressionKind::Block(inner_block) => block.statements.push(
+                                    gen.node_from_joined_location(
+                                        Statement::Block(inner_block),
+                                        &expr_loc,
+                                    ),
+                                    &self.wall,
+                                ),
+                                _ => gen.unexpected_token_error(
+                                    &token.kind,
+                                    &TokenKindVector::from_row(row![&self.wall; TokenAtom::Semi]),
+                                    &gen.current_location(),
+                                )?,
+                            };
+                        }
+                        None => {
+                            block.expr = Some(expr);
+                            break;
+                        }
+                    };
                 }
-            };
+            }
         }
 
         Ok(self.node_from_joined_location(Block::Body(block), &start))
@@ -1549,9 +1614,19 @@ where
                     matches!(self.peek(), Some(token) if token.has_atom(TokenAtom::Colon));
 
                 // Now here we have to look ahead after the token_tree to see if there is an arrow
-                if !is_func && self.peek_resultant_fn(|| self.parse_arrow()).is_some() {
-                    self.offset.set(self.offset.get() - 2);
-                    is_func = true;
+                if !is_func {
+
+                    // @@Speed: avoid using parse_token_atom() because we don't care about error messages
+                    //          We just want to purely look if there are is a combination of symbols following
+                    //          which make up an '=>'.
+                    if self.peek_resultant_fn(|| -> Result<(), ()> {
+                        self.parse_token_atom_fast(TokenAtom::Eq).ok_or_else(|| ())?;
+                        self.parse_token_atom_fast(TokenAtom::Gt).ok_or_else(|| ())?;
+                        Ok(())
+                    }).is_some() {
+                        self.offset.set(self.offset.get() - 2);
+                        is_func = true;
+                    }
                 }
 
                 match is_func {
@@ -1789,6 +1864,18 @@ where
         ))
     }
 
+    /// Function to parse a token atom optionally. If the appropriate token atom is
+    /// present we advance the token count, if not then just return None
+    pub fn parse_token_atom_fast(&self, atom: TokenAtom) -> Option<()> {
+        match self.peek() {
+            Some(token) if token.has_atom(atom) => {
+                self.next_token();
+                Some(())
+            }
+            _ => None,
+        }
+    }
+
     /// Function to parse the next token with the same kind as the specified kind, this
     /// is a useful utility function for parsing singular tokens in the place of more complex
     /// compound statements and expressions.
@@ -1975,7 +2062,6 @@ where
         ident: &Identifier,
     ) -> ParseResult<(AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
         let name = self.parse_access_name(ident)?;
-
         let args = self.parse_type_args()?;
 
         Ok((name, args))
@@ -1986,7 +2072,17 @@ where
         ident: &Identifier,
     ) -> ParseResult<(AstNode<'c, AccessName<'c>>, Option<AstNodes<'c, Type<'c>>>)> {
         let name = self.parse_access_name(ident)?;
-        let args = self.peek_resultant_fn(|| self.parse_type_args());
+
+        // @@Speed: so here we want to be efficient about type_args, we'll just try to
+        // see if the next token atom is a 'Lt' rather than using parse_token_atom
+        // because it throws an error essentially and thus allocates a stupid amount
+        // of strings which at the end of the day aren't even used...
+        let args = match self.peek() {
+            Some(token) if token.has_atom(TokenAtom::Lt) => {
+                self.peek_resultant_fn(|| self.parse_type_args())
+            }
+            _ => None,
+        };
 
         Ok((name, args))
     }
@@ -2098,8 +2194,10 @@ where
             let (op, consumed_tokens) = Operator::from_token_stream(self);
 
             match op {
-                None => break,
-                Some(op) => {
+                // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
+                // parsing onwards because this might be an assignable expression...
+                // Only perform this check if know prior that the expression is not made of compounded components.
+                Some(op) if !op.assignable => {
                     // consume the number of tokens eaten whilst getting the operator...
                     (0..consumed_tokens).for_each(|_| {
                         self.next_token();
@@ -2108,16 +2206,16 @@ where
                     let op_span = op_start.join(self.current_location());
 
                     // check if we have higher precedence than the lhs expression...
-                    let (l_prec, r_prec) = op.infix_binding_power();
+                    let (l_prec, r_prec) = op.kind.infix_binding_power();
 
                     if l_prec < min_prec {
-                        self.offset.set(self.offset() - consumed_tokens as usize);
+                        self.offset.update(|x| x - consumed_tokens as usize);
                         break;
                     }
 
                     // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
                     // where we transform the AstNode into a different
-                    if matches!(op, Operator::As) {
+                    if matches!(op.kind, OperatorKind::As) {
                         lhs = self.node_from_joined_location(
                             Expression::new(ExpressionKind::Typed(TypedExpr {
                                 expr: lhs,
@@ -2136,7 +2234,7 @@ where
                         // now convert the Operator into a function call...
                         lhs = self.node_from_joined_location(
                             Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                                subject: self.make_ident_from_op(op, &op_span),
+                                subject: self.make_ident_from_op(op.kind, &op_span),
                                 args: self.node_from_joined_location(
                                     FunctionCallArgs {
                                         entries: row![&self.wall; lhs, rhs],
@@ -2148,6 +2246,7 @@ where
                         );
                     }
                 }
+                _ => break,
             }
         }
 
@@ -2538,10 +2637,12 @@ where
         // - If an expression is followed by a ':' (colon), it must be a map literal.
         //
         // - Otherwise, it must be a block and we should continue parsing the block from here
-        let initial_expr = gen.parse_expression_bp(0)?;
+        let initial_statement = gen.parse_statement()?;
+        let location = initial_statement.location();
+        let initial_statement = initial_statement.into_body().move_out();
 
-        match gen.peek() {
-            Some(token) if token.has_atom(TokenAtom::Comma) => {
+        match (gen.peek(), initial_statement) {
+            (Some(token), Statement::Expr(initial_expr)) if token.has_atom(TokenAtom::Comma) => {
                 gen.next_token(); // ','
 
                 let literal = self.parse_set_literal(gen, initial_expr)?;
@@ -2551,7 +2652,7 @@ where
                     span,
                 ))
             }
-            Some(token) if token.has_atom(TokenAtom::Colon) => {
+            (Some(token), Statement::Expr(initial_expr)) if token.has_atom(TokenAtom::Colon) => {
                 gen.next_token(); // ':'
 
                 let start_pos = initial_expr.location();
@@ -2587,19 +2688,15 @@ where
                     )),
                 }
             }
-            Some(_) => {
-                gen.parse_token_atom(TokenAtom::Semi)?;
-
-                let statement_loc = initial_expr.location().join(gen.current_location());
-                let statement =
-                    self.node_with_location(Statement::Expr(initial_expr), statement_loc);
+            (Some(_), statement) => {
+                let statement = self.node_with_location(statement, location);
 
                 // check here if there is a 'semi', and then convert the expression into a statement.
                 let block = self.parse_block_from_gen(&gen, *span, Some(statement))?;
 
                 Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
             }
-            None => {
+            (None, Statement::Expr(initial_expr)) => {
                 // This block is just a block with a single expression
 
                 Ok(self.node_from_location(
@@ -2613,6 +2710,16 @@ where
                     span,
                 ))
             }
+            (None, statement) => Ok(self.node_from_location(
+                Expression::new(ExpressionKind::Block(self.node_from_location(
+                    Block::Body(BodyBlock {
+                        statements: row![&self.wall; self.node_with_location(statement, location)],
+                        expr: None,
+                    }),
+                    span,
+                ))),
+                span,
+            )),
         }
     }
 
