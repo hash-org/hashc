@@ -57,6 +57,8 @@ impl<'t, 'c, 'm> TypeWithCtx<'t, 'c, 'm> {
                     crate::types::PrimType::I16 => "i16",
                     crate::types::PrimType::I32 => "i32",
                     crate::types::PrimType::I64 => "i64",
+                    crate::types::PrimType::F32 => "f32",
+                    crate::types::PrimType::F64 => "f64",
                     crate::types::PrimType::Char => "char",
                     crate::types::PrimType::Void => "void",
                 }
@@ -150,6 +152,8 @@ impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c, 'm> {
                         crate::types::PrimType::I16 => "i16",
                         crate::types::PrimType::I32 => "i32",
                         crate::types::PrimType::I64 => "i64",
+                        crate::types::PrimType::F32 => "f32",
+                        crate::types::PrimType::F64 => "f64",
                         crate::types::PrimType::Char => "char",
                         crate::types::PrimType::Void => "void",
                     }
