@@ -506,6 +506,39 @@ where
         }
     }
 
+    // pub fn run_parsing_fn<T>(&self, parse_fn: impl Fn() -> T) -> T {
+
+    // }
+
+    /// Function to parse an arbitrary number of 'parsing functions' separated by a singular
+    /// 'separator' closure. The function has a behaviour of allowing trailing separator. This
+    /// will also parse the function until the end of the current generator, and therefore it
+    /// is intended to be used with a nested generator.
+    pub fn parse_separated_fn<T>(
+        &self,
+        parse_fn: impl Fn() -> ParseResult<AstNode<'c, T>>,
+        separator_fn: impl Fn() -> ParseResult<()>,
+    ) -> ParseResult<AstNodes<'c, T>> {
+        let mut args = row![&self.wall;];
+
+        // so parse the arguments to the function here... with potential type annotations
+        while self.has_token() {
+            match self.peek_resultant_fn(|| parse_fn()) {
+                Some(el) => args.push(el, &self.wall),
+                None => break,
+            }
+
+            if self.has_token() {
+                separator_fn()?;
+            }
+        }
+        if self.has_token() {
+            self.expected_eof()?;
+        }
+
+        Ok(args)
+    }
+
     /// This will parse an operator and check that it is re-assignable, if the operator is not
     /// re-assignable then the result of the function is an [ParseError] since it expects there
     /// to be this operator.
@@ -536,17 +569,9 @@ where
         self.parse_token_atom(TokenAtom::Eq)?;
         let bound = self.parse_type_bound()?;
 
-        // the next token should be a TokenTree delimited with a
-        self.parse_arrow()?;
+        self.parse_arrow()?; // the next token should be a TokenTree delimited with an arrow.
 
         let trait_type = self.parse_function_or_tuple_type(true)?;
-
-        // @@Incomplete: we might want to have some kind of stacked errors to give more context rather
-        //               than bubbling up from the simplest parsing functions to functions like these...
-        // .ok_or_else(|| ParseError::Parsing {
-        //     message: "Expected trait type here.".to_string(),
-        //     src: self.source_location(&self.current_location()),
-        // })?;
 
         Ok(TraitDef {
             name,
@@ -561,7 +586,6 @@ where
             .has_atom(TokenAtom::Keyword(Keyword::Struct)));
 
         let name = self.parse_ident()?;
-
         self.parse_token_atom(TokenAtom::Eq)?;
 
         let (bound, entries) = match self.peek() {
@@ -633,22 +657,10 @@ where
                 self.skip_token();
 
                 let gen = self.from_stream(tree, *span);
-                let mut entries = row![&self.wall;];
-                while gen.has_token() {
-                    let defn = gen.parse_enum_def_entry()?;
-                    entries.push(defn, &self.wall);
-
-                    if gen.has_token() {
-                        gen.parse_token_atom(TokenAtom::Comma)?;
-                    }
-                }
-
-                // Ensure the whole generator was exhausted
-                if gen.has_token() {
-                    gen.expected_eof()?;
-                }
-
-                Ok(entries)
+                gen.parse_separated_fn(
+                    || gen.parse_enum_def_entry(),
+                    || gen.parse_token_atom(TokenAtom::Comma),
+                )
             }
             Some(token) => self.unexpected_token_error(
                 &token.kind,
@@ -697,22 +709,11 @@ where
                 self.skip_token();
 
                 let gen = self.from_stream(tree, *span);
-                let mut entries = row![&self.wall;];
-                while gen.has_token() {
-                    let defn = gen.parse_struct_def_entry()?;
-                    entries.push(defn, &self.wall);
 
-                    if gen.has_token() {
-                        gen.parse_token_atom(TokenAtom::Comma)?;
-                    }
-                }
-
-                // Ensure the whole generator was exhausted
-                if gen.has_token() {
-                    gen.expected_eof()?;
-                }
-
-                Ok(entries)
+                gen.parse_separated_fn(
+                    || gen.parse_struct_def_entry(),
+                    || gen.parse_token_atom(TokenAtom::Comma),
+                )
             }
             Some(token) => self.unexpected_token_error(
                 &token.kind,
@@ -1229,24 +1230,11 @@ where
         span: Location,
     ) -> ParseResult<AstNodes<'c, Pattern<'c>>> {
         let gen = self.from_stream(tree, span);
-        let mut elements = row![&self.wall;];
 
-        while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_pattern()) {
-                Some(pattern) => elements.push(pattern, &self.wall),
-                None => break,
-            }
-
-            if gen.has_token() {
-                gen.parse_token_atom(TokenAtom::Comma)?;
-            }
-        }
-
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
-
-        Ok(elements)
+        gen.parse_separated_fn(
+            || gen.parse_pattern(),
+            || gen.parse_token_atom(TokenAtom::Comma),
+        )
     }
 
     pub fn parse_destructuring_pattern(
@@ -1572,10 +1560,6 @@ where
                     TokenAtom::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenAtom::Keyword(Keyword::While) => self.parse_while_loop()?,
                     TokenAtom::Keyword(Keyword::Loop) => {
-                        // @@Hack: advance the token by one expecting it to be a tree, since parse block looks at the current
-                        //         token instead of peeking ahead, this should be changed in the future.
-                        self.skip_token();
-
                         self.node_from_joined_location(Block::Loop(self.parse_block()?), &start)
                     }
                     TokenAtom::Keyword(Keyword::If) => self.parse_if_statement()?,
@@ -1925,18 +1909,16 @@ where
             };
         }
 
-        Ok(AstNode::new(
-            Expression::new(ExpressionKind::LiteralExpr(AstNode::new(
+        Ok(self.node_from_joined_location(
+            Expression::new(ExpressionKind::LiteralExpr(self.node_from_joined_location(
                 Literal::Struct(StructLiteral {
                     name,
                     type_args,
                     entries,
                 }),
-                start.join(self.current_location()),
-                &self.wall,
+                &start,
             ))),
-            start.join(self.current_location()),
-            &self.wall,
+            &start,
         ))
     }
 
@@ -2296,42 +2278,29 @@ where
     ) -> ParseResult<AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
+        let mut type_args = row![&self.wall; ];
+
         // handle the function arguments first by checking for parentheses
-        let mut type_args = match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(_, tree),
-                span,
-            }) => {
+        match self.peek() {
+            Some(token) if token.is_paren_tree() => {
                 self.skip_token();
 
-                let gen = self.from_stream(tree, *span);
+                let (tree, span) = token.into_tree();
+                let gen = self.from_stream(tree, span);
 
-                let mut type_args = row![&self.wall; ];
-
-                // Handle special case where there is only one comma and no following items...
-                // Special edge case for '(,)' or an empty tuple type...
                 match gen.peek() {
-                    Some(token) if token.has_atom(TokenAtom::Comma) => {
-                        if gen.stream.len() == 1 {
-                            gen.skip_token();
-                        }
+                    // Handle special case where there is only one comma and no following items...
+                    // Special edge case for '(,)' or an empty tuple type...
+                    Some(token) if token.has_atom(TokenAtom::Comma) && gen.stream.len() == 1 => {
+                        gen.skip_token();
                     }
                     _ => {
-                        while gen.has_token() {
-                            match gen.peek_resultant_fn(|| gen.parse_type()) {
-                                Some(ty) => type_args.push(ty, &self.wall),
-                                None => break,
-                            };
-
-                            // If we reach the end of the parenthesis don't try to parse the comma...
-                            if gen.has_token() {
-                                gen.parse_token_atom(TokenAtom::Comma)?;
-                            }
-                        }
+                        type_args = gen.parse_separated_fn(
+                            || gen.parse_type(),
+                            || gen.parse_token_atom(TokenAtom::Comma),
+                        )?;
                     }
                 };
-
-                type_args
             }
             Some(token) => self.unexpected_token_error(
                 &token.kind,
@@ -2558,10 +2527,7 @@ where
                 }
                 _ => Ok(self.make_ident_from_id(*id, *id_span)),
             },
-            _ => Err(ParseError::Parsing {
-                message: "Expecting field name after property access.".to_string(),
-                src: self.source_location(&self.current_location()),
-            }),
+            _ => self.error("Expecting field name after property access.")?,
         }
     }
 
@@ -2731,23 +2697,12 @@ where
         initial_entry: AstNode<'c, MapLiteralEntry<'c>>,
     ) -> ParseResult<AstNode<'c, Literal<'c>>> {
         let start = gen.current_location();
-        let mut elements = row![&self.wall; initial_entry];
+        let mut elements = gen.parse_separated_fn(
+            || gen.parse_map_entry(),
+            || gen.parse_token_atom(TokenAtom::Comma),
+        )?;
 
-        // so parse the arguments to the function here... with potential type annotations
-        while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_map_entry()) {
-                Some(element) => elements.push(element, &self.wall),
-                None => break,
-            }
-
-            if gen.has_token() {
-                gen.parse_token_atom(TokenAtom::Comma)?;
-            }
-        }
-
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
+        elements.insert(0, initial_entry, &self.wall);
 
         Ok(self.node_from_joined_location(Literal::Map(MapLiteral { elements }), &start))
     }
@@ -2759,23 +2714,13 @@ where
     ) -> ParseResult<AstNode<'c, Literal<'c>>> {
         let start = self.current_location();
 
-        let mut elements = row![&self.wall; initial_entry];
+        let mut elements = gen.parse_separated_fn(
+            || gen.parse_expression_bp(0),
+            || gen.parse_token_atom(TokenAtom::Comma),
+        )?;
 
-        // so parse the arguments to the function here... with potential type annotations
-        while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_expression_bp(0)) {
-                Some(element) => elements.push(element, &self.wall),
-                None => break,
-            }
-
-            if gen.has_token() {
-                gen.parse_token_atom(TokenAtom::Comma)?;
-            }
-        }
-
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
+        // insert the first item into elements
+        elements.insert(0, initial_entry, &self.wall);
 
         Ok(self.node_from_joined_location(Literal::Set(SetLiteral { elements }), &start))
     }
@@ -2848,23 +2793,11 @@ where
     pub fn parse_function_literal(&self, gen: &Self) -> ParseResult<AstNode<'c, Expression<'c>>> {
         let start = self.current_location();
 
-        let mut args = row![&self.wall;];
-
-        // so parse the arguments to the function here... with potential type annotations
-        while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_function_def_arg()) {
-                Some(arg) => args.push(arg, &self.wall),
-                None => break,
-            }
-
-            if gen.has_token() {
-                gen.parse_token_atom(TokenAtom::Comma)?;
-            }
-        }
-
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
+        // parse function definition arguments.
+        let args = gen.parse_separated_fn(
+            || gen.parse_function_def_arg(),
+            || gen.parse_token_atom(TokenAtom::Comma),
+        )?;
 
         // check if there is a return type
         let return_ty = match self.peek_resultant_fn(|| self.parse_token_atom(TokenAtom::Colon)) {
@@ -2995,13 +2928,13 @@ where
                 Some(token) => {
                     // if we haven't exhausted the whole token stream, then report this as a unexpected
                     // token error
-                    return Err(ParseError::Parsing {
-                        message: format!(
+                    return self.error_with_location(
+                        format!(
                             "Unexpected token '{}' in the place of an comma.",
                             token.kind
                         ),
-                        src: gen.source_location(&gen.current_location()),
-                    });
+                        &gen.current_location(),
+                    );
                 }
                 None => break,
             }
