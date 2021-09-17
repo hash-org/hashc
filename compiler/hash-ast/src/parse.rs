@@ -258,10 +258,9 @@ where
         let entry = EntryPoint::Module { filename };
         let (state, modules) = self.parse_main(entry, directory);
 
-        // check if the parser returned an error whilst parsing, if so
-        // extract the errors and pass them upwards
-        if state.is_err() {
-            return (Err(state.unwrap_err()), modules);
+        // check if the parser returned an error whilst parsing, if so extract the errors and pass them upwards
+        if let Err(errors) = state {
+            return (Err(errors), modules);
         }
 
         // If we need to visualise the file... then do so after the parser has finished
