@@ -7,7 +7,6 @@ use std::{cell::Cell, iter};
 use crate::{
     grammar::{HashPair, Rule},
     precedence::PREC_CLIMBER,
-    utils::convert_rule_into_fn_call,
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::{
@@ -240,7 +239,8 @@ pub(crate) fn build_binary<'c>(
     let ab = NodeBuilder::from_pair(&op, wall);
 
     // Panic here if we cannot convert the operator into a function call
-    let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
+    let subject_name: Option<_> = op.as_rule().into();
+    let subject_name = subject_name.unwrap();
 
     match subject_name {
         OperatorFn::Named { name, assigning } => {
@@ -1574,12 +1574,14 @@ where
                     Some(op_wrap) => {
                         // get the assignment operator out of 'assign_op'
                         let op = op_wrap.into_inner().next().unwrap();
-                        let transform = convert_rule_into_fn_call(&op.as_rule());
+
+                        // Panic here if we cannot convert the operator into a function call
+                        let subject_name = op.as_rule().into();
 
                         let rhs = self.transform_expression(components.next().unwrap())?;
                         let builder = self.builder_from_node(&rhs);
 
-                        match transform {
+                        match subject_name {
                             Some(OperatorFn::Named { name, assigning }) => {
                                 let assign_call = builder.node(Expression::new(
                                     ExpressionKind::FunctionCall(FunctionCallExpr {
