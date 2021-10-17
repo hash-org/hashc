@@ -16,6 +16,7 @@ use hash_ast::{
     literal::STRING_LITERAL_MAP,
     location::{Location, SourceLocation},
     module::ModuleIdx,
+    operator::{CompoundFn, OperatorFn},
     resolve::ModuleResolver,
 };
 
@@ -262,6 +263,26 @@ where
         )
     }
 
+    /// Utility function for creating a variable from a given name.
+    fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
+        self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
+            name,
+            type_args: row![&self.wall],
+        })))
+    }
+
+    /// Utility for creating a boolean in enum representation
+    fn make_boolean(&self, variant: bool) -> AstNode<'c, AccessName<'c>> {
+        let name_ref = match variant {
+            false => "false",
+            true => "true",
+        };
+
+        self.node(AccessName {
+            path: row![&self.wall; IDENTIFIER_MAP.create_ident(name_ref)],
+        })
+    }
+
     pub(crate) fn make_access_name_from_str<T: Into<String>>(
         &self,
         name: T,
@@ -299,6 +320,18 @@ where
         AstNode::new(Name { ident: *id }, *location, &self.wall)
     }
 
+    /// Function to make a lambda from a given expression. This takes the expression
+    /// and put's the expression as the returning expression of a function body block
+    fn make_single_lambda(&self, expr: AstNode<'c, Expression<'c>>) -> AstNode<'c, Expression<'c>> {
+        self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
+            Literal::Function(FunctionDef {
+                args: row![&self.wall],
+                return_ty: None,
+                fn_body: expr,
+            }),
+        ))))
+    }
+
     pub(crate) fn make_ident_from_id(
         &self,
         id: Identifier,
@@ -317,14 +350,6 @@ where
             location,
             &self.wall,
         )
-    }
-
-    pub(crate) fn make_ident_from_op(
-        &self,
-        op: OperatorKind,
-        location: &Location,
-    ) -> AstNode<'c, Expression<'c>> {
-        self.make_ident(op.as_str(), location)
     }
 
     pub(crate) fn node_from_location<T>(&self, body: T, location: &Location) -> AstNode<'c, T> {
@@ -434,8 +459,8 @@ where
             Some(_) => {
                 let expr = self.parse_expression_bp(0)?;
 
-                if let Some(_op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
-                    // @@TODO: actually transform the op into a function call.
+                if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
+                    let transformed_op: OperatorFn = op.into();
 
                     // Parse the rhs and the semi
                     let rhs = self.parse_expression_bp(0)?;
@@ -444,7 +469,11 @@ where
                     // Now we need to transform the re-assignment operator into a function call
 
                     return Ok(self.node_from_joined_location(
-                        Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                        Statement::Expr(self.transform_binary_expression(
+                            expr,
+                            rhs,
+                            transformed_op,
+                        )),
                         &start,
                     ));
                 }
@@ -506,9 +535,189 @@ where
         }
     }
 
-    // pub fn run_parsing_fn<T>(&self, parse_fn: impl Fn() -> T) -> T {
+    /// Utility function to transform to some expression into a referenced expression
+    /// given some condition. This function is useful when transpiling some types of
+    /// operators which might have a side-effect to overwrite the lhs.
+    fn transform_expr_into_ref(
+        &self,
+        expr: AstNode<'c, Expression<'c>>,
+        transform: bool,
+    ) -> AstNode<'c, Expression<'c>> {
+        match transform {
+            true => self.node(Expression::new(ExpressionKind::Ref(expr))),
+            false => expr,
+        }
+    }
 
-    // }
+    fn transform_binary_expression(
+        &self,
+        lhs: AstNode<'c, Expression<'c>>,
+        rhs: AstNode<'c, Expression<'c>>,
+        op: OperatorFn,
+    ) -> AstNode<'c, Expression<'c>> {
+        match op {
+            OperatorFn::Named { name, assigning } => {
+                let rhs_location = rhs.location();
+
+                self.node(Expression::new(ExpressionKind::FunctionCall(
+                    FunctionCallExpr {
+                        subject: self.node(Expression::new(ExpressionKind::Variable(
+                            VariableExpr {
+                                name: self.make_access_name_from_str(name, self.current_location()),
+                                type_args: row![&self.wall],
+                            },
+                        ))),
+                        args: self.node_from_joined_location(
+                            FunctionCallArgs {
+                                entries: row![&self.wall;
+                                    self.transform_expr_into_ref(lhs, assigning),
+                                    rhs,
+                                ],
+                            },
+                            &rhs_location,
+                        ),
+                    },
+                )))
+            }
+            OperatorFn::LazyNamed { name, assigning } => {
+                // some functions have to exhibit a short-circuiting behaviour, namely
+                // the logical 'and' and 'or' operators. To do this, we expect the 'and'
+                // 'or' trait (and their assignment counterparts) to expect the rhs part
+                // as a lambda. So, we essentially create a lambda that calls the rhs, or
+                // in other words, something like this happens:
+                //
+                // >>> lhs && rhs
+                // vvv (transpiles to...)
+                // >>> and(lhs, () => rhs)
+                //
+
+                self.node(Expression::new(ExpressionKind::FunctionCall(
+                    FunctionCallExpr {
+                        subject: self.node(Expression::new(ExpressionKind::Variable(
+                            VariableExpr {
+                                name: self.make_access_name_from_str(name, self.current_location()),
+                                type_args: row![&self.wall],
+                            },
+                        ))),
+                        args: self.node(FunctionCallArgs {
+                            entries: row![&self.wall;
+                                self.transform_expr_into_ref(lhs, assigning),
+                                self.make_single_lambda(rhs),
+                            ],
+                        }),
+                    },
+                )))
+            }
+            OperatorFn::Compound { name, assigning } => {
+                // for compound functions that include ordering, we essentially transpile
+                // into a match block that checks the result of the 'ord' fn call to the
+                // 'Ord' enum variants. This also happens for operators such as '>=' which
+                // essentially means that we have to check if the result of 'ord()' is either
+                // 'Eq' or 'Gt'.
+                self.transform_compound_ord_fn(name, assigning, lhs, rhs)
+            }
+        }
+    }
+
+    fn transform_compound_ord_fn(
+        &self,
+        fn_ty: CompoundFn,
+        assigning: bool,
+        lhs: AstNode<'c, Expression<'c>>,
+        rhs: AstNode<'c, Expression<'c>>,
+    ) -> AstNode<'c, Expression<'c>> {
+        let location = lhs.location().join(rhs.location());
+
+        // we need to transform the lhs into a reference if the type of function is 'assigning'
+        let lhs = self.transform_expr_into_ref(lhs, assigning);
+
+        let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
+            FunctionCallExpr {
+                subject: self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
+                    name: self.make_access_name_from_str("ord", location),
+                    type_args: row![&self.wall],
+                }))),
+                args: self.node(FunctionCallArgs {
+                    entries: row![&self.wall; lhs, rhs],
+                }),
+            },
+        )));
+
+        // each tuple bool variant represents a branch the match statement
+        // should return 'true' on, and all the rest will return false...
+        // the order is (Lt, Eq, Gt)
+        let mut branches = match fn_ty {
+            CompoundFn::Leq => {
+                row![&self.wall; self.node(MatchCase {
+                    pattern: self.node(Pattern::Or(OrPattern {
+                        variants: row![&self.wall;
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_access_name_from_str("Lt", location),
+                                args: row![&self.wall],
+                            })),
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_access_name_from_str("EQ", location),
+                                args: row![&self.wall],
+                            })),
+                        ],
+                    })),
+                    expr: self.make_variable(self.make_boolean(true)),
+                })]
+            }
+            CompoundFn::Geq => {
+                row![&self.wall; self.node(MatchCase {
+                    pattern: self.node(Pattern::Or(OrPattern {
+                        variants: row![&self.wall;
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_access_name_from_str("Eq", location),
+                                args: row![&self.wall],
+                            })),
+                            self.node(Pattern::Enum(EnumPattern {
+                                name: self.make_access_name_from_str("Eq", location),
+                                args: row![&self.wall],
+                            })),
+                        ],
+                    })),
+                    expr: self.make_variable(self.make_boolean(true)),
+                })]
+            }
+            CompoundFn::Lt => {
+                row![&self.wall; self.node(MatchCase {
+                    pattern: self.node(Pattern::Enum(EnumPattern {
+                        name: self.make_access_name_from_str("Lt", location),
+                        args: row![&self.wall],
+                    })),
+                    expr: self.make_variable(self.make_boolean(false)),
+                })]
+            }
+            CompoundFn::Gt => {
+                row![&self.wall; self.node(MatchCase {
+                    pattern: self.node(Pattern::Enum(EnumPattern {
+                        name: self.make_access_name_from_str("Gt", location),
+                        args: row![&self.wall],
+                    })),
+                    expr: self.make_variable(self.make_boolean(false)),
+                })]
+            }
+        };
+
+        // add the '_' case to the branches to return false on any other
+        // condition
+        branches.push(
+            self.node(MatchCase {
+                pattern: self.node(Pattern::Ignore),
+                expr: self.make_variable(self.make_boolean(false)),
+            }),
+            &self.wall,
+        );
+
+        self.node(Expression::new(ExpressionKind::Block(self.node(
+            Block::Match(MatchBlock {
+                subject: fn_call,
+                cases: branches,
+            }),
+        ))))
+    }
 
     /// Function to parse an arbitrary number of 'parsing functions' separated by a singular
     /// 'separator' closure. The function has a behaviour of allowing trailing separator. This
@@ -542,7 +751,7 @@ where
     /// This will parse an operator and check that it is re-assignable, if the operator is not
     /// re-assignable then the result of the function is an [ParseError] since it expects there
     /// to be this operator.
-    pub fn parse_re_assignment_op(&self) -> ParseResult<OperatorKind> {
+    pub fn parse_re_assignment_op(&self) -> ParseResult<Operator> {
         let (operator, consumed_tokens) = Operator::from_token_stream(self);
 
         match operator {
@@ -553,7 +762,10 @@ where
                 // consume the number of tokens eaten whilst getting the operator...
                 self.offset.update(|x| x + consumed_tokens as usize);
 
-                Ok(kind)
+                Ok(Operator {
+                    kind,
+                    assignable: true,
+                })
             }
             _ => self.error("Expected re-assignment operator here."),
         }
@@ -1450,9 +1662,9 @@ where
 
             // check for assigning operators here if the lhs expression is not compound
             match gen.peek_resultant_fn(|| gen.parse_re_assignment_op()) {
-                Some(_op_kind) => {
-                    // @@TODO: transform the operator kind into a function call rather than trying to just put it as a
-                    //         assignment op
+                Some(op) => {
+                    // transform the operator kind into OperatorFn so we can transform the operator into a function call.
+                    let transformed_op: OperatorFn = op.into();
 
                     // since this is followed by an expression, we try to parse another expression, and then
                     // ensure that after an expression there is a ending semi colon.
@@ -1461,7 +1673,11 @@ where
 
                     block.statements.push(
                         gen.node_from_joined_location(
-                            Statement::Assign(AssignStatement { lhs: expr, rhs }),
+                            Statement::Expr(self.transform_binary_expression(
+                                expr,
+                                rhs,
+                                transformed_op,
+                            )),
                             &expr_loc,
                         ),
                         &self.wall,
@@ -2205,19 +2421,9 @@ where
                         let rhs = self.parse_expression_bp(r_prec)?;
                         self.is_compound_expr.set(true);
 
-                        // now convert the Operator into a function call...
-                        lhs = self.node_from_joined_location(
-                            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                                subject: self.make_ident_from_op(op.kind, &op_span),
-                                args: self.node_from_joined_location(
-                                    FunctionCallArgs {
-                                        entries: row![&self.wall; lhs, rhs],
-                                    },
-                                    &op_span,
-                                ),
-                            })),
-                            &op_start,
-                        );
+                        // transform the operator into an OperatorFn
+                        let transformed_op: OperatorFn = op.into();
+                        lhs = self.transform_binary_expression(lhs, rhs, transformed_op);
                     }
                 }
                 _ => break,

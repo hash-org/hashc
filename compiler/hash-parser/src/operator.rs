@@ -1,4 +1,8 @@
-use hash_ast::{keyword::Keyword, resolve::ModuleResolver};
+use hash_ast::{
+    keyword::Keyword,
+    operator::{CompoundFn, OperatorFn},
+    resolve::ModuleResolver,
+};
 
 use crate::{
     gen::AstGen,
@@ -187,7 +191,7 @@ impl OperatorKind {
         )
     }
 
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             OperatorKind::EqEq => "eq",
             OperatorKind::NotEq => "neq",
@@ -226,6 +230,43 @@ impl OperatorKind {
             OperatorKind::Mul | OperatorKind::Div | OperatorKind::Mod => (17, 18),
             OperatorKind::Exp => (20, 19),
             OperatorKind::As => (21, 22),
+        }
+    }
+}
+
+impl From<Operator> for OperatorFn {
+    fn from(op: Operator) -> Self {
+        let Operator { kind, assignable } = op;
+
+        match kind {
+            OperatorKind::As => panic!("Cannot convert 'as' into a function call."),
+            // Lazy named functions
+            OperatorKind::Or | OperatorKind::And => OperatorFn::LazyNamed {
+                name: kind.as_str(),
+                assigning: assignable,
+            },
+            // Compound functions
+            OperatorKind::Gt | OperatorKind::GtEq | OperatorKind::Lt | OperatorKind::LtEq => {
+                // @@Cleanup: re-map the operator kind into a CompoundFn, so we avoid typing
+                // the return type 4 times...
+                let compound_kind = match kind {
+                    OperatorKind::Gt => CompoundFn::Gt,
+                    OperatorKind::GtEq => CompoundFn::Geq,
+                    OperatorKind::Lt => CompoundFn::Lt,
+                    OperatorKind::LtEq => CompoundFn::Leq,
+                    _ => unreachable!(),
+                };
+
+                OperatorFn::Compound {
+                    name: compound_kind,
+                    assigning: assignable,
+                }
+            }
+            // Simple named functions
+            k => OperatorFn::Named {
+                name: k.as_str(),
+                assigning: assignable,
+            },
         }
     }
 }
