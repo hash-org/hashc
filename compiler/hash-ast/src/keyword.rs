@@ -28,6 +28,7 @@ pub enum Keyword {
     Break,
     Return,
     Import,
+    Raw,
 }
 
 impl Keyword {

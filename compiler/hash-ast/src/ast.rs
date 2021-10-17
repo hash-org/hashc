@@ -594,8 +594,8 @@ pub enum ExpressionKind<'c> {
     Variable(VariableExpr<'c>),
     /// A property access.
     PropertyAccess(PropertyAccessExpr<'c>),
-    /// A reference expression.
-    Ref(AstNode<'c, Expression<'c>>),
+    /// A reference expression with a flag denoting whether it is a raw ref or not
+    Ref(AstNode<'c, Expression<'c>>, bool),
     /// A dereference expression.
     Deref(AstNode<'c, Expression<'c>>),
     /// A literal.
