@@ -668,10 +668,11 @@ impl NodeDisplay for Expression<'_> {
                     .chain(draw_branches_for_children(&[subject_lines, field_lines]))
                     .collect()
             }
-            ExpressionKind::Ref(expr) | ExpressionKind::Deref(expr) => {
+            ExpressionKind::Ref(expr, _) | ExpressionKind::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
                 let prefix = match self.kind() {
-                    ExpressionKind::Ref(_) => "ref",
+                    ExpressionKind::Ref(_, true) => "raw_ref",
+                    ExpressionKind::Ref(_, false) => "ref",
                     ExpressionKind::Deref(_) => "deref",
                     _ => unreachable!(),
                 }

@@ -544,7 +544,7 @@ where
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
         match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(expr))),
+            true => self.node(Expression::new(ExpressionKind::Ref(expr, false))),
             false => expr,
         }
     }
@@ -2180,7 +2180,16 @@ where
 
         let expr_kind = match &token.kind {
             TokenKind::Atom(TokenAtom::Star) => ExpressionKind::Deref(self.parse_expression()?),
-            TokenKind::Atom(TokenAtom::Amp) => ExpressionKind::Ref(self.parse_expression()?),
+            TokenKind::Atom(TokenAtom::Amp) => {
+                // Check if this reference is raw...
+                match self.peek() {
+                    Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Raw)) => {
+                        self.skip_token();
+                        ExpressionKind::Ref(self.parse_expression()?, true)
+                    }
+                    _ => ExpressionKind::Ref(self.parse_expression()?, false),
+                }
+            }
             kind @ (TokenKind::Atom(TokenAtom::Plus) | TokenKind::Atom(TokenAtom::Minus)) => {
                 let expr = self.parse_expression()?;
                 let loc = expr.location();
@@ -2556,8 +2565,17 @@ where
             TokenKind::Atom(TokenAtom::Amp) => {
                 self.skip_token();
 
-                // @@TODO: raw_refs...
+                // Check if this is a raw ref by checking if the keyword is present...
+                let is_ref = match self.peek() {
+                    Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Raw)) => {
+                        self.skip_token();
+                        true
+                    }
+                    _ => false,
+                };
+
                 match self.parse_type() {
+                    Ok(ty) if is_ref => Type::RawRef(ty),
                     Ok(ty) => Type::Ref(ty),
                     err => return err,
                 }

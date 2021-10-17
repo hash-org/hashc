@@ -21,6 +21,13 @@ use hash_ast::{
 };
 use iter::once;
 
+#[derive(PartialEq)]
+enum UnaryOpType {
+    FnCall(&'static str),
+    Ref(bool),
+    Deref,
+}
+
 /// A wrapper around AstNode to build [AstNode]s with the same information as the builder
 /// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
 /// and the [Location] of the node. An [AstBuilder] can be created from an existing node,
@@ -123,10 +130,9 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         expr: AstNode<'c, Expression<'c>>,
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
-        if transform {
-            self.node(Expression::new(ExpressionKind::Ref(expr)))
-        } else {
-            expr
+        match transform {
+            true => self.node(Expression::new(ExpressionKind::Ref(expr, false))),
+            false => expr,
         }
     }
 
@@ -1020,20 +1026,14 @@ where
                     Rule::unary_op => {
                         let operator = op_or_single_expr.into_inner().next().unwrap();
 
-                        enum UnaryOpType {
-                            FnCall(&'static str),
-                            Ref,
-                            Deref,
-                        }
-                        use UnaryOpType::*;
-
                         let op_type = match operator.as_rule() {
-                            Rule::notb_op => FnCall("notb"),
-                            Rule::not_op => FnCall("not"),
-                            Rule::neg_op => FnCall("neg"),
-                            Rule::pos_op => FnCall("pos"),
-                            Rule::ref_op => Ref,
-                            Rule::deref_op => Deref,
+                            Rule::notb_op => UnaryOpType::FnCall("notb"),
+                            Rule::not_op => UnaryOpType::FnCall("not"),
+                            Rule::neg_op => UnaryOpType::FnCall("neg"),
+                            Rule::pos_op => UnaryOpType::FnCall("pos"),
+                            Rule::ref_op => UnaryOpType::Ref(false),
+                            Rule::raw_ref_op => UnaryOpType::Ref(true),
+                            Rule::deref_op => UnaryOpType::Deref,
                             _ => unreachable!(),
                         };
 
@@ -1041,7 +1041,7 @@ where
                         let operand = expr.next().unwrap();
 
                         match op_type {
-                            FnCall(fn_call) => Ok(ab.node(Expression::new(
+                            UnaryOpType::FnCall(fn_call) => Ok(ab.node(Expression::new(
                                 ExpressionKind::FunctionCall(FunctionCallExpr {
                                     subject: ab.node(Expression::new(ExpressionKind::Variable(
                                         VariableExpr {
@@ -1056,10 +1056,11 @@ where
                                     }),
                                 }),
                             ))),
-                            Ref => Ok(ab.node(Expression::new(ExpressionKind::Ref(
+                            UnaryOpType::Ref(raw) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
                                 self.transform_expression(operand)?,
+                                raw
                             )))),
-                            Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
+                            UnaryOpType::Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
                                 self.transform_expression(operand)?,
                             )))),
                         }
