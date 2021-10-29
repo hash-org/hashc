@@ -1,6 +1,7 @@
 //! Hash compiler data structures for storing parsed modules
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
+#![allow(dead_code)]
 
 use crate::ast;
 use dashmap::{lock::RwLock, DashMap, ReadOnlyView};

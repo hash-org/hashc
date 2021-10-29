@@ -2,6 +2,7 @@
 //! Hash source file.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
+#![allow(dead_code)]
 
 use std::fmt;
 
