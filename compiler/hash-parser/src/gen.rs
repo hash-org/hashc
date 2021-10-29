@@ -61,6 +61,7 @@ impl<'c, 'stream, 'resolver, R> AstGen<'c, 'stream, 'resolver, R>
 where
     R: ModuleResolver,
 {
+    /// Create new AST generator from a token stream.
     pub fn new(stream: &'stream [Token<'c>], resolver: &'resolver R, wall: Wall<'c>) -> Self {
         Self {
             stream,
@@ -73,6 +74,8 @@ where
         }
     }
 
+    /// Create new AST generator from a provided token stream with inherited module resolver
+    /// and a provided parent span.
     pub fn from_stream(&self, stream: &'stream [Token<'c>], parent_span: Location) -> Self {
         Self {
             stream,
@@ -248,7 +251,7 @@ where
         name: &str,
         location: &Location,
     ) -> AstNode<'c, Expression<'c>> {
-        AstNode::new(
+        self.node_from_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.node_from_joined_location(
                     AccessName {
@@ -258,8 +261,7 @@ where
                 ),
                 type_args: row![&self.wall],
             })),
-            *location,
-            &self.wall,
+            location,
         )
     }
 
@@ -1264,11 +1266,15 @@ where
             //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
             //    only one token tree, we prevent it from being parsed as a struct literal
             //    by updating the global state...
-            self.disallow_struct_literals
-                .set(self.lookahead_for_struct_literal());
+            // self.disallow_struct_literals
+            //     .set(self.lookahead_for_struct_literal());
+            self.disallow_struct_literals.set(true);
 
             let clause = self.parse_expression_bp(0)?;
             let clause_loc = clause.location();
+
+            // We can re-enable struct literals
+            self.disallow_struct_literals.set(false);
 
             let branch = self.parse_block()?;
             let branch_loc = branch.location();
@@ -1374,17 +1380,6 @@ where
             .map_err(|_| err(self.current_location()))?;
 
         Ok(())
-    }
-
-    /// This is a utility function used to prevent struct literals from being
-    /// parsed by some parsing function given that if there is an access name followed
-    /// by two token trees that follow the access name.
-    fn lookahead_for_struct_literal(&self) -> bool {
-        // record the current location...
-        let _start = self.current_location();
-
-        // if self.peek_fn(self.parse_name_with_type_args(ident))
-        false
     }
 
     /// Parse a let declaration statement.
