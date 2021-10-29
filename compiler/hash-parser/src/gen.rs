@@ -734,7 +734,7 @@ where
 
         // so parse the arguments to the function here... with potential type annotations
         while self.has_token() {
-            match self.peek_resultant_fn(|| parse_fn()) {
+            match self.peek_resultant_fn(&parse_fn) {
                 Some(el) => args.push(el, &self.wall),
                 None => break,
             }
