@@ -239,6 +239,14 @@ impl Delimiter {
     }
 }
 
+/// Display implementation for [Delimiter], it's always assumed that it's asking for
+/// the right hand-side variant of the delimiter.
+impl fmt::Display for Delimiter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.right())
+    }
+}
+
 /// An Atom represents all variants of a token that can be present in a source file. Atom token
 /// kinds can represent a single character, literal or an identifier.
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -302,7 +310,9 @@ pub enum TokenAtom {
     // @@Cleanup: find a better way to describe when we expect an identifier
     GenericIdent,
 
-    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error reporting and messages
+    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error reporting and messages.
+    /// The boolean flag represents if the delimiter is left or right, If it's true, then it is the left
+    /// variant.
     Delimiter(Delimiter, bool),
 
     /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
@@ -461,18 +471,38 @@ impl TokenError {
             location,
         }
     }
+
+    pub fn as_message(&self) -> String {
+        let sub_message = match self.kind {
+            TokenErrorKind::BadEscapeSequence => "Invalid character escape sequence.".to_owned(),
+            TokenErrorKind::MalformedNumericalLiteral => "Malformed numerical literal.".to_owned(),
+            TokenErrorKind::Unexpected(ch) => {
+                format!("Encountered unexpected character '{}'", ch)
+            }
+            TokenErrorKind::Expected(atom) => format!("Expected token '{}' here.", atom),
+            TokenErrorKind::Unclosed(delim) => {
+                format!("Encountered unclosed delimiter '{}'", delim)
+            }
+        };
+
+        match &self.message {
+            Some(message) => {
+                let copy = message.to_owned();
+                format!("{} {}", copy, sub_message)
+            }
+            None => sub_message,
+        }
+    }
 }
 
-pub struct TokenErrorWithFuckingIndexDtoPublic(pub ModuleIdx, pub TokenError);
+/// This implementation exists since we can't use tuples that are un-named
+/// with foreign module types.
+pub struct TokenErrorWrapper(pub ModuleIdx, pub TokenError);
 
-impl From<TokenErrorWithFuckingIndexDtoPublic> for ParseError {
-    fn from(
-        TokenErrorWithFuckingIndexDtoPublic(idx, err): TokenErrorWithFuckingIndexDtoPublic,
-    ) -> Self {
+impl From<TokenErrorWrapper> for ParseError {
+    fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
         ParseError::Parsing {
-            message: err
-                .message
-                .unwrap_or_else(|| "Tokenisation error".to_string()),
+            message: err.as_message(),
             src: SourceLocation {
                 location: err.location,
                 module_index: idx,
