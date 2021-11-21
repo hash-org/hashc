@@ -248,6 +248,8 @@ where
         ))
     }
 
+    /// Make an [Expression] with kind [ExpressionKind::Variable] from a specified identifier
+    /// string.
     pub(crate) fn make_ident(
         &self,
         name: &str,
@@ -255,16 +257,22 @@ where
     ) -> AstNode<'c, Expression<'c>> {
         self.node_from_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.node_from_joined_location(
-                    AccessName {
-                        path: row![&self.wall; IDENTIFIER_MAP.create_ident(name)],
-                    },
-                    location,
-                ),
+                name: self.make_access_name_from_str(name, *location),
                 type_args: row![&self.wall],
             })),
             location,
         )
+    }
+
+    fn make_enum_pattern_from_str<T: Into<String>>(
+        &self,
+        symbol: T,
+        location: Location,
+    ) -> AstNode<'c, Pattern<'c>> {
+        self.node(Pattern::Enum(EnumPattern {
+            name: self.make_access_name_from_str(symbol, location),
+            args: row![&self.wall],
+        }))
     }
 
     /// Utility function for creating a variable from a given name.
@@ -287,6 +295,7 @@ where
         })
     }
 
+    /// Create an [AccessName] from a passed string.
     pub(crate) fn make_access_name_from_str<T: Into<String>>(
         &self,
         name: T,
@@ -302,7 +311,8 @@ where
         )
     }
 
-    pub(crate) fn make_access_name(
+    /// Create a [AccessName] node from an [Identifier].
+    pub(crate) fn make_access_name_from_identifier(
         &self,
         name: Identifier,
         location: Location,
@@ -315,28 +325,8 @@ where
         )
     }
 
-    /// Make a [AstNode<Name>] from an identifier and provided span.
-    pub(crate) fn make_name_from_id(
-        &self,
-        id: &Identifier,
-        location: &Location,
-    ) -> AstNode<'c, Name> {
-        AstNode::new(Name { ident: *id }, *location, &self.wall)
-    }
-
-    /// Function to make a lambda from a given expression. This takes the expression
-    /// and put's the expression as the returning expression of a function body block
-    fn make_single_lambda(&self, expr: AstNode<'c, Expression<'c>>) -> AstNode<'c, Expression<'c>> {
-        self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
-            Literal::Function(FunctionDef {
-                args: row![&self.wall],
-                return_ty: None,
-                fn_body: expr,
-            }),
-        ))))
-    }
-
-    pub(crate) fn make_ident_from_id(
+    /// Make an [Expression] with kind [ExpressionKind::Variable] from a provided [Identifier] with a provided span.
+    pub(crate) fn make_variable_from_identifier(
         &self,
         id: Identifier,
         location: Location,
@@ -410,6 +400,7 @@ where
         Ok(Module { contents })
     }
 
+    /// Parse a statement.
     pub fn parse_statement(&self) -> ParseResult<AstNode<'c, Statement<'c>>> {
         let start = self.current_location();
 
@@ -555,6 +546,7 @@ where
         }
     }
 
+    /// Create an [Expression] from two provided expressions and an [OperatorFn].
     fn transform_binary_expression(
         &self,
         lhs: AstNode<'c, Expression<'c>>,
@@ -608,7 +600,13 @@ where
                         args: self.node(FunctionCallArgs {
                             entries: row![&self.wall;
                                 self.transform_expr_into_ref(lhs, assigning),
-                                self.make_single_lambda(rhs),
+                                self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
+                                    Literal::Function(FunctionDef {
+                                        args: row![&self.wall],
+                                        return_ty: None,
+                                        fn_body: rhs,
+                                    }),
+                                ))))
                             ],
                         }),
                     },
@@ -639,10 +637,7 @@ where
 
         let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
             FunctionCallExpr {
-                subject: self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
-                    name: self.make_access_name_from_str("ord", location),
-                    type_args: row![&self.wall],
-                }))),
+                subject: self.make_ident("ord", &location),
                 args: self.node(FunctionCallArgs {
                     entries: row![&self.wall; lhs, rhs],
                 }),
@@ -657,14 +652,8 @@ where
                 row![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: row![&self.wall;
-                            self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("Lt", location),
-                                args: row![&self.wall],
-                            })),
-                            self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("EQ", location),
-                                args: row![&self.wall],
-                            })),
+                        self.make_enum_pattern_from_str("Lt", location),
+                        self.make_enum_pattern_from_str("Eq", location),
                         ],
                     })),
                     expr: self.make_variable(self.make_boolean(true)),
@@ -674,14 +663,8 @@ where
                 row![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: row![&self.wall;
-                            self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("Eq", location),
-                                args: row![&self.wall],
-                            })),
-                            self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("Eq", location),
-                                args: row![&self.wall],
-                            })),
+                        self.make_enum_pattern_from_str("Gt", location),
+                        self.make_enum_pattern_from_str("Eq", location),
                         ],
                     })),
                     expr: self.make_variable(self.make_boolean(true)),
@@ -689,19 +672,13 @@ where
             }
             CompoundFn::Lt => {
                 row![&self.wall; self.node(MatchCase {
-                    pattern: self.node(Pattern::Enum(EnumPattern {
-                        name: self.make_access_name_from_str("Lt", location),
-                        args: row![&self.wall],
-                    })),
+                    pattern: self.make_enum_pattern_from_str("Lt", location),
                     expr: self.make_variable(self.make_boolean(false)),
                 })]
             }
             CompoundFn::Gt => {
                 row![&self.wall; self.node(MatchCase {
-                    pattern: self.node(Pattern::Enum(EnumPattern {
-                        name: self.make_access_name_from_str("Gt", location),
-                        args: row![&self.wall],
-                    })),
+                    pattern: self.make_enum_pattern_from_str("Gt", location),
                     expr: self.make_variable(self.make_boolean(false)),
                 })]
             }
@@ -1588,7 +1565,7 @@ where
                         if IDENTIFIER_MAP.ident_name(*k) == "_" {
                             Pattern::Ignore
                         } else {
-                            Pattern::Binding(self.make_name_from_id(k, span))
+                            Pattern::Binding(self.node_from_location(Name { ident: *k }, span))
                         }
                     }
                 }
@@ -2597,7 +2574,8 @@ where
 
         Ok(self.node_from_joined_location(
             Type::Named(NamedType {
-                name: self.make_access_name(name, start.join(self.current_location())),
+                name: self
+                    .make_access_name_from_identifier(name, start.join(self.current_location())),
                 type_args,
             }),
             &start,
@@ -2695,7 +2673,7 @@ where
                         let name = IDENTIFIER_MAP.create_ident(MAP_TYPE_NAME);
 
                         Type::Named(NamedType {
-                            name: self.make_access_name(name, token.span),
+                            name: self.make_access_name_from_identifier(name, token.span),
                             type_args: row![&self.wall; lhs_type, rhs_type],
                         })
                     }
@@ -2705,7 +2683,7 @@ where
                         let name = IDENTIFIER_MAP.create_ident(SET_TYPE_NAME);
 
                         Type::Named(NamedType {
-                            name: self.make_access_name(name, token.span),
+                            name: self.make_access_name_from_identifier(name, token.span),
                             type_args: row![&self.wall; lhs_type],
                         })
                     }
@@ -2728,7 +2706,7 @@ where
                 let name = IDENTIFIER_MAP.create_ident(LIST_TYPE_NAME);
 
                 Type::Named(NamedType {
-                    name: self.make_access_name(name, token.span),
+                    name: self.make_access_name_from_identifier(name, token.span),
                     type_args: row![&self.wall; inner_type],
                 })
             }
@@ -2796,13 +2774,13 @@ where
 
                     Ok(self.node_with_location(
                         Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                            subject: self.make_ident_from_id(*id, *id_span),
+                            subject: self.make_variable_from_identifier(*id, *id_span),
                             args,
                         })),
                         start.join(self.current_location()),
                     ))
                 }
-                _ => Ok(self.make_ident_from_id(*id, *id_span)),
+                _ => Ok(self.make_variable_from_identifier(*id, *id_span)),
             },
             _ => self.error("Expecting field name after property access.")?,
         }
