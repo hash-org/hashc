@@ -122,12 +122,13 @@ where
                     |elapsed| println!("ast: {:.2?}", elapsed),
                 );
 
-                // @@Hack: we still need to add the contents of the file into the map
-                ctx.module_builder
-                    .add_contents(import_index, resolved_import_path, import_source);
-
                 // Add the import to modules
-                ctx.module_builder.add_module_at(import_index, import_node?);
+                ctx.module_builder.add_module_at(
+                    import_index,
+                    resolved_import_path,
+                    import_source,
+                    import_node?,
+                );
 
                 Ok(())
             });

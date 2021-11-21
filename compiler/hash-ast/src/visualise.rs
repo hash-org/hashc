@@ -671,8 +671,8 @@ impl NodeDisplay for Expression<'_> {
             ExpressionKind::Ref(expr, _) | ExpressionKind::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
                 let prefix = match self.kind() {
-                    ExpressionKind::Ref(_, true) => "raw_ref",
-                    ExpressionKind::Ref(_, false) => "ref",
+                    ExpressionKind::Ref(_, RefKind::Raw) => "raw_ref",
+                    ExpressionKind::Ref(_, RefKind::Normal) => "ref",
                     ExpressionKind::Deref(_) => "deref",
                     _ => unreachable!(),
                 }

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use hash_ast::operator::{CompoundFn, OperatorFn};
 
 use crate::grammar::Rule;
@@ -17,109 +19,109 @@ impl From<Rule> for Option<OperatorFn> {
             // with a new value. This is important since it needs to have different
             // traits and handled differently using references...
             Rule::add_eq_op => Some(Named {
-                name: "add_eq",
+                name: Cow::Borrowed("add_eq"),
                 assigning: true,
             }),
             Rule::sub_eq_op => Some(Named {
-                name: "sub_eq",
+                name: Cow::Borrowed("sub_eq"),
                 assigning: true,
             }),
             Rule::div_eq_op => Some(Named {
-                name: "div_eq",
+                name: Cow::Borrowed("div_eq"),
                 assigning: true,
             }),
             Rule::mod_eq_op => Some(Named {
-                name: "mod_eq",
+                name: Cow::Borrowed("mod_eq"),
                 assigning: true,
             }),
             Rule::mul_eq_op => Some(Named {
-                name: "mul_eq",
+                name: Cow::Borrowed("mul_eq"),
                 assigning: true,
             }),
             Rule::andl_eq_op => Some(LazyNamed {
-                name: "and_eq",
+                name: Cow::Borrowed("and_eq"),
                 assigning: true,
             }),
             Rule::orl_eq_op => Some(LazyNamed {
-                name: "or_eq",
+                name: Cow::Borrowed("or_eq"),
                 assigning: true,
             }),
             Rule::andb_eq_op => Some(Named {
-                name: "andb_eq",
+                name: Cow::Borrowed("andb_eq"),
                 assigning: true,
             }),
             Rule::orb_eq_op => Some(Named {
-                name: "orb_eq",
+                name: Cow::Borrowed("orb_eq"),
                 assigning: true,
             }),
             Rule::exp_eq_op => Some(Named {
-                name: "exp_eq",
+                name: Cow::Borrowed("exp_eq"),
                 assigning: true,
             }),
             Rule::xorb_eq_op => Some(Named {
-                name: "xorb_eq",
+                name: Cow::Borrowed("xorb_eq"),
                 assigning: true,
             }),
 
             // non-assigning operators
             Rule::double_eq_op => Some(Named {
-                name: "eq",
+                name: Cow::Borrowed("eq"),
                 assigning: false,
             }),
             Rule::neq_op => Some(Named {
-                name: "not_eq",
+                name: Cow::Borrowed("not_eq"),
                 assigning: false,
             }),
             Rule::add_op => Some(Named {
-                name: "add",
+                name: Cow::Borrowed("add"),
                 assigning: false,
             }),
             Rule::sub_op => Some(Named {
-                name: "sub",
+                name: Cow::Borrowed("sub"),
                 assigning: false,
             }),
             Rule::mul_op => Some(Named {
-                name: "mul",
+                name: Cow::Borrowed("mul"),
                 assigning: false,
             }),
             Rule::div_op => Some(Named {
-                name: "div",
+                name: Cow::Borrowed("div"),
                 assigning: false,
             }),
             Rule::mod_op => Some(Named {
-                name: "mod",
+                name: Cow::Borrowed("mod"),
                 assigning: false,
             }),
             Rule::andl_op => Some(LazyNamed {
-                name: "and",
+                name: Cow::Borrowed("and"),
                 assigning: false,
             }),
             Rule::orl_op => Some(LazyNamed {
-                name: "or",
+                name: Cow::Borrowed("or"),
                 assigning: false,
             }),
             Rule::shl_op => Some(Named {
-                name: "shl",
+                name: Cow::Borrowed("shl"),
                 assigning: false,
             }),
             Rule::shr_op => Some(Named {
-                name: "shr",
+                name: Cow::Borrowed("shr"),
                 assigning: false,
             }),
             Rule::exp_op => Some(Named {
-                name: "exp",
+                name: Cow::Borrowed("exp"),
                 assigning: false,
             }),
             Rule::andb_op => Some(Named {
-                name: "andb",
+                name: Cow::Borrowed("andb"),
                 assigning: false,
             }),
             Rule::orb_op => Some(Named {
-                name: "orb",
+                name: Cow::Borrowed("orb"),
                 assigning: false,
             }),
             Rule::xorb_op => Some(Named {
-                name: "xorb",
+                name: Cow::Borrowed("xorb"),
                 assigning: false,
             }),
 
