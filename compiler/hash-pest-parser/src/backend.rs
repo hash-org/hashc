@@ -23,6 +23,12 @@ pub struct PestBackend<'c> {
     castle: &'c Castle,
 }
 
+impl<'c> PestBackend<'c> {
+    pub fn new(castle: &'c Castle) -> Self {
+        Self { castle }
+    }
+}
+
 impl<'c> ParserBackend<'c> for PestBackend<'c> {
     fn parse_module(
         &self,

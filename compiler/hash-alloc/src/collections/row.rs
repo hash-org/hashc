@@ -56,13 +56,15 @@ impl<'c, T> Row<'c, T> {
     /// - Panics if `new_capacity` is greater than [`isize::MAX`].
     /// - Panics if `new_capacity` is less than the current length of the `Row`.
     pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
-        if new_capacity > isize::MAX as usize {
-            panic!("Reallocation target capacity is too large");
-        }
+        assert!(
+            !(new_capacity > isize::MAX as usize),
+            "Reallocation target capacity is too large"
+        );
 
-        if new_capacity < self.len() {
-            panic!("Tried to reallocate with a capacity smaller than length");
-        }
+        assert!(
+            !(new_capacity < self.len()),
+            "Tried to reallocate with a capacity smaller than length"
+        );
 
         if new_capacity < self.capacity() {
             // no-op, already have enough capacity.
@@ -105,6 +107,11 @@ impl<'c, T> Row<'c, T> {
         self.length += 1;
     }
 
+    // pub fn extend(&mut self, elements: Row<T>, wall: &Wall<'c>) {
+    //     if self.capacity() < self.len() + elements.len() {
+    //     }
+    // }
+
     /// Pop an element from the end of the `Row`
     ///
     /// Returns `None` if there are no elements in the `Row`, otherwise the popped element.
@@ -140,9 +147,10 @@ impl<'c, T> Row<'c, T> {
             return self.push(element, wall);
         }
 
-        if !(0..self.len()).contains(&index) {
-            panic!("Out of bounds index when inserting an element into Row");
-        }
+        assert!(
+            (0..self.len()).contains(&index),
+            "Out of bounds index when inserting an element into Row"
+        );
 
         // Reserve one more element
         self.reserve(self.len() + 1, wall);

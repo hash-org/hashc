@@ -77,33 +77,43 @@ fn parse_interactive<'c>(
     expr: &str,
     castle: &'c Castle,
 ) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
+    use hash_reporting::reporting::{Report, ReportWriter};
+
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(HashParser::new(castle));
+    let parser = ParParser::new(HashParser::new(castle), false);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
-        Ok(result) => Some(result),
-        Err(e) => {
-            CompilerError::from(e).report();
+        (Ok(result), modules) => Some((result, modules)),
+        (Err(errors), modules) => {
+            for report in errors.into_iter().map(Report::from) {
+                let report_writer = ReportWriter::new(report, &modules);
+                println!("{}", report_writer);
+            }
             None
         }
     }
 }
 
 #[cfg(feature = "use-pest")]
-fn parse_interactive(expr: &str) -> Option<(AstNode<BodyBlock>, Modules)> {
+fn parse_interactive<'c>(
+    expr: &str,
+    castle: &'c Castle,
+) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(PestBackend);
+    let parser = ParParser::new(PestBackend::new(castle), false);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {
-        Ok(result) => Some(result),
-        Err(e) => {
-            CompilerError::from(e).report();
+        (Ok(result), modules) => Some((result, modules)),
+        (Err(errors), _) => {
+            for error in errors {
+                CompilerError::from(error).report()
+            }
             None
         }
     }

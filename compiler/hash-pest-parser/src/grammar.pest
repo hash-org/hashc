@@ -28,6 +28,7 @@ return_kw = _{ "return" }
 import_kw = _{ "import" }
 as_kw = _{ "as" }
 where_kw = _{ "where" }
+raw_kw = _{"raw"}
 keyword = {
     if_kw       |
     else_kw     |
@@ -45,7 +46,8 @@ keyword = {
     return_kw   |
     import_kw   |
     as_kw       |
-    where_kw
+    where_kw    |
+    raw_kw
 }
 
 /// ---- Silent operators ----
@@ -248,7 +250,7 @@ neg_op = { "-" }
 ref_op = { "&" }
 raw_ref_op = { "&raw" }
 deref_op = { "*" }
-unary_op = { not_op | notb_op | neg_op | pos_op | ref_op | raw_ref_op | deref_op }
+unary_op = { not_op | notb_op | neg_op | pos_op | raw_ref_op | ref_op | deref_op }
 
 /// ---- Types ----
 
@@ -277,7 +279,7 @@ named_type = { access_name ~ type_args? } // this also handles type variables
 
 /// Reference type
 type_ref_op = { "&" }
-raw_type_ref_op = { "&raw" }
+raw_type_ref_op = { type_ref_op ~ raw_kw }
 type_ref_ops = _{ raw_type_ref_op | type_ref_op }
 ref_type = { type_ref_ops ~ any_type }
 

@@ -20,8 +20,9 @@ fn build_precedence_climber() -> PrecClimber<Rule> {
             | Operator::new(Rule::leq_op, Assoc::Left)
             | Operator::new(Rule::gt_op, Assoc::Left)
             | Operator::new(Rule::lt_op, Assoc::Left),
-        Operator::new(Rule::xorb_op, Assoc::Left) | Operator::new(Rule::orb_op, Assoc::Left),
-        Operator::new(Rule::andb_op, Assoc::Left),
+        Operator::new(Rule::xorb_op, Assoc::Left)
+            | Operator::new(Rule::orb_op, Assoc::Left)
+            | Operator::new(Rule::andb_op, Assoc::Left),
         Operator::new(Rule::shr_op, Assoc::Left) | Operator::new(Rule::shl_op, Assoc::Left),
         Operator::new(Rule::add_op, Assoc::Left) | Operator::new(Rule::sub_op, Assoc::Left),
         Operator::new(Rule::mod_op, Assoc::Left)

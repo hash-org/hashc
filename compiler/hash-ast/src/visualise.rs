@@ -125,7 +125,7 @@ where
 }
 
 ///
-/// We need a seperate implementation for [Module] since it won't be wrapped within
+/// We need a separate implementation for [Module] since it won't be wrapped within
 /// an [AstNode] unlike all the other variants
 ///
 impl std::fmt::Display for Module<'_> {
@@ -177,7 +177,7 @@ impl NodeDisplay for Type<'_> {
             }
             Type::Ref(ref_ty) => child_branch(&ref_ty.node_display()),
             Type::RawRef(ref_ty) => child_branch(&ref_ty.node_display()),
-            Type::TypeVar(var) => child_branch(&[format!("var \"{}\"", var.name)]),
+            Type::TypeVar(var) => child_branch(&[format!("var {}", var.name)]),
             Type::Existential => child_branch(&["existential".to_string()]),
             Type::Infer => child_branch(&["infer".to_string()]),
         };
@@ -230,17 +230,17 @@ impl NodeDisplay for Literal<'_> {
                 let entries: Vec<Vec<String>> = map
                     .elements
                     .iter()
-                    .map(|(key, value)| {
+                    .map(|map_entry| {
                         let mut entry = vec!["entry".to_string()];
 
                         // deal with they key, and then value
                         let key_lines = vec!["key".to_string()]
                             .into_iter()
-                            .chain(child_branch(&key.node_display()))
+                            .chain(child_branch(&map_entry.body().key.node_display()))
                             .collect();
                         let value_lines = vec!["value".to_string()]
                             .into_iter()
-                            .chain(child_branch(&value.node_display()))
+                            .chain(child_branch(&map_entry.body().value.node_display()))
                             .collect();
 
                         entry.extend(draw_branches_for_children(&[key_lines, value_lines]));
@@ -668,10 +668,11 @@ impl NodeDisplay for Expression<'_> {
                     .chain(draw_branches_for_children(&[subject_lines, field_lines]))
                     .collect()
             }
-            ExpressionKind::Ref(expr) | ExpressionKind::Deref(expr) => {
+            ExpressionKind::Ref(expr, _) | ExpressionKind::Deref(expr) => {
                 // Match again to determine whether it is a deref or a ref!
                 let prefix = match self.kind() {
-                    ExpressionKind::Ref(_) => "ref",
+                    ExpressionKind::Ref(_, RefKind::Raw) => "raw_ref",
+                    ExpressionKind::Ref(_, RefKind::Normal) => "ref",
                     ExpressionKind::Deref(_) => "deref",
                     _ => unreachable!(),
                 }
@@ -728,17 +729,18 @@ impl NodeDisplay for Block<'_> {
                     components.push(case_lines);
                 }
 
-                iter::once("match".to_string())
+                let lines = iter::once("match".to_string())
                     .chain(draw_branches_for_children(&components))
-                    .collect::<Vec<String>>()
+                    .collect::<Vec<String>>();
+
+                child_branch(&lines)
             }
             Block::Loop(loop_body) => {
-                let mut lines = vec!["loop".to_string()];
+                let lines = iter::once("loop".to_string())
+                    .chain(loop_body.node_display())
+                    .collect::<Vec<String>>();
 
-                // @@Cleanup: This is a block but we don't display this as a block with the branch because
-                // it doesn't go through the Statement implementation which deals with the block
-                lines.extend(pad_lines(loop_body.node_display(), 2));
-                draw_branches_for_lines(&lines, END_PIPE, "")
+                child_branch(&lines)
             }
             Block::Body(body) => body.node_display(),
         }
@@ -747,20 +749,18 @@ impl NodeDisplay for Block<'_> {
 
 impl NodeDisplay for MatchCase<'_> {
     fn node_display(&self) -> Vec<String> {
-        let mut lines = vec!["case".to_string()];
-
         // deal with the pattern for this case
         let pattern_lines = self.pattern.node_display();
 
         // deal with the block for this case
         let branch_lines = vec!["branch".to_string()]
             .into_iter()
-            .chain(self.expr.node_display())
+            .chain(child_branch(&self.expr.node_display()))
             .collect();
 
-        // append child_lines with padding and vertical lines being drawn
-        lines.extend(draw_branches_for_children(&[pattern_lines, branch_lines]));
-        lines
+        iter::once("case".to_string())
+            .chain(draw_branches_for_children(&[pattern_lines, branch_lines]))
+            .collect()
     }
 }
 
@@ -780,7 +780,9 @@ impl NodeDisplay for DestructuringPattern<'_> {
         let name = vec![format!("ident {}", self.name.node_display().join(""))];
         let pat = self.pattern.node_display();
 
-        draw_branches_for_children(&[name, pat])
+        iter::once("destructuring".to_string())
+            .chain(draw_branches_for_children(&[name, pat]))
+            .collect()
     }
 }
 

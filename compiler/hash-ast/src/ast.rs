@@ -132,6 +132,23 @@ pub struct TypeVar<'c> {
     pub name: AstNode<'c, Name>,
 }
 
+/// Names for compound types that represent data structures or functions are
+/// translated into string form, and thus are represented by these names.
+pub const FUNCTION_TYPE_NAME: &str = "Function";
+pub const TUPLE_TYPE_NAME: &str = "Tuple";
+pub const LIST_TYPE_NAME: &str = "List";
+pub const SET_TYPE_NAME: &str = "Set";
+pub const MAP_TYPE_NAME: &str = "Map";
+
+/// Reference kind representing either a raw reference or a normal reference.
+#[derive(Debug, PartialEq)]
+pub enum RefKind {
+    /// Raw reference type
+    Raw,
+    /// Normal reference type
+    Normal,
+}
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
@@ -170,11 +187,18 @@ pub struct TupleLiteral<'c> {
     pub elements: AstNodes<'c, Expression<'c>>,
 }
 
+/// A map literal entry, e.g. `"foo": 1`.
+#[derive(Debug, PartialEq)]
+pub struct MapLiteralEntry<'c> {
+    pub key: AstNode<'c, Expression<'c>>,
+    pub value: AstNode<'c, Expression<'c>>,
+}
+
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
 #[derive(Debug, PartialEq)]
 pub struct MapLiteral<'c> {
     /// The elements of the map literal (key-value pairs).
-    pub elements: Row<'c, (AstNode<'c, Expression<'c>>, AstNode<'c, Expression<'c>>)>,
+    pub elements: AstNodes<'c, MapLiteralEntry<'c>>,
 }
 
 /// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
@@ -282,7 +306,7 @@ pub struct DestructuringPattern<'c> {
     pub pattern: AstNode<'c, Pattern<'c>>,
 }
 
-/// A struct pattern, e.g. `Dog { name = "Frank"; age; }`
+/// A struct pattern, e.g. `Dog { name = "Frank", age, }`
 #[derive(Debug, PartialEq)]
 pub struct StructPattern<'c> {
     /// The name of the struct.
@@ -291,7 +315,7 @@ pub struct StructPattern<'c> {
     pub entries: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
-/// A namespace pattern, e.g. `{ fgets; fputs; }`
+/// A namespace pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq)]
 pub struct NamespacePattern<'c> {
     /// The entries of the namespace, as [DestructuringPattern] entries.
@@ -483,7 +507,7 @@ pub struct MatchCase<'c> {
     pub pattern: AstNode<'c, Pattern<'c>>,
     /// The expression corresponding to the match case.
     ///
-    /// Will be executed if the pattern succeeeds.
+    /// Will be executed if the pattern succeeds.
     pub expr: AstNode<'c, Expression<'c>>,
 }
 
@@ -534,7 +558,7 @@ pub struct FunctionCallExpr<'c> {
     pub args: AstNode<'c, FunctionCallArgs<'c>>,
 }
 
-/// A property access exprssion.
+/// A property access expression.
 #[derive(Debug, PartialEq)]
 pub struct PropertyAccessExpr<'c> {
     /// An expression which evaluates to a struct or tuple value.
@@ -579,8 +603,8 @@ pub enum ExpressionKind<'c> {
     Variable(VariableExpr<'c>),
     /// A property access.
     PropertyAccess(PropertyAccessExpr<'c>),
-    /// A reference expression.
-    Ref(AstNode<'c, Expression<'c>>),
+    /// A reference expression with a flag denoting whether it is a raw ref or not
+    Ref(AstNode<'c, Expression<'c>>, RefKind),
     /// A dereference expression.
     Deref(AstNode<'c, Expression<'c>>),
     /// A literal.

@@ -2,12 +2,11 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::{cell::Cell, iter};
+use std::{borrow::Borrow, cell::Cell, iter};
 
 use crate::{
     grammar::{HashPair, Rule},
     precedence::PREC_CLIMBER,
-    utils::{convert_rule_into_fn_call, CompoundFn, OperatorFn},
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::{
@@ -17,15 +16,17 @@ use hash_ast::{
     literal::STRING_LITERAL_MAP,
     location::{Location, SourceLocation},
     module::ModuleIdx,
+    operator::{CompoundFn, OperatorFn},
     resolve::ModuleResolver,
 };
 use iter::once;
 
-const FUNCTION_TYPE_NAME: &str = "Function";
-const TUPLE_TYPE_NAME: &str = "Tuple";
-const LIST_TYPE_NAME: &str = "List";
-const SET_TYPE_NAME: &str = "Set";
-const MAP_TYPE_NAME: &str = "Map";
+#[derive(PartialEq)]
+enum UnaryOpType {
+    FnCall(&'static str),
+    Ref(bool),
+    Deref,
+}
 
 /// A wrapper around AstNode to build [AstNode]s with the same information as the builder
 /// holds. Creating new [AstNode]s with the the builder will copy over the [ModuleIndex]
@@ -101,7 +102,7 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         })
     }
 
-    /// Utility finction for creating a variable from a given name.
+    /// Utility function for creating a variable from a given name.
     fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
@@ -129,10 +130,9 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         expr: AstNode<'c, Expression<'c>>,
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
-        if transform {
-            self.node(Expression::new(ExpressionKind::Ref(expr)))
-        } else {
-            expr
+        match transform {
+            true => self.node(Expression::new(ExpressionKind::Ref(expr, RefKind::Normal))),
+            false => expr,
         }
     }
 
@@ -245,15 +245,16 @@ pub(crate) fn build_binary<'c>(
     let ab = NodeBuilder::from_pair(&op, wall);
 
     // Panic here if we cannot convert the operator into a function call
-    let subject_name = convert_rule_into_fn_call(&op.as_rule()).unwrap();
+    let subject_name: Option<_> = op.as_rule().into();
+    let subject_name = subject_name.unwrap();
 
     match subject_name {
         OperatorFn::Named { name, assigning } => {
             Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
                     subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: ab.make_single_access_name(name),
-                        type_args: row![wall], // we dont need any kind of typeargs since were just transpiling here
+                        name: ab.make_single_access_name(name.borrow()),
+                        type_args: row![wall], // we don't need any kind of type_args since were just transpiling here
                     }))),
                     args: ab.node(FunctionCallArgs {
                         entries: row![wall; ab.transform_expr_into_ref(lhs?, assigning), rhs?],
@@ -275,7 +276,7 @@ pub(crate) fn build_binary<'c>(
             let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
                     subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: ab.make_single_access_name(name),
+                        name: ab.make_single_access_name(name.borrow()),
                         type_args: row![wall],
                     }))),
                     args: ab.node(FunctionCallArgs {
@@ -619,22 +620,22 @@ where
                         let mut components = inner.into_inner();
                         let num = components.next().unwrap();
 
-                        let val = num.as_str().parse::<u64>()?;
+                        let val = num.as_str().parse::<u64>().unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::hex_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 16)?;
+                        let val = u64::from_str_radix(item.as_str(), 16).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::octal_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 8)?;
+                        let val = u64::from_str_radix(item.as_str(), 8).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     Rule::bin_literal => {
                         let item = inner.into_inner().next().unwrap();
-                        let val = u64::from_str_radix(item.as_str(), 2)?;
+                        let val = u64::from_str_radix(item.as_str(), 2).unwrap();
                         Ok(ab.node(Literal::Int(val)))
                     }
                     _ => unreachable!(),
@@ -710,7 +711,11 @@ where
                 // expressions.
                 let elements = ab.try_collect(pair.into_inner().map(|p| {
                     let mut items = p.into_inner().map(|p| self.transform_expression(p));
-                    Ok((items.next().unwrap()?, items.next().unwrap()?))
+
+                    Ok(ab.node(MapLiteralEntry {
+                        key: items.next().unwrap()?,
+                        value: items.next().unwrap()?,
+                    }))
                 }))?;
 
                 Ok(ab.node(Literal::Map(MapLiteral { elements })))
@@ -1021,20 +1026,14 @@ where
                     Rule::unary_op => {
                         let operator = op_or_single_expr.into_inner().next().unwrap();
 
-                        enum UnaryOpType {
-                            FnCall(&'static str),
-                            Ref,
-                            Deref,
-                        }
-                        use UnaryOpType::*;
-
                         let op_type = match operator.as_rule() {
-                            Rule::notb_op => FnCall("notb"),
-                            Rule::not_op => FnCall("not"),
-                            Rule::neg_op => FnCall("neg"),
-                            Rule::pos_op => FnCall("pos"),
-                            Rule::ref_op => Ref,
-                            Rule::deref_op => Deref,
+                            Rule::notb_op => UnaryOpType::FnCall("notb"),
+                            Rule::not_op => UnaryOpType::FnCall("not"),
+                            Rule::neg_op => UnaryOpType::FnCall("neg"),
+                            Rule::pos_op => UnaryOpType::FnCall("pos"),
+                            Rule::ref_op => UnaryOpType::Ref(false),
+                            Rule::raw_ref_op => UnaryOpType::Ref(true),
+                            Rule::deref_op => UnaryOpType::Deref,
                             _ => unreachable!(),
                         };
 
@@ -1042,7 +1041,7 @@ where
                         let operand = expr.next().unwrap();
 
                         match op_type {
-                            FnCall(fn_call) => Ok(ab.node(Expression::new(
+                            UnaryOpType::FnCall(fn_call) => Ok(ab.node(Expression::new(
                                 ExpressionKind::FunctionCall(FunctionCallExpr {
                                     subject: ab.node(Expression::new(ExpressionKind::Variable(
                                         VariableExpr {
@@ -1057,10 +1056,15 @@ where
                                     }),
                                 }),
                             ))),
-                            Ref => Ok(ab.node(Expression::new(ExpressionKind::Ref(
+                            UnaryOpType::Ref(true) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
                                 self.transform_expression(operand)?,
+                                RefKind::Raw
                             )))),
-                            Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
+                            UnaryOpType::Ref(false) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
+                                self.transform_expression(operand)?,
+                                RefKind::Normal
+                            )))),
+                            UnaryOpType::Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
                                 self.transform_expression(operand)?,
                             )))),
                         }
@@ -1166,7 +1170,10 @@ where
                         // current variable
                         Rule::index_arg => {
                             // if subject isn't a variable, how tf did we end up here
-                            debug_assert_eq!(subject_rule, Rule::variable_expr);
+                            assert!(matches!(
+                                subject_rule,
+                                Rule::variable_expr | Rule::intrinsic_expr
+                            ));
 
                             // this is the expression within the brackets.
                             let index_expr =
@@ -1572,18 +1579,21 @@ where
                     Some(op_wrap) => {
                         // get the assignment operator out of 'assign_op'
                         let op = op_wrap.into_inner().next().unwrap();
-                        let transform = convert_rule_into_fn_call(&op.as_rule());
+
+                        // Panic here if we cannot convert the operator into a function call
+                        let subject_name = op.as_rule().into();
 
                         let rhs = self.transform_expression(components.next().unwrap())?;
                         let builder = self.builder_from_node(&rhs);
 
-                        match transform {
+                        match subject_name {
                             Some(OperatorFn::Named { name, assigning }) => {
                                 let assign_call = builder.node(Expression::new(
                                     ExpressionKind::FunctionCall(FunctionCallExpr {
                                         subject: builder.node(Expression::new(
                                             ExpressionKind::Variable(VariableExpr {
-                                                name: builder.make_single_access_name(name),
+                                                name: builder
+                                                    .make_single_access_name(name.borrow()),
                                                 type_args: row![&self.wall],
                                             }),
                                         )),
@@ -1613,7 +1623,8 @@ where
                                     ExpressionKind::FunctionCall(FunctionCallExpr {
                                         subject: builder.node(Expression::new(
                                             ExpressionKind::Variable(VariableExpr {
-                                                name: builder.make_single_access_name(name),
+                                                name: builder
+                                                    .make_single_access_name(name.borrow()),
                                                 type_args: row![&self.wall],
                                             }),
                                         )),
@@ -1733,71 +1744,4 @@ where
             k => panic!("unexpected rule within statement: {:?}", k),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use pest::Parser;
-
-    // use super::*;
-
-    // pub(crate) fn parse_input<T>(rule: Rule, input: &str) -> AstNode<'c, T<'c>>
-    // where
-    //     for<'a> HashPair<'a>: IntoAstNode<'c, T<'c>>,
-    // {
-    //     let resolver = SeqModuleResolver::new();
-    //     let mut result = grammar::HashGrammar::parse(rule, input).unwrap();
-    //     let parsed: AstNode<'c, T<'c>> = result.next().unwrap().into_ast(&resolver);
-    //     parsed
-    // }
-
-    // #[test]
-    // pub(crate) fn test_name() {
-    //     assert_eq!(
-    //         AstNode {
-    //             body: Box::new(Name {
-    //                 string: "universe".to_owned()
-    //             }),
-    //             pos: Location::Span(0, 8,),
-    //             module: 0,
-    //         },
-    //         parse_input::<Name>(Rule::name, "universe"),
-    //     );
-    // }
-
-    // #[test]
-    // pub(crate) fn test_access_name() {
-    //     assert_eq!(
-    //         AstNode {
-    //             body: Box::new(AccessName {
-    //                 names: row![&self.wall;
-    //                     AstNode {
-    //                         body: Box::new(Name {
-    //                             string: "iter".to_owned()
-    //                         }),
-    //                         pos: Location::Span(0, 4,),
-    //                         module: 0,
-    //                     },
-    //                     AstNode {
-    //                         body: Box::new(Name {
-    //                             string: "next".to_owned()
-    //                         }),
-    //                         pos: Location::Span(6, 10,),
-    //                         module: 0,
-    //                     },
-    //                     AstNode {
-    //                         body: Box::new(Name {
-    //                             string: "Then".to_owned()
-    //                         }),
-    //                         pos: Location::Span(12, 16,),
-    //                         module: 0,
-    //                     },
-    //                 ],
-    //             }),
-    //             pos: Location::Span(0, 16,),
-    //             module: 0,
-    //         },
-    //         parse_input::<AccessName>(Rule::access_name, "iter::next::Then"),
-    //     );
-    // }
 }

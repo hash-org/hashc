@@ -6,8 +6,8 @@ use std::{convert::TryInto, fmt};
 
 /// Enum representing a location of a token within the source.
 ///
-/// The first element of the tuple represents the line number of the locations
-/// and the second element represents the row number.
+/// The first element of the tuple represents the starting byte offset and the second element
+/// represents the ending byte offset.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
 pub struct Location(u32, u32);
 
@@ -15,11 +15,17 @@ pub struct Location(u32, u32);
 impl Location {
     /// Create a 'Pos' variant by providing a single position
     pub fn pos(pos: usize) -> Self {
-        Location(pos.try_into().unwrap(), 0)
+        let pos = pos.try_into().unwrap();
+        Location(pos, pos + 1)
     }
 
-    /// Create a 'Span' variant by providing a single position and the span of the input token
+    /// Create a 'Span' variant by providing a start and end byte position.
     pub fn span(start: usize, end: usize) -> Self {
+        assert!(
+            !(end <= start),
+            "Got invalid span for Location::span. Start needs to be smaller than end."
+        );
+
         Location(start.try_into().unwrap(), end.try_into().unwrap())
     }
 

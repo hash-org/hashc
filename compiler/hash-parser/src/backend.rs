@@ -5,24 +5,28 @@
 use std::path::Path;
 
 use hash_alloc::Castle;
-use hash_ast::ast;
+use hash_ast::{ast, module::ModuleIdx};
 use hash_ast::{error::ParseResult, parse::ParserBackend, resolve::ModuleResolver};
 use hash_utils::timed;
 
 use crate::gen::AstGen;
 use crate::lexer::Lexer;
 
+/// Implementation structure for the parser.
 pub struct HashParser<'c> {
+    /// Parser allocator object.
     castle: &'c Castle,
 }
 
 impl<'c> HashParser<'c> {
+    /// Create a new Hash parser with the self hosted backend.
     pub fn new(castle: &'c Castle) -> Self {
         Self { castle }
     }
 }
 
 impl<'c> ParserBackend<'c> for HashParser<'c> {
+    /// Parse a module.
     fn parse_module(
         &self,
         resolver: impl ModuleResolver,
@@ -31,13 +35,14 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
     ) -> ParseResult<ast::Module<'c>> {
         let wall = self.castle.wall();
 
+        let index = resolver.module_index().unwrap_or(ModuleIdx(0));
         let tokens = timed(
-            || Lexer::new(contents, &wall).tokenise(),
+            || Lexer::new(contents, index, &wall).tokenise(),
             log::Level::Debug,
             |elapsed| println!("tokenise:    {:?}", elapsed),
-        );
+        )?;
 
-        let gen = AstGen::new(tokens, &resolver, wall);
+        let gen = AstGen::new(&tokens, &resolver, wall);
 
         timed(
             || gen.parse_module(),
@@ -46,6 +51,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         )
     }
 
+    /// Parse interactive statements.
     fn parse_interactive(
         &self,
         resolver: impl ModuleResolver,
@@ -53,12 +59,9 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
     ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>> {
         let wall = self.castle.wall();
 
-        let tokens = Lexer::new(contents, &wall).tokenise();
-        let gen = AstGen::new(tokens, &resolver, wall);
-
-        // for token in tokens.into_iter() {
-        //     println!("{}", token);
-        // }
+        let index = resolver.module_index().unwrap_or(ModuleIdx(0));
+        let tokens = Lexer::new(contents, index, &wall).tokenise()?;
+        let gen = AstGen::new(&tokens, &resolver, wall);
 
         gen.parse_expression_from_interactive()
     }
