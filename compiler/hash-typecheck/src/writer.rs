@@ -3,17 +3,15 @@ use core::fmt;
 use hash_ast::{ast::TypeId, ident::IDENTIFIER_MAP};
 use hash_utils::tree_writing::TreeNode;
 
-use crate::types::{
-    EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeVar, TypecheckCtx, UserType,
-};
+use crate::types::{EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeInfo, TypeVar, TypecheckCtx, UserType};
 
-pub struct TypeWithCtx<'t, 'c, 'm> {
+pub struct TypeWithCtx<'t, 'c> {
     ty: TypeId,
-    ctx: &'t TypecheckCtx<'c, 'm>,
+    ctx: &'t TypeInfo<'c>,
 }
 
-impl<'t, 'c, 'm> TypeWithCtx<'t, 'c, 'm> {
-    pub fn new(ty: TypeId, ctx: &'t TypecheckCtx<'c, 'm>) -> Self {
+impl<'t, 'c> TypeWithCtx<'t, 'c> {
+    pub fn new(ty: TypeId, ctx: &'t TypeInfo<'c>) -> Self {
         Self { ty, ctx }
     }
 
@@ -85,14 +83,15 @@ impl<'t, 'c, 'm> TypeWithCtx<'t, 'c, 'm> {
             }
             // @@Todo: print trait bounds
             crate::types::TypeValue::Unknown(_) => TreeNode::leaf("unknown".to_owned()),
-            crate::types::TypeValue::Namespace(NamespaceType { module_idx }) => {
-                TreeNode::leaf(format!("namespace ({:?})", module_idx))
+            crate::types::TypeValue::Namespace(_) => {
+                todo!()
+                // TreeNode::leaf(format!("namespace ({:?})", module_idx))
             }
         }
     }
 }
 
-impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c, 'm> {
+impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.ctx.types.get(self.ty) {
             crate::types::TypeValue::Ref(RefType { inner }) => {

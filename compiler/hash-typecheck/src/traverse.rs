@@ -1,31 +1,116 @@
-use std::mem;
+use std::{borrow::Borrow, collections::HashMap, mem};
 
-use hash_alloc::Wall;
+use hash_alloc::{collections::row::Row, Castle, Wall};
 use hash_ast::{
     ast::{self, AstNode, AstNodeRef, TypeId},
     location::Location,
+    module::{Module, ModuleIdx, Modules},
 };
 
 use crate::{
     types::{
-        PrimType, RawRefType, RefType, TypeValue, TypecheckCtx, TypecheckError, TypecheckResult,
-        UnknownType,
+        FnType, NamespaceType, PrimType, RawRefType, RefType, TypeInfo, TypeValue, TypecheckCtx,
+        TypecheckError, TypecheckResult, UnknownType,
     },
     writer::TypeWithCtx,
 };
 
-pub struct Traverser<'c, 'm> {
-    ctx: TypecheckCtx<'c, 'm>,
+pub struct TraversePatternOutput {
+    is_refutable: bool,
+    ty: TypeId,
+}
+
+impl TraversePatternOutput {}
+
+pub struct ModuleTraverser<'c, 'm> {
+    type_info: TypeInfo<'c>,
+    traversed_modules: HashMap<ModuleIdx, TypeId>,
+    modules: &'m Modules<'c>,
+    castle: &'c Castle,
+}
+
+impl<'c, 'm> ModuleTraverser<'c, 'm> {
+    pub fn new(modules: &'m Modules<'c>, castle: &'c Castle) -> Self {
+        Self {
+            modules,
+            castle,
+            type_info: TypeInfo::new(),
+            traversed_modules: HashMap::new(),
+        }
+    }
+
+    pub fn type_info(&self) -> &TypeInfo<'c> {
+        &self.type_info
+    }
+
+    pub fn traverse(self) -> TypecheckResult<TypeInfo<'c>> {
+        let _ = self.traverse_module(self.modules.get_entry_point_unchecked().index())?;
+        Ok(self.type_info)
+    }
+
+    pub fn traverse_module(&mut self, module_idx: ModuleIdx) -> TypecheckResult<TypeId> {
+        match self.traversed_modules.get(&module_idx) {
+            Some(&namespace_id) => Ok(namespace_id),
+            None => {
+                let module = self.modules.get_by_index(module_idx);
+                let ctx = TypecheckCtx::new();
+                let traverser = Traverser::new(self, ctx, Wall::new(&self.castle));
+                let namespace_id = traverser.traverse_module(module.ast())?;
+                self.traversed_modules.insert(module_idx, namespace_id);
+                Ok(namespace_id)
+            }
+        }
+    }
+}
+
+pub struct Traverser<'c, 'm, 't> {
+    module_traverser: &'t ModuleTraverser<'c, 'm>,
+    ctx: TypecheckCtx,
     wall: Wall<'c>,
 }
 
-impl<'c, 'm> Traverser<'c, 'm> {
-    pub fn new(ctx: TypecheckCtx<'c, 'm>, wall: Wall<'c>) -> Self {
-        Self { ctx, wall }
+impl<'c, 'm, 't> Traverser<'c, 'm, 't> {
+    pub fn new(
+        module_traverser: &'t ModuleTraverser<'c, 'm>,
+        ctx: TypecheckCtx,
+        wall: Wall<'c>,
+    ) -> Self {
+        Self {
+            ctx,
+            wall,
+            module_traverser,
+        }
     }
 
-    pub fn into_inner(self) -> (TypecheckCtx<'c, 'm>, Wall<'c>) {
-        (self.ctx, self.wall)
+    fn type_info(&self) -> &TypeInfo<'c> {
+        self.module_traverser.type_info()
+    }
+
+    fn unify_pairs(
+        &mut self,
+        pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
+    ) -> TypecheckResult<()> {
+        self.type_info()
+            .types
+            .unify_pairs(pairs, &mut self.ctx.type_vars)
+    }
+
+    fn unify(&mut self, a: TypeId, b: TypeId) -> TypecheckResult<()> {
+        self.type_info().types.unify(a, b, &mut self.ctx.type_vars)
+    }
+
+    fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
+        self.type_info().types.create(value, &self.wall)
+    }
+
+    fn get_type(&mut self, ty: TypeId) -> &TypeValue<'c> {
+        self.type_info().types.get(ty)
+    }
+
+    fn create_unknown_type(&mut self) -> TypeId {
+        self.type_info()
+            .types
+            .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall)
     }
 
     pub fn traverse_function_call_args(
@@ -46,18 +131,15 @@ impl<'c, 'm> Traverser<'c, 'm> {
         let fn_type = self.traverse_expression(node.subject.ast_ref())?;
         let given_args = self.traverse_function_call_args(node.args.ast_ref())?;
 
-        let fn_ret = match self.ctx.types.get(fn_type) {
+        let fn_ret = match self.type_info().types.get(fn_type) {
             crate::types::TypeValue::Fn(fn_def_type) => {
-                self.ctx.types.unify_pairs(
-                    given_args.iter().zip(fn_def_type.args.iter()),
-                    &mut self.ctx.type_vars,
-                )?;
+                self.unify_pairs(given_args.iter().zip(fn_def_type.args.iter()))?;
                 fn_def_type.ret
             }
             _ => {
                 return Err(TypecheckError::Message(format!(
                     "Expected a function type, got '{}'.",
-                    TypeWithCtx::new(fn_type, &self.ctx),
+                    TypeWithCtx::new(fn_type, &self.type_info()),
                 )))
             }
         };
@@ -71,9 +153,62 @@ impl<'c, 'm> Traverser<'c, 'm> {
     ) -> TypecheckResult<TypeId> {
         // @@Todo
         Ok(self
-            .ctx
+            .type_info()
             .types
             .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall))
+    }
+
+    pub fn traverse_function_def(
+        &mut self,
+        node: AstNodeRef<ast::FunctionDef<'c>>,
+    ) -> TypecheckResult<TypeId> {
+        let ast::FunctionDef {
+            args,
+            fn_body,
+            return_ty,
+        } = node.body();
+
+        let mut args_ty = Row::with_capacity(args.len(), &self.wall);
+        for arg in args {
+            let arg_ty = match &arg.ty {
+                Some(ty) => self.traverse_type(ty.ast_ref())?,
+                None => self.create_unknown_type(),
+            };
+            args_ty.push(arg_ty, &self.wall);
+        }
+
+        let ret_ty = return_ty
+            .as_ref()
+            .map(|return_ty| self.traverse_type(return_ty.ast_ref()))
+            .unwrap_or_else(|| Ok(self.create_unknown_type()))?;
+
+        let old_ret_ty = self.ctx.state.func_ret_type.replace(ret_ty);
+        let old_ret_once = mem::replace(&mut self.ctx.state.ret_once, false);
+        let body_ty = self.traverse_expression(fn_body.ast_ref())?;
+        self.ctx.state.func_ret_type = old_ret_ty;
+        let ret_once = mem::replace(&mut self.ctx.state.ret_once, old_ret_once);
+
+        // unify returns
+        match self.get_type(body_ty) {
+            TypeValue::Prim(PrimType::Void) => {
+                if ret_once {
+                    let body_ty = self.create_unknown_type();
+                    self.unify(ret_ty, body_ty)?;
+                } else {
+                    self.unify(ret_ty, body_ty)?;
+                }
+            }
+            _ => {
+                self.unify(ret_ty, body_ty)?;
+            }
+        };
+
+        let fn_ty = self.create_type(TypeValue::Fn(FnType {
+            args: args_ty,
+            ret: ret_ty,
+        }));
+
+        Ok(fn_ty)
     }
 
     pub fn traverse_literal(
@@ -83,24 +218,36 @@ impl<'c, 'm> Traverser<'c, 'm> {
         match node.body() {
             ast::Literal::Str(_) => todo!(),
             ast::Literal::Char(_) => Ok(self
-                .ctx
+                .type_info()
                 .types
                 .create(TypeValue::Prim(PrimType::Char), &self.wall)),
             ast::Literal::Int(_) => Ok(self
-                .ctx
+                .type_info()
                 .types
                 .create(TypeValue::Prim(PrimType::I32), &self.wall)),
             ast::Literal::Float(_) => Ok(self
-                .ctx
+                .type_info()
                 .types
                 .create(TypeValue::Prim(PrimType::F32), &self.wall)),
+            ast::Literal::Function(func_def) => {
+                self.traverse_function_def(node.with_body(func_def))
+            }
             ast::Literal::Set(_) => todo!(),
             ast::Literal::Map(_) => todo!(),
             ast::Literal::List(_) => todo!(),
             ast::Literal::Tuple(_) => todo!(),
             ast::Literal::Struct(_) => todo!(),
-            ast::Literal::Function(_) => todo!(),
         }
+    }
+
+    pub fn traverse_named_type(
+        &mut self,
+        node: AstNodeRef<ast::NamedType<'c>>,
+    ) -> TypecheckResult<TypeId> {
+        todo!()
+        // match self.type_info().scopes.re(node.name.path) {
+
+        // }
     }
 
     pub fn traverse_type(&mut self, node: AstNodeRef<ast::Type<'c>>) -> TypecheckResult<TypeId> {
@@ -111,14 +258,14 @@ impl<'c, 'm> Traverser<'c, 'm> {
             ast::Type::Ref(inner_ty) => {
                 let inner = self.traverse_type(inner_ty.ast_ref())?;
                 Ok(self
-                    .ctx
+                    .type_info()
                     .types
                     .create(TypeValue::Ref(RefType { inner }), &self.wall))
             }
             ast::Type::RawRef(inner_ty) => {
                 let inner = self.traverse_type(inner_ty.ast_ref())?;
                 Ok(self
-                    .ctx
+                    .type_info()
                     .types
                     .create(TypeValue::RawRef(RawRefType { inner }), &self.wall))
             }
@@ -134,7 +281,7 @@ impl<'c, 'm> Traverser<'c, 'm> {
     ) -> TypecheckResult<TypeId> {
         let expr = self.traverse_expression(node.expr.ast_ref())?;
         let ty = self.traverse_type(node.ty.ast_ref())?;
-        self.ctx.types.unify(expr, ty, &mut self.ctx.type_vars)?;
+        self.unify(expr, ty)?;
         Ok(expr)
     }
 
@@ -154,7 +301,7 @@ impl<'c, 'm> Traverser<'c, 'm> {
             ast::ExpressionKind::Ref(inner) => {
                 let inner_ty = self.traverse_expression(inner.ast_ref())?;
                 Ok(self
-                    .ctx
+                    .type_info()
                     .types
                     .create(TypeValue::Ref(RefType { inner: inner_ty }), &self.wall))
             }
@@ -162,18 +309,16 @@ impl<'c, 'm> Traverser<'c, 'm> {
                 let given_ref_ty = self.traverse_expression(inner.ast_ref())?;
 
                 let created_inner_ty = self
-                    .ctx
+                    .type_info()
                     .types
                     .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall);
-                let created_ref_ty = self.ctx.types.create(
+                let created_ref_ty = self.type_info().types.create(
                     TypeValue::Ref(RefType {
                         inner: created_inner_ty,
                     }),
                     &self.wall,
                 );
-                self.ctx
-                    .types
-                    .unify(created_ref_ty, given_ref_ty, &mut self.ctx.type_vars)?;
+                self.unify(created_ref_ty, given_ref_ty)?;
 
                 Ok(created_inner_ty)
             }
@@ -204,15 +349,14 @@ impl<'c, 'm> Traverser<'c, 'm> {
                         .map(|expr| self.traverse_expression(expr.ast_ref()))
                         .unwrap_or_else(|| {
                             Ok(self
-                                .ctx
+                                .type_info()
                                 .types
                                 .create(TypeValue::Prim(PrimType::Void), &self.wall))
                         })?;
 
                     // @@Todo: Here we might want to unify bidirectionally.
-                    self.ctx
-                        .types
-                        .unify(ret, given_ret, &mut self.ctx.type_vars)?;
+                    self.unify(ret, given_ret)?;
+                    self.ctx.state.ret_once = true;
 
                     Ok(())
                 }
@@ -233,7 +377,38 @@ impl<'c, 'm> Traverser<'c, 'm> {
                     Ok(())
                 }
             }
-            ast::Statement::Let(_) => todo!(),
+            ast::Statement::Let(let_statement) => {
+                let pattern_result = self.traverse_pattern(let_statement.pattern.ast_ref())?;
+                if pattern_result.is_refutable {
+                    return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
+                }
+
+                let type_result = let_statement
+                    .ty
+                    .as_ref()
+                    .map(|ty| self.traverse_type(ty.ast_ref()))
+                    .transpose()?;
+
+                // @@Todo: bounds
+
+                let value_result = let_statement
+                    .value
+                    .as_ref()
+                    .map(|value| self.traverse_expression(value.ast_ref()))
+                    .transpose()?;
+
+                // @@Todo: Bidirectional
+                if let (Some(value_result), Some(type_result)) = (value_result, type_result) {
+                    self.unify(value_result, type_result)?;
+                }
+
+                // This is probably not right
+                if let Some(value_result) = value_result {
+                    self.unify(pattern_result.ty, value_result)?;
+                }
+
+                Ok(())
+            }
             ast::Statement::Assign(_) => todo!(),
             ast::Statement::StructDef(_) => todo!(),
             ast::Statement::EnumDef(_) => todo!(),
@@ -250,11 +425,29 @@ impl<'c, 'm> Traverser<'c, 'm> {
                 self.ctx.state.in_loop = last_in_loop;
 
                 Ok(self
-                    .ctx
+                    .type_info()
                     .types
                     .create(TypeValue::Prim(PrimType::Void), &self.wall))
             }
             ast::Block::Body(body_block) => self.traverse_body_block(node.with_body(body_block)),
+        }
+    }
+
+    pub fn traverse_pattern(
+        &mut self,
+        node: AstNodeRef<ast::Pattern<'c>>,
+    ) -> TypecheckResult<TraversePatternOutput> {
+        match node.body() {
+            ast::Pattern::Enum(_) => todo!(),
+            ast::Pattern::Struct(_) => todo!(),
+            ast::Pattern::Namespace(_) => todo!(),
+            ast::Pattern::Tuple(_) => todo!(),
+            ast::Pattern::Literal(_) => todo!(),
+            ast::Pattern::Or(_) => todo!(),
+            ast::Pattern::If(_) => todo!(),
+            ast::Pattern::Binding(_) => todo!(),
+
+            ast::Pattern::Ignore => todo!(),
         }
     }
 
@@ -268,17 +461,22 @@ impl<'c, 'm> Traverser<'c, 'm> {
         match &node.expr {
             Some(expr) => self.traverse_expression(expr.ast_ref()),
             None => Ok(self
-                .ctx
+                .type_info()
                 .types
                 .create(TypeValue::Prim(PrimType::Void), &self.wall)),
         }
     }
 
-    pub fn traverse_module(&mut self, node: AstNodeRef<ast::Module<'c>>) -> TypecheckResult<()> {
+    pub fn traverse_module(&mut self, node: &ast::Module<'c>) -> TypecheckResult<TypeId> {
         for statement in &node.contents {
             self.traverse_statement(statement.ast_ref())?;
         }
-        Ok(())
+
+        let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType {
+            members: self.ctx.scopes.extract_current_scope(),
+        }));
+
+        Ok(namespace_ty)
     }
 }
 
@@ -300,14 +498,14 @@ mod tests {
 
         let modules = ModuleBuilder::new().build();
 
-        let mut ctx = TypecheckCtx {
-            types: Types::new(),
-            type_defs: TypeDefs::new(),
-            type_vars: TypeVars::new(),
-            traits: Traits::new(),
-            state: TypecheckState::default(),
-            scopes: ScopeStack::new(),
-            modules: &modules,
-        };
+        // let mut ctx = TypecheckCtx {
+        //     types: Types::new(),
+        //     type_defs: TypeDefs::new(),
+        //     type_vars: TypeVars::new(),
+        //     traits: Traits::new(),
+        //     state: TypecheckState::default(),
+        //     scopes: ScopeStack::new(),
+        //     modules: &modules,
+        // };
     }
 }
