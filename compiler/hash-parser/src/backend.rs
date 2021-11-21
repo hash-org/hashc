@@ -12,17 +12,21 @@ use hash_utils::timed;
 use crate::gen::AstGen;
 use crate::lexer::Lexer;
 
+/// Implementation structure for the parser.
 pub struct HashParser<'c> {
+    /// Parser allocator object.
     castle: &'c Castle,
 }
 
 impl<'c> HashParser<'c> {
+    /// Create a new Hash parser with the self hosted backend.
     pub fn new(castle: &'c Castle) -> Self {
         Self { castle }
     }
 }
 
 impl<'c> ParserBackend<'c> for HashParser<'c> {
+    /// Parse a module.
     fn parse_module(
         &self,
         resolver: impl ModuleResolver,
@@ -47,6 +51,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         )
     }
 
+    /// Parse interactive statements.
     fn parse_interactive(
         &self,
         resolver: impl ModuleResolver,
