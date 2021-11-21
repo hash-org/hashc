@@ -44,8 +44,11 @@ let other_func = (t: str) => {
         "two" => 2;
         "three" => 3;
         "four" | "five" if var => 4.5;
+        alpha if var == 2 => {
+            print(alpha)
+        };
         _ => -1;
-    }
+    };
 
     return alpha;
 };
@@ -88,7 +91,7 @@ let c = {1,2,3,4,5,6,7,};
 let d = (1,2,3,4,5);
 
 // Import
-let num = import("../stdlib/num");
+let {exp, tan} = import("../stdlib/num");
 
 // A character
 let ch: char = 'c';
@@ -101,6 +104,8 @@ let bin_val = 0b1010100001010;
 let oct_val = 0o1272170;
 let fl_val: float = 6.0e-3;
 let flag = false;
+
+let Token { pat } = get_token();
 
 // library imports with specific symbol extraction and symbol renaming
 // let {i: func, b: func_ext} = import("mylib");

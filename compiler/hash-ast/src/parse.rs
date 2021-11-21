@@ -5,11 +5,12 @@
 use crate::{
     ast::{self, *},
     error::{ParseError, ParseResult},
-    module::{ModuleBuilder, Modules},
+    module::{ModuleBuilder, ModuleIdx, Modules},
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
-use std::{collections::VecDeque, sync::Mutex};
+use log::{log, Level};
+use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};
 
 /// A trait for types which can parse a source file into an AST tree.
@@ -19,7 +20,7 @@ pub trait Parser<'c> {
         &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules<'c>>;
+    ) -> (Result<(), Vec<ParseError>>, Modules<'c>);
 
     /// Parse an interactive input string.
     ///
@@ -31,7 +32,10 @@ pub trait Parser<'c> {
         &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)>;
+    ) -> (
+        Result<AstNode<'c, BodyBlock<'c>>, Vec<ParseError>>,
+        Modules<'c>,
+    );
 }
 
 #[derive(Debug, Constructor, Copy, Clone)]
@@ -77,7 +81,11 @@ enum EntryPoint<'a> {
 }
 
 pub struct ParParser<B> {
+    /// Number of workers the parser should use to parse a job.
     worker_count: NonZeroUsize,
+    /// Whether or not to visualise the generated AST
+    visualise: bool,
+    /// What backend to use for parsing, whether PEST or self hosted.
     backend: B,
 }
 
@@ -85,23 +93,35 @@ impl<'c, B> ParParser<B>
 where
     B: ParserBackend<'c>,
 {
-    pub fn new(backend: B) -> Self {
-        Self::new_with_workers(backend, NonZeroUsize::new(num_cpus::get()).unwrap())
+    pub fn new(backend: B, visualise: bool) -> Self {
+        Self::new_with_workers(
+            backend,
+            NonZeroUsize::new(num_cpus::get()).unwrap(),
+            visualise,
+        )
     }
 
-    pub fn new_with_workers(backend: B, worker_count: NonZeroUsize) -> Self {
+    pub fn new_with_workers(backend: B, worker_count: NonZeroUsize, visualise: bool) -> Self {
         Self {
             worker_count,
             backend,
+            visualise,
         }
+    }
+
+    pub fn set_visualisation(&mut self, visualise: bool) {
+        self.visualise = visualise;
     }
 
     fn parse_main(
         &self,
         entry: EntryPoint,
         directory: &Path,
-    ) -> ParseResult<(Option<AstNode<'c, BodyBlock<'c>>>, Modules<'c>)> {
-        // Spawn threadpool to delegate jobs to. This delegation can occur by acquiring a copy of
+    ) -> (
+        Result<Option<AstNode<'c, BodyBlock<'c>>>, Vec<ParseError>>,
+        Modules<'c>,
+    ) {
+        // Spawn thread pool to delegate jobs to. This delegation can occur by acquiring a copy of
         // the `scope` parameter in the pool.scope call below.
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(self.worker_count.get() + 1)
@@ -178,6 +198,20 @@ where
                     );
                     let entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
 
+                    // @@Cleanup: we need to insert the contents of interactive into the module builder...
+                    //            At the moment, this isn't the cleanest way of going about the problem, we're
+                    //            overwriting the previous content of the interactive session with the current
+                    //            input. This is incorrect because we want to preserve the lines of interactive
+                    //            that are considered to be valid (this is a much deeper problem actually.)
+                    //
+                    //            So, in @@Future, we shouldn't even insert the contents here since it needs
+                    //            to pass the typechecking stage and then be inserted into the line, I guess typechecking
+                    //            can *evict* the current source line if it is invalid?
+                    //
+                    //            @@Copying: we're also having to copy the source because we get a &str instead of a String.
+                    let copy = interactive_source.to_string();
+                    module_builder.add_contents(ModuleIdx(0), PathBuf::from("<interactive>"), copy);
+
                     // Return the interactive node for interactive entry point.
                     Ok(Some(
                         self.backend
@@ -185,15 +219,28 @@ where
                     ))
                 }
             }
-        })?;
+        });
 
         let mut errors = errors.into_inner().unwrap();
-        if let Some(err) = errors.pop_front() {
-            Err(err)
-        } else {
-            // @@Todo: return all errors.
-            let modules = module_builder.build();
-            Ok((maybe_interactive_node, modules))
+
+        // we always need to return modules since they are used for reporting
+        let modules = module_builder.build();
+
+        // return the error with any other potential errors that are collected from the interactive
+        // statements
+        match maybe_interactive_node {
+            Err(e) => {
+                errors.push_back(e);
+
+                (Err(Vec::from(errors)), modules)
+            }
+            Ok(block) => {
+                if !errors.is_empty() {
+                    return (Err(Vec::from(errors)), modules);
+                }
+
+                (Ok(block), modules)
+            }
         }
     }
 }
@@ -206,23 +253,52 @@ where
         &self,
         filename: impl AsRef<Path>,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<Modules<'c>> {
+    ) -> (Result<(), Vec<ParseError>>, Modules<'c>) {
         let filename = filename.as_ref();
         let directory = directory.as_ref();
         let entry = EntryPoint::Module { filename };
-        let (_, modules) = self.parse_main(entry, directory)?;
-        Ok(modules)
+        let (state, modules) = self.parse_main(entry, directory);
+
+        // check if the parser returned an error whilst parsing, if so extract the errors and pass them upwards
+        if let Err(errors) = state {
+            return (Err(errors), modules);
+        }
+
+        // If we need to visualise the file... then do so after the parser has finished
+        // the whole tree.
+        if self.visualise {
+            for module in modules.iter() {
+                log!(
+                    Level::Debug,
+                    "file \"{}\":\n{}",
+                    module.filename().display(),
+                    module.ast()
+                );
+            }
+        }
+
+        (Ok(()), modules)
     }
 
     fn parse_interactive(
         &self,
         contents: &str,
         directory: impl AsRef<Path>,
-    ) -> ParseResult<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
+    ) -> (
+        Result<AstNode<'c, BodyBlock<'c>>, Vec<ParseError>>,
+        Modules<'c>,
+    ) {
         let directory = directory.as_ref();
         let entry = EntryPoint::Interactive { contents };
-        let (interactive, modules) = self.parse_main(entry, directory)?;
-        Ok((interactive.unwrap(), modules))
+        let (result, modules) = self.parse_main(entry, directory);
+
+        // Ensure that this method always returns a body block or an
+        // error since it can never be `None`.
+        match result {
+            Ok(Some(block)) => (Ok(block), modules),
+            Ok(None) => panic!("Non-body block parsed node for interactive input"),
+            Err(errors) => (Err(errors), modules),
+        }
     }
 }
 

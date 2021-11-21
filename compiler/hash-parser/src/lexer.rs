@@ -3,14 +3,17 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::ident::Identifier;
-use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
+use hash_ast::{error::ParseResult, ident::Identifier};
+use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
-    token::{Delimiter, Token, TokenAtom, TokenError, TokenErrorKind, TokenKind, TokenResult},
+    token::{
+        Delimiter, Token, TokenAtom, TokenError, TokenErrorKind, TokenErrorWrapper, TokenKind,
+        TokenResult,
+    },
     utils::*,
 };
 use std::{cell::Cell, iter};
@@ -19,26 +22,37 @@ use std::{cell::Cell, iter};
 /// a [Lexer] since there is no character before the start.
 const EOF_CHAR: char = '\0';
 
+/// The [Lexer] is a representation of the source in tokens that can be turned into the
+/// AST. The [Lexer] has methods that can parse various token types from the source,
+/// transform the entire contents into a vector of tokens and some useful lexing utilities.
 pub(crate) struct Lexer<'w, 'c, 'a> {
     /// Location of the lexer in the current stream.
     offset: Cell<usize>,
 
+    /// The contents that are to be lexed.
     contents: &'a str,
 
-    /// The previous character of the current stream, this is useful for keeping track
-    /// of state when tokenising compound inputs that rely on previous context.
+    /// Representative module index of the current source.
+    module_idx: ModuleIdx,
+
+    /// Representing the last character the lexer encountered. This is only set
+    /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a check
+    /// on if the token tree was closed up.
+    // @@Cleanup: We could use a delimiter stack to automatically guarantee this?
     prev: Cell<Option<char>>,
 
+    /// The castle allocator for the current [Lexer].
     wall: &'w Wall<'c>,
 }
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Create a new [Lexer] from the given string input.
-    pub(crate) fn new(contents: &'a str, wall: &'w Wall<'c>) -> Self {
+    pub(crate) fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
         Lexer {
             offset: Cell::new(0),
-            contents,
+            module_idx,
             prev: Cell::new(None),
+            contents,
             wall,
         }
     }
@@ -58,34 +72,40 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         self.nth_char(1)
     }
 
+    unsafe fn as_slice(&self) -> &str {
+        let offset = self.offset.get();
+
+        // ##Safety: We rely that the byte offset is correctly computed when stepping over the
+        //           characters in the iterator.
+        std::str::from_utf8_unchecked(&self.contents.as_bytes()[offset..])
+    }
+
     /// Returns nth character relative to the current position.
     /// If requested position doesn't exist, `EOF_CHAR` is returned.
     /// However, getting `EOF_CHAR` doesn't always mean actual end of file,
     /// it should be checked with `is_eof` method.
     fn nth_char(&self, n: usize) -> char {
-        let offset = self.offset.get();
-
-        // ##Safety: We rely that the byte offset is correctly computed when stepping over the
-        //           characters in the iterator.
-        let slice = unsafe { std::str::from_utf8_unchecked(&self.contents.as_bytes()[offset..]) };
+        let slice = unsafe { self.as_slice() };
 
         slice.chars().nth(n).unwrap_or(EOF_CHAR)
     }
 
     /// Moves to the next character.
     pub(crate) fn next(&self) -> Option<char> {
-        let offset = self.offset.get();
-
-        // ##Safety: We rely that the byte offset is correctly computed when stepping over the
-        //           characters in the iterator.
-        let slice = unsafe { std::str::from_utf8_unchecked(&self.contents.as_bytes()[offset..]) };
+        let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next()?;
 
-        // only increment the offset by one if there is a next character
-        self.prev.set(Some(ch));
-
-        self.offset.set(offset + ch.len_utf8());
+        self.offset.update(|x| x + ch.len_utf8());
         Some(ch)
+    }
+
+    /// Move to the next character and skip it essentially.
+    pub(crate) fn skip(&self) {
+        let slice = unsafe { self.as_slice() };
+        let ch = slice.chars().next().unwrap();
+
+        // only increment the offset by one if there is a next character
+        self.offset.update(|x| x + ch.len_utf8());
     }
 
     /// Checks if there is nothing more to consume.
@@ -95,8 +115,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Parses a token from the input string.
     pub(crate) fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
-        let offset = self.offset.get();
-
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -105,13 +123,13 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     '*' => self.block_comment(),
                     '/' => self.line_comment(),
                     _ => {
-                        self.next();
+                        self.skip();
 
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
                         return Ok(Some(Token::new(
                             TokenKind::Atom(TokenAtom::Slash),
-                            Location::pos(offset),
+                            Location::pos(self.offset.get()),
                         )));
                     }
                 },
@@ -119,6 +137,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             }
         }
 
+        let offset = self.offset.get();
         let next_token = self.next();
 
         if next_token.is_none() {
@@ -165,25 +184,23 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
             // Identifier (this should be checked after other variant that can
             // start as identifier).
-            ch if is_id_start(ch) => self.ident(),
+            ch if is_id_start(ch) => self.ident(ch),
             // Numeric literal.
-            '0'..='9' => self.number()?,
+            ch @ '0'..='9' => self.number(ch)?,
             // character literal.
             '\'' => self.char()?,
             // String literal.
             '"' => self.string()?,
 
             // We have to exit the current tree if we encounter a closing delimiter...
-            ')' | '}' | ']' => return Ok(None),
+            ch @ (')' | '}' | ']') => {
+                self.prev.set(Some(ch));
+
+                return Ok(None);
+            }
 
             // We didn't get a hit on the right token...
-            ch => TokenKind::Atom(TokenAtom::Unexpected(ch)), // ch => {
-                                                              //     return Err(TokenError::new(
-                                                              //         Some(format!("Unexpected character '{}'", ch)),
-                                                              //         TokenErrorKind::Unexpected(ch),
-                                                              //         Location::pos(offset + self.len_consumed()),
-                                                              //     ))
-                                                              // }
+            ch => TokenKind::Atom(TokenAtom::Unexpected(ch)),
         };
 
         let location = Location::span(offset, self.len_consumed());
@@ -193,12 +210,9 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// This will essentially recursively consume tokens until it reaches the right hand-side variant
     /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
-    /// perfoming complex delimiter depth analysis later on.
+    /// performing complex delimiter depth analysis later on.
     pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind<'c>> {
-        debug_assert!(self.prev.get().unwrap() == delimiter.left());
-
         let mut children_tokens = row![self.wall];
-
         let start = self.offset.get();
 
         while !self.is_eof() {
@@ -221,15 +235,18 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Consume an identifier, at this stage keywords are also considered to be identifiers. The function
     /// expects that the first character of the identifier is consumed when the function is called.
-    pub(crate) fn ident(&self) -> TokenKind<'c> {
-        let first = self.prev.get().unwrap();
+    pub(crate) fn ident(&self, first: char) -> TokenKind<'c> {
         debug_assert!(is_id_start(first));
 
-        let suffix = self.eat_while(is_id_continue);
-        let name: String = iter::once(first).chain(suffix).collect();
+        let start = self.offset.get() - first.len_utf8();
+        // @@Hack: instead of using an iterator to collect, we want to eat the chars and then take
+        //         a slice at the end
+        self.eat_while_and_discard(is_id_continue);
+
+        let name = &self.contents[start..self.offset.get()];
 
         // create the identifier here from the created map
-        let ident = IDENTIFIER_MAP.create_ident(&name);
+        let ident = IDENTIFIER_MAP.create_ident(name);
 
         // check if this is an actual keyword instead of an ident, and if it is convert the token type...
         match ident {
@@ -242,10 +259,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Consume a number literal, either float or integer. The function expects that the first character of
     /// the numeric literal is consumed when the function is called.
-    pub(crate) fn number(&self) -> TokenResult<TokenKind<'c>> {
-        let prev = self.prev.get().unwrap();
-        debug_assert!(('0'..='9').contains(&prev));
-
+    pub(crate) fn number(&self, prev: char) -> TokenResult<TokenKind<'c>> {
         // record the start location of the literal
         let start = self.offset.get() - 1;
 
@@ -262,7 +276,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
             // if this does have a radix then we need to handle the radix
             if let Some(radix) = maybe_radix {
-                self.next(); // accounting for the radix
+                self.skip(); // accounting for the radix
 
                 let chars = self.eat_decimal_digits(radix);
                 let value = u64::from_str_radix(chars, radix);
@@ -280,14 +294,20 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             }
         }
 
-        let pre_digit = self.prev.get().unwrap();
-        let pre_digits = iter::once(pre_digit).chain(self.eat_decimal_digits(10).chars());
+        // @@Performance: could avoid allocating the string here?
+        let pre_digits = iter::once(prev)
+            .chain(self.eat_decimal_digits(10).chars())
+            .filter(|c| *c != '_');
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
-            '.' => {
-                // Only eat the char
-                self.next();
+            // here we have to check if the next char valid char is potentially a character that begins
+            // an identifier. This enables for infix calls on integer literals in the form of '2.pow(...)'
+            // If we don't check this here, it leads to the tokeniser being too greedy and eating the
+            // 'dot' without reason. Admittedly, this is a slight ambiguity in the language syntax, but
+            // there isn't currently a clear way to resolve this ambiguity. - Alex. 07 Sep 2021
+            '.' if !is_id_start(self.peek_second()) => {
+                self.skip();
 
                 let after_digits = self.eat_decimal_digits(10);
 
@@ -299,14 +319,18 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             }
             // Immediate exponent
             'e' | 'E' => self.eat_float_literal(pre_digits, start),
-            _ => match pre_digits.collect::<String>().parse::<u64>() {
-                Err(_) => Err(TokenError::new(
-                    Some("Integer literal too large.".to_string()),
-                    TokenErrorKind::MalformedNumericalLiteral,
-                    Location::span(start, self.offset.get()),
-                )),
-                Ok(value) => Ok(TokenKind::Atom(TokenAtom::IntLiteral(value))),
-            },
+            _ => {
+                let digits = pre_digits.collect::<String>();
+
+                match digits.parse::<u64>() {
+                    Err(e) => Err(TokenError::new(
+                        Some(format!("Malformed integer literal '{}'. {:?}", digits, e)),
+                        TokenErrorKind::MalformedNumericalLiteral,
+                        Location::span(start, self.offset.get()),
+                    )),
+                    Ok(value) => Ok(TokenKind::Atom(TokenAtom::IntLiteral(value))),
+                }
+            }
         }
     }
 
@@ -343,13 +367,13 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             return Ok(0);
         }
 
-        self.next(); // consume the exponent
+        self.skip(); // consume the exponent
 
         let start = self.offset.get();
 
         // Check if there is a sign before the digits start in the exponent...
         let negated = if self.peek() == '-' {
-            self.next();
+            self.skip();
             true
         } else {
             false
@@ -377,7 +401,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// escape literal rules. More information about the escape sequences can be found at
     /// [escape sequences](https://hash-org.github.io/lang/basics/intro.html)
     fn char_from_escape_seq(&self) -> TokenResult<char> {
-        debug_assert!(self.prev.get().unwrap() == '\\');
         let c = self.next().unwrap();
 
         // we need to compute the old byte offset by accounting for both the 'u' character and the '\\' character,
@@ -398,10 +421,12 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     ));
                 }
 
-                self.next();
+                self.skip(); // Eat the '{' beginning part of the scape sequence
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
                 let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
+
+                // @@TODO: validate the fact that it can only be a max of 6 chars...
 
                 if self.peek() != '}' {
                     return Err(TokenError::new(
@@ -410,7 +435,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                         Location::span(start, self.offset.get()),
                     ));
                 }
-                self.next();
+                self.skip(); // Eat the '}' ending part of the scape sequence
 
                 let value = u32::from_str_radix(chars, 16);
 
@@ -472,8 +497,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// correctly formed and is ended before the end of file is reached. This function expects
     /// the the callee has previously eaten the starting single quote.
     pub(crate) fn char(&self) -> TokenResult<TokenKind<'c>> {
-        debug_assert!(self.prev.get().unwrap() == '\'');
-
         // Subtract one to capture the previous quote, since we know it's one byte in size
         let start = self.offset.get() - 1;
 
@@ -481,13 +504,13 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // eat the next char and expect the second character to be a "\'" char...
         if self.peek_second() == '\'' && self.peek() != '\\' {
             let ch = self.next().unwrap();
-            self.next();
+            self.skip();
 
             return Ok(TokenKind::Atom(TokenAtom::CharLiteral(ch)));
         } else if self.peek() == '\\' {
             // otherwise, this is an escaped char and hence we eat the '\' and use the next char as
             // the actual char by escaping it
-            self.next();
+            self.skip();
 
             let ch = self.char_from_escape_seq()?;
             let next = self.peek();
@@ -510,15 +533,15 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 ));
             }
 
-            self.next();
+            self.skip(); // eat the ending part of the character literal `'`
 
             return Ok(TokenKind::Atom(TokenAtom::CharLiteral(ch)));
         }
 
         Err(TokenError::new(
-            None,
+            Some("Invalid character literal.".to_string()),
             TokenErrorKind::Unexpected(self.peek()),
-            Location::pos(self.offset.get()),
+            Location::span(start, self.offset.get() + 1),
         ))
     }
 
@@ -526,8 +549,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// quote, this will produce a [TokenKind::Atom(TokenAtom::StrLiteral)] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
     pub(crate) fn string(&self) -> TokenResult<TokenKind<'c>> {
-        debug_assert!(self.prev.get().unwrap() == '"');
-
         let mut value = String::from("");
 
         while let Some(c) = self.next() {
@@ -553,7 +574,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
     pub(crate) fn line_comment(&self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
-        self.next();
+        self.skip();
         self.eat_while_and_discard(|c| c != '\n');
     }
 
@@ -563,7 +584,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
     pub(crate) fn block_comment(&self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
-        self.next();
+        self.skip();
 
         // since we aren't as dumb as C++, we want to count the depth of block comments
         // and account for nested ones, we keep track of it whilst consuming the block...
@@ -572,11 +593,11 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         while let Some(c) = self.next() {
             match c {
                 '/' if self.peek() == '*' => {
-                    self.next();
+                    self.skip();
                     depth += 1;
                 }
                 '*' if self.peek() == '/' => {
-                    self.next();
+                    self.skip();
                     depth -= 1;
 
                     // we finally reached the end of the block comment, if any subsequent '*/' sequences
@@ -595,69 +616,33 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// because in some cases we don't want to preserve what the token represents,
     /// such as comments or white-spaces...
     fn eat_while_and_discard(&self, mut condition: impl FnMut(char) -> bool) {
-        while condition(self.peek()) && !self.is_eof() {
-            self.next();
+        let slice = unsafe { self.as_slice() }.chars();
+
+        for ch in slice {
+            if condition(ch) {
+                self.offset.update(|x| x + ch.len_utf8());
+            } else {
+                break;
+            }
         }
     }
 
     /// Cousin of [Self::eat_while], it consumes the input, and produces a slice from where it began
     /// to eat the input and where it finished, this is sometimes beneficial as the slice doesn't have
     /// to be re-allocated as a string.
-    fn eat_while_and_slice(&self, mut condition: impl FnMut(char) -> bool) -> &str {
+    fn eat_while_and_slice(&self, condition: impl FnMut(char) -> bool) -> &str {
         let start = self.offset.get();
-        while condition(self.peek()) && !self.is_eof() {
-            self.next();
-        }
+        self.eat_while_and_discard(condition);
         let end = self.offset.get();
 
         &self.contents[start..end]
     }
 
-    /// Iterator that will collect characters until a given predicate no longer passes.
-    /// The function will increment the current stream position and collect characters on the
-    /// way, returning an iterator so as to avoid allocating a string.
-    fn eat_while<'cond>(
-        &'a self,
-        mut condition: impl FnMut(char) -> bool + 'cond + 'a,
-    ) -> impl Iterator<Item = char> + 'cond + 'a
-    where
-        'a: 'cond,
-    {
-        std::iter::from_fn(move || {
-            if condition(self.peek()) && !self.is_eof() {
-                return self.next();
-            }
+    /// Tokenise the given input stream
+    pub fn tokenise(self) -> ParseResult<Row<'c, Token<'c>>> {
+        let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-            None
-        })
-    }
-
-    pub fn tokenise(self) -> Row<'c, Token<'c>> {
-        let mut row = Row::with_capacity(10000, self.wall);
-
-        std::iter::from_fn(|| {
-            if self.contents.is_empty() {
-                return None;
-            }
-
-            match self.advance_token() {
-                Ok(tok) => tok,
-                // @@ErrorReporting: this is where we hook into error reporting to print the result
-                // and display it to the user
-                Err(err) => panic!("Got error from tokenisation: {:?}", err),
-            }
-        })
-        .for_each(|el| row.push(el, self.wall));
-
-        row
+        Ok(Row::try_from_iter(iter, self.wall)
+            .map_err(|err| TokenErrorWrapper(self.module_idx, err))?)
     }
 }
-
-// /// Function to tokenise an input string. Resulting in an iterator of [Token]s
-// pub fn tokenise<'r, 'c: 'w + 'r, 'a: 'r, 'w: 'r>(
-//     input: &'a str,
-//     wall: &'w Wall<'c>,
-// ) -> impl Iterator<Item = Token<'c>> + 'w {
-//     let lexer = Lexer::new(input, wall);
-
-// }
