@@ -11,32 +11,58 @@ use crate::{
     token::{TokenAtom, TokenKind},
 };
 
+/// Struct representing an operator with a kind and a flag
+/// denoting whether the operator is re-assigning the left
+/// hand side expression.
 #[derive(Debug, Clone)]
 pub struct Operator {
+    /// The kind of operator.
     pub kind: OperatorKind,
+    /// Flag representing where the operator is re-assigning or not.
     pub assignable: bool,
 }
 
 #[derive(Clone)]
+/// The operator kind enumeration. This represents all types of
+/// operator present in the language.
 pub enum OperatorKind {
+    /// '=='
     EqEq,
+    /// '!='
     NotEq,
+    /// '|'
     BitOr,
+    /// '||'
     Or,
+    /// '&'
     BitAnd,
+    /// '&&'
     And,
+    /// '^'
     BitXor,
+    /// '^^'
     Exp,
+    /// '>'
     Gt,
+    /// '>='
     GtEq,
+    /// '<'
     Lt,
+    /// '<='
     LtEq,
+    /// '>>'
     Shr,
+    /// '<<'
     Shl,
+    /// '+'
     Add,
+    /// '-'
     Sub,
+    /// '*'
     Mul,
+    /// '/'
     Div,
+    /// '%'
     Mod,
 
     // @@Cleanup: This is a special operator since it performs a higher order operation compared
@@ -142,6 +168,7 @@ impl Operator {
     }
 }
 
+/// This implementation will be used for printing code from tokens.
 impl std::fmt::Display for OperatorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -169,6 +196,9 @@ impl std::fmt::Display for OperatorKind {
     }
 }
 
+/// This implementation will be used for error messages. The debug formatter is
+/// mainly used in error reports whereas the display formatter is used when
+/// printing code from tokens.
 impl std::fmt::Debug for OperatorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

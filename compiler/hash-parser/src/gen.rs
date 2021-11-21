@@ -102,6 +102,7 @@ where
         }
     }
 
+    /// Get the current offset of where the stream is at.
     #[inline(always)]
     pub(crate) fn offset(&self) -> usize {
         self.offset.get()
@@ -112,10 +113,12 @@ where
         self.stream.get(self.offset.get() + at)
     }
 
+    /// Attempt to peek one step token ahead.
     pub(crate) fn peek(&self) -> Option<&Token<'c>> {
         self.peek_nth(0)
     }
 
+    /// Peek two tokens ahead.
     pub(crate) fn peek_second(&self) -> Option<&Token<'c>> {
         self.peek_nth(1)
     }
@@ -150,6 +153,7 @@ where
         value
     }
 
+    /// Get the current token in the stream.
     pub(crate) fn current_token(&self) -> &Token<'c> {
         self.stream.get(self.offset.get() - 1).unwrap()
     }
@@ -179,10 +183,8 @@ where
         AstNode::new(inner, location, &self.wall)
     }
 
-    fn copy_name_node(&self, name: &AstNode<Name>) -> AstNode<'c, Name> {
-        self.node(Name { ..*name.body() })
-    }
-
+    /// Function to create a token error at the current location with a
+    /// vector of tokens that the parser was accepting in the current state.
     pub(crate) fn unexpected_token_error<T>(
         &self,
         kind: &TokenKind,
@@ -437,7 +439,9 @@ where
                             Some(token) if token.has_atom(TokenAtom::Semi) => {
                                 Statement::Return(None)
                             }
-                            Some(_) => Statement::Return(Some(self.parse_expression_bp(0)?)),
+                            Some(_) => {
+                                Statement::Return(Some(self.parse_expression_with_precedence(0)?))
+                            }
                             None => Statement::Return(None),
                         }
                     }
@@ -459,13 +463,13 @@ where
                 }
             }
             Some(_) => {
-                let expr = self.parse_expression_bp(0)?;
+                let expr = self.parse_expression_with_precedence(0)?;
 
                 if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
                     let transformed_op: OperatorFn = op.into();
 
                     // Parse the rhs and the semi
-                    let rhs = self.parse_expression_bp(0)?;
+                    let rhs = self.parse_expression_with_precedence(0)?;
                     self.parse_token_atom(TokenAtom::Semi)?;
 
                     // Now we need to transform the re-assignment operator into a function call
@@ -490,7 +494,7 @@ where
                         self.skip_token();
 
                         // Parse the rhs and the semi
-                        let rhs = self.parse_expression_bp(0)?;
+                        let rhs = self.parse_expression_with_precedence(0)?;
                         self.parse_token_atom(TokenAtom::Semi)?;
 
                         Ok(self.node_from_joined_location(
@@ -773,6 +777,13 @@ where
         }
     }
 
+    /// Parse a trait definition. AST representation of a trait statement.
+    /// A trait statement is essentially a function with no body, with a
+    /// for-all node and some genetic type arguments. For example,
+    ///
+    /// trait eq<T> => (T, T) => bool;
+    ///     ┌─^^ ^─┐   ^─ ─ ─ ─ ─ ─ ─ ┐
+    ///   name   Generic type args    Function type definition
     pub fn parse_trait_defn(&self) -> ParseResult<TraitDef<'c>> {
         debug_assert!(self
             .current_token()
@@ -794,6 +805,14 @@ where
         })
     }
 
+    /// AST representation of a struct which includes the name of the struct with a
+    /// ForAll to specify any bounds or and generic arguments to the struct, with
+    /// zero or more struct fields. An example for a struct would be:
+    ///
+    /// struct Name <T,Q> where eq<T> { ... };
+    ///        ^^^^    ^──────^^─┬──^   ^^^
+    /// Name of struct        For all  fields
+    ///
     pub fn parse_struct_defn(&self) -> ParseResult<StructDef<'c>> {
         debug_assert!(self
             .current_token()
@@ -826,6 +845,15 @@ where
         })
     }
 
+    /// Parse an enum definition. AST representation for an enum, An enum is constructed by
+    /// a the keyword 'enum' followed by an identifier name, a for-all declaration,
+    /// followed by some enum fields. An enumeration can be made of zero or more enum fields.
+    /// For example, a declaration of an enum would be:
+    ///
+    /// enum Name<T,Q> where eq<T> => { ... };
+    ///      ^^^^  ^──────^^─┬──^       ^^^
+    /// Name of enum      For all      fields
+    ///
     pub fn parse_enum_defn(&self) -> ParseResult<EnumDef<'c>> {
         debug_assert!(self
             .current_token()
@@ -835,8 +863,9 @@ where
 
         self.parse_token_atom(TokenAtom::Eq)?;
 
-        // now parse the optional type bound and the enum definition entries, if a type bound is
-        // spe
+        // now parse the optional type bound and the enum definition entries,
+        // if a type bound is specified, then the definition of the struct should
+        // be followed by an arrow ('=>')...
         let (bound, entries) = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Lt) => {
                 let bound = Some(self.parse_type_bound()?);
@@ -914,6 +943,7 @@ where
         Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &start))
     }
 
+    /// Parse struct definition field entries.
     pub fn parse_struct_def_entries(&self) -> ParseResult<AstNodes<'c, StructDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
@@ -940,6 +970,7 @@ where
         }
     }
 
+    /// Parse struct definition field.
     pub fn parse_struct_def_entry(&self) -> ParseResult<AstNode<'c, StructDefEntry<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
@@ -956,7 +987,7 @@ where
             Some(token) if token.has_atom(TokenAtom::Eq) => {
                 self.skip_token();
 
-                Some(self.parse_expression_bp(0)?)
+                Some(self.parse_expression_with_precedence(0)?)
             }
             _ => None,
         };
@@ -964,6 +995,8 @@ where
         Ok(self.node_from_joined_location(StructDefEntry { name, ty, default }, &start))
     }
 
+    /// Parse a type bound. Type bounds can occur in traits, function, struct and enum
+    /// definitions.
     pub fn parse_type_bound(&self) -> ParseResult<AstNode<'c, Bound<'c>>> {
         let start = self.current_location();
         let type_args = self.parse_type_args()?;
@@ -1056,7 +1089,7 @@ where
         self.parse_token_atom(TokenAtom::Keyword(Keyword::In))?;
 
         self.disallow_struct_literals.set(true);
-        let iterator = self.parse_expression_bp(0)?;
+        let iterator = self.parse_expression_with_precedence(0)?;
         let iterator_location = iterator.location();
         self.disallow_struct_literals.set(false);
 
@@ -1142,7 +1175,7 @@ where
         let start = self.current_location();
 
         self.disallow_struct_literals.set(true);
-        let condition = self.parse_expression_bp(0)?;
+        let condition = self.parse_expression_with_precedence(0)?;
         let condition_location = condition.location();
         self.disallow_struct_literals.set(false);
 
@@ -1180,12 +1213,14 @@ where
         ))
     }
 
+    /// Parse a match case. A match case involves handling the pattern and the
+    /// expression branch.
     pub fn parse_match_case(&self) -> ParseResult<AstNode<'c, MatchCase<'c>>> {
         let start = self.current_location();
         let pattern = self.parse_pattern()?;
 
         self.parse_arrow()?;
-        let expr = self.parse_expression_bp(0)?;
+        let expr = self.parse_expression_with_precedence(0)?;
 
         Ok(self.node_from_joined_location(MatchCase { pattern, expr }, &start))
     }
@@ -1200,7 +1235,7 @@ where
         let start = self.current_location();
 
         self.disallow_struct_literals.set(true);
-        let subject = self.parse_expression_bp(0)?;
+        let subject = self.parse_expression_with_precedence(0)?;
         self.disallow_struct_literals.set(false);
 
         let mut cases = row![&self.wall];
@@ -1270,7 +1305,7 @@ where
             //     .set(self.lookahead_for_struct_literal());
             self.disallow_struct_literals.set(true);
 
-            let clause = self.parse_expression_bp(0)?;
+            let clause = self.parse_expression_with_precedence(0)?;
             let clause_loc = clause.location();
 
             // We can re-enable struct literals
@@ -1418,7 +1453,7 @@ where
         let value = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Eq) => {
                 self.skip_token();
-                Some(self.parse_expression_bp(0)?)
+                Some(self.parse_expression_with_precedence(0)?)
             }
             _ => None,
         };
@@ -1431,6 +1466,8 @@ where
         })
     }
 
+    /// Parse a pattern collect which can involve an arbitrary number of patterns which
+    /// are comma separated.
     pub fn parse_pattern_collection(
         &self,
         tree: &Row<'c, Token<'c>>,
@@ -1444,6 +1481,10 @@ where
         )
     }
 
+    /// Parse a destructuring pattern. The destructuring pattern refers to destructuring
+    /// either a struct or a namespace to extract fields, exported members. The function
+    /// takes in a token atom because both syntaxes use different operators as pattern
+    /// assigners.
     pub fn parse_destructuring_pattern(
         &self,
         assigning_op: TokenAtom,
@@ -1457,7 +1498,7 @@ where
         let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(assigning_op)) {
             Some(_) => self.parse_pattern()?,
             None => {
-                let copy = self.copy_name_node(&name);
+                let copy = self.node(Name { ..*name.body() });
                 let loc = copy.location();
                 self.node_with_location(Pattern::Binding(copy), loc)
             }
@@ -1466,6 +1507,7 @@ where
         Ok(self.node_from_joined_location(DestructuringPattern { name, pattern }, &start))
     }
 
+    /// Parse a collection of destructuring patterns that are comma separated.
     pub fn parse_destructuring_patterns(
         &self,
         tree: &Row<'c, Token<'c>>,
@@ -1494,6 +1536,8 @@ where
         Ok(patterns)
     }
 
+    /// Parse a singular pattern. Singular patterns cannot have any grouped pattern
+    /// operators such as a '|', if guards or any form of compound pattern.
     pub fn parse_singular_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
         let token = self.peek().ok_or(ParseError::Parsing {
             message: "Unexpected eof".to_string(),
@@ -1590,6 +1634,7 @@ where
         Ok(self.node_from_joined_location(pattern, &start))
     }
 
+    /// Parse a block.
     pub fn parse_block(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
         let (gen, start) = match self.peek() {
             Some(Token {
@@ -1652,7 +1697,7 @@ where
 
             // if we can't tell if this is a statement, we parse an expression, and if there
             // is a following semi-colon, then we make this a statement and continue...
-            let expr = gen.parse_expression_bp(0)?;
+            let expr = gen.parse_expression_with_precedence(0)?;
             let expr_loc = expr.location();
 
             // check for assigning operators here if the lhs expression is not compound
@@ -1663,7 +1708,7 @@ where
 
                     // since this is followed by an expression, we try to parse another expression, and then
                     // ensure that after an expression there is a ending semi colon.
-                    let rhs = gen.parse_expression_bp(0)?;
+                    let rhs = gen.parse_expression_with_precedence(0)?;
                     gen.parse_token_atom(TokenAtom::Semi)?;
 
                     block.statements.push(
@@ -1692,7 +1737,7 @@ where
                             gen.skip_token();
 
                             // Parse the rhs and the semi
-                            let rhs = gen.parse_expression_bp(0)?;
+                            let rhs = gen.parse_expression_with_precedence(0)?;
                             gen.parse_token_atom(TokenAtom::Semi)?;
 
                             block.statements.push(
@@ -1731,6 +1776,7 @@ where
         Ok(self.node_from_joined_location(Block::Body(block), &start))
     }
 
+    /// Parse an expression which can be compound.
     pub fn parse_expression(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
         let token = self.next_token();
 
@@ -2031,7 +2077,7 @@ where
         );
 
         while gen.has_token() {
-            let arg = gen.parse_expression_bp(0);
+            let arg = gen.parse_expression_with_precedence(0);
             args.entries.push(arg?, &self.wall);
 
             // now we eat the next token, checking that it is a comma
@@ -2085,6 +2131,7 @@ where
         }
     }
 
+    /// Parse a struct literal.
     pub fn parse_struct_literal(
         &self,
         name: AstNode<'c, AccessName<'c>>,
@@ -2101,7 +2148,7 @@ where
 
             let name = gen.parse_ident()?;
             gen.parse_token_atom(TokenAtom::Eq)?;
-            let value = gen.parse_expression_bp(0)?;
+            let value = gen.parse_expression_with_precedence(0)?;
 
             entries.push(
                 gen.node_with_location(
@@ -2133,6 +2180,8 @@ where
         ))
     }
 
+    /// Parse an array index. Array indexes are constructed with square brackets
+    /// wrapping a singular expression.
     pub fn parse_array_index(
         &self,
         ident: AstNode<'c, Expression<'c>>,
@@ -2143,7 +2192,7 @@ where
         let start = gen.current_location();
 
         // parse the indexing expression between the square brackets...
-        let index_expr = gen.parse_expression_bp(0)?;
+        let index_expr = gen.parse_expression_with_precedence(0)?;
         let index_loc = index_expr.location();
 
         // since nothing should be after the expression, we can check that no tokens
@@ -2253,6 +2302,7 @@ where
         Ok(self.node_from_joined_location(Expression::new(expr_kind), &start))
     }
 
+    /// Parse a trait bound.
     pub fn parse_trait_bound(
         &self,
         ident: &Identifier,
@@ -2263,6 +2313,7 @@ where
         Ok((name, args))
     }
 
+    /// Parse an access name followed by optional type arguments..
     pub fn parse_name_with_type_args(
         &self,
         ident: &Identifier,
@@ -2373,7 +2424,11 @@ where
         ))
     }
 
-    pub fn parse_expression_bp(
+    /// Parse an expression whilst taking into account binary precedence operators.
+    /// Parse chain of expressions with chain links being binary operators. Whilst
+    /// parsing the chain, figure out the applicative precedence of each operator using
+    /// Pratt parsing.
+    pub fn parse_expression_with_precedence(
         &self,
         mut min_prec: u8,
     ) -> ParseResult<AstNode<'c, Expression<'c>>> {
@@ -2422,7 +2477,7 @@ where
                         // being 'r_prec'.
                         min_prec = r_prec;
                     } else {
-                        let rhs = self.parse_expression_bp(r_prec)?;
+                        let rhs = self.parse_expression_with_precedence(r_prec)?;
                         self.is_compound_expr.set(true);
 
                         // transform the operator into an OperatorFn
@@ -2694,6 +2749,9 @@ where
         Ok(self.node_from_joined_location(variant, &start))
     }
 
+    /// Parse an single name or a function call that is applied on the left hand side
+    /// expression. Infix calls and name are only separated by infix calls having
+    /// parenthesees at the end of the name.
     pub fn parse_name_or_infix_call(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
         debug_assert!(self.current_token().has_atom(TokenAtom::Dot));
 
@@ -2726,7 +2784,7 @@ where
                     let gen = self.from_stream(stream, *span);
 
                     while gen.has_token() {
-                        let arg = gen.parse_expression_bp(0);
+                        let arg = gen.parse_expression_with_precedence(0);
                         args.entries.push(arg?, &self.wall);
 
                         // now we eat the next token, checking that it is a comma
@@ -2750,19 +2808,9 @@ where
         }
     }
 
-    pub fn empty_block(&self, span: &Location) -> AstNode<'c, Expression<'c>> {
-        self.node_from_location(
-            Expression::new(ExpressionKind::Block(self.node_from_location(
-                Block::Body(BodyBlock {
-                    statements: row![&self.wall],
-                    expr: None,
-                }),
-                span,
-            ))),
-            span,
-        )
-    }
-
+    /// Parse either a block, a set, or a map. The function has to parse
+    /// an initial expression and then determine the type of needed parsing
+    /// by the following operator, whether it is a colon, comma or a semicolon.
     pub fn parse_block_or_braced_literal(
         &self,
         tree: &Row<'c, Token<'c>>,
@@ -2803,7 +2851,16 @@ where
 
         // Is this an empty block?
         if !gen.has_token() {
-            return Ok(self.empty_block(span));
+            return Ok(self.node_from_location(
+                Expression::new(ExpressionKind::Block(self.node_from_location(
+                    Block::Body(BodyBlock {
+                        statements: row![&self.wall],
+                        expr: None,
+                    }),
+                    span,
+                ))),
+                span,
+            ));
         }
 
         // Here we have to parse the initial expression and then check if there is a specific
@@ -2836,7 +2893,7 @@ where
                 let entry = self.node_from_joined_location(
                     MapLiteralEntry {
                         key: initial_expr,
-                        value: gen.parse_expression_bp(0)?,
+                        value: gen.parse_expression_with_precedence(0)?,
                     },
                     &start_pos,
                 );
@@ -2900,16 +2957,19 @@ where
         }
     }
 
+    /// Parse a single map entry in a literal.
     pub fn parse_map_entry(&self) -> ParseResult<AstNode<'c, MapLiteralEntry<'c>>> {
         let start = self.current_location();
 
-        let key = self.parse_expression_bp(0)?;
+        let key = self.parse_expression_with_precedence(0)?;
         self.parse_token_atom(TokenAtom::Colon)?;
-        let value = self.parse_expression_bp(0)?;
+        let value = self.parse_expression_with_precedence(0)?;
 
         Ok(self.node_from_joined_location(MapLiteralEntry { key, value }, &start))
     }
 
+    /// Parse a map literal which is made of braces with an arbitrary number of
+    /// fields separated by commas.
     pub fn parse_map_literal(
         &self,
         gen: Self,
@@ -2926,6 +2986,8 @@ where
         Ok(self.node_from_joined_location(Literal::Map(MapLiteral { elements }), &start))
     }
 
+    /// Parse a set literal which is made of braces with an arbitrary number of
+    /// fields separated by commas.
     pub fn parse_set_literal(
         &self,
         gen: Self,
@@ -2934,7 +2996,7 @@ where
         let start = self.current_location();
 
         let mut elements = gen.parse_separated_fn(
-            || gen.parse_expression_bp(0),
+            || gen.parse_expression_with_precedence(0),
             || gen.parse_token_atom(TokenAtom::Comma),
         )?;
 
@@ -2944,6 +3006,7 @@ where
         Ok(self.node_from_joined_location(Literal::Set(SetLiteral { elements }), &start))
     }
 
+    /// Parse a pattern with an optional if guard after the singular pattern.
     pub fn parse_pattern_with_if(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
         let start = self.current_location();
         let pattern = self.parse_singular_pattern()?;
@@ -2952,7 +3015,7 @@ where
             Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::If)) => {
                 self.skip_token();
 
-                let condition = self.parse_expression_bp(0)?;
+                let condition = self.parse_expression_with_precedence(0)?;
 
                 Ok(self.node_from_joined_location(
                     Pattern::If(IfPattern { pattern, condition }),
@@ -2963,6 +3026,7 @@ where
         }
     }
 
+    /// Parse a compound pattern.
     pub fn parse_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
         let start = self.current_location();
 
@@ -2994,10 +3058,12 @@ where
         }
     }
 
+    /// Parse a function definition argument, which is made of an identifier and a function type.
     pub fn parse_function_def_arg(&self) -> ParseResult<AstNode<'c, FunctionDefArg<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
 
+        // @@Future: default values for argument...
         let ty = match self.peek() {
             Some(token) if token.has_atom(TokenAtom::Colon) => {
                 self.skip_token();
@@ -3009,6 +3075,8 @@ where
         Ok(self.node_from_joined_location(FunctionDefArg { name, ty }, &start))
     }
 
+    /// Parse a function literal. Function literals are essentially definitions of lambdas
+    /// that can be assigned to variables or passed as arguments into other functions.
     pub fn parse_function_literal(&self, gen: &Self) -> ParseResult<AstNode<'c, Expression<'c>>> {
         let start = self.current_location();
 
@@ -3027,7 +3095,7 @@ where
         self.parse_arrow()?;
 
         let fn_body = match self.peek() {
-            Some(_) => self.parse_expression_bp(0)?,
+            Some(_) => self.parse_expression_with_precedence(0)?,
             None => self.error("Expected function body here.")?,
         };
 
@@ -3086,7 +3154,7 @@ where
             };
         }
 
-        let expr = gen.parse_expression_bp(0)?;
+        let expr = gen.parse_expression_with_precedence(0)?;
 
         // Check if this is just a singularly wrapped expression
         if gen.peek().is_none() {
@@ -3105,7 +3173,7 @@ where
                         break;
                     }
 
-                    elements.push(gen.parse_expression_bp(0)?, &self.wall)
+                    elements.push(gen.parse_expression_with_precedence(0)?, &self.wall)
                 }
                 Some(_) => {
                     return Err(ParseError::Parsing {
@@ -3126,6 +3194,7 @@ where
         ))
     }
 
+    /// Parse an array literal.
     pub fn parse_array_literal(
         &self,
         tree: &Row<'c, Token<'c>>,
@@ -3137,7 +3206,7 @@ where
         let mut elements = row![&self.wall];
 
         while gen.has_token() {
-            let expr = gen.parse_expression_bp(0)?;
+            let expr = gen.parse_expression_with_precedence(0)?;
             elements.push(expr, &self.wall);
 
             match gen.peek() {
@@ -3168,6 +3237,7 @@ where
         ))
     }
 
+    /// Convert a literal kind into a pattern literal kind.
     pub fn convert_literal_kind_into_pattern(&self, kind: &TokenKind) -> LiteralPattern {
         match kind {
             TokenKind::Atom(TokenAtom::StrLiteral(s)) => LiteralPattern::Str(*s),
