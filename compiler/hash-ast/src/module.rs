@@ -135,7 +135,7 @@ impl<'c> Modules<'c> {
         })
     }
 
-    pub fn has_index<'m>(&'m self, index: ModuleIdx) -> bool {
+    pub fn has_index(&self, index: ModuleIdx) -> bool {
         self.indexes.contains_key(&index)
     }
 }
