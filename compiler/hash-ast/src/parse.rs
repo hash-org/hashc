@@ -9,6 +9,7 @@ use crate::{
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
+use log::{log, Level};
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};
 
@@ -267,7 +268,8 @@ where
         // the whole tree.
         if self.visualise {
             for module in modules.iter() {
-                println!(
+                log!(
+                    Level::Debug,
                     "file \"{}\":\n{}",
                     module.filename().display(),
                     module.ast()
@@ -294,7 +296,7 @@ where
         // error since it can never be `None`.
         match result {
             Ok(Some(block)) => (Ok(block), modules),
-            Ok(None) => unreachable!(),
+            Ok(None) => panic!("Non-body block parsed node for interactive input"),
             Err(errors) => (Err(errors), modules),
         }
     }
