@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::{cell::Cell, iter};
+use std::{borrow::Borrow, cell::Cell, iter};
 
 use crate::{
     grammar::{HashPair, Rule},
@@ -131,7 +131,7 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
         match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(expr, false))),
+            true => self.node(Expression::new(ExpressionKind::Ref(expr, RefKind::Normal))),
             false => expr,
         }
     }
@@ -253,7 +253,7 @@ pub(crate) fn build_binary<'c>(
             Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
                     subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: ab.make_single_access_name(name),
+                        name: ab.make_single_access_name(name.borrow()),
                         type_args: row![wall], // we don't need any kind of type_args since were just transpiling here
                     }))),
                     args: ab.node(FunctionCallArgs {
@@ -276,7 +276,7 @@ pub(crate) fn build_binary<'c>(
             let fn_call = ab.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
                     subject: ab.node(Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: ab.make_single_access_name(name),
+                        name: ab.make_single_access_name(name.borrow()),
                         type_args: row![wall],
                     }))),
                     args: ab.node(FunctionCallArgs {
@@ -1056,9 +1056,13 @@ where
                                     }),
                                 }),
                             ))),
-                            UnaryOpType::Ref(raw) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
+                            UnaryOpType::Ref(true) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
                                 self.transform_expression(operand)?,
-                                raw
+                                RefKind::Raw
+                            )))),
+                            UnaryOpType::Ref(false) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
+                                self.transform_expression(operand)?,
+                                RefKind::Normal
                             )))),
                             UnaryOpType::Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
                                 self.transform_expression(operand)?,
@@ -1588,7 +1592,8 @@ where
                                     ExpressionKind::FunctionCall(FunctionCallExpr {
                                         subject: builder.node(Expression::new(
                                             ExpressionKind::Variable(VariableExpr {
-                                                name: builder.make_single_access_name(name),
+                                                name: builder
+                                                    .make_single_access_name(name.borrow()),
                                                 type_args: row![&self.wall],
                                             }),
                                         )),
@@ -1618,7 +1623,8 @@ where
                                     ExpressionKind::FunctionCall(FunctionCallExpr {
                                         subject: builder.node(Expression::new(
                                             ExpressionKind::Variable(VariableExpr {
-                                                name: builder.make_single_access_name(name),
+                                                name: builder
+                                                    .make_single_access_name(name.borrow()),
                                                 type_args: row![&self.wall],
                                             }),
                                         )),

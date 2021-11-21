@@ -546,7 +546,7 @@ where
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
         match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(expr, false))),
+            true => self.node(Expression::new(ExpressionKind::Ref(expr, RefKind::Normal))),
             false => expr,
         }
     }
@@ -2180,9 +2180,9 @@ where
                 match self.peek() {
                     Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Raw)) => {
                         self.skip_token();
-                        ExpressionKind::Ref(self.parse_expression()?, true)
+                        ExpressionKind::Ref(self.parse_expression()?, RefKind::Raw)
                     }
-                    _ => ExpressionKind::Ref(self.parse_expression()?, false),
+                    _ => ExpressionKind::Ref(self.parse_expression()?, RefKind::Normal),
                 }
             }
             kind @ (TokenKind::Atom(TokenAtom::Plus) | TokenKind::Atom(TokenAtom::Minus)) => {

@@ -414,9 +414,10 @@ mod tests {
         let contents = std::fs::read_to_string(&path).unwrap();
         let test_idx = builder.reserve_index();
 
-        builder.add_contents(test_idx, path, contents);
         builder.add_module_at(
             test_idx,
+            path,
+            contents,
             ast::Module {
                 contents: row![&wall],
             },

@@ -38,12 +38,13 @@ impl<'c> ModuleBuilder<'c> {
     pub fn add_module_at(
         &self,
         index: ModuleIdx,
-        // path: PathBuf,
+        path: PathBuf,
+        contents: String,
         node: ast::Module<'c>,
     ) {
-        // self.path_to_index.insert(path.clone(), index);
-        // self.filenames_by_index.insert(index, path);
-        // self.contents_by_index.insert(index, contents);
+        self.path_to_index.insert(path.clone(), index);
+        self.filenames_by_index.insert(index, path);
+        self.contents_by_index.insert(index, contents);
         self.modules_by_index.insert(index, node);
     }
 

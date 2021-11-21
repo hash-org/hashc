@@ -140,6 +140,15 @@ pub const LIST_TYPE_NAME: &str = "List";
 pub const SET_TYPE_NAME: &str = "Set";
 pub const MAP_TYPE_NAME: &str = "Map";
 
+/// Reference kind representing either a raw reference or a normal reference.
+#[derive(Debug, PartialEq)]
+pub enum RefKind {
+    /// Raw reference type
+    Raw,
+    /// Normal reference type
+    Normal,
+}
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
@@ -595,7 +604,7 @@ pub enum ExpressionKind<'c> {
     /// A property access.
     PropertyAccess(PropertyAccessExpr<'c>),
     /// A reference expression with a flag denoting whether it is a raw ref or not
-    Ref(AstNode<'c, Expression<'c>>, bool),
+    Ref(AstNode<'c, Expression<'c>>, RefKind),
     /// A dereference expression.
     Deref(AstNode<'c, Expression<'c>>),
     /// A literal.
