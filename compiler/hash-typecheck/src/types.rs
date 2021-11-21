@@ -10,7 +10,12 @@ use std::{
 
 use dashmap::DashMap;
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_ast::{ast::TypeId, ident::Identifier, location::Location, module::{ModuleIdx, Modules}};
+use hash_ast::{
+    ast::TypeId,
+    ident::Identifier,
+    location::Location,
+    module::{ModuleIdx, Modules},
+};
 use hash_utils::counter;
 
 #[derive(Debug)]
@@ -185,7 +190,7 @@ pub struct FnType<'c> {
 
 #[derive(Debug)]
 pub struct NamespaceType {
-    pub module_idx: ModuleIdx,
+    pub members: Scope,
 }
 
 #[derive(Debug)]
@@ -247,6 +252,7 @@ pub struct TraitImpls<'c> {
     data: HashMap<TraitId, ImplsForTrait<'c>>,
 }
 
+#[derive(Debug, Default)]
 pub struct Types<'c> {
     data: HashMap<TypeId, Cell<&'c TypeValue<'c>>>,
 }
@@ -379,11 +385,11 @@ impl<'c> Types<'c> {
                 Ok(())
             }
             (Prim(prim_target), Prim(prim_source)) if prim_target == prim_source => Ok(()),
-            (Namespace(ns_target), Namespace(ns_source))
-                if ns_target.module_idx == ns_source.module_idx =>
-            {
-                Ok(())
-            }
+            // (Namespace(ns_target), Namespace(ns_source))
+            //     if ns_target.module_idx == ns_source.module_idx =>
+            // {
+            //     Ok(())
+            // }
             _ => Err(TypecheckError::TypeMismatch(target, source)),
         }
     }
@@ -467,12 +473,51 @@ impl ScopeStack {
         None
     }
 
+    pub fn resolve_compound_symbol(
+        &self,
+        symbols: &[Identifier],
+        types: &Types,
+    ) -> Option<SymbolType> {
+        let mut last_scope = self.current_scope();
+        let mut symbols_iter = symbols.iter().peekable();
+
+        loop {
+            match last_scope.resolve_symbol(*symbols_iter.next().unwrap()) {
+                Some(symbol_ty @ SymbolType::Variable(type_id)) => match types.get(type_id) {
+                    TypeValue::Namespace(namespace_ty) => match symbols_iter.peek() {
+                        Some(_) => {
+                            last_scope = &namespace_ty.members;
+                            continue;
+                        }
+                        None => {
+                            return Some(symbol_ty);
+                        }
+                    },
+                    _ => {}
+                },
+                Some(symbol_ty) => match symbols_iter.peek() {
+                    Some(_) => {
+                        panic!("Found trying to namespace type.");
+                    }
+                    None => {
+                        return Some(symbol_ty);
+                    }
+                },
+                None => continue,
+            }
+        }
+    }
+
     pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: SymbolType) {
         self.current_scope_mut().add_symbol(symbol, symbol_type);
     }
 
     pub fn current_scope(&self) -> &Scope {
         self.scopes.last().unwrap()
+    }
+
+    pub fn extract_current_scope(&mut self) -> Scope {
+        self.scopes.pop().unwrap()
     }
 
     pub fn current_scope_mut(&mut self) -> &mut Scope {
@@ -522,6 +567,69 @@ impl Default for TypecheckState {
 pub struct TypeVars {
     data: HashMap<TypeVar, TypeId>,
 }
+
+// struct VisitFnResult {
+
+// }
+
+// trait TypeValueVisitor<'c, O> {
+
+//     fn types(&mut self) -> &mut Types<'c>;
+
+//     fn visit_type(&mut self, ty: TypeId) -> O {
+//         let type_value = self.types().get(ty);
+//         self.visit_type_value(type_value)
+//     }
+
+//     fn visit_type_value(&mut self, type_value: &TypeValue<'c>) -> O {
+//         match type_value {
+//             TypeValue::Ref(inner) => self.visit_ref(inner),
+//             TypeValue::RawRef(inner) => self.visit_raw_ref(inner),
+//             TypeValue::Fn(_) => todo!(),
+//             TypeValue::Var(_) => todo!(),
+//             TypeValue::User(_) => todo!(),
+//             TypeValue::Prim(_) => todo!(),
+//             TypeValue::Unknown(_) => todo!(),
+//             TypeValue::Namespace(_) => todo!(),
+//         }
+//     }
+
+//     fn visit_ref(&mut self, value: &RefType) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     fn visit_raw_ref(&mut self, value: &RawRefType) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     fn visit_fn(&mut self, value: &FnType) -> (O) {
+//         self.visit_type(value.args)
+//         self.visit_type(value.ret)
+//     }
+
+//     fn visit_var(&mut self, value: &TypeVar) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     fn visit_user(&mut self, value: &UserType) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     fn visit_prim(&mut self, value: &PrimType) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     fn visit_unknown(&mut self, value: &UnknownType) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     fn visit_namespace(&mut self, value: &NamespaceType) -> O {
+//         self.visit_type(value.inner)
+//     }
+
+//     // pub fn visit_ref(value: &mut TypeValue) -> O;
+//     // pub fn visit_ref(value: &mut TypeValue) -> O;
+// }
 
 impl TypeVars {
     pub fn new() -> Self {
@@ -590,14 +698,30 @@ impl TypeVars {
     }
 }
 
-pub struct TypecheckCtx<'c, 'm> {
+#[derive(Debug, Default)]
+pub struct TypeInfo<'c> {
     pub types: Types<'c>,
     pub type_defs: TypeDefs<'c>,
-    pub type_vars: TypeVars,
     pub traits: Traits,
+}
+
+impl<'c> TypeInfo<'c> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TypecheckCtx {
+    pub type_vars: TypeVars,
     pub state: TypecheckState,
     pub scopes: ScopeStack,
-    pub modules: &'m Modules<'c>,
+}
+
+impl TypecheckCtx {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Debug)]
@@ -606,6 +730,7 @@ pub enum TypecheckError {
     UsingBreakOutsideLoop(Location),
     UsingContinueOutsideLoop(Location),
     UsingReturnOutsideFunction(Location),
+    RequiresIrrefutablePattern(Location),
     // @@Todo: turn this into variants
     Message(String),
 }
@@ -628,53 +753,53 @@ mod tests {
 
         let modules = ModuleBuilder::new().build();
 
-        let mut ctx = TypecheckCtx {
-            types: Types::new(),
-            type_defs: TypeDefs::new(),
-            type_vars: TypeVars::new(),
-            traits: Traits::new(),
-            state: TypecheckState::default(),
-            scopes: ScopeStack::new(),
-            modules: &modules,
-        };
+        // let mut ctx = TypecheckCtx {
+        //     types: Types::new(),
+        //     type_defs: TypeDefs::new(),
+        //     type_vars: TypeVars::new(),
+        //     traits: Traits::new(),
+        //     state: TypecheckState::default(),
+        //     scopes: ScopeStack::new(),
+        //     modules: &modules,
+        // };
 
-        let t_arg = ctx.types.create(
-            TypeValue::Var(TypeVar {
-                name: IDENTIFIER_MAP.create_ident("T"),
-            }),
-            &wall,
-        );
+        // let t_arg = ctx.types.create(
+        //     TypeValue::Var(TypeVar {
+        //         name: IDENTIFIER_MAP.create_ident("T"),
+        //     }),
+        //     &wall,
+        // );
 
-        let foo_def = ctx.type_defs.create(TypeDefValue::Enum(EnumDef {
-            name: IDENTIFIER_MAP.create_ident("Option"),
-            generics: Generics {
-                bounds: TraitBounds::default(),
-                params: row![&wall; t_arg],
-            },
-            variants: EnumVariants::empty(),
-        }));
+        // let foo_def = ctx.type_defs.create(TypeDefValue::Enum(EnumDef {
+        //     name: IDENTIFIER_MAP.create_ident("Option"),
+        //     generics: Generics {
+        //         bounds: TraitBounds::default(),
+        //         params: row![&wall; t_arg],
+        //     },
+        //     variants: EnumVariants::empty(),
+        // }));
 
-        let char = ctx.types.create(TypeValue::Prim(PrimType::Char), &wall);
-        let int = ctx.types.create(TypeValue::Prim(PrimType::I32), &wall);
-        let unknown = ctx
-            .types
-            .create(TypeValue::Unknown(UnknownType::unbounded()), &wall);
-        let foo = ctx.types.create(
-            TypeValue::User(UserType {
-                def_id: foo_def,
-                args: row![&wall; int, unknown],
-            }),
-            &wall,
-        );
+        // let char = ctx.types.create(TypeValue::Prim(PrimType::Char), &wall);
+        // let int = ctx.types.create(TypeValue::Prim(PrimType::I32), &wall);
+        // let unknown = ctx
+        //     .types
+        //     .create(TypeValue::Unknown(UnknownType::unbounded()), &wall);
+        // let foo = ctx.types.create(
+        //     TypeValue::User(UserType {
+        //         def_id: foo_def,
+        //         args: row![&wall; int, unknown],
+        //     }),
+        //     &wall,
+        // );
 
-        let fn1 = ctx.types.create(
-            TypeValue::Fn(FnType {
-                args: row![&wall; foo, unknown, char, int, foo],
-                ret: int,
-            }),
-            &wall,
-        );
+        // let fn1 = ctx.types.create(
+        //     TypeValue::Fn(FnType {
+        //         args: row![&wall; foo, unknown, char, int, foo],
+        //         ret: int,
+        //     }),
+        //     &wall,
+        // );
 
-        println!("{}", TypeWithCtx::new(fn1, &ctx));
+        // println!("{}", TypeWithCtx::new(fn1, &ctx));
     }
 }
