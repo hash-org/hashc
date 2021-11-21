@@ -134,6 +134,10 @@ impl<'c> Modules<'c> {
             modules: self,
         })
     }
+
+    pub fn has_index(&self, index: ModuleIdx) -> bool {
+        self.indexes.contains_key(&index)
+    }
 }
 
 /// Represents a single module.
