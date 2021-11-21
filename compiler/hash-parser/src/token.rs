@@ -242,7 +242,7 @@ pub struct TokenKindVector<'c>(Row<'c, TokenKind<'c>>);
 
 impl<'c> TokenKindVector<'c> {
     pub fn empty(wall: &Wall<'c>) -> Self {
-        Self(row![wall])
+        Self(row![wall;])
     }
 
     pub fn from_row(items: Row<'c, TokenKind<'c>>) -> Self {
