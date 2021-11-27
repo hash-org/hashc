@@ -124,7 +124,7 @@ where
 
                 // @@Cleanup:
                 // @@Hack: we still need to add the contents of the file into the file map whilst the parser
-                //         is parsing. If we don't do this, the reporting crate won't be able to access the 
+                //         is parsing. If we don't do this, the reporting crate won't be able to access the
                 //         contents of the file for reporting purposes.
                 ctx.module_builder
                     .add_contents(import_index, resolved_import_path, import_source);
