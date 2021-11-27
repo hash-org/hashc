@@ -173,8 +173,8 @@ where
         }
     }
 
-    /// get the location of the next token, if there is no token after, we use the
-    /// next character offset to determine the location.
+    /// Get the next location of the token, if there is no token after, we use the 
+    /// next character offset to determine the location. 
     pub(crate) fn next_location(&self) -> Location {
         match self.peek() {
             Some(token) => token.span,
