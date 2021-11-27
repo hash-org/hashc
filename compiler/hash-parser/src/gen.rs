@@ -1639,8 +1639,10 @@ where
                 token
             ))?,
             // @@ErrorReporting
-            None => self
-                .error_with_location("Expected block body, which begins with a '{', but reached end of input", &self.next_location())?,
+            None => self.error_with_location(
+                "Expected block body, which begins with a '{', but reached end of input",
+                &self.next_location(),
+            )?,
         };
 
         self.parse_block_from_gen(&gen, start, None)
