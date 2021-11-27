@@ -173,6 +173,18 @@ where
         }
     }
 
+    /// get the location of the next token, if there is no token after, we use the
+    /// next character offset to determine the location.
+    pub(crate) fn next_location(&self) -> Location {
+        match self.peek() {
+            Some(token) => token.span,
+            None => {
+                let Token { span, kind: _ } = self.current_token();
+                Location::span(span.end(), span.end() + 1)
+            }
+        }
+    }
+
     /// Create a new [AstNode] from the information provided by the [AstGen]
     pub fn node<T>(&self, inner: T) -> AstNode<'c, T> {
         AstNode::new(inner, self.current_location(), &self.wall)
@@ -1627,8 +1639,10 @@ where
                 token
             ))?,
             // @@ErrorReporting
-            None => self
-                .error("Expected block body, which begins with a '{{', but reached end of input")?,
+            None => self.error_with_location(
+                "Expected block body, which begins with a '{', but reached end of input",
+                &self.next_location(),
+            )?,
         };
 
         self.parse_block_from_gen(&gen, start, None)
