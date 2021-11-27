@@ -1,5 +1,2 @@
-// Turn a string into a character iterator
-struct CharIterator = {
-    idx: int,
-    string: str,
-};
+if i != 0 {
+}

@@ -1628,7 +1628,7 @@ where
             ))?,
             // @@ErrorReporting
             None => self
-                .error("Expected block body, which begins with a '{{', but reached end of input")?,
+                .error("Expected block body, which begins with a '{', but reached end of input")?,
         };
 
         self.parse_block_from_gen(&gen, start, None)
@@ -1957,18 +1957,26 @@ where
                 }
                 // Struct literal
                 TokenKind::Tree(Delimiter::Brace, tree) if !self.disallow_struct_literals.get() => {
-                    self.skip_token();
                     // Ensure that the LHS of the brace is a variable, since struct literals can only
                     // be begun with variable names and type arguments, any other expression cannot be
                     // the beginning of a struct literal.
-
                     let location = lhs_expr.location();
+                    let mut break_now = false;
+
                     lhs_expr = match lhs_expr.into_body().move_out().into_kind() {
                         ExpressionKind::Variable(VariableExpr { name, type_args }) => {
+                            self.skip_token();
                             self.parse_struct_literal(name, type_args, tree)?
                         }
-                        expr => AstNode::new(Expression::new(expr), location, &self.wall),
+                        expr => {
+                            break_now = true;
+                            AstNode::new(Expression::new(expr), location, &self.wall)
+                        }
                     };
+
+                    if break_now {
+                        break;
+                    }
                 }
                 _ => break,
             }
