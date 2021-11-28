@@ -90,7 +90,7 @@ impl From<TokenErrorWrapper> for ParseError {
 /// A GeneratorError represents possible errors that occur when transforming the token
 /// stream into the AST.
 pub struct AstGenError<'a> {
-    kind: GeneratorErrorKind,
+    kind: AstGenErrorKind,
     location: SourceLocation,
     expected: Option<TokenKindVector<'a>>,
     received: Option<TokenAtom>,
@@ -99,8 +99,8 @@ pub struct AstGenError<'a> {
 /// Utility methods for creating AstGenErrors
 impl<'a> AstGenError<'a> {
     pub fn new(
-        kind: GeneratorErrorKind,
-        expected: Option<TokenKindVector<'a>>, // @@Nocheckin: maybe make this a TokenKindVector for multiple options?
+        kind: AstGenErrorKind,
+        expected: Option<TokenKindVector<'a>>,
         received: Option<TokenAtom>,
         location: SourceLocation,
     ) -> Self {
@@ -118,10 +118,8 @@ pub enum ExpectedTyArguments {
     Enum,
 }
 
-pub enum GeneratorErrorKind {
+pub enum AstGenErrorKind {
     Keyword,
-    Atom,
-    Either,
 
     /// Nocheckin:
     /// Expecting ';' at the end of a statement, but got
@@ -136,7 +134,7 @@ pub enum GeneratorErrorKind {
     /// NOCHECKIN:
     /// 1. Expected struct type args or struct definition entries here"
     /// 2. Expected Enum type args or struct definition entries here"
-    TypeArguments(ExpectedTyArguments),
+    TyArguments(ExpectedTyArguments),
 
     /// Expected statement.
     ExpectedStatement,
@@ -165,26 +163,112 @@ pub enum GeneratorErrorKind {
 
     ///  "Expected identifier after a name access qualifier"
     AccessName,
+
+    /// Malformed raw reference annotation
+    MalformedRawRef,
 }
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
 pub struct GeneratorErrorWrapper<'a>(pub ModuleIdx, pub AstGenError<'a>);
 
-impl<'a> From<AstGenError<'a>> for ParseError {
-    fn from(_: AstGenError) -> Self {
-        todo!()
+impl std::fmt::Display for ExpectedTyArguments {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExpectedTyArguments::Struct => write!(f, "struct"),
+            ExpectedTyArguments::Enum => write!(f, "enumeration"),
+        }
     }
 }
 
-// impl<'a, T> From<AstGenResult<'a, T>> for ParseResult<T> {
-//     fn from(_: AstGenError) -> Self {
-//         todo!()
-//     }
-// }
+impl<'a> From<AstGenError<'a>> for ParseError {
+    fn from(err: AstGenError) -> Self {
+        let expected = err.expected;
+
+        let mut base_message = match &err.kind {
+            AstGenErrorKind::Keyword => {
+                let keyword = err.received.unwrap();
+
+                format!("Encountered an unexpected keyword '{}'", keyword)
+            }
+            AstGenErrorKind::Expected => match &err.received {
+                Some(atom) => format!("Unexpectedly encountered '{}'", atom),
+                None => "Unexpectedly reached the end of input".to_string(),
+            },
+            AstGenErrorKind::Block => {
+                let base: String = "Expected block body, which begins with a '{'".into();
+
+                match err.received {
+                    Some(atom) => format!("{}, however received '{}'.", base, atom),
+                    None => base,
+                }
+            }
+            AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
+            AstGenErrorKind::ReAssignmentOp => todo!(),
+            AstGenErrorKind::TyArguments(ty) => {
+                format!(
+                    "Expected {} type arguments, or {} definition entries here which begin with a '{{'",
+                    ty, ty
+                )
+            }
+            AstGenErrorKind::MalformedRawRef => {
+                todo!()
+            }
+            AstGenErrorKind::ExpectedStatement => "Expected an statement here".to_string(),
+            AstGenErrorKind::ExpectedExpression => "Expected an expression here".to_string(),
+            AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' here".to_string(),
+            AstGenErrorKind::ExpectedFnArrow => {
+                "Expected an arrow '=>' after type arguments denoting a function type".to_string()
+            }
+            AstGenErrorKind::ExpectedFnBody => "Expected a function body here".to_string(),
+            AstGenErrorKind::ExpectedType => "Expected a type annotation here".to_string(),
+            AstGenErrorKind::InfixCall => {
+                "Expected field name access or an infix function call".to_string()
+            }
+            AstGenErrorKind::ImportPath => {
+                "Expected an import path which should be a string".to_string()
+            }
+            AstGenErrorKind::AccessName => {
+                "Expected identifier after a name access qualifier '::'".to_string()
+            }
+        };
+
+        // Block and expected format the error message in their own way, whereas all the
+        // other error types follow a conformed order to formatting expected tokens
+        if !matches!(&err.kind, AstGenErrorKind::Block) {
+            if !matches!(&err.kind, AstGenErrorKind::Expected) {
+                if let Some(atom) = err.received {
+                    let atom_msg = format!(", however received a '{}'", atom);
+                    base_message.push_str(&atom_msg);
+                }
+            }
+
+            if let Some(expected) = expected {
+                let expected_items_msg = format!(". Consider adding {}", expected);
+                base_message.push_str(&expected_items_msg);
+            } else {
+                base_message.push('.');
+            }
+        }
+
+        Self::Parsing {
+            message: base_message,
+            src: err.location,
+        }
+    }
+}
 
 impl<'a> From<ParseError> for AstGenError<'a> {
-    fn from(_: ParseError) -> Self {
-        todo!()
+    fn from(err: ParseError) -> Self {
+        match err {
+            // @@Cleanup: we shouldn't even need to type cast between the import error and the ast-gen error.
+            //            Ideally, any generated import errors should be appended to the error vector and not processed
+            //            within ast-gen.
+            ParseError::ImportError {
+                import_name: _,
+                src,
+            } => AstGenError::new(AstGenErrorKind::ImportPath, None, None, src),
+            _ => panic!("Unsupported type cast to AstGenError from ParseError."),
+        }
     }
 }

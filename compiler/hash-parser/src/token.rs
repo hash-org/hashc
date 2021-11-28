@@ -2,7 +2,6 @@
 //! Hash source file.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-#![allow(dead_code)]
 
 use std::fmt;
 
@@ -55,7 +54,7 @@ impl<'c> Token<'c> {
     /// tree is used as the atom.
     pub fn to_atom(&self) -> TokenAtom {
         match self.kind {
-            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(delim, false), // NoCheckin
+            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(delim, true),
             TokenKind::Atom(atom) => atom,
         }
     }
@@ -354,7 +353,7 @@ impl fmt::Display for TokenAtom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TokenAtom::Eq => write!(f, "="),
-            TokenAtom::Lt => write!(f, ">"),
+            TokenAtom::Lt => write!(f, "<"),
             TokenAtom::Gt => write!(f, ">"),
             TokenAtom::Plus => write!(f, "+"),
             TokenAtom::Minus => write!(f, "-"),
@@ -397,6 +396,8 @@ impl fmt::Display for TokenAtom {
     }
 }
 
+/// TODO(alex): Instead of using a TokenAtom, we should use an enum to custom
+/// variants or descriptors such as 'operator'.
 #[derive(Debug)]
 pub struct TokenKindVector<'c>(Row<'c, TokenAtom>);
 
@@ -404,6 +405,10 @@ impl<'c> TokenKindVector<'c> {
     /// Create a new empty [TokenKindVector].
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall;])
+    }
+
+    pub fn inner(&self) -> &Row<'c, TokenAtom> {
+        &self.0
     }
 
     /// Create a [TokenKindVector] from a provided row of expected atoms.
@@ -419,6 +424,15 @@ impl<'c> TokenKindVector<'c> {
     /// Create a [TokenKindVector] with a single atom.
     pub fn singleton(wall: &Wall<'c>, atom: TokenAtom) -> Self {
         Self(row![wall; atom])
+    }
+
+    /// Tokens that can act as a expression connective
+    pub fn begin_expression(wall: &Wall<'c>) -> Self {
+        Self(row![wall;
+            TokenAtom::Delimiter(Delimiter::Paren, true),
+            TokenAtom::Dot, // OR an operator, OR '::'
+            TokenAtom::Semi,
+        ])
     }
 
     /// Tokens expected when the parser expects a collection of patterns to be present.
