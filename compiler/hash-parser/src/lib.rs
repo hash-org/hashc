@@ -4,6 +4,7 @@
 #![feature(cell_update)]
 
 pub mod backend;
+pub mod error;
 pub mod gen;
 pub mod lexer;
 mod operator;
