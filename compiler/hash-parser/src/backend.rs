@@ -45,7 +45,10 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let gen = AstGen::new(&tokens, &resolver, wall);
 
         timed(
-            || gen.parse_module(),
+            || match gen.parse_module() {
+                Err(err) => Err(err.into()),
+                Ok(module) => Ok(module),
+            },
             log::Level::Debug,
             |elapsed| println!("translation: {:?}", elapsed),
         )
@@ -63,7 +66,10 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let tokens = Lexer::new(contents, index, &wall).tokenise()?;
         let gen = AstGen::new(&tokens, &resolver, wall);
 
-        gen.parse_expression_from_interactive()
+        match gen.parse_expression_from_interactive() {
+            Err(err) => Err(err.into()),
+            Ok(block) => Ok(block),
+        }
     }
 }
 
