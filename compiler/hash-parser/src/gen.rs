@@ -20,7 +20,7 @@ use hash_ast::{
 };
 
 use crate::{
-    error::{AstGenError, ExpectedTyArguments, GeneratorErrorKind},
+    error::{AstGenError, AstGenErrorKind, ExpectedTyArguments},
     operator::Operator,
     token::TokenAtom,
 };
@@ -203,7 +203,7 @@ where
     /// Create an error at the current location.
     pub fn error<T>(
         &self,
-        kind: GeneratorErrorKind,
+        kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
         received: Option<TokenAtom>,
     ) -> AstGenResult<'c, T> {
@@ -218,7 +218,7 @@ where
     /// Create an error at the current location.
     pub fn error_with_location<T>(
         &self,
-        kind: GeneratorErrorKind,
+        kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
         received: Option<TokenAtom>,
         location: &Location,
@@ -236,7 +236,7 @@ where
         self.offset.set(self.offset.get() + 1);
 
         self.error(
-            GeneratorErrorKind::EOF,
+            AstGenErrorKind::EOF,
             Some(TokenKindVector::singleton(
                 &self.wall,
                 self.current_token().to_atom(),
@@ -247,7 +247,7 @@ where
 
     /// Create a generalised "Reached end of file..." error.
     pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<'c, T> {
-        self.error(GeneratorErrorKind::EOF, None, None)
+        self.error(AstGenErrorKind::EOF, None, None)
     }
 
     /// Make an [Expression] with kind [ExpressionKind::Variable] from a specified identifier
@@ -441,16 +441,20 @@ where
                     _ => unreachable!(),
                 };
 
+                let current_location = self.current_location();
+
+                // USE PREV token location
                 match self.next_token() {
                     Some(token) if token.has_atom(TokenAtom::Semi) => {
                         Ok(self.node_from_joined_location(statement, &start))
                     }
-                    Some(token) => self.error(
-                        GeneratorErrorKind::Expected,
-                        Some(TokenKindVector::singleton(&self.wall, TokenAtom::Semi)),
+                    Some(token) => self.error_with_location(
+                        AstGenErrorKind::Expected,
+                        Some(TokenKindVector::begin_expression(&self.wall)),
                         Some(token.to_atom()),
+                        &current_location,
                     ),
-                    None => self.error(GeneratorErrorKind::EOF, None, Some(atom))?,
+                    None => self.error(AstGenErrorKind::EOF, None, Some(atom))?,
                 }
             }
             Some(_) => {
@@ -503,15 +507,16 @@ where
                             Ok(self.node_from_location(Statement::Block(block), &start))
                         }
                         (Some(token), _) => self.error(
-                            GeneratorErrorKind::Expected,
-                            Some(TokenKindVector::singleton(&self.wall, TokenAtom::Semi)),
+                            AstGenErrorKind::Expected,
+                            Some(TokenKindVector::begin_expression(&self.wall)),
+                            // Some(TokenKindVector::singleton(&self.wall, TokenAtom::Semi)),
                             Some(token.to_atom()),
                         ),
                         (None, _) => unreachable!(),
                     },
                 }
             }
-            _ => self.error(GeneratorErrorKind::ExpectedStatement, None, None)?, // @@Cleanup: is this even right?
+            _ => self.error(AstGenErrorKind::ExpectedStatement, None, None)?, // @@Cleanup: is this even right?
         }
     }
 
@@ -753,7 +758,7 @@ where
                     assignable: true,
                 })
             }
-            _ => self.error(GeneratorErrorKind::ReAssignmentOp, None, None), // TODO: actually add information here
+            _ => self.error(AstGenErrorKind::ReAssignmentOp, None, None), // TODO: actually add information here
         }
     }
 
@@ -815,10 +820,10 @@ where
 
                 (None, entries)
             }
-            _ => self.error(
-                GeneratorErrorKind::TypeArguments(ExpectedTyArguments::Struct),
+            token => self.error(
+                AstGenErrorKind::TyArguments(ExpectedTyArguments::Struct),
                 None,
-                None,
+                token.map(|tok| tok.to_atom()),
             )?,
         };
 
@@ -865,10 +870,10 @@ where
 
                 (None, entries)
             }
-            _ => self.error(
-                GeneratorErrorKind::TypeArguments(ExpectedTyArguments::Enum),
+            token => self.error(
+                AstGenErrorKind::TyArguments(ExpectedTyArguments::Enum),
                 None,
-                None,
+                token.map(|tok| tok.to_atom()),
             )?,
         };
 
@@ -893,14 +898,14 @@ where
                     || gen.parse_token_atom(TokenAtom::Comma),
                 )
             }
-            Some(token) => {
-                let atom = token.to_atom();
-                let expected = TokenKindVector::from_row(
-                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, false)],
-                );
-
-                self.error(GeneratorErrorKind::Expected, Some(expected), Some(atom))?
-            }
+            Some(token) => self.error(
+                AstGenErrorKind::Expected,
+                Some(TokenKindVector::singleton(
+                    &self.wall,
+                    TokenAtom::Delimiter(Delimiter::Brace, false),
+                )),
+                Some(token.to_atom()),
+            ),
             None => self.unexpected_eof(),
         }
     }
@@ -954,7 +959,7 @@ where
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
                 );
 
-                self.error(GeneratorErrorKind::Expected, Some(expected), Some(atom))?
+                self.error(AstGenErrorKind::Expected, Some(expected), Some(atom))?
             }
             None => self.unexpected_eof(),
         }
@@ -1247,7 +1252,7 @@ where
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
                 );
 
-                self.error(GeneratorErrorKind::Expected, Some(expected), Some(atom))?
+                self.error(AstGenErrorKind::Expected, Some(expected), Some(atom))?
             }
             _ => self.unexpected_eof()?,
         };
@@ -1394,14 +1399,26 @@ where
 
     /// Function to parse a fat arrow component '=>' in any given context.
     fn parse_arrow(&self) -> AstGenResult<'c, ()> {
+        let current_location = self.current_location();
+
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_atom(TokenAtom::Eq).is_err() {
-            return self.error(GeneratorErrorKind::ExpectedArrow, None, None)?;
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedArrow,
+                None,
+                None,
+                &current_location,
+            )?;
         }
 
         if self.parse_token_atom(TokenAtom::Gt).is_err() {
-            return self.error(GeneratorErrorKind::ExpectedArrow, None, None)?;
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedArrow,
+                None,
+                None,
+                &current_location,
+            )?;
         }
 
         Ok(())
@@ -1570,7 +1587,7 @@ where
                         })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
-                        GeneratorErrorKind::Expected,
+                        AstGenErrorKind::Expected,
                         Some(TokenKindVector::begin_pattern_collection(&self.wall)),
                         Some(token.to_atom()),
                     )?,
@@ -1616,7 +1633,7 @@ where
             //
             // }
             token => self.error_with_location(
-                GeneratorErrorKind::Expected,
+                AstGenErrorKind::Expected,
                 Some(TokenKindVector::begin_pattern(&self.wall)),
                 Some(token.to_atom()),
                 &token.span,
@@ -1637,14 +1654,11 @@ where
 
                 (self.from_stream(tree, self.current_location()), *span)
             }
-            Some(token) => self.error(GeneratorErrorKind::Block, None, Some(token.to_atom()))?,
+            Some(token) => self.error(AstGenErrorKind::Block, None, Some(token.to_atom()))?,
             // @@ErrorReporting
-            None => self.error_with_location(
-                GeneratorErrorKind::Block,
-                None,
-                None,
-                &self.next_location(),
-            )?,
+            None => {
+                self.error_with_location(AstGenErrorKind::Block, None, None, &self.next_location())?
+            }
         };
 
         self.parse_block_from_gen(&gen, start, None)
@@ -1751,7 +1765,7 @@ where
                                     &self.wall,
                                 ),
                                 _ => gen.error(
-                                    GeneratorErrorKind::Expected,
+                                    AstGenErrorKind::Expected,
                                     Some(TokenKindVector::from_row(
                                         row![&self.wall; TokenAtom::Semi],
                                     )),
@@ -1869,7 +1883,7 @@ where
 
             kind @ TokenKind::Atom(TokenAtom::Keyword(_)) => {
                 return self.error_with_location(
-                    GeneratorErrorKind::Keyword,
+                    AstGenErrorKind::Keyword,
                     None,
                     Some(kind.to_atom()),
                     &token.span,
@@ -1877,7 +1891,7 @@ where
             }
             kind => {
                 return self.error_with_location(
-                    GeneratorErrorKind::ExpectedExpression,
+                    AstGenErrorKind::ExpectedExpression,
                     None,
                     Some(kind.to_atom()),
                     &token.span,
@@ -1957,7 +1971,7 @@ where
                                 &self.wall,
                             );
                         }
-                        _ => self.error(GeneratorErrorKind::InfixCall, None, None)?,
+                        _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
                     }
                 }
                 // Array index access syntax: ident[...]
@@ -2018,7 +2032,7 @@ where
         let (tree, span) = match self.peek() {
             Some(token) if token.is_paren_tree() => token.into_tree(),
             Some(token) => self.error(
-                GeneratorErrorKind::Expected,
+                AstGenErrorKind::Expected,
                 Some(TokenKindVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, true)],
                 )),
@@ -2034,7 +2048,7 @@ where
                 kind: TokenKind::Atom(TokenAtom::StrLiteral(str)),
                 span,
             }) => (str, STRING_LITERAL_MAP.lookup(*str), span),
-            _ => gen.error(GeneratorErrorKind::ImportPath, None, None)?,
+            _ => gen.error(AstGenErrorKind::ImportPath, None, None)?,
         };
 
         gen.skip_token(); // eat the string argument
@@ -2121,13 +2135,13 @@ where
                 Ok(())
             }
             Some(token) => self.error_with_location(
-                GeneratorErrorKind::Expected,
+                AstGenErrorKind::Expected,
                 Some(TokenKindVector::singleton(&self.wall, atom)),
                 Some(token.to_atom()),
                 &token.span,
             ),
             _ => self.error(
-                GeneratorErrorKind::Expected,
+                AstGenErrorKind::Expected,
                 Some(TokenKindVector::singleton(&self.wall, atom)),
                 None,
             ),
@@ -2350,7 +2364,7 @@ where
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
             Some(token) => self.error(
-                GeneratorErrorKind::Expected,
+                AstGenErrorKind::Expected,
                 Some(TokenKindVector::from_row(
                     row![&self.wall; TokenAtom::GenericIdent],
                 )),
@@ -2387,7 +2401,7 @@ where
                                     self.skip_token();
                                     path.push(*id, &self.wall);
                                 }
-                                _ => self.error(GeneratorErrorKind::AccessName, None, None)?,
+                                _ => self.error(AstGenErrorKind::AccessName, None, None)?,
                             }
                         }
                         _ => {
@@ -2519,7 +2533,7 @@ where
                     break;
                 }
                 Some(token) => self.error(
-                    GeneratorErrorKind::Expected,
+                    AstGenErrorKind::Expected,
                     Some(TokenKindVector::from_row(
                         row![&self.wall; TokenAtom::Comma, TokenAtom::Gt],
                     )),
@@ -2569,7 +2583,7 @@ where
                 };
             }
             Some(token) => self.error(
-                GeneratorErrorKind::Expected,
+                AstGenErrorKind::Expected,
                 Some(TokenKindVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, false)],
                 )),
@@ -2587,7 +2601,7 @@ where
             }
             None => {
                 if must_be_function {
-                    self.error(GeneratorErrorKind::ExpectedFnArrow, None, None)?;
+                    self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
                 IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME)
@@ -2738,7 +2752,7 @@ where
                 .parse_function_or_tuple_type(false)?
                 .into_body()
                 .move_out(),
-            _ => self.error(GeneratorErrorKind::ExpectedType, None, None)?,
+            _ => self.error(AstGenErrorKind::ExpectedType, None, None)?,
         };
 
         Ok(self.node_from_joined_location(variant, &start))
@@ -2799,7 +2813,7 @@ where
                 }
                 _ => Ok(self.make_variable_from_identifier(*id, *id_span)),
             },
-            _ => self.error(GeneratorErrorKind::InfixCall, None, None)?,
+            _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
         }
     }
 
@@ -3094,7 +3108,7 @@ where
 
         let fn_body = match self.peek() {
             Some(_) => self.parse_expression_with_precedence(0)?,
-            None => self.error(GeneratorErrorKind::ExpectedFnBody, None, None)?,
+            None => self.error(AstGenErrorKind::ExpectedFnBody, None, None)?,
         };
 
         Ok(self.node_from_joined_location(
@@ -3173,7 +3187,7 @@ where
 
                     elements.push(gen.parse_expression_with_precedence(0)?, &self.wall)
                 }
-                Some(_) => gen.error(GeneratorErrorKind::ExpectedStatement, None, None)?,
+                Some(_) => gen.error(AstGenErrorKind::ExpectedStatement, None, None)?,
                 None => break,
             }
         }
@@ -3210,7 +3224,7 @@ where
                     // if we haven't exhausted the whole token stream, then report this as a unexpected
                     // token error
                     return gen.error(
-                        GeneratorErrorKind::Expected,
+                        AstGenErrorKind::Expected,
                         Some(TokenKindVector::singleton(&self.wall, TokenAtom::Comma)),
                         Some(token.to_atom()),
                     );
