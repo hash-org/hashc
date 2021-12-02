@@ -3,7 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use crate::{
-    error::ParseResult,
+    error::ImportError,
     fs::resolve_path,
     location::SourceLocation,
     module::ModuleIdx,
@@ -22,7 +22,7 @@ pub trait ModuleResolver: Clone {
         &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
-    ) -> ParseResult<ModuleIdx>;
+    ) -> Result<ModuleIdx, ImportError>;
 }
 
 #[derive(Debug, Copy, Clone, Constructor)]
@@ -85,7 +85,7 @@ where
         &self,
         import_path: impl AsRef<Path>,
         location: Option<SourceLocation>,
-    ) -> ParseResult<ModuleIdx> {
+    ) -> Result<ModuleIdx, ImportError> {
         let resolved_import_path = resolve_path(import_path, &self.module_ctx.root_dir, location)?;
         let import_index = self.ctx.module_builder.reserve_index();
 
@@ -96,8 +96,15 @@ where
             ctx.error_handler.handle_error(move || {
                 // Get source and root directory of import
                 let import_source = fs::read_to_string(&resolved_import_path)
-                    .map_err(|e| (e, resolved_import_path.to_owned()))?;
+                    .map_err(|e| (e, resolved_import_path.to_owned()));
 
+                if let Err((err, path)) = import_source {
+                    let import_err: ImportError = (err, path).into();
+
+                    return Err(import_err.into());
+                }
+
+                let import_source = import_source.unwrap();
                 let import_root_dir = resolved_import_path.parent().unwrap().to_owned();
 
                 // Create a module parsing context and resolver for the import
@@ -122,15 +129,18 @@ where
                     |elapsed| println!("ast: {:.2?}", elapsed),
                 );
 
-                // @@Cleanup:
-                // @@Hack: we still need to add the contents of the file into the file map whilst the parser
-                //         is parsing. If we don't do this, the reporting crate won't be able to access the
-                //         contents of the file for reporting purposes.
-                ctx.module_builder
-                    .add_contents(import_index, resolved_import_path, import_source);
-
-                // Add the import to modules
-                ctx.module_builder.add_module_at(import_index, import_node?);
+                if let Ok(module) = import_node {
+                    // @@Cleanup:
+                    // @@Hack: we still need to add the contents of the file into the file map whilst the parser
+                    //         is parsing. If we don't do this, the reporting crate won't be able to access the
+                    //         contents of the file for reporting purposes.
+                    ctx.module_builder.add_contents(
+                        import_index,
+                        resolved_import_path,
+                        import_source,
+                    );
+                    ctx.module_builder.add_module_at(import_index, module); // Add the import to modules
+                }
 
                 Ok(())
             });

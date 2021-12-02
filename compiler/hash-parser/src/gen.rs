@@ -20,13 +20,13 @@ use hash_ast::{
 };
 
 use crate::{
-    error::{AstGenError, AstGenErrorKind, ExpectedTyArguments},
+    error::{AstGenError, AstGenErrorKind, TyArgumentKind},
     operator::Operator,
     token::TokenAtom,
 };
 use crate::{
     operator::OperatorKind,
-    token::{Delimiter, Token, TokenKind, TokenKindVector},
+    token::{Delimiter, Token, TokenAtomVector, TokenKind},
 };
 
 pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
@@ -204,14 +204,14 @@ where
     pub fn error<T>(
         &self,
         kind: AstGenErrorKind,
-        expected: Option<TokenKindVector<'c>>,
+        expected: Option<TokenAtomVector<'c>>,
         received: Option<TokenAtom>,
     ) -> AstGenResult<'c, T> {
         Err(AstGenError::new(
             kind,
+            self.source_location(&self.current_location()),
             expected,
             received,
-            self.source_location(&self.current_location()),
         ))
     }
 
@@ -219,15 +219,15 @@ where
     pub fn error_with_location<T>(
         &self,
         kind: AstGenErrorKind,
-        expected: Option<TokenKindVector<'c>>,
+        expected: Option<TokenAtomVector<'c>>,
         received: Option<TokenAtom>,
         location: &Location,
     ) -> AstGenResult<'c, T> {
         Err(AstGenError::new(
             kind,
+            self.source_location(location),
             expected,
             received,
-            self.source_location(location),
         ))
     }
 
@@ -237,7 +237,7 @@ where
 
         self.error(
             AstGenErrorKind::EOF,
-            Some(TokenKindVector::singleton(
+            Some(TokenAtomVector::singleton(
                 &self.wall,
                 self.current_token().to_atom(),
             )),
@@ -450,7 +450,7 @@ where
                     }
                     Some(token) => self.error_with_location(
                         AstGenErrorKind::Expected,
-                        Some(TokenKindVector::begin_expression(&self.wall)),
+                        Some(TokenAtomVector::begin_expression(&self.wall)),
                         Some(token.to_atom()),
                         &current_location,
                     ),
@@ -508,7 +508,7 @@ where
                         }
                         (Some(token), _) => self.error(
                             AstGenErrorKind::Expected,
-                            Some(TokenKindVector::begin_expression(&self.wall)),
+                            Some(TokenAtomVector::begin_expression(&self.wall)),
                             // Some(TokenKindVector::singleton(&self.wall, TokenAtom::Semi)),
                             Some(token.to_atom()),
                         ),
@@ -740,7 +740,7 @@ where
     }
 
     /// This will parse an operator and check that it is re-assignable, if the operator is not
-    /// re-assignable then the result of the function is an [ParseError] since it expects there
+    /// re-assignable then the result of the function is an [AstGenError] since it expects there
     /// to be this operator.
     pub fn parse_re_assignment_op(&self) -> AstGenResult<'c, Operator> {
         let (operator, consumed_tokens) = Operator::from_token_stream(self);
@@ -821,7 +821,7 @@ where
                 (None, entries)
             }
             token => self.error(
-                AstGenErrorKind::TyArguments(ExpectedTyArguments::Struct),
+                AstGenErrorKind::TyArgument(TyArgumentKind::Struct),
                 None,
                 token.map(|tok| tok.to_atom()),
             )?,
@@ -871,7 +871,7 @@ where
                 (None, entries)
             }
             token => self.error(
-                AstGenErrorKind::TyArguments(ExpectedTyArguments::Enum),
+                AstGenErrorKind::TyArgument(TyArgumentKind::Enum),
                 None,
                 token.map(|tok| tok.to_atom()),
             )?,
@@ -900,7 +900,7 @@ where
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::singleton(
+                Some(TokenAtomVector::singleton(
                     &self.wall,
                     TokenAtom::Delimiter(Delimiter::Brace, false),
                 )),
@@ -955,7 +955,7 @@ where
             }
             Some(token) => {
                 let atom = token.to_atom();
-                let expected = TokenKindVector::from_row(
+                let expected = TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
                 );
 
@@ -1248,7 +1248,7 @@ where
             }
             Some(token) => {
                 let atom = token.to_atom();
-                let expected = TokenKindVector::from_row(
+                let expected = TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
                 );
 
@@ -1588,7 +1588,7 @@ where
                     }
                     Some(token) if name.path.len() > 1 => self.error(
                         AstGenErrorKind::Expected,
-                        Some(TokenKindVector::begin_pattern_collection(&self.wall)),
+                        Some(TokenAtomVector::begin_pattern_collection(&self.wall)),
                         Some(token.to_atom()),
                     )?,
                     _ => {
@@ -1634,7 +1634,7 @@ where
             // }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_pattern(&self.wall)),
+                Some(TokenAtomVector::begin_pattern(&self.wall)),
                 Some(token.to_atom()),
                 &token.span,
             )?,
@@ -1766,7 +1766,7 @@ where
                                 ),
                                 _ => gen.error(
                                     AstGenErrorKind::Expected,
-                                    Some(TokenKindVector::from_row(
+                                    Some(TokenAtomVector::from_row(
                                         row![&self.wall; TokenAtom::Semi],
                                     )),
                                     Some(token.to_atom()),
@@ -2027,13 +2027,14 @@ where
     /// is references '.hash' extension file or a directory with a 'index.hash' file
     /// contained within the directory.
     pub fn parse_import(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        let pre = self.current_token().span;
         let start = self.current_location();
 
         let (tree, span) = match self.peek() {
             Some(token) if token.is_paren_tree() => token.into_tree(),
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(
+                Some(TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, true)],
                 )),
                 Some(token.to_atom()),
@@ -2057,20 +2058,29 @@ where
             gen.expected_eof()?;
         }
 
-        let module_idx = self
+        // Attempt to add the module via the resolver
+        let resolved_module = self
             .resolver
-            .add_module(path, Some(self.source_location(span)))?;
+            .add_module(path, Some(self.source_location(span)));
 
-        Ok(self.node_from_joined_location(
-            Expression::new(ExpressionKind::Import(self.node_from_joined_location(
-                Import {
-                    path: *raw,
-                    index: module_idx,
-                },
+        match resolved_module {
+            Ok(idx) => Ok(self.node_from_joined_location(
+                Expression::new(ExpressionKind::Import(self.node_from_joined_location(
+                    Import {
+                        path: *raw,
+                        index: idx,
+                    },
+                    &start,
+                ))),
                 &start,
-            ))),
-            &start,
-        ))
+            )),
+            Err(err) => self.error_with_location(
+                AstGenErrorKind::ErroneousImport(err),
+                None,
+                None,
+                &pre.join(self.current_location()),
+            ),
+        }
     }
 
     /// Parse a function call which requires that the [AccessName] is pre-parsed and passed
@@ -2136,13 +2146,13 @@ where
             }
             Some(token) => self.error_with_location(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::singleton(&self.wall, atom)),
+                Some(TokenAtomVector::singleton(&self.wall, atom)),
                 Some(token.to_atom()),
                 &token.span,
             ),
             _ => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::singleton(&self.wall, atom)),
+                Some(TokenAtomVector::singleton(&self.wall, atom)),
                 None,
             ),
         }
@@ -2365,7 +2375,7 @@ where
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(
+                Some(TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::GenericIdent],
                 )),
                 Some(token.to_atom()),
@@ -2534,7 +2544,7 @@ where
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(
+                    Some(TokenAtomVector::from_row(
                         row![&self.wall; TokenAtom::Comma, TokenAtom::Gt],
                     )),
                     Some(token.to_atom()),
@@ -2584,7 +2594,7 @@ where
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(
+                Some(TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, false)],
                 )),
                 Some(token.to_atom()),
@@ -3225,7 +3235,7 @@ where
                     // token error
                     return gen.error(
                         AstGenErrorKind::Expected,
-                        Some(TokenKindVector::singleton(&self.wall, TokenAtom::Comma)),
+                        Some(TokenAtomVector::singleton(&self.wall, TokenAtom::Comma)),
                         Some(token.to_atom()),
                     );
                 }

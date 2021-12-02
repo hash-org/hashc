@@ -1,4 +1,4 @@
-//! Compiler error reporting
+//! Compiler AST error data types for reporting
 //
 // All rights reserved 2021 (c) The Hash Language authors
 
@@ -7,52 +7,45 @@ use std::{io, path::PathBuf};
 use thiserror::Error;
 
 /// Hash ParseError enum representing the variants of possible errors.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone)]
 pub enum ParseError {
-    #[error("An IO error occurred when reading {filename}: {message}")]
-    IoError { filename: PathBuf, message: String },
-    #[error("Parse error at {src}:\n{message}")]
     Parsing {
         message: String,
         src: SourceLocation,
     },
-    #[error("Tokeniser error at {src}:\n{message}")]
     Token {
         message: String,
         src: SourceLocation,
     },
-    #[error("Cannot locate module {import_name} at {src}")]
-    ImportError {
-        import_name: PathBuf,
-        src: SourceLocation,
-    },
-}
-
-impl ParseError {
-    pub fn into_message(self) -> String {
-        match self {
-            ParseError::IoError {
-                filename: _,
-                message,
-            } => message,
-            ParseError::Parsing { message, src: _ } | ParseError::Token { message, src: _ } => {
-                message
-            }
-            ParseError::ImportError {
-                import_name: _,
-                src: _,
-            } => todo!(),
-        }
-    }
 }
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
-impl From<(io::Error, PathBuf)> for ParseError {
+/// Import error is an abstraction to represent errors that are in relevance to IO
+/// operations rather than parsing operations.
+#[derive(Debug, Clone, Error)]
+#[error("Couldn't import module '{filename}': {message}")]
+pub struct ImportError {
+    pub filename: PathBuf,
+    pub message: String,
+    pub src: Option<SourceLocation>,
+}
+
+impl From<(io::Error, PathBuf)> for ImportError {
     fn from((err, filename): (io::Error, PathBuf)) -> Self {
-        ParseError::IoError {
+        ImportError {
             message: err.to_string(),
             filename,
+            src: None,
+        }
+    }
+}
+
+impl From<ImportError> for ParseError {
+    fn from(err: ImportError) -> Self {
+        ParseError::Parsing {
+            message: err.to_string(),
+            src: err.src.unwrap_or_else(SourceLocation::interactive),
         }
     }
 }

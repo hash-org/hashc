@@ -399,9 +399,9 @@ impl fmt::Display for TokenAtom {
 /// TODO(alex): Instead of using a TokenAtom, we should use an enum to custom
 /// variants or descriptors such as 'operator'.
 #[derive(Debug)]
-pub struct TokenKindVector<'c>(Row<'c, TokenAtom>);
+pub struct TokenAtomVector<'c>(Row<'c, TokenAtom>);
 
-impl<'c> TokenKindVector<'c> {
+impl<'c> TokenAtomVector<'c> {
     /// Create a new empty [TokenKindVector].
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall;])
@@ -459,7 +459,7 @@ impl<'c> TokenKindVector<'c> {
 /// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
 /// length of the vector kind is one, we don't use conjunctives to glue kinds together.
 /// @@Improvement: Multiple language support ???
-impl fmt::Display for TokenKindVector<'_> {
+impl fmt::Display for TokenAtomVector<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // This is where Haskell would really shine...
         match self.0.len() {

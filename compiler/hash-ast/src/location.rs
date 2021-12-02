@@ -41,7 +41,7 @@ impl Location {
     ///
     /// Then the two locations are joined into one, otherwise the lhs is returned
     pub fn join(&self, end: Self) -> Self {
-        if self.end() < end.start() {
+        if self.end() <= end.start() {
             return Location::span(self.start(), end.end());
         }
 
