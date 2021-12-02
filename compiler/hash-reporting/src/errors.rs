@@ -55,28 +55,6 @@ impl From<ParseError> for Report {
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new("note", message)));
             }
-            ParseError::IoError { filename, message } => {
-                builder
-                    .add_element(ReportElement::Note(ReportNote::new("note", message)))
-                    .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
-                        format!("file path '{}'", filename.to_string_lossy()),
-                    )));
-            }
-            ParseError::ImportError {
-                import_name: _,
-                src,
-            } => {
-                builder
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        src,
-                        "Unknown path",
-                    )))
-                    .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
-                        "Couldn't import this file path.",
-                    )));
-            }
         };
 
         // @@ErrorReporting: we might want to properly handle incomplete reports?
@@ -92,8 +70,6 @@ pub enum CompilerError {
     IoError(#[from] io::Error),
     #[error("{message}")]
     ArgumentError { message: String },
-    #[error("{0}")]
-    ParseError(#[from] ParseError),
     #[error("{0}")]
     InterpreterError(#[from] InteractiveCommandError),
 }

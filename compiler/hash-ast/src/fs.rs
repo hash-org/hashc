@@ -7,10 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    error::{ParseError, ParseResult},
-    location::SourceLocation,
-};
+use crate::{error::ImportError, location::SourceLocation};
 
 /// The location of a build directory of this package, this used to resolve where the standard library
 /// is located at.
@@ -67,7 +64,7 @@ pub fn resolve_path(
     path: impl AsRef<Path>,
     wd: impl AsRef<Path>,
     location: Option<SourceLocation>,
-) -> ParseResult<PathBuf> {
+) -> Result<PathBuf, ImportError> {
     let path = path.as_ref();
     let wd = wd.as_ref();
 
@@ -84,7 +81,7 @@ pub fn resolve_path(
     let raw_path = work_dir.join(path);
 
     // If the provided path is a directory, we assume that the user is referencing an index
-    // module that is located within the given directory. This takes precendence over checking
+    // module that is located within the given directory. This takes precedence over checking
     // if a module is named that directory.
     // More info on this topic: https://hash-org.github.io/lang/modules.html#importing
     if raw_path.is_dir() {
@@ -101,13 +98,14 @@ pub fn resolve_path(
         }
 
         // @@Copied
-        Err(ParseError::ImportError {
-            import_name: path.to_path_buf(),
-            src: location.unwrap_or_else(SourceLocation::interactive),
+        Err(ImportError {
+            filename: path.to_path_buf(),
+            message: "Module couldn't be found".to_string(),
+            src: location,
         })
     } else {
         // we don't need to anything if the given raw_path already has a extension '.hash',
-        // since we don't dissalow someone to import a module and reference the module with
+        // since we don't disallow someone to import a module and reference the module with
         // the name, like so...
         //
         // > let lib = import("lib.hash");
@@ -124,9 +122,10 @@ pub fn resolve_path(
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
                     Ok(raw_path_hash)
                 } else {
-                    Err(ParseError::ImportError {
-                        import_name: path.to_path_buf(),
-                        src: location.unwrap_or_else(SourceLocation::interactive),
+                    Err(ImportError {
+                        filename: path.to_path_buf(),
+                        message: "Module couldn't be found".to_string(),
+                        src: location,
                     })
                 }
             }

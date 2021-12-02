@@ -3,17 +3,20 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use hash_ast::{
-    error::ParseError,
+    error::{ImportError, ParseError},
     location::{Location, SourceLocation},
     module::ModuleIdx,
 };
 
-use crate::token::{Delimiter, TokenAtom, TokenKindVector};
+use crate::token::{Delimiter, TokenAtom, TokenAtomVector};
+use derive_more::Constructor;
+use thiserror::Error;
 
 /// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
 /// with the error, the [TokenErrorKind] which classifies the error, and a [Location] that represents
 /// where the tokenisation error occurred.
-#[derive(Debug)]
+#[derive(Debug, Constructor, Error)]
+#[error("{} {kind}", .message.as_ref().unwrap_or(&String::from("")))]
 pub struct TokenError {
     pub(crate) message: Option<String>,
     kind: TokenErrorKind,
@@ -22,53 +25,23 @@ pub struct TokenError {
 
 /// A [TokenErrorKind] represents the kind of [TokenError] which gives additional context to the error
 /// with the provided message in [TokenError]
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TokenErrorKind {
     /// Occurs when a escape sequence (within a character or a string) is malformed.
+    #[error("Invalid character escape sequence.")]
     BadEscapeSequence,
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
+    #[error("Malformed numerical literal.")]
     MalformedNumericalLiteral,
     /// Occurs when a char is unexpected in the current context
+    #[error("Encountered unexpected character {0}")]
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
+    #[error("Expected token '{0}' here.")]
     Expected(TokenAtom),
     /// Unclosed tree block
+    #[error("Encountered unclosed delimiter '{0}'.")]
     Unclosed(Delimiter),
-}
-
-/// Utility methods for [TokenError]
-impl TokenError {
-    /// Create a new [TokenError] from a message, kind and a span location.
-    pub fn new(message: Option<String>, kind: TokenErrorKind, location: Location) -> Self {
-        TokenError {
-            message,
-            kind,
-            location,
-        }
-    }
-
-    /// Convert a [TokenError] into a printable message.
-    pub fn as_message(&self) -> String {
-        let sub_message = match self.kind {
-            TokenErrorKind::BadEscapeSequence => "Invalid character escape sequence.".to_owned(),
-            TokenErrorKind::MalformedNumericalLiteral => "Malformed numerical literal.".to_owned(),
-            TokenErrorKind::Unexpected(ch) => {
-                format!("Encountered unexpected character '{}'", ch)
-            }
-            TokenErrorKind::Expected(atom) => format!("Expected token '{}' here.", atom),
-            TokenErrorKind::Unclosed(delim) => {
-                format!("Encountered unclosed delimiter '{}'", delim)
-            }
-        };
-
-        match &self.message {
-            Some(message) => {
-                let copy = message.to_owned();
-                format!("{} {}", copy, sub_message)
-            }
-            None => sub_message,
-        }
-    }
 }
 
 /// This implementation exists since we can't use tuples that are un-named
@@ -78,7 +51,7 @@ pub struct TokenErrorWrapper(pub ModuleIdx, pub TokenError);
 impl From<TokenErrorWrapper> for ParseError {
     fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
         ParseError::Parsing {
-            message: err.as_message(),
+            message: err.to_string(),
             src: SourceLocation {
                 location: err.location,
                 module_index: idx,
@@ -89,98 +62,86 @@ impl From<TokenErrorWrapper> for ParseError {
 
 /// A GeneratorError represents possible errors that occur when transforming the token
 /// stream into the AST.
+#[derive(Debug, Constructor)]
 pub struct AstGenError<'a> {
+    /// The kind of the error.
     kind: AstGenErrorKind,
+    /// Location of where the error references
     location: SourceLocation,
-    expected: Option<TokenKindVector<'a>>,
+    /// An optional vector of tokens that are expected to circumvent the error.
+    expected: Option<TokenAtomVector<'a>>,
+    /// An optional token in question that was received byt shouldn't of been
     received: Option<TokenAtom>,
 }
 
-/// Utility methods for creating AstGenErrors
-impl<'a> AstGenError<'a> {
-    pub fn new(
-        kind: AstGenErrorKind,
-        expected: Option<TokenKindVector<'a>>,
-        received: Option<TokenAtom>,
-        location: SourceLocation,
-    ) -> Self {
-        Self {
-            kind,
-            expected,
-            location,
-            received,
-        }
-    }
-}
-
-pub enum ExpectedTyArguments {
+/// Enum representing the kind of statement where type arguments can be expected
+/// to be present.
+#[derive(Debug)]
+pub enum TyArgumentKind {
+    /// Type arguments at a struct definition.
     Struct,
+    /// Type arguments at a enum definition.
     Enum,
 }
 
+/// Enum representation of the AST generation error variants.
+#[derive(Debug)]
 pub enum AstGenErrorKind {
+    /// Expected keyword at current location
     Keyword,
-
-    /// Nocheckin:
-    /// Expecting ';' at the end of a statement, but got
+    /// Generic error specifying an expected token atom.
     Expected,
-
-    /// "Expected block body, which begins with a '{', but reached end of input",
-    /// "Expected block body, which begins with a '{{' but got a {}",
+    /// Expected the beginning of a body block.
     Block,
+    /// Expected end of input or token stream here, but encountered tokens.
     EOF,
+    /// Expecting a re-assignment operator at the specified location. Re-assignment operators
+    /// are like normal operators, but they expect an 'equals' sign after the specified
+    /// operator. It
     ReAssignmentOp,
-
-    /// NOCHECKIN:
-    /// 1. Expected struct type args or struct definition entries here"
-    /// 2. Expected Enum type args or struct definition entries here"
-    TyArguments(ExpectedTyArguments),
-
+    /// Error representing expected type arguments. This error has two variants, it can
+    /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
+    /// is to add additional information in the error message.
+    TyArgument(TyArgumentKind),
     /// Expected statement.
     ExpectedStatement,
-
     /// Expected an expression.
     ExpectedExpression,
-
-    /// "Expected an arrow '=>' here."
+    /// Expected a '=>' at the current location. This error can occur in a number of places; including
+    /// but not limited to: after type arguments, lambda definition, trait bound annotation, etc.
     ExpectedArrow,
-
-    /// "Expected an arrow '=>' after type arguments denoting a function type.",
+    /// Specific error when expecting an arrow after the function definition
     ExpectedFnArrow,
-
-    /// Expected a function body here.
+    /// Expected a function body at the current location.
     ExpectedFnBody,
-
-    /// "Expected a type here."
+    /// Expected a type at the current location.
     ExpectedType,
-
-    /// "Expected field name or an infix function call"
-    /// "Expecting field name after property access.")
+    /// After a dot operator, the parser expects either a property access or an
+    /// infix call which is an extended version of a property access.
     InfixCall,
-
-    /// Expected an import path.
+    /// When the `import()` directive is used, the only argument should be a string path.
+    /// @@Future: @@CompTime: This could likely change in the future.
     ImportPath,
-
-    ///  "Expected identifier after a name access qualifier"
+    /// Expected an identifier after a name qualifier '::'.
     AccessName,
-
-    /// Malformed raw reference annotation
-    MalformedRawRef,
+    /// If an imported module has errors, it should be reported
+    ErroneousImport(ImportError),
 }
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
 pub struct GeneratorErrorWrapper<'a>(pub ModuleIdx, pub AstGenError<'a>);
 
-impl std::fmt::Display for ExpectedTyArguments {
+impl std::fmt::Display for TyArgumentKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExpectedTyArguments::Struct => write!(f, "struct"),
-            ExpectedTyArguments::Enum => write!(f, "enumeration"),
+            TyArgumentKind::Struct => write!(f, "struct"),
+            TyArgumentKind::Enum => write!(f, "enumeration"),
         }
     }
 }
 
+/// Conversion implementation from an AST Generator Error into a Parser Error.
 impl<'a> From<AstGenError<'a>> for ParseError {
     fn from(err: AstGenError) -> Self {
         let expected = err.expected;
@@ -204,15 +165,12 @@ impl<'a> From<AstGenError<'a>> for ParseError {
                 }
             }
             AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
-            AstGenErrorKind::ReAssignmentOp => todo!(),
-            AstGenErrorKind::TyArguments(ty) => {
+            AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator here".to_string(),
+            AstGenErrorKind::TyArgument(ty) => {
                 format!(
                     "Expected {} type arguments, or {} definition entries here which begin with a '{{'",
                     ty, ty
                 )
-            }
-            AstGenErrorKind::MalformedRawRef => {
-                todo!()
             }
             AstGenErrorKind::ExpectedStatement => "Expected an statement here".to_string(),
             AstGenErrorKind::ExpectedExpression => "Expected an expression here".to_string(),
@@ -228,6 +186,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::ImportPath => {
                 "Expected an import path which should be a string".to_string()
             }
+            AstGenErrorKind::ErroneousImport(err) => err.to_string(),
             AstGenErrorKind::AccessName => {
                 "Expected identifier after a name access qualifier '::'".to_string()
             }
@@ -254,21 +213,6 @@ impl<'a> From<AstGenError<'a>> for ParseError {
         Self::Parsing {
             message: base_message,
             src: err.location,
-        }
-    }
-}
-
-impl<'a> From<ParseError> for AstGenError<'a> {
-    fn from(err: ParseError) -> Self {
-        match err {
-            // @@Cleanup: we shouldn't even need to type cast between the import error and the ast-gen error.
-            //            Ideally, any generated import errors should be appended to the error vector and not processed
-            //            within ast-gen.
-            ParseError::ImportError {
-                import_name: _,
-                src,
-            } => AstGenError::new(AstGenErrorKind::ImportPath, None, None, src),
-            _ => panic!("Unsupported type cast to AstGenError from ParseError."),
         }
     }
 }
