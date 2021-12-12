@@ -97,7 +97,7 @@ pub enum AstGenErrorKind {
     EOF,
     /// Expecting a re-assignment operator at the specified location. Re-assignment operators
     /// are like normal operators, but they expect an 'equals' sign after the specified
-    /// operator. It
+    /// operator.
     ReAssignmentOp,
     /// Error representing expected type arguments. This error has two variants, it can
     /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
