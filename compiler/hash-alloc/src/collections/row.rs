@@ -57,12 +57,12 @@ impl<'c, T> Row<'c, T> {
     /// - Panics if `new_capacity` is less than the current length of the `Row`.
     pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
         assert!(
-            !(new_capacity > isize::MAX as usize),
+            new_capacity <= isize::MAX as usize,
             "Reallocation target capacity is too large"
         );
 
         assert!(
-            !(new_capacity < self.len()),
+            new_capacity >= self.len(),
             "Tried to reallocate with a capacity smaller than length"
         );
 

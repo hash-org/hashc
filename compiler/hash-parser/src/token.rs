@@ -396,13 +396,21 @@ impl fmt::Display for TokenAtom {
     }
 }
 
-/// TODO(alex): Instead of using a TokenAtom, we should use an enum to custom
-/// variants or descriptors such as 'operator'.
+/// This is a wrapper around a vector of token atoms that can represent the expected
+/// tokens in a given context when transforming the token tree into and an AST.
+/// The wrapper exists because once again you cannot specify implementations for types
+/// that don't originate from the current crate.
+///
+/// TODO(alex): Instead of using a [TokenAtom], we should use an enum to custom
+/// variants or descriptors such as 'operator'. Instead of token atoms we can just
+/// the display representations of the token atoms. Or even better, we can use the
+/// [IntoString] trait and just auto cast into a string, whilst holding a vector of
+/// strings.
 #[derive(Debug)]
 pub struct TokenAtomVector<'c>(Row<'c, TokenAtom>);
 
 impl<'c> TokenAtomVector<'c> {
-    /// Create a new empty [TokenKindVector].
+    /// Create a new empty [TokenAtomVector].
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall;])
     }
@@ -411,7 +419,7 @@ impl<'c> TokenAtomVector<'c> {
         &self.0
     }
 
-    /// Create a [TokenKindVector] from a provided row of expected atoms.
+    /// Create a [TokenAtomVector] from a provided row of expected atoms.
     pub fn from_row(items: Row<'c, TokenAtom>) -> Self {
         Self(items)
     }
@@ -421,7 +429,7 @@ impl<'c> TokenAtomVector<'c> {
         self.0.is_empty()
     }
 
-    /// Create a [TokenKindVector] with a single atom.
+    /// Create a [TokenAtomVector] with a single atom.
     pub fn singleton(wall: &Wall<'c>, atom: TokenAtom) -> Self {
         Self(row![wall; atom])
     }

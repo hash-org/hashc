@@ -22,7 +22,7 @@ impl Location {
     /// Create a 'Span' variant by providing a start and end byte position.
     pub fn span(start: usize, end: usize) -> Self {
         assert!(
-            !(end <= start),
+            end > start,
             "Got invalid span for Location::span. Start needs to be smaller than end."
         );
 
