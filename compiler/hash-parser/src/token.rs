@@ -2,18 +2,19 @@
 //! Hash source file.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-#![allow(dead_code)]
 
 use std::fmt;
 
 use hash_alloc::collections::row::Row;
 use hash_alloc::row;
 use hash_alloc::Wall;
+use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
 use hash_ast::location::Location;
-use hash_ast::{error::ParseError, ident::Identifier, location::SourceLocation, module::ModuleIdx};
+
+use crate::error::TokenError;
 
 pub type TokenResult<T> = Result<T, TokenError>;
 
@@ -45,6 +46,16 @@ impl<'c> Token<'c> {
         match self.kind {
             TokenKind::Atom(left) => left == right,
             _ => false,
+        }
+    }
+
+    /// Function to convert a token into atom regardless whether the kind
+    /// is a tree or an atom. If the token kind is a tree, the delimiter of the
+    /// tree is used as the atom.
+    pub fn to_atom(&self) -> TokenAtom {
+        match self.kind {
+            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(delim, true),
+            TokenKind::Atom(atom) => atom,
         }
     }
 
@@ -342,7 +353,7 @@ impl fmt::Display for TokenAtom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TokenAtom::Eq => write!(f, "="),
-            TokenAtom::Lt => write!(f, ">"),
+            TokenAtom::Lt => write!(f, "<"),
             TokenAtom::Gt => write!(f, ">"),
             TokenAtom::Plus => write!(f, "+"),
             TokenAtom::Minus => write!(f, "-"),
@@ -385,16 +396,30 @@ impl fmt::Display for TokenAtom {
     }
 }
 
+/// This is a wrapper around a vector of token atoms that can represent the expected
+/// tokens in a given context when transforming the token tree into and an AST.
+/// The wrapper exists because once again you cannot specify implementations for types
+/// that don't originate from the current crate.
+///
+/// TODO(alex): Instead of using a [TokenAtom], we should use an enum to custom
+/// variants or descriptors such as 'operator'. Instead of token atoms we can just
+/// the display representations of the token atoms. Or even better, we can use the
+/// [IntoString] trait and just auto cast into a string, whilst holding a vector of
+/// strings.
 #[derive(Debug)]
-pub struct TokenKindVector<'c>(Row<'c, TokenAtom>);
+pub struct TokenAtomVector<'c>(Row<'c, TokenAtom>);
 
-impl<'c> TokenKindVector<'c> {
-    /// Create a new empty [TokenKindVector].
+impl<'c> TokenAtomVector<'c> {
+    /// Create a new empty [TokenAtomVector].
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall;])
     }
 
-    /// Create a [TokenKindVector] from a provided row of expected atoms.
+    pub fn inner(&self) -> &Row<'c, TokenAtom> {
+        &self.0
+    }
+
+    /// Create a [TokenAtomVector] from a provided row of expected atoms.
     pub fn from_row(items: Row<'c, TokenAtom>) -> Self {
         Self(items)
     }
@@ -402,6 +427,20 @@ impl<'c> TokenKindVector<'c> {
     /// Check if the current [TokenKindVector] is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Create a [TokenAtomVector] with a single atom.
+    pub fn singleton(wall: &Wall<'c>, atom: TokenAtom) -> Self {
+        Self(row![wall; atom])
+    }
+
+    /// Tokens that can act as a expression connective
+    pub fn begin_expression(wall: &Wall<'c>) -> Self {
+        Self(row![wall;
+            TokenAtom::Delimiter(Delimiter::Paren, true),
+            TokenAtom::Dot, // OR an operator, OR '::'
+            TokenAtom::Semi,
+        ])
     }
 
     /// Tokens expected when the parser expects a collection of patterns to be present.
@@ -428,7 +467,7 @@ impl<'c> TokenKindVector<'c> {
 /// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
 /// length of the vector kind is one, we don't use conjunctives to glue kinds together.
 /// @@Improvement: Multiple language support ???
-impl fmt::Display for TokenKindVector<'_> {
+impl fmt::Display for TokenAtomVector<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // This is where Haskell would really shine...
         match self.0.len() {
@@ -456,83 +495,6 @@ impl fmt::Display for TokenKindVector<'_> {
 
                 write!(f, ".")
             }
-        }
-    }
-}
-
-/// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
-/// with the error, the [TokenErrorKind] which classifies the error, and a [Location] that represents
-/// where the tokenisation error occurred.
-#[derive(Debug)]
-pub struct TokenError {
-    pub(crate) message: Option<String>,
-    kind: TokenErrorKind,
-    location: Location,
-}
-
-/// A [TokenErrorKind] represents the kind of [TokenError] which gives additional context to the error
-/// with the provided message in [TokenError]
-#[derive(Debug)]
-pub enum TokenErrorKind {
-    /// Occurs when a escape sequence (within a character or a string) is malformed.
-    BadEscapeSequence,
-    /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
-    MalformedNumericalLiteral,
-    /// Occurs when a char is unexpected in the current context
-    Unexpected(char),
-    /// Occurs when the tokeniser expects a particular token next, but could not derive one.
-    Expected(TokenAtom),
-    /// Unclosed tree block
-    Unclosed(Delimiter),
-}
-
-/// Utility methods for [TokenError]
-impl TokenError {
-    /// Create a new [TokenError] from a message, kind and a span location.
-    pub fn new(message: Option<String>, kind: TokenErrorKind, location: Location) -> Self {
-        TokenError {
-            message,
-            kind,
-            location,
-        }
-    }
-
-    /// Convert a [TokenError] into a printable message.
-    pub fn as_message(&self) -> String {
-        let sub_message = match self.kind {
-            TokenErrorKind::BadEscapeSequence => "Invalid character escape sequence.".to_owned(),
-            TokenErrorKind::MalformedNumericalLiteral => "Malformed numerical literal.".to_owned(),
-            TokenErrorKind::Unexpected(ch) => {
-                format!("Encountered unexpected character '{}'", ch)
-            }
-            TokenErrorKind::Expected(atom) => format!("Expected token '{}' here.", atom),
-            TokenErrorKind::Unclosed(delim) => {
-                format!("Encountered unclosed delimiter '{}'", delim)
-            }
-        };
-
-        match &self.message {
-            Some(message) => {
-                let copy = message.to_owned();
-                format!("{} {}", copy, sub_message)
-            }
-            None => sub_message,
-        }
-    }
-}
-
-/// This implementation exists since we can't use tuples that are un-named
-/// with foreign module types.
-pub struct TokenErrorWrapper(pub ModuleIdx, pub TokenError);
-
-impl From<TokenErrorWrapper> for ParseError {
-    fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
-        ParseError::Parsing {
-            message: err.as_message(),
-            src: SourceLocation {
-                location: err.location,
-                module_index: idx,
-            },
         }
     }
 }

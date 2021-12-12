@@ -397,11 +397,13 @@ name = "hash-parser"
 version = "0.1.0"
 dependencies = [
  "dashmap",
+ "derive_more",
  "hash-alloc",
  "hash-ast",
  "hash-utils",
  "lazy_static",
  "log",
+ "thiserror",
 ]
 
 [[package]]

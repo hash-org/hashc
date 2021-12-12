@@ -10,7 +10,6 @@ use hash_alloc::{collections::row::Row, row};
 
 use hash_ast::{
     ast::*,
-    error::{ParseError, ParseResult},
     ident::{Identifier, IDENTIFIER_MAP},
     keyword::Keyword,
     literal::STRING_LITERAL_MAP,
@@ -20,11 +19,17 @@ use hash_ast::{
     resolve::ModuleResolver,
 };
 
-use crate::{operator::Operator, token::TokenAtom};
+use crate::{
+    error::{AstGenError, AstGenErrorKind, TyArgumentKind},
+    operator::Operator,
+    token::TokenAtom,
+};
 use crate::{
     operator::OperatorKind,
-    token::{Delimiter, Token, TokenKind, TokenKindVector},
+    token::{Delimiter, Token, TokenAtomVector, TokenKind},
 };
+
+pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
 
 pub struct AstGen<'c, 'stream, 'resolver, R> {
     /// Current token stream offset.
@@ -173,8 +178,8 @@ where
         }
     }
 
-    /// Get the next location of the token, if there is no token after, we use the 
-    /// next character offset to determine the location. 
+    /// Get the next location of the token, if there is no token after, we use the
+    /// next character offset to determine the location.
     pub(crate) fn next_location(&self) -> Location {
         match self.peek() {
             Some(token) => token.span,
@@ -195,69 +200,54 @@ where
         AstNode::new(inner, location, &self.wall)
     }
 
-    /// Function to create a token error at the current location with a
-    /// vector of tokens that the parser was accepting in the current state.
-    pub(crate) fn unexpected_token_error<T>(
+    /// Create an error at the current location.
+    pub fn error<T>(
         &self,
-        kind: &TokenKind,
-        expected: &TokenKindVector,
-        location: &Location,
-    ) -> ParseResult<T> {
-        // we need to convert a token-tree into just the delimiter since we don't want
-        // to print the whole tree...
-        let atom = kind.to_atom();
-
-        if expected.is_empty() {
-            self.error_with_location(format!("Unexpected token '{}'", atom), location)
-        } else {
-            self.error_with_location(
-                format!("Unexpected token '{}', expecting {}", atom, expected),
-                location,
-            )
-        }
+        kind: AstGenErrorKind,
+        expected: Option<TokenAtomVector<'c>>,
+        received: Option<TokenAtom>,
+    ) -> AstGenResult<'c, T> {
+        Err(AstGenError::new(
+            kind,
+            self.source_location(&self.current_location()),
+            expected,
+            received,
+        ))
     }
 
     /// Create an error at the current location.
-    pub fn error<T, S: Into<String>>(&self, message: S) -> ParseResult<T> {
-        Err(ParseError::Parsing {
-            message: message.into(),
-            src: self.source_location(&self.current_location()),
-        })
-    }
-
-    /// Create an error at the current location.
-    pub fn error_with_location<T, S: Into<String>>(
+    pub fn error_with_location<T>(
         &self,
-        message: S,
+        kind: AstGenErrorKind,
+        expected: Option<TokenAtomVector<'c>>,
+        received: Option<TokenAtom>,
         location: &Location,
-    ) -> ParseResult<T> {
-        Err(ParseError::Parsing {
-            message: message.into(),
-            src: self.source_location(location),
-        })
+    ) -> AstGenResult<'c, T> {
+        Err(AstGenError::new(
+            kind,
+            self.source_location(location),
+            expected,
+            received,
+        ))
     }
 
-    pub(crate) fn expected_eof<T>(&self) -> ParseResult<T> {
+    pub(crate) fn expected_eof<T>(&self) -> AstGenResult<'c, T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
 
-        self.error(format!(
-            "Expected the end of a definition, but got '{}'.",
-            self.current_token().kind
-        ))
+        self.error(
+            AstGenErrorKind::EOF,
+            Some(TokenAtomVector::singleton(
+                &self.wall,
+                self.current_token().to_atom(),
+            )),
+            None,
+        )
     }
 
     /// Create a generalised "Reached end of file..." error.
-    pub(crate) fn unexpected_eof<T>(&self) -> ParseResult<T> {
-        self.error("Unexpectedly reached the end of file.")
-    }
-
-    /// Create a generalised "Reached end of file..." error.
-    pub(crate) fn unexpected_eof_with_ctx<T>(&self, ctx: impl Into<String>) -> ParseResult<T> {
-        self.error(format!(
-            "{}: but unexpectedly reached the end of file.",
-            ctx.into()
-        ))
+    pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<'c, T> {
+        self.error(AstGenErrorKind::EOF, None, None)
     }
 
     /// Make an [Expression] with kind [ExpressionKind::Variable] from a specified identifier
@@ -367,12 +357,12 @@ where
     }
 
     /// Function to peek ahead and match some parsing function that returns a [Option<T>] wrapped
-    /// in a [ParseResult]. If The result is an error, or the option is [None], the function will
+    /// in a [AstGenResult]. If The result is an error, or the option is [None], the function will
     /// reset the current offset of the token stream to where it was the function was peeked.
     pub fn peek_fn<T>(
         &self,
-        parse_fn: impl Fn() -> ParseResult<Option<T>>,
-    ) -> ParseResult<Option<T>> {
+        parse_fn: impl Fn() -> AstGenResult<'c, Option<T>>,
+    ) -> AstGenResult<'c, Option<T>> {
         let start = self.offset();
 
         match parse_fn() {
@@ -386,7 +376,7 @@ where
 
     /// Function to peek ahead and match some parsing function that returns a [Option<T>].
     /// If The result is an error, the function wil reset the current offset of the token stream
-    /// to where it was the function was peeked. This is essentially a convertor from a [ParseResult<T>]
+    /// to where it was the function was peeked. This is essentially a convertor from a [AstGenResult<T>]
     /// into an [Option<T>] with the side effect of resetting the parser state back to it's original
     /// settings.
     pub fn peek_resultant_fn<T, E>(&self, parse_fn: impl Fn() -> Result<T, E>) -> Option<T> {
@@ -402,7 +392,7 @@ where
     }
 
     /// Parse a [Module] which is simply made of a list of statements
-    pub fn parse_module(&self) -> ParseResult<Module<'c>> {
+    pub fn parse_module(&self) -> AstGenResult<'c, Module<'c>> {
         let mut contents = row![&self.wall];
 
         while self.has_token() {
@@ -413,7 +403,7 @@ where
     }
 
     /// Parse a statement.
-    pub fn parse_statement(&self) -> ParseResult<AstNode<'c, Statement<'c>>> {
+    pub fn parse_statement(&self) -> AstGenResult<'c, AstNode<'c, Statement<'c>>> {
         let start = self.current_location();
 
         match self.peek() {
@@ -451,18 +441,20 @@ where
                     _ => unreachable!(),
                 };
 
+                let current_location = self.current_location();
+
+                // USE PREV token location
                 match self.next_token() {
                     Some(token) if token.has_atom(TokenAtom::Semi) => {
                         Ok(self.node_from_joined_location(statement, &start))
                     }
-                    Some(token) => self.error(format!(
-                        "Expecting ';' at the end of a statement, but got '{}' ",
-                        token.kind
-                    )),
-                    None => self.unexpected_eof_with_ctx(format!(
-                        "'{}', Expecting ';' ending a statement",
-                        atom
-                    ))?,
+                    Some(token) => self.error_with_location(
+                        AstGenErrorKind::Expected,
+                        Some(TokenAtomVector::begin_expression(&self.wall)),
+                        Some(token.to_atom()),
+                        &current_location,
+                    ),
+                    None => self.error(AstGenErrorKind::EOF, None, Some(atom))?,
                 }
             }
             Some(_) => {
@@ -514,15 +506,17 @@ where
                         (_, ExpressionKind::Block(block)) => {
                             Ok(self.node_from_location(Statement::Block(block), &start))
                         }
-                        (Some(token), _) => self.error(format!(
-                            "Expecting ';' at the end of a statement, but got '{}' ",
-                            token.kind
-                        ))?,
+                        (Some(token), _) => self.error(
+                            AstGenErrorKind::Expected,
+                            Some(TokenAtomVector::begin_expression(&self.wall)),
+                            // Some(TokenKindVector::singleton(&self.wall, TokenAtom::Semi)),
+                            Some(token.to_atom()),
+                        ),
                         (None, _) => unreachable!(),
                     },
                 }
             }
-            _ => self.error("Expected statement.")?,
+            _ => self.error(AstGenErrorKind::ExpectedStatement, None, None)?, // @@Cleanup: is this even right?
         }
     }
 
@@ -531,7 +525,9 @@ where
     /// without the actual braces to begin with. It follows that there are an arbitrary
     /// number of statements, followed by an optional final expression which doesn't
     /// need to be completed by a comma...
-    pub fn parse_expression_from_interactive(&self) -> ParseResult<AstNode<'c, BodyBlock<'c>>> {
+    pub fn parse_expression_from_interactive(
+        &self,
+    ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
         // get the starting position
         let start = self.current_location();
 
@@ -720,9 +716,9 @@ where
     /// is intended to be used with a nested generator.
     pub fn parse_separated_fn<T>(
         &self,
-        parse_fn: impl Fn() -> ParseResult<AstNode<'c, T>>,
-        separator_fn: impl Fn() -> ParseResult<()>,
-    ) -> ParseResult<AstNodes<'c, T>> {
+        parse_fn: impl Fn() -> AstGenResult<'c, AstNode<'c, T>>,
+        separator_fn: impl Fn() -> AstGenResult<'c, ()>,
+    ) -> AstGenResult<'c, AstNodes<'c, T>> {
         let mut args = row![&self.wall;];
 
         // so parse the arguments to the function here... with potential type annotations
@@ -744,9 +740,9 @@ where
     }
 
     /// This will parse an operator and check that it is re-assignable, if the operator is not
-    /// re-assignable then the result of the function is an [ParseError] since it expects there
+    /// re-assignable then the result of the function is an [AstGenError] since it expects there
     /// to be this operator.
-    pub fn parse_re_assignment_op(&self) -> ParseResult<Operator> {
+    pub fn parse_re_assignment_op(&self) -> AstGenResult<'c, Operator> {
         let (operator, consumed_tokens) = Operator::from_token_stream(self);
 
         match operator {
@@ -762,7 +758,7 @@ where
                     assignable: true,
                 })
             }
-            _ => self.error("Expected re-assignment operator here."),
+            _ => self.error(AstGenErrorKind::ReAssignmentOp, None, None), // TODO: actually add information here
         }
     }
 
@@ -773,7 +769,7 @@ where
     /// trait eq<T> => (T, T) => bool;
     ///     ┌─^^ ^─┐   ^─ ─ ─ ─ ─ ─ ─ ┐
     ///   name   Generic type args    Function type definition
-    pub fn parse_trait_defn(&self) -> ParseResult<TraitDef<'c>> {
+    pub fn parse_trait_defn(&self) -> AstGenResult<'c, TraitDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::Trait)));
@@ -802,7 +798,7 @@ where
     ///        ^^^^    ^──────^^─┬──^   ^^^
     /// Name of struct        For all  fields
     ///
-    pub fn parse_struct_defn(&self) -> ParseResult<StructDef<'c>> {
+    pub fn parse_struct_defn(&self) -> AstGenResult<'c, StructDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::Struct)));
@@ -824,7 +820,11 @@ where
 
                 (None, entries)
             }
-            _ => self.error("Expected struct type args or struct definition entries here")?,
+            token => self.error(
+                AstGenErrorKind::TyArgument(TyArgumentKind::Struct),
+                None,
+                token.map(|tok| tok.to_atom()),
+            )?,
         };
 
         Ok(StructDef {
@@ -843,7 +843,7 @@ where
     ///      ^^^^  ^──────^^─┬──^       ^^^
     /// Name of enum      For all      fields
     ///
-    pub fn parse_enum_defn(&self) -> ParseResult<EnumDef<'c>> {
+    pub fn parse_enum_defn(&self) -> AstGenResult<'c, EnumDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::Enum)));
@@ -870,7 +870,11 @@ where
 
                 (None, entries)
             }
-            _ => self.error("Expected struct type args or struct definition entries here")?,
+            token => self.error(
+                AstGenErrorKind::TyArgument(TyArgumentKind::Enum),
+                None,
+                token.map(|tok| tok.to_atom()),
+            )?,
         };
 
         Ok(EnumDef {
@@ -880,7 +884,7 @@ where
         })
     }
 
-    pub fn parse_enum_def_entries(&self) -> ParseResult<AstNodes<'c, EnumDefEntry<'c>>> {
+    pub fn parse_enum_def_entries(&self) -> AstGenResult<'c, AstNodes<'c, EnumDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
@@ -894,19 +898,20 @@ where
                     || gen.parse_token_atom(TokenAtom::Comma),
                 )
             }
-            Some(token) => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::from_row(
-                    row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, false)],
-                ),
-                &self.current_location(),
-            )?,
+            Some(token) => self.error(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::singleton(
+                    &self.wall,
+                    TokenAtom::Delimiter(Delimiter::Brace, false),
+                )),
+                Some(token.to_atom()),
+            ),
             None => self.unexpected_eof(),
         }
     }
 
     /// Parse an Enum definition entry.
-    pub fn parse_enum_def_entry(&self) -> ParseResult<AstNode<'c, EnumDefEntry<'c>>> {
+    pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
 
@@ -933,7 +938,7 @@ where
     }
 
     /// Parse struct definition field entries.
-    pub fn parse_struct_def_entries(&self) -> ParseResult<AstNodes<'c, StructDefEntry<'c>>> {
+    pub fn parse_struct_def_entries(&self) -> AstGenResult<'c, AstNodes<'c, StructDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
@@ -948,19 +953,20 @@ where
                     || gen.parse_token_atom(TokenAtom::Comma),
                 )
             }
-            Some(token) => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::from_row(
+            Some(token) => {
+                let atom = token.to_atom();
+                let expected = TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
-                ),
-                &self.current_location(),
-            )?,
+                );
+
+                self.error(AstGenErrorKind::Expected, Some(expected), Some(atom))?
+            }
             None => self.unexpected_eof(),
         }
     }
 
     /// Parse struct definition field.
-    pub fn parse_struct_def_entry(&self) -> ParseResult<AstNode<'c, StructDefEntry<'c>>> {
+    pub fn parse_struct_def_entry(&self) -> AstGenResult<'c, AstNode<'c, StructDefEntry<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
 
@@ -986,7 +992,7 @@ where
 
     /// Parse a type bound. Type bounds can occur in traits, function, struct and enum
     /// definitions.
-    pub fn parse_type_bound(&self) -> ParseResult<AstNode<'c, Bound<'c>>> {
+    pub fn parse_type_bound(&self) -> AstGenResult<'c, AstNode<'c, Bound<'c>>> {
         let start = self.current_location();
         let type_args = self.parse_type_args()?;
 
@@ -1064,7 +1070,7 @@ where
     /// >>>         None        => break;
     /// >>>     }
     /// >>> }
-    pub fn parse_for_loop(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
+    pub fn parse_for_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::For)));
@@ -1156,7 +1162,7 @@ where
     /// >>>         false => break;
     /// >>>     }
     /// >>> }
-    pub fn parse_while_loop(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
+    pub fn parse_while_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::While)));
@@ -1204,7 +1210,7 @@ where
 
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
-    pub fn parse_match_case(&self) -> ParseResult<AstNode<'c, MatchCase<'c>>> {
+    pub fn parse_match_case(&self) -> AstGenResult<'c, AstNode<'c, MatchCase<'c>>> {
         let start = self.current_location();
         let pattern = self.parse_pattern()?;
 
@@ -1216,7 +1222,7 @@ where
 
     /// Parse a match block statement, which is composed of a subject and an arbitrary
     /// number of match cases that are surrounded in braces.
-    pub fn parse_match_block(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
+    pub fn parse_match_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_atom(TokenAtom::Keyword(Keyword::Match)));
@@ -1240,13 +1246,14 @@ where
                     gen.parse_token_atom(TokenAtom::Semi)?;
                 }
             }
-            Some(token) => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::from_row(
+            Some(token) => {
+                let atom = token.to_atom();
+                let expected = TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Brace, true)],
-                ),
-                &self.current_location(),
-            )?,
+                );
+
+                self.error(AstGenErrorKind::Expected, Some(expected), Some(atom))?
+            }
             _ => self.unexpected_eof()?,
         };
 
@@ -1272,7 +1279,7 @@ where
     /// Additionally, if no 'else' clause is specified, we fill it with an
     /// empty block since an if-block could be assigned to any variable and therefore
     /// we need to know the outcome of all branches for typechecking.
-    pub fn parse_if_statement(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
+    pub fn parse_if_statement(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(matches!(
             self.current_token().kind,
             TokenKind::Atom(TokenAtom::Keyword(Keyword::If))
@@ -1391,17 +1398,28 @@ where
     }
 
     /// Function to parse a fat arrow component '=>' in any given context.
-    fn parse_arrow(&self) -> ParseResult<()> {
-        // map error into 'Expecting '=>' instead of just individual components.
-        let err = |loc| ParseError::Parsing {
-            message: "Expected an arrow '=>' here.".to_string(),
-            src: self.source_location(&loc),
-        };
+    fn parse_arrow(&self) -> AstGenResult<'c, ()> {
+        let current_location = self.current_location();
 
-        self.parse_token_atom(TokenAtom::Eq)
-            .map_err(|_| err(self.current_location()))?;
-        self.parse_token_atom(TokenAtom::Gt)
-            .map_err(|_| err(self.current_location()))?;
+        // Essentially, we want to re-map the error into a more concise one given
+        // the parsing context.
+        if self.parse_token_atom(TokenAtom::Eq).is_err() {
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedArrow,
+                None,
+                None,
+                &current_location,
+            )?;
+        }
+
+        if self.parse_token_atom(TokenAtom::Gt).is_err() {
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedArrow,
+                None,
+                None,
+                &current_location,
+            )?;
+        }
 
         Ok(())
     }
@@ -1418,7 +1436,7 @@ where
     ///     ^^^^^^^^   ^^^^^  ^^^^^   ^^^─────┐
     ///    pattern     bound   type    the right hand-side expr
     /// ```
-    pub fn parse_let_statement(&self) -> ParseResult<LetStatement<'c>> {
+    pub fn parse_let_statement(&self) -> AstGenResult<'c, LetStatement<'c>> {
         debug_assert!(matches!(
             self.current_token().kind,
             TokenKind::Atom(TokenAtom::Keyword(Keyword::Let))
@@ -1461,7 +1479,7 @@ where
         &self,
         tree: &Row<'c, Token<'c>>,
         span: Location,
-    ) -> ParseResult<AstNodes<'c, Pattern<'c>>> {
+    ) -> AstGenResult<'c, AstNodes<'c, Pattern<'c>>> {
         let gen = self.from_stream(tree, span);
 
         gen.parse_separated_fn(
@@ -1477,7 +1495,7 @@ where
     pub fn parse_destructuring_pattern(
         &self,
         assigning_op: TokenAtom,
-    ) -> ParseResult<AstNode<'c, DestructuringPattern<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, DestructuringPattern<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
 
@@ -1502,7 +1520,7 @@ where
         tree: &Row<'c, Token<'c>>,
         span: Location,
         struct_syntax: bool,
-    ) -> ParseResult<AstNodes<'c, DestructuringPattern<'c>>> {
+    ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
         let gen = self.from_stream(tree, span);
 
         // Since struct and namespace destructuring patterns use different operators
@@ -1527,15 +1545,16 @@ where
 
     /// Parse a singular pattern. Singular patterns cannot have any grouped pattern
     /// operators such as a '|', if guards or any form of compound pattern.
-    pub fn parse_singular_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
-        let token = self.peek().ok_or(ParseError::Parsing {
-            message: "Unexpected eof".to_string(),
-            src: self.source_location(&self.current_location()),
-        })?;
+    pub fn parse_singular_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
+        let token = self.peek();
+
+        if token.is_none() {
+            return self.unexpected_eof()?;
+        }
 
         let start = self.current_location();
 
-        let pattern = match token {
+        let pattern = match token.unwrap() {
             Token {
                 kind: TokenKind::Atom(TokenAtom::Ident(k)),
                 span,
@@ -1567,10 +1586,10 @@ where
                             args: self.parse_pattern_collection(tree, span)?,
                         })
                     }
-                    Some(token) if name.path.len() > 1 => self.unexpected_token_error(
-                        &token.kind,
-                        &TokenKindVector::begin_pattern_collection(&self.wall),
-                        &self.current_location(),
+                    Some(token) if name.path.len() > 1 => self.error(
+                        AstGenErrorKind::Expected,
+                        Some(TokenAtomVector::begin_pattern_collection(&self.wall)),
+                        Some(token.to_atom()),
                     )?,
                     _ => {
                         // @@Speed: Always performing a lookup?
@@ -1613,9 +1632,10 @@ where
             //     // this is a list pattern
             //
             // }
-            token => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::begin_pattern(&self.wall),
+            token => self.error_with_location(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::begin_pattern(&self.wall)),
+                Some(token.to_atom()),
                 &token.span,
             )?,
         };
@@ -1624,7 +1644,7 @@ where
     }
 
     /// Parse a block.
-    pub fn parse_block(&self) -> ParseResult<AstNode<'c, Block<'c>>> {
+    pub fn parse_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         let (gen, start) = match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree),
@@ -1634,13 +1654,11 @@ where
 
                 (self.from_stream(tree, self.current_location()), *span)
             }
-            Some(token) => self.error(format!(
-                "Expected block body, which begins with a '{{' but got a {}",
-                token
-            ))?,
+            Some(token) => self.error(AstGenErrorKind::Block, None, Some(token.to_atom()))?,
             // @@ErrorReporting
-            None => self
-                .error_with_location("Expected block body, which begins with a '{', but reached end of input", &self.next_location())?,
+            None => {
+                self.error_with_location(AstGenErrorKind::Block, None, None, &self.next_location())?
+            }
         };
 
         self.parse_block_from_gen(&gen, start, None)
@@ -1652,7 +1670,7 @@ where
         gen: &Self,
         start: Location,
         initial_statement: Option<AstNode<'c, Statement<'c>>>,
-    ) -> ParseResult<AstNode<'c, Block<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         // Edge case where the statement is parsed and the 'last_statement_is_expr' is set, here
         // we take the expression and return a block that has the expression left here.
 
@@ -1746,10 +1764,12 @@ where
                                     ),
                                     &self.wall,
                                 ),
-                                _ => gen.unexpected_token_error(
-                                    &token.kind,
-                                    &TokenKindVector::from_row(row![&self.wall; TokenAtom::Semi]),
-                                    &gen.current_location(),
+                                _ => gen.error(
+                                    AstGenErrorKind::Expected,
+                                    Some(TokenAtomVector::from_row(
+                                        row![&self.wall; TokenAtom::Semi],
+                                    )),
+                                    Some(token.to_atom()),
                                 )?,
                             };
                         }
@@ -1766,12 +1786,11 @@ where
     }
 
     /// Parse an expression which can be compound.
-    pub fn parse_expression(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    pub fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token();
 
         if token.is_none() {
-            return self
-                .unexpected_eof_with_ctx("Expected the beginning of an expression here.")?;
+            return self.unexpected_eof()?;
         }
 
         let token = token.unwrap();
@@ -1862,17 +1881,21 @@ where
                 }
             }
 
-            TokenKind::Atom(TokenAtom::Keyword(kw)) => {
-                return Err(ParseError::Parsing {
-                    message: format!("Unexpected keyword '{}' in place of an expression.", kw),
-                    src: self.source_location(&token.span),
-                })
+            kind @ TokenKind::Atom(TokenAtom::Keyword(_)) => {
+                return self.error_with_location(
+                    AstGenErrorKind::Keyword,
+                    None,
+                    Some(kind.to_atom()),
+                    &token.span,
+                )
             }
             kind => {
-                return Err(ParseError::Parsing {
-                    message: format!("Unexpected token '{}' in the place of an expression.", kind),
-                    src: self.source_location(&token.span),
-                })
+                return self.error_with_location(
+                    AstGenErrorKind::ExpectedExpression,
+                    None,
+                    Some(kind.to_atom()),
+                    &token.span,
+                )
             }
         };
 
@@ -1885,7 +1908,7 @@ where
     pub fn parse_singular_expression(
         &self,
         subject: AstNode<'c, Expression<'c>>,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         // record the starting span
         let start = self.current_location();
 
@@ -1948,13 +1971,7 @@ where
                                 &self.wall,
                             );
                         }
-                        _ => {
-                            return Err(ParseError::Parsing {
-                                message: "Expected field name or an infix function call"
-                                    .to_string(),
-                                src: self.source_location(&self.current_location()),
-                            })
-                        }
+                        _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
                     }
                 }
                 // Array index access syntax: ident[...]
@@ -1969,18 +1986,26 @@ where
                 }
                 // Struct literal
                 TokenKind::Tree(Delimiter::Brace, tree) if !self.disallow_struct_literals.get() => {
-                    self.skip_token();
                     // Ensure that the LHS of the brace is a variable, since struct literals can only
                     // be begun with variable names and type arguments, any other expression cannot be
                     // the beginning of a struct literal.
-
                     let location = lhs_expr.location();
+                    let mut break_now = false;
+
                     lhs_expr = match lhs_expr.into_body().move_out().into_kind() {
                         ExpressionKind::Variable(VariableExpr { name, type_args }) => {
+                            self.skip_token();
                             self.parse_struct_literal(name, type_args, tree)?
                         }
-                        expr => AstNode::new(Expression::new(expr), location, &self.wall),
+                        expr => {
+                            break_now = true;
+                            AstNode::new(Expression::new(expr), location, &self.wall)
+                        }
                     };
+
+                    if break_now {
+                        break;
+                    }
                 }
                 _ => break,
             }
@@ -2001,17 +2026,18 @@ where
     /// The path argument to imports automatically assumes that the path you provide
     /// is references '.hash' extension file or a directory with a 'index.hash' file
     /// contained within the directory.
-    pub fn parse_import(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    pub fn parse_import(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        let pre = self.current_token().span;
         let start = self.current_location();
 
         let (tree, span) = match self.peek() {
             Some(token) if token.is_paren_tree() => token.into_tree(),
-            Some(token) => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::from_row(
+            Some(token) => self.error(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, true)],
-                ),
-                &self.current_location(),
+                )),
+                Some(token.to_atom()),
             )?,
             None => self.unexpected_eof()?,
         };
@@ -2023,7 +2049,7 @@ where
                 kind: TokenKind::Atom(TokenAtom::StrLiteral(str)),
                 span,
             }) => (str, STRING_LITERAL_MAP.lookup(*str), span),
-            _ => gen.error("Expected an import path.")?,
+            _ => gen.error(AstGenErrorKind::ImportPath, None, None)?,
         };
 
         gen.skip_token(); // eat the string argument
@@ -2032,20 +2058,29 @@ where
             gen.expected_eof()?;
         }
 
-        let module_idx = self
+        // Attempt to add the module via the resolver
+        let resolved_module = self
             .resolver
-            .add_module(path, Some(self.source_location(span)))?;
+            .add_module(path, Some(self.source_location(span)));
 
-        Ok(self.node_from_joined_location(
-            Expression::new(ExpressionKind::Import(self.node_from_joined_location(
-                Import {
-                    path: *raw,
-                    index: module_idx,
-                },
+        match resolved_module {
+            Ok(idx) => Ok(self.node_from_joined_location(
+                Expression::new(ExpressionKind::Import(self.node_from_joined_location(
+                    Import {
+                        path: *raw,
+                        index: idx,
+                    },
+                    &start,
+                ))),
                 &start,
-            ))),
-            &start,
-        ))
+            )),
+            Err(err) => self.error_with_location(
+                AstGenErrorKind::ErroneousImport(err),
+                None,
+                None,
+                &pre.join(self.current_location()),
+            ),
+        }
     }
 
     /// Parse a function call which requires that the [AccessName] is pre-parsed and passed
@@ -2055,7 +2090,7 @@ where
         ident: AstNode<'c, Expression<'c>>,
         tree: &Row<'c, Token<'c>>,
         span: Location,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, span);
         let mut args = AstNode::new(
             FunctionCallArgs {
@@ -2103,20 +2138,23 @@ where
     /// Function to parse the next token with the same kind as the specified kind, this
     /// is a useful utility function for parsing singular tokens in the place of more complex
     /// compound statements and expressions.
-    pub fn parse_token_atom(&self, atom: TokenAtom) -> ParseResult<()> {
+    pub fn parse_token_atom(&self, atom: TokenAtom) -> AstGenResult<'c, ()> {
         match self.peek() {
             Some(token) if token.has_atom(atom) => {
                 self.skip_token();
                 Ok(())
             }
-            Some(token) => Err(ParseError::Parsing {
-                message: format!("Expected a '{}', but got a '{}'", atom, token.kind),
-                src: self.source_location(&token.span),
-            }),
-            _ => Err(ParseError::Parsing {
-                message: format!("Expected a '{}', but reached end of input", atom),
-                src: self.source_location(&self.current_location()),
-            }),
+            Some(token) => self.error_with_location(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::singleton(&self.wall, atom)),
+                Some(token.to_atom()),
+                &token.span,
+            ),
+            _ => self.error(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::singleton(&self.wall, atom)),
+                None,
+            ),
         }
     }
 
@@ -2126,7 +2164,7 @@ where
         name: AstNode<'c, AccessName<'c>>,
         type_args: Row<'c, AstNode<'c, Type<'c>>>,
         tree: &Row<'c, Token<'c>>,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let start = self.current_location();
         let gen = self.from_stream(tree, start);
 
@@ -2176,7 +2214,7 @@ where
         ident: AstNode<'c, Expression<'c>>,
         tree: &Row<'c, Token<'c>>,
         span: Location,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, span);
         let start = gen.current_location();
 
@@ -2207,7 +2245,7 @@ where
     /// Parses a unary operator followed by a singular expression. Once the unary operator
     /// is picked up, the expression is transformed into a function call to the corresponding
     /// trait that implements the unary operator operation.
-    pub fn parse_unary_expression(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    pub fn parse_unary_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.current_token();
         let start = self.current_location();
 
@@ -2295,7 +2333,7 @@ where
     pub fn parse_trait_bound(
         &self,
         ident: &Identifier,
-    ) -> ParseResult<(AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
+    ) -> AstGenResult<'c, (AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
         let name = self.parse_access_name(ident)?;
         let args = self.parse_type_args()?;
 
@@ -2306,7 +2344,7 @@ where
     pub fn parse_name_with_type_args(
         &self,
         ident: &Identifier,
-    ) -> ParseResult<(AstNode<'c, AccessName<'c>>, Option<AstNodes<'c, Type<'c>>>)> {
+    ) -> AstGenResult<'c, (AstNode<'c, AccessName<'c>>, Option<AstNodes<'c, Type<'c>>>)> {
         let name = self.parse_access_name(ident)?;
 
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
@@ -2325,7 +2363,7 @@ where
 
     /// Parses a single identifier, essentially converting the current [TokenAtom::Ident] into
     /// an [AstNode<Name>], assuming that the next token is an identifier.
-    pub fn parse_ident(&self) -> ParseResult<AstNode<'c, Name>> {
+    pub fn parse_ident(&self) -> AstGenResult<'c, AstNode<'c, Name>> {
         match self.peek() {
             Some(Token {
                 kind: TokenKind::Atom(TokenAtom::Ident(ident)),
@@ -2335,10 +2373,12 @@ where
 
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
-            Some(token) => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::from_row(row![&self.wall; TokenAtom::GenericIdent]),
-                &self.current_location(),
+            Some(token) => self.error(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::from_row(
+                    row![&self.wall; TokenAtom::GenericIdent],
+                )),
+                Some(token.to_atom()),
             ),
             None => self.unexpected_eof(),
         }
@@ -2350,7 +2390,7 @@ where
     pub fn parse_access_name(
         &self,
         start_id: &Identifier,
-    ) -> ParseResult<AstNode<'c, AccessName<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, AccessName<'c>>> {
         let start = self.current_location();
         let mut path = row![&self.wall; *start_id];
 
@@ -2371,13 +2411,7 @@ where
                                     self.skip_token();
                                     path.push(*id, &self.wall);
                                 }
-                                _ => {
-                                    return Err(ParseError::Parsing {
-                                        message: "Expected identifier after a name access"
-                                            .to_string(),
-                                        src: self.source_location(&self.current_location()),
-                                    })
-                                }
+                                _ => self.error(AstGenErrorKind::AccessName, None, None)?,
                             }
                         }
                         _ => {
@@ -2402,7 +2436,7 @@ where
     /// semi-colons for some statements.
     pub fn generate_expression_from_interactive(
         &mut self,
-    ) -> ParseResult<AstNode<'c, BodyBlock<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
         Ok(AstNode::new(
             BodyBlock {
                 statements: row![&self.wall],
@@ -2420,7 +2454,7 @@ where
     pub fn parse_expression_with_precedence(
         &self,
         mut min_prec: u8,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
 
@@ -2487,7 +2521,7 @@ where
     /// lookahead to see if there is another type followed by either a comma (which locks the
     /// type_args) or a closing `TokenKind::Gt`. Otherwise, we back track and let the expression
     /// be parsed as an order comparison.
-    pub fn parse_type_args(&self) -> ParseResult<AstNodes<'c, Type<'c>>> {
+    pub fn parse_type_args(&self) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
         self.parse_token_atom(TokenAtom::Lt)?;
         let mut type_args = row![&self.wall];
 
@@ -2508,10 +2542,12 @@ where
                     self.skip_token();
                     break;
                 }
-                Some(token) => self.unexpected_token_error(
-                    &token.kind,
-                    &TokenKindVector::from_row(row![&self.wall; TokenAtom::Comma, TokenAtom::Gt]),
-                    &self.current_location(),
+                Some(token) => self.error(
+                    AstGenErrorKind::Expected,
+                    Some(TokenAtomVector::from_row(
+                        row![&self.wall; TokenAtom::Comma, TokenAtom::Gt],
+                    )),
+                    Some(token.to_atom()),
                 )?,
                 None => self.unexpected_eof()?,
             }
@@ -2529,7 +2565,7 @@ where
     pub fn parse_function_or_tuple_type(
         &self,
         must_be_function: bool,
-    ) -> ParseResult<AstNode<'c, Type<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
         let mut type_args = row![&self.wall; ];
@@ -2556,12 +2592,12 @@ where
                     }
                 };
             }
-            Some(token) => self.unexpected_token_error(
-                &token.kind,
-                &TokenKindVector::from_row(
+            Some(token) => self.error(
+                AstGenErrorKind::Expected,
+                Some(TokenAtomVector::from_row(
                     row![&self.wall; TokenAtom::Delimiter(Delimiter::Paren, false)],
-                ),
-                &self.current_location(),
+                )),
+                Some(token.to_atom()),
             )?,
             None => self.unexpected_eof()?,
         };
@@ -2575,9 +2611,7 @@ where
             }
             None => {
                 if must_be_function {
-                    self.error(
-                        "Expected an arrow '=>' after type arguments denoting a function type.",
-                    )?;
+                    self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
                 IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME)
@@ -2595,7 +2629,7 @@ where
     }
 
     /// Function to parse a type
-    pub fn parse_type(&self) -> ParseResult<AstNode<'c, Type<'c>>> {
+    pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
         let token = self
             .peek()
@@ -2728,12 +2762,7 @@ where
                 .parse_function_or_tuple_type(false)?
                 .into_body()
                 .move_out(),
-            _ => {
-                return Err(ParseError::Parsing {
-                    message: "Expected type here.".to_string(),
-                    src: self.source_location(&self.current_location()),
-                })
-            }
+            _ => self.error(AstGenErrorKind::ExpectedType, None, None)?,
         };
 
         Ok(self.node_from_joined_location(variant, &start))
@@ -2742,7 +2771,7 @@ where
     /// Parse an single name or a function call that is applied on the left hand side
     /// expression. Infix calls and name are only separated by infix calls having
     /// parenthesees at the end of the name.
-    pub fn parse_name_or_infix_call(&self) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    pub fn parse_name_or_infix_call(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         debug_assert!(self.current_token().has_atom(TokenAtom::Dot));
 
         let start = self.current_location();
@@ -2794,7 +2823,7 @@ where
                 }
                 _ => Ok(self.make_variable_from_identifier(*id, *id_span)),
             },
-            _ => self.error("Expecting field name after property access.")?,
+            _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
         }
     }
 
@@ -2805,7 +2834,7 @@ where
         &self,
         tree: &Row<'c, Token<'c>>,
         span: &Location,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
 
         // handle two special cases for empty map and set literals, if the only token
@@ -2948,7 +2977,7 @@ where
     }
 
     /// Parse a single map entry in a literal.
-    pub fn parse_map_entry(&self) -> ParseResult<AstNode<'c, MapLiteralEntry<'c>>> {
+    pub fn parse_map_entry(&self) -> AstGenResult<'c, AstNode<'c, MapLiteralEntry<'c>>> {
         let start = self.current_location();
 
         let key = self.parse_expression_with_precedence(0)?;
@@ -2964,7 +2993,7 @@ where
         &self,
         gen: Self,
         initial_entry: AstNode<'c, MapLiteralEntry<'c>>,
-    ) -> ParseResult<AstNode<'c, Literal<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Literal<'c>>> {
         let start = gen.current_location();
         let mut elements = gen.parse_separated_fn(
             || gen.parse_map_entry(),
@@ -2982,7 +3011,7 @@ where
         &self,
         gen: Self,
         initial_entry: AstNode<'c, Expression<'c>>,
-    ) -> ParseResult<AstNode<'c, Literal<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Literal<'c>>> {
         let start = self.current_location();
 
         let mut elements = gen.parse_separated_fn(
@@ -2997,7 +3026,7 @@ where
     }
 
     /// Parse a pattern with an optional if guard after the singular pattern.
-    pub fn parse_pattern_with_if(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
+    pub fn parse_pattern_with_if(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let start = self.current_location();
         let pattern = self.parse_singular_pattern()?;
 
@@ -3017,7 +3046,7 @@ where
     }
 
     /// Parse a compound pattern.
-    pub fn parse_pattern(&self) -> ParseResult<AstNode<'c, Pattern<'c>>> {
+    pub fn parse_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let start = self.current_location();
 
         // Parse the first pattern, but throw away the location information since that will be
@@ -3049,7 +3078,7 @@ where
     }
 
     /// Parse a function definition argument, which is made of an identifier and a function type.
-    pub fn parse_function_def_arg(&self) -> ParseResult<AstNode<'c, FunctionDefArg<'c>>> {
+    pub fn parse_function_def_arg(&self) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
 
@@ -3067,7 +3096,10 @@ where
 
     /// Parse a function literal. Function literals are essentially definitions of lambdas
     /// that can be assigned to variables or passed as arguments into other functions.
-    pub fn parse_function_literal(&self, gen: &Self) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    pub fn parse_function_literal(
+        &self,
+        gen: &Self,
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let start = self.current_location();
 
         // parse function definition arguments.
@@ -3086,7 +3118,7 @@ where
 
         let fn_body = match self.peek() {
             Some(_) => self.parse_expression_with_precedence(0)?,
-            None => self.error("Expected function body here.")?,
+            None => self.error(AstGenErrorKind::ExpectedFnBody, None, None)?,
         };
 
         Ok(self.node_from_joined_location(
@@ -3118,7 +3150,7 @@ where
         &self,
         tree: &Row<'c, Token<'c>>,
         span: &Location,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
         let start = self.current_location();
 
@@ -3165,12 +3197,7 @@ where
 
                     elements.push(gen.parse_expression_with_precedence(0)?, &self.wall)
                 }
-                Some(_) => {
-                    return Err(ParseError::Parsing {
-                        message: "Unexpected expression in place of a comma.".to_string(),
-                        src: gen.source_location(&start),
-                    });
-                }
+                Some(_) => gen.error(AstGenErrorKind::ExpectedStatement, None, None)?,
                 None => break,
             }
         }
@@ -3189,7 +3216,7 @@ where
         &self,
         tree: &Row<'c, Token<'c>>,
         span: &Location,
-    ) -> ParseResult<AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
         let start = gen.current_location();
 
@@ -3206,12 +3233,10 @@ where
                 Some(token) => {
                     // if we haven't exhausted the whole token stream, then report this as a unexpected
                     // token error
-                    return self.error_with_location(
-                        format!(
-                            "Unexpected token '{}' in the place of an comma.",
-                            token.kind
-                        ),
-                        &gen.current_location(),
+                    return gen.error(
+                        AstGenErrorKind::Expected,
+                        Some(TokenAtomVector::singleton(&self.wall, TokenAtom::Comma)),
+                        Some(token.to_atom()),
                     );
                 }
                 None => break,

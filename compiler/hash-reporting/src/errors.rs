@@ -15,16 +15,17 @@ use crate::{
 /// Enum representing the variants of error that can occur when running an interactive session
 #[derive(Error, Debug)]
 pub enum InteractiveCommandError {
+    /// Encountering an unknown command.
     #[error("Unknown command `{0}`.")]
     UnrecognisedCommand(String),
-
+    /// When a command received arguments it wasn't expecting.
     #[error("Command `{0}` does not take any arguments.")]
     ZeroArguments(String),
-
+    /// When a command received an invalid number of arguments.
     // @Future: Maybe provide a second parameter to support multiple argument command
     #[error("Command `{0}` requires one argument.")]
     ArgumentMismatchError(String),
-
+    /// An unknown error occurred.
     #[error("Unexpected error: `{0}`")]
     InternalError(String),
 }
@@ -55,28 +56,6 @@ impl From<ParseError> for Report {
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new("note", message)));
             }
-            ParseError::IoError { filename, message } => {
-                builder
-                    .add_element(ReportElement::Note(ReportNote::new("note", message)))
-                    .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
-                        format!("file path '{}'", filename.to_string_lossy()),
-                    )));
-            }
-            ParseError::ImportError {
-                import_name: _,
-                src,
-            } => {
-                builder
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        src,
-                        "Unknown path",
-                    )))
-                    .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
-                        "Couldn't import this file path.",
-                    )));
-            }
         };
 
         // @@ErrorReporting: we might want to properly handle incomplete reports?
@@ -92,8 +71,6 @@ pub enum CompilerError {
     IoError(#[from] io::Error),
     #[error("{message}")]
     ArgumentError { message: String },
-    #[error("{0}")]
-    ParseError(#[from] ParseError),
     #[error("{0}")]
     InterpreterError(#[from] InteractiveCommandError),
 }

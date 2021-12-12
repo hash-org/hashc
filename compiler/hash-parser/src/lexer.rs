@@ -10,10 +10,8 @@ use hash_ast::{error::ParseResult, ident::Identifier};
 use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
-    token::{
-        Delimiter, Token, TokenAtom, TokenError, TokenErrorKind, TokenErrorWrapper, TokenKind,
-        TokenResult,
-    },
+    error::{TokenError, TokenErrorKind, TokenErrorWrapper},
+    token::{Delimiter, Token, TokenAtom, TokenKind, TokenResult},
     utils::*,
 };
 use std::{cell::Cell, iter};

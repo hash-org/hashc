@@ -177,7 +177,7 @@ where
                             module_builder.set_entry_point(index);
                         }
                         Err(err) => {
-                            error_handler.add_error(err);
+                            error_handler.add_error(err.into());
                         }
                     }
 

@@ -22,7 +22,7 @@ impl Location {
     /// Create a 'Span' variant by providing a start and end byte position.
     pub fn span(start: usize, end: usize) -> Self {
         assert!(
-            !(end <= start),
+            end > start,
             "Got invalid span for Location::span. Start needs to be smaller than end."
         );
 
@@ -41,7 +41,7 @@ impl Location {
     ///
     /// Then the two locations are joined into one, otherwise the lhs is returned
     pub fn join(&self, end: Self) -> Self {
-        if self.end() < end.start() {
+        if self.end() <= end.start() {
             return Location::span(self.start(), end.end());
         }
 
