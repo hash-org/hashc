@@ -1,3 +1,6 @@
+//! Hash Compiler error and warning reporting module.
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
 use core::fmt;
 use std::{
     cell::Cell,
@@ -11,6 +14,8 @@ use crate::{
     highlight::{highlight, Colour, Modifier},
 };
 
+/// Enumeration describing the type of report; either being a warning, info or a
+/// error.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ReportKind {
     Error,
@@ -19,6 +24,7 @@ pub enum ReportKind {
 }
 
 impl ReportKind {
+    /// Get the [Colour] of the label associated with the [ReportKind].
     fn as_colour(&self) -> Colour {
         match self {
             ReportKind::Error => Colour::Red,
@@ -27,6 +33,7 @@ impl ReportKind {
         }
     }
 
+    /// Get the string label associated with the [ReportKind].
     fn message(&self) -> &'static str {
         match self {
             ReportKind::Error => "error",
@@ -46,6 +53,7 @@ impl fmt::Display for ReportKind {
     }
 }
 
+/// Data type representing a report note which consists of a label and the message.
 #[derive(Debug)]
 pub struct ReportNote {
     pub label: String,
@@ -73,6 +81,9 @@ impl ReportNote {
     }
 }
 
+/// Data structure representing an associated block of code with a report. The type
+/// contains the span of the block, the message associated with a block and optional
+/// [ReportCodeBlockInfo] which adds a message pointed to a code item.
 #[derive(Debug)]
 pub struct ReportCodeBlock {
     pub source_location: SourceLocation,
@@ -80,15 +91,25 @@ pub struct ReportCodeBlock {
     info: Cell<Option<ReportCodeBlockInfo>>,
 }
 
+/// A data type representing a comment/message on a specific span in a code block.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ReportCodeBlockInfo {
+    /// How many characters should be used for line numbers on the side.
     pub indent_width: usize,
+    /// The beginning column of the code block.
     pub start_col: usize,
+    /// The beginning row of the code block.
     pub start_row: usize,
+    /// The end column of the code block.
     pub end_col: usize,
+    /// The end row of the code block.
     pub end_row: usize,
 }
 
+/// Function to compute a row and column number from a given source string
+/// and an offset within the source. This will take into account the number
+/// of encountered newlines and characters per line in order to compute
+/// precise row and column numbers of the span.
 fn offset_col_row(offset: usize, source: &str) -> (usize, usize) {
     let source_lines = source.split('\n');
 
@@ -118,6 +139,7 @@ fn offset_col_row(offset: usize, source: &str) -> (usize, usize) {
 }
 
 impl ReportCodeBlock {
+    /// Create a new [ReportCodeBlock] from a [SourceLocation] and a message.
     pub fn new(source_location: SourceLocation, code_message: impl ToString) -> Self {
         Self {
             source_location,
@@ -155,6 +177,8 @@ impl ReportCodeBlock {
         }
     }
 
+    /// Function to render the [ReportCodeBlock] using the provided [SourceLocation], message and
+    /// [ReportKind].
     fn render(
         &self,
         f: &mut fmt::Formatter,
@@ -190,6 +214,7 @@ impl ReportCodeBlock {
             .skip(start_row.saturating_sub(top_buffer))
             .take(top_buffer + end_row - start_row + 1 + bottom_buffer);
 
+        // Print the filename of the code block...
         writeln!(
             f,
             "{}--> {}",
@@ -204,6 +229,8 @@ impl ReportCodeBlock {
                 )
             )
         )?;
+
+        // Print each selected line with the line number
         for (index, line) in error_view {
             let index_str = format!(
                 "{:>pad_width$}",
@@ -256,6 +283,8 @@ impl ReportCodeBlock {
     }
 }
 
+/// Enumeration representing types of components of a [Report]. A [Report] can be made of
+/// either [ReportCodeBlock]s or [ReportNote]s.
 #[derive(Debug)]
 pub enum ReportElement {
     CodeBlock(ReportCodeBlock),
@@ -279,14 +308,22 @@ impl ReportElement {
     }
 }
 
+/// The report data type represents the entire report which might contain many [ReportElement]s. The
+/// report also contains a general [ReportKind] and a general message.
 #[derive(Debug)]
 pub struct Report {
+    /// The general kind of the report.
     pub kind: ReportKind,
+    /// A general associated message with the report.
     pub message: String,
+    /// An optional associated general error code with the report.
     pub error_code: Option<ErrorCode>,
+    /// A vector of additional [ReportElement]s in order to add additional context
+    /// to errors.
     pub contents: Vec<ReportElement>,
 }
 
+/// Error that is thrown if a [Report] is malformed (when building).
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct IncompleteReportError;
 
@@ -305,31 +342,38 @@ pub struct ReportBuilder {
     contents: Vec<ReportElement>,
 }
 
+/// A [Report] builder trait.
 impl ReportBuilder {
+    /// Initialise a new [ReportBuilder].
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Add a general message to the [Report].
     pub fn with_message(&mut self, message: impl ToString) -> &mut Self {
         self.message = Some(message.to_string());
         self
     }
 
+    /// Add a general kind to the [Report].
     pub fn with_kind(&mut self, kind: ReportKind) -> &mut Self {
         self.kind = Some(kind);
         self
     }
 
+    /// Add an associated [ErrorCode] to the [Report].
     pub fn with_error_code(&mut self, error_code: ErrorCode) -> &mut Self {
         self.error_code = Some(error_code);
         self
     }
 
+    /// Add a [ReportElement] to the report.
     pub fn add_element(&mut self, element: ReportElement) -> &mut Self {
         self.contents.push(element);
         self
     }
 
+    /// Create a [Report] from the [ReportBuilder].
     pub fn build(&mut self) -> Result<Report, IncompleteReportError> {
         Ok(Report {
             kind: self.kind.take().ok_or(IncompleteReportError)?,
@@ -340,6 +384,9 @@ impl ReportBuilder {
     }
 }
 
+/// General data type for displaying [Report]s. This is needed due to the
+/// [Report] rendering process needing access to the program modules to get
+/// access to the source code.
 pub struct ReportWriter<'c, 'm> {
     report: Report,
     modules: &'m Modules<'c>,
@@ -353,6 +400,7 @@ impl<'c, 'm> ReportWriter<'c, 'm> {
 
 impl fmt::Display for ReportWriter<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Add the optional error code to the general message...
         let error_code_fmt = match self.report.error_code {
             Some(error_code) => highlight(
                 self.report.kind.as_colour() | Modifier::Bold,
@@ -360,6 +408,8 @@ impl fmt::Display for ReportWriter<'_, '_> {
             ),
             None => String::new(),
         };
+
+        // Add the general note about the report...
         writeln!(
             f,
             "{}{}: {}",

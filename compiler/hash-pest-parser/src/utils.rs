@@ -6,7 +6,7 @@ use crate::grammar::Rule;
 
 /// Function to convert a pest rule denoting operators into a named function symbols
 /// that represent their function call, more details about names of functions is
-/// accessible in the docs at "https://hash-org.github.io/lang/basics/operators.html"
+/// accessible in the docs at <https://hash-org.github.io/lang/basics/operators.html>
 impl From<Rule> for Option<OperatorFn> {
     fn from(rule: Rule) -> Self {
         use OperatorFn::*;

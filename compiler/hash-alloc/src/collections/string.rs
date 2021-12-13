@@ -56,7 +56,7 @@ impl<'c> BrickString<'c> {
 
     /// Produce a string reference to the data inside `self`, consuming self.
     ///
-    /// This is valid because the data is stored within the underlying [`Castle`], which can
+    /// This is valid because the data is stored within the underlying [`crate::Castle`], which can
     /// outlive `Self`.
     pub fn into_str(self) -> &'c str {
         unsafe { std::str::from_utf8_unchecked(self.inner.into_slice()) }

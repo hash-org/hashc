@@ -1,4 +1,4 @@
-//! Hash Compiler error and warning reporting module
+//! Hash Compiler error and warning reporting module.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
@@ -30,6 +30,7 @@ pub enum InteractiveCommandError {
     InternalError(String),
 }
 
+/// General enumeration of all reportable errors with associated error codes.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[repr(u32)]
 pub enum ErrorCode {
@@ -67,10 +68,13 @@ impl From<ParseError> for Report {
 /// program.
 #[derive(Debug, Error)]
 pub enum CompilerError {
+    /// Generic IO error.
     #[error("{0}")]
     IoError(#[from] io::Error),
+    /// Error when arguments to a particular command occur.
     #[error("{message}")]
     ArgumentError { message: String },
+    /// Errors that occur when running a command.
     #[error("{0}")]
     InterpreterError(#[from] InteractiveCommandError),
 }
