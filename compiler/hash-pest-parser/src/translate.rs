@@ -1135,6 +1135,8 @@ where
                 // accessor in each other
                 expr.fold(subject, |prev_subject, accessor| {
                     let prev_subject = prev_subject?;
+                    let prev_subject_builder = self.builder_from_node(&prev_subject);
+
                     match accessor.as_rule() {
                         Rule::property_access => {
                             Ok(ab.node(Expression::new(ExpressionKind::PropertyAccess(
@@ -1149,22 +1151,43 @@ where
                             ))))
                         }
                         Rule::fn_args => {
+                            let accessor_builder = self.builder_from_pair(&accessor);
+                            let mut args = ab.try_collect(
+                                accessor.into_inner().map(|x| self.transform_expression(x)),
+                            )?;
+
+                            // Here we want to look ahead and see if there are parentheses, if so this means that
+                            // this is not a property access expr, but actually an infix
+                            // function call...
+                            let fn_subject = match prev_subject.into_body().move_out().into_kind() {
+                                ExpressionKind::PropertyAccess(PropertyAccessExpr {
+                                    subject,
+                                    property,
+                                }) => {
+                                    // here we actually need to make the first field item as the subject of the function call
+                                    // and the rest as arguments to the function...
+                                    let fn_subject =
+                                        self.builder_from_node(&property).make_variable(
+                                            self.builder_from_node(&property).node(AccessName {
+                                                path: row![&self.wall; property.body().ident],
+                                            }),
+                                        );
+
+                                    args.insert(0, subject, &self.wall);
+
+                                    fn_subject
+                                }
+                                expr => ab.node(Expression::new(expr)),
+                            };
+
                             // if it is func args, we need convert the 'subject' which is going
                             // to be a VariableExpr into a FunctionCallExpr
-                            Ok(ab.node(Expression::new(ExpressionKind::FunctionCall(
-                                FunctionCallExpr {
-                                    subject: prev_subject,
-                                    args: self.builder_from_pair(&accessor).node(
-                                        FunctionCallArgs {
-                                            entries: ab.try_collect(
-                                                accessor
-                                                    .into_inner()
-                                                    .map(|x| self.transform_expression(x)),
-                                            )?,
-                                        },
-                                    ),
-                                },
-                            ))))
+                            Ok(prev_subject_builder.node(Expression::new(
+                                ExpressionKind::FunctionCall(FunctionCallExpr {
+                                    subject: fn_subject,
+                                    args: accessor_builder.node(FunctionCallArgs { entries: args }),
+                                }),
+                            )))
                         }
                         // we need to convert this into a 'index' function call on the
                         // current variable
