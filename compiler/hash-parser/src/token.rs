@@ -404,7 +404,7 @@ impl fmt::Display for TokenAtom {
 /// TODO(alex): Instead of using a [TokenAtom], we should use an enum to custom
 /// variants or descriptors such as 'operator'. Instead of token atoms we can just
 /// the display representations of the token atoms. Or even better, we can use the
-/// [IntoString] trait and just auto cast into a string, whilst holding a vector of
+/// [`ToString`] trait and just auto cast into a string, whilst holding a vector of
 /// strings.
 #[derive(Debug)]
 pub struct TokenAtomVector<'c>(Row<'c, TokenAtom>);
@@ -424,7 +424,7 @@ impl<'c> TokenAtomVector<'c> {
         Self(items)
     }
 
-    /// Check if the current [TokenKindVector] is empty.
+    /// Check if the current [TokenAtomVector] is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }

@@ -1,5 +1,9 @@
+//! Hash Compiler error and warning reporting module.
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
 use std::ops::BitOr;
 
+/// Variants of highlighter colour that can be used.
 pub enum Colour {
     Black,
     Red,
@@ -11,12 +15,16 @@ pub enum Colour {
     White,
 }
 
+/// Colour modifiers specifying if the colour should also
+/// apply a text effect such as bold or underlined.
 pub enum Modifier {
     Bold,
     Underline,
     Inverted,
 }
 
+/// Trait that enables combining colour and modifiers using the [BitOr]
+/// operator.
 impl BitOr<Modifier> for Colour {
     type Output = Decoration;
 
@@ -28,6 +36,8 @@ impl BitOr<Modifier> for Colour {
     }
 }
 
+/// Trait that enables combining colour and modifiers using the [BitOr]
+/// operator.
 impl BitOr<Colour> for Modifier {
     type Output = Decoration;
 
@@ -39,10 +49,13 @@ impl BitOr<Colour> for Modifier {
     }
 }
 
+/// Trait that implements a single function which defines how text modifiers
+/// are applied to the actual text.
 pub trait Highlighter {
     fn escape_code(&self) -> String;
 }
 
+/// Highlighter trait implementation for a [Colour].
 impl Highlighter for Colour {
     fn escape_code(&self) -> String {
         match self {
@@ -59,6 +72,7 @@ impl Highlighter for Colour {
     }
 }
 
+/// Highlighter trait implementation for a [Modifier].
 impl Highlighter for Modifier {
     fn escape_code(&self) -> String {
         match self {
@@ -70,11 +84,17 @@ impl Highlighter for Modifier {
     }
 }
 
+/// Type that holds the union of a colour and a text modifier. This type is the resultant
+/// type when combining a text colour and a modifier.
 pub struct Decoration {
+    /// The colour of the decoration.
     pub colour: Colour,
+    /// The text modifier of the decoration.
     pub modifier: Modifier,
 }
 
+/// Implementation of the [Highlighter] trait for a Decoration. It first applies the
+/// Colour modifier and then the text modifier.
 impl Highlighter for Decoration {
     fn escape_code(&self) -> String {
         self.colour
@@ -85,6 +105,9 @@ impl Highlighter for Decoration {
     }
 }
 
+/// General function to apply a highlighter on a string. This will call the provided
+/// [Highlighter] implementation and then apply it to the passed message, resetting the
+/// effect at the end of the message.
 pub fn highlight(highlighter: impl Highlighter, message: impl ToString) -> String {
     const RESET: &str = "\u{001b}[0m";
 
