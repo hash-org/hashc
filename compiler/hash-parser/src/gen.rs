@@ -184,7 +184,7 @@ where
         match self.peek() {
             Some(token) => token.span,
             None => {
-                let Token {span, kind: _} = self.current_token();
+                let Token { span, kind: _ } = self.current_token();
                 Location::span(span.end(), span.end() + 1)
             }
         }
