@@ -407,6 +407,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-parser-tests"
+version = "0.1.0"
+dependencies = [
+ "hash-alloc",
+ "hash-ast",
+ "hash-parser",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-pest-parser"
 version = "0.1.0"
 dependencies = [

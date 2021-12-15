@@ -9,7 +9,8 @@ members = [
   "compiler/hash-interactive",
   "compiler/hash-typecheck",
   "compiler/hash-reporting",
-  "compiler/hash"
+  "compiler/hash",
+  "tests/hash_parser",
 ]
 
 [profile.release]

@@ -23,7 +23,7 @@ const EOF_CHAR: char = '\0';
 /// The [Lexer] is a representation of the source in tokens that can be turned into the
 /// AST. The [Lexer] has methods that can parse various token types from the source,
 /// transform the entire contents into a vector of tokens and some useful lexing utilities.
-pub(crate) struct Lexer<'w, 'c, 'a> {
+pub struct Lexer<'w, 'c, 'a> {
     /// Location of the lexer in the current stream.
     offset: Cell<usize>,
 
@@ -45,7 +45,7 @@ pub(crate) struct Lexer<'w, 'c, 'a> {
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Create a new [Lexer] from the given string input.
-    pub(crate) fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
+    pub fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
         Lexer {
             offset: Cell::new(0),
             module_idx,
@@ -112,7 +112,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
+    pub fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -211,7 +211,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// performing complex delimiter depth analysis later on.
     pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind<'c>> {
         let mut children_tokens = row![self.wall];
-        let start = self.offset.get();
+        let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
@@ -221,13 +221,15 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             };
         }
 
-        match self.prev.get().unwrap() == delimiter.right() {
-            false => Err(TokenError::new(
+        match self.prev.get() {
+            Some(delim) if delim == delimiter.right() => {
+                Ok(TokenKind::Tree(delimiter, children_tokens))
+            }
+            _ => Err(TokenError::new(
                 None,
                 TokenErrorKind::Unclosed(delimiter),
                 Location::pos(start),
             )),
-            true => Ok(TokenKind::Tree(delimiter, children_tokens)),
         }
     }
 

@@ -40,7 +40,7 @@ pub enum TokenErrorKind {
     #[error("Expected token '{0}' here.")]
     Expected(TokenAtom),
     /// Unclosed tree block
-    #[error("Encountered unclosed delimiter '{0}'.")]
+    #[error("Encountered unclosed delimiter '{}', consider adding a '{0}' after inner expression.", .0.left())]
     Unclosed(Delimiter),
 }
 

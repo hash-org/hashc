@@ -248,6 +248,15 @@ impl Delimiter {
         }
     }
 
+    pub fn from_right(ch: char) -> Option<Delimiter> {
+        match ch {
+            ')' => Some(Delimiter::Paren),
+            ']' => Some(Delimiter::Bracket),
+            '}' => Some(Delimiter::Brace),
+            _ => None,
+        }
+    }
+
     /// Get the left-hand side variant of a corresponding delimiter
     pub fn left(&self) -> char {
         match self {
