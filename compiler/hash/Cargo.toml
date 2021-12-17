@@ -2,7 +2,7 @@
 name = "hash"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 clap = "3.0.0-beta.2"
