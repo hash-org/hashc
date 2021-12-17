@@ -3,10 +3,10 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
+use hash_ast::error::ParseResult;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
-use hash_ast::{error::ParseResult, ident::Identifier};
 use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
@@ -245,15 +245,32 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
         let name = &self.contents[start..self.offset.get()];
 
-        // create the identifier here from the created map
-        let ident = IDENTIFIER_MAP.create_ident(name);
+        match name {
+            "let" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Let)),
+            "for" => TokenKind::Atom(TokenAtom::Keyword(Keyword::For)),
+            "while" => TokenKind::Atom(TokenAtom::Keyword(Keyword::While)),
+            "loop" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Loop)),
+            "if" => TokenKind::Atom(TokenAtom::Keyword(Keyword::If)),
+            "else" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Else)),
+            "match" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Match)),
+            "as" => TokenKind::Atom(TokenAtom::Keyword(Keyword::As)),
+            "in" => TokenKind::Atom(TokenAtom::Keyword(Keyword::In)),
+            "where" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Where)),
+            "trait" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Trait)),
+            "enum" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Enum)),
+            "struct" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Struct)),
+            "continue" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Continue)),
+            "break" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Break)),
+            "return" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Return)),
+            "import" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Import)),
+            "raw" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Raw)),
+            _ => {
+                // create the identifier here from the created map
+                let ident = IDENTIFIER_MAP.create_ident(name);
 
-        // check if this is an actual keyword instead of an ident, and if it is convert the token type...
-        match ident {
-            Identifier(c) if c < Keyword::size() as u32 => TokenKind::Atom(TokenAtom::Keyword(
-                *Keyword::get_variants().get(c as usize).unwrap(),
-            )),
-            ident => TokenKind::Atom(TokenAtom::Ident(ident)),
+                // check if this is an actual keyword instead of an ident, and if it is convert the token type...
+                TokenKind::Atom(TokenAtom::Ident(ident))
+            }
         }
     }
 

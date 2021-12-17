@@ -6,7 +6,6 @@ use hash_ast::module::ModuleIdx;
 use hash_parser::lexer::Lexer;
 use test::{black_box, Bencher};
 
-
 static STRINGS: &str = r#""tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree." "tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree." "tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree." "tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree.""#;
 static KEYWORDS: &str = include_str!("examples/keywords.hash");
 static OPERATORS: &str = include_str!("examples/operators.hash");
@@ -25,7 +24,7 @@ macro_rules! bench_func {
             b.iter(|| {
                 // create a new lexer
                 let lex = Lexer::new($token, ModuleIdx(0), &wall);
-        
+
                 while let Ok(Some(token)) = lex.advance_token() {
                     black_box(token);
                 }

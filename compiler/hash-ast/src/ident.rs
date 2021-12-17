@@ -1,11 +1,9 @@
-use crate::keyword::Keyword;
 use dashmap::DashMap;
 
 use hash_alloc::{collections::string::BrickString, Castle, Wall};
 use hash_utils::counter;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use strum::VariantNames;
 
 counter! {
     name: Identifier,
@@ -30,9 +28,6 @@ lazy_static! {
     pub static ref IDENTIFIER_MAP: IdentifierMap = IdentifierMap::new();
 }
 
-// Ensure that keywords have exact identifier values...
-// static_assertions::const_assert_eq!(*IDENTIFIER_MAP.ident_data.get("let").unwrap(), Identifier::from(Keyword::Let as u32));
-
 impl Default for IdentifierMap {
     fn default() -> Self {
         Self::new()
@@ -41,27 +36,10 @@ impl Default for IdentifierMap {
 
 impl IdentifierMap {
     pub fn new() -> Self {
-        let map = IdentifierMap {
+        IdentifierMap {
             identifiers: DashMap::new(),
             reverse_lookup: DashMap::new(),
-        };
-
-        let wall = IDENTIFIER_STORAGE_WALL.lock();
-
-        // Initialise the identifier map with all the keywords that are reserved in the language
-        // so that it will be easier to perform comparisons on when a keyword is present, rather than
-        // always looking them up. This means that the names of each keyword is guaranteed to have a
-        // identifier value in the ranges of 0...15
-        for &keyword in Keyword::VARIANTS {
-            // let value = BrickString::new(keyword, &wall);
-            // map.create_ident(value);
-            map.create_ident_in(keyword, &wall);
         }
-
-        // assert_eq!(map.ident_name(Identifier::from(0)), "let".to_string());
-        // assert_eq!(map.ident_name(Identifier::from(14)), "break".to_string());
-
-        map
     }
 
     pub fn create_ident_existing(&self, ident_str: &'static str) -> Identifier {
