@@ -8,7 +8,7 @@ use hash_ast::{
     module::ModuleIdx,
 };
 
-use crate::token::{Delimiter, TokenAtom, TokenAtomVector};
+use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
 use thiserror::Error;
 
@@ -38,7 +38,7 @@ pub enum TokenErrorKind {
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
     #[error("Expected token '{0}' here.")]
-    Expected(TokenAtom),
+    Expected(TokenKind),
     /// Unclosed tree block
     #[error("Encountered unclosed delimiter '{}', consider adding a '{0}' after inner expression.", .0.left())]
     Unclosed(Delimiter),
@@ -69,9 +69,9 @@ pub struct AstGenError<'a> {
     /// Location of where the error references
     location: SourceLocation,
     /// An optional vector of tokens that are expected to circumvent the error.
-    expected: Option<TokenAtomVector<'a>>,
+    expected: Option<TokenKindVector<'a>>,
     /// An optional token in question that was received byt shouldn't of been
-    received: Option<TokenAtom>,
+    received: Option<TokenKind>,
 }
 
 /// Enum representing the kind of statement where type arguments can be expected

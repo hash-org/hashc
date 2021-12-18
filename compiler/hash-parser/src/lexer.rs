@@ -11,10 +11,13 @@ use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
     error::{TokenError, TokenErrorKind, TokenErrorWrapper},
-    token::{Delimiter, Token, TokenAtom, TokenKind, TokenResult},
+    token::{Delimiter, Token, TokenKind, TokenResult},
     utils::*,
 };
-use std::{cell::Cell, iter};
+use std::{
+    cell::{Cell, RefCell},
+    iter,
+};
 
 /// Representing the end of stream, or the initial character that is set as 'prev' in
 /// a [Lexer] since there is no character before the start.
@@ -41,6 +44,8 @@ pub struct Lexer<'w, 'c, 'a> {
 
     /// The castle allocator for the current [Lexer].
     wall: &'w Wall<'c>,
+
+    token_trees: RefCell<Row<'w, Row<'w, Token>>>,
 }
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
@@ -52,12 +57,18 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             prev: Cell::new(None),
             contents,
             wall,
+            token_trees: RefCell::new(row![&wall;]),
         }
     }
 
     /// Returns amount of already consumed symbols.
     pub(crate) fn len_consumed(&self) -> usize {
         self.offset.get()
+    }
+
+    /// Returns a reference to the stored token trees for the current job
+    pub(crate) fn into_token_trees(self) -> Row<'w, Row<'w, Token>> {
+        self.token_trees.into_inner()
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
@@ -112,7 +123,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Parses a token from the input string.
-    pub fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
+    pub fn advance_token(&self) -> TokenResult<Option<Token>> {
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -126,7 +137,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                         // @@Hack: since we already compare if the first item is a slash, we'll just
                         // return here the slash and advance it by one.
                         return Ok(Some(Token::new(
-                            TokenKind::Atom(TokenAtom::Slash),
+                            TokenKind::Slash,
                             Location::pos(self.offset.get()),
                         )));
                     }
@@ -148,33 +159,33 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // > ':' => match self.peek() {
         // >     ':' => {
         // >         self.next();
-        // >         break TokenKind::Atom(TokenAtom::NameAccess)
+        // >         break TokenAtom::NameAccess
         // >     }
-        // >     _ => break TokenKind::Atom(TokenAtom::Colon)
+        // >     _ => break TokenAtom::Colon
         // > },
         //
         // could work here, but however what about if there was a space or a comment between the colons, this might be
         // problematic. Essentially, we pass the responsibility of forming more compound tokens to AST gen rather than here.
         let token_kind = match next_token.unwrap() {
             // One-symbol tokens
-            '~' => TokenKind::Atom(TokenAtom::Tilde),
-            '=' => TokenKind::Atom(TokenAtom::Eq),
-            '!' => TokenKind::Atom(TokenAtom::Exclamation),
-            '-' => TokenKind::Atom(TokenAtom::Minus),
-            '+' => TokenKind::Atom(TokenAtom::Plus),
-            '*' => TokenKind::Atom(TokenAtom::Star),
-            '%' => TokenKind::Atom(TokenAtom::Percent),
-            '>' => TokenKind::Atom(TokenAtom::Gt),
-            '<' => TokenKind::Atom(TokenAtom::Lt),
-            '|' => TokenKind::Atom(TokenAtom::Pipe),
-            '^' => TokenKind::Atom(TokenAtom::Caret),
-            '&' => TokenKind::Atom(TokenAtom::Amp),
-            ':' => TokenKind::Atom(TokenAtom::Colon),
-            ';' => TokenKind::Atom(TokenAtom::Semi),
-            ',' => TokenKind::Atom(TokenAtom::Comma),
-            '.' => TokenKind::Atom(TokenAtom::Dot),
-            '#' => TokenKind::Atom(TokenAtom::Hash),
-            '?' => TokenKind::Atom(TokenAtom::Question),
+            '~' => TokenKind::Tilde,
+            '=' => TokenKind::Eq,
+            '!' => TokenKind::Exclamation,
+            '-' => TokenKind::Minus,
+            '+' => TokenKind::Plus,
+            '*' => TokenKind::Star,
+            '%' => TokenKind::Percent,
+            '>' => TokenKind::Gt,
+            '<' => TokenKind::Lt,
+            '|' => TokenKind::Pipe,
+            '^' => TokenKind::Caret,
+            '&' => TokenKind::Amp,
+            ':' => TokenKind::Colon,
+            ';' => TokenKind::Semi,
+            ',' => TokenKind::Comma,
+            '.' => TokenKind::Dot,
+            '#' => TokenKind::Hash,
+            '?' => TokenKind::Question,
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed
             // by a following delimiter...
@@ -198,7 +209,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             }
 
             // We didn't get a hit on the right token...
-            ch => TokenKind::Atom(TokenAtom::Unexpected(ch)),
+            ch => TokenKind::Unexpected(ch),
         };
 
         let location = Location::span(offset, self.len_consumed());
@@ -209,7 +220,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
     /// performing complex delimiter depth analysis later on.
-    pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind<'c>> {
+    pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind> {
         let mut children_tokens = row![self.wall];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
@@ -223,7 +234,15 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
         match self.prev.get() {
             Some(delim) if delim == delimiter.right() => {
-                Ok(TokenKind::Tree(delimiter, children_tokens))
+                // push this to the token_trees and get the current index to use instead...
+                self.token_trees
+                    .borrow_mut()
+                    .push(children_tokens, &self.wall);
+
+                Ok(TokenKind::Tree(
+                    delimiter,
+                    self.token_trees.borrow().len() - 1,
+                ))
             }
             _ => Err(TokenError::new(
                 None,
@@ -235,7 +254,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Consume an identifier, at this stage keywords are also considered to be identifiers. The function
     /// expects that the first character of the identifier is consumed when the function is called.
-    pub(crate) fn ident(&self, first: char) -> TokenKind<'c> {
+    pub(crate) fn ident(&self, first: char) -> TokenKind {
         debug_assert!(is_id_start(first));
 
         let start = self.offset.get() - first.len_utf8();
@@ -246,37 +265,37 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let name = &self.contents[start..self.offset.get()];
 
         match name {
-            "let" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Let)),
-            "for" => TokenKind::Atom(TokenAtom::Keyword(Keyword::For)),
-            "while" => TokenKind::Atom(TokenAtom::Keyword(Keyword::While)),
-            "loop" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Loop)),
-            "if" => TokenKind::Atom(TokenAtom::Keyword(Keyword::If)),
-            "else" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Else)),
-            "match" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Match)),
-            "as" => TokenKind::Atom(TokenAtom::Keyword(Keyword::As)),
-            "in" => TokenKind::Atom(TokenAtom::Keyword(Keyword::In)),
-            "where" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Where)),
-            "trait" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Trait)),
-            "enum" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Enum)),
-            "struct" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Struct)),
-            "continue" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Continue)),
-            "break" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Break)),
-            "return" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Return)),
-            "import" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Import)),
-            "raw" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Raw)),
+            "let" => TokenKind::Keyword(Keyword::Let),
+            "for" => TokenKind::Keyword(Keyword::For),
+            "while" => TokenKind::Keyword(Keyword::While),
+            "loop" => TokenKind::Keyword(Keyword::Loop),
+            "if" => TokenKind::Keyword(Keyword::If),
+            "else" => TokenKind::Keyword(Keyword::Else),
+            "match" => TokenKind::Keyword(Keyword::Match),
+            "as" => TokenKind::Keyword(Keyword::As),
+            "in" => TokenKind::Keyword(Keyword::In),
+            "where" => TokenKind::Keyword(Keyword::Where),
+            "trait" => TokenKind::Keyword(Keyword::Trait),
+            "enum" => TokenKind::Keyword(Keyword::Enum),
+            "struct" => TokenKind::Keyword(Keyword::Struct),
+            "continue" => TokenKind::Keyword(Keyword::Continue),
+            "break" => TokenKind::Keyword(Keyword::Break),
+            "return" => TokenKind::Keyword(Keyword::Return),
+            "import" => TokenKind::Keyword(Keyword::Import),
+            "raw" => TokenKind::Keyword(Keyword::Raw),
             _ => {
                 // create the identifier here from the created map
                 let ident = IDENTIFIER_MAP.create_ident(name);
 
                 // check if this is an actual keyword instead of an ident, and if it is convert the token type...
-                TokenKind::Atom(TokenAtom::Ident(ident))
+                TokenKind::Ident(ident)
             }
         }
     }
 
     /// Consume a number literal, either float or integer. The function expects that the first character of
     /// the numeric literal is consumed when the function is called.
-    pub(crate) fn number(&self, prev: char) -> TokenResult<TokenKind<'c>> {
+    pub(crate) fn number(&self, prev: char) -> TokenResult<TokenKind> {
         // record the start location of the literal
         let start = self.offset.get() - 1;
 
@@ -307,7 +326,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     ));
                 }
 
-                return Ok(TokenKind::Atom(TokenAtom::IntLiteral(value.unwrap())));
+                return Ok(TokenKind::IntLiteral(value.unwrap()));
             }
         }
 
@@ -345,7 +364,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                         TokenErrorKind::MalformedNumericalLiteral,
                         Location::span(start, self.offset.get()),
                     )),
-                    Ok(value) => Ok(TokenKind::Atom(TokenAtom::IntLiteral(value))),
+                    Ok(value) => Ok(TokenKind::IntLiteral(value)),
                 }
             }
         }
@@ -356,7 +375,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         &self,
         num: impl Iterator<Item = char>,
         start: usize,
-    ) -> TokenResult<TokenKind<'c>> {
+    ) -> TokenResult<TokenKind> {
         let num = num.collect::<String>().parse::<f64>();
 
         match num {
@@ -372,7 +391,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 // the float literal.
                 let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
-                Ok(TokenKind::Atom(TokenAtom::FloatLiteral(value)))
+                Ok(TokenKind::FloatLiteral(value))
             }
         }
     }
@@ -510,10 +529,10 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Consume a char literal provided that the current previous token is a single
-    /// quote, this will produce a [TokenKind::Atom(TokenAtom::CharLiteral)] provided that the literal is
+    /// quote, this will produce a [TokenAtom::CharLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached. This function expects
     /// the the callee has previously eaten the starting single quote.
-    pub(crate) fn char(&self) -> TokenResult<TokenKind<'c>> {
+    pub(crate) fn char(&self) -> TokenResult<TokenKind> {
         // Subtract one to capture the previous quote, since we know it's one byte in size
         let start = self.offset.get() - 1;
 
@@ -523,7 +542,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             let ch = self.next().unwrap();
             self.skip();
 
-            return Ok(TokenKind::Atom(TokenAtom::CharLiteral(ch)));
+            return Ok(TokenKind::CharLiteral(ch));
         } else if self.peek() == '\\' {
             // otherwise, this is an escaped char and hence we eat the '\' and use the next char as
             // the actual char by escaping it
@@ -538,7 +557,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 if next == EOF_CHAR {
                     return Err(TokenError::new(
                         Some("Unclosed character literal.".to_string()),
-                        TokenErrorKind::Expected(TokenAtom::SingleQuote),
+                        TokenErrorKind::Expected(TokenKind::SingleQuote),
                         Location::pos(self.offset.get()),
                     ));
                 }
@@ -552,7 +571,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
             self.skip(); // eat the ending part of the character literal `'`
 
-            return Ok(TokenKind::Atom(TokenAtom::CharLiteral(ch)));
+            return Ok(TokenKind::CharLiteral(ch));
         }
 
         Err(TokenError::new(
@@ -563,9 +582,9 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Consume a string literal provided that the current previous token is a double
-    /// quote, this will produce a [TokenKind::Atom(TokenAtom::StrLiteral)] provided that the literal is
+    /// quote, this will produce a [TokenAtom::StrLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
-    pub(crate) fn string(&self) -> TokenResult<TokenKind<'c>> {
+    pub(crate) fn string(&self) -> TokenResult<TokenKind> {
         let mut value = String::from("");
 
         while let Some(c) = self.next() {
@@ -582,7 +601,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // Essentially we put the string into the literal map and get an id out which we use for the
         // actual representation in the token
         let id = STRING_LITERAL_MAP.create_string(&value);
-        Ok(TokenKind::Atom(TokenAtom::StrLiteral(id)))
+        Ok(TokenKind::StrLiteral(id))
     }
 
     /// Consume a line comment after the first following slash, essentially eating
@@ -656,7 +675,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Tokenise the given input stream
-    pub fn tokenise(self) -> ParseResult<Row<'c, Token<'c>>> {
+    pub fn tokenise(&self) -> ParseResult<Row<'c, Token>> {
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
         Ok(Row::try_from_iter(iter, self.wall)

@@ -36,13 +36,18 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let wall = self.castle.wall();
 
         let index = resolver.module_index().unwrap_or(ModuleIdx(0));
+        let lexer = Lexer::new(contents, index, &wall);
+
         let tokens = timed(
-            || Lexer::new(contents, index, &wall).tokenise(),
+            || lexer.tokenise(),
             log::Level::Debug,
             |elapsed| println!("tokenise:    {:?}", elapsed),
         )?;
 
-        let gen = AstGen::new(&tokens, &resolver, wall);
+        let trees = lexer.into_token_trees();
+        let ast_wall = self.castle.wall();
+
+        let gen = AstGen::new(&tokens, &trees, &resolver, ast_wall);
 
         timed(
             || match gen.parse_module() {
@@ -63,8 +68,14 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let wall = self.castle.wall();
 
         let index = resolver.module_index().unwrap_or(ModuleIdx(0));
-        let tokens = Lexer::new(contents, index, &wall).tokenise()?;
-        let gen = AstGen::new(&tokens, &resolver, wall);
+        let lexer = Lexer::new(contents, index, &wall);
+
+        let tokens = lexer.tokenise()?;
+
+        let trees = lexer.into_token_trees();
+        let ast_wall = self.castle.wall();
+
+        let gen = AstGen::new(&tokens, &trees, &resolver, ast_wall);
 
         match gen.parse_expression_from_interactive() {
             Err(err) => Err(err.into()),

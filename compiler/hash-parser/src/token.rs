@@ -23,55 +23,47 @@ pub type TokenResult<T> = Result<T, TokenError>;
 /// source that is represented as a span. The span is the beginning byte offset, and the
 /// number of bytes for the said token.
 #[derive(Debug, PartialEq)]
-pub struct Token<'c> {
+pub struct Token {
     /// The current token type.
-    pub kind: TokenKind<'c>,
+    pub kind: TokenKind,
     /// The spanning location of the current token.
     pub span: Location,
 }
 
-impl<'c> Token<'c> {
+impl Token {
     /// Create a new token from a kind and a provided location.
-    pub fn new(kind: TokenKind<'c>, span: Location) -> Self {
+    pub fn new(kind: TokenKind, span: Location) -> Self {
         Token { kind, span }
     }
 
     /// Check if the token has the specified token kind.
-    pub fn has_kind(&self, right: TokenKind<'c>) -> bool {
+    pub fn has_kind(&self, right: TokenKind) -> bool {
         self.kind == right
-    }
-
-    /// Check if the current token is a token atom and has a specified atom.
-    pub fn has_atom(&self, right: TokenAtom) -> bool {
-        match self.kind {
-            TokenKind::Atom(left) => left == right,
-            _ => false,
-        }
     }
 
     /// Function to convert a token into atom regardless whether the kind
     /// is a tree or an atom. If the token kind is a tree, the delimiter of the
     /// tree is used as the atom.
-    pub fn to_atom(&self) -> TokenAtom {
-        match self.kind {
-            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(delim, true),
-            TokenKind::Atom(atom) => atom,
-        }
-    }
+    // pub fn to_atom(&self) -> TokenKind {
+    //     match self.kind {
+    //         TokenKind::Tree(delim, _) => TokenKind::Delimiter(delim, true),
+    //         TokenKind::Atom(atom) => atom,
+    //     }
+    // }
 
     /// Convert the current token into a tree provided that it is one. The
     /// function will panic if an attempt to convert a token atom into a
     /// tree.
-    pub fn into_tree(&self) -> (&Row<'c, Token<'c>>, Location) {
-        let location = self.span;
+    // pub fn into_tree(&self) -> (&Row<'c, Token<'c>>, Location) {
+    //     let location = self.span;
 
-        let tree = match &self.kind {
-            TokenKind::Tree(_, tree) => tree,
-            _ => unreachable!("Cannot convert token into tree"),
-        };
+    //     let tree = match &self.kind {
+    //         TokenKind::Tree(_, tree) => tree,
+    //         _ => unreachable!("Cannot convert token into tree"),
+    //     };
 
-        (tree, location)
-    }
+    //     (tree, location)
+    // }
 
     /// Check if the token is a tree and the tree beginning character
     /// is a brace.
@@ -85,31 +77,22 @@ impl<'c> Token<'c> {
         matches!(self.kind, TokenKind::Tree(Delimiter::Paren, _))
     }
 
-    /// Copy the current token in the specified [Wall] allocator.
-    pub fn clone_in(&self, wall: &Wall<'c>) -> Self {
-        Token {
-            kind: self.kind.clone_in(wall),
-            span: self.span,
-        }
-    }
+    // Copy the current token in the specified [Wall] allocator.
+    // pub fn clone_in(&self, wall: &Wall<'c>) -> Self {
+    //     Token {
+    //         kind: self.kind.clone_in(wall),
+    //         span: self.span,
+    //     }
+    // }
 }
 
-impl fmt::Display for Token<'_> {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            TokenKind::Atom(TokenAtom::Ident(ident)) => {
+            TokenKind::Ident(ident) => {
                 write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident))
             }
-            TokenKind::Tree(delim, tree) => {
-                writeln!(f, "Delimiter({})", delim.left())?;
-
-                for token in tree.iter() {
-                    writeln!(f, "{}", token)?;
-                }
-
-                write!(f, "Delimiter({})", delim.right())
-            }
-            TokenKind::Atom(TokenAtom::StrLiteral(literal)) => {
+            TokenKind::StrLiteral(literal) => {
                 write!(
                     f,
                     "StringLiteral (\"{}\")",
@@ -117,7 +100,7 @@ impl fmt::Display for Token<'_> {
                 )
             }
             // We want to print the actual character, instead of a potential escape code
-            TokenKind::Atom(TokenAtom::CharLiteral(ch)) => {
+            TokenKind::CharLiteral(ch) => {
                 write!(f, "CharLiteral ('{}')", ch)
             }
             kind => write!(f, "{:?}", kind),
@@ -125,60 +108,58 @@ impl fmt::Display for Token<'_> {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum TokenKind<'c> {
-    /// A token atom is a singular token type.
-    Atom(TokenAtom),
+// #[derive(Debug, PartialEq)]
+// pub enum TokenKind<'c> {
+//     /// A token atom is a singular token type.
+//     Atom(TokenAtom),
 
-    /// A token tree is represented by an arbitrary number of token atoms that are surrounded by
-    /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
-    Tree(Delimiter, Row<'c, Token<'c>>),
-}
+//     /// A token tree is represented by an arbitrary number of token atoms that are surrounded by
+//     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
+//     Tree(Delimiter, Row<'c, Token<'c>>),
+// }
 
-impl<'c> fmt::Display for TokenKind<'c> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TokenKind::Atom(atom) => write!(f, "{}", atom),
-            TokenKind::Tree(_, tokens) => write!(f, "{:#?}", tokens),
-        }
-    }
-}
+// impl<'c> fmt::Display for TokenKind<'c> {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match self {
+//             TokenKind::Atom(atom) => write!(f, "{}", atom),
+//             TokenKind::Tree(_, tokens) => write!(f, "{:#?}", tokens),
+//         }
+//     }
+// }
 
-impl<'c> TokenKind<'c> {
+impl TokenKind {
     /// Clone the current kind in the specified [Wall] allocator.
-    pub(crate) fn clone_in(&self, wall: &Wall<'c>) -> Self {
-        match self {
-            TokenKind::Atom(atom) => TokenKind::Atom(*atom),
-            TokenKind::Tree(delimiter, tokens) => TokenKind::Tree(
-                *delimiter,
-                Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
-            ),
-        }
-    }
+    // pub(crate) fn clone_in(&self, wall: &Wall<'c>) -> Self {
+    //     match self {
+    //         TokenKind::Atom(atom) => TokenKind::Atom(*atom),
+    //         TokenKind::Tree(delimiter, tokens) => TokenKind::Tree(
+    //             *delimiter,
+    //             Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
+    //         ),
+    //     }
+    // }
 
     /// Convert the token kind into an atom. If the current token kind is a tree, the
     /// function will return the [Delimiter] of the token tree.
-    pub(crate) fn to_atom(&self) -> TokenAtom {
-        match self {
-            TokenKind::Tree(delim, _) => TokenAtom::Delimiter(*delim, true),
-            TokenKind::Atom(atom) => *atom,
-        }
-    }
+    // pub(crate) fn to_atom(&self) -> TokenKind {
+    //     match self {
+    //         TokenKind::Tree(delim, _) => TokenKind::Delimiter(*delim, true),
+    //         TokenKind::Atom(atom) => *atom,
+    //     }
+    // }
 
     /// Check if a [TokenKind] can be considered in a situation as a unary operator.
     pub(crate) fn is_unary_op(&self) -> bool {
         matches!(
             self,
-            TokenKind::Atom(
-                TokenAtom::Plus
-                    | TokenAtom::Minus
-                    | TokenAtom::Star
-                    | TokenAtom::Slash
-                    | TokenAtom::Hash // intrinsics
-                    | TokenAtom::Amp
-                    | TokenAtom::Tilde
-                    | TokenAtom::Exclamation
-            )
+            TokenKind::Plus
+                    | TokenKind::Minus
+                    | TokenKind::Star
+                    | TokenKind::Slash
+                    | TokenKind::Hash // intrinsics
+                    | TokenKind::Amp
+                    | TokenKind::Tilde
+                    | TokenKind::Exclamation
         )
     }
 
@@ -187,13 +168,11 @@ impl<'c> TokenKind<'c> {
     pub(crate) fn begins_block(&self) -> bool {
         matches!(
             self,
-            TokenKind::Atom(
-                TokenAtom::Keyword(Keyword::For)
-                    | TokenAtom::Keyword(Keyword::While)
-                    | TokenAtom::Keyword(Keyword::Loop)
-                    | TokenAtom::Keyword(Keyword::If)
-                    | TokenAtom::Keyword(Keyword::Match)
-            )
+            TokenKind::Keyword(Keyword::For)
+                | TokenKind::Keyword(Keyword::While)
+                | TokenKind::Keyword(Keyword::Loop)
+                | TokenKind::Keyword(Keyword::If)
+                | TokenKind::Keyword(Keyword::Match)
         )
     }
 
@@ -202,15 +181,13 @@ impl<'c> TokenKind<'c> {
     pub(crate) fn begins_statement(&self) -> bool {
         matches!(
             self,
-            TokenKind::Atom(
-                TokenAtom::Keyword(Keyword::Let)
-                    | TokenAtom::Keyword(Keyword::Trait)
-                    | TokenAtom::Keyword(Keyword::Enum)
-                    | TokenAtom::Keyword(Keyword::Struct)
-                    | TokenAtom::Keyword(Keyword::Continue)
-                    | TokenAtom::Keyword(Keyword::Break)
-                    | TokenAtom::Keyword(Keyword::Return)
-            )
+            TokenKind::Keyword(Keyword::Let)
+                | TokenKind::Keyword(Keyword::Trait)
+                | TokenKind::Keyword(Keyword::Enum)
+                | TokenKind::Keyword(Keyword::Struct)
+                | TokenKind::Keyword(Keyword::Continue)
+                | TokenKind::Keyword(Keyword::Break)
+                | TokenKind::Keyword(Keyword::Return)
         )
     }
 
@@ -218,12 +195,10 @@ impl<'c> TokenKind<'c> {
     pub(crate) fn is_literal(&self) -> bool {
         matches!(
             self,
-            TokenKind::Atom(
-                TokenAtom::IntLiteral(_)
-                    | TokenAtom::FloatLiteral(_)
-                    | TokenAtom::CharLiteral(_)
-                    | TokenAtom::StrLiteral(_)
-            )
+            TokenKind::IntLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::CharLiteral(_)
+                | TokenKind::StrLiteral(_)
         )
     }
 }
@@ -287,7 +262,7 @@ impl fmt::Display for Delimiter {
 /// An Atom represents all variants of a token that can be present in a source file. Atom token
 /// kinds can represent a single character, literal or an identifier.
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum TokenAtom {
+pub enum TokenKind {
     /// '='
     Eq,
     /// '<'
@@ -341,6 +316,9 @@ pub enum TokenAtom {
     /// Identifier
     Ident(Identifier),
 
+    /// Tree
+    Tree(Delimiter, usize),
+
     /// Keyword
     Keyword(Keyword),
 
@@ -358,47 +336,48 @@ pub enum TokenAtom {
     Unexpected(char),
 }
 
-impl fmt::Display for TokenAtom {
+impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TokenAtom::Eq => write!(f, "="),
-            TokenAtom::Lt => write!(f, "<"),
-            TokenAtom::Gt => write!(f, ">"),
-            TokenAtom::Plus => write!(f, "+"),
-            TokenAtom::Minus => write!(f, "-"),
-            TokenAtom::Star => write!(f, "*"),
-            TokenAtom::Slash => write!(f, "/"),
-            TokenAtom::Percent => write!(f, "%"),
-            TokenAtom::Caret => write!(f, "^"),
-            TokenAtom::Amp => write!(f, "&"),
-            TokenAtom::Tilde => write!(f, "~"),
-            TokenAtom::Pipe => write!(f, "|"),
-            TokenAtom::Question => write!(f, "?"),
-            TokenAtom::Exclamation => write!(f, "!"),
-            TokenAtom::Dot => write!(f, "."),
-            TokenAtom::Colon => write!(f, ":"),
-            TokenAtom::Semi => write!(f, ";"),
-            TokenAtom::Hash => write!(f, "#"),
-            TokenAtom::Comma => write!(f, ","),
-            TokenAtom::Quote => write!(f, "\""),
-            TokenAtom::Delimiter(delim, left) => {
+            TokenKind::Eq => write!(f, "="),
+            TokenKind::Lt => write!(f, "<"),
+            TokenKind::Gt => write!(f, ">"),
+            TokenKind::Plus => write!(f, "+"),
+            TokenKind::Minus => write!(f, "-"),
+            TokenKind::Star => write!(f, "*"),
+            TokenKind::Slash => write!(f, "/"),
+            TokenKind::Percent => write!(f, "%"),
+            TokenKind::Caret => write!(f, "^"),
+            TokenKind::Amp => write!(f, "&"),
+            TokenKind::Tilde => write!(f, "~"),
+            TokenKind::Pipe => write!(f, "|"),
+            TokenKind::Question => write!(f, "?"),
+            TokenKind::Exclamation => write!(f, "!"),
+            TokenKind::Dot => write!(f, "."),
+            TokenKind::Colon => write!(f, ":"),
+            TokenKind::Semi => write!(f, ";"),
+            TokenKind::Hash => write!(f, "#"),
+            TokenKind::Comma => write!(f, ","),
+            TokenKind::Quote => write!(f, "\""),
+            TokenKind::Delimiter(delim, left) => {
                 if *left {
                     write!(f, "{}", delim.left())
                 } else {
                     write!(f, "{}", delim.right())
                 }
             }
-            TokenAtom::Unexpected(ch) => write!(f, "{}", ch),
-            TokenAtom::SingleQuote => write!(f, "'"),
-            TokenAtom::IntLiteral(num) => write!(f, "{}", num),
-            TokenAtom::FloatLiteral(num) => write!(f, "{}", num),
-            TokenAtom::CharLiteral(ch) => write!(f, "'{}'", ch),
-            TokenAtom::StrLiteral(str) => {
+            TokenKind::Tree(delim, _) => write!(f, "{} tree {}", delim.left(), delim.right()),
+            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
+            TokenKind::SingleQuote => write!(f, "'"),
+            TokenKind::IntLiteral(num) => write!(f, "{}", num),
+            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
+            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
+            TokenKind::StrLiteral(str) => {
                 write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
             }
-            TokenAtom::Keyword(kwd) => kwd.fmt(f),
-            TokenAtom::GenericIdent => write!(f, "identifier"),
-            TokenAtom::Ident(ident) => {
+            TokenKind::Keyword(kwd) => kwd.fmt(f),
+            TokenKind::GenericIdent => write!(f, "identifier"),
+            TokenKind::Ident(ident) => {
                 write!(f, "{}", IDENTIFIER_MAP.ident_name(*ident))
             }
         }
@@ -416,20 +395,20 @@ impl fmt::Display for TokenAtom {
 /// [`ToString`] trait and just auto cast into a string, whilst holding a vector of
 /// strings.
 #[derive(Debug)]
-pub struct TokenAtomVector<'c>(Row<'c, TokenAtom>);
+pub struct TokenKindVector<'c>(Row<'c, TokenKind>);
 
-impl<'c> TokenAtomVector<'c> {
+impl<'c> TokenKindVector<'c> {
     /// Create a new empty [TokenAtomVector].
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall;])
     }
 
-    pub fn inner(&self) -> &Row<'c, TokenAtom> {
+    pub fn inner(&self) -> &Row<'c, TokenKind> {
         &self.0
     }
 
     /// Create a [TokenAtomVector] from a provided row of expected atoms.
-    pub fn from_row(items: Row<'c, TokenAtom>) -> Self {
+    pub fn from_row(items: Row<'c, TokenKind>) -> Self {
         Self(items)
     }
 
@@ -439,34 +418,34 @@ impl<'c> TokenAtomVector<'c> {
     }
 
     /// Create a [TokenAtomVector] with a single atom.
-    pub fn singleton(wall: &Wall<'c>, atom: TokenAtom) -> Self {
+    pub fn singleton(wall: &Wall<'c>, atom: TokenKind) -> Self {
         Self(row![wall; atom])
     }
 
     /// Tokens that can act as a expression connective
     pub fn begin_expression(wall: &Wall<'c>) -> Self {
         Self(row![wall;
-            TokenAtom::Delimiter(Delimiter::Paren, true),
-            TokenAtom::Dot, // OR an operator, OR '::'
-            TokenAtom::Semi,
+            TokenKind::Delimiter(Delimiter::Paren, true),
+            TokenKind::Dot, // OR an operator, OR '::'
+            TokenKind::Semi,
         ])
     }
 
     /// Tokens expected when the parser expects a collection of patterns to be present.
     pub fn begin_pattern_collection(wall: &Wall<'c>) -> Self {
         Self(row![wall;
-            TokenAtom::Delimiter(Delimiter::Paren, true),
-            TokenAtom::Delimiter(Delimiter::Brace, true),
+            TokenKind::Delimiter(Delimiter::Paren, true),
+            TokenKind::Delimiter(Delimiter::Brace, true),
         ])
     }
 
     /// Tokens expected when a pattern begins in a match statement.
     pub fn begin_pattern(wall: &Wall<'c>) -> Self {
         Self(row![wall;
-            TokenAtom::GenericIdent,
-            TokenAtom::Delimiter(Delimiter::Paren, true),
-            TokenAtom::Delimiter(Delimiter::Brace, true),
-            TokenAtom::Delimiter(Delimiter::Bracket, true),
+            TokenKind::GenericIdent,
+            TokenKind::Delimiter(Delimiter::Paren, true),
+            TokenKind::Delimiter(Delimiter::Brace, true),
+            TokenKind::Delimiter(Delimiter::Bracket, true),
         ])
     }
 }
@@ -476,7 +455,7 @@ impl<'c> TokenAtomVector<'c> {
 /// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
 /// length of the vector kind is one, we don't use conjunctives to glue kinds together.
 /// @@Improvement: Multiple language support ???
-impl fmt::Display for TokenAtomVector<'_> {
+impl fmt::Display for TokenKindVector<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // This is where Haskell would really shine...
         match self.0.len() {
