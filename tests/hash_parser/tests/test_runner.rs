@@ -12,16 +12,19 @@ fn handle_test(input: TestingInput) {
     // determine if this test should fail or not
     let should_fail = input.snake_name.starts_with("should_fail");
 
-
     let content_path = input.path.join("case.hash");
 
     let castle = Castle::new();
-    let parser = ParParser::new_with_workers(HashParser::new(&castle), NonZeroUsize::new(1).unwrap(), false);
+    let parser = ParParser::new_with_workers(
+        HashParser::new(&castle),
+        NonZeroUsize::new(1).unwrap(),
+        false,
+    );
 
     // Now parse the module and store the result
-    let result =  parser.parse(&content_path, input.path);
+    let result = parser.parse(&content_path, input.path);
 
-    // Check whether the result fails or not, depending on if the file_path begins with 
+    // Check whether the result fails or not, depending on if the file_path begins with
     // 'should_fail'...
     assert_eq!(result.0.is_err(), should_fail);
 }

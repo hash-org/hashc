@@ -68,7 +68,7 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
     /// Create a error from the location using Pest and then add a custom message on top of the location.
     pub fn error(&self, message: String) -> ParseError {
         ParseError::Parsing {
-            src: self.site.clone(),
+            src: Some(self.site),
             message,
         }
     }
@@ -1091,7 +1091,7 @@ where
                         let import_call = subject_expr.into_inner().next().unwrap();
                         let import_path = import_call.into_inner().next().unwrap();
                         let s = import_path.as_span().as_str();
-                        let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
+                        let module_idx = self.resolver.add_module(s, Some(ab.site))?;
 
                         // get the string, but then convert into an AstNode using the string literal ast info
                         Ok(ab.node(Expression::new(ExpressionKind::Import(

@@ -52,10 +52,10 @@ impl From<TokenErrorWrapper> for ParseError {
     fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
-            src: SourceLocation {
+            src: Some(SourceLocation {
                 location: err.location,
                 module_index: idx,
-            },
+            }),
         }
     }
 }
@@ -212,7 +212,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
 
         Self::Parsing {
             message: base_message,
-            src: err.location,
+            src: Some(err.location),
         }
     }
 }

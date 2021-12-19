@@ -78,7 +78,7 @@ impl fmt::Display for Location {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SourceLocation {
     pub location: Location,
     pub module_index: ModuleIdx,

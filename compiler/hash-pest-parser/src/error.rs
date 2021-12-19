@@ -37,14 +37,14 @@ impl From<PestError> for ParseError {
         match error.inner().variant {
             pest::error::ErrorVariant::ParsingError { .. } => ParseError::Parsing {
                 src: match error.inner().location {
-                    pest::error::InputLocation::Pos(x) => SourceLocation {
+                    pest::error::InputLocation::Pos(x) => Some(SourceLocation {
                         location: Location::pos(x),
                         module_index: ModuleIdx(0),
-                    },
-                    pest::error::InputLocation::Span((x, y)) => SourceLocation {
+                    }),
+                    pest::error::InputLocation::Span((x, y)) => Some(SourceLocation {
                         location: Location::span(x, y),
                         module_index: ModuleIdx(0),
-                    },
+                    }),
                 },
                 message: error.into_inner().to_string(),
             },
