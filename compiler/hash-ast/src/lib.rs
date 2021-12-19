@@ -18,5 +18,4 @@ pub mod operator;
 pub mod parse;
 pub mod resolve;
 pub mod storage;
-pub mod tests;
 pub mod visualise;

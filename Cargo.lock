@@ -367,7 +367,6 @@ dependencies = [
  "derive_more",
  "hash-alloc",
  "hash-utils",
- "hash-utils-testing-macros",
  "lazy_static",
  "log",
  "num_cpus",
@@ -412,6 +411,7 @@ dependencies = [
  "hash-ast",
  "hash-parser",
  "hash-utils",
+ "hash-utils-testing-macros",
 ]
 
 [[package]]

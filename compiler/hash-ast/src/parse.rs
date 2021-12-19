@@ -8,7 +8,7 @@ use crate::{
     module::{ModuleBuilder, ModuleIdx, Modules},
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
-use derive_more::Constructor;
+    use derive_more::Constructor;
 use log::{log, Level};
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};
@@ -180,6 +180,7 @@ where
                             error_handler.add_error(err.into());
                         }
                     }
+
 
                     // No interactive node for a module entry point
                     Ok(None)
