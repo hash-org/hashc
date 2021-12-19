@@ -19,17 +19,17 @@ use pest::Parser;
 use std::path::Path;
 
 #[derive(Copy, Clone)]
-pub struct PestBackend<'c> {
+pub struct HashPestParser<'c> {
     castle: &'c Castle,
 }
 
-impl<'c> PestBackend<'c> {
+impl<'c> HashPestParser<'c> {
     pub fn new(castle: &'c Castle) -> Self {
         Self { castle }
     }
 }
 
-impl<'c> ParserBackend<'c> for PestBackend<'c> {
+impl<'c> ParserBackend<'c> for HashPestParser<'c> {
     fn parse_module(
         &self,
         resolver: impl ModuleResolver,

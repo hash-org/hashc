@@ -14,7 +14,7 @@ use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::{Report, ReportWriter};
 
 #[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::PestBackend;
+use hash_pest_parser::backend::HashPestParser;
 
 #[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
@@ -104,7 +104,7 @@ fn parse_interactive<'c>(
     let directory = env::current_dir().unwrap();
 
     // setup the parser
-    let parser = ParParser::new(PestBackend::new(castle), false);
+    let parser = ParParser::new(HashPestParser::new(castle), false);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {

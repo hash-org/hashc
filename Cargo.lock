@@ -410,6 +410,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-parser",
+ "hash-pest-parser",
  "hash-utils",
  "hash-utils-testing-macros",
 ]

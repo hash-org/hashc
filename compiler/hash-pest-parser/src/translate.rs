@@ -1590,11 +1590,13 @@ where
                     value,
                 })))
             }
+            // It might be the case that an expression ends up in this case if there is no ending semi colon
+            // in a module.
+            Rule::expr => Ok(ab.node(Statement::Expr(self.transform_expression(pair)?))),
             Rule::expr_or_assign_st => {
                 let mut components = pair.into_inner();
 
-                let lhs: AstNode<'c, Expression<'c>> =
-                    self.transform_expression(components.next().unwrap())?;
+                let lhs = self.transform_expression(components.next().unwrap())?;
 
                 // if no rhs is present, this is just an singular expression instead of an
                 // assignment

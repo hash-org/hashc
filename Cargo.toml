@@ -10,7 +10,7 @@ members = [
   "compiler/hash-typecheck",
   "compiler/hash-reporting",
   "compiler/hash",
-  "tests/hash_parser",
+  "tests/parser",
 ]
 
 [profile.release]

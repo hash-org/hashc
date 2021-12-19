@@ -27,7 +27,7 @@ use std::{num::NonZeroUsize, process::exit};
 use hash_parser::backend::HashParser;
 
 #[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::PestBackend;
+use hash_pest_parser::backend::HashPestParser;
 
 use crate::crash_handler::panic_handler;
 
@@ -161,7 +161,7 @@ fn main() {
     // determine the parser backend that we're using...
     #[cfg(feature = "use-pest")]
     let mut parser_backend =
-        ParParser::new_with_workers(PestBackend::new(&castle), worker_count, false);
+        ParParser::new_with_workers(HashPestParser::new(&castle), worker_count, false);
 
     #[cfg(not(feature = "use-pest"))]
     let mut parser_backend =

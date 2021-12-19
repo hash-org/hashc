@@ -23,6 +23,7 @@ struct GenerateTestsInput {
     path: String,
     func: Expr,
     test_pattern: String,
+    test_prefix: String,
 }
 
 fn parse_str_lit(expr: &Expr) -> syn::Result<String> {
@@ -40,9 +41,10 @@ fn parse_str_lit(expr: &Expr) -> syn::Result<String> {
 impl Parse for GenerateTestsInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut result = Punctuated::<Expr, Comma>::parse_terminated(input)?;
-        let args_err = || syn::Error::new(input.span(), "Expecting two arguments to macro");
+        let args_err = || syn::Error::new(input.span(), "Expecting three arguments to macro");
 
         let func = result.pop().ok_or_else(args_err)?;
+        let test_prefix = result.pop().ok_or_else(args_err)?;
         let test_pattern = result.pop().ok_or_else(args_err)?;
         let path = result.pop().ok_or_else(args_err)?;
 
@@ -53,6 +55,7 @@ impl Parse for GenerateTestsInput {
         Ok(GenerateTestsInput {
             path: parse_str_lit(path.value())?,
             test_pattern: parse_str_lit(test_pattern.value())?,
+            test_prefix: parse_str_lit(test_prefix.value())?,
             func: func.into_value(),
         })
     }
@@ -134,6 +137,11 @@ fn read_dir(
 /// either of `"output"` or `"case.hash"` as `TEST_PATTERN` will result in a test case being
 /// generated for `test_foo`, but no further (i.e. not `test_foo_output` or `test_foo_case_hash`).
 ///
+/// - `FN_PREFIX` is a unique prefix for the generated function in case the macro is used more than once
+/// in a single file for generating more than one test file with a potentially different internal test
+/// logic. The prefix must be a specified string literal, leaving it empty will generate the normal
+/// test name.
+///
 /// - `TEST_FN` must be an expression of type [`TestingFn`](hash_utils::testing::TestingFn). Every
 /// generated test case body will invoke this function with the appropriate
 /// [`TestingInput`](hash_utils::testing::TestingInput). Within this function, the actual test
@@ -164,7 +172,7 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     let snake_names = entries.iter().map(|entry| entry.snake_name.to_owned());
     let test_names = entries
         .iter()
-        .map(|entry| format_ident!("test_{}", entry.snake_name));
+        .map(|entry| format_ident!("{}_test_{}", input.test_prefix, entry.snake_name));
 
     let output = quote! {
         #(
