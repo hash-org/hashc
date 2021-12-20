@@ -7,6 +7,7 @@ use hash_ast::{
     location::{Location, SourceLocation},
     module::ModuleIdx,
 };
+use hash_utils::printing::SliceDisplay;
 
 use crate::token::{Delimiter, TokenAtom, TokenAtomVector};
 use derive_more::Constructor;
@@ -203,7 +204,8 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             }
 
             if let Some(expected) = expected {
-                let expected_items_msg = format!(". Consider adding {}", expected);
+                let slice_display = SliceDisplay(expected.into_inner().into_slice());
+                let expected_items_msg = format!(". Consider adding {}", slice_display);
                 base_message.push_str(&expected_items_msg);
             } else {
                 base_message.push('.');

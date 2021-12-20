@@ -26,7 +26,12 @@ fn handle_test<'a>(input: TestingInput, parser: impl ParserBackend<'a>) {
 
     // Check whether the result fails or not, depending on if the file_path begins with
     // 'should_fail'...
-    assert_eq!(result.0.is_err(), should_fail);
+    assert_eq!(
+        result.0.is_err(),
+        should_fail,
+        "parsing file failed: {:?}",
+        content_path
+    );
 }
 
 fn run_hash_parser_tests(input: TestingInput) {

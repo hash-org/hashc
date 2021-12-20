@@ -1,2 +1,4 @@
 while i < 0 {
 }
+
+while alpha {}

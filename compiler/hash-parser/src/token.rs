@@ -86,6 +86,7 @@ impl<'c> Token<'c> {
     }
 
     /// Copy the current token in the specified [Wall] allocator.
+    #[must_use]
     pub fn clone_in(&self, wall: &Wall<'c>) -> Self {
         Token {
             kind: self.kind.clone_in(wall),
@@ -428,6 +429,10 @@ impl<'c> TokenAtomVector<'c> {
         &self.0
     }
 
+    pub fn into_inner(self) -> Row<'c, TokenAtom> {
+        self.0
+    }
+
     /// Create a [TokenAtomVector] from a provided row of expected atoms.
     pub fn from_row(items: Row<'c, TokenAtom>) -> Self {
         Self(items)
@@ -468,43 +473,6 @@ impl<'c> TokenAtomVector<'c> {
             TokenAtom::Delimiter(Delimiter::Brace, true),
             TokenAtom::Delimiter(Delimiter::Bracket, true),
         ])
-    }
-}
-
-/// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds
-/// after a particular token. This is useful for constructing re-usable error messages that might appear in multiple
-/// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
-/// length of the vector kind is one, we don't use conjunctives to glue kinds together.
-/// @@Improvement: Multiple language support ???
-impl fmt::Display for TokenAtomVector<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // This is where Haskell would really shine...
-        match self.0.len() {
-            0 => write!(f, ""),
-            1 => write!(f, "a '{}'", self.0.get(0).unwrap()),
-            _ => {
-                let len = self.0.len();
-                let mut items = self.0.iter().peekable();
-
-                write!(f, "either a ")?;
-                let mut count = 0;
-
-                while let Some(item) = items.next() {
-                    if items.peek().is_some() {
-                        if count == len - 2 {
-                            write!(f, "'{}', or ", item)?;
-                        } else {
-                            write!(f, "'{}', ", item)?;
-                        }
-                    } else {
-                        write!(f, "'{}'", item)?;
-                    };
-                    count += 1;
-                }
-
-                write!(f, ".")
-            }
-        }
     }
 }
 
