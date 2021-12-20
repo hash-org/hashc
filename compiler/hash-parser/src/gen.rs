@@ -2175,24 +2175,85 @@ where
             let entry_start = gen.current_location();
 
             let name = gen.parse_ident()?;
-            gen.parse_token_atom(TokenAtom::Eq)?;
-            let value = gen.parse_expression_with_precedence(0)?;
 
-            entries.push(
-                gen.node_with_location(
-                    StructLiteralEntry { name, value },
-                    entry_start.join(gen.current_location()),
-                ),
-                &self.wall,
-            );
-
-            // now we eat the next token, checking that it is a comma
+            // we want to support the syntax where we can just assign a struct field that has
+            // the same name as a variable in scope. For example, if you were to create a
+            // struct like so:
+            //
+            // >>> let name = "Viktor";
+            // >>> let dog = Dog { name };
+            //
+            // This should be de-sugared into:
+            //
+            // ...
+            // >>> let dog = Dog { name = name };
+            //
+            // So, here we handle for this case...
             match gen.peek() {
-                Some(token) if token.has_kind(TokenKind::Atom(TokenAtom::Comma)) => {
-                    gen.next_token()
+                Some(token) if token.has_atom(TokenAtom::Eq) => {
+                    gen.skip_token();
+
+                    let value = gen.parse_expression_with_precedence(0)?;
+
+                    entries.push(
+                        gen.node_with_location(
+                            StructLiteralEntry { name, value },
+                            entry_start.join(gen.current_location()),
+                        ),
+                        &self.wall,
+                    );
+
+                    // now we eat the next token, checking that it is a comma
+                    match gen.peek() {
+                        Some(token) if token.has_kind(TokenKind::Atom(TokenAtom::Comma)) => {
+                            gen.skip_token()
+                        }
+                        _ => break,
+                    };
                 }
-                _ => break,
-            };
+                Some(token) if token.has_atom(TokenAtom::Comma) => {
+                    gen.skip_token();
+
+                    // we need to copy the name node and make it into a new expression with the same span
+                    let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
+
+                    entries.push(
+                        gen.node_with_location(
+                            StructLiteralEntry {
+                                name,
+                                value: name_copy,
+                            },
+                            entry_start.join(gen.current_location()),
+                        ),
+                        &self.wall,
+                    );
+                }
+                None => {
+                    // we need to copy the name node and make it into a new expression with the same span
+                    let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
+
+                    entries.push(
+                        gen.node_with_location(
+                            StructLiteralEntry {
+                                name,
+                                value: name_copy,
+                            },
+                            entry_start.join(gen.current_location()),
+                        ),
+                        &self.wall,
+                    );
+
+                    break;
+                }
+                Some(token) => gen.error_with_location(
+                    AstGenErrorKind::Expected,
+                    Some(TokenAtomVector::from_row(
+                        row![&self.wall; TokenAtom::Eq, TokenAtom::Comma],
+                    )),
+                    Some(token.to_atom()),
+                    &token.span,
+                )?,
+            }
         }
 
         Ok(self.node_from_joined_location(
