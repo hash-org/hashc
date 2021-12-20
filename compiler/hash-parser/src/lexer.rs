@@ -213,6 +213,9 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let mut children_tokens = row![self.wall];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
+        // we need to reset self.prev here as it might be polluted with previous token trees
+        self.prev.set(None);
+
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
             match self.advance_token()? {
