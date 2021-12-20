@@ -510,7 +510,6 @@ where
                         (Some(token), _) => self.error(
                             AstGenErrorKind::Expected,
                             Some(TokenAtomVector::begin_expression(&self.wall)),
-                            // Some(TokenKindVector::singleton(&self.wall, TokenAtom::Semi)),
                             Some(token.to_atom()),
                         ),
                         (None, _) => unreachable!(),
@@ -2953,28 +2952,27 @@ where
         // - If an expression is followed by a ':' (colon), it must be a map literal.
         //
         // - Otherwise, it must be a block and we should continue parsing the block from here
-        let initial_statement = gen.parse_statement()?;
-        let location = initial_statement.location();
-        let initial_statement = initial_statement.into_body().move_out();
+        let initial_offset = gen.offset();
+        let expr = gen.parse_expression();
 
-        match (gen.peek(), initial_statement) {
-            (Some(token), Statement::Expr(initial_expr)) if token.has_atom(TokenAtom::Comma) => {
+        match (gen.peek(), expr) {
+            (Some(token), Ok(expr)) if token.has_atom(TokenAtom::Comma) => {
                 gen.skip_token(); // ','
 
-                let literal = self.parse_set_literal(gen, initial_expr)?;
+                let literal = self.parse_set_literal(gen, expr)?;
 
                 Ok(self.node_from_location(
                     Expression::new(ExpressionKind::LiteralExpr(literal)),
                     span,
                 ))
             }
-            (Some(token), Statement::Expr(initial_expr)) if token.has_atom(TokenAtom::Colon) => {
+            (Some(token), Ok(expr)) if token.has_atom(TokenAtom::Colon) => {
                 gen.skip_token(); // ':'
 
-                let start_pos = initial_expr.location();
+                let start_pos = expr.location();
                 let entry = self.node_from_joined_location(
                     MapLiteralEntry {
-                        key: initial_expr,
+                        key: expr,
                         value: gen.parse_expression_with_precedence(0)?,
                     },
                     &start_pos,
@@ -3004,38 +3002,46 @@ where
                     )),
                 }
             }
-            (Some(_), statement) => {
-                let statement = self.node_with_location(statement, location);
+            (Some(_), _) => {
+                // reset the position and attempt to parse a statement
+                gen.offset.set(initial_offset);
+                let statement = gen.parse_statement()?;
 
                 // check here if there is a 'semi', and then convert the expression into a statement.
                 let block = self.parse_block_from_gen(&gen, *span, Some(statement))?;
 
                 Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
             }
-            (None, Statement::Expr(initial_expr)) => {
+            (None, Ok(expr)) => {
                 // This block is just a block with a single expression
 
                 Ok(self.node_from_location(
                     Expression::new(ExpressionKind::Block(self.node_from_location(
                         Block::Body(BodyBlock {
                             statements: row![&self.wall],
-                            expr: Some(initial_expr),
+                            expr: Some(expr),
                         }),
                         span,
                     ))),
                     span,
                 ))
             }
-            (None, statement) => Ok(self.node_from_location(
-                Expression::new(ExpressionKind::Block(self.node_from_location(
-                    Block::Body(BodyBlock {
-                        statements: row![&self.wall; self.node_with_location(statement, location)],
-                        expr: None,
-                    }),
+            (None, Err(_)) => {
+                // reset the position and attempt to parse a statement
+                gen.offset.set(initial_offset);
+                let statement = gen.parse_statement()?;
+
+                Ok(self.node_from_location(
+                    Expression::new(ExpressionKind::Block(self.node_from_location(
+                        Block::Body(BodyBlock {
+                            statements: row![&self.wall; statement],
+                            expr: None,
+                        }),
+                        span,
+                    ))),
                     span,
-                ))),
-                span,
-            )),
+                ))
+            }
         }
     }
 

@@ -423,8 +423,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // we need to compute the old byte offset by accounting for both the 'u' character and the '\\' character,
         // but since this is known to be 2 bytes, we can just subtract it from the current offset
         let start = self.offset.get() - 1;
-
         match c {
+            '0' => Ok('\0'),
             'n' => Ok('\n'),
             't' => Ok('\t'),
             'u' => {
@@ -499,7 +499,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             'r' => Ok('\r'),
             'v' => Ok('\x0b'),
             '\\' => Ok('\\'),
-            '"' => Ok('"'),
+            '"' => Ok('\"'),
             '\'' => Ok('\''),
             ch => Err(TokenError::new(
                 Some(format!("Unknown escape sequence '{}'", ch)),

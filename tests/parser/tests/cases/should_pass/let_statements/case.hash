@@ -1,0 +1,4 @@
+let alpha = 5;
+let alpha: int = 5;
+let alpha: int;
+let alpha;

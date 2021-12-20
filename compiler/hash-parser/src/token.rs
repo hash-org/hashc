@@ -454,6 +454,7 @@ impl<'c> TokenAtomVector<'c> {
             TokenAtom::Delimiter(Delimiter::Paren, true),
             TokenAtom::Dot, // OR an operator, OR '::'
             TokenAtom::Semi,
+            TokenAtom::Colon,
         ])
     }
 
