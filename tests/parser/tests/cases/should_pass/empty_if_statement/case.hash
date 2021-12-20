@@ -4,4 +4,4 @@ if i < 0 {
 
 // An 'if-statement' with a singular expression and empty block, testing the disabled 
 // struct literal confusion.
-if alpha > {}
+if alpha {}

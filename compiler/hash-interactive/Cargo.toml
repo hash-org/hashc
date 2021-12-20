@@ -9,10 +9,4 @@ hash-ast = {path = "../hash-ast" }
 hash-parser = {path = "../hash-parser" }
 hash-reporting = {path = "../hash-reporting" }
 hash-alloc = {path = "../hash-alloc" }
-hash-pest-parser = {path = "../hash-pest-parser" }
 rustyline = "8.0.0"
-
-[features]
-use-pest = []
-
-# default = ["use-pest"]

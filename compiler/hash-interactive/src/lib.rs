@@ -73,7 +73,6 @@ pub fn init() -> CompilerResult<()> {
     Ok(())
 }
 
-#[cfg(not(feature = "use-pest"))]
 fn parse_interactive<'c>(
     expr: &str,
     castle: &'c Castle,
@@ -82,29 +81,6 @@ fn parse_interactive<'c>(
 
     // setup the parser
     let parser = ParParser::new(HashParser::new(castle), false);
-
-    // parse the input
-    match parser.parse_interactive(expr, &directory) {
-        (Ok(result), modules) => Some((result, modules)),
-        (Err(errors), modules) => {
-            for report in errors.into_iter().map(Report::from) {
-                let report_writer = ReportWriter::new(report, &modules);
-                println!("{}", report_writer);
-            }
-            None
-        }
-    }
-}
-
-#[cfg(feature = "use-pest")]
-fn parse_interactive<'c>(
-    expr: &str,
-    castle: &'c Castle,
-) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
-    let directory = env::current_dir().unwrap();
-
-    // setup the parser
-    let parser = ParParser::new(HashPestParser::new(castle), false);
 
     // parse the input
     match parser.parse_interactive(expr, &directory) {

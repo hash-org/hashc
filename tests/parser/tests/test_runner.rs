@@ -5,7 +5,6 @@ use std::num::NonZeroUsize;
 use hash_alloc::Castle;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
 use hash_parser::backend::HashParser;
-use hash_pest_parser::backend::HashPestParser;
 use hash_utils::testing::TestingInput;
 use hash_utils_testing_macros::generate_tests;
 
@@ -41,13 +40,5 @@ fn run_hash_parser_tests(input: TestingInput) {
     handle_test(input, hash_parser)
 }
 
-fn run_pest_parser_tests(input: TestingInput) {
-    let castle = Castle::new();
-    let pest_parser = HashPestParser::new(&castle);
-
-    handle_test(input, pest_parser)
-}
-
 // "case.hash" is the test pattern.
 generate_tests!("./cases/", r"^case\.hash$", "self", run_hash_parser_tests);
-generate_tests!("./cases/", r"^case\.hash$", "pest", run_pest_parser_tests);
