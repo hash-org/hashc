@@ -8,3 +8,7 @@ let my_dog = MyDog {
 let my_dog2 =  MyDog {
     name
 };
+
+let my_dog3 =  MyDog {
+    name,
+};

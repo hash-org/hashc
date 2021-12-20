@@ -2,4 +2,4 @@
 for x in xs {}
 
 // Test that struct literals are allowed in parenthesees...
-for x in (Struct { xs = xs }) {}
+for x in (Struct { xs }) {}

@@ -724,15 +724,16 @@ where
 
         // so parse the arguments to the function here... with potential type annotations
         while self.has_token() {
-            match self.peek_resultant_fn(&parse_fn) {
-                Some(el) => args.push(el, &self.wall),
-                None => break,
+            match parse_fn() {
+                Ok(el) => args.push(el, &self.wall),
+                Err(err) => return Err(err),
             }
 
             if self.has_token() {
                 separator_fn()?;
             }
         }
+
         if self.has_token() {
             self.expected_eof()?;
         }
