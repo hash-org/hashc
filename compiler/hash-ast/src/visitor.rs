@@ -1,10 +1,10 @@
-//! Visitor implementation for [hash::ast] nodes.
+//! Visitor implementation for [crate::ast] nodes.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use crate::ast;
 use std::iter::FromIterator;
 
-/// The main visitor trait for [hash::ast] nodes.
+/// The main visitor trait for [crate::ast] nodes.
 ///
 /// This contains a method for each AST structure, as well as a dedicated return type for it.
 /// These can be implemented using the functions defined in [walk] that can traverse the children

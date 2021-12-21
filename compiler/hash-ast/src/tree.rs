@@ -12,13 +12,6 @@ struct AstTreeGenerator;
 
 /// Easy way to format a [TreeNode] label with a main label as well as short contents, and a
 /// quoting string.
-///
-///
-/// # Examples
-///
-/// ```
-/// assert_eq(labeled("foo", "bar", "\""), "foo \"bar\"")
-/// ```
 fn labeled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
     format!(
         "{} {}{}{}",

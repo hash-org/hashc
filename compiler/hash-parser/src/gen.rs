@@ -81,6 +81,7 @@ where
 
     /// Create new AST generator from a provided token stream with inherited module resolver
     /// and a provided parent span.
+    #[must_use]
     pub fn from_stream(&self, stream: &'stream [Token<'c>], parent_span: Location) -> Self {
         Self {
             stream,
