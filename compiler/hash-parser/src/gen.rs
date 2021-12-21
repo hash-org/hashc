@@ -424,19 +424,19 @@ where
                     TokenAtom::Keyword(Keyword::Struct) => {
                         Statement::StructDef(self.parse_struct_defn()?)
                     }
-                    TokenAtom::Keyword(Keyword::Continue) => Statement::Continue,
-                    TokenAtom::Keyword(Keyword::Break) => Statement::Break,
+                    TokenAtom::Keyword(Keyword::Continue) => Statement::Continue(ContinueStatement),
+                    TokenAtom::Keyword(Keyword::Break) => Statement::Break(BreakStatement),
                     TokenAtom::Keyword(Keyword::Return) => {
                         // @@Hack: check if the next token is a semi-colon, if so the return statement
                         // has no returned expression...
                         match self.peek() {
                             Some(token) if token.has_atom(TokenAtom::Semi) => {
-                                Statement::Return(None)
+                                Statement::Return(ReturnStatement(None))
                             }
-                            Some(_) => {
-                                Statement::Return(Some(self.parse_expression_with_precedence(0)?))
-                            }
-                            None => Statement::Return(None),
+                            Some(_) => Statement::Return(ReturnStatement(Some(
+                                self.parse_expression_with_precedence(0)?,
+                            ))),
+                            None => Statement::Return(ReturnStatement(None)),
                         }
                     }
                     _ => unreachable!(),
@@ -471,11 +471,11 @@ where
                     // Now we need to transform the re-assignment operator into a function call
 
                     return Ok(self.node_from_joined_location(
-                        Statement::Expr(self.transform_binary_expression(
+                        Statement::Expr(ExprStatement(self.transform_binary_expression(
                             expr,
                             rhs,
                             transformed_op,
-                        )),
+                        ))),
                         &start,
                     ));
                 }
@@ -484,7 +484,7 @@ where
                 match self.peek() {
                     Some(token) if token.has_atom(TokenAtom::Semi) => {
                         self.skip_token();
-                        Ok(self.node_from_location(Statement::Expr(expr), &start))
+                        Ok(self.node_from_location(Statement::Expr(ExprStatement(expr)), &start))
                     }
                     Some(token) if token.has_atom(TokenAtom::Eq) => {
                         self.skip_token();
@@ -501,12 +501,13 @@ where
 
                     // Special case where there is a expression at the end of the stream and therefore it
                     // is signifying that it is returning the expression value here
-                    None => Ok(self.node_from_location(Statement::Expr(expr), &start)),
+                    None => {
+                        Ok(self.node_from_location(Statement::Expr(ExprStatement(expr)), &start))
+                    }
 
                     token => match (token, expr.into_body().move_out().into_kind()) {
-                        (_, ExpressionKind::Block(block)) => {
-                            Ok(self.node_from_location(Statement::Block(block), &start))
-                        }
+                        (_, ExpressionKind::Block(BlockExpr(block))) => Ok(self
+                            .node_from_location(Statement::Block(BlockStatement(block)), &start)),
                         (Some(token), _) => self.error(
                             AstGenErrorKind::Expected,
                             Some(TokenAtomVector::begin_expression(&self.wall)),
@@ -549,7 +550,10 @@ where
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
         match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(expr, RefKind::Normal))),
+            true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
+                inner_expr: expr,
+                kind: RefKind::Normal,
+            }))),
             false => expr,
         }
     }
@@ -608,13 +612,13 @@ where
                         args: self.node(FunctionCallArgs {
                             entries: row![&self.wall;
                                 self.transform_expr_into_ref(lhs, assigning),
-                                self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
+                                self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
                                     Literal::Function(FunctionDef {
                                         args: row![&self.wall],
                                         return_ty: None,
                                         fn_body: rhs,
                                     }),
-                                ))))
+                                )))))
                             ],
                         }),
                     },
@@ -696,17 +700,17 @@ where
         // condition
         branches.push(
             self.node(MatchCase {
-                pattern: self.node(Pattern::Ignore),
+                pattern: self.node(Pattern::Ignore(IgnorePattern)),
                 expr: self.make_variable(self.make_boolean(false)),
             }),
             &self.wall,
         );
 
-        self.node(Expression::new(ExpressionKind::Block(self.node(
-            Block::Match(MatchBlock {
+        self.node(Expression::new(ExpressionKind::Block(BlockExpr(
+            self.node(Block::Match(MatchBlock {
                 subject: fn_call,
                 cases: branches,
-            }),
+            })),
         ))))
     }
 
@@ -1093,7 +1097,7 @@ where
         let body_location = body.location();
 
         // transpile the for loop
-        Ok(self.node_from_joined_location(Block::Loop(self.node_from_location(
+        Ok(self.node_from_joined_location(Block::Loop(LoopBlock(self.node_from_location(
             Block::Match(MatchBlock {
             subject: self.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
@@ -1121,7 +1125,7 @@ where
                             },
                         ), &pattern_location
                     ),
-                    expr: self.node_from_location(Expression::new(ExpressionKind::Block(body)), &body_location),
+                    expr: self.node_from_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), &body_location),
                 }, &start),
                 self.node(MatchCase {
                     pattern: self.node(
@@ -1136,15 +1140,15 @@ where
                             },
                         ),
                     ),
-                    expr: self.node(Expression::new(ExpressionKind::Block(
+                    expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                         self.node(Block::Body(BodyBlock {
-                            statements: row![&self.wall; self.node(Statement::Break)],
+                            statements: row![&self.wall; self.node(Statement::Break(BreakStatement))],
                             expr: None,
                         })),
-                    ))),
+                    )))),
                 }),
             ],
-        }), &start)), &start))
+        }), &start))), &start))
     }
 
     /// In general, a while loop transpilation process occurs by transferring the looping
@@ -1179,7 +1183,7 @@ where
         let body_location = body.location();
 
         Ok(self.node_from_joined_location(
-            Block::Loop(self.node_with_location(
+            Block::Loop(LoopBlock(self.node_with_location(
                 Block::Match(MatchBlock {
                     subject: condition,
                     cases: row![&self.wall; self.node(MatchCase {
@@ -1187,24 +1191,24 @@ where
                                 name: self.make_access_name_from_str("true", body_location),
                                 args: row![&self.wall],
                             })),
-                            expr: self.node(Expression::new(ExpressionKind::Block(body))),
+                            expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("false", body_location),
                                 args: row![&self.wall],
                             })),
-                            expr: self.node(Expression::new(ExpressionKind::Block(
+                            expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
-                                    statements: row![&self.wall; self.node(Statement::Break)],
+                                    statements: row![&self.wall; self.node(Statement::Break(BreakStatement))],
                                     expr: None,
                                 })),
-                            ))),
+                            )))),
                         }),
                     ],
                 }),
                 condition_location,
-            )),
+            ))),
             &start,
         ))
     }
@@ -1314,13 +1318,16 @@ where
                     MatchCase {
                         pattern: self.node_from_location(
                             Pattern::If(IfPattern {
-                                pattern: self.node_from_location(Pattern::Ignore, &clause_loc),
+                                pattern: self.node_from_location(
+                                    Pattern::Ignore(IgnorePattern),
+                                    &clause_loc,
+                                ),
                                 condition: clause,
                             }),
                             &clause_loc,
                         ),
                         expr: self.node_from_location(
-                            Expression::new(ExpressionKind::Block(branch)),
+                            Expression::new(ExpressionKind::Block(BlockExpr(branch))),
                             &branch_loc,
                         ),
                     },
@@ -1355,9 +1362,9 @@ where
                     cases.push(
                         self.node_from_location(
                             MatchCase {
-                                pattern: self.node(Pattern::Ignore),
+                                pattern: self.node(Pattern::Ignore(IgnorePattern)),
                                 expr: self.node_from_location(
-                                    Expression::new(ExpressionKind::Block(else_branch)),
+                                    Expression::new(ExpressionKind::Block(BlockExpr(else_branch))),
                                     &loc,
                                 ),
                             },
@@ -1375,12 +1382,12 @@ where
         if !has_else_branch {
             cases.push(
                 self.node(MatchCase {
-                    pattern: self.node(Pattern::Ignore),
-                    expr: self.node(Expression::new(ExpressionKind::Block(self.node(
-                        Block::Body(BodyBlock {
+                    pattern: self.node(Pattern::Ignore(IgnorePattern)),
+                    expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
+                        self.node(Block::Body(BodyBlock {
                             statements: row![&self.wall],
                             expr: None,
-                        }),
+                        })),
                     )))),
                 }),
                 &self.wall,
@@ -1506,7 +1513,7 @@ where
             None => {
                 let copy = self.node(Name { ..*name.body() });
                 let loc = copy.location();
-                self.node_with_location(Pattern::Binding(copy), loc)
+                self.node_with_location(Pattern::Binding(BindingPattern(copy)), loc)
             }
         };
 
@@ -1593,9 +1600,11 @@ where
                     _ => {
                         // @@Speed: Always performing a lookup?
                         if IDENTIFIER_MAP.ident_name(*k) == "_" {
-                            Pattern::Ignore
+                            Pattern::Ignore(IgnorePattern)
                         } else {
-                            Pattern::Binding(self.node_from_location(Name { ident: *k }, span))
+                            Pattern::Binding(BindingPattern(
+                                self.node_from_location(Name { ident: *k }, span),
+                            ))
                         }
                     }
                 }
@@ -1719,11 +1728,11 @@ where
 
                     block.statements.push(
                         gen.node_from_joined_location(
-                            Statement::Expr(self.transform_binary_expression(
+                            Statement::Expr(ExprStatement(self.transform_binary_expression(
                                 expr,
                                 rhs,
                                 transformed_op,
-                            )),
+                            ))),
                             &expr_loc,
                         ),
                         &self.wall,
@@ -1735,7 +1744,10 @@ where
                             gen.skip_token();
 
                             block.statements.push(
-                                gen.node_from_joined_location(Statement::Expr(expr), &expr_loc),
+                                gen.node_from_joined_location(
+                                    Statement::Expr(ExprStatement(expr)),
+                                    &expr_loc,
+                                ),
                                 &self.wall,
                             );
                         }
@@ -1756,13 +1768,15 @@ where
                         }
                         Some(token) => {
                             match expr.into_body().move_out().into_kind() {
-                                ExpressionKind::Block(inner_block) => block.statements.push(
-                                    gen.node_from_joined_location(
-                                        Statement::Block(inner_block),
-                                        &expr_loc,
-                                    ),
-                                    &self.wall,
-                                ),
+                                ExpressionKind::Block(BlockExpr(inner_block)) => {
+                                    block.statements.push(
+                                        gen.node_from_joined_location(
+                                            Statement::Block(BlockStatement(inner_block)),
+                                            &expr_loc,
+                                        ),
+                                        &self.wall,
+                                    )
+                                }
                                 _ => gen.error(
                                     AstGenErrorKind::Expected,
                                     Some(TokenAtomVector::from_row(
@@ -1787,12 +1801,12 @@ where
     /// Parse an expression which can be compound.
     pub fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token();
-        
+
         if token.is_none() {
             return self.unexpected_eof()?;
         }
-        
-        let prev_allowance =  self.disallow_struct_literals.get();
+
+        let prev_allowance = self.disallow_struct_literals.get();
         let token = token.unwrap();
 
         // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
@@ -1824,16 +1838,17 @@ where
                 let block = match atom {
                     TokenAtom::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenAtom::Keyword(Keyword::While) => self.parse_while_loop()?,
-                    TokenAtom::Keyword(Keyword::Loop) => {
-                        self.node_from_joined_location(Block::Loop(self.parse_block()?), &start)
-                    }
+                    TokenAtom::Keyword(Keyword::Loop) => self.node_from_joined_location(
+                        Block::Loop(LoopBlock(self.parse_block()?)),
+                        &start,
+                    ),
                     TokenAtom::Keyword(Keyword::If) => self.parse_if_statement()?,
                     TokenAtom::Keyword(Keyword::Match) => self.parse_match_block()?,
                     _ => unreachable!(),
                 };
 
                 self.node_from_joined_location(
-                    Expression::new(ExpressionKind::Block(block)),
+                    Expression::new(ExpressionKind::Block(BlockExpr(block))),
                     &start,
                 )
             }
@@ -2067,12 +2082,14 @@ where
 
         match resolved_module {
             Ok(idx) => Ok(self.node_from_joined_location(
-                Expression::new(ExpressionKind::Import(self.node_from_joined_location(
-                    Import {
-                        path: *raw,
-                        index: idx,
-                    },
-                    &start,
+                Expression::new(ExpressionKind::Import(ImportExpr(
+                    self.node_from_joined_location(
+                        Import {
+                            path: *raw,
+                            index: idx,
+                        },
+                        &start,
+                    ),
                 ))),
                 &start,
             )),
@@ -2258,13 +2275,15 @@ where
         }
 
         Ok(self.node_from_joined_location(
-            Expression::new(ExpressionKind::LiteralExpr(self.node_from_joined_location(
-                Literal::Struct(StructLiteral {
-                    name,
-                    type_args,
-                    entries,
-                }),
-                &start,
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                self.node_from_joined_location(
+                    Literal::Struct(StructLiteral {
+                        name,
+                        type_args,
+                        entries,
+                    }),
+                    &start,
+                ),
             ))),
             &start,
         ))
@@ -2313,15 +2332,23 @@ where
         let start = self.current_location();
 
         let expr_kind = match &token.kind {
-            TokenKind::Atom(TokenAtom::Star) => ExpressionKind::Deref(self.parse_expression()?),
+            TokenKind::Atom(TokenAtom::Star) => {
+                ExpressionKind::Deref(DerefExpr(self.parse_expression()?))
+            }
             TokenKind::Atom(TokenAtom::Amp) => {
                 // Check if this reference is raw...
                 match self.peek() {
                     Some(token) if token.has_atom(TokenAtom::Keyword(Keyword::Raw)) => {
                         self.skip_token();
-                        ExpressionKind::Ref(self.parse_expression()?, RefKind::Raw)
+                        ExpressionKind::Ref(RefExpr {
+                            inner_expr: self.parse_expression()?,
+                            kind: RefKind::Raw,
+                        })
                     }
-                    _ => ExpressionKind::Ref(self.parse_expression()?, RefKind::Normal),
+                    _ => ExpressionKind::Ref(RefExpr {
+                        inner_expr: self.parse_expression()?,
+                        kind: RefKind::Normal,
+                    }),
                 }
             }
             kind @ (TokenKind::Atom(TokenAtom::Plus) | TokenKind::Atom(TokenAtom::Minus)) => {
@@ -2712,14 +2739,14 @@ where
                 };
 
                 match self.parse_type() {
-                    Ok(ty) if is_ref => Type::RawRef(ty),
-                    Ok(ty) => Type::Ref(ty),
+                    Ok(ty) if is_ref => Type::RawRef(RawRefType(ty)),
+                    Ok(ty) => Type::Ref(RefType(ty)),
                     err => return err,
                 }
             }
             TokenKind::Atom(TokenAtom::Question) => {
                 self.skip_token();
-                Type::Existential
+                Type::Existential(ExistentialType)
             }
             TokenKind::Atom(TokenAtom::Ident(id)) => {
                 self.skip_token();
@@ -2735,7 +2762,7 @@ where
                         let ident = name.body().path.get(0).unwrap();
 
                         match IDENTIFIER_MAP.ident_name(*ident) {
-                            "_" => Type::Infer,
+                            "_" => Type::Infer(InferType),
                             // ##TypeArgsNaming: Here the rules are built-in for what the name of a type-arg is,
                             //                   a capital character of length 1...
                             ident_name => {
@@ -2907,22 +2934,26 @@ where
             match gen.peek().unwrap() {
                 token if token.has_atom(TokenAtom::Colon) => {
                     return Ok(self.node_from_location(
-                        Expression::new(ExpressionKind::LiteralExpr(self.node_from_location(
-                            Literal::Map(MapLiteral {
-                                elements: row![&self.wall],
-                            }),
-                            span,
+                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                            self.node_from_location(
+                                Literal::Map(MapLiteral {
+                                    elements: row![&self.wall],
+                                }),
+                                span,
+                            ),
                         ))),
                         span,
                     ))
                 }
                 token if token.has_atom(TokenAtom::Comma) => {
                     return Ok(self.node_from_location(
-                        Expression::new(ExpressionKind::LiteralExpr(self.node_from_location(
-                            Literal::Set(SetLiteral {
-                                elements: row![&self.wall],
-                            }),
-                            span,
+                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                            self.node_from_location(
+                                Literal::Set(SetLiteral {
+                                    elements: row![&self.wall],
+                                }),
+                                span,
+                            ),
                         ))),
                         span,
                     ))
@@ -2934,13 +2965,13 @@ where
         // Is this an empty block?
         if !gen.has_token() {
             return Ok(self.node_from_location(
-                Expression::new(ExpressionKind::Block(self.node_from_location(
+                Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                     Block::Body(BodyBlock {
                         statements: row![&self.wall],
                         expr: None,
                     }),
                     span,
-                ))),
+                )))),
                 span,
             ));
         }
@@ -2963,7 +2994,7 @@ where
                 let literal = self.parse_set_literal(gen, expr)?;
 
                 Ok(self.node_from_location(
-                    Expression::new(ExpressionKind::LiteralExpr(literal)),
+                    Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
                     span,
                 ))
             }
@@ -2988,16 +3019,18 @@ where
                         let literal = self.parse_map_literal(gen, entry)?;
 
                         Ok(self.node_from_location(
-                            Expression::new(ExpressionKind::LiteralExpr(literal)),
+                            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
                             span,
                         ))
                     }
                     _ => Ok(self.node_from_location(
-                        Expression::new(ExpressionKind::LiteralExpr(self.node_from_location(
-                            Literal::Map(MapLiteral {
-                                elements: row![&self.wall; entry],
-                            }),
-                            span,
+                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                            self.node_from_location(
+                                Literal::Map(MapLiteral {
+                                    elements: row![&self.wall; entry],
+                                }),
+                                span,
+                            ),
                         ))),
                         span,
                     )),
@@ -3011,19 +3044,22 @@ where
                 // check here if there is a 'semi', and then convert the expression into a statement.
                 let block = self.parse_block_from_gen(&gen, *span, Some(statement))?;
 
-                Ok(self.node_from_location(Expression::new(ExpressionKind::Block(block)), span))
+                Ok(self.node_from_location(
+                    Expression::new(ExpressionKind::Block(BlockExpr(block))),
+                    span,
+                ))
             }
             (None, Ok(expr)) => {
                 // This block is just a block with a single expression
 
                 Ok(self.node_from_location(
-                    Expression::new(ExpressionKind::Block(self.node_from_location(
+                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                         Block::Body(BodyBlock {
                             statements: row![&self.wall],
                             expr: Some(expr),
                         }),
                         span,
-                    ))),
+                    )))),
                     span,
                 ))
             }
@@ -3033,13 +3069,13 @@ where
                 let statement = gen.parse_statement()?;
 
                 Ok(self.node_from_location(
-                    Expression::new(ExpressionKind::Block(self.node_from_location(
+                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                         Block::Body(BodyBlock {
                             statements: row![&self.wall; statement],
                             expr: None,
                         }),
                         span,
-                    ))),
+                    )))),
                     span,
                 ))
             }
@@ -3192,13 +3228,15 @@ where
         };
 
         Ok(self.node_from_joined_location(
-            Expression::new(ExpressionKind::LiteralExpr(gen.node_from_joined_location(
-                Literal::Function(FunctionDef {
-                    args,
-                    return_ty,
-                    fn_body,
-                }),
-                &start,
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                gen.node_from_joined_location(
+                    Literal::Function(FunctionDef {
+                        args,
+                        return_ty,
+                        fn_body,
+                    }),
+                    &start,
+                ),
             ))),
             &start,
         ))
@@ -3231,14 +3269,14 @@ where
                     gen.skip_token();
 
                     return Ok(gen.node_from_joined_location(
-                        Expression::new(ExpressionKind::LiteralExpr(
+                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             gen.node_from_joined_location(
                                 Literal::Tuple(TupleLiteral {
                                     elements: row![&self.wall;],
                                 }),
                                 &start,
                             ),
-                        )),
+                        ))),
                         &start,
                     ));
                 }
@@ -3273,9 +3311,8 @@ where
         }
 
         Ok(gen.node_from_joined_location(
-            Expression::new(ExpressionKind::LiteralExpr(gen.node_from_joined_location(
-                Literal::Tuple(TupleLiteral { elements }),
-                &start,
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                gen.node_from_joined_location(Literal::Tuple(TupleLiteral { elements }), &start),
             ))),
             &start,
         ))
@@ -3314,9 +3351,8 @@ where
         }
 
         Ok(gen.node_from_joined_location(
-            Expression::new(ExpressionKind::LiteralExpr(gen.node_from_joined_location(
-                Literal::List(ListLiteral { elements }),
-                &start,
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                gen.node_from_joined_location(Literal::List(ListLiteral { elements }), &start),
             ))),
             &start,
         ))
@@ -3325,10 +3361,14 @@ where
     /// Convert a literal kind into a pattern literal kind.
     pub fn convert_literal_kind_into_pattern(&self, kind: &TokenKind) -> LiteralPattern {
         match kind {
-            TokenKind::Atom(TokenAtom::StrLiteral(s)) => LiteralPattern::Str(*s),
-            TokenKind::Atom(TokenAtom::CharLiteral(s)) => LiteralPattern::Char(*s),
-            TokenKind::Atom(TokenAtom::IntLiteral(s)) => LiteralPattern::Int(*s),
-            TokenKind::Atom(TokenAtom::FloatLiteral(s)) => LiteralPattern::Float(*s),
+            TokenKind::Atom(TokenAtom::StrLiteral(s)) => LiteralPattern::Str(StrLiteralPattern(*s)),
+            TokenKind::Atom(TokenAtom::CharLiteral(s)) => {
+                LiteralPattern::Char(CharLiteralPattern(*s))
+            }
+            TokenKind::Atom(TokenAtom::IntLiteral(s)) => LiteralPattern::Int(IntLiteralPattern(*s)),
+            TokenKind::Atom(TokenAtom::FloatLiteral(s)) => {
+                LiteralPattern::Float(FloatLiteralPattern(*s))
+            }
             _ => unreachable!(),
         }
     }
@@ -3339,10 +3379,10 @@ where
         let token = self.current_token();
         let literal = AstNode::new(
             match token.kind {
-                TokenKind::Atom(TokenAtom::IntLiteral(num)) => Literal::Int(num),
-                TokenKind::Atom(TokenAtom::FloatLiteral(num)) => Literal::Float(num),
-                TokenKind::Atom(TokenAtom::CharLiteral(ch)) => Literal::Char(ch),
-                TokenKind::Atom(TokenAtom::StrLiteral(str)) => Literal::Str(str),
+                TokenKind::Atom(TokenAtom::IntLiteral(num)) => Literal::Int(IntLiteral(num)),
+                TokenKind::Atom(TokenAtom::FloatLiteral(num)) => Literal::Float(FloatLiteral(num)),
+                TokenKind::Atom(TokenAtom::CharLiteral(ch)) => Literal::Char(CharLiteral(ch)),
+                TokenKind::Atom(TokenAtom::StrLiteral(str)) => Literal::Str(StrLiteral(str)),
                 _ => unreachable!(),
             },
             token.span,
@@ -3350,7 +3390,7 @@ where
         );
 
         self.node_from_location(
-            Expression::new(ExpressionKind::LiteralExpr(literal)),
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
             &token.span,
         )
     }
