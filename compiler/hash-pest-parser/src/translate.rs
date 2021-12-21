@@ -113,12 +113,12 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
     /// Function to make a lambda from a given expression. This takes the expression
     /// and put's the expression as the returning expression of a function body block
     fn make_single_lambda(&self, expr: AstNode<'c, Expression<'c>>) -> AstNode<'c, Expression<'c>> {
-        self.node(Expression::new(ExpressionKind::LiteralExpr(self.node(
-            Literal::Function(FunctionDef {
+        self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+            self.node(Literal::Function(FunctionDef {
                 args: row![self.wall],
                 return_ty: None,
                 fn_body: expr,
-            }),
+            })),
         ))))
     }
 
@@ -131,7 +131,10 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         transform: bool,
     ) -> AstNode<'c, Expression<'c>> {
         match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(expr, RefKind::Normal))),
+            true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
+                inner_expr: expr,
+                kind: RefKind::Normal,
+            }))),
             false => expr,
         }
     }
@@ -221,17 +224,17 @@ impl<'w, 'c> NodeBuilder<'w, 'c> {
         // condition
         branches.push(
             self.node(MatchCase {
-                pattern: self.node(Pattern::Ignore),
+                pattern: self.node(Pattern::Ignore(IgnorePattern)),
                 expr: self.make_variable(self.make_boolean(false)),
             }),
             self.wall,
         );
 
-        self.node(Expression::new(ExpressionKind::Block(self.node(
-            Block::Match(MatchBlock {
+        self.node(Expression::new(ExpressionKind::Block(BlockExpr(
+            self.node(Block::Match(MatchBlock {
                 subject: fn_call,
                 cases: branches,
-            }),
+            })),
         ))))
     }
 }
@@ -516,16 +519,18 @@ where
 
                 match op_type.as_rule() {
                     Rule::raw_type_ref_op => {
-                        Ok(ab.node(Type::RawRef(self.transform_type(in_type)?)))
+                        Ok(ab.node(Type::RawRef(RawRefType(self.transform_type(in_type)?))))
                     }
-                    Rule::type_ref_op => Ok(ab.node(Type::Ref(self.transform_type(in_type)?))),
+                    Rule::type_ref_op => {
+                        Ok(ab.node(Type::Ref(RefType(self.transform_type(in_type)?))))
+                    }
                     k => panic!(
                         "Expected raw_type_ref_op or ref_type_op in type_ref rule, but got: {:?}",
                         k
                     ),
                 }
             }
-            Rule::infer_type => Ok(ab.node(Type::Infer)),
+            Rule::infer_type => Ok(ab.node(Type::Infer(InferType))),
             Rule::named_type => {
                 let mut in_named = pair.into_inner();
 
@@ -595,7 +600,7 @@ where
                     type_args: inner,
                 })))
             }
-            Rule::existential_type => Ok(ab.node(Type::Existential)),
+            Rule::existential_type => Ok(ab.node(Type::Existential(ExistentialType))),
             k => panic!("unexpected rule within type: {:?} at {:?}", k, pair),
         }
     }
@@ -621,22 +626,22 @@ where
                         let num = components.next().unwrap();
 
                         let val = num.as_str().parse::<u64>().unwrap();
-                        Ok(ab.node(Literal::Int(val)))
+                        Ok(ab.node(Literal::Int(IntLiteral(val))))
                     }
                     Rule::hex_literal => {
                         let item = inner.into_inner().next().unwrap();
                         let val = u64::from_str_radix(item.as_str(), 16).unwrap();
-                        Ok(ab.node(Literal::Int(val)))
+                        Ok(ab.node(Literal::Int(IntLiteral(val))))
                     }
                     Rule::octal_literal => {
                         let item = inner.into_inner().next().unwrap();
                         let val = u64::from_str_radix(item.as_str(), 8).unwrap();
-                        Ok(ab.node(Literal::Int(val)))
+                        Ok(ab.node(Literal::Int(IntLiteral(val))))
                     }
                     Rule::bin_literal => {
                         let item = inner.into_inner().next().unwrap();
                         let val = u64::from_str_radix(item.as_str(), 2).unwrap();
-                        Ok(ab.node(Literal::Int(val)))
+                        Ok(ab.node(Literal::Int(IntLiteral(val))))
                     }
                     _ => unreachable!(),
                 }
@@ -671,16 +676,18 @@ where
                     None => value,
                 };
 
-                Ok(ab.node(Literal::Float(exp_value)))
+                Ok(ab.node(Literal::Float(FloatLiteral(exp_value))))
             }
             Rule::char_literal => {
                 // we need to get the second character in the literal because the first one will be the character quote, since pest includes them in the span
                 let c: char = pair.as_str().chars().nth(1).unwrap();
-                Ok(ab.node(Literal::Char(c)))
+                Ok(ab.node(Literal::Char(CharLiteral(c))))
             }
             Rule::string_literal => {
                 let s = pair.into_inner().next().map(|s| s.as_str()).unwrap_or("");
-                Ok(ab.node(Literal::Str(STRING_LITERAL_MAP.create_string(s))))
+                Ok(ab.node(Literal::Str(StrLiteral(
+                    STRING_LITERAL_MAP.create_string(s),
+                ))))
             }
             Rule::list_literal => {
                 // since list literals are just a bunch of expressions, we just call
@@ -828,10 +835,12 @@ where
 
                 // essentially cast the literal into a literal_pattern
                 Ok(match node.body() {
-                    Literal::Str(s) => LiteralPattern::Str(*s),
-                    Literal::Char(s) => LiteralPattern::Char(*s),
-                    Literal::Float(s) => LiteralPattern::Float(*s),
-                    Literal::Int(s) => LiteralPattern::Int(*s),
+                    Literal::Str(StrLiteral(s)) => LiteralPattern::Str(StrLiteralPattern(*s)),
+                    Literal::Char(CharLiteral(s)) => LiteralPattern::Char(CharLiteralPattern(*s)),
+                    Literal::Float(FloatLiteral(s)) => {
+                        LiteralPattern::Float(FloatLiteralPattern(*s))
+                    }
+                    Literal::Int(IntLiteral(s)) => LiteralPattern::Int(IntLiteralPattern(*s)),
                     k => panic!(
                         "literal_pattern should be string, float, char or int, got : {:?}",
                         k
@@ -899,8 +908,9 @@ where
 
                                 let pattern = match field.next() {
                                     Some(pat) => self.transform_pattern(pat)?,
-                                    None => name_ab
-                                        .node(Pattern::Binding(name_ab.copy_name_node(&name))),
+                                    None => name_ab.node(Pattern::Binding(BindingPattern(
+                                        name_ab.copy_name_node(&name),
+                                    ))),
                                 };
 
                                 Ok(name_ab.node(DestructuringPattern { name, pattern }))
@@ -916,9 +926,9 @@ where
 
                             let pattern = match field.next() {
                                 Some(pat) => self.transform_pattern(pat)?,
-                                None => {
-                                    name_ab.node(Pattern::Binding(name_ab.copy_name_node(&name)))
-                                }
+                                None => name_ab.node(Pattern::Binding(BindingPattern(
+                                    name_ab.copy_name_node(&name),
+                                ))),
                             };
 
                             Ok(name_ab.node(DestructuringPattern { name, pattern }))
@@ -928,9 +938,9 @@ where
                     }
                     Rule::binding_pattern => {
                         let name = self.transform_name(pat.into_inner().next().unwrap())?;
-                        Ok(ab.node(Pattern::Binding(name)))
+                        Ok(ab.node(Pattern::Binding(BindingPattern(name))))
                     }
-                    Rule::ignore_pattern => Ok(ab.node(Pattern::Ignore)),
+                    Rule::ignore_pattern => Ok(ab.node(Pattern::Ignore(IgnorePattern))),
                     Rule::literal_pattern => {
                         let literal = self.transform_literal_pattern(pat)?;
                         Ok(ab.node(Pattern::Literal(literal)))
@@ -983,11 +993,11 @@ where
                 let expr = expr.next().unwrap();
 
                 match expr.as_rule() {
-                    Rule::block => Ok(ab.node(Expression::new(ExpressionKind::Block(
+                    Rule::block => Ok(ab.node(Expression::new(ExpressionKind::Block(BlockExpr(
                         self.transform_block(expr)?,
-                    )))),
+                    ))))),
                     Rule::struct_literal => Ok(ab.node(Expression::new(
-                        ExpressionKind::LiteralExpr(self.transform_literal(expr)?),
+                        ExpressionKind::LiteralExpr(LiteralExpr(self.transform_literal(expr)?)),
                     ))),
                     Rule::binary_expr => {
                         let mut items = expr.into_inner();
@@ -1056,16 +1066,15 @@ where
                                     }),
                                 }),
                             ))),
-                            UnaryOpType::Ref(true) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
-                                self.transform_expression(operand)?,
-                                RefKind::Raw
-                            )))),
-                            UnaryOpType::Ref(false) => Ok(ab.node(Expression::new(ExpressionKind::Ref(
-                                self.transform_expression(operand)?,
-                                RefKind::Normal
+                            UnaryOpType::Ref(true) => Ok(ab.node(Expression::new(ExpressionKind::Ref(RefExpr { inner_expr: self.transform_expression(operand)?,
+                                kind: RefKind::Raw
+                            })))),
+                            UnaryOpType::Ref(false) => Ok(ab.node(Expression::new(ExpressionKind::Ref(RefExpr{
+                                inner_expr: self.transform_expression(operand)?,
+                                kind: RefKind::Normal}
                             )))),
                             UnaryOpType::Deref => Ok(ab.node(Expression::new(ExpressionKind::Deref(
-                                self.transform_expression(operand)?,
+                                DerefExpr(self.transform_expression(operand)?),
                             )))),
                         }
                     }
@@ -1094,15 +1103,17 @@ where
                         let module_idx = self.resolver.add_module(s, Some(ab.site.clone()))?;
 
                         // get the string, but then convert into an AstNode using the string literal ast info
-                        Ok(ab.node(Expression::new(ExpressionKind::Import(
+                        Ok(ab.node(Expression::new(ExpressionKind::Import(ImportExpr(
                             self.builder_from_pair(&import_path).node(Import {
                                 path: STRING_LITERAL_MAP.create_string(s),
                                 index: module_idx,
                             }),
-                        ))))
+                        )))))
                     }
                     Rule::literal_expr => Ok(ab.node(Expression::new(
-                        ExpressionKind::LiteralExpr(self.transform_literal(subject_expr)?),
+                        ExpressionKind::LiteralExpr(LiteralExpr(
+                            self.transform_literal(subject_expr)?,
+                        )),
                     ))),
                     Rule::variable_expr => {
                         // so since this is going to be an access_name, which is a list of 'ident' rules,
@@ -1275,12 +1286,13 @@ where
 
                                     Ok(block_builder.node(MatchCase {
                                         pattern: block_builder.node(Pattern::If(IfPattern {
-                                            pattern: block_builder.node(Pattern::Ignore),
+                                            pattern: block_builder
+                                                .node(Pattern::Ignore(IgnorePattern)),
                                             condition: clause,
                                         })),
-                                        expr: self
-                                            .builder_from_node(&pair)
-                                            .node(Expression::new(ExpressionKind::Block(pair))),
+                                        expr: self.builder_from_node(&pair).node(Expression::new(
+                                            ExpressionKind::Block(BlockExpr(pair)),
+                                        )),
                                     }))
                                 }
                                 Rule::else_block => {
@@ -1291,10 +1303,10 @@ where
                                     )?;
 
                                     Ok(block_builder.node(MatchCase {
-                                        pattern: block_builder.node(Pattern::Ignore),
-                                        expr: self
-                                            .builder_from_node(&pair)
-                                            .node(Expression::new(ExpressionKind::Block(pair))),
+                                        pattern: block_builder.node(Pattern::Ignore(IgnorePattern)),
+                                        expr: self.builder_from_node(&pair).node(Expression::new(
+                                            ExpressionKind::Block(BlockExpr(pair)),
+                                        )),
                                     }))
                                 }
                                 k => {
@@ -1310,12 +1322,12 @@ where
                                 // if no else-block was provided, we need to add one manually
                                 if append_else.get() {
                                     Some(Ok(ab.node(MatchCase {
-                                        pattern: ab.node(Pattern::Ignore),
+                                        pattern: ab.node(Pattern::Ignore(IgnorePattern)),
                                         expr: ab.node(Expression::new(ExpressionKind::Block(
-                                            ab.node(Block::Body(BodyBlock {
+                                            BlockExpr(ab.node(Block::Body(BodyBlock {
                                                 statements: row![wall],
                                                 expr: None,
-                                            })),
+                                            }))),
                                         ))),
                                     })))
                                 } else {
@@ -1360,7 +1372,7 @@ where
             }
             Rule::loop_block => {
                 let body_block = self.transform_block(pair.into_inner().next().unwrap())?;
-                Ok(ab.node(Block::Loop(body_block)))
+                Ok(ab.node(Block::Loop(LoopBlock(body_block))))
             }
             Rule::for_block => {
                 let mut for_block = pair.into_inner();
@@ -1374,7 +1386,7 @@ where
                 let body = self.transform_block(for_block.next().unwrap())?;
                 let body_builder = self.builder_from_node(&body);
 
-                Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
+                Ok(ab.node(Block::Loop(LoopBlock(ab.node(Block::Match(MatchBlock {
                     subject: iter_builder.node(Expression::new(ExpressionKind::FunctionCall(
                         FunctionCallExpr {
                             subject: iter_builder.node(Expression::new(ExpressionKind::Variable(
@@ -1400,7 +1412,7 @@ where
                                     },
                                 ),
                             ),
-                            expr: body_builder.node(Expression::new(ExpressionKind::Block(body))),
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         body_builder.node(MatchCase {
                             pattern: pat_builder.node(
@@ -1414,15 +1426,15 @@ where
                                     },
                                 ),
                             ),
-                            expr: body_builder.node(Expression::new(ExpressionKind::Block(
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 body_builder.node(Block::Body(BodyBlock {
-                                    statements: row![&self.wall; body_builder.node(Statement::Break)],
+                                    statements: row![&self.wall; body_builder.node(Statement::Break(BreakStatement))],
                                     expr: None,
                                 })),
-                            ))),
+                            )))),
                         }),
                     ],
-                })))))
+                }))))))
             }
             Rule::while_block => {
                 let mut while_block = pair.into_inner();
@@ -1433,29 +1445,29 @@ where
                 let body = self.transform_block(while_block.next().unwrap())?;
                 let body_builder = self.builder_from_node(&body);
 
-                Ok(ab.node(Block::Loop(ab.node(Block::Match(MatchBlock {
+                Ok(ab.node(Block::Loop(LoopBlock(ab.node(Block::Match(MatchBlock {
                     subject: condition,
                     cases: row![&self.wall; body_builder.node(MatchCase {
                             pattern: condition_builder.node(Pattern::Enum(EnumPattern {
                                 name: condition_builder.make_boolean(true),
                                 args: row![&self.wall],
                             })),
-                            expr: body_builder.node(Expression::new(ExpressionKind::Block(body))),
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         body_builder.node(MatchCase {
                             pattern: condition_builder.node(Pattern::Enum(EnumPattern {
                                 name: condition_builder.make_boolean(false),
                                 args: row![&self.wall],
                             })),
-                            expr: body_builder.node(Expression::new(ExpressionKind::Block(
+                            expr: body_builder.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 body_builder.node(Block::Body(BodyBlock {
-                                    statements: row![&self.wall; body_builder.node(Statement::Break)],
+                                    statements: row![&self.wall; body_builder.node(Statement::Break(BreakStatement))],
                                     expr: None,
                                 })),
-                            ))),
+                            )))),
                         }),
                     ],
-                })))))
+                }))))))
             }
             Rule::body_block => {
                 let body_block = self.transform_body_block(pair)?;
@@ -1475,7 +1487,7 @@ where
                 let ab = self.builder_from_node(&parsed);
 
                 match parsed.into_body().move_out() {
-                    Statement::Expr(expr) => (
+                    Statement::Expr(ExprStatement(expr)) => (
                         ab.try_collect(statements.map(|s| self.transform_statement(s)))?,
                         Some(ab.node(expr.into_body().move_out())),
                     ),
@@ -1501,7 +1513,9 @@ where
     ) -> ParseResult<AstNode<'c, Statement<'c>>> {
         let ab = self.builder_from_pair(&pair);
         match pair.as_rule() {
-            Rule::expr => Ok(ab.node(Statement::Expr(self.transform_expression(pair)?))),
+            Rule::expr => Ok(ab.node(Statement::Expr(ExprStatement(
+                self.transform_expression(pair)?,
+            )))),
             _ => self.transform_statement(pair),
         }
     }
@@ -1520,16 +1534,20 @@ where
             // since we have block statements and semi statements, we can check here
             // to see which path it is, if this is a block statement, we just call
             // into_ast(resolver) since there is an implementation for block conversions
-            Rule::block => Ok(ab.node(Statement::Block(self.transform_block(pair)?))),
-            Rule::break_st => Ok(ab.node(Statement::Break)),
-            Rule::continue_st => Ok(ab.node(Statement::Continue)),
+            Rule::block => Ok(ab.node(Statement::Block(BlockStatement(
+                self.transform_block(pair)?,
+            )))),
+            Rule::break_st => Ok(ab.node(Statement::Break(BreakStatement))),
+            Rule::continue_st => Ok(ab.node(Statement::Continue(ContinueStatement))),
             Rule::return_st => {
                 let ret_expr = pair.into_inner().next();
 
                 if let Some(node) = ret_expr {
-                    Ok(ab.node(Statement::Return(Some(self.transform_expression(node)?))))
+                    Ok(ab.node(Statement::Return(ReturnStatement(Some(
+                        self.transform_expression(node)?,
+                    )))))
                 } else {
-                    Ok(ab.node(Statement::Return(None)))
+                    Ok(ab.node(Statement::Return(ReturnStatement(None))))
                 }
             }
             Rule::let_st => {
@@ -1628,7 +1646,7 @@ where
                                         }),
                                     }),
                                 ));
-                                Ok(ab.node(Statement::Expr(assign_call)))
+                                Ok(ab.node(Statement::Expr(ExprStatement(assign_call))))
                             }
                             Some(OperatorFn::LazyNamed { name, assigning }) => {
                                 // some functions have to exhibit a short-circuiting behaviour, namely
@@ -1660,7 +1678,7 @@ where
                                     }),
                                 ));
 
-                                Ok(ab.node(Statement::Expr(fn_call)))
+                                Ok(ab.node(Statement::Expr(ExprStatement(fn_call))))
                             }
                             Some(OperatorFn::Compound { name, assigning }) => {
                                 // for compound functions that include ordering, we essentially transpile
@@ -1668,14 +1686,14 @@ where
                                 // 'Ord' enum variants. This also happens for operators such as '>=' which
                                 // essentially means that we have to check if the result of 'ord()' is either
                                 // 'Eq' or 'Gt'.
-                                Ok(ab.node(Statement::Expr(
+                                Ok(ab.node(Statement::Expr(ExprStatement(
                                     builder.transform_compound_ord_fn(name, assigning, lhs, rhs),
-                                )))
+                                ))))
                             }
                             None => Ok(ab.node(Statement::Assign(AssignStatement { lhs, rhs }))),
                         }
                     }
-                    None => Ok(ab.node(Statement::Expr(lhs))),
+                    None => Ok(ab.node(Statement::Expr(ExprStatement(lhs)))),
                 }
             }
             Rule::struct_def => {

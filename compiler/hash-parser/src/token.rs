@@ -86,6 +86,7 @@ impl<'c> Token<'c> {
     }
 
     /// Copy the current token in the specified [Wall] allocator.
+    #[must_use]
     pub fn clone_in(&self, wall: &Wall<'c>) -> Self {
         Token {
             kind: self.kind.clone_in(wall),

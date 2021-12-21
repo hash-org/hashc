@@ -1,6 +1,8 @@
 //! Hash Compiler AST library file
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
+#![feature(generic_associated_types)]
+#![feature(iter_intersperse)]
 
 extern crate strum;
 #[macro_use]
@@ -20,4 +22,6 @@ pub mod parse;
 pub mod resolve;
 pub mod storage;
 pub mod tests;
+pub mod tree;
+pub mod visitor;
 pub mod visualise;
