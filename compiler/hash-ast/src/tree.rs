@@ -6,8 +6,19 @@ use crate::ident::IDENTIFIER_MAP;
 use crate::literal::STRING_LITERAL_MAP;
 use crate::{ast, visitor::walk, visitor::AstVisitor};
 
+/// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
+/// [TreeNode] tree, for visualisation purposes. It is meant to replace [crate::ast::visualise].
 struct AstTreeGenerator;
 
+/// Easy way to format a [TreeNode] label with a main label as well as short contents, and a
+/// quoting string.
+///
+///
+/// # Examples
+///
+/// ```
+/// assert_eq(labeled("foo", "bar", "\""), "foo \"bar\"")
+/// ```
 fn labeled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
     format!(
         "{} {}{}{}",

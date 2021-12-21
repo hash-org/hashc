@@ -1,8 +1,16 @@
+//! Visitor implementation for [hash::ast] nodes.
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
+use crate::ast;
 use std::iter::FromIterator;
 
-use crate::ast;
-
+/// The main visitor trait for [hash::ast] nodes.
+///
+/// This contains a method for each AST structure, as well as a dedicated return type for it.
+/// These can be implemented using the functions defined in [walk] that can traverse the children
+/// of each node.
 pub trait AstVisitor<'c>: Sized {
+    /// What container to use to collect multiple children, used by [walk].
     type CollectionContainer<T>: FromIterator<T> + Sized;
 
     type ImportRet;
@@ -367,6 +375,14 @@ pub trait AstVisitor<'c>: Sized {
     fn visit_module(&mut self, node: ast::AstNodeRef<ast::Module<'c>>) -> Self::ModuleRet;
 }
 
+/// Contains helper functions and structures to traverse AST nodes using a given visitor.
+///
+/// Structures are defined which mirror the layout of the AST nodes, but instead of having AST
+/// nodes as children, they have the [AstVisitor] output type for each node.
+///
+/// For enums, there is an additional `*_same_children` function, which traverses the member of
+/// each variant and returns the inner type, given that all variants have the same declared type
+/// within the visitor.
 pub mod walk {
     use super::ast;
     use super::AstVisitor;
