@@ -67,7 +67,7 @@ impl<'c, T> AstNode<'c, T> {
         self.body
     }
 
-    pub fn ast_ref<'s>(&'s self) -> AstNodeRef<'s, T> {
+    pub fn ast_ref(&self) -> AstNodeRef<T> {
         AstNodeRef {
             body: self.body.as_ref(),
             location: self.location,

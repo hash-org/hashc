@@ -682,23 +682,23 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Literal<'c>>,
     ) -> Literal<'c, V> {
         match &*node {
-            ast::Literal::Str(r) => Literal::Str(visitor.visit_str_literal(node.with_body(&r))),
-            ast::Literal::Char(r) => Literal::Char(visitor.visit_char_literal(node.with_body(&r))),
-            ast::Literal::Int(r) => Literal::Int(visitor.visit_int_literal(node.with_body(&r))),
+            ast::Literal::Str(r) => Literal::Str(visitor.visit_str_literal(node.with_body(r))),
+            ast::Literal::Char(r) => Literal::Char(visitor.visit_char_literal(node.with_body(r))),
+            ast::Literal::Int(r) => Literal::Int(visitor.visit_int_literal(node.with_body(r))),
             ast::Literal::Float(r) => {
-                Literal::Float(visitor.visit_float_literal(node.with_body(&r)))
+                Literal::Float(visitor.visit_float_literal(node.with_body(r)))
             }
-            ast::Literal::Set(r) => Literal::Set(visitor.visit_set_literal(node.with_body(&r))),
-            ast::Literal::Map(r) => Literal::Map(visitor.visit_map_literal(node.with_body(&r))),
-            ast::Literal::List(r) => Literal::List(visitor.visit_list_literal(node.with_body(&r))),
+            ast::Literal::Set(r) => Literal::Set(visitor.visit_set_literal(node.with_body(r))),
+            ast::Literal::Map(r) => Literal::Map(visitor.visit_map_literal(node.with_body(r))),
+            ast::Literal::List(r) => Literal::List(visitor.visit_list_literal(node.with_body(r))),
             ast::Literal::Tuple(r) => {
-                Literal::Tuple(visitor.visit_tuple_literal(node.with_body(&r)))
+                Literal::Tuple(visitor.visit_tuple_literal(node.with_body(r)))
             }
             ast::Literal::Struct(r) => {
-                Literal::Struct(visitor.visit_struct_literal(node.with_body(&r)))
+                Literal::Struct(visitor.visit_struct_literal(node.with_body(r)))
             }
             ast::Literal::Function(r) => {
-                Literal::Function(visitor.visit_function_def(node.with_body(&r)))
+                Literal::Function(visitor.visit_function_def(node.with_body(r)))
             }
         }
     }
@@ -812,9 +812,9 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Block<'c>>,
     ) -> Block<'c, V> {
         match &*node {
-            ast::Block::Match(r) => Block::Match(visitor.visit_match_block(node.with_body(&r))),
-            ast::Block::Loop(r) => Block::Loop(visitor.visit_loop_block(node.with_body(&r))),
-            ast::Block::Body(r) => Block::Body(visitor.visit_body_block(node.with_body(&r))),
+            ast::Block::Match(r) => Block::Match(visitor.visit_match_block(node.with_body(r))),
+            ast::Block::Loop(r) => Block::Loop(visitor.visit_loop_block(node.with_body(r))),
+            ast::Block::Body(r) => Block::Body(visitor.visit_body_block(node.with_body(r))),
         }
     }
 
@@ -979,14 +979,14 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Type<'c, V> {
         match &*node {
-            ast::Type::Named(r) => Type::Named(visitor.visit_named_type(node.with_body(&r))),
-            ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(node.with_body(&r))),
-            ast::Type::RawRef(r) => Type::RawRef(visitor.visit_raw_ref_type(node.with_body(&r))),
-            ast::Type::TypeVar(r) => Type::TypeVar(visitor.visit_type_var(node.with_body(&r))),
+            ast::Type::Named(r) => Type::Named(visitor.visit_named_type(node.with_body(r))),
+            ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(node.with_body(r))),
+            ast::Type::RawRef(r) => Type::RawRef(visitor.visit_raw_ref_type(node.with_body(r))),
+            ast::Type::TypeVar(r) => Type::TypeVar(visitor.visit_type_var(node.with_body(r))),
             ast::Type::Existential(r) => {
-                Type::Existential(visitor.visit_existential_type(node.with_body(&r)))
+                Type::Existential(visitor.visit_existential_type(node.with_body(r)))
             }
-            ast::Type::Infer(r) => Type::Infer(visitor.visit_infer_type(node.with_body(&r))),
+            ast::Type::Infer(r) => Type::Infer(visitor.visit_infer_type(node.with_body(r))),
         }
     }
 
@@ -1032,26 +1032,26 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Pattern<'c, V> {
         match &*node {
-            ast::Pattern::Enum(r) => Pattern::Enum(visitor.visit_enum_pattern(node.with_body(&r))),
+            ast::Pattern::Enum(r) => Pattern::Enum(visitor.visit_enum_pattern(node.with_body(r))),
             ast::Pattern::Struct(r) => {
-                Pattern::Struct(visitor.visit_struct_pattern(node.with_body(&r)))
+                Pattern::Struct(visitor.visit_struct_pattern(node.with_body(r)))
             }
             ast::Pattern::Namespace(r) => {
-                Pattern::Namespace(visitor.visit_namespace_pattern(node.with_body(&r)))
+                Pattern::Namespace(visitor.visit_namespace_pattern(node.with_body(r)))
             }
             ast::Pattern::Tuple(r) => {
-                Pattern::Tuple(visitor.visit_tuple_pattern(node.with_body(&r)))
+                Pattern::Tuple(visitor.visit_tuple_pattern(node.with_body(r)))
             }
             ast::Pattern::Literal(r) => {
-                Pattern::Literal(visitor.visit_literal_pattern(node.with_body(&r)))
+                Pattern::Literal(visitor.visit_literal_pattern(node.with_body(r)))
             }
-            ast::Pattern::Or(r) => Pattern::Or(visitor.visit_or_pattern(node.with_body(&r))),
-            ast::Pattern::If(r) => Pattern::If(visitor.visit_if_pattern(node.with_body(&r))),
+            ast::Pattern::Or(r) => Pattern::Or(visitor.visit_or_pattern(node.with_body(r))),
+            ast::Pattern::If(r) => Pattern::If(visitor.visit_if_pattern(node.with_body(r))),
             ast::Pattern::Binding(r) => {
-                Pattern::Binding(visitor.visit_binding_pattern(node.with_body(&r)))
+                Pattern::Binding(visitor.visit_binding_pattern(node.with_body(r)))
             }
             ast::Pattern::Ignore(r) => {
-                Pattern::Ignore(visitor.visit_ignore_pattern(node.with_body(&r)))
+                Pattern::Ignore(visitor.visit_ignore_pattern(node.with_body(r)))
             }
         }
     }
@@ -1206,16 +1206,16 @@ pub mod walk {
     ) -> LiteralPattern<'c, V> {
         match &*node {
             ast::LiteralPattern::Str(r) => {
-                LiteralPattern::Str(visitor.visit_str_literal_pattern(node.with_body(&r)))
+                LiteralPattern::Str(visitor.visit_str_literal_pattern(node.with_body(r)))
             }
             ast::LiteralPattern::Char(r) => {
-                LiteralPattern::Char(visitor.visit_char_literal_pattern(node.with_body(&r)))
+                LiteralPattern::Char(visitor.visit_char_literal_pattern(node.with_body(r)))
             }
             ast::LiteralPattern::Int(r) => {
-                LiteralPattern::Int(visitor.visit_int_literal_pattern(node.with_body(&r)))
+                LiteralPattern::Int(visitor.visit_int_literal_pattern(node.with_body(r)))
             }
             ast::LiteralPattern::Float(r) => {
-                LiteralPattern::Float(visitor.visit_float_literal_pattern(node.with_body(&r)))
+                LiteralPattern::Float(visitor.visit_float_literal_pattern(node.with_body(r)))
             }
         }
     }
@@ -1479,34 +1479,34 @@ pub mod walk {
     ) -> Statement<'c, V> {
         match &*node {
             ast::Statement::Expr(r) => {
-                Statement::Expr(visitor.visit_expr_statement(node.with_body(&r)))
+                Statement::Expr(visitor.visit_expr_statement(node.with_body(r)))
             }
             ast::Statement::Return(r) => {
-                Statement::Return(visitor.visit_return_statement(node.with_body(&r)))
+                Statement::Return(visitor.visit_return_statement(node.with_body(r)))
             }
             ast::Statement::Block(r) => {
-                Statement::Block(visitor.visit_block_statement(node.with_body(&r)))
+                Statement::Block(visitor.visit_block_statement(node.with_body(r)))
             }
             ast::Statement::Break(r) => {
-                Statement::Break(visitor.visit_break_statement(node.with_body(&r)))
+                Statement::Break(visitor.visit_break_statement(node.with_body(r)))
             }
             ast::Statement::Continue(r) => {
-                Statement::Continue(visitor.visit_continue_statement(node.with_body(&r)))
+                Statement::Continue(visitor.visit_continue_statement(node.with_body(r)))
             }
             ast::Statement::Let(r) => {
-                Statement::Let(visitor.visit_let_statement(node.with_body(&r)))
+                Statement::Let(visitor.visit_let_statement(node.with_body(r)))
             }
             ast::Statement::Assign(r) => {
-                Statement::Assign(visitor.visit_assign_statement(node.with_body(&r)))
+                Statement::Assign(visitor.visit_assign_statement(node.with_body(r)))
             }
             ast::Statement::StructDef(r) => {
-                Statement::StructDef(visitor.visit_struct_def(node.with_body(&r)))
+                Statement::StructDef(visitor.visit_struct_def(node.with_body(r)))
             }
             ast::Statement::EnumDef(r) => {
-                Statement::EnumDef(visitor.visit_enum_def(node.with_body(&r)))
+                Statement::EnumDef(visitor.visit_enum_def(node.with_body(r)))
             }
             ast::Statement::TraitDef(r) => {
-                Statement::TraitDef(visitor.visit_trait_def(node.with_body(&r)))
+                Statement::TraitDef(visitor.visit_trait_def(node.with_body(r)))
             }
         }
     }

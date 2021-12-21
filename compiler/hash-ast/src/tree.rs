@@ -222,13 +222,13 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type ExistentialTypeRet = TreeNode;
     fn visit_existential_type(
         &mut self,
-        node: ast::AstNodeRef<ast::ExistentialType>,
+        _: ast::AstNodeRef<ast::ExistentialType>,
     ) -> Self::ExistentialTypeRet {
         TreeNode::leaf("existential")
     }
 
     type InferTypeRet = TreeNode;
-    fn visit_infer_type(&mut self, node: ast::AstNodeRef<ast::InferType>) -> Self::InferTypeRet {
+    fn visit_infer_type(&mut self, _: ast::AstNodeRef<ast::InferType>) -> Self::InferTypeRet {
         TreeNode::leaf("infer")
     }
 
@@ -314,7 +314,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
     ) -> Self::StructLiteralRet {
         let walk::StructLiteral {
-            name,
+            name: _,
             type_args,
             entries,
         } = walk::walk_struct_literal(self, node);
@@ -433,8 +433,8 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         if !statements.is_empty() {
             children.push(TreeNode::branch("statements", statements));
         }
-        if expr.is_some() {
-            children.push(TreeNode::branch("statements", statements));
+        if let Some(expr) = expr {
+            children.push(TreeNode::branch("expr", vec![expr]));
         }
 
         TreeNode::branch("body", children)
@@ -473,7 +473,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type BreakStatementRet = TreeNode;
     fn visit_break_statement(
         &mut self,
-        node: ast::AstNodeRef<ast::BreakStatement>,
+        _node: ast::AstNodeRef<ast::BreakStatement>,
     ) -> Self::BreakStatementRet {
         TreeNode::leaf("break")
     }
@@ -481,7 +481,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type ContinueStatementRet = TreeNode;
     fn visit_continue_statement(
         &mut self,
-        node: ast::AstNodeRef<ast::ContinueStatement>,
+        _node: ast::AstNodeRef<ast::ContinueStatement>,
     ) -> Self::ContinueStatementRet {
         TreeNode::leaf("continue")
     }
@@ -501,7 +501,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
             "let",
             iter::once(TreeNode::branch("pattern", vec![pattern]))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
-                .chain(bound.map(|b| b).into_iter())
+                .chain(bound.into_iter())
                 .chain(
                     value
                         .map(|v| TreeNode::branch("value", vec![v]))
@@ -547,7 +547,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::StructDef<'c>>,
     ) -> Self::StructDefRet {
         let walk::StructDef {
-            name,
+            name: _,
             entries,
             bound,
         } = walk::walk_struct_def(self, node);
@@ -591,7 +591,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type TraitDefRet = TreeNode;
     fn visit_trait_def(&mut self, node: ast::AstNodeRef<ast::TraitDef<'c>>) -> Self::TraitDefRet {
         let walk::TraitDef {
-            name,
+            name: _,
             bound,
             trait_type,
         } = walk::walk_trait_def(self, node);
@@ -765,7 +765,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type IgnorePatternRet = TreeNode;
     fn visit_ignore_pattern(
         &mut self,
-        node: ast::AstNodeRef<ast::IgnorePattern>,
+        _node: ast::AstNodeRef<ast::IgnorePattern>,
     ) -> Self::IgnorePatternRet {
         TreeNode::leaf("ignore")
     }

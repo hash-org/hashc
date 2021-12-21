@@ -22,6 +22,6 @@ pub mod parse;
 pub mod resolve;
 pub mod storage;
 pub mod tests;
-pub mod visualise;
 pub mod tree;
 pub mod visitor;
+pub mod visualise;
