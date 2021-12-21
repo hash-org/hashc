@@ -1298,8 +1298,6 @@ where
             //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
             //    only one token tree, we prevent it from being parsed as a struct literal
             //    by updating the global state...
-            // self.disallow_struct_literals
-            //     .set(self.lookahead_for_struct_literal());
             self.disallow_struct_literals.set(true);
 
             let clause = self.parse_expression_with_precedence(0)?;
@@ -1789,11 +1787,12 @@ where
     /// Parse an expression which can be compound.
     pub fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token();
-
+        
         if token.is_none() {
             return self.unexpected_eof()?;
         }
-
+        
+        let prev_allowance =  self.disallow_struct_literals.get();
         let token = token.unwrap();
 
         // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
@@ -1842,13 +1841,15 @@ where
             TokenKind::Atom(TokenAtom::Keyword(Keyword::Import)) => self.parse_import()?,
             // Handle tree literals
             TokenKind::Tree(Delimiter::Brace, tree) => {
+                self.disallow_struct_literals.set(false);
                 self.parse_block_or_braced_literal(tree, &self.current_location())?
             }
             TokenKind::Tree(Delimiter::Bracket, tree) => {
+                self.disallow_struct_literals.set(false);
                 self.parse_array_literal(tree, &self.current_location())?
-            } // Could be an array index?
+            }
             TokenKind::Tree(Delimiter::Paren, tree) => {
-                self.disallow_struct_literals.set(true); // @@Cleanup
+                self.disallow_struct_literals.set(false);
 
                 // check whether a function return type is following...
                 let mut is_func =
@@ -1899,6 +1900,9 @@ where
                 )
             }
         };
+
+        // reset the struct literal state in any case
+        self.disallow_struct_literals.set(prev_allowance);
 
         self.parse_singular_expression(subject)
     }
@@ -2011,9 +2015,6 @@ where
                 _ => break,
             }
         }
-
-        // reset disallowing struct literals
-        self.disallow_struct_literals.set(false);
 
         Ok(lhs_expr)
     }

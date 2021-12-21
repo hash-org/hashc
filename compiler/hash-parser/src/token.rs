@@ -101,14 +101,8 @@ impl fmt::Display for Token<'_> {
             TokenKind::Atom(TokenAtom::Ident(ident)) => {
                 write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident))
             }
-            TokenKind::Tree(delim, tree) => {
-                writeln!(f, "Delimiter({})", delim.left())?;
-
-                for token in tree.iter() {
-                    writeln!(f, "{}", token)?;
-                }
-
-                write!(f, "Delimiter({})", delim.right())
+            TokenKind::Tree(delim, _) => {
+                write!(f, "Tree Delimiter({}..{})", delim.left(), delim.right())
             }
             TokenKind::Atom(TokenAtom::StrLiteral(literal)) => {
                 write!(
@@ -124,7 +118,7 @@ impl fmt::Display for Token<'_> {
             kind => write!(f, "{:?}", kind),
         }
     }
-}
+}   
 
 #[derive(Debug, PartialEq)]
 pub enum TokenKind<'c> {
