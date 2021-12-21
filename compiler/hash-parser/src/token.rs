@@ -118,7 +118,7 @@ impl fmt::Display for Token<'_> {
             kind => write!(f, "{:?}", kind),
         }
     }
-}   
+}
 
 #[derive(Debug, PartialEq)]
 pub enum TokenKind<'c> {
@@ -446,7 +446,7 @@ impl<'c> TokenAtomVector<'c> {
     pub fn begin_expression(wall: &Wall<'c>) -> Self {
         Self(row![wall;
             TokenAtom::Delimiter(Delimiter::Paren, true),
-            TokenAtom::Dot, // OR an operator, OR '::'
+            TokenAtom::Dot, // @@TODO: custom token label support (for: OR an operator)
             TokenAtom::Semi,
             TokenAtom::Colon,
         ])

@@ -2870,49 +2870,63 @@ where
             Some(Token {
                 kind: TokenKind::Atom(TokenAtom::Ident(id)),
                 span: id_span,
-            }) => match self.peek() {
-                Some(Token {
-                    kind: TokenKind::Tree(Delimiter::Paren, stream),
-                    span,
-                }) => {
-                    // Eat the generator now...
-                    self.skip_token();
+            }) => {
+                let type_args = self.peek_resultant_fn(|| self.parse_type_args());
+                let type_args = type_args.unwrap_or_else(|| row![&self.wall]);
 
-                    // @@Parallelisable: Since this is a vector of tokens, we should be able to give the resolver, create a new
-                    //                   generator and form function call arguments from the stream...
-                    let mut args = self.node_with_location(
-                        FunctionCallArgs {
-                            entries: row![&self.wall],
-                        },
-                        *span,
-                    );
+                // create the subject of the call
+                let subject = self.node_with_location(
+                    Expression::new(ExpressionKind::Variable(VariableExpr {
+                        name: self.make_access_name_from_identifier(*id, *id_span),
+                        type_args,
+                    })),
+                    start.join(self.current_location()),
+                );
 
-                    // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
-                    // of expressions separated by commas as arguments to the call.
+                match self.peek() {
+                    Some(Token {
+                        kind: TokenKind::Tree(Delimiter::Paren, stream),
+                        span,
+                    }) => {
+                        // Eat the generator now...
+                        self.skip_token();
 
-                    let gen = self.from_stream(stream, *span);
+                        // @@Parallelisable: Since this is a vector of tokens, we should be able to give the resolver, create a new
+                        //                   generator and form function call arguments from the stream...
+                        let mut args = self.node_with_location(
+                            FunctionCallArgs {
+                                entries: row![&self.wall],
+                            },
+                            *span,
+                        );
 
-                    while gen.has_token() {
-                        let arg = gen.parse_expression_with_precedence(0);
-                        args.entries.push(arg?, &self.wall);
+                        // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
+                        // of expressions separated by commas as arguments to the call.
 
-                        // now we eat the next token, checking that it is a comma
-                        match gen.peek() {
-                            Some(token) if token.has_atom(TokenAtom::Comma) => gen.next_token(),
-                            _ => break,
-                        };
+                        let gen = self.from_stream(stream, *span);
+
+                        while gen.has_token() {
+                            let arg = gen.parse_expression_with_precedence(0);
+                            args.entries.push(arg?, &self.wall);
+
+                            // now we eat the next token, checking that it is a comma
+                            match gen.peek() {
+                                Some(token) if token.has_atom(TokenAtom::Comma) => gen.next_token(),
+                                _ => break,
+                            };
+                        }
+
+                        Ok(self.node_with_location(
+                            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                                subject,
+                                args,
+                            })),
+                            start.join(self.current_location()),
+                        ))
                     }
-
-                    Ok(self.node_with_location(
-                        Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                            subject: self.make_variable_from_identifier(*id, *id_span),
-                            args,
-                        })),
-                        start.join(self.current_location()),
-                    ))
+                    _ => Ok(subject),
                 }
-                _ => Ok(self.make_variable_from_identifier(*id, *id_span)),
-            },
+            }
             _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
         }
     }
