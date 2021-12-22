@@ -1,0 +1,3 @@
+let k = ~a;
+let k = ---a;
+let k = +(-(+a));

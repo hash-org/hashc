@@ -2,7 +2,7 @@
 name = "hash-alloc"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 bumpalo = "3.7"

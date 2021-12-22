@@ -1,0 +1,17 @@
+loop {
+    c = 0;
+
+    loop {
+        a += 1;
+        b -= random<u32>();
+        c = a + b;
+
+        if c > 12 {
+            break;
+        }
+    }
+
+    if c % 2 == 0 {
+        break;
+    }
+}

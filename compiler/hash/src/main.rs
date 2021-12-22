@@ -7,10 +7,11 @@
 mod crash_handler;
 mod logger;
 
-use clap::{crate_version, AppSettings, Clap};
+use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
+use hash_parser::backend::HashParser;
 use hash_reporting::{
     errors::CompilerError,
     reporting::{Report, ReportWriter},
@@ -23,25 +24,19 @@ use std::path::PathBuf;
 use std::{env, fs};
 use std::{num::NonZeroUsize, process::exit};
 
-#[cfg(not(feature = "use-pest"))]
-use hash_parser::backend::HashParser;
-
-#[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::PestBackend;
-
 use crate::crash_handler::panic_handler;
 
 /// CompilerOptions is a structural representation of what arguments the compiler
 /// can take when running. Compiler options are well documented on the wiki page:
 /// <https://hash-org.github.io/hash-arxiv/interpreter-options.html>
-#[derive(Clap)]
+#[derive(ClapParser)]
 #[clap(
     name = "Hash Interpreter",
-    version = crate_version!(),
+    version,
     author = "Hash Language Authors",
     about = "Run and execute hash programs"
 )]
-#[clap(setting = AppSettings::ColorNever)]
+#[clap(setting = AppSettings::DisableColoredHelp)]
 struct CompilerOptions {
     //  Include a directory into runtime. The current directory is included by default
     // #[clap(short, long, multiple_values = true)]
@@ -66,14 +61,14 @@ struct CompilerOptions {
     mode: Option<SubCmd>,
 }
 
-#[derive(Clap)]
+#[derive(ClapParser)]
 enum SubCmd {
     AstGen(AstGen),
     IrGen(IrGen),
 }
 
 /// Generate AST from given input file
-#[derive(Clap)]
+#[derive(ClapParser)]
 struct AstGen {
     /// Input file to generate AST from
     #[clap(required = true)]
@@ -88,7 +83,7 @@ struct AstGen {
     debug: bool,
 }
 /// Generate IR from the given input file
-#[derive(Clap)]
+#[derive(ClapParser)]
 struct IrGen {
     /// Input file to generate IR from
     #[clap(required = true)]
@@ -158,12 +153,6 @@ fn main() {
 
     let castle = Castle::new();
 
-    // determine the parser backend that we're using...
-    #[cfg(feature = "use-pest")]
-    let mut parser_backend =
-        ParParser::new_with_workers(PestBackend::new(&castle), worker_count, false);
-
-    #[cfg(not(feature = "use-pest"))]
     let mut parser_backend =
         ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
 

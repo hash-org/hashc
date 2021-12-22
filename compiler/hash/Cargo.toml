@@ -2,15 +2,14 @@
 name = "hash"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-clap = "3.0.0-beta.2"
+clap = { version = "3.0.0-beta.2", features = ["derive"] }
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-parser = {path = "../hash-parser" }
 hash-alloc = {path = "../hash-alloc" }
-hash-pest-parser = {path = "../hash-pest-parser" }
 hash-interactive = {path = "../hash-interactive" } 
 hash-reporting = {path = "../hash-reporting" }
 thiserror = "1.0"
@@ -18,5 +17,3 @@ log = "0.4"
 backtrace = "0.3"
 num_cpus = "1.13.0"
 
-[features]
-use-pest = ["hash-interactive/use-pest"]

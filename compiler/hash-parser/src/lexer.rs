@@ -3,10 +3,10 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
+use hash_ast::error::ParseResult;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
-use hash_ast::{error::ParseResult, ident::Identifier};
 use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
@@ -23,7 +23,7 @@ const EOF_CHAR: char = '\0';
 /// The [Lexer] is a representation of the source in tokens that can be turned into the
 /// AST. The [Lexer] has methods that can parse various token types from the source,
 /// transform the entire contents into a vector of tokens and some useful lexing utilities.
-pub(crate) struct Lexer<'w, 'c, 'a> {
+pub struct Lexer<'w, 'c, 'a> {
     /// Location of the lexer in the current stream.
     offset: Cell<usize>,
 
@@ -37,7 +37,7 @@ pub(crate) struct Lexer<'w, 'c, 'a> {
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a check
     /// on if the token tree was closed up.
     // @@Cleanup: We could use a delimiter stack to automatically guarantee this?
-    prev: Cell<Option<char>>,
+    previous_delimiter: Cell<Option<char>>,
 
     /// The castle allocator for the current [Lexer].
     wall: &'w Wall<'c>,
@@ -45,11 +45,11 @@ pub(crate) struct Lexer<'w, 'c, 'a> {
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Create a new [Lexer] from the given string input.
-    pub(crate) fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
+    pub fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
         Lexer {
             offset: Cell::new(0),
             module_idx,
-            prev: Cell::new(None),
+            previous_delimiter: Cell::new(None),
             contents,
             wall,
         }
@@ -112,7 +112,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
+    pub fn advance_token(&self) -> TokenResult<Option<Token<'c>>> {
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -192,7 +192,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
             // We have to exit the current tree if we encounter a closing delimiter...
             ch @ (')' | '}' | ']') => {
-                self.prev.set(Some(ch));
+                self.previous_delimiter.set(Some(ch));
 
                 return Ok(None);
             }
@@ -211,7 +211,10 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// performing complex delimiter depth analysis later on.
     pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind<'c>> {
         let mut children_tokens = row![self.wall];
-        let start = self.offset.get();
+        let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
+
+        // we need to reset self.prev here as it might be polluted with previous token trees
+        self.previous_delimiter.set(None);
 
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
@@ -221,13 +224,15 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             };
         }
 
-        match self.prev.get().unwrap() == delimiter.right() {
-            false => Err(TokenError::new(
+        match self.previous_delimiter.get() {
+            Some(delim) if delim == delimiter.right() => {
+                Ok(TokenKind::Tree(delimiter, children_tokens))
+            }
+            _ => Err(TokenError::new(
                 None,
                 TokenErrorKind::Unclosed(delimiter),
                 Location::pos(start),
             )),
-            true => Ok(TokenKind::Tree(delimiter, children_tokens)),
         }
     }
 
@@ -243,15 +248,32 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
         let name = &self.contents[start..self.offset.get()];
 
-        // create the identifier here from the created map
-        let ident = IDENTIFIER_MAP.create_ident(name);
+        match name {
+            "let" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Let)),
+            "for" => TokenKind::Atom(TokenAtom::Keyword(Keyword::For)),
+            "while" => TokenKind::Atom(TokenAtom::Keyword(Keyword::While)),
+            "loop" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Loop)),
+            "if" => TokenKind::Atom(TokenAtom::Keyword(Keyword::If)),
+            "else" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Else)),
+            "match" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Match)),
+            "as" => TokenKind::Atom(TokenAtom::Keyword(Keyword::As)),
+            "in" => TokenKind::Atom(TokenAtom::Keyword(Keyword::In)),
+            "where" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Where)),
+            "trait" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Trait)),
+            "enum" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Enum)),
+            "struct" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Struct)),
+            "continue" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Continue)),
+            "break" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Break)),
+            "return" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Return)),
+            "import" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Import)),
+            "raw" => TokenKind::Atom(TokenAtom::Keyword(Keyword::Raw)),
+            _ => {
+                // create the identifier here from the created map
+                let ident = IDENTIFIER_MAP.create_ident(name);
 
-        // check if this is an actual keyword instead of an ident, and if it is convert the token type...
-        match ident {
-            Identifier(c) if c < Keyword::size() as u32 => TokenKind::Atom(TokenAtom::Keyword(
-                *Keyword::get_variants().get(c as usize).unwrap(),
-            )),
-            ident => TokenKind::Atom(TokenAtom::Ident(ident)),
+                // check if this is an actual keyword instead of an ident, and if it is convert the token type...
+                TokenKind::Atom(TokenAtom::Ident(ident))
+            }
         }
     }
 
@@ -311,7 +333,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 let num = pre_digits
                     .chain(std::iter::once('.'))
-                    .chain(after_digits.chars());
+                    .chain(after_digits.chars().filter(|c| *c != '_'));
 
                 self.eat_float_literal(num, start)
             }
@@ -320,9 +342,11 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             _ => {
                 let digits = pre_digits.collect::<String>();
 
+                // TODO: Implement display for parse errors
+                // TODO: Use our own parser for integers and floats instead of relying on rust's default one.
                 match digits.parse::<u64>() {
-                    Err(e) => Err(TokenError::new(
-                        Some(format!("Malformed integer literal '{}'. {:?}", digits, e)),
+                    Err(_e) => Err(TokenError::new(
+                        Some(format!("Malformed integer literal '{}'.", digits)),
                         TokenErrorKind::MalformedNumericalLiteral,
                         Location::span(start, self.offset.get()),
                     )),
@@ -404,8 +428,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // we need to compute the old byte offset by accounting for both the 'u' character and the '\\' character,
         // but since this is known to be 2 bytes, we can just subtract it from the current offset
         let start = self.offset.get() - 1;
-
         match c {
+            '0' => Ok('\0'),
             'n' => Ok('\n'),
             't' => Ok('\t'),
             'u' => {
@@ -435,11 +459,24 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 }
                 self.skip(); // Eat the '}' ending part of the scape sequence
 
+                if chars.len() > 6 {
+                    return Err(TokenError::new(
+                        Some("Unicode escape literal must be at most 6 hex digits.".to_string()),
+                        TokenErrorKind::BadEscapeSequence,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
                 let value = u32::from_str_radix(chars, 16);
+
+                // let c = '\u{000000}';
 
                 if value.is_err() {
                     return Err(TokenError::new(
-                        Some("Unicode literal too long".to_string()),
+                        Some(
+                            "Unicode escape literal must only be comprised of hex digits."
+                                .to_string(),
+                        ),
                         TokenErrorKind::BadEscapeSequence,
                         Location::span(start, self.offset.get()),
                     ));
@@ -480,7 +517,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             'r' => Ok('\r'),
             'v' => Ok('\x0b'),
             '\\' => Ok('\\'),
-            '"' => Ok('"'),
+            '"' => Ok('\"'),
             '\'' => Ok('\''),
             ch => Err(TokenError::new(
                 Some(format!("Unknown escape sequence '{}'", ch)),
@@ -548,16 +585,31 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// correctly formed and is ended before the end of file is reached.
     pub(crate) fn string(&self) -> TokenResult<TokenKind<'c>> {
         let mut value = String::from("");
+        let mut closed = false;
+
+        let start = self.offset.get();
 
         while let Some(c) = self.next() {
             match c {
-                '"' => break,
+                '"' => {
+                    closed = true;
+                    break;
+                }
                 '\\' => {
                     let ch = self.char_from_escape_seq()?;
                     value.push(ch);
                 }
                 ch => value.push(ch),
             }
+        }
+
+        // Report that the literal is unclosed
+        if !closed {
+            return Err(TokenError::new(
+                None,
+                TokenErrorKind::UnclosedStringLiteral,
+                Location::span(start, self.offset.get()),
+            ));
         }
 
         // Essentially we put the string into the literal map and get an id out which we use for the

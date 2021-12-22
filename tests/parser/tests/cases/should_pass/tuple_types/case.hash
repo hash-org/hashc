@@ -1,0 +1,5 @@
+let k: (,) = b;
+let k: (int) = b;
+let k: (int, float) = b;
+let k: (int, float,) = b;
+let k: (int, float, int) = b;

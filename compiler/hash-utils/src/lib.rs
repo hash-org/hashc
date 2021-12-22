@@ -1,3 +1,4 @@
+pub mod printing;
 pub mod testing;
 pub mod tree_writing;
 
