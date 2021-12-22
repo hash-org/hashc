@@ -459,25 +459,14 @@ where
                 }
             }
             Some(_) => {
-                let expr = self.parse_expression_with_precedence(0)?;
+                let lhs = self.parse_expression_with_precedence(0)?;
+                let (expr, re_assigned) = self.try_parse_re_assignment_operation(lhs)?;
 
-                if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
-                    let transformed_op: OperatorFn = op.into();
-
-                    // Parse the rhs and the semi
-                    let rhs = self.parse_expression_with_precedence(0)?;
+                if re_assigned {
                     self.parse_token_atom(TokenAtom::Semi)?;
 
-                    // Now we need to transform the re-assignment operator into a function call
-
-                    return Ok(self.node_from_joined_location(
-                        Statement::Expr(ExprStatement(self.transform_binary_expression(
-                            expr,
-                            rhs,
-                            transformed_op,
-                        ))),
-                        &start,
-                    ));
+                    return Ok(self
+                        .node_from_joined_location(Statement::Expr(ExprStatement(expr)), &start));
                 }
 
                 // Ensure that the next token is a Semi
@@ -517,7 +506,31 @@ where
                     },
                 }
             }
-            _ => self.error(AstGenErrorKind::ExpectedStatement, None, None)?, // @@Cleanup: is this even right?
+            None => self.error(AstGenErrorKind::ExpectedStatement, None, None)?,
+        }
+    }
+
+    /// Given a initial left-hand side expression, attempt to parse a re-assignment operator and
+    /// then right hand-side. If a re-assignment operator is successfully parsed, then a right
+    /// hand-side is expected and will hard fail. If no re-assignment operator is found, then it
+    /// should just return the left-hand side.
+    fn try_parse_re_assignment_operation(
+        &self,
+        lhs: AstNode<'c, Expression<'c>>,
+    ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
+        if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
+            let transformed_op: OperatorFn = op.into();
+
+            // Parse the rhs and the semi
+            let rhs = self.parse_expression_with_precedence(0)?;
+
+            // Now we need to transform the re-assignment operator into a function call
+            Ok((
+                self.transform_binary_expression(lhs, rhs, transformed_op),
+                false,
+            ))
+        } else {
+            Ok((lhs, false))
         }
     }
 
@@ -3298,7 +3311,16 @@ where
             };
         }
 
-        let expr = gen.parse_expression_with_precedence(0)?;
+        let lhs = gen.parse_expression_with_precedence(0)?;
+        let (expr, re_assigned) = gen.try_parse_re_assignment_operation(lhs)?;
+
+        if re_assigned && gen.peek().is_some() {
+            return gen.error(
+                AstGenErrorKind::EOF,
+                None,
+                Some(gen.peek().unwrap().to_atom()),
+            );
+        }
 
         // Check if this is just a singularly wrapped expression
         if gen.peek().is_none() {
@@ -3319,7 +3341,11 @@ where
 
                     elements.push(gen.parse_expression_with_precedence(0)?, &self.wall)
                 }
-                Some(_) => gen.error(AstGenErrorKind::ExpectedStatement, None, None)?,
+                Some(token) => gen.error(
+                    AstGenErrorKind::ExpectedExpression,
+                    Some(TokenAtomVector::begin_expression(&self.wall)),
+                    Some(token.to_atom()),
+                )?,
                 None => break,
             }
         }

@@ -1,13 +1,12 @@
 use std::fmt;
 
-/// Type wrapper around a slice of items.
-pub struct SliceDisplay<'a, T: 'a>(pub &'a [T]);
-
 /// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds
 /// after a particular token. This is useful for constructing re-usable error messages that might appear in multiple
 /// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
 /// length of the vector kind is one, we don't use conjunctives to glue kinds together.
-impl<'a, T: fmt::Display + 'a> fmt::Display for SliceDisplay<'a, T> {
+pub struct SequenceDisplay<'a, T: 'a>(pub &'a [T]);
+
+impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0.len() {
             0 => write!(f, ""),

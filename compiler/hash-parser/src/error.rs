@@ -7,7 +7,7 @@ use hash_ast::{
     location::{Location, SourceLocation},
     module::ModuleIdx,
 };
-use hash_utils::printing::SliceDisplay;
+use hash_utils::printing::SequenceDisplay;
 
 use crate::token::{Delimiter, TokenAtom, TokenAtomVector};
 use derive_more::Constructor;
@@ -34,6 +34,9 @@ pub enum TokenErrorKind {
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
     #[error("Malformed numerical literal.")]
     MalformedNumericalLiteral,
+    /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
+    #[error("Unclosed string literal.")]
+    UnclosedStringLiteral,
     /// Occurs when a char is unexpected in the current context
     #[error("Encountered unexpected character {0}")]
     Unexpected(char),
@@ -204,7 +207,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             }
 
             if let Some(expected) = expected {
-                let slice_display = SliceDisplay(expected.into_inner().into_slice());
+                let slice_display = SequenceDisplay(expected.into_inner().into_slice());
                 let expected_items_msg = format!(". Consider adding {}", slice_display);
                 base_message.push_str(&expected_items_msg);
             } else {
