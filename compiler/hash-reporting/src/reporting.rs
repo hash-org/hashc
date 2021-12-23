@@ -460,7 +460,7 @@ mod tests {
 
         let builder = ModuleBuilder::new();
 
-        let path = PathBuf::from("./../../examples/prelude.hash");
+        let path = PathBuf::from("./../../stdlib/prelude.hash");
         let contents = std::fs::read_to_string(&path).unwrap();
         let test_idx = builder.reserve_index();
 
