@@ -152,8 +152,8 @@ impl NodeDisplay for AstNodes<'_, Type<'_>> {
 impl NodeDisplay for Type<'_> {
     fn node_display(&self) -> Vec<String> {
         let lines = match &self {
-            Type::Ref(_) => vec!["ref_type".to_string()],
-            Type::RawRef(_) => vec!["raw_ref_type".to_string()],
+            Type::Ref(RefType(_)) => vec!["ref_type".to_string()],
+            Type::RawRef(RawRefType(_)) => vec!["raw_ref_type".to_string()],
             _ => vec!["type".to_string()],
         };
 
@@ -175,11 +175,11 @@ impl NodeDisplay for Type<'_> {
                 // components
                 draw_branches_for_children(&components)
             }
-            Type::Ref(ref_ty) => child_branch(&ref_ty.node_display()),
-            Type::RawRef(ref_ty) => child_branch(&ref_ty.node_display()),
+            Type::Ref(RefType(ref_ty)) => child_branch(&ref_ty.node_display()),
+            Type::RawRef(RawRefType(ref_ty)) => child_branch(&ref_ty.node_display()),
             Type::TypeVar(var) => child_branch(&[format!("var {}", var.name)]),
-            Type::Existential => child_branch(&["existential".to_string()]),
-            Type::Infer => child_branch(&["infer".to_string()]),
+            Type::Existential(ExistentialType) => child_branch(&["existential".to_string()]),
+            Type::Infer(InferType) => child_branch(&["infer".to_string()]),
         };
 
         lines.into_iter().chain(child_lines).collect()
@@ -192,10 +192,12 @@ impl NodeDisplay for Literal<'_> {
         let mut next_lines = vec![];
 
         match &self {
-            Literal::Str(s) => lines.push(format!("string \"{}\"", STRING_LITERAL_MAP.lookup(*s))),
-            Literal::Char(c) => lines.push(format!("char \'{}\'", c)),
-            Literal::Int(i) => lines.push(format!("number {}", i)),
-            Literal::Float(f) => lines.push(format!("float {}", f)),
+            Literal::Str(StrLiteral(s)) => {
+                lines.push(format!("string \"{}\"", STRING_LITERAL_MAP.lookup(*s)))
+            }
+            Literal::Char(CharLiteral(c)) => lines.push(format!("char \'{}\'", c)),
+            Literal::Int(IntLiteral(i)) => lines.push(format!("number {}", i)),
+            Literal::Float(FloatLiteral(f)) => lines.push(format!("float {}", f)),
 
             // all these variants have the possibility of containing multiple elements, so
             // we have to evaluate the children first and then construct the branches...
@@ -378,8 +380,8 @@ impl NodeDisplay for Name {
 impl NodeDisplay for Statement<'_> {
     fn node_display(&self) -> Vec<String> {
         let (node_name, child_lines) = match &self {
-            Statement::Expr(expr) => (None, expr.node_display()),
-            Statement::Return(expr) => {
+            Statement::Expr(ExprStatement(expr)) => (None, expr.node_display()),
+            Statement::Return(ReturnStatement(expr)) => {
                 let lines = match expr {
                     Some(ret) => child_branch(&ret.node_display()),
                     None => vec![],
@@ -387,9 +389,11 @@ impl NodeDisplay for Statement<'_> {
 
                 (Some("ret".to_string()), lines)
             }
-            Statement::Block(block) => (Some("block".to_string()), block.node_display()),
-            Statement::Break => (Some("break".to_string()), vec![]),
-            Statement::Continue => (Some("continue".to_string()), vec![]),
+            Statement::Block(BlockStatement(block)) => {
+                (Some("block".to_string()), block.node_display())
+            }
+            Statement::Break(BreakStatement) => (Some("break".to_string()), vec![]),
+            Statement::Continue(ContinueStatement) => (Some("continue".to_string()), vec![]),
             Statement::Let(decl) => {
                 let mut components = vec![decl.pattern.node_display()];
 
@@ -668,12 +672,22 @@ impl NodeDisplay for Expression<'_> {
                     .chain(draw_branches_for_children(&[subject_lines, field_lines]))
                     .collect()
             }
-            ExpressionKind::Ref(expr, _) | ExpressionKind::Deref(expr) => {
+            ExpressionKind::Ref(RefExpr {
+                inner_expr: expr,
+                kind: _,
+            })
+            | ExpressionKind::Deref(DerefExpr(expr)) => {
                 // Match again to determine whether it is a deref or a ref!
                 let prefix = match self.kind() {
-                    ExpressionKind::Ref(_, RefKind::Raw) => "raw_ref",
-                    ExpressionKind::Ref(_, RefKind::Normal) => "ref",
-                    ExpressionKind::Deref(_) => "deref",
+                    ExpressionKind::Ref(RefExpr {
+                        inner_expr: _,
+                        kind: RefKind::Raw,
+                    }) => "raw_ref",
+                    ExpressionKind::Ref(RefExpr {
+                        inner_expr: _,
+                        kind: RefKind::Normal,
+                    }) => "ref",
+                    ExpressionKind::Deref(DerefExpr(_)) => "deref",
                     _ => unreachable!(),
                 }
                 .to_string();
@@ -682,7 +696,7 @@ impl NodeDisplay for Expression<'_> {
                     .chain(child_branch(&expr.node_display()))
                     .collect()
             }
-            ExpressionKind::LiteralExpr(literal) => literal.node_display(),
+            ExpressionKind::LiteralExpr(LiteralExpr(literal)) => literal.node_display(),
             ExpressionKind::Typed(expr) => {
                 let TypedExpr { expr, ty } = expr;
 
@@ -698,10 +712,10 @@ impl NodeDisplay for Expression<'_> {
                     .chain(pad_lines(next_lines, 1))
                     .collect()
             }
-            ExpressionKind::Block(block) => iter::once("block".to_string())
+            ExpressionKind::Block(BlockExpr(block)) => iter::once("block".to_string())
                 .chain(block.node_display())
                 .collect::<Vec<_>>(),
-            ExpressionKind::Import(import) => import.node_display(),
+            ExpressionKind::Import(ImportExpr(import)) => import.node_display(),
         }
     }
 }
@@ -735,7 +749,7 @@ impl NodeDisplay for Block<'_> {
 
                 child_branch(&lines)
             }
-            Block::Loop(loop_body) => {
+            Block::Loop(LoopBlock(loop_body)) => {
                 let lines = iter::once("loop".to_string())
                     .chain(loop_body.node_display())
                     .collect::<Vec<String>>();
@@ -767,10 +781,12 @@ impl NodeDisplay for MatchCase<'_> {
 impl NodeDisplay for LiteralPattern {
     fn node_display(&self) -> Vec<String> {
         vec![match &self {
-            LiteralPattern::Str(s) => format!("string \"{}\"", STRING_LITERAL_MAP.lookup(*s)),
-            LiteralPattern::Char(c) => format!("char \'{}\'", c),
-            LiteralPattern::Int(i) => format!("number {}", i),
-            LiteralPattern::Float(f) => format!("float {}", f),
+            LiteralPattern::Str(StrLiteralPattern(s)) => {
+                format!("string \"{}\"", STRING_LITERAL_MAP.lookup(*s))
+            }
+            LiteralPattern::Char(CharLiteralPattern(c)) => format!("char \'{}\'", c),
+            LiteralPattern::Int(IntLiteralPattern(i)) => format!("number {}", i),
+            LiteralPattern::Float(FloatLiteralPattern(f)) => format!("float {}", f),
         }]
     }
 }
@@ -877,8 +893,10 @@ impl NodeDisplay for Pattern<'_> {
                     .chain(draw_branches_for_children(&[pattern, condition]))
                     .collect()]
             }
-            Pattern::Binding(x) => vec![vec![format!("bind {}", x.node_display().join(""))]],
-            Pattern::Ignore => vec![vec!["ignore".to_string()]],
+            Pattern::Binding(BindingPattern(x)) => {
+                vec![vec![format!("bind {}", x.node_display().join(""))]]
+            }
+            Pattern::Ignore(IgnorePattern) => vec![vec!["ignore".to_string()]],
         };
 
         lines.extend(draw_branches_for_children(&child_components));

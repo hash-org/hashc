@@ -1,0 +1,6 @@
+let tup = (,);
+let tup = (a,);
+let tup = (a,c);
+let tup = (a,c,b);
+
+let some_tuple: (str, u32) = ("string", 12);

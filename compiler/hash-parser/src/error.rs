@@ -7,6 +7,7 @@ use hash_ast::{
     location::{Location, SourceLocation},
     module::ModuleIdx,
 };
+use hash_utils::printing::SequenceDisplay;
 
 use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
@@ -33,6 +34,9 @@ pub enum TokenErrorKind {
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
     #[error("Malformed numerical literal.")]
     MalformedNumericalLiteral,
+    /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
+    #[error("Unclosed string literal.")]
+    UnclosedStringLiteral,
     /// Occurs when a char is unexpected in the current context
     #[error("Encountered unexpected character {0}")]
     Unexpected(char),
@@ -52,10 +56,10 @@ impl From<TokenErrorWrapper> for ParseError {
     fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
-            src: SourceLocation {
+            src: Some(SourceLocation {
                 location: err.location,
                 module_index: idx,
-            },
+            }),
         }
     }
 }
@@ -203,7 +207,8 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             }
 
             if let Some(expected) = expected {
-                let expected_items_msg = format!(". Consider adding {}", expected);
+                let slice_display = SequenceDisplay(expected.into_inner().into_slice());
+                let expected_items_msg = format!(". Consider adding {}", slice_display);
                 base_message.push_str(&expected_items_msg);
             } else {
                 base_message.push('.');
@@ -212,7 +217,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
 
         Self::Parsing {
             message: base_message,
-            src: err.location,
+            src: Some(err.location),
         }
     }
 }

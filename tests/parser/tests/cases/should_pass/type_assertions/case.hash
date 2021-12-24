@@ -1,0 +1,2 @@
+let k = 12 as u8;
+let k = (12 as usize) * (16 as usize) as u16;

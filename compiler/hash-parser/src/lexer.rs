@@ -40,7 +40,7 @@ pub struct Lexer<'w, 'c, 'a> {
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a check
     /// on if the token tree was closed up.
     // @@Cleanup: We could use a delimiter stack to automatically guarantee this?
-    prev: Cell<Option<char>>,
+    previous_delimiter: Cell<Option<char>>,
 
     /// The castle allocator for the current [Lexer].
     wall: &'w Wall<'c>,
@@ -54,7 +54,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         Lexer {
             offset: Cell::new(0),
             module_idx,
-            prev: Cell::new(None),
+            previous_delimiter: Cell::new(None),
             contents,
             wall,
             token_trees: RefCell::new(row![&wall;]),
@@ -203,7 +203,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
             // We have to exit the current tree if we encounter a closing delimiter...
             ch @ (')' | '}' | ']') => {
-                self.prev.set(Some(ch));
+                self.previous_delimiter.set(Some(ch));
 
                 return Ok(None);
             }
@@ -224,6 +224,9 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let mut children_tokens = row![self.wall];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
+        // we need to reset self.prev here as it might be polluted with previous token trees
+        self.previous_delimiter.set(None);
+
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
             match self.advance_token()? {
@@ -232,7 +235,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             };
         }
 
-        match self.prev.get() {
+        match self.previous_delimiter.get() {
             Some(delim) if delim == delimiter.right() => {
                 // push this to the token_trees and get the current index to use instead...
                 self.token_trees
@@ -349,7 +352,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 let num = pre_digits
                     .chain(std::iter::once('.'))
-                    .chain(after_digits.chars());
+                    .chain(after_digits.chars().filter(|c| *c != '_'));
 
                 self.eat_float_literal(num, start)
             }
@@ -358,9 +361,11 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             _ => {
                 let digits = pre_digits.collect::<String>();
 
+                // TODO: Implement display for parse errors
+                // TODO: Use our own parser for integers and floats instead of relying on rust's default one.
                 match digits.parse::<u64>() {
-                    Err(e) => Err(TokenError::new(
-                        Some(format!("Malformed integer literal '{}'. {:?}", digits, e)),
+                    Err(_e) => Err(TokenError::new(
+                        Some(format!("Malformed integer literal '{}'.", digits)),
                         TokenErrorKind::MalformedNumericalLiteral,
                         Location::span(start, self.offset.get()),
                     )),
@@ -442,8 +447,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         // we need to compute the old byte offset by accounting for both the 'u' character and the '\\' character,
         // but since this is known to be 2 bytes, we can just subtract it from the current offset
         let start = self.offset.get() - 1;
-
         match c {
+            '0' => Ok('\0'),
             'n' => Ok('\n'),
             't' => Ok('\t'),
             'u' => {
@@ -473,11 +478,24 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 }
                 self.skip(); // Eat the '}' ending part of the scape sequence
 
+                if chars.len() > 6 {
+                    return Err(TokenError::new(
+                        Some("Unicode escape literal must be at most 6 hex digits.".to_string()),
+                        TokenErrorKind::BadEscapeSequence,
+                        Location::span(start, self.offset.get()),
+                    ));
+                }
+
                 let value = u32::from_str_radix(chars, 16);
+
+                // let c = '\u{000000}';
 
                 if value.is_err() {
                     return Err(TokenError::new(
-                        Some("Unicode literal too long".to_string()),
+                        Some(
+                            "Unicode escape literal must only be comprised of hex digits."
+                                .to_string(),
+                        ),
                         TokenErrorKind::BadEscapeSequence,
                         Location::span(start, self.offset.get()),
                     ));
@@ -518,7 +536,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             'r' => Ok('\r'),
             'v' => Ok('\x0b'),
             '\\' => Ok('\\'),
-            '"' => Ok('"'),
+            '"' => Ok('\"'),
             '\'' => Ok('\''),
             ch => Err(TokenError::new(
                 Some(format!("Unknown escape sequence '{}'", ch)),
@@ -586,16 +604,31 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// correctly formed and is ended before the end of file is reached.
     pub(crate) fn string(&self) -> TokenResult<TokenKind> {
         let mut value = String::from("");
+        let mut closed = false;
+
+        let start = self.offset.get();
 
         while let Some(c) = self.next() {
             match c {
-                '"' => break,
+                '"' => {
+                    closed = true;
+                    break;
+                }
                 '\\' => {
                     let ch = self.char_from_escape_seq()?;
                     value.push(ch);
                 }
                 ch => value.push(ch),
             }
+        }
+
+        // Report that the literal is unclosed
+        if !closed {
+            return Err(TokenError::new(
+                None,
+                TokenErrorKind::UnclosedStringLiteral,
+                Location::span(start, self.offset.get()),
+            ));
         }
 
         // Essentially we put the string into the literal map and get an id out which we use for the

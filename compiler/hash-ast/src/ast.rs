@@ -67,6 +67,22 @@ impl<'c, T> AstNode<'c, T> {
         self.body
     }
 
+    pub fn ast_ref(&self) -> AstNodeRef<T> {
+        AstNodeRef {
+            body: self.body.as_ref(),
+            location: self.location,
+            id: self.id,
+        }
+    }
+
+    pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
+        AstNodeRef {
+            body,
+            location: self.location,
+            id: self.id,
+        }
+    }
+
     /// Get the location of this node in the input.
     pub fn location(&self) -> Location {
         self.location
@@ -75,6 +91,46 @@ impl<'c, T> AstNode<'c, T> {
     /// Get the ID of this node.
     pub fn id(&self) -> AstNodeId {
         self.id
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct AstNodeRef<'t, T> {
+    body: &'t T,
+    location: Location,
+    id: AstNodeId,
+}
+
+impl<'t, T> AstNodeRef<'t, T> {
+    /// Get a reference to the reference contained within this node.
+    pub fn body(&self) -> &T {
+        self.body
+    }
+
+    pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
+        AstNodeRef {
+            body,
+            location: self.location,
+            id: self.id,
+        }
+    }
+
+    /// Get the location of this node in the input.
+    pub fn location(&self) -> Location {
+        self.location
+    }
+
+    /// Get the ID of this node.
+    pub fn id(&self) -> AstNodeId {
+        self.id
+    }
+}
+
+/// [AstNode] dereferences to its inner `body` type.
+impl<T> Deref for AstNodeRef<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.body()
     }
 }
 
@@ -149,21 +205,31 @@ pub enum RefKind {
     Normal,
 }
 
+/// A reference type.
+#[derive(Debug, PartialEq)]
+pub struct RefType<'c>(pub AstNode<'c, Type<'c>>);
+
+/// A raw reference type
+#[derive(Debug, PartialEq)]
+pub struct RawRefType<'c>(pub AstNode<'c, Type<'c>>);
+
+/// The existential type (`?`).
+#[derive(Debug, PartialEq)]
+pub struct ExistentialType;
+
+/// The type infer operator.
+#[derive(Debug, PartialEq)]
+pub struct InferType;
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
-    /// A concrete/"named" type.
     Named(NamedType<'c>),
-    /// A reference type.
-    Ref(AstNode<'c, Type<'c>>),
-    /// A raw reference type
-    RawRef(AstNode<'c, Type<'c>>),
-    /// A type variable.
+    Ref(RefType<'c>),
+    RawRef(RawRefType<'c>),
     TypeVar(TypeVar<'c>),
-    /// The existential type (`?`).
-    Existential,
-    /// The type infer operator.
-    Infer,
+    Existential(ExistentialType),
+    Infer(InferType),
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
@@ -245,28 +311,34 @@ pub struct FunctionDef<'c> {
     pub fn_body: AstNode<'c, Expression<'c>>,
 }
 
+/// A string literal.
+#[derive(Debug, PartialEq)]
+pub struct StrLiteral(pub StringLiteral);
+
+/// A character literal.
+#[derive(Debug, PartialEq)]
+pub struct CharLiteral(pub char);
+
+/// An integer literal.
+#[derive(Debug, PartialEq)]
+pub struct IntLiteral(pub u64);
+
+/// A float literal.
+#[derive(Debug, PartialEq)]
+pub struct FloatLiteral(pub f64);
+
 /// A literal.
 #[derive(Debug, PartialEq)]
 pub enum Literal<'c> {
-    /// A string literal.
-    Str(StringLiteral),
-    /// A character literal.
-    Char(char),
-    /// An integer literal.
-    Int(u64),
-    /// A float literal.
-    Float(f64),
-    /// A set literal.
+    Str(StrLiteral),
+    Char(CharLiteral),
+    Int(IntLiteral),
+    Float(FloatLiteral),
     Set(SetLiteral<'c>),
-    /// A map literal.
     Map(MapLiteral<'c>),
-    /// A list literal.
     List(ListLiteral<'c>),
-    /// A tuple literal.
     Tuple(TupleLiteral<'c>),
-    /// A struct literal.
     Struct(StructLiteral<'c>),
-    /// A function definition.
     Function(FunctionDef<'c>),
 }
 
@@ -329,40 +401,51 @@ pub struct TuplePattern<'c> {
     pub elements: AstNodes<'c, Pattern<'c>>,
 }
 
+/// A string literal pattern.
+#[derive(Debug, PartialEq)]
+pub struct StrLiteralPattern(pub StringLiteral);
+
+/// A character literal pattern.
+#[derive(Debug, PartialEq)]
+pub struct CharLiteralPattern(pub char);
+
+/// An integer literal pattern.
+#[derive(Debug, PartialEq)]
+pub struct IntLiteralPattern(pub u64);
+
+/// A float literal pattern.
+#[derive(Debug, PartialEq)]
+pub struct FloatLiteralPattern(pub f64);
+
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`.
 #[derive(Debug, PartialEq)]
 pub enum LiteralPattern {
-    /// A string literal pattern.
-    Str(StringLiteral),
-    /// A character literal pattern.
-    Char(char),
-    /// An integer literal pattern.
-    Int(u64),
-    /// A float literal pattern.
-    Float(f64),
+    Str(StrLiteralPattern),
+    Char(CharLiteralPattern),
+    Int(IntLiteralPattern),
+    Float(FloatLiteralPattern),
 }
+
+/// A pattern name binding.
+#[derive(Debug, PartialEq)]
+pub struct BindingPattern<'c>(pub AstNode<'c, Name>);
+
+/// The catch-all, i.e "ignore" pattern.
+#[derive(Debug, PartialEq)]
+pub struct IgnorePattern;
 
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq)]
 pub enum Pattern<'c> {
-    /// An enum pattern.
     Enum(EnumPattern<'c>),
-    /// A struct pattern.
     Struct(StructPattern<'c>),
-    /// A namespace pattern.
     Namespace(NamespacePattern<'c>),
-    /// A tuple pattern.
     Tuple(TuplePattern<'c>),
-    /// A literal pattern.
     Literal(LiteralPattern),
-    /// An alternative/"or" pattern.
     Or(OrPattern<'c>),
-    /// A conditional/"if" pattern.
     If(IfPattern<'c>),
-    /// A pattern name binding.
-    Binding(AstNode<'c, Name>),
-    /// The catch-all, i.e "ignore" pattern.
-    Ignore,
+    Binding(BindingPattern<'c>),
+    Ignore(IgnorePattern),
 }
 
 /// A trait bound, e.g. "where eq<T>"
@@ -473,30 +556,40 @@ pub struct TraitDef<'c> {
     pub trait_type: AstNode<'c, Type<'c>>,
 }
 
+/// An expression statement, e.g. `my_func();`
+#[derive(Debug, PartialEq)]
+pub struct ExprStatement<'c>(pub AstNode<'c, Expression<'c>>);
+
+/// An return statement.
+///
+/// Has an optional return expression, which becomes `void` if [None] is given.
+#[derive(Debug, PartialEq)]
+pub struct ReturnStatement<'c>(pub Option<AstNode<'c, Expression<'c>>>);
+
+/// A block statement.
+#[derive(Debug, PartialEq)]
+pub struct BlockStatement<'c>(pub AstNode<'c, Block<'c>>);
+
+/// Break statement (only in loop context).
+#[derive(Debug, PartialEq)]
+pub struct BreakStatement;
+
+/// Continue statement (only in loop context).
+#[derive(Debug, PartialEq)]
+pub struct ContinueStatement;
+
 /// A statement.
 #[derive(Debug, PartialEq)]
 pub enum Statement<'c> {
-    /// An expression statement, e.g. `my_func();`
-    Expr(AstNode<'c, Expression<'c>>),
-    /// An return statement.
-    ///
-    /// Has an optional return expression, which becomes `void` if [None] is given.
-    Return(Option<AstNode<'c, Expression<'c>>>),
-    /// A block statement.
-    Block(AstNode<'c, Block<'c>>),
-    /// Break statement (only in loop context).
-    Break,
-    /// Continue statement (only in loop context).
-    Continue,
-    /// A let statement.
+    Expr(ExprStatement<'c>),
+    Return(ReturnStatement<'c>),
+    Block(BlockStatement<'c>),
+    Break(BreakStatement),
+    Continue(ContinueStatement),
     Let(LetStatement<'c>),
-    /// An assign statement.
     Assign(AssignStatement<'c>),
-    /// A struct definition.
     StructDef(StructDef<'c>),
-    /// An enum definition.
     EnumDef(EnumDef<'c>),
-    /// A trait definition.
     TraitDef(TraitDef<'c>),
 }
 
@@ -529,6 +622,9 @@ pub struct BodyBlock<'c> {
     pub expr: Option<AstNode<'c, Expression<'c>>>,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct LoopBlock<'c>(pub AstNode<'c, Block<'c>>);
+
 /// A block.
 #[derive(Debug, PartialEq)]
 pub enum Block<'c> {
@@ -537,7 +633,7 @@ pub enum Block<'c> {
     /// A loop block.
     ///
     /// The inner block is the loop body.
-    Loop(AstNode<'c, Block<'c>>),
+    Loop(LoopBlock<'c>),
     /// A body block.
     Body(BodyBlock<'c>),
 }
@@ -592,29 +688,41 @@ pub struct VariableExpr<'c> {
     pub type_args: AstNodes<'c, Type<'c>>,
 }
 
+/// A reference expression with a flag denoting whether it is a raw ref or not
+#[derive(Debug, PartialEq)]
+pub struct RefExpr<'c> {
+    pub inner_expr: AstNode<'c, Expression<'c>>,
+    pub kind: RefKind,
+}
+/// A dereference expression.
+#[derive(Debug, PartialEq)]
+pub struct DerefExpr<'c>(pub AstNode<'c, Expression<'c>>);
+
+/// A literal.
+#[derive(Debug, PartialEq)]
+pub struct LiteralExpr<'c>(pub AstNode<'c, Literal<'c>>);
+
+/// A block.
+#[derive(Debug, PartialEq)]
+pub struct BlockExpr<'c>(pub AstNode<'c, Block<'c>>);
+
+/// An `import` call.
+#[derive(Debug, PartialEq)]
+pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
+
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
-    /// A function call.
     FunctionCall(FunctionCallExpr<'c>),
-    /// An intrinsic symbol.
     Intrinsic(IntrinsicKey),
-    /// A variable.
     Variable(VariableExpr<'c>),
-    /// A property access.
     PropertyAccess(PropertyAccessExpr<'c>),
-    /// A reference expression with a flag denoting whether it is a raw ref or not
-    Ref(AstNode<'c, Expression<'c>>, RefKind),
-    /// A dereference expression.
-    Deref(AstNode<'c, Expression<'c>>),
-    /// A literal.
-    LiteralExpr(AstNode<'c, Literal<'c>>),
-    /// A typed expression.
+    Ref(RefExpr<'c>),
+    Deref(DerefExpr<'c>),
+    LiteralExpr(LiteralExpr<'c>),
     Typed(TypedExpr<'c>),
-    /// A block.
-    Block(AstNode<'c, Block<'c>>),
-    /// An `import` call.
-    Import(AstNode<'c, Import>),
+    Block(BlockExpr<'c>),
+    Import(ImportExpr<'c>),
 }
 
 /// An expression.

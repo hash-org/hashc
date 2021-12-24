@@ -32,11 +32,11 @@ impl<T: NodeCount> NodeCount for AstNode<'_, T> {
 impl NodeCount for Statement<'_> {
     fn children_count(&self) -> usize {
         match &self {
-            Statement::Expr(k) => k.node_count(),
-            Statement::Return(k) => k.node_count(),
-            Statement::Block(block) => block.node_count(),
-            Statement::Break => 0,
-            Statement::Continue => 0,
+            Statement::Expr(ExprStatement(k)) => k.node_count(),
+            Statement::Return(ReturnStatement(k)) => k.node_count(),
+            Statement::Block(BlockStatement(block)) => block.node_count(),
+            Statement::Break(BreakStatement) => 0,
+            Statement::Continue(ContinueStatement) => 0,
             Statement::Let(ref statement) => {
                 statement.pattern.node_count()
                     + statement.ty.node_count()
@@ -73,7 +73,7 @@ impl NodeCount for Block<'_> {
                 let cases: usize = match_block.cases.iter().map(|c| c.node_count()).sum();
                 match_block.subject.node_count() + cases
             }
-            Block::Loop(loop_block) => loop_block.node_count(),
+            Block::Loop(LoopBlock(loop_block)) => loop_block.node_count(),
             Block::Body(body_block) => body_block.node_count(),
         }
     }
@@ -93,12 +93,15 @@ impl NodeCount for Expression<'_> {
                 e.name.node_count() + ty_args
             }
             ExpressionKind::PropertyAccess(e) => e.subject.node_count() + 1,
-            ExpressionKind::LiteralExpr(e) => e.node_count(),
+            ExpressionKind::LiteralExpr(LiteralExpr(e)) => e.node_count(),
             ExpressionKind::Typed(e) => e.ty.node_count() + e.expr.node_count(),
-            ExpressionKind::Block(e) => e.node_count(),
-            ExpressionKind::Deref(e) => e.node_count(),
-            ExpressionKind::Ref(e, _) => e.node_count(),
-            ExpressionKind::Import(_) => 0,
+            ExpressionKind::Block(BlockExpr(e)) => e.node_count(),
+            ExpressionKind::Deref(DerefExpr(e)) => e.node_count(),
+            ExpressionKind::Ref(RefExpr {
+                inner_expr: e,
+                kind: _,
+            }) => e.node_count(),
+            ExpressionKind::Import(ImportExpr(_)) => 0,
         }
     }
 }
@@ -108,10 +111,10 @@ impl NodeCount for Literal<'_> {
         match &self {
             // count string, number, char literals as zero since they are wrapped in AstNode and should count
             // as only a single node instead of 2.
-            Literal::Str(_) => 0,
-            Literal::Char(_) => 0,
-            Literal::Int(_) => 0,
-            Literal::Float(_) => 0,
+            Literal::Str(StrLiteral(_)) => 0,
+            Literal::Char(CharLiteral(_)) => 0,
+            Literal::Int(IntLiteral(_)) => 0,
+            Literal::Float(FloatLiteral(_)) => 0,
             Literal::Set(l) => l.elements.iter().map(|e| e.node_count()).sum(),
             Literal::Map(l) => l
                 .elements
@@ -166,8 +169,8 @@ impl NodeCount for Pattern<'_> {
                 let count = pat.pattern.node_count();
                 count + pat.condition.node_count()
             }
-            Pattern::Binding(_) => 0,
-            Pattern::Ignore => 0,
+            Pattern::Binding(BindingPattern(_)) => 0,
+            Pattern::Ignore(IgnorePattern) => 0,
         }
     }
 }

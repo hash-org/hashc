@@ -54,7 +54,7 @@ impl fmt::Display for ReportKind {
 }
 
 /// Data type representing a report note which consists of a label and the message.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReportNote {
     pub label: String,
     pub message: String,
@@ -84,7 +84,7 @@ impl ReportNote {
 /// Data structure representing an associated block of code with a report. The type
 /// contains the span of the block, the message associated with a block and optional
 /// [ReportCodeBlockInfo] which adds a message pointed to a code item.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReportCodeBlock {
     pub source_location: SourceLocation,
     pub code_message: String,
@@ -285,7 +285,7 @@ impl ReportCodeBlock {
 
 /// Enumeration representing types of components of a [Report]. A [Report] can be made of
 /// either [ReportCodeBlock]s or [ReportNote]s.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ReportElement {
     CodeBlock(ReportCodeBlock),
     Note(ReportNote),
@@ -310,7 +310,7 @@ impl ReportElement {
 
 /// The report data type represents the entire report which might contain many [ReportElement]s. The
 /// report also contains a general [ReportKind] and a general message.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Report {
     /// The general kind of the report.
     pub kind: ReportKind,

@@ -11,6 +11,7 @@ use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
+use hash_parser::backend::HashParser;
 use hash_reporting::{
     errors::CompilerError,
     reporting::{Report, ReportWriter},
@@ -22,12 +23,6 @@ use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
 use std::{num::NonZeroUsize, process::exit};
-
-#[cfg(not(feature = "use-pest"))]
-use hash_parser::backend::HashParser;
-
-#[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::PestBackend;
 
 use crate::crash_handler::panic_handler;
 
@@ -158,12 +153,6 @@ fn main() {
 
     let castle = Castle::new();
 
-    // determine the parser backend that we're using...
-    #[cfg(feature = "use-pest")]
-    let mut parser_backend =
-        ParParser::new_with_workers(PestBackend::new(&castle), worker_count, false);
-
-    #[cfg(not(feature = "use-pest"))]
     let mut parser_backend =
         ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
 
