@@ -1513,7 +1513,6 @@ where
     /// assigners.
     pub fn parse_destructuring_pattern(
         &self,
-        assigning_op: TokenAtom,
     ) -> AstGenResult<'c, AstNode<'c, DestructuringPattern<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
@@ -1521,7 +1520,7 @@ where
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
         // pattern.
-        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(assigning_op)) {
+        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(TokenAtom::Eq)) {
             Some(_) => self.parse_pattern()?,
             None => {
                 let copy = self.node(Name { ..*name.body() });
@@ -1538,18 +1537,13 @@ where
         &self,
         tree: &Row<'c, Token<'c>>,
         span: Location,
-        struct_syntax: bool,
     ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
         let gen = self.from_stream(tree, span);
-
-        // Since struct and namespace destructuring patterns use different operators
-        // to rename/assign patterns to the specific fields, determine which to use here...
-        let renaming_operator = if struct_syntax { TokenAtom::Eq } else { TokenAtom::Colon };
 
         let mut patterns = row![&self.wall;];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern(renaming_operator)) {
+            match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern()) {
                 Some(pat) => patterns.push(pat, &self.wall),
                 None => break,
             }
@@ -1593,7 +1587,7 @@ where
 
                         Pattern::Struct(StructPattern {
                             name,
-                            entries: self.parse_destructuring_patterns(tree, span, true)?,
+                            entries: self.parse_destructuring_patterns(tree, span)?,
                         })
                     }
                     Some(token) if token.is_paren_tree() => {
@@ -1644,7 +1638,7 @@ where
                 let (tree, span) = self.next_token().unwrap().into_tree();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_destructuring_patterns(tree, span, false)?,
+                    patterns: self.parse_destructuring_patterns(tree, span)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.
