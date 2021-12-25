@@ -460,16 +460,20 @@ mod tests {
 
         let builder = ModuleBuilder::new();
 
-        let path = PathBuf::from("./../../examples/prelude.hash");
+        let path = PathBuf::from("./../../stdlib/prelude.hash");
         let contents = std::fs::read_to_string(&path).unwrap();
         let test_idx = builder.reserve_index();
 
         builder.add_contents(test_idx, path, contents);
         builder.add_module_at(
             test_idx,
-            ast::Module {
-                contents: row![&wall],
-            },
+            ast::AstNode::new(
+                ast::Module {
+                    contents: row![&wall],
+                },
+                Location::pos(0),
+                &wall,
+            ),
         );
 
         let modules = builder.build();

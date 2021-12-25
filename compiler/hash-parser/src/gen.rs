@@ -403,14 +403,15 @@ where
     }
 
     /// Parse a [Module] which is simply made of a list of statements
-    pub fn parse_module(&self) -> AstGenResult<'c, Module<'c>> {
+    pub fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
+        let start = self.current_location();
         let mut contents = row![&self.wall];
 
         while self.has_token() {
             contents.push(self.parse_statement()?, &self.wall);
         }
 
-        Ok(Module { contents })
+        Ok(self.node_from_joined_location(Module { contents }, &start))
     }
 
     /// Parse a statement.
@@ -1531,7 +1532,6 @@ where
     /// assigners.
     pub fn parse_destructuring_pattern(
         &self,
-        assigning_op: TokenKind,
     ) -> AstGenResult<'c, AstNode<'c, DestructuringPattern<'c>>> {
         let start = self.current_location();
         let name = self.parse_ident()?;
@@ -1539,7 +1539,7 @@ where
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
         // pattern.
-        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(assigning_op)) {
+        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(TokenAtom::Eq)) {
             Some(_) => self.parse_pattern()?,
             None => {
                 let copy = self.node(Name { ..*name.body() });
@@ -1556,18 +1556,13 @@ where
         &self,
         tree: &'stream Row<'stream, Token>,
         span: Location,
-        struct_syntax: bool,
     ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
         let gen = self.from_stream(tree, span);
-
-        // Since struct and namespace destructuring patterns use different operators
-        // to rename/assign patterns to the specific fields, determine which to use here...
-        let renaming_operator = if struct_syntax { TokenKind::Eq } else { TokenKind::Colon };
 
         let mut patterns = row![&self.wall;];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern(renaming_operator)) {
+            match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern()) {
                 Some(pat) => patterns.push(pat, &self.wall),
                 None => break,
             }
@@ -1616,7 +1611,7 @@ where
 
                         Pattern::Struct(StructPattern {
                             name,
-                            entries: self.parse_destructuring_patterns(tree, *span, true)?,
+                            entries: self.parse_destructuring_patterns(tree, span)?,
                         })
                     }
                     // enum_pattern
@@ -1680,7 +1675,7 @@ where
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_destructuring_patterns(tree, *span, false)?,
+                    patterns: self.parse_destructuring_patterns(tree, span)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.

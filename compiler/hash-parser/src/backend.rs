@@ -32,7 +32,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         resolver: impl ModuleResolver,
         _path: &Path,
         contents: &str,
-    ) -> ParseResult<ast::Module<'c>> {
+    ) -> ParseResult<ast::AstNode<'c, ast::Module<'c>>> {
         let wall = self.castle.wall();
 
         let index = resolver.module_index().unwrap_or(ModuleIdx(0));

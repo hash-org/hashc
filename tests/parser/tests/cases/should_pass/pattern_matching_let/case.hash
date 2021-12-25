@@ -3,4 +3,5 @@ let Dog { name } = dog;
 let Dog { name = better_name } = dog;
 
 // namespace destructuring
-let { name: even_better_name} = dog;
+let { name } = dog;
+let { name = even_better_name} = dog;
