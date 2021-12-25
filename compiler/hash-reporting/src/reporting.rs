@@ -467,9 +467,13 @@ mod tests {
         builder.add_contents(test_idx, path, contents);
         builder.add_module_at(
             test_idx,
-            ast::Module {
-                contents: row![&wall],
-            },
+            ast::AstNode::new(
+                ast::Module {
+                    contents: row![&wall],
+                },
+                Location::pos(0),
+                &wall,
+            ),
         );
 
         let modules = builder.build();

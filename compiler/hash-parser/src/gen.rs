@@ -393,14 +393,15 @@ where
     }
 
     /// Parse a [Module] which is simply made of a list of statements
-    pub fn parse_module(&self) -> AstGenResult<'c, Module<'c>> {
+    pub fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
+        let start = self.current_location();
         let mut contents = row![&self.wall];
 
         while self.has_token() {
             contents.push(self.parse_statement()?, &self.wall);
         }
 
-        Ok(Module { contents })
+        Ok(self.node_from_joined_location(Module { contents }, &start))
     }
 
     /// Parse a statement.

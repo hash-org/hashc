@@ -24,7 +24,7 @@ pub struct ModuleBuilder<'c> {
     indexes: DashMap<ModuleIdx, ()>,
     path_to_index: DashMap<PathBuf, ModuleIdx>,
     filenames_by_index: DashMap<ModuleIdx, PathBuf>,
-    modules_by_index: DashMap<ModuleIdx, ast::Module<'c>>,
+    modules_by_index: DashMap<ModuleIdx, ast::AstNode<'c, ast::Module<'c>>>,
     contents_by_index: DashMap<ModuleIdx, String>,
     deps_by_index: DashMap<ModuleIdx, DashMap<ModuleIdx, ()>>,
     entry_point: RwLock<Option<ModuleIdx>>,
@@ -35,7 +35,7 @@ impl<'c> ModuleBuilder<'c> {
         Self::default()
     }
 
-    pub fn add_module_at(&self, index: ModuleIdx, node: ast::Module<'c>) {
+    pub fn add_module_at(&self, index: ModuleIdx, node: ast::AstNode<'c, ast::Module<'c>>) {
         self.modules_by_index.insert(index, node);
     }
 
@@ -86,7 +86,7 @@ pub struct Modules<'c> {
     indexes: ReadOnlyView<ModuleIdx, ()>,
     path_to_index: ReadOnlyView<PathBuf, ModuleIdx>,
     filenames_by_index: ReadOnlyView<ModuleIdx, PathBuf>,
-    modules_by_index: ReadOnlyView<ModuleIdx, ast::Module<'c>>,
+    modules_by_index: ReadOnlyView<ModuleIdx, ast::AstNode<'c, ast::Module<'c>>>,
     contents_by_index: ReadOnlyView<ModuleIdx, String>,
     deps_by_index: HashMap<ModuleIdx, ReadOnlyView<ModuleIdx, ()>>,
     entry_point: Option<ModuleIdx>,
@@ -157,11 +157,14 @@ impl<'c, 'm> Module<'c, 'm> {
         self.modules.entry_point == Some(self.index)
     }
 
-    pub fn ast_checked(&self) -> Option<&ast::Module<'c>> {
-        self.modules.modules_by_index.get(&self.index)
+    pub fn ast_checked(&self) -> Option<ast::AstNodeRef<ast::Module<'c>>> {
+        self.modules
+            .modules_by_index
+            .get(&self.index)
+            .map(|a| a.ast_ref())
     }
 
-    pub fn ast(&self) -> &ast::Module<'c> {
+    pub fn ast(&self) -> ast::AstNodeRef<ast::Module<'c>> {
         self.ast_checked().unwrap()
     }
 
