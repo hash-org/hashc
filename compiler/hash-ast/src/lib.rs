@@ -5,7 +5,6 @@
 #![feature(iter_intersperse)]
 
 extern crate strum;
-#[macro_use]
 extern crate strum_macros;
 
 pub mod ast;
@@ -21,7 +20,6 @@ pub mod operator;
 pub mod parse;
 pub mod resolve;
 pub mod storage;
-pub mod tests;
 pub mod tree;
 pub mod visitor;
 pub mod visualise;

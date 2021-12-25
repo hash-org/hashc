@@ -8,7 +8,7 @@ use std::{io, process::exit};
 use thiserror::Error;
 
 use crate::{
-    highlight::{highlight, Colour},
+    highlight::{highlight, Colour, Modifier},
     reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
 };
 
@@ -52,10 +52,18 @@ impl From<ParseError> for Report {
             .with_error_code(ErrorCode::Parsing);
 
         match error {
-            ParseError::Parsing { message, src } | ParseError::Token { message, src } => {
+            ParseError::Parsing {
+                message,
+                src: Some(src),
+            }
+            | ParseError::Token { message, src } => {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new("note", message)));
+            }
+            // When we don't have a source for the error, just add a note
+            ParseError::Parsing { message, src: None } => {
+                builder.with_message(message);
             }
         };
 
@@ -86,6 +94,10 @@ impl CompilerError {
     }
 
     pub fn report(&self) {
-        println!("{}: {}", highlight(Colour::Red, "error"), self);
+        println!(
+            "{}: {}",
+            highlight(Colour::Red, "error"),
+            highlight(Modifier::Bold, self.to_string())
+        );
     }
 }

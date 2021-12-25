@@ -100,7 +100,9 @@ pub fn resolve_path(
         // @@Copied
         Err(ImportError {
             filename: path.to_path_buf(),
-            message: "Module couldn't be found".to_string(),
+            message:
+                "This directory likely doesn't have a 'index.hash' module, consider creating one."
+                    .to_string(),
             src: location,
         })
     } else {

@@ -1,0 +1,7 @@
+let k = 0;
+let k = 112;
+let k = 112.12;
+let k = 112.12e10;
+let k = 0x0cd;
+let k = 0o0126;
+let k = 0b010;

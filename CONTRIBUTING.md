@@ -1,4 +1,6 @@
-# Submitting a PR
+# The Hash Programming language contributor guide
+
+## Submitting a PR
     
 Before submitting a PR, make sure that:
 
@@ -12,9 +14,9 @@ Before submitting a PR, make sure that:
 
 - You have updated the relevant `README.md`/`CONTRIBUTING.md`/other documentation files.
 
-# Style guide
+## Style guide
 
-## Code notes
+### Code notes
 
 Code notes can have a label using the `##` or `@@` prefix (see below), which
 makes it easy to `grep` through all occurrences.

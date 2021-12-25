@@ -272,7 +272,7 @@ where
                     Level::Debug,
                     "file \"{}\":\n{}",
                     module.filename().display(),
-                    module.ast()
+                    module.ast().body()
                 );
             }
         }
@@ -308,11 +308,11 @@ pub trait ParserBackend<'c>: Sync + Sized {
         resolver: impl ModuleResolver,
         path: &Path,
         contents: &str,
-    ) -> ParseResult<ast::Module<'c>>;
+    ) -> ParseResult<ast::AstNode<'c, ast::Module<'c>>>;
 
     fn parse_interactive(
         &self,
         resolver: impl ModuleResolver,
         contents: &str,
-    ) -> ParseResult<AstNode<'c, ast::BodyBlock<'c>>>;
+    ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>>;
 }

@@ -2,7 +2,7 @@
 name = "hash-ast"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_debug"] }
@@ -16,6 +16,5 @@ strum = "0.21"
 strum_macros = "0.21"
 derive_more = "0.99"
 parking_lot = "0.11"
-hash-utils = { path = "../hash-utils" }
-hash-utils-testing-macros = { path = "../hash-utils/testing-macros" }
+hash-utils = { path = "../hash-utils" } 
 hash-alloc = { path = "../hash-alloc" }

@@ -1,0 +1,11 @@
+let fk = () => {
+    print(x)
+};
+
+let ft = (k: T): u64 => {
+    do_something(k)
+};
+
+let ft: (T) => u64 = (k) => {
+    do_something(t)
+};

@@ -1,0 +1,1 @@
+let str_eq: (str, str) > str;

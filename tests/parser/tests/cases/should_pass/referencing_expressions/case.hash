@@ -1,0 +1,6 @@
+let k = &a;
+let k = &(a + b);
+
+let b: &T = () => {
+    &b
+};
