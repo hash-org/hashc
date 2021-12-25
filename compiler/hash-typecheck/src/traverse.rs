@@ -131,7 +131,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
 
     type Error = TypecheckError;
 
-    type ImportRet;
+    type ImportRet = ();
     fn visit_import(
         &mut self,
         ctx: &Self::Ctx,
@@ -140,7 +140,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type NameRet;
+    type NameRet = ();
 
     fn visit_name(
         &mut self,
@@ -150,7 +150,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type AccessNameRet;
+    type AccessNameRet = ();
 
     fn visit_access_name(
         &mut self,
@@ -361,7 +361,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
             .create(TypeValue::RawRef(RawRefType { inner }), &self.wall))
     }
 
-    type TypeVarRet;
+    type TypeVarRet = ();
 
     fn visit_type_var(
         &mut self,
@@ -371,7 +371,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type ExistentialTypeRet;
+    type ExistentialTypeRet = ();
 
     fn visit_existential_type(
         &mut self,
@@ -381,7 +381,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type InferTypeRet;
+    type InferTypeRet = ();
     fn visit_infer_type(
         &mut self,
         ctx: &Self::Ctx,
@@ -390,7 +390,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type MapLiteralRet;
+    type MapLiteralRet = ();
     fn visit_map_literal(
         &mut self,
         ctx: &Self::Ctx,
@@ -399,7 +399,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type MapLiteralEntryRet;
+    type MapLiteralEntryRet = ();
     fn visit_map_literal_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -408,7 +408,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type ListLiteralRet;
+    type ListLiteralRet = ();
     fn visit_list_literal(
         &mut self,
         ctx: &Self::Ctx,
@@ -489,7 +489,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type StructLiteralEntryRet;
+    type StructLiteralEntryRet = ();
     fn visit_struct_literal_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -737,7 +737,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         Ok(())
     }
 
-    type AssignStatementRet;
+    type AssignStatementRet = ();
 
     fn visit_assign_statement(
         &mut self,
@@ -747,7 +747,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type StructDefEntryRet;
+    type StructDefEntryRet = ();
 
     fn visit_struct_def_entry(
         &mut self,
@@ -757,7 +757,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type StructDefRet;
+    type StructDefRet = ();
 
     fn visit_struct_def(
         &mut self,
@@ -767,7 +767,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type EnumDefEntryRet;
+    type EnumDefEntryRet = ();
 
     fn visit_enum_def_entry(
         &mut self,
@@ -777,7 +777,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type EnumDefRet;
+    type EnumDefRet = ();
 
     fn visit_enum_def(
         &mut self,
@@ -787,7 +787,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type TraitDefRet;
+    type TraitDefRet = ();
 
     fn visit_trait_def(
         &mut self,
@@ -806,7 +806,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type TraitBoundRet;
+    type TraitBoundRet = ();
 
     fn visit_trait_bound(
         &mut self,
@@ -816,7 +816,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type BoundRet;
+    type BoundRet = ();
 
     fn visit_bound(
         &mut self,
@@ -826,7 +826,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type EnumPatternRet;
+    type EnumPatternRet = ();
 
     fn visit_enum_pattern(
         &mut self,
@@ -836,7 +836,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type StructPatternRet;
+    type StructPatternRet = ();
 
     fn visit_struct_pattern(
         &mut self,
@@ -846,7 +846,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type NamespacePatternRet;
+    type NamespacePatternRet = ();
 
     fn visit_namespace_pattern(
         &mut self,
@@ -856,7 +856,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type TuplePatternRet;
+    type TuplePatternRet = ();
 
     fn visit_tuple_pattern(
         &mut self,
@@ -866,7 +866,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type StrLiteralPatternRet;
+    type StrLiteralPatternRet = ();
 
     fn visit_str_literal_pattern(
         &mut self,
@@ -876,7 +876,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type CharLiteralPatternRet;
+    type CharLiteralPatternRet = ();
 
     fn visit_char_literal_pattern(
         &mut self,
@@ -886,7 +886,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type IntLiteralPatternRet;
+    type IntLiteralPatternRet = ();
 
     fn visit_int_literal_pattern(
         &mut self,
@@ -896,7 +896,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type FloatLiteralPatternRet;
+    type FloatLiteralPatternRet = ();
 
     fn visit_float_literal_pattern(
         &mut self,
@@ -906,7 +906,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type LiteralPatternRet;
+    type LiteralPatternRet = ();
 
     fn visit_literal_pattern(
         &mut self,
@@ -916,7 +916,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type OrPatternRet;
+    type OrPatternRet = ();
 
     fn visit_or_pattern(
         &mut self,
@@ -926,7 +926,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type IfPatternRet;
+    type IfPatternRet = ();
 
     fn visit_if_pattern(
         &mut self,
@@ -936,7 +936,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type BindingPatternRet;
+    type BindingPatternRet = ();
 
     fn visit_binding_pattern(
         &mut self,
@@ -946,7 +946,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type IgnorePatternRet;
+    type IgnorePatternRet = ();
 
     fn visit_ignore_pattern(
         &mut self,
@@ -956,7 +956,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         todo!()
     }
 
-    type DestructuringPatternRet;
+    type DestructuringPatternRet = ();
 
     fn visit_destructuring_pattern(
         &mut self,
