@@ -6,6 +6,7 @@ use crate::Wall;
 use core::{fmt, slice};
 use std::{
     borrow::{Borrow, BorrowMut},
+    iter::FromIterator,
     mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
 };
@@ -297,9 +298,7 @@ impl<T> Deref for Row<'_, T> {
         // ##Safety: values until self.length are initialised.
         // Also, the slice will live as long as 'c, which might outlive self.
         unsafe {
-            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(
-                &self.data[0..self.length],
-            )
+            std::mem::transmute::<&[MaybeUninit<ManuallyDrop<T>>], &[T]>(&self.data[0..self.length])
         }
     }
 }

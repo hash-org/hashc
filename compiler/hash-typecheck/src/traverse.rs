@@ -1,10 +1,13 @@
 use std::{borrow::Borrow, collections::HashMap, mem};
 
 use hash_alloc::{collections::row::Row, Castle, Wall};
+use hash_ast::ast;
+use hash_ast::visitor::AstVisitor;
 use hash_ast::{
-    ast::{self, AstNode, AstNodeRef, TypeId},
-    location::Location,
-    module::{Module, ModuleIdx, Modules},
+    ast::TypeId,
+    module::{ModuleIdx, Modules},
+    visitor,
+    visitor::walk,
 };
 
 use crate::{
@@ -54,8 +57,9 @@ impl<'c, 'm> ModuleTraverser<'c, 'm> {
             None => {
                 let module = self.modules.get_by_index(module_idx);
                 let ctx = TypecheckCtx::new();
-                let traverser = Traverser::new(self, ctx, Wall::new(&self.castle));
-                let namespace_id = traverser.traverse_module(module.ast())?;
+                let wall = Wall::new(&self.castle);
+                let traverser = Traverser::new(self, ctx, &wall);
+                let namespace_id = traverser.visit_module(&wall, module.ast())?;
                 self.traversed_modules.insert(module_idx, namespace_id);
                 Ok(namespace_id)
             }
@@ -63,17 +67,17 @@ impl<'c, 'm> ModuleTraverser<'c, 'm> {
     }
 }
 
-pub struct Traverser<'c, 'm, 't> {
+pub struct Traverser<'c, 'm, 't, 'w> {
     module_traverser: &'t ModuleTraverser<'c, 'm>,
     ctx: TypecheckCtx,
-    wall: Wall<'c>,
+    wall: &'w Wall<'c>,
 }
 
-impl<'c, 'm, 't> Traverser<'c, 'm, 't> {
+impl<'c, 'm, 't, 'w> Traverser<'c, 'm, 't, 'w> {
     pub fn new(
         module_traverser: &'t ModuleTraverser<'c, 'm>,
         ctx: TypecheckCtx,
-        wall: Wall<'c>,
+        wall: &'w Wall<'c>,
     ) -> Self {
         Self {
             ctx,
@@ -112,24 +116,105 @@ impl<'c, 'm, 't> Traverser<'c, 'm, 't> {
             .types
             .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall)
     }
+}
 
-    pub fn traverse_function_call_args(
-        &mut self,
-        node: AstNodeRef<ast::FunctionCallArgs<'c>>,
-    ) -> TypecheckResult<Vec<TypeId>> {
-        // @@Performance: remove copying, return an iterator
-        node.entries
-            .iter()
-            .map(|arg| self.traverse_expression(arg.ast_ref()))
-            .collect()
+impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
+    type Ctx = Wall<'c>;
+
+    type CollectionContainer<T: 'c> = Row<'c, T>;
+    fn try_collect_items<T: 'c, E, I: Iterator<Item = Result<T, E>>>(
+        ctx: &Self::Ctx,
+        items: I,
+    ) -> Result<Self::CollectionContainer<T>, E> {
+        Row::try_from_iter(items, ctx)
     }
 
-    pub fn traverse_function_call_expr(
+    type Error = TypecheckError;
+
+    type ImportRet;
+    fn visit_import(
         &mut self,
-        node: AstNodeRef<ast::FunctionCallExpr<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        let fn_type = self.traverse_expression(node.subject.ast_ref())?;
-        let given_args = self.traverse_function_call_args(node.args.ast_ref())?;
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Import>,
+    ) -> Result<Self::ImportRet, Self::Error> {
+        todo!()
+    }
+
+    type NameRet;
+
+    fn visit_name(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Name>,
+    ) -> Result<Self::NameRet, Self::Error> {
+        todo!()
+    }
+
+    type AccessNameRet;
+
+    fn visit_access_name(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessName<'c>>,
+    ) -> Result<Self::AccessNameRet, Self::Error> {
+        todo!()
+    }
+
+    type LiteralRet = TypeId;
+    fn visit_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Literal<'c>>,
+    ) -> Result<Self::LiteralRet, Self::Error> {
+        walk::walk_literal_same_children(self, ctx, node)
+    }
+
+    type ExpressionRet = TypeId;
+    fn visit_expression(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Expression<'c>>,
+    ) -> Result<Self::ExpressionRet, Self::Error> {
+        walk::walk_expression_same_children(self, ctx, node)
+    }
+
+    type VariableExprRet = TypeId;
+    fn visit_variable_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::VariableExpr<'c>>,
+    ) -> Result<Self::VariableExprRet, Self::Error> {
+        todo!()
+    }
+
+    type IntrinsicKeyRet = TypeId;
+    fn visit_intrinsic_key(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IntrinsicKey>,
+    ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
+        todo!()
+    }
+
+    type FunctionCallArgsRet = Row<'c, TypeId>;
+    fn visit_function_call_args(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FunctionCallArgs<'c>>,
+    ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
+        Ok(walk::walk_function_call_args(self, ctx, node)?.entries)
+    }
+
+    type FunctionCallExprRet = TypeId;
+    fn visit_function_call_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FunctionCallExpr<'c>>,
+    ) -> Result<Self::FunctionCallExprRet, Self::Error> {
+        let walk::FunctionCallExpr {
+            args: given_args,
+            subject: fn_type,
+        } = walk::walk_function_call_expr(self, ctx, node)?;
 
         let fn_ret = match self.type_info().types.get(fn_type) {
             crate::types::TypeValue::Fn(fn_def_type) => {
@@ -147,44 +232,296 @@ impl<'c, 'm, 't> Traverser<'c, 'm, 't> {
         Ok(fn_ret)
     }
 
-    pub fn traverse_variable_expr(
+    type PropertyAccessExprRet = TypeId;
+    fn visit_property_access_expr(
         &mut self,
-        _: AstNodeRef<ast::VariableExpr<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        // @@Todo
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyAccessExpr<'c>>,
+    ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
+        todo!()
+    }
+
+    type RefExprRet = TypeId;
+    fn visit_ref_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RefExpr<'c>>,
+    ) -> Result<Self::RefExprRet, Self::Error> {
+        let walk::RefExpr {
+            inner_expr: inner_ty,
+        } = walk::walk_ref_expr(self, ctx, node)?;
         Ok(self
             .type_info()
             .types
-            .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall))
+            .create(TypeValue::Ref(RefType { inner: inner_ty }), &self.wall))
     }
 
-    pub fn traverse_function_def(
+    type DerefExprRet = TypeId;
+    fn visit_deref_expr(
         &mut self,
-        node: AstNodeRef<ast::FunctionDef<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        let ast::FunctionDef {
-            args,
-            fn_body,
-            return_ty,
-        } = node.body();
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::DerefExpr<'c>>,
+    ) -> Result<Self::DerefExprRet, Self::Error> {
+        let walk::DerefExpr(given_ref_ty) = walk::walk_deref_expr(self, ctx, node)?;
 
-        let mut args_ty = Row::with_capacity(args.len(), &self.wall);
-        for arg in args {
-            let arg_ty = match &arg.ty {
-                Some(ty) => self.traverse_type(ty.ast_ref())?,
-                None => self.create_unknown_type(),
-            };
-            args_ty.push(arg_ty, &self.wall);
-        }
+        let created_inner_ty = self
+            .type_info()
+            .types
+            .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall);
+        let created_ref_ty = self.type_info().types.create(
+            TypeValue::Ref(RefType {
+                inner: created_inner_ty,
+            }),
+            &self.wall,
+        );
+        self.unify(created_ref_ty, given_ref_ty)?;
 
-        let ret_ty = return_ty
+        Ok(created_inner_ty)
+    }
+
+    type LiteralExprRet = TypeId;
+    fn visit_literal_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::LiteralExpr<'c>>,
+    ) -> Result<Self::LiteralExprRet, Self::Error> {
+        Ok(walk::walk_literal_expr(self, ctx, node)?.0)
+    }
+
+    type TypedExprRet = TypeId;
+    fn visit_typed_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
+    ) -> Result<Self::TypedExprRet, Self::Error> {
+        let walk::TypedExpr { expr, ty } = walk::walk_typed_expr(self, ctx, node)?;
+        self.unify(expr, ty)?;
+        Ok(expr)
+    }
+
+    type BlockExprRet = TypeId;
+    fn visit_block_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BlockExpr<'c>>,
+    ) -> Result<Self::BlockExprRet, Self::Error> {
+        Ok(walk::walk_block_expr(self, ctx, node)?.0)
+    }
+
+    type ImportExprRet = TypeId;
+    fn visit_import_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ImportExpr<'c>>,
+    ) -> Result<Self::ImportExprRet, Self::Error> {
+        todo!()
+    }
+
+    type TypeRet = TypeId;
+    fn visit_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Type<'c>>,
+    ) -> Result<Self::TypeRet, Self::Error> {
+        todo!()
+    }
+
+    type NamedTypeRet = TypeId;
+    fn visit_named_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamedType<'c>>,
+    ) -> Result<Self::NamedTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type RefTypeRet = TypeId;
+    fn visit_ref_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RefType<'c>>,
+    ) -> Result<Self::RefTypeRet, Self::Error> {
+        let walk::RefType(inner) = walk::walk_ref_type(self, ctx, node)?;
+        Ok(self
+            .type_info()
+            .types
+            .create(TypeValue::Ref(RefType { inner }), &self.wall))
+    }
+
+    type RawRefTypeRet = TypeId;
+    fn visit_raw_ref_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RawRefType<'c>>,
+    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+        let walk::RawRefType(inner) = walk::walk_raw_ref_type(self, ctx, node)?;
+        Ok(self
+            .type_info()
+            .types
+            .create(TypeValue::RawRef(RawRefType { inner }), &self.wall))
+    }
+
+    type TypeVarRet;
+
+    fn visit_type_var(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeVar<'c>>,
+    ) -> Result<Self::TypeVarRet, Self::Error> {
+        todo!()
+    }
+
+    type ExistentialTypeRet;
+
+    fn visit_existential_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ExistentialType>,
+    ) -> Result<Self::ExistentialTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type InferTypeRet;
+    fn visit_infer_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::InferType>,
+    ) -> Result<Self::InferTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type MapLiteralRet;
+    fn visit_map_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MapLiteral<'c>>,
+    ) -> Result<Self::MapLiteralRet, Self::Error> {
+        todo!()
+    }
+
+    type MapLiteralEntryRet;
+    fn visit_map_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MapLiteralEntry<'c>>,
+    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
+        todo!()
+    }
+
+    type ListLiteralRet;
+    fn visit_list_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListLiteral<'c>>,
+    ) -> Result<Self::ListLiteralRet, Self::Error> {
+        todo!()
+    }
+
+    type SetLiteralRet = TypeId;
+    fn visit_set_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SetLiteral<'c>>,
+    ) -> Result<Self::SetLiteralRet, Self::Error> {
+        todo!()
+    }
+
+    type TupleLiteralRet = TypeId;
+    fn visit_tuple_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleLiteral<'c>>,
+    ) -> Result<Self::TupleLiteralRet, Self::Error> {
+        todo!()
+    }
+
+    type StrLiteralRet = TypeId;
+    fn visit_str_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StrLiteral>,
+    ) -> Result<Self::StrLiteralRet, Self::Error> {
+        todo!()
+    }
+
+    type CharLiteralRet = TypeId;
+    fn visit_char_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::CharLiteral>,
+    ) -> Result<Self::CharLiteralRet, Self::Error> {
+        Ok(self
+            .type_info()
+            .types
+            .create(TypeValue::Prim(PrimType::Char), &self.wall))
+    }
+
+    type FloatLiteralRet = TypeId;
+    fn visit_float_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FloatLiteral>,
+    ) -> Result<Self::FloatLiteralRet, Self::Error> {
+        Ok(self
+            .type_info()
+            .types
+            .create(TypeValue::Prim(PrimType::F32), &self.wall))
+    }
+
+    type IntLiteralRet = TypeId;
+    fn visit_int_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IntLiteral>,
+    ) -> Result<Self::IntLiteralRet, Self::Error> {
+        Ok(self
+            .type_info()
+            .types
+            .create(TypeValue::Prim(PrimType::I32), &self.wall))
+    }
+
+    type StructLiteralRet = TypeId;
+    fn visit_struct_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+    ) -> Result<Self::StructLiteralRet, Self::Error> {
+        todo!()
+    }
+
+    type StructLiteralEntryRet;
+    fn visit_struct_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
+    ) -> Result<Self::StructLiteralEntryRet, Self::Error> {
+        todo!()
+    }
+
+    type FunctionDefRet = TypeId;
+    fn visit_function_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FunctionDef<'c>>,
+    ) -> Result<Self::FunctionDefRet, Self::Error> {
+        let args_ty = Self::try_collect_items(
+            ctx,
+            node.args
+                .iter()
+                .map(|arg| self.visit_function_def_arg(ctx, arg.ast_ref())),
+        )?;
+
+        let return_ty = node
+            .return_ty
             .as_ref()
-            .map(|return_ty| self.traverse_type(return_ty.ast_ref()))
+            .map(|return_ty| self.visit_type(ctx, return_ty.ast_ref()))
             .unwrap_or_else(|| Ok(self.create_unknown_type()))?;
 
-        let old_ret_ty = self.ctx.state.func_ret_type.replace(ret_ty);
+        let old_ret_ty = self.ctx.state.func_ret_type.replace(return_ty);
         let old_ret_once = mem::replace(&mut self.ctx.state.ret_once, false);
-        let body_ty = self.traverse_expression(fn_body.ast_ref())?;
+
+        let body_ty = self.visit_expression(ctx, node.fn_body.ast_ref())?;
+
         self.ctx.state.func_ret_type = old_ret_ty;
         let ret_once = mem::replace(&mut self.ctx.state.ret_once, old_ret_once);
 
@@ -193,284 +530,449 @@ impl<'c, 'm, 't> Traverser<'c, 'm, 't> {
             TypeValue::Prim(PrimType::Void) => {
                 if ret_once {
                     let body_ty = self.create_unknown_type();
-                    self.unify(ret_ty, body_ty)?;
+                    self.unify(return_ty, body_ty)?;
                 } else {
-                    self.unify(ret_ty, body_ty)?;
+                    self.unify(return_ty, body_ty)?;
                 }
             }
             _ => {
-                self.unify(ret_ty, body_ty)?;
+                self.unify(return_ty, body_ty)?;
             }
         };
 
         let fn_ty = self.create_type(TypeValue::Fn(FnType {
             args: args_ty,
-            ret: ret_ty,
+            ret: return_ty,
         }));
 
         Ok(fn_ty)
     }
 
-    pub fn traverse_literal(
+    type FunctionDefArgRet = TypeId;
+    fn visit_function_def_arg(
         &mut self,
-        node: AstNodeRef<ast::Literal<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        match node.body() {
-            ast::Literal::Str(_) => todo!(),
-            ast::Literal::Char(_) => Ok(self
-                .type_info()
-                .types
-                .create(TypeValue::Prim(PrimType::Char), &self.wall)),
-            ast::Literal::Int(_) => Ok(self
-                .type_info()
-                .types
-                .create(TypeValue::Prim(PrimType::I32), &self.wall)),
-            ast::Literal::Float(_) => Ok(self
-                .type_info()
-                .types
-                .create(TypeValue::Prim(PrimType::F32), &self.wall)),
-            ast::Literal::Function(func_def) => {
-                self.traverse_function_def(node.with_body(func_def))
-            }
-            ast::Literal::Set(_) => todo!(),
-            ast::Literal::Map(_) => todo!(),
-            ast::Literal::List(_) => todo!(),
-            ast::Literal::Tuple(_) => todo!(),
-            ast::Literal::Struct(_) => todo!(),
-        }
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FunctionDefArg<'c>>,
+    ) -> Result<Self::FunctionDefArgRet, Self::Error> {
+        let walk::FunctionDefArg { name: _, ty } = walk::walk_function_def_arg(self, ctx, node)?;
+        Ok(ty.unwrap_or_else(|| self.create_unknown_type()))
     }
 
-    pub fn traverse_named_type(
+    type BlockRet = TypeId;
+    fn visit_block(
         &mut self,
-        node: AstNodeRef<ast::NamedType<'c>>,
-    ) -> TypecheckResult<TypeId> {
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Block<'c>>,
+    ) -> Result<Self::BlockRet, Self::Error> {
+        walk::walk_block_same_children(self, ctx, node)
+    }
+
+    type MatchCaseRet = TypeId;
+    fn visit_match_case(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MatchCase<'c>>,
+    ) -> Result<Self::MatchCaseRet, Self::Error> {
         todo!()
-        // match self.type_info().scopes.re(node.name.path) {
-
-        // }
     }
 
-    pub fn traverse_type(&mut self, node: AstNodeRef<ast::Type<'c>>) -> TypecheckResult<TypeId> {
-        match node.body() {
-            ast::Type::Named(_) => {
-                todo!()
-            }
-            ast::Type::Ref(inner_ty) => {
-                let inner = self.traverse_type(inner_ty.ast_ref())?;
-                Ok(self
-                    .type_info()
-                    .types
-                    .create(TypeValue::Ref(RefType { inner }), &self.wall))
-            }
-            ast::Type::RawRef(inner_ty) => {
-                let inner = self.traverse_type(inner_ty.ast_ref())?;
-                Ok(self
-                    .type_info()
-                    .types
-                    .create(TypeValue::RawRef(RawRefType { inner }), &self.wall))
-            }
-            ast::Type::TypeVar(_) => todo!(),
-            ast::Type::Existential => todo!(),
-            ast::Type::Infer => todo!(),
-        }
-    }
-
-    pub fn traverse_typed_expr(
+    type MatchBlockRet = TypeId;
+    fn visit_match_block(
         &mut self,
-        node: AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        let expr = self.traverse_expression(node.expr.ast_ref())?;
-        let ty = self.traverse_type(node.ty.ast_ref())?;
-        self.unify(expr, ty)?;
-        Ok(expr)
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MatchBlock<'c>>,
+    ) -> Result<Self::MatchBlockRet, Self::Error> {
+        todo!()
     }
 
-    pub fn traverse_expression(
+    type LoopBlockRet = TypeId;
+    fn visit_loop_block(
         &mut self,
-        node: AstNodeRef<ast::Expression<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        match node.kind() {
-            ast::ExpressionKind::FunctionCall(fn_call) => {
-                self.traverse_function_call_expr(node.with_body(fn_call))
-            }
-            ast::ExpressionKind::Intrinsic(_) => todo!(),
-            ast::ExpressionKind::Variable(variable) => {
-                self.traverse_variable_expr(node.with_body(variable))
-            }
-            ast::ExpressionKind::PropertyAccess(_) => todo!(),
-            ast::ExpressionKind::Ref(inner) => {
-                let inner_ty = self.traverse_expression(inner.ast_ref())?;
-                Ok(self
-                    .type_info()
-                    .types
-                    .create(TypeValue::Ref(RefType { inner: inner_ty }), &self.wall))
-            }
-            ast::ExpressionKind::Deref(inner) => {
-                let given_ref_ty = self.traverse_expression(inner.ast_ref())?;
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::LoopBlock<'c>>,
+    ) -> Result<Self::LoopBlockRet, Self::Error> {
+        let last_in_loop = mem::replace(&mut self.ctx.state.in_loop, true);
+        self.visit_block(ctx, node.0.ast_ref())?;
+        self.ctx.state.in_loop = last_in_loop;
 
-                let created_inner_ty = self
-                    .type_info()
-                    .types
-                    .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall);
-                let created_ref_ty = self.type_info().types.create(
-                    TypeValue::Ref(RefType {
-                        inner: created_inner_ty,
-                    }),
-                    &self.wall,
-                );
-                self.unify(created_ref_ty, given_ref_ty)?;
-
-                Ok(created_inner_ty)
-            }
-            ast::ExpressionKind::LiteralExpr(literal_expr) => {
-                self.traverse_literal(literal_expr.ast_ref())
-            }
-            ast::ExpressionKind::Typed(typed_expr) => {
-                self.traverse_typed_expr(node.with_body(typed_expr))
-            }
-            ast::ExpressionKind::Block(block) => self.traverse_block(block.ast_ref()),
-            ast::ExpressionKind::Import(_) => todo!(),
-        }
+        Ok(self
+            .type_info()
+            .types
+            .create(TypeValue::Prim(PrimType::Void), &self.wall))
     }
 
-    pub fn traverse_statement(
+    type BodyBlockRet = TypeId;
+    fn visit_body_block(
         &mut self,
-        node: AstNodeRef<ast::Statement<'c>>,
-    ) -> TypecheckResult<()> {
-        match node.body() {
-            ast::Statement::Expr(expr) => {
-                let _ = self.traverse_expression(expr.ast_ref())?;
-                Ok(())
-            }
-            ast::Statement::Return(maybe_expr) => match self.ctx.state.func_ret_type {
-                Some(ret) => {
-                    let given_ret = maybe_expr
-                        .as_ref()
-                        .map(|expr| self.traverse_expression(expr.ast_ref()))
-                        .unwrap_or_else(|| {
-                            Ok(self
-                                .type_info()
-                                .types
-                                .create(TypeValue::Prim(PrimType::Void), &self.wall))
-                        })?;
-
-                    // @@Todo: Here we might want to unify bidirectionally.
-                    self.unify(ret, given_ret)?;
-                    self.ctx.state.ret_once = true;
-
-                    Ok(())
-                }
-                None => Err(TypecheckError::UsingReturnOutsideFunction(node.location())),
-            },
-            ast::Statement::Block(block) => self.traverse_block(block.ast_ref()).map(|_| ()),
-            ast::Statement::Break => {
-                if !self.ctx.state.in_loop {
-                    Err(TypecheckError::UsingBreakOutsideLoop(node.location()))
-                } else {
-                    Ok(())
-                }
-            }
-            ast::Statement::Continue => {
-                if !self.ctx.state.in_loop {
-                    Err(TypecheckError::UsingContinueOutsideLoop(node.location()))
-                } else {
-                    Ok(())
-                }
-            }
-            ast::Statement::Let(let_statement) => {
-                let pattern_result = self.traverse_pattern(let_statement.pattern.ast_ref())?;
-                if pattern_result.is_refutable {
-                    return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
-                }
-
-                let type_result = let_statement
-                    .ty
-                    .as_ref()
-                    .map(|ty| self.traverse_type(ty.ast_ref()))
-                    .transpose()?;
-
-                // @@Todo: bounds
-
-                let value_result = let_statement
-                    .value
-                    .as_ref()
-                    .map(|value| self.traverse_expression(value.ast_ref()))
-                    .transpose()?;
-
-                // @@Todo: Bidirectional
-                if let (Some(value_result), Some(type_result)) = (value_result, type_result) {
-                    self.unify(value_result, type_result)?;
-                }
-
-                // This is probably not right
-                if let Some(value_result) = value_result {
-                    self.unify(pattern_result.ty, value_result)?;
-                }
-
-                Ok(())
-            }
-            ast::Statement::Assign(_) => todo!(),
-            ast::Statement::StructDef(_) => todo!(),
-            ast::Statement::EnumDef(_) => todo!(),
-            ast::Statement::TraitDef(_) => todo!(),
-        }
-    }
-
-    pub fn traverse_block(&mut self, node: AstNodeRef<ast::Block<'c>>) -> TypecheckResult<TypeId> {
-        match node.body() {
-            ast::Block::Match(_) => todo!(),
-            ast::Block::Loop(loop_block) => {
-                let last_in_loop = mem::replace(&mut self.ctx.state.in_loop, true);
-                self.traverse_block(loop_block.ast_ref())?;
-                self.ctx.state.in_loop = last_in_loop;
-
-                Ok(self
-                    .type_info()
-                    .types
-                    .create(TypeValue::Prim(PrimType::Void), &self.wall))
-            }
-            ast::Block::Body(body_block) => self.traverse_body_block(node.with_body(body_block)),
-        }
-    }
-
-    pub fn traverse_pattern(
-        &mut self,
-        node: AstNodeRef<ast::Pattern<'c>>,
-    ) -> TypecheckResult<TraversePatternOutput> {
-        match node.body() {
-            ast::Pattern::Enum(_) => todo!(),
-            ast::Pattern::Struct(_) => todo!(),
-            ast::Pattern::Namespace(_) => todo!(),
-            ast::Pattern::Tuple(_) => todo!(),
-            ast::Pattern::Literal(_) => todo!(),
-            ast::Pattern::Or(_) => todo!(),
-            ast::Pattern::If(_) => todo!(),
-            ast::Pattern::Binding(_) => todo!(),
-
-            ast::Pattern::Ignore => todo!(),
-        }
-    }
-
-    pub fn traverse_body_block(
-        &mut self,
-        node: AstNodeRef<ast::BodyBlock<'c>>,
-    ) -> TypecheckResult<TypeId> {
-        for statement in &node.statements {
-            self.traverse_statement(statement.ast_ref())?;
-        }
-        match &node.expr {
-            Some(expr) => self.traverse_expression(expr.ast_ref()),
-            None => Ok(self
-                .type_info()
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BodyBlock<'c>>,
+    ) -> Result<Self::BodyBlockRet, Self::Error> {
+        let walk::BodyBlock {
+            statements: _,
+            expr,
+        } = walk::walk_body_block(self, ctx, node)?;
+        Ok(expr.unwrap_or_else(|| {
+            self.type_info()
                 .types
-                .create(TypeValue::Prim(PrimType::Void), &self.wall)),
+                .create(TypeValue::Prim(PrimType::Void), &self.wall)
+        }))
+    }
+
+    type StatementRet = ();
+    fn visit_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Statement<'c>>,
+    ) -> Result<Self::StatementRet, Self::Error> {
+        walk::walk_statement_same_children(self, ctx, node)
+    }
+
+    type ExprStatementRet = ();
+    fn visit_expr_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
+    ) -> Result<Self::ExprStatementRet, Self::Error> {
+        let walk::ExprStatement(_) = walk::walk_expr_statement(self, ctx, node)?;
+        Ok(())
+    }
+
+    type ReturnStatementRet = ();
+    fn visit_return_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ReturnStatement<'c>>,
+    ) -> Result<Self::ReturnStatementRet, Self::Error> {
+        match self.ctx.state.func_ret_type {
+            Some(ret) => {
+                let given_ret = walk::walk_return_statement(self, ctx, node)?
+                    .0
+                    .unwrap_or_else(|| {
+                        self.type_info()
+                            .types
+                            .create(TypeValue::Prim(PrimType::Void), &self.wall)
+                    });
+
+                // @@Todo: Here we might want to unify bidirectionally.
+                self.unify(ret, given_ret)?;
+                self.ctx.state.ret_once = true;
+
+                Ok(())
+            }
+            None => Err(TypecheckError::UsingReturnOutsideFunction(node.location())),
         }
     }
 
-    pub fn traverse_module(&mut self, node: &ast::Module<'c>) -> TypecheckResult<TypeId> {
-        for statement in &node.contents {
-            self.traverse_statement(statement.ast_ref())?;
+    type BlockStatementRet = ();
+    fn visit_block_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
+    ) -> Result<Self::BlockStatementRet, Self::Error> {
+        let walk::BlockStatement(_) = walk::walk_block_statement(self, ctx, node)?;
+        Ok(())
+    }
+
+    type BreakStatementRet = ();
+    fn visit_break_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BreakStatement>,
+    ) -> Result<Self::BreakStatementRet, Self::Error> {
+        if !self.ctx.state.in_loop {
+            Err(TypecheckError::UsingBreakOutsideLoop(node.location()))
+        } else {
+            Ok(())
         }
+    }
+
+    type ContinueStatementRet = ();
+    fn visit_continue_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ContinueStatement>,
+    ) -> Result<Self::ContinueStatementRet, Self::Error> {
+        if !self.ctx.state.in_loop {
+            Err(TypecheckError::UsingContinueOutsideLoop(node.location()))
+        } else {
+            Ok(())
+        }
+    }
+
+    type LetStatementRet = ();
+    fn visit_let_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::LetStatement<'c>>,
+    ) -> Result<Self::LetStatementRet, Self::Error> {
+        let pattern_result = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+        if pattern_result.is_refutable {
+            return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
+        }
+
+        let type_result = node
+            .ty
+            .as_ref()
+            .map(|ty| self.traverse_type(ty.ast_ref()))
+            .transpose()?;
+
+        // @@Todo: bounds
+
+        let value_result = node
+            .value
+            .as_ref()
+            .map(|value| self.traverse_expression(value.ast_ref()))
+            .transpose()?;
+
+        // @@Todo: Bidirectional
+        if let (Some(value_result), Some(type_result)) = (value_result, type_result) {
+            self.unify(value_result, type_result)?;
+        }
+
+        // This is probably not right
+        if let Some(value_result) = value_result {
+            self.unify(pattern_result.ty, value_result)?;
+        }
+
+        Ok(())
+    }
+
+    type AssignStatementRet;
+
+    fn visit_assign_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
+    ) -> Result<Self::AssignStatementRet, Self::Error> {
+        todo!()
+    }
+
+    type StructDefEntryRet;
+
+    fn visit_struct_def_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructDefEntry<'c>>,
+    ) -> Result<Self::StructDefEntryRet, Self::Error> {
+        todo!()
+    }
+
+    type StructDefRet;
+
+    fn visit_struct_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructDef<'c>>,
+    ) -> Result<Self::StructDefRet, Self::Error> {
+        todo!()
+    }
+
+    type EnumDefEntryRet;
+
+    fn visit_enum_def_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
+    ) -> Result<Self::EnumDefEntryRet, Self::Error> {
+        todo!()
+    }
+
+    type EnumDefRet;
+
+    fn visit_enum_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumDef<'c>>,
+    ) -> Result<Self::EnumDefRet, Self::Error> {
+        todo!()
+    }
+
+    type TraitDefRet;
+
+    fn visit_trait_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitDef<'c>>,
+    ) -> Result<Self::TraitDefRet, Self::Error> {
+        todo!()
+    }
+
+    type PatternRet = TraversePatternOutput;
+    fn visit_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Pattern<'c>>,
+    ) -> Result<Self::PatternRet, Self::Error> {
+        todo!()
+    }
+
+    type TraitBoundRet;
+
+    fn visit_trait_bound(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitBound<'c>>,
+    ) -> Result<Self::TraitBoundRet, Self::Error> {
+        todo!()
+    }
+
+    type BoundRet;
+
+    fn visit_bound(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Bound<'c>>,
+    ) -> Result<Self::BoundRet, Self::Error> {
+        todo!()
+    }
+
+    type EnumPatternRet;
+
+    fn visit_enum_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
+    ) -> Result<Self::EnumPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type StructPatternRet;
+
+    fn visit_struct_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructPattern<'c>>,
+    ) -> Result<Self::StructPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type NamespacePatternRet;
+
+    fn visit_namespace_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
+    ) -> Result<Self::NamespacePatternRet, Self::Error> {
+        todo!()
+    }
+
+    type TuplePatternRet;
+
+    fn visit_tuple_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TuplePattern<'c>>,
+    ) -> Result<Self::TuplePatternRet, Self::Error> {
+        todo!()
+    }
+
+    type StrLiteralPatternRet;
+
+    fn visit_str_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StrLiteralPattern>,
+    ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type CharLiteralPatternRet;
+
+    fn visit_char_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::CharLiteralPattern>,
+    ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type IntLiteralPatternRet;
+
+    fn visit_int_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IntLiteralPattern>,
+    ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type FloatLiteralPatternRet;
+
+    fn visit_float_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FloatLiteralPattern>,
+    ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type LiteralPatternRet;
+
+    fn visit_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::LiteralPattern>,
+    ) -> Result<Self::LiteralPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type OrPatternRet;
+
+    fn visit_or_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::OrPattern<'c>>,
+    ) -> Result<Self::OrPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type IfPatternRet;
+
+    fn visit_if_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IfPattern<'c>>,
+    ) -> Result<Self::IfPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type BindingPatternRet;
+
+    fn visit_binding_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BindingPattern<'c>>,
+    ) -> Result<Self::BindingPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type IgnorePatternRet;
+
+    fn visit_ignore_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IgnorePattern>,
+    ) -> Result<Self::IgnorePatternRet, Self::Error> {
+        todo!()
+    }
+
+    type DestructuringPatternRet;
+
+    fn visit_destructuring_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
+    ) -> Result<Self::DestructuringPatternRet, Self::Error> {
+        todo!()
+    }
+
+    type ModuleRet = TypeId;
+    fn visit_module(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Module<'c>>,
+    ) -> Result<Self::ModuleRet, Self::Error> {
+        let walk::Module { contents: _ } = walk::walk_module(self, ctx, node)?;
 
         let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType {
             members: self.ctx.scopes.extract_current_scope(),
@@ -484,12 +986,6 @@ impl<'c, 'm, 't> Traverser<'c, 'm, 't> {
 mod tests {
     use hash_alloc::Castle;
     use hash_ast::module::ModuleBuilder;
-
-    use super::*;
-    use crate::{
-        types::{ScopeStack, Traits, TypeDefs, TypeVars, TypecheckState, Types},
-        writer::TypeWithCtx,
-    };
 
     #[test]
     fn traverse_test() {
