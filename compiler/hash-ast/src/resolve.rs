@@ -129,7 +129,8 @@ where
                     |elapsed| println!("ast: {:.2?}", elapsed),
                 );
 
-                ctx.module_builder.add_contents(import_index, resolved_import_path, import_source);
+                ctx.module_builder
+                    .add_contents(import_index, resolved_import_path, import_source);
                 import_node.map(|module| ctx.module_builder.add_module_at(import_index, module))
             });
         });

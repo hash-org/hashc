@@ -1272,7 +1272,6 @@ where
                 span,
             }) => {
                 self.skip_token();
-            
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 let gen = self.from_stream(tree, *span);
@@ -1539,7 +1538,7 @@ where
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
         // pattern.
-        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(TokenAtom::Eq)) {
+        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(TokenKind::Eq)) {
             Some(_) => self.parse_pattern()?,
             None => {
                 let copy = self.node(Name { ..*name.body() });
@@ -1611,7 +1610,7 @@ where
 
                         Pattern::Struct(StructPattern {
                             name,
-                            entries: self.parse_destructuring_patterns(tree, span)?,
+                            entries: self.parse_destructuring_patterns(tree, *span)?,
                         })
                     }
                     // enum_pattern
@@ -1675,7 +1674,7 @@ where
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_destructuring_patterns(tree, span)?,
+                    patterns: self.parse_destructuring_patterns(tree, *span)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.
@@ -2823,7 +2822,7 @@ where
                         let location = name.location();
                         let ident = name.body().path.get(0).unwrap();
 
-                        // @@Slowness: 
+                        // @@Slowness:
                         match IDENTIFIER_MAP.ident_name(*ident) {
                             "_" => Type::Infer(InferType),
                             // ##TypeArgsNaming: Here the rules are built-in for what the name of a type-arg is,

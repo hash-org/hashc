@@ -36,7 +36,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let wall = self.castle.wall();
 
         let index = resolver.module_index().unwrap_or(ModuleIdx(0));
-        let lexer = Lexer::new(contents, index, &wall);
+        let mut lexer = Lexer::new(contents, index, &wall);
 
         let tokens = timed(
             || lexer.tokenise(),
@@ -68,7 +68,7 @@ impl<'c> ParserBackend<'c> for HashParser<'c> {
         let wall = self.castle.wall();
 
         let index = resolver.module_index().unwrap_or(ModuleIdx(0));
-        let lexer = Lexer::new(contents, index, &wall);
+        let mut lexer = Lexer::new(contents, index, &wall);
 
         let tokens = lexer.tokenise()?;
 

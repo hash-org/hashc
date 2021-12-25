@@ -14,10 +14,7 @@ use crate::{
     token::{Delimiter, Token, TokenKind, TokenResult},
     utils::*,
 };
-use std::{
-    cell::{Cell, RefCell},
-    iter,
-};
+use std::{cell::Cell, iter};
 
 /// Representing the end of stream, or the initial character that is set as 'prev' in
 /// a [Lexer] since there is no character before the start.
@@ -45,7 +42,7 @@ pub struct Lexer<'w, 'c, 'a> {
     /// The castle allocator for the current [Lexer].
     wall: &'w Wall<'c>,
 
-    token_trees: RefCell<Row<'w, Row<'w, Token>>>,
+    token_trees: Row<'w, Row<'w, Token>>,
 }
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
@@ -57,7 +54,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             previous_delimiter: Cell::new(None),
             contents,
             wall,
-            token_trees: RefCell::new(row![&wall;]),
+            token_trees: row![wall;],
         }
     }
 
@@ -68,7 +65,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Returns a reference to the stored token trees for the current job
     pub(crate) fn into_token_trees(self) -> Row<'w, Row<'w, Token>> {
-        self.token_trees.into_inner()
+        self.token_trees
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
@@ -123,7 +120,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Parses a token from the input string.
-    pub fn advance_token(&self) -> TokenResult<Option<Token>> {
+    pub fn advance_token(&mut self) -> TokenResult<Option<Token>> {
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {
@@ -220,7 +217,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
     /// performing complex delimiter depth analysis later on.
-    pub(crate) fn eat_token_tree(&self, delimiter: Delimiter) -> TokenResult<TokenKind> {
+    pub(crate) fn eat_token_tree(&mut self, delimiter: Delimiter) -> TokenResult<TokenKind> {
         let mut children_tokens = row![self.wall];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
@@ -238,14 +235,9 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         match self.previous_delimiter.get() {
             Some(delim) if delim == delimiter.right() => {
                 // push this to the token_trees and get the current index to use instead...
-                self.token_trees
-                    .borrow_mut()
-                    .push(children_tokens, &self.wall);
+                self.token_trees.push(children_tokens, self.wall);
 
-                Ok(TokenKind::Tree(
-                    delimiter,
-                    self.token_trees.borrow().len() - 1,
-                ))
+                Ok(TokenKind::Tree(delimiter, self.token_trees.len() - 1))
             }
             _ => Err(TokenError::new(
                 None,
@@ -708,10 +700,13 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Tokenise the given input stream
-    pub fn tokenise(&self) -> ParseResult<Row<'c, Token>> {
+    pub fn tokenise(&mut self) -> ParseResult<Row<'c, Token>> {
+        let wall = self.wall;
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        Ok(Row::try_from_iter(iter, self.wall)
-            .map_err(|err| TokenErrorWrapper(self.module_idx, err))?)
+        Ok(
+            Row::try_from_iter(iter, wall)
+                .map_err(|err| TokenErrorWrapper(self.module_idx, err))?,
+        )
     }
 }

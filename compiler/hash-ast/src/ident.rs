@@ -12,7 +12,6 @@ counter! {
     method_visibility:,
 }
 
-
 /// Struct representing a globally accessible identifier map. The struct contains a identifier
 /// map and another map for reverse lookups.
 #[derive(Debug, Default)]
@@ -20,7 +19,6 @@ pub struct IdentifierMap {
     identifiers: DashMap<&'static str, Identifier>,
     reverse_lookup: DashMap<Identifier, &'static str>,
 }
-
 
 lazy_static! {
     static ref IDENTIFIER_STORAGE_CASTLE: Castle = Castle::new();
