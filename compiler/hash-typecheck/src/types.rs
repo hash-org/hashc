@@ -252,11 +252,6 @@ pub struct TraitImpls<'c> {
     data: HashMap<TraitId, ImplsForTrait<'c>>,
 }
 
-#[derive(Debug, Default)]
-pub struct Types<'c> {
-    data: HashMap<TypeId, Cell<&'c TypeValue<'c>>>,
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeVarStrategy {
     Match,
@@ -266,6 +261,11 @@ pub enum TypeVarStrategy {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct UnifyOptions {
     type_var_strategy: TypeVarStrategy,
+}
+
+#[derive(Debug, Default)]
+pub struct Types<'c> {
+    data: HashMap<TypeId, Cell<&'c TypeValue<'c>>>,
 }
 
 impl<'c> Types<'c> {
@@ -290,9 +290,7 @@ impl<'c> Types<'c> {
 
     pub fn create(&mut self, value: TypeValue<'c>, wall: &Wall<'c>) -> TypeId {
         let id = TypeId::new();
-        self.data
-            .borrow_mut()
-            .insert(id, Cell::new(Brick::new(value, wall).disown()));
+        self.data.insert(id, Cell::new(Brick::new(value, wall).disown()));
         id
     }
 
@@ -407,6 +405,19 @@ impl<'c> Types<'c> {
 
         Ok(())
     }
+
+    pub fn unify_many(
+        &mut self,
+        type_list: impl Iterator<Item = TypeId>,
+        fallback: impl FnOnce() -> TypeId,
+        type_vars: &mut TypeVars,
+    ) -> TypecheckResult<TypeId> {
+        let first = type_list.next().unwrap_or_else(fallback);
+        for curr in type_list {
+            self.unify(curr, first, type_vars)?;
+        }
+        Ok(first)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -446,6 +457,7 @@ impl Scope {
     }
 }
 
+#[derive(Debug)]
 pub struct ScopeStack {
     scopes: Vec<Scope>,
 }
@@ -731,6 +743,8 @@ pub enum TypecheckError {
     UsingContinueOutsideLoop(Location),
     UsingReturnOutsideFunction(Location),
     RequiresIrrefutablePattern(Location),
+    UnresolvedSymbol(Vec<Identifier>),
+    UsingVariableInTypePos(Vec<Identifier>),
     // @@Todo: turn this into variants
     Message(String),
 }

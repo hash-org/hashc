@@ -1,5 +1,6 @@
 use std::{borrow::Borrow, collections::HashMap, mem};
 
+use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Castle, Wall};
 use hash_ast::ast;
 use hash_ast::visitor::AstVisitor;
@@ -10,6 +11,7 @@ use hash_ast::{
     visitor::walk,
 };
 
+use crate::types::{SymbolType, TypeVar, UserType};
 use crate::{
     types::{
         FnType, NamespaceType, PrimType, RawRefType, RefType, TypeInfo, TypeValue, TypecheckCtx,
@@ -46,7 +48,11 @@ impl<'c, 'm> ModuleTraverser<'c, 'm> {
         &self.type_info
     }
 
-    pub fn traverse(self) -> TypecheckResult<TypeInfo<'c>> {
+    pub fn type_info_mut(&mut self) -> &mut TypeInfo<'c> {
+        &mut self.type_info
+    }
+
+    pub fn traverse(mut self) -> TypecheckResult<TypeInfo<'c>> {
         let _ = self.traverse_module(self.modules.get_entry_point_unchecked().index())?;
         Ok(self.type_info)
     }
@@ -58,7 +64,7 @@ impl<'c, 'm> ModuleTraverser<'c, 'm> {
                 let module = self.modules.get_by_index(module_idx);
                 let ctx = TypecheckCtx::new();
                 let wall = Wall::new(&self.castle);
-                let traverser = Traverser::new(self, ctx, &wall);
+                let mut traverser = Traverser::new(self, ctx, &wall);
                 let namespace_id = traverser.visit_module(&wall, module.ast())?;
                 self.traversed_modules.insert(module_idx, namespace_id);
                 Ok(namespace_id)
@@ -68,14 +74,14 @@ impl<'c, 'm> ModuleTraverser<'c, 'm> {
 }
 
 pub struct Traverser<'c, 'm, 't, 'w> {
-    module_traverser: &'t ModuleTraverser<'c, 'm>,
+    module_traverser: &'t mut ModuleTraverser<'c, 'm>,
     ctx: TypecheckCtx,
     wall: &'w Wall<'c>,
 }
 
 impl<'c, 'm, 't, 'w> Traverser<'c, 'm, 't, 'w> {
     pub fn new(
-        module_traverser: &'t ModuleTraverser<'c, 'm>,
+        module_traverser: &'t mut ModuleTraverser<'c, 'm>,
         ctx: TypecheckCtx,
         wall: &'w Wall<'c>,
     ) -> Self {
@@ -86,33 +92,48 @@ impl<'c, 'm, 't, 'w> Traverser<'c, 'm, 't, 'w> {
         }
     }
 
-    fn type_info(&self) -> &TypeInfo<'c> {
-        self.module_traverser.type_info()
+    fn type_info(&self) -> &'t TypeInfo<'c> {
+        let traverser = self.module_traverser;
+        traverser.type_info()
+    }
+
+    fn type_info_mut(&mut self) -> &'t mut TypeInfo<'c> {
+        let traverser = self.module_traverser;
+        self.module_traverser.type_info_mut()
     }
 
     fn unify_pairs(
         &mut self,
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
     ) -> TypecheckResult<()> {
-        self.type_info()
+        let types = &mut self.module_traverser.type_info_mut().types;
+        types.unify_pairs(pairs, &mut self.ctx.type_vars)
+    }
+
+    fn unify_many(
+        &mut self,
+        type_list: impl Iterator<Item = TypeId>,
+        default: impl FnOnce() -> TypeId,
+    ) -> TypecheckResult<TypeId> {
+        self.type_info_mut()
             .types
-            .unify_pairs(pairs, &mut self.ctx.type_vars)
+            .unify_many(type_list, default, &mut self.ctx.type_vars)
     }
 
     fn unify(&mut self, a: TypeId, b: TypeId) -> TypecheckResult<()> {
-        self.type_info().types.unify(a, b, &mut self.ctx.type_vars)
+        self.type_info_mut().types.unify(a, b, &mut self.ctx.type_vars)
     }
 
     fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
-        self.type_info().types.create(value, &self.wall)
+        self.type_info_mut().types.create(value, &self.wall)
     }
 
     fn get_type(&mut self, ty: TypeId) -> &TypeValue<'c> {
-        self.type_info().types.get(ty)
+        self.type_info_mut().types.get(ty)
     }
 
     fn create_unknown_type(&mut self) -> TypeId {
-        self.type_info()
+        self.type_info_mut()
             .types
             .create(TypeValue::Unknown(UnknownType::unbounded()), &self.wall)
     }
@@ -323,7 +344,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error> {
-        todo!()
+        walk::walk_type_same_children(self, ctx, node)
     }
 
     type NamedTypeRet = TypeId;
@@ -332,7 +353,17 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        todo!()
+        let resolved_symbol = self
+            .ctx
+            .scopes
+            .resolve_compound_symbol(&node.name.path, &self.module_traverser.type_info().types);
+        match resolved_symbol {
+            Some(SymbolType::Type(type_id)) => Ok(type_id),
+            Some(SymbolType::Variable(_)) => Err(TypecheckError::UsingVariableInTypePos(
+                node.name.path.to_owned(),
+            )),
+            None => Err(TypecheckError::UnresolvedSymbol(node.name.path.to_owned())),
+        }
     }
 
     type RefTypeRet = TypeId;
@@ -361,54 +392,82 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
             .create(TypeValue::RawRef(RawRefType { inner }), &self.wall))
     }
 
-    type TypeVarRet = ();
-
+    type TypeVarRet = TypeId;
     fn visit_type_var(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
-        todo!()
+        match self.ctx.type_vars.resolve(TypeVar {
+            name: node.name.ident,
+        }) {
+            Some(type_var_id) => Ok(type_var_id),
+            // @@Todo: maybe we should check if there is a normal symbol with that name, for more
+            // descriptive errors.
+            None => Err(TypecheckError::UnresolvedSymbol(vec![node.name.ident])),
+        }
     }
 
-    type ExistentialTypeRet = ();
-
+    type ExistentialTypeRet = TypeId;
     fn visit_existential_type(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ExistentialType>,
     ) -> Result<Self::ExistentialTypeRet, Self::Error> {
-        todo!()
+        // By definition, an existential type is an anonymous type variable.
+        Ok(self.create_unknown_type())
     }
 
-    type InferTypeRet = ();
+    type InferTypeRet = TypeId;
     fn visit_infer_type(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::InferType>,
     ) -> Result<Self::InferTypeRet, Self::Error> {
-        todo!()
+        // @@Todo: Is this right?
+        Ok(self.create_unknown_type())
     }
 
-    type MapLiteralRet = ();
+    type MapLiteralRet = TypeId;
     fn visit_map_literal(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MapLiteral<'c>>,
     ) -> Result<Self::MapLiteralRet, Self::Error> {
-        todo!()
+        let entries = node
+            .elements
+            .iter()
+            .map(|entry| self.visit_map_literal_entry(ctx, entry.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let key_ty = self.unify_many(entries.iter().map(|&(key, _)| key), || {
+            self.create_unknown_type()
+        })?;
+        let value_ty = self.unify_many(entries.iter().map(|&(_, value)| value), || {
+            self.create_unknown_type()
+        })?;
+
+        // @@Todo: get map def id somehow
+        let map_type_def_id = (|| todo!())();
+        let map_literal_ty = self.create_type(TypeValue::User(UserType {
+            def_id: map_type_def_id,
+            args: row![&self.wall; key_ty, value_ty],
+        }));
+
+        Ok(map_literal_ty)
     }
 
-    type MapLiteralEntryRet = ();
+    type MapLiteralEntryRet = (TypeId, TypeId);
     fn visit_map_literal_entry(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MapLiteralEntry<'c>>,
     ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
-        todo!()
+        let walk::MapLiteralEntry { key, value } = walk::walk_map_literal_entry(self, ctx, node)?;
+        Ok((key, value))
     }
 
-    type ListLiteralRet = ();
+    type ListLiteralRet = TypeId;
     fn visit_list_literal(
         &mut self,
         ctx: &Self::Ctx,
@@ -713,7 +772,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         let type_result = node
             .ty
             .as_ref()
-            .map(|ty| self.traverse_type(ty.ast_ref()))
+            .map(|ty| self.visit_type(ctx, ty.ast_ref()))
             .transpose()?;
 
         // @@Todo: bounds
@@ -721,7 +780,7 @@ impl<'c, 'm, 't, 'w> visitor::AstVisitor<'c> for Traverser<'c, 'm, 't, 'w> {
         let value_result = node
             .value
             .as_ref()
-            .map(|value| self.traverse_expression(value.ast_ref()))
+            .map(|value| self.visit_expression(ctx, value.ast_ref()))
             .transpose()?;
 
         // @@Todo: Bidirectional
