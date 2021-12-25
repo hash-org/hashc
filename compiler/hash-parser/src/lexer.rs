@@ -3,7 +3,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::error::ParseResult;
+use hash_ast::{error::ParseResult, ident::Identifier};
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
@@ -278,6 +278,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             "return" => TokenKind::Keyword(Keyword::Return),
             "import" => TokenKind::Keyword(Keyword::Import),
             "raw" => TokenKind::Keyword(Keyword::Raw),
+            "_" => TokenKind::Ident(Identifier(0)),
             _ => {
                 // create the identifier here from the created map
                 let ident = IDENTIFIER_MAP.create_ident(name);

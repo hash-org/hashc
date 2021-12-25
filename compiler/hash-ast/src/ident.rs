@@ -33,10 +33,15 @@ lazy_static! {
 impl IdentifierMap {
     /// Function to create a new identifier map instance.
     pub fn new() -> Self {
-        IdentifierMap {
+        let map = IdentifierMap {
             identifiers: DashMap::new(),
             reverse_lookup: DashMap::new(),
-        }
+        };
+
+        // TODO: temporary: insert the '_' identifier as the default one with identifier
+        // value of zero for default reasons
+        map.create_ident("_");
+        map
     }
 
     /// Create an identifier in the identifier map but check if the it exists before trying

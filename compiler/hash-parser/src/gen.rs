@@ -1587,7 +1587,7 @@ where
 
         let pattern = match token.unwrap() {
             Token {
-                kind: TokenKind::Ident(k),
+                kind: TokenKind::Ident(ident),
                 span,
             } => {
                 // this could be either just a binding pattern, enum, or a struct pattern
@@ -1597,7 +1597,7 @@ where
                 // name, we'll just return this as a binding pattern, otherwise it must follow that
                 // it is either a enum or struct pattern, if not we report it as an error since
                 // access names cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(k)?;
+                let name = self.parse_access_name(ident)?;
 
                 match self.peek() {
                     // Destructuring pattern for either struct or namespace
@@ -1632,12 +1632,11 @@ where
                         Some(token.kind),
                     )?,
                     _ => {
-                        // @@Speed: Always performing a lookup?
-                        if IDENTIFIER_MAP.ident_name(*k) == "_" {
+                        if *ident == Identifier(0) {
                             Pattern::Ignore(IgnorePattern)
                         } else {
                             Pattern::Binding(BindingPattern(
-                                self.node_from_location(Name { ident: *k }, span),
+                                self.node_from_location(Name { ident: *ident }, span),
                             ))
                         }
                     }

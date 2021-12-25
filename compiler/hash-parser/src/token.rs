@@ -41,30 +41,6 @@ impl Token {
         self.kind == right
     }
 
-    /// Function to convert a token into atom regardless whether the kind
-    /// is a tree or an atom. If the token kind is a tree, the delimiter of the
-    /// tree is used as the atom.
-    // pub fn to_atom(&self) -> TokenKind {
-    //     match self.kind {
-    //         TokenKind::Tree(delim, _) => TokenKind::Delimiter(delim, true),
-    //         TokenKind::Atom(atom) => atom,
-    //     }
-    // }
-
-    /// Convert the current token into a tree provided that it is one. The
-    /// function will panic if an attempt to convert a token atom into a
-    /// tree.
-    // pub fn into_tree(&self) -> (&Row<'c, Token<'c>>, Location) {
-    //     let location = self.span;
-
-    //     let tree = match &self.kind {
-    //         TokenKind::Tree(_, tree) => tree,
-    //         _ => unreachable!("Cannot convert token into tree"),
-    //     };
-
-    //     (tree, location)
-    // }
-
     /// Check if the token is a tree and the tree beginning character
     /// is a brace.
     pub fn is_brace_tree(&self) -> bool {
@@ -76,14 +52,6 @@ impl Token {
     pub fn is_paren_tree(&self) -> bool {
         matches!(self.kind, TokenKind::Tree(Delimiter::Paren, _))
     }
-
-    // Copy the current token in the specified [Wall] allocator.
-    // pub fn clone_in(&self, wall: &Wall<'c>) -> Self {
-    //     Token {
-    //         kind: self.kind.clone_in(wall),
-    //         span: self.span,
-    //     }
-    // }
 }
 
 impl fmt::Display for Token {
