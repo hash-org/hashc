@@ -1,0 +1,11 @@
+let alpha = 5;
+let alpha: int = 5;
+let alpha: int;
+let alpha;
+
+
+let merge<str> = (a, b) => str_concat(a, b);
+let merge<T> where add<T> = (a, b) => a + b;
+
+let merge<T> where add<T> = (a, b) => a + b;
+let merge<u32> = (a, b) => a + b + 42; // But u32 also implements add!

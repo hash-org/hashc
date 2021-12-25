@@ -2,17 +2,11 @@
 name = "hash-interactive"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 hash-ast = {path = "../hash-ast" }
 hash-parser = {path = "../hash-parser" }
 hash-reporting = {path = "../hash-reporting" }
 hash-alloc = {path = "../hash-alloc" }
-hash-pest-parser = {path = "../hash-pest-parser" }
 rustyline = "8.0.0"
-
-[features]
-use-pest = []
-
-# default = ["use-pest"]

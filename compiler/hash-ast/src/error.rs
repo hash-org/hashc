@@ -11,7 +11,7 @@ use thiserror::Error;
 pub enum ParseError {
     Parsing {
         message: String,
-        src: SourceLocation,
+        src: Option<SourceLocation>,
     },
     Token {
         message: String,
@@ -24,7 +24,7 @@ pub type ParseResult<T> = Result<T, ParseError>;
 /// Import error is an abstraction to represent errors that are in relevance to IO
 /// operations rather than parsing operations.
 #[derive(Debug, Clone, Error)]
-#[error("Couldn't import module '{filename}': {message}")]
+#[error("Couldn't import module '{filename}':\n {message}")]
 pub struct ImportError {
     pub filename: PathBuf,
     pub message: String,
@@ -45,7 +45,7 @@ impl From<ImportError> for ParseError {
     fn from(err: ImportError) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
-            src: err.src.unwrap_or_else(SourceLocation::interactive),
+            src: err.src,
         }
     }
 }
