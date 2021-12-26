@@ -3,16 +3,19 @@ use core::fmt;
 use hash_ast::{ast::TypeId, ident::IDENTIFIER_MAP};
 use hash_utils::tree_writing::TreeNode;
 
-use crate::types::{EnumDef, FnType, NamespaceType, RawRefType, RefType, StructDef, TypeInfo, TypeVar, TypecheckCtx, UserType};
+use crate::{
+    storage::GlobalStorage,
+    types::{EnumDef, FnType, RawRefType, RefType, StructDef, TypeVar, UserType},
+};
 
-pub struct TypeWithCtx<'t, 'c> {
+pub struct TypeWithStorage<'g, 'c, 'w, 'm> {
     ty: TypeId,
-    ctx: &'t TypeInfo<'c>,
+    storage: &'g GlobalStorage<'c, 'w, 'm>,
 }
 
-impl<'t, 'c> TypeWithCtx<'t, 'c> {
-    pub fn new(ty: TypeId, ctx: &'t TypeInfo<'c>) -> Self {
-        Self { ty, ctx }
+impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
+    pub fn new(ty: TypeId, storage: &'g GlobalStorage<'c, 'w, 'm>) -> Self {
+        Self { ty, storage }
     }
 
     pub fn for_type(&self, ty: TypeId) -> Self {
@@ -20,7 +23,7 @@ impl<'t, 'c> TypeWithCtx<'t, 'c> {
     }
 
     pub fn to_tree_node(&self) -> TreeNode {
-        match self.ctx.types.get(self.ty) {
+        match self.storage.types.get(self.ty) {
             crate::types::TypeValue::Ref(RefType { inner }) => {
                 TreeNode::branch("ref", vec![self.for_type(*inner).to_tree_node()])
             }
@@ -62,7 +65,7 @@ impl<'t, 'c> TypeWithCtx<'t, 'c> {
                 }
             )),
             crate::types::TypeValue::User(UserType { def_id, args }) => {
-                let label = match self.ctx.type_defs.get(*def_id) {
+                let label = match self.storage.type_defs.get(*def_id) {
                     crate::types::TypeDefValue::Enum(EnumDef { name, .. }) => {
                         format!("enum \"{}\"", IDENTIFIER_MAP.ident_name(*name))
                     }
@@ -91,9 +94,9 @@ impl<'t, 'c> TypeWithCtx<'t, 'c> {
     }
 }
 
-impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c> {
+impl<'g, 'c, 'w, 'm> fmt::Display for TypeWithStorage<'g, 'c, 'w, 'm> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.ctx.types.get(self.ty) {
+        match self.storage.types.get(self.ty) {
             crate::types::TypeValue::Ref(RefType { inner }) => {
                 write!(f, "&{}", self.for_type(*inner))?;
             }
@@ -114,7 +117,7 @@ impl<'t, 'c, 'm> fmt::Display for TypeWithCtx<'t, 'c> {
                 write!(f, "{}", IDENTIFIER_MAP.ident_name(*name))?;
             }
             crate::types::TypeValue::User(UserType { def_id, args }) => {
-                match self.ctx.type_defs.get(*def_id) {
+                match self.storage.type_defs.get(*def_id) {
                     crate::types::TypeDefValue::Enum(EnumDef { name, .. }) => {
                         write!(f, "{}", IDENTIFIER_MAP.ident_name(*name))?;
                     }

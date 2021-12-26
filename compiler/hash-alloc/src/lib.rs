@@ -21,6 +21,12 @@ pub struct Castle {
     herd: bumpalo_herd::Herd,
 }
 
+impl std::fmt::Debug for Castle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Castle").finish()
+    }
+}
+
 impl Castle {
     /// Create a new [`Castle`]. All values allocated within [`Wall`]s created from this castle
     /// will be dropped once the `Castle` is dropped.
@@ -56,6 +62,14 @@ impl Castle {
 pub struct Wall<'c> {
     castle: &'c Castle,
     member: bumpalo_herd::Member<'c>,
+}
+
+impl std::fmt::Debug for Wall<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wall")
+            .field("castle", &self.castle)
+            .finish()
+    }
 }
 
 impl<'c> Wall<'c> {
