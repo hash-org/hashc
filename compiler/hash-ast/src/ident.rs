@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 
+use fnv::FnvBuildHasher;
 use hash_alloc::{collections::string::BrickString, Castle, Wall};
 use hash_utils::counter;
 use lazy_static::lazy_static;
@@ -16,8 +17,8 @@ counter! {
 /// map and another map for reverse lookups.
 #[derive(Debug, Default)]
 pub struct IdentifierMap {
-    identifiers: DashMap<&'static str, Identifier>,
-    reverse_lookup: DashMap<Identifier, &'static str>,
+    identifiers: DashMap<&'static str, Identifier, FnvBuildHasher>,
+    reverse_lookup: DashMap<Identifier, &'static str, FnvBuildHasher>,
 }
 
 lazy_static! {
@@ -34,8 +35,8 @@ impl IdentifierMap {
     /// Function to create a new identifier map instance.
     pub fn new() -> Self {
         let map = IdentifierMap {
-            identifiers: DashMap::new(),
-            reverse_lookup: DashMap::new(),
+            identifiers: DashMap::default(),
+            reverse_lookup: DashMap::default(),
         };
 
         // TODO: temporary: insert the '_' identifier as the default one with identifier

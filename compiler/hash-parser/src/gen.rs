@@ -2831,7 +2831,7 @@ where
                             _ => Type::Named(NamedType {
                                 name,
                                 type_args: row![&self.wall],
-                            })
+                            }),
                         }
                     }
                 }

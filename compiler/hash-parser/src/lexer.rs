@@ -3,10 +3,10 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::{error::ParseResult, ident::Identifier};
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::location::Location;
+use hash_ast::{error::ParseResult, ident::Identifier};
 use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
 
 use crate::{
