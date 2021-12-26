@@ -1,0 +1,3 @@
+[build]
+rustdoc = "rustdoc"
+rustdocflags = ["--show-type-layout", "-Z", "unstable-options"]

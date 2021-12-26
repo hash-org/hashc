@@ -182,6 +182,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             ',' => TokenKind::Comma,
             '.' => TokenKind::Dot,
             '#' => TokenKind::Hash,
+            '$' => TokenKind::Dollar,
             '?' => TokenKind::Question,
 
             // Consume a token tree, which is a starting delimiter, followed by a an arbitrary number of tokens and closed

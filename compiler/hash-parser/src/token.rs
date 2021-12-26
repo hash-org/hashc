@@ -76,46 +76,7 @@ impl fmt::Display for Token {
     }
 }
 
-// #[derive(Debug, PartialEq)]
-// pub enum TokenKind<'c> {
-//     /// A token atom is a singular token type.
-//     Atom(TokenAtom),
-
-//     /// A token tree is represented by an arbitrary number of token atoms that are surrounded by
-//     /// a given delimiter kind, the variants are specified in the [Delimiter] enum.
-//     Tree(Delimiter, Row<'c, Token<'c>>),
-// }
-
-// impl<'c> fmt::Display for TokenKind<'c> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match self {
-//             TokenKind::Atom(atom) => write!(f, "{}", atom),
-//             TokenKind::Tree(_, tokens) => write!(f, "{:#?}", tokens),
-//         }
-//     }
-// }
-
 impl TokenKind {
-    /// Clone the current kind in the specified [Wall] allocator.
-    // pub(crate) fn clone_in(&self, wall: &Wall<'c>) -> Self {
-    //     match self {
-    //         TokenKind::Atom(atom) => TokenKind::Atom(*atom),
-    //         TokenKind::Tree(delimiter, tokens) => TokenKind::Tree(
-    //             *delimiter,
-    //             Row::from_iter(tokens.iter().map(|t| t.clone_in(wall)), wall),
-    //         ),
-    //     }
-    // }
-
-    /// Convert the token kind into an atom. If the current token kind is a tree, the
-    /// function will return the [Delimiter] of the token tree.
-    // pub(crate) fn to_atom(&self) -> TokenKind {
-    //     match self {
-    //         TokenKind::Tree(delim, _) => TokenKind::Delimiter(*delim, true),
-    //         TokenKind::Atom(atom) => *atom,
-    //     }
-    // }
-
     /// Check if a [TokenKind] can be considered in a situation as a unary operator.
     pub(crate) fn is_unary_op(&self) -> bool {
         matches!(
@@ -267,6 +228,8 @@ pub enum TokenKind {
     Semi,
     /// '#'
     Hash,
+    /// '$'
+    Dollar,
     /// ','
     Comma,
     /// '"'
@@ -289,10 +252,6 @@ pub enum TokenKind {
 
     /// Keyword
     Keyword(Keyword),
-
-    /// General classification of an identifier
-    // @@Cleanup: find a better way to describe when we expect an identifier
-    GenericIdent,
 
     /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error reporting and messages.
     /// The boolean flag represents if the delimiter is left or right, If it's true, then it is the left
@@ -325,6 +284,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Colon => write!(f, ":"),
             TokenKind::Semi => write!(f, ";"),
             TokenKind::Hash => write!(f, "#"),
+            TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
             TokenKind::Delimiter(delim, left) => {
@@ -344,7 +304,6 @@ impl fmt::Display for TokenKind {
                 write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),
-            TokenKind::GenericIdent => write!(f, "identifier"),
             TokenKind::Ident(ident) => {
                 write!(f, "{}", IDENTIFIER_MAP.ident_name(*ident))
             }
@@ -357,7 +316,7 @@ impl fmt::Display for TokenKind {
 /// The wrapper exists because once again you cannot specify implementations for types
 /// that don't originate from the current crate.
 ///
-/// TODO(alex): Instead of using a [TokenAtom], we should use an enum to custom
+/// TODO(alex): Instead of using a [TokenKind], we should use an enum to custom
 /// variants or descriptors such as 'operator'. Instead of token atoms we can just
 /// the display representations of the token atoms. Or even better, we can use the
 /// [`ToString`] trait and just auto cast into a string, whilst holding a vector of
@@ -366,7 +325,7 @@ impl fmt::Display for TokenKind {
 pub struct TokenKindVector<'c>(Row<'c, TokenKind>);
 
 impl<'c> TokenKindVector<'c> {
-    /// Create a new empty [TokenAtomVector].
+    /// Create a new empty [TokenKindVector].
     pub fn empty(wall: &Wall<'c>) -> Self {
         Self(row![wall;])
     }
@@ -379,17 +338,17 @@ impl<'c> TokenKindVector<'c> {
         self.0
     }
 
-    /// Create a [TokenAtomVector] from a provided row of expected atoms.
+    /// Create a [TokenKindVector] from a provided row of expected atoms.
     pub fn from_row(items: Row<'c, TokenKind>) -> Self {
         Self(items)
     }
 
-    /// Check if the current [TokenAtomVector] is empty.
+    /// Check if the current [TokenKindVector] is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// Create a [TokenAtomVector] with a single atom.
+    /// Create a [TokenKindVector] with a single atom.
     pub fn singleton(wall: &Wall<'c>, atom: TokenKind) -> Self {
         Self(row![wall; atom])
     }
@@ -415,7 +374,6 @@ impl<'c> TokenKindVector<'c> {
     /// Tokens expected when a pattern begins in a match statement.
     pub fn begin_pattern(wall: &Wall<'c>) -> Self {
         Self(row![wall;
-            TokenKind::GenericIdent,
             TokenKind::Delimiter(Delimiter::Paren, true),
             TokenKind::Delimiter(Delimiter::Brace, true),
             TokenKind::Delimiter(Delimiter::Bracket, true),

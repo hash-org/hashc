@@ -2508,7 +2508,7 @@ where
         Ok((name, args))
     }
 
-    /// Parses a single identifier, essentially converting the current [TokenAtom::Ident] into
+    /// Parses a single identifier, essentially converting the current [TokenKind::Ident] into
     /// an [AstNode<Name>], assuming that the next token is an identifier.
     pub fn parse_ident(&self) -> AstGenResult<'c, AstNode<'c, Name>> {
         match self.peek() {
@@ -2521,10 +2521,9 @@ where
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
             Some(token) => self.error(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(
-                    row![&self.wall; TokenKind::GenericIdent],
-                )),
+                // @@Cleanup: Use ident
+                AstGenErrorKind::ExpectedExpression,
+                Some(TokenKindVector::empty(&self.wall)),
                 Some(token.kind),
             ),
             None => self.unexpected_eof(),
@@ -2804,6 +2803,13 @@ where
                     err => return err,
                 }
             }
+            // This is a type var
+            TokenKind::Dollar => {
+                self.skip_token();
+                let name = self.parse_ident()?;
+
+                Type::TypeVar(TypeVar { name })
+            }
             TokenKind::Question => {
                 self.skip_token();
                 Type::Existential(ExistentialType)
@@ -2818,29 +2824,14 @@ where
                     Some(type_args) => Type::Named(NamedType { name, type_args }),
                     None => {
                         // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
-                        let location = name.location();
                         let ident = name.body().path.get(0).unwrap();
 
-                        // @@Slowness:
-                        match IDENTIFIER_MAP.ident_name(*ident) {
-                            "_" => Type::Infer(InferType),
-                            // ##TypeArgsNaming: Here the rules are built-in for what the name of a type-arg is,
-                            //                   a capital character of length 1...
-                            ident_name => {
-                                if ident_name.len() == 1
-                                    && ident_name.chars().all(|x| x.is_ascii_uppercase())
-                                {
-                                    let name =
-                                        self.node_with_location(Name { ident: *ident }, location);
-
-                                    Type::TypeVar(TypeVar { name })
-                                } else {
-                                    Type::Named(NamedType {
-                                        name,
-                                        type_args: row![&self.wall],
-                                    })
-                                }
-                            }
+                        match *ident {
+                            Identifier(0) => Type::Infer(InferType),
+                            _ => Type::Named(NamedType {
+                                name,
+                                type_args: row![&self.wall],
+                            })
                         }
                     }
                 }
