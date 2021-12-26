@@ -3,7 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use crate::Wall;
-use core::{fmt, slice};
+use core::{fmt};
 use std::{
     borrow::{Borrow, BorrowMut},
     iter::FromIterator,

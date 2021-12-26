@@ -327,6 +327,7 @@ dependencies = [
  "hash-ast",
  "hash-parser",
  "hash-reporting",
+ "hash-typecheck",
  "rustyline",
 ]
 
