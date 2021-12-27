@@ -19,6 +19,8 @@ use hash_pest_parser::backend::HashPestParser;
 #[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
 
+use hash_typecheck::traverse::GlobalTypechecker;
+use hash_typecheck::writer::TypeWithStorage;
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
@@ -117,27 +119,20 @@ fn execute(input: &str) {
             }
         }
         Ok(InteractiveCommand::Version) => print_version(),
-        Ok(InteractiveCommand::Code(expr)) => {
-            match parse_interactive(expr, &castle) {
-                Some((_block, _modules)) => {
-                    todo!()
-                    // let wall = castle.wall();
-                    // let storage = Storage::new();
-                    // let mut module_traverser = ModuleTraverser::new(&modules, &castle);
-                    // let mut traverser = Traverser::new(ctx, wall);
-
-                    // match traverser.traverse_body_block(block.ast_ref()) {
-                    //     Ok(block_ty) => {
-                    //         let (ctx, _) = traverser.into_inner();
-                    //         println!("{}", TypeWithCtx::new(block_ty, &ctx));
-                    //     }
-                    //     Err(err) => println!("Error: {:?}", err)
-                    // }
-
+        Ok(InteractiveCommand::Code(expr)) => match parse_interactive(expr, &castle) {
+            Some((block, modules)) => {
+                let tc_wall = castle.wall();
+                let typechecker = GlobalTypechecker::for_modules(&modules, &tc_wall);
+                let tc_result = typechecker.typecheck_interactive(block.ast_ref());
+                match tc_result {
+                    Ok((block_ty_id, global_storage)) => {
+                        println!("{}", TypeWithStorage::new(block_ty_id, &global_storage));
+                    }
+                    Err(e) => println!("{:?}", e),
                 }
-                None => {},
             }
-        }
+            None => {}
+        },
         Ok(InteractiveCommand::Type(expr)) => {
             if let Some((block, _)) = parse_interactive(expr, &castle) {
                 println!("typeof({:#?})", block);

@@ -2,8 +2,8 @@ use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
 use crate::types::{
-    FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef, TypeValue, TypecheckError,
-    TypecheckResult, UnknownType,
+    CoreTypeDefs, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef, TupleType,
+    TypeValue, TypecheckError, TypecheckResult, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
 use crate::unify::{unify, unify_many, unify_pairs};
@@ -19,13 +19,6 @@ use hash_ast::{
     visitor::walk,
 };
 use std::{borrow::Borrow, collections::HashMap, mem};
-
-pub struct TraversePatternOutput {
-    is_refutable: bool,
-    ty: TypeId,
-}
-
-impl TraversePatternOutput {}
 
 pub struct GlobalTypechecker<'c, 'w, 'm> {
     global_storage: GlobalStorage<'c, 'w, 'm>,
@@ -49,11 +42,23 @@ impl<'c, 'w, 'm> GlobalTypechecker<'c, 'w, 'm> {
         Ok(self.global_storage)
     }
 
+    pub fn typecheck_interactive(
+        mut self,
+        block: ast::AstNodeRef<ast::BodyBlock<'c>>,
+    ) -> TypecheckResult<(TypeId, GlobalStorage<'c, 'w, 'm>)> {
+        let module_checker =
+            ModuleTypechecker::new(&mut self, ModuleOrInteractive::Interactive(block));
+        module_checker
+            .typecheck()
+            .map(|block_ty_id| (block_ty_id, self.global_storage))
+    }
+
     fn typecheck_module(&mut self, module_idx: ModuleIdx) -> TypecheckResult<TypeId> {
         if let Some(&ty_id) = self.already_checked.get(&module_idx) {
             Ok(ty_id)
         } else {
-            let module_checker = ModuleTypechecker::new(self, module_idx);
+            let module_checker =
+                ModuleTypechecker::new(self, ModuleOrInteractive::Module(module_idx));
             let ty_id = module_checker.typecheck()?;
             self.already_checked.insert(module_idx, ty_id);
             Ok(ty_id)
@@ -61,18 +66,27 @@ impl<'c, 'w, 'm> GlobalTypechecker<'c, 'w, 'm> {
     }
 }
 
-pub struct ModuleTypechecker<'c, 'w, 'm, 'g> {
-    global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
-    module_storage: ModuleStorage,
-    module_idx: ModuleIdx,
+#[derive(Debug, Copy, Clone)]
+pub enum ModuleOrInteractive<'i, 'c> {
+    Module(ModuleIdx),
+    Interactive(ast::AstNodeRef<'i, ast::BodyBlock<'c>>),
 }
 
-impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
-    pub fn new(global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>, module_idx: ModuleIdx) -> Self {
+pub struct ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
+    global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
+    module_storage: ModuleStorage,
+    module_or_interactive: ModuleOrInteractive<'i, 'c>,
+}
+
+impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
+    pub fn new(
+        global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
+        module_or_interactive: ModuleOrInteractive<'i, 'c>,
+    ) -> Self {
         Self {
             global_tc,
             module_storage: ModuleStorage::default(),
-            module_idx,
+            module_or_interactive,
         }
     }
 
@@ -81,13 +95,17 @@ impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
     }
 
     pub fn typecheck(mut self) -> TypecheckResult<TypeId> {
-        let module = self
-            .global_tc
-            .global_storage
-            .modules
-            .get_by_index(self.module_idx);
-        let ctx = self.wall();
-        self.visit_module(ctx, module.ast())
+        match self.module_or_interactive {
+            ModuleOrInteractive::Module(module_idx) => {
+                let module = self
+                    .global_tc
+                    .global_storage
+                    .modules
+                    .get_by_index(module_idx);
+                self.visit_module(self.wall(), module.ast())
+            }
+            ModuleOrInteractive::Interactive(block) => self.visit_body_block(self.wall(), block),
+        }
     }
 
     fn unify_pairs(
@@ -132,15 +150,63 @@ impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
         self.global_tc.global_storage.type_defs.get(def)
     }
 
+    fn resolve_type_var(&mut self, type_var: TypeVar) -> Option<TypeId> {
+        self.module_storage.type_vars.resolve(type_var)
+    }
+
     fn create_unknown_type(&mut self) -> TypeId {
+        self.global_tc.global_storage.types.create_unknown_type()
+    }
+
+    fn create_tuple_type(&mut self, types: Row<'c, TypeId>) -> TypeId {
         self.global_tc
             .global_storage
             .types
-            .create(TypeValue::Unknown(UnknownType::unbounded()))
+            .create(TypeValue::Tuple(TupleType { types }))
     }
 
-    fn resolve_type_var(&mut self, type_var: TypeVar) -> Option<TypeId> {
-        self.module_storage.type_vars.resolve(type_var)
+    fn create_str_type(&mut self) -> TypeId {
+        let str_def_id = self.core_type_defs().str;
+        self.global_tc
+            .global_storage
+            .types
+            .create(TypeValue::User(UserType {
+                def_id: str_def_id,
+                args: row![],
+            }))
+    }
+
+    fn create_list_type(&mut self, el_ty: TypeId) -> TypeId {
+        let list_def_id = self.core_type_defs().list;
+        self.global_tc
+            .global_storage
+            .types
+            .create(TypeValue::User(UserType {
+                def_id: list_def_id,
+                args: row![self.wall(); el_ty],
+            }))
+    }
+
+    fn create_set_type(&mut self, el_ty: TypeId) -> TypeId {
+        let set_def_id = self.core_type_defs().set;
+        self.global_tc
+            .global_storage
+            .types
+            .create(TypeValue::User(UserType {
+                def_id: set_def_id,
+                args: row![self.wall(); el_ty],
+            }))
+    }
+
+    fn create_map_type(&mut self, key_ty: TypeId, value_ty: TypeId) -> TypeId {
+        let map_def_id = self.core_type_defs().map;
+        self.global_tc
+            .global_storage
+            .types
+            .create(TypeValue::User(UserType {
+                def_id: map_def_id,
+                args: row![self.wall(); key_ty, value_ty],
+            }))
     }
 
     fn tc_state(&mut self) -> &mut TypecheckState {
@@ -149,6 +215,10 @@ impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
 
     fn scopes(&mut self) -> &mut ScopeStack {
         &mut self.module_storage.scopes
+    }
+
+    fn core_type_defs(&mut self) -> &CoreTypeDefs {
+        &self.global_tc.global_storage.core_type_defs
     }
 
     fn resolve_compound_symbol(&mut self, symbols: &[Identifier]) -> Option<SymbolType> {
@@ -160,7 +230,7 @@ impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
     }
 }
 
-impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, 'g> {
+impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     type Ctx = Wall<'c>;
 
     type CollectionContainer<T: 'c> = Row<'c, T>;
@@ -467,11 +537,10 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         let key_ty = self.unify_many(entries.iter().map(|&(key, _)| key))?;
         let value_ty = self.unify_many(entries.iter().map(|&(_, value)| value))?;
 
-        // @@Todo: get map def id somehow
-        let map_type_def_id = (|| todo!())();
+        let map_def_id = self.core_type_defs().map;
         let map_literal_ty = self.create_type(TypeValue::User(UserType {
-            def_id: map_type_def_id,
-            args: row![&self.wall(); key_ty, value_ty],
+            def_id: map_def_id,
+            args: row![self.wall(); key_ty, value_ty],
         }));
 
         Ok(map_literal_ty)
@@ -490,28 +559,43 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     type ListLiteralRet = TypeId;
     fn visit_list_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::ListLiteral<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListLiteral<'c>>,
     ) -> Result<Self::ListLiteralRet, Self::Error> {
-        todo!()
+        let entries = node
+            .elements
+            .iter()
+            .map(|el| self.visit_expression(ctx, el.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let el_ty = self.unify_many(entries.iter().map(|&el| el))?;
+
+        Ok(self.create_list_type(el_ty))
     }
 
     type SetLiteralRet = TypeId;
     fn visit_set_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::SetLiteral<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SetLiteral<'c>>,
     ) -> Result<Self::SetLiteralRet, Self::Error> {
-        todo!()
+        let entries = node
+            .elements
+            .iter()
+            .map(|el| self.visit_expression(ctx, el.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let el_ty = self.unify_many(entries.iter().map(|&el| el))?;
+
+        Ok(self.create_set_type(el_ty))
     }
 
     type TupleLiteralRet = TypeId;
     fn visit_tuple_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TupleLiteral<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleLiteral<'c>>,
     ) -> Result<Self::TupleLiteralRet, Self::Error> {
-        todo!()
+        let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
+        Ok(self.create_tuple_type(elements))
     }
 
     type StrLiteralRet = TypeId;
@@ -520,7 +604,7 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
-        todo!()
+        Ok(self.create_str_type())
     }
 
     type CharLiteralRet = TypeId;
@@ -765,9 +849,9 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         node: ast::AstNodeRef<ast::LetStatement<'c>>,
     ) -> Result<Self::LetStatementRet, Self::Error> {
         let pattern_result = self.visit_pattern(ctx, node.pattern.ast_ref())?;
-        if pattern_result.is_refutable {
-            return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
-        }
+        // if pattern_result.is_refutable {
+        //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
+        // }
 
         let type_result = node
             .ty
@@ -790,7 +874,7 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
 
         // This is probably not right
         if let Some(value_result) = value_result {
-            self.unify(pattern_result.ty, value_result)?;
+            self.unify(pattern_result, value_result)?;
         }
 
         Ok(())
@@ -856,7 +940,7 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         todo!()
     }
 
-    type PatternRet = TraversePatternOutput;
+    type PatternRet = TypeId;
     fn visit_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -925,38 +1009,34 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         todo!()
     }
 
-    type StrLiteralPatternRet = ();
-
+    type StrLiteralPatternRet = TypeId;
     fn visit_str_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::StrLiteralPattern>,
     ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
-        todo!()
+        Ok(self.create_str_type())
     }
 
-    type CharLiteralPatternRet = ();
-
+    type CharLiteralPatternRet = TypeId;
     fn visit_char_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::CharLiteralPattern>,
     ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
-        todo!()
+        Ok(self.create_type(TypeValue::Prim(PrimType::Char)))
     }
 
-    type IntLiteralPatternRet = ();
-
+    type IntLiteralPatternRet = TypeId;
     fn visit_int_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::IntLiteralPattern>,
     ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
-        todo!()
+        Ok(self.create_type(TypeValue::Prim(PrimType::I32)))
     }
 
     type FloatLiteralPatternRet = ();
-
     fn visit_float_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -966,7 +1046,6 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     }
 
     type LiteralPatternRet = ();
-
     fn visit_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -976,7 +1055,6 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     }
 
     type OrPatternRet = ();
-
     fn visit_or_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -985,28 +1063,29 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         todo!()
     }
 
-    type IfPatternRet = ();
-
+    type IfPatternRet = TypeId;
     fn visit_if_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::IfPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IfPattern<'c>>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
-        todo!()
+        let walk::IfPattern { pattern, condition } = walk::walk_if_pattern(self, ctx, node)?;
+        match self.get_type(condition) {
+            TypeValue::Prim(PrimType::Bool) => Ok(pattern),
+            _ => Err(TypecheckError::ExpectingBooleanInCondition { found: condition }),
+        }
     }
 
-    type BindingPatternRet = ();
-
+    type BindingPatternRet = TypeId;
     fn visit_binding_pattern(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        todo!()
+        Ok(self.create_unknown_type())
     }
 
     type IgnorePatternRet = ();
-
     fn visit_ignore_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1016,7 +1095,6 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     }
 
     type DestructuringPatternRet = ();
-
     fn visit_destructuring_pattern(
         &mut self,
         _ctx: &Self::Ctx,

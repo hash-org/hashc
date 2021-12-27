@@ -1,8 +1,12 @@
 #![allow(dead_code)]
 
 use crate::{scope::Scope, traits::TraitBounds};
-use hash_alloc::{brick::Brick, collections::row::Row, Wall};
-use hash_ast::{ast::TypeId, ident::Identifier, location::Location};
+use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
+use hash_ast::{
+    ast::TypeId,
+    ident::{Identifier, IDENTIFIER_MAP},
+    location::Location,
+};
 use hash_utils::counter;
 use std::{cell::Cell, collections::HashMap};
 
@@ -10,6 +14,15 @@ use std::{cell::Cell, collections::HashMap};
 pub struct Generics<'c> {
     pub params: TypeList<'c>,
     pub bounds: TraitBounds<'c>,
+}
+
+impl Generics<'_> {
+    pub fn empty() -> Self {
+        Self {
+            params: TypeList::default(),
+            bounds: TraitBounds::empty(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -47,6 +60,12 @@ pub struct StructFields {
 }
 
 impl StructFields {
+    pub fn no_fields() -> Self {
+        Self {
+            data: HashMap::default(),
+        }
+    }
+
     pub fn get_field(&self, field: Identifier) -> Option<TypeId> {
         self.data.get(&field).map(|&t| t)
     }
@@ -82,6 +101,7 @@ counter! {
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub enum PrimType {
     USize,
+    Bool,
     U8,
     U16,
     U32,
@@ -145,6 +165,11 @@ impl UnknownType<'_> {
 }
 
 #[derive(Debug)]
+pub struct TupleType<'c> {
+    pub types: Row<'c, TypeId>,
+}
+
+#[derive(Debug)]
 pub enum TypeValue<'c> {
     Ref(RefType),
     RawRef(RawRefType),
@@ -152,6 +177,7 @@ pub enum TypeValue<'c> {
     Var(TypeVar),
     User(UserType<'c>),
     Prim(PrimType),
+    Tuple(TupleType<'c>),
     Unknown(UnknownType<'c>),
     Namespace(NamespaceType),
 }
@@ -164,6 +190,67 @@ pub enum TypeVarStrategy {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct UnifyOptions {
     type_var_strategy: TypeVarStrategy,
+}
+
+#[derive(Debug)]
+pub struct CoreTypeDefs {
+    pub str: TypeDefId,
+    pub list: TypeDefId,
+    pub map: TypeDefId,
+    pub set: TypeDefId,
+}
+
+impl<'c, 'w> CoreTypeDefs {
+    pub fn create(
+        type_defs: &mut TypeDefs<'c, 'w>,
+        types: &mut Types<'c, 'w>,
+        wall: &'w Wall<'c>,
+    ) -> Self {
+        let str = type_defs.create(TypeDefValue::Struct(StructDef {
+            name: IDENTIFIER_MAP.create_ident("str"),
+            generics: Generics::empty(),
+            fields: StructFields::no_fields(),
+        }));
+
+        let map_key = types.create_type_var("K");
+        let map_value = types.create_type_var("V");
+        let map = type_defs.create(TypeDefValue::Struct(StructDef {
+            name: IDENTIFIER_MAP.create_ident("Map"),
+            generics: Generics {
+                params: row![wall; map_key, map_value],
+                // @@Todo: hash, eq
+                bounds: TraitBounds::empty(),
+            },
+            fields: StructFields::no_fields(),
+        }));
+
+        let list_el = types.create_type_var("T");
+        let list = type_defs.create(TypeDefValue::Struct(StructDef {
+            name: IDENTIFIER_MAP.create_ident("List"),
+            generics: Generics {
+                params: row![wall; list_el],
+                bounds: TraitBounds::empty(),
+            },
+            fields: StructFields::no_fields(),
+        }));
+
+        let set_el = types.create_type_var("T");
+        let set = type_defs.create(TypeDefValue::Struct(StructDef {
+            name: IDENTIFIER_MAP.create_ident("Set"),
+            generics: Generics {
+                params: row![wall; set_el],
+                bounds: TraitBounds::empty(),
+            },
+            fields: StructFields::no_fields(),
+        }));
+
+        Self {
+            str,
+            map,
+            list,
+            set,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -217,6 +304,16 @@ impl<'c, 'w> Types<'c, 'w> {
         }
         let other_val = self.data.get(&source).unwrap().get();
         self.data.get(&target).unwrap().set(other_val);
+    }
+
+    pub fn create_type_var(&mut self, name: &str) -> TypeId {
+        self.create(TypeValue::Var(TypeVar {
+            name: IDENTIFIER_MAP.create_ident(name),
+        }))
+    }
+
+    pub fn create_unknown_type(&mut self) -> TypeId {
+        self.create(TypeValue::Unknown(UnknownType::unbounded()))
     }
 
     pub fn create(&mut self, value: TypeValue<'c>) -> TypeId {
@@ -310,6 +407,7 @@ pub enum TypecheckError {
     UsingVariableInTypePos(Vec<Identifier>),
     UsingTypeInVariablePos(Vec<Identifier>),
     InvalidPropertyAccess(TypeId, Identifier),
+    ExpectingBooleanInCondition { found: TypeId },
     // @@Todo: turn this into variants
     Message(String),
 }
