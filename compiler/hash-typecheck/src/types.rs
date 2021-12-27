@@ -404,6 +404,8 @@ pub enum TypecheckError {
     UsingReturnOutsideFunction(Location),
     RequiresIrrefutablePattern(Location),
     UnresolvedSymbol(Vec<Identifier>),
+    TryingToNamespaceType(Vec<Identifier>),
+    TryingToNamespaceVariable(Vec<Identifier>),
     UsingVariableInTypePos(Vec<Identifier>),
     UsingTypeInVariablePos(Vec<Identifier>),
     InvalidPropertyAccess(TypeId, Identifier),
