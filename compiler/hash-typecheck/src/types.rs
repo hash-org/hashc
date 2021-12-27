@@ -46,6 +46,12 @@ pub struct StructFields {
     data: HashMap<Identifier, TypeId>,
 }
 
+impl StructFields {
+    pub fn get_field(&self, field: Identifier) -> Option<TypeId> {
+        self.data.get(&field).map(|&t| t)
+    }
+}
+
 #[derive(Debug)]
 pub struct StructDef<'c> {
     pub name: Identifier,
@@ -160,23 +166,28 @@ pub struct UnifyOptions {
     type_var_strategy: TypeVarStrategy,
 }
 
-#[derive(Debug, Default)]
-pub struct TypeDefs<'c> {
-    data: HashMap<TypeDefId, TypeDefValue<'c>>,
+#[derive(Debug)]
+pub struct TypeDefs<'c, 'w> {
+    data: HashMap<TypeDefId, Cell<&'c TypeDefValue<'c>>>,
+    wall: &'w Wall<'c>,
 }
 
-impl<'c> TypeDefs<'c> {
-    pub fn new() -> Self {
-        Self::default()
+impl<'c, 'w> TypeDefs<'c, 'w> {
+    pub fn new(wall: &'w Wall<'c>) -> Self {
+        Self {
+            data: HashMap::new(),
+            wall,
+        }
     }
 
-    pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue<'c> {
-        self.data.get(&ty_def).unwrap()
+    pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue<'c> {
+        self.data.get(&ty_def).unwrap().get()
     }
 
     pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
         let id = TypeDefId::new();
-        self.data.insert(id, def);
+        self.data
+            .insert(id, Cell::new(Brick::new(def, self.wall).disown()));
         id
     }
 }
@@ -234,41 +245,6 @@ impl TypeVars {
         self.data.insert(var, ty);
     }
 }
-
-// pub fn resolve_compound_symbol(
-//     &self,
-//     symbols: &[Identifier],
-//     types: &Types,
-// ) -> Option<SymbolType> {
-//     let mut last_scope = self.current_scope();
-//     let mut symbols_iter = symbols.iter().peekable();
-
-//     loop {
-//         match last_scope.resolve_symbol(*symbols_iter.next().unwrap()) {
-//             Some(symbol_ty @ SymbolType::Variable(type_id)) => match types.get(type_id) {
-//                 TypeValue::Namespace(namespace_ty) => match symbols_iter.peek() {
-//                     Some(_) => {
-//                         last_scope = &namespace_ty.members;
-//                         continue;
-//                     }
-//                     None => {
-//                         return Some(symbol_ty);
-//                     }
-//                 },
-//                 _ => {}
-//             },
-//             Some(symbol_ty) => match symbols_iter.peek() {
-//                 Some(_) => {
-//                     panic!("Found trying to namespace type.");
-//                 }
-//                 None => {
-//                     return Some(symbol_ty);
-//                 }
-//             },
-//             None => continue,
-//         }
-//     }
-// }
 
 // pub fn substitute_many<'c>(
 //     &self,
@@ -332,6 +308,8 @@ pub enum TypecheckError {
     RequiresIrrefutablePattern(Location),
     UnresolvedSymbol(Vec<Identifier>),
     UsingVariableInTypePos(Vec<Identifier>),
+    UsingTypeInVariablePos(Vec<Identifier>),
+    InvalidPropertyAccess(TypeId, Identifier),
     // @@Todo: turn this into variants
     Message(String),
 }

@@ -1,17 +1,16 @@
-use crate::scope::ScopeStack;
+use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
-use crate::types::{TypeVar, UserType};
-use crate::unify::{unify, unify_many, unify_pairs};
-use crate::{
-    types::{
-        FnType, NamespaceType, PrimType, RawRefType, RefType, TypeValue, TypecheckError,
-        TypecheckResult, UnknownType,
-    },
+use crate::types::{
+    FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef, TypeValue, TypecheckError,
+    TypecheckResult, UnknownType,
 };
+use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
+use crate::unify::{unify, unify_many, unify_pairs};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::ast;
+use hash_ast::ident::Identifier;
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{
     ast::TypeId,
@@ -122,18 +121,22 @@ impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
     }
 
     fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
-        let types = &mut self.global_tc.global_storage.types;
-        types.create(value)
+        self.global_tc.global_storage.types.create(value)
     }
 
     fn get_type(&self, ty: TypeId) -> &'c TypeValue<'c> {
-        let types = &self.global_tc.global_storage.types;
-        types.get(ty)
+        &self.global_tc.global_storage.types.get(ty)
+    }
+
+    fn get_type_def(&self, def: TypeDefId) -> &'c TypeDefValue<'c> {
+        self.global_tc.global_storage.type_defs.get(def)
     }
 
     fn create_unknown_type(&mut self) -> TypeId {
-        let types = &mut self.global_tc.global_storage.types;
-        types.create(TypeValue::Unknown(UnknownType::unbounded()))
+        self.global_tc
+            .global_storage
+            .types
+            .create(TypeValue::Unknown(UnknownType::unbounded()))
     }
 
     fn resolve_type_var(&mut self, type_var: TypeVar) -> Option<TypeId> {
@@ -146,6 +149,14 @@ impl<'c, 'w, 'm, 'g> ModuleTypechecker<'c, 'w, 'm, 'g> {
 
     fn scopes(&mut self) -> &mut ScopeStack {
         &mut self.module_storage.scopes
+    }
+
+    fn resolve_compound_symbol(&mut self, symbols: &[Identifier]) -> Option<SymbolType> {
+        resolve_compound_symbol(
+            &self.module_storage.scopes,
+            &mut self.global_tc.global_storage.types,
+            symbols,
+        )
     }
 }
 
@@ -172,23 +183,21 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     }
 
     type NameRet = ();
-
     fn visit_name(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 
     type AccessNameRet = ();
-
     fn visit_access_name(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::AccessName<'c>>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 
     type LiteralRet = TypeId;
@@ -213,9 +222,15 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     fn visit_variable_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::VariableExpr<'c>>,
+        node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        todo!()
+        match self.resolve_compound_symbol(&node.name.path) {
+            Some(SymbolType::Variable(var_ty_id)) => Ok(var_ty_id),
+            Some(SymbolType::Type(_)) => Err(TypecheckError::UsingTypeInVariablePos(
+                node.name.path.to_owned(),
+            )),
+            None => Err(TypecheckError::UnresolvedSymbol(node.name.path.to_owned())),
+        }
     }
 
     type IntrinsicKeyRet = TypeId;
@@ -224,7 +239,8 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::IntrinsicKey>,
     ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
-        todo!()
+        // @@Todo: maybe we want to store intrinsic types somewhere
+        Ok(self.create_unknown_type())
     }
 
     type FunctionCallArgsRet = Row<'c, TypeId>;
@@ -260,10 +276,33 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     type PropertyAccessExprRet = TypeId;
     fn visit_property_access_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::PropertyAccessExpr<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::PropertyAccessExpr<'c>>,
     ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
-        todo!()
+        let property_ident = node.property.body().ident;
+        let walk::PropertyAccessExpr { subject, .. } =
+            walk::walk_property_access_expr(self, ctx, node)?;
+
+        let invalid_access = || -> Result<Self::PropertyAccessExprRet, Self::Error> {
+            Err(TypecheckError::InvalidPropertyAccess(
+                subject,
+                property_ident,
+            ))
+        };
+
+        match self.get_type(subject) {
+            TypeValue::User(UserType { def_id, .. }) => match self.get_type_def(*def_id) {
+                TypeDefValue::Struct(StructDef { fields, .. }) => {
+                    if let Some(field_ty) = fields.get_field(property_ident) {
+                        Ok(field_ty)
+                    } else {
+                        invalid_access()
+                    }
+                }
+                _ => invalid_access(),
+            },
+            _ => invalid_access(),
+        }
     }
 
     type RefExprRet = TypeId;
@@ -327,10 +366,10 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     type ImportExprRet = TypeId;
     fn visit_import_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::ImportExpr<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ImportExpr<'c>>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
-        todo!()
+        Ok(walk::walk_import_expr(self, ctx, node)?.0)
     }
 
     type TypeRet = TypeId;
@@ -345,22 +384,16 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
     type NamedTypeRet = TypeId;
     fn visit_named_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::NamedType<'c>>,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        todo!()
-        // let resolved_symbol = self
-        //     .module_traverser
-        //     .storage
-        //     .scopes
-        //     .resolve_compound_symbol(&node.name.path, &self.module_traverser.storage.types);
-        // match resolved_symbol {
-        //     Some(SymbolType::Type(type_id)) => Ok(type_id),
-        //     Some(SymbolType::Variable(_)) => Err(TypecheckError::UsingVariableInTypePos(
-        //         node.name.path.to_owned(),
-        //     )),
-        //     None => Err(TypecheckError::UnresolvedSymbol(node.name.path.to_owned())),
-        // }
+        match self.resolve_compound_symbol(&node.name.path) {
+            Some(SymbolType::Type(ty_id)) => Ok(ty_id),
+            Some(SymbolType::Variable(_)) => Err(TypecheckError::UsingVariableInTypePos(
+                node.name.path.to_owned(),
+            )),
+            None => Err(TypecheckError::UnresolvedSymbol(node.name.path.to_owned())),
+        }
     }
 
     type RefTypeRet = TypeId;
@@ -526,7 +559,7 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         todo!()
     }
 
-    type StructLiteralEntryRet = ();
+    type StructLiteralEntryRet = (Identifier, TypeId);
     fn visit_struct_literal_entry(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1006,29 +1039,5 @@ impl<'c, 'w, 'm, 'g> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, '
         }));
 
         Ok(namespace_ty)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use hash_alloc::Castle;
-    use hash_ast::module::ModuleBuilder;
-
-    #[test]
-    fn traverse_test() {
-        let castle = Castle::new();
-        let _wall = castle.wall();
-
-        let _modules = ModuleBuilder::new().build();
-
-        // let mut ctx = TypecheckCtx {
-        //     types: Types::new(),
-        //     type_defs: TypeDefs::new(),
-        //     type_vars: TypeVars::new(),
-        //     traits: Traits::new(),
-        //     state: TypecheckState::default(),
-        //     scopes: ScopeStack::new(),
-        //     modules: &modules,
-        // };
     }
 }
