@@ -259,6 +259,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fnv"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
 name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -307,6 +313,7 @@ dependencies = [
  "crossbeam-channel",
  "dashmap",
  "derive_more",
+ "fnv",
  "hash-alloc",
  "hash-utils",
  "lazy_static",

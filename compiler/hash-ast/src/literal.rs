@@ -1,15 +1,16 @@
+use fnv::FnvBuildHasher;
 use hash_utils::counter;
 use lazy_static::lazy_static;
 
 use dashmap::DashMap;
 
 /// A map containing identifiers that essentially point to a string literal that has been parsed
-/// during the tokenisation process. This is so that we don't have to unecessarilly allocate a string
+/// during the tokenisation process. This is so that we don't have to unnecessarily allocate a string
 /// multiple times even if it occurs within the source.
 #[derive(Debug, Default)]
 pub struct StringLiteralMap {
-    string_table: DashMap<StringLiteral, &'static str>,
-    reverse_table: DashMap<&'static str, StringLiteral>,
+    string_table: DashMap<StringLiteral, &'static str, FnvBuildHasher>,
+    reverse_table: DashMap<&'static str, StringLiteral, FnvBuildHasher>,
 }
 
 counter! {
