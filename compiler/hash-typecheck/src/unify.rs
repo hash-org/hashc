@@ -3,9 +3,9 @@ use std::borrow::Borrow;
 use hash_ast::ast::TypeId;
 
 use crate::{
+    error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
-    types::TypecheckResult,
-    types::{TypeValue, TypecheckError},
+    types::TypeValue,
 };
 
 pub fn unify_pairs(

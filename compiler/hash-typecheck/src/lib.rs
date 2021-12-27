@@ -16,3 +16,4 @@ pub mod unify;
 pub mod traits;
 pub mod scope;
 pub mod state;
+pub mod error;

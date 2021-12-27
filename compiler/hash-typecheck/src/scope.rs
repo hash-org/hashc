@@ -1,7 +1,8 @@
 use hash_ast::{ast::TypeId, ident::Identifier};
 use std::collections::HashMap;
 
-use crate::types::{TypeValue, TypecheckError, TypecheckResult, Types};
+use crate::error::{TypecheckError, TypecheckResult};
+use crate::types::{TypeValue, Types};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolType {

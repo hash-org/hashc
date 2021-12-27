@@ -1,9 +1,10 @@
+use crate::error::{TypecheckResult, TypecheckError};
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
 use crate::types::{
     CoreTypeDefs, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef, TupleType,
-    TypeValue, TypecheckError, TypecheckResult, UnknownType,
+    TypeValue, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
 use crate::unify::{unify, unify_many, unify_pairs};
@@ -535,13 +536,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let key_ty = self.unify_many(entries.iter().map(|&(key, _)| key))?;
         let value_ty = self.unify_many(entries.iter().map(|&(_, value)| value))?;
 
-        let map_def_id = self.core_type_defs().map;
-        let map_literal_ty = self.create_type(TypeValue::User(UserType {
-            def_id: map_def_id,
-            args: row![self.wall(); key_ty, value_ty],
-        }));
-
-        Ok(map_literal_ty)
+        Ok(self.create_map_type(key_ty, value_ty))
     }
 
     type MapLiteralEntryRet = (TypeId, TypeId);
