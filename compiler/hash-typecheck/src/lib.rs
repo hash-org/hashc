@@ -5,6 +5,7 @@
 //
 // All rights reserved 2021 (c) The Hash Language authors
 #![feature(generic_associated_types)]
+#![feature(never_type)]
 
 pub mod types;
 // mod substitute;

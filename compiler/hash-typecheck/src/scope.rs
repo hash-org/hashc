@@ -1,6 +1,8 @@
 use hash_ast::{ident::Identifier, ast::TypeId};
 use std::collections::HashMap;
 
+use crate::types::{Types, TypeValue};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolType {
     Variable(TypeId),
@@ -87,6 +89,42 @@ impl ScopeStack {
         match self.scopes.pop() {
             Some(scope) => scope,
             None => panic!("Cannot pop root scope"),
+        }
+    }
+}
+
+pub fn resolve_compound_symbol(
+    scopes: &ScopeStack,
+    types: &Types,
+    symbols: &[Identifier],
+) -> Option<SymbolType> {
+    let mut last_scope = scopes.current_scope();
+    let mut symbols_iter = symbols.iter().peekable();
+
+    loop {
+        match last_scope.resolve_symbol(*symbols_iter.next().unwrap()) {
+            Some(symbol_ty @ SymbolType::Variable(type_id)) => match types.get(type_id) {
+                TypeValue::Namespace(namespace_ty) => match symbols_iter.peek() {
+                    Some(_) => {
+                        last_scope = &namespace_ty.members;
+                        continue;
+                    }
+                    None => {
+                        return Some(symbol_ty);
+                    }
+                },
+                _ => {}
+            },
+            Some(symbol_ty) => match symbols_iter.peek() {
+                Some(_) => {
+                    // @@Todo: error properly
+                    panic!("Found trying to namespace type.");
+                }
+                None => {
+                    return Some(symbol_ty);
+                }
+            },
+            None => continue,
         }
     }
 }
