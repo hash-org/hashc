@@ -221,7 +221,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &self.global_tc.global_storage.core_type_defs
     }
 
-    fn resolve_compound_symbol(&mut self, symbols: &[Identifier]) -> Option<SymbolType> {
+    fn resolve_compound_symbol(&mut self, symbols: &[Identifier]) -> TypecheckResult<SymbolType> {
         resolve_compound_symbol(
             &self.module_storage.scopes,
             &mut self.global_tc.global_storage.types,
@@ -294,12 +294,11 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        match self.resolve_compound_symbol(&node.name.path) {
-            Some(SymbolType::Variable(var_ty_id)) => Ok(var_ty_id),
-            Some(SymbolType::Type(_)) => Err(TypecheckError::UsingTypeInVariablePos(
+        match self.resolve_compound_symbol(&node.name.path)? {
+            SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
+            SymbolType::Type(_) => Err(TypecheckError::UsingTypeInVariablePos(
                 node.name.path.to_owned(),
             )),
-            None => Err(TypecheckError::UnresolvedSymbol(node.name.path.to_owned())),
         }
     }
 
@@ -457,12 +456,11 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        match self.resolve_compound_symbol(&node.name.path) {
-            Some(SymbolType::Type(ty_id)) => Ok(ty_id),
-            Some(SymbolType::Variable(_)) => Err(TypecheckError::UsingVariableInTypePos(
+        match self.resolve_compound_symbol(&node.name.path)? {
+            SymbolType::Type(ty_id) => Ok(ty_id),
+            SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
                 node.name.path.to_owned(),
             )),
-            None => Err(TypecheckError::UnresolvedSymbol(node.name.path.to_owned())),
         }
     }
 
@@ -848,34 +846,20 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LetStatement<'c>>,
     ) -> Result<Self::LetStatementRet, Self::Error> {
-        let pattern_result = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+        let walk::LetStatement {
+            pattern: pattern_ty,
+            ty: annot_maybe_ty,
+            bound: _,
+            value: value_maybe_ty,
+        } = walk::walk_let_statement(self, ctx, node)?;
         // if pattern_result.is_refutable {
         //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
         // }
 
-        let type_result = node
-            .ty
-            .as_ref()
-            .map(|ty| self.visit_type(ctx, ty.ast_ref()))
-            .transpose()?;
-
         // @@Todo: bounds
-
-        let value_result = node
-            .value
-            .as_ref()
-            .map(|value| self.visit_expression(ctx, value.ast_ref()))
-            .transpose()?;
-
-        // @@Todo: Bidirectional
-        if let (Some(value_result), Some(type_result)) = (value_result, type_result) {
-            self.unify(value_result, type_result)?;
-        }
-
-        // This is probably not right
-        if let Some(value_result) = value_result {
-            self.unify(pattern_result, value_result)?;
-        }
+        let annot_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+        let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+        self.unify_many([annot_ty, value_ty, pattern_ty].into_iter())?;
 
         Ok(())
     }
@@ -943,14 +927,13 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     type PatternRet = TypeId;
     fn visit_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::Pattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Self::PatternRet, Self::Error> {
-        todo!()
+        walk::walk_pattern_same_children(self, ctx, node)
     }
 
     type TraitBoundRet = ();
-
     fn visit_trait_bound(
         &mut self,
         _ctx: &Self::Ctx,
@@ -960,7 +943,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type BoundRet = ();
-
     fn visit_bound(
         &mut self,
         _ctx: &Self::Ctx,
@@ -969,8 +951,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         todo!()
     }
 
-    type EnumPatternRet = ();
-
+    type EnumPatternRet = TypeId;
     fn visit_enum_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -979,8 +960,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         todo!()
     }
 
-    type StructPatternRet = ();
-
+    type StructPatternRet = TypeId;
     fn visit_struct_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -989,8 +969,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         todo!()
     }
 
-    type NamespacePatternRet = ();
-
+    type NamespacePatternRet = TypeId;
     fn visit_namespace_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -999,8 +978,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         todo!()
     }
 
-    type TuplePatternRet = ();
-
+    type TuplePatternRet = TypeId;
     fn visit_tuple_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1036,7 +1014,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         Ok(self.create_type(TypeValue::Prim(PrimType::I32)))
     }
 
-    type FloatLiteralPatternRet = ();
+    type FloatLiteralPatternRet = TypeId;
     fn visit_float_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1045,16 +1023,16 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         todo!()
     }
 
-    type LiteralPatternRet = ();
+    type LiteralPatternRet = TypeId;
     fn visit_literal_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::LiteralPattern>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::LiteralPattern>,
     ) -> Result<Self::LiteralPatternRet, Self::Error> {
-        todo!()
+        walk::walk_literal_pattern_same_children(self, ctx, node)
     }
 
-    type OrPatternRet = ();
+    type OrPatternRet = TypeId;
     fn visit_or_pattern(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1080,21 +1058,24 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     fn visit_binding_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::BindingPattern<'c>>,
+        node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        Ok(self.create_unknown_type())
+        let variable_ty = self.create_unknown_type();
+        self.scopes()
+            .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
+        Ok(variable_ty)
     }
 
-    type IgnorePatternRet = ();
+    type IgnorePatternRet = TypeId;
     fn visit_ignore_pattern(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::IgnorePattern>,
     ) -> Result<Self::IgnorePatternRet, Self::Error> {
-        todo!()
+        Ok(self.create_unknown_type())
     }
 
-    type DestructuringPatternRet = ();
+    type DestructuringPatternRet = TypeId;
     fn visit_destructuring_pattern(
         &mut self,
         _ctx: &Self::Ctx,

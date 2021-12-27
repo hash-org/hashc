@@ -1,7 +1,7 @@
-use hash_ast::{ident::Identifier, ast::TypeId};
+use hash_ast::{ast::TypeId, ident::Identifier};
 use std::collections::HashMap;
 
-use crate::types::{Types, TypeValue};
+use crate::types::{TypeValue, TypecheckError, TypecheckResult, Types};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolType {
@@ -97,34 +97,41 @@ pub fn resolve_compound_symbol(
     scopes: &ScopeStack,
     types: &Types,
     symbols: &[Identifier],
-) -> Option<SymbolType> {
+) -> TypecheckResult<SymbolType> {
     let mut last_scope = scopes.current_scope();
-    let mut symbols_iter = symbols.iter().peekable();
+    let mut symbols_iter = symbols.iter().enumerate().peekable();
 
     loop {
-        match last_scope.resolve_symbol(*symbols_iter.next().unwrap()) {
-            Some(symbol_ty @ SymbolType::Variable(type_id)) => match types.get(type_id) {
-                TypeValue::Namespace(namespace_ty) => match symbols_iter.peek() {
-                    Some(_) => {
+        match symbols_iter.next() {
+            Some((i, &symbol)) => match last_scope.resolve_symbol(symbol) {
+                Some(symbol_ty @ SymbolType::Variable(type_id)) => match types.get(type_id) {
+                    TypeValue::Namespace(namespace_ty) if symbols_iter.peek().is_some() => {
                         last_scope = &namespace_ty.members;
                         continue;
                     }
-                    None => {
-                        return Some(symbol_ty);
+                    TypeValue::Namespace(_) => {
+                        return Ok(symbol_ty);
+                    }
+                    _ if symbols_iter.peek().is_some() => {
+                        return Err(TypecheckError::TryingToNamespaceVariable(
+                            symbols[..=i].to_owned(),
+                        ));
+                    }
+                    _ => {
+                        return Ok(symbol_ty);
                     }
                 },
-                _ => {}
-            },
-            Some(symbol_ty) => match symbols_iter.peek() {
-                Some(_) => {
-                    // @@Todo: error properly
-                    panic!("Found trying to namespace type.");
+                Some(_) if symbols_iter.peek().is_some() => {
+                    return Err(TypecheckError::TryingToNamespaceType(
+                        symbols[..=i].to_owned(),
+                    ));
                 }
-                None => {
-                    return Some(symbol_ty);
+                Some(symbol_ty) => {
+                    return Ok(symbol_ty);
                 }
+                None => return Err(TypecheckError::UnresolvedSymbol(symbols[..=i].to_owned())),
             },
-            None => continue,
+            None => unreachable!(),
         }
     }
 }
