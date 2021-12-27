@@ -5,13 +5,14 @@ use crate::{
     scope::ScopeStack,
     state::TypecheckState,
     traits::{TraitImpls, Traits},
-    types::{TypeDefs, TypeVars, Types},
+    types::{CoreTypeDefs, TypeDefs, TypeVars, Types},
 };
 
 #[derive(Debug)]
 pub struct GlobalStorage<'c, 'w, 'm> {
     pub modules: &'m Modules<'c>,
     pub type_defs: TypeDefs<'c, 'w>,
+    pub core_type_defs: CoreTypeDefs,
     pub trait_impls: TraitImpls<'c>,
     pub traits: Traits,
     pub types: Types<'c, 'w>,
@@ -19,12 +20,19 @@ pub struct GlobalStorage<'c, 'w, 'm> {
 
 impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
     pub fn new_with_modules(modules: &'m Modules<'c>, wall: &'w Wall<'c>) -> Self {
+        let mut type_defs = TypeDefs::new(wall);
+        let trait_impls = TraitImpls::default();
+        let traits = Traits::default();
+        let mut types = Types::new(wall);
+        let core_type_defs = CoreTypeDefs::create(&mut type_defs, &mut types, wall);
+
         Self {
             modules,
-            type_defs: TypeDefs::new(wall),
-            trait_impls: TraitImpls::default(),
-            traits: Traits::default(),
-            types: Types::new(wall),
+            type_defs,
+            trait_impls,
+            traits,
+            types,
+            core_type_defs,
         }
     }
 }

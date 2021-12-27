@@ -5,7 +5,7 @@ use hash_utils::tree_writing::TreeNode;
 
 use crate::{
     storage::GlobalStorage,
-    types::{EnumDef, FnType, RawRefType, RefType, StructDef, TypeVar, UserType},
+    types::{EnumDef, FnType, RawRefType, RefType, StructDef, TupleType, TypeVar, UserType},
 };
 
 pub struct TypeWithStorage<'g, 'c, 'w, 'm> {
@@ -62,6 +62,7 @@ impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
                     crate::types::PrimType::F64 => "f64",
                     crate::types::PrimType::Char => "char",
                     crate::types::PrimType::Void => "void",
+                    crate::types::PrimType::Bool => "bool",
                 }
             )),
             crate::types::TypeValue::User(UserType { def_id, args }) => {
@@ -90,6 +91,13 @@ impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
                 todo!()
                 // TreeNode::leaf(format!("namespace ({:?})", module_idx))
             }
+            crate::types::TypeValue::Tuple(TupleType { types }) => TreeNode::branch(
+                "tuple",
+                types
+                    .iter()
+                    .map(|&ty| self.for_type(ty).to_tree_node())
+                    .collect(),
+            ),
         }
     }
 }
@@ -158,8 +166,21 @@ impl<'g, 'c, 'w, 'm> fmt::Display for TypeWithStorage<'g, 'c, 'w, 'm> {
                         crate::types::PrimType::F64 => "f64",
                         crate::types::PrimType::Char => "char",
                         crate::types::PrimType::Void => "void",
+                        crate::types::PrimType::Bool => "bool",
                     }
                 )?;
+            }
+            crate::types::TypeValue::Tuple(TupleType { types }) => {
+                // @@Todo: this is not exactly the right syntax, we need trailing commas in some
+                // cases.
+                write!(f, "(")?;
+                for (i, ty) in types.iter().enumerate() {
+                    write!(f, "{}", self.for_type(*ty))?;
+                    if i != types.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")?;
             }
             crate::types::TypeValue::Unknown(_) => {
                 write!(f, "unknown")?;

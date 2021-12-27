@@ -94,12 +94,24 @@ impl<'c, T> AstNode<'c, T> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct AstNodeRef<'t, T> {
     body: &'t T,
     location: Location,
     id: AstNodeId,
 }
+
+impl<T> Clone for AstNodeRef<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            body: self.body.clone(),
+            location: self.location.clone(),
+            id: self.id.clone(),
+        }
+    }
+}
+
+impl<T> Copy for AstNodeRef<'_, T> {}
 
 impl<'t, T> AstNodeRef<'t, T> {
     /// Get a reference to the reference contained within this node.

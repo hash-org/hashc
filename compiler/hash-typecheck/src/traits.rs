@@ -54,11 +54,14 @@ pub struct TraitImpl<'c> {
 }
 
 impl<'c> TraitImpl<'c> {
+
     pub fn instantiate(&self, given_args: &TypeList<'c>) -> Option<()> {
+
         if given_args.len() != self.args.len() {
             // @@TODO: error
             return None;
         }
+
 
         for (&_trait_arg, &_given_arg) in self.args.iter().zip(given_args.iter()) {}
 
