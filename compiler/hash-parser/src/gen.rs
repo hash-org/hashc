@@ -1653,6 +1653,19 @@ where
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
+                // check here if the tree length is 1, and the first token is the comma to check if it is an
+                // empty tuple pattern...
+                if let Some(token) = tree.get(0) {
+                    if token.has_kind(TokenKind::Comma) {
+                        return Ok(self.node_from_location(
+                            Pattern::Tuple(TuplePattern {
+                                elements: row![&self.wall],
+                            }),
+                            span,
+                        ));
+                    }
+                }
+
                 // @@Hack: here it might actually be a nested pattern in parenthesees. So we perform a slight
                 // transformation if the number of parsed patterns is only one. So essentially we handle the case
                 // where a pattern is wrapped in parentheses and so we just unwrap it.
