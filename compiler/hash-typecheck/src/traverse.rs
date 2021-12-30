@@ -1,4 +1,4 @@
-use crate::error::{TypecheckResult, TypecheckError};
+use crate::error::{TypecheckError, TypecheckResult};
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
@@ -147,7 +147,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &self.global_tc.global_storage.types.get(ty)
     }
 
-    fn get_type_def(&self, def: TypeDefId) -> &'c TypeDefValue<'c> {
+    fn get_type_def(&self, def: TypeDefId) -> &TypeDefValue<'c> {
         self.global_tc.global_storage.type_defs.get(def)
     }
 

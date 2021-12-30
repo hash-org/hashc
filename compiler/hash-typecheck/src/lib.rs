@@ -9,11 +9,11 @@
 
 pub mod types;
 // mod substitute;
-pub mod writer;
-pub mod traverse;
-pub mod storage;
-pub mod unify;
-pub mod traits;
+pub mod error;
 pub mod scope;
 pub mod state;
-pub mod error;
+pub mod storage;
+pub mod traits;
+pub mod traverse;
+pub mod unify;
+pub mod writer;

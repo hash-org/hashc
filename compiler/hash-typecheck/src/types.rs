@@ -1,11 +1,13 @@
 #![allow(dead_code)]
 
-use crate::{scope::Scope, traits::TraitBounds};
+use crate::{
+    scope::Scope,
+    traits::{CoreTraits, TraitBound, TraitBounds},
+};
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
 use hash_ast::{
     ast::TypeId,
     ident::{Identifier, IDENTIFIER_MAP},
-    location::Location,
 };
 use hash_utils::counter;
 use std::{cell::Cell, collections::HashMap};
@@ -204,6 +206,7 @@ impl<'c, 'w> CoreTypeDefs {
     pub fn create(
         type_defs: &mut TypeDefs<'c, 'w>,
         types: &mut Types<'c, 'w>,
+        core_traits: &CoreTraits,
         wall: &'w Wall<'c>,
     ) -> Self {
         let str = type_defs.create(TypeDefValue::Struct(StructDef {
@@ -218,8 +221,21 @@ impl<'c, 'w> CoreTypeDefs {
             name: IDENTIFIER_MAP.create_ident("Map"),
             generics: Generics {
                 params: row![wall; map_key, map_value],
-                // @@Todo: hash, eq
-                bounds: TraitBounds::empty(),
+                bounds: TraitBounds {
+                    bounds: Row::from_iter(
+                        [
+                            TraitBound {
+                                trt: core_traits.hash,
+                                params: Row::from_iter([map_key], wall),
+                            },
+                            TraitBound {
+                                trt: core_traits.eq,
+                                params: Row::from_iter([map_key], wall),
+                            },
+                        ],
+                        wall,
+                    ),
+                },
             },
             fields: StructFields::no_fields(),
         }));
@@ -255,7 +271,7 @@ impl<'c, 'w> CoreTypeDefs {
 
 #[derive(Debug)]
 pub struct TypeDefs<'c, 'w> {
-    data: HashMap<TypeDefId, Cell<&'c TypeDefValue<'c>>>,
+    data: HashMap<TypeDefId, Brick<'c, TypeDefValue<'c>>>,
     wall: &'w Wall<'c>,
 }
 
@@ -267,14 +283,13 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
         }
     }
 
-    pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue<'c> {
-        self.data.get(&ty_def).unwrap().get()
+    pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue<'c> {
+        &self.data.get(&ty_def).unwrap()
     }
 
     pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
         let id = TypeDefId::new();
-        self.data
-            .insert(id, Cell::new(Brick::new(def, self.wall).disown()));
+        self.data.insert(id, Brick::new(def, self.wall));
         id
     }
 }
