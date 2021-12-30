@@ -7,7 +7,7 @@ use crate::types::{
     TypeValue, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
-use crate::unify::{unify, unify_many, unify_pairs};
+use crate::unify::{Unifier, UnifyStrategy};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::ast;
@@ -113,30 +113,31 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &mut self,
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
     ) -> TypecheckResult<()> {
-        unify_pairs(
+        let mut unifier = Unifier::new(
+            UnifyStrategy::ModifyBoth,
             &mut self.module_storage,
             &self.global_tc.global_storage,
-            pairs,
-        )
+        );
+        unifier.unify_pairs(pairs)
     }
 
     fn unify_many(&mut self, type_list: impl Iterator<Item = TypeId>) -> TypecheckResult<TypeId> {
         let def = self.create_unknown_type();
-        unify_many(
+        let mut unifier = Unifier::new(
+            UnifyStrategy::ModifyBoth,
             &mut self.module_storage,
             &self.global_tc.global_storage,
-            type_list,
-            def,
-        )
+        );
+        unifier.unify_many(type_list, def)
     }
 
     fn unify(&mut self, a: TypeId, b: TypeId) -> TypecheckResult<()> {
-        unify(
+        let mut unifier = Unifier::new(
+            UnifyStrategy::ModifyBoth,
             &mut self.module_storage,
             &self.global_tc.global_storage,
-            a,
-            b,
-        )
+        );
+        unifier.unify(a, b)
     }
 
     fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
