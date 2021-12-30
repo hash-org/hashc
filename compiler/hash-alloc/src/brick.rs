@@ -43,15 +43,11 @@ impl<'c, T> Brick<'c, T> {
     }
 
     pub fn disown(self) -> &'c T {
-        unsafe {
-            std::mem::transmute::<&ManuallyDrop<T>, &T>(self.data)
-        }
+        unsafe { std::mem::transmute::<&ManuallyDrop<T>, &T>(self.data) }
     }
 
     pub fn disown_mut(self) -> &'c mut T {
-        unsafe {
-            std::mem::transmute::<&mut ManuallyDrop<T>, &mut T>(self.data)
-        }
+        unsafe { std::mem::transmute::<&mut ManuallyDrop<T>, &mut T>(self.data) }
     }
 }
 

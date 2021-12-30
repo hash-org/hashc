@@ -4,7 +4,7 @@ use hash_ast::module::Modules;
 use crate::{
     scope::ScopeStack,
     state::TypecheckState,
-    traits::{TraitImpls, Traits},
+    traits::{CoreTraits, TraitImpls, Traits},
     types::{CoreTypeDefs, TypeDefs, TypeVars, Types},
 };
 
@@ -12,9 +12,10 @@ use crate::{
 pub struct GlobalStorage<'c, 'w, 'm> {
     pub modules: &'m Modules<'c>,
     pub type_defs: TypeDefs<'c, 'w>,
+    pub core_traits: CoreTraits,
     pub core_type_defs: CoreTypeDefs,
-    pub trait_impls: TraitImpls<'c>,
-    pub traits: Traits,
+    pub trait_impls: TraitImpls<'c, 'w>,
+    pub traits: Traits<'c, 'w>,
     pub types: Types<'c, 'w>,
 }
 
@@ -24,7 +25,8 @@ impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
         let trait_impls = TraitImpls::default();
         let traits = Traits::default();
         let mut types = Types::new(wall);
-        let core_type_defs = CoreTypeDefs::create(&mut type_defs, &mut types, wall);
+        let core_traits = CoreTraits::create(&mut types, wall);
+        let core_type_defs = CoreTypeDefs::create(&mut type_defs, &mut types, &core_traits, wall);
 
         Self {
             modules,
@@ -33,6 +35,7 @@ impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
             traits,
             types,
             core_type_defs,
+            core_traits,
         }
     }
 }
@@ -43,14 +46,3 @@ pub struct ModuleStorage {
     pub scopes: ScopeStack,
     pub state: TypecheckState,
 }
-
-// #[derive(Debug, Default)]
-// pub struct Storage<'c, 'w> {
-//     pub type_defs: TypeDefs<'c>,
-//     pub trait_impls: TraitImpls<'c>,
-//     pub traits: Traits,
-//     pub types: Types<'c, 'w>,
-//     pub type_vars: TypeVars,
-//     pub scopes: ScopeStack,
-//     pub state: TypecheckState,
-// }

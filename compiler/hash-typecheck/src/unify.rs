@@ -5,8 +5,17 @@ use hash_ast::ast::TypeId;
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
-    types::TypeValue,
+    types::{TypeValue, Types},
 };
+
+enum UnificationCtx<'t, 'c, 'w> {
+    Ordinary(&'t Types<'c, 'w>),
+    Hypothetical(),
+}
+
+impl<'c, 'w> UnificationCtx<'c, 'w> {
+
+}
 
 pub fn unify_pairs(
     module_storage: &mut ModuleStorage,
