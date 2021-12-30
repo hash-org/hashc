@@ -56,8 +56,7 @@ pub struct TraitImpl<'c> {
 impl<'c> TraitImpl<'c> {
     pub fn matches_fn_args(&self, traits: &Traits) -> bool {
         let trt = traits.get(self.trait_id);
-
-
+        todo!()
     }
 
     pub fn instantiate(&self, given_args: &TypeList<'c>) -> Option<()> {
@@ -87,9 +86,9 @@ pub struct ImplsForTrait<'c> {
 
 impl<'c> ImplsForTrait<'c> {
     pub fn resolve_call(&self, fn_args: &[TypeId]) -> TraitImplId {
-        for (&impl_id, impl) in self.impls.iter() {
-
-        }
+        todo!();
+        // for (&impl_id, impl) in self.impls.iter() {
+        // }
     }
 }
 
@@ -114,12 +113,12 @@ impl<'c, 'w> TraitImpls<'c, 'w> {
     pub fn resolve_call(trait_id: TraitId, fn_args: &[TypeId]) -> TraitImplId {
         // Should substitute given TypeIds with their correct version from the trait impl!
 
-
+        todo!()
 
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Traits<'c, 'w> {
     data: HashMap<TraitId, Brick<'c, Trait<'c>>>,
     wall: &'w Wall<'c>,

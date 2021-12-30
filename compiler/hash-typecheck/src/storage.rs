@@ -22,8 +22,8 @@ pub struct GlobalStorage<'c, 'w, 'm> {
 impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
     pub fn new_with_modules(modules: &'m Modules<'c>, wall: &'w Wall<'c>) -> Self {
         let mut type_defs = TypeDefs::new(wall);
-        let trait_impls = TraitImpls::default();
-        let traits = Traits::default();
+        let trait_impls = TraitImpls::new(wall);
+        let traits = Traits::new(wall);
         let mut types = Types::new(wall);
         let core_traits = CoreTraits::create(&mut types, wall);
         let core_type_defs = CoreTypeDefs::create(&mut type_defs, &mut types, &core_traits, wall);

@@ -321,6 +321,26 @@ impl<'c, 'w> Types<'c, 'w> {
         self.data.get(&target).unwrap().set(other_val);
     }
 
+    pub fn duplicate(&mut self, ty: TypeId) -> TypeId {
+        match self.get(ty) {
+            TypeValue::Ref(RefType { inner }) => {
+                let inner = self.duplicate(*inner);
+                self.create(TypeValue::Ref(RefType { inner }))
+            }
+            TypeValue::RawRef(RawRefType { inner }) => {
+                let inner = self.duplicate(*inner);
+                self.create(TypeValue::RawRef(RawRefType { inner }))
+            }
+            TypeValue::Fn(_) => todo!(),
+            TypeValue::Var(_) => todo!(),
+            TypeValue::User(_) => todo!(),
+            TypeValue::Prim(_) => todo!(),
+            TypeValue::Tuple(_) => todo!(),
+            TypeValue::Unknown(_) => todo!(),
+            TypeValue::Namespace(_) => todo!(),
+        }
+    }
+
     pub fn create_type_var(&mut self, name: &str) -> TypeId {
         self.create(TypeValue::Var(TypeVar {
             name: IDENTIFIER_MAP.create_ident(name),
