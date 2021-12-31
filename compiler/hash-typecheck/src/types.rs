@@ -5,12 +5,11 @@ use crate::{
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_ast::{
-    ast::TypeId,
-    ident::{Identifier, IDENTIFIER_MAP},
-};
+use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_utils::counter;
-use std::{cell::Cell, collections::HashMap};
+use slotmap::{new_key_type, SlotMap};
+use std::hash::Hash;
+use std::{cell::Cell, collections::HashMap, ptr};
 
 #[derive(Debug)]
 pub struct Generics<'c> {
@@ -183,6 +182,50 @@ pub enum TypeValue<'c> {
     Unknown(UnknownType<'c>),
     Namespace(NamespaceType),
 }
+
+impl<'c> TypeValue<'c> {
+    pub fn map_type_ids<F>(&self, f: F, wall: &Wall<'c>) -> Self
+    where
+        F: FnMut(TypeId) -> TypeId,
+    {
+        match self {
+            TypeValue::Ref(RefType { inner }) => TypeValue::Ref(RefType { inner: f(*inner) }),
+            TypeValue::RawRef(RawRefType { inner }) => {
+                TypeValue::RawRef(RawRefType { inner: f(*inner) })
+            }
+            TypeValue::Fn(FnType { args, ret }) => TypeValue::Fn(FnType {
+                args: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
+                ret: f(*ret),
+            }),
+            TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
+                args: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
+                def_id: *def_id,
+            }),
+            TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
+                types: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
+            }),
+            TypeValue::Var(var) => TypeValue::Var(*var),
+            TypeValue::Prim(prim) => TypeValue::Prim(*prim),
+            TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
+            TypeValue::Namespace(ns) => TypeValue::Namespace(*ns),
+        }
+    }
+}
+
+impl<'c> Hash for &'c TypeValue<'c> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        ptr::hash(*self, state)
+    }
+}
+
+impl<'c> PartialEq for &'c TypeValue<'c> {
+    fn eq(&self, other: &Self) -> bool {
+        ptr::eq(*self, *other)
+    }
+}
+
+impl<'c> Eq for &'c TypeValue<'c> {}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeVarStrategy {
     Match,
@@ -294,31 +337,33 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
     }
 }
 
+new_key_type! { pub struct TypeId; }
+
 #[derive(Debug)]
 pub struct Types<'c, 'w> {
-    data: HashMap<TypeId, Cell<&'c TypeValue<'c>>>,
+    data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
     wall: &'w Wall<'c>,
 }
 
 impl<'c, 'w> Types<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self {
-            data: HashMap::new(),
+            data: SlotMap::with_key(),
             wall,
         }
     }
 
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
         // @@Todo: resolve type variables bro!
-        self.data.get(&ty).unwrap().get()
+        self.data.get(ty).unwrap().get()
     }
 
     pub fn set(&self, target: TypeId, source: TypeId) {
         if target == source {
             return;
         }
-        let other_val = self.data.get(&source).unwrap().get();
-        self.data.get(&target).unwrap().set(other_val);
+        let other_val = self.data.get(source).unwrap().get();
+        self.data.get(target).unwrap().set(other_val);
     }
 
     pub fn duplicate(&mut self, ty: TypeId) -> TypeId {
@@ -352,10 +397,8 @@ impl<'c, 'w> Types<'c, 'w> {
     }
 
     pub fn create(&mut self, value: TypeValue<'c>) -> TypeId {
-        let id = TypeId::new();
         self.data
-            .insert(id, Cell::new(Brick::new(value, &self.wall).disown()));
-        id
+            .insert(Cell::new(Brick::new(value, &self.wall).disown()))
     }
 }
 
