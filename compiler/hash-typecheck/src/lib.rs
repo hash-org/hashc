@@ -1,5 +1,6 @@
 #![feature(map_try_insert)]
 #![feature(extend_one)]
+#![feature(trait_alias)]
 
 //! Hash Compiler Typecheck library file
 //

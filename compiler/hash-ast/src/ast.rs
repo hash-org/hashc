@@ -20,12 +20,12 @@ counter! {
     method_visibility: pub,
 }
 
-counter! {
-    name: TypeId,
-    counter_name: TYPE_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
-}
+// counter! {
+//     name: TypeId,
+//     counter_name: TYPE_ID_COUNTER,
+//     visibility: pub,
+//     method_visibility: pub,
+// }
 
 /// Represents an abstract syntax tree node.
 ///
@@ -741,14 +741,14 @@ pub enum ExpressionKind<'c> {
 #[derive(Debug, PartialEq)]
 pub struct Expression<'c> {
     kind: ExpressionKind<'c>,
-    type_id: Option<TypeId>,
+    // type_id: Option<TypeId>,
 }
 
 impl<'c> Expression<'c> {
     pub fn new(kind: ExpressionKind<'c>) -> Self {
         Self {
             kind,
-            type_id: None,
+            // type_id: None,
         }
     }
 
@@ -760,20 +760,20 @@ impl<'c> Expression<'c> {
         &self.kind
     }
 
-    /// Set the type ID of the node.
-    pub fn set_type_id(&mut self, type_id: TypeId) {
-        self.type_id = Some(type_id);
-    }
+    // /// Set the type ID of the node.
+    // pub fn set_type_id(&mut self, type_id: TypeId) {
+    //     self.type_id = Some(type_id);
+    // }
 
-    /// Clear the type ID of the node.
-    pub fn clear_type_id(&mut self) {
-        self.type_id = None;
-    }
+    // /// Clear the type ID of the node.
+    // pub fn clear_type_id(&mut self) {
+    //     self.type_id = None;
+    // }
 
-    /// Get the type ID of this node.
-    pub fn type_id(&self) -> Option<TypeId> {
-        self.type_id
-    }
+    // /// Get the type ID of this node.
+    // pub fn type_id(&self) -> Option<TypeId> {
+    //     self.type_id
+    // }
 }
 
 /// A module.

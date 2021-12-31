@@ -1,11 +1,13 @@
 use core::fmt;
 
-use hash_ast::{ast::TypeId, ident::IDENTIFIER_MAP};
+use hash_ast::ident::IDENTIFIER_MAP;
 use hash_utils::tree_writing::TreeNode;
 
 use crate::{
     storage::GlobalStorage,
-    types::{EnumDef, FnType, RawRefType, RefType, StructDef, TupleType, TypeVar, UserType},
+    types::{
+        EnumDef, FnType, RawRefType, RefType, StructDef, TupleType, TypeId, TypeVar, UserType,
+    },
 };
 
 pub struct TypeWithStorage<'g, 'c, 'w, 'm> {

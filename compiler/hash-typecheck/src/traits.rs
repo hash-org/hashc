@@ -1,10 +1,16 @@
-use std::{collections::{BTreeMap, HashMap}, slice::SliceIndex};
+use std::{
+    collections::{BTreeMap, HashMap},
+    slice::SliceIndex,
+};
 
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_ast::ast::TypeId;
 use hash_utils::counter;
 
-use crate::types::{TypeList, Types, FnType};
+use crate::{
+    error::TypecheckResult,
+    types::{FnType, TypeId, TypeList, Types},
+    unify::{Substitution, Unifier},
+};
 
 counter! {
     name: TraitId,
@@ -54,20 +60,41 @@ pub struct TraitImpl<'c> {
 }
 
 impl<'c> TraitImpl<'c> {
-    pub fn matches_fn_args(&self, traits: &Traits) -> bool {
+    pub fn can_resolve(&self, fn_args: &TypeList<'c>, traits: &Traits) -> bool {
         let trt = traits.get(self.trait_id);
         todo!()
+
+        // first, does it satisfy trait bounds?
+        // trait foo = <A, B, C, ...> => (A, C, int, B, ...) => (B, D, E, str, Map<B, E>, ...)
+        // let foo<Bar<X>, Car<Y>, Dar<Z>, ...> = (Bar<X>, Dar<Z>, ...) => (...)
+        //
+        // --- types: Bar<int>, Dar<Map<str, int>>, ...
+        // foo(new_bar(x), new_dar(z), ...)
+
+        // let unifier = Unifier::new(module_storage, global_storage)
+        //     .unify(target, source, UnifyStrategy::CheckOnly)
+        //     .is_ok();
+
+        // then, does it satisfy impl bounds?
+
+        // let substitutions = self.args.iter().zip(trt.args.iter()).
     }
 
-    pub fn instantiate(&self, given_args: &TypeList<'c>) -> Option<()> {
-        if given_args.len() != self.args.len() {
-            // @@TODO: error
-            return None;
-        }
+    pub fn instantiate(
+        &self,
+        fn_type: &FnType<'c>,
+        unifier: &mut Unifier,
+        traits: &Traits,
+        types: &mut Types<'c, '_>,
+        wall: &Wall<'c>,
+    ) -> TypecheckResult<Substitution> {
+        let trt = traits.get(self.trait_id);
+        let base_sub = Substitution::from_vars(&trt.args, types);
+        let impl_sub = Substitution::from_vars(&self.args, types);
+        let base_subbed_fn_type = base_sub.apply(trt.fn_type, types, unifier, wall);
+        // let impl_subbed_fn_type = impl_sub.apply(self.fn_type, types, unifier, wall);
 
-        for (&_trait_arg, &_given_arg) in self.args.iter().zip(given_args.iter()) {}
-
-        None
+        todo!()
     }
 }
 
@@ -75,7 +102,7 @@ impl<'c> TraitImpl<'c> {
 pub struct Trait<'c> {
     pub args: TypeList<'c>,
     pub bounds: TraitBounds<'c>,
-    pub fn_type: &'c FnType<'c>,
+    pub fn_type: TypeId,
 }
 
 #[derive(Debug)]
@@ -114,7 +141,6 @@ impl<'c, 'w> TraitImpls<'c, 'w> {
         // Should substitute given TypeIds with their correct version from the trait impl!
 
         todo!()
-
     }
 }
 

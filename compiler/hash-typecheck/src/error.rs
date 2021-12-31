@@ -1,4 +1,5 @@
-use hash_ast::{ast::TypeId, ident::Identifier, location::Location};
+use crate::types::TypeId;
+use hash_ast::{ident::Identifier, location::Location};
 
 #[derive(Debug)]
 pub enum TypecheckError {
