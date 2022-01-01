@@ -9,10 +9,12 @@ pub enum TypecheckError {
     UsingReturnOutsideFunction(Location),
     RequiresIrrefutablePattern(Location),
     UnresolvedSymbol(Vec<Identifier>),
+    UnresolvedStructField(TypeId, Identifier),
     TryingToNamespaceType(Vec<Identifier>),
     TryingToNamespaceVariable(Vec<Identifier>),
     UsingVariableInTypePos(Vec<Identifier>),
     UsingTypeInVariablePos(Vec<Identifier>),
+    TypeIsNotStruct(TypeId),
     InvalidPropertyAccess(TypeId, Identifier),
     ExpectingBooleanInCondition { found: TypeId },
     // @@Todo: turn this into variants

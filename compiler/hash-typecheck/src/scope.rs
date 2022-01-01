@@ -9,7 +9,7 @@ pub enum SymbolType {
     Type(TypeId),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Scope {
     symbols: HashMap<Identifier, SymbolType>,
 }
@@ -29,7 +29,7 @@ impl Scope {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ScopeStack {
     scopes: Vec<Scope>,
 }

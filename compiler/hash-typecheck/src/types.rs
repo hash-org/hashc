@@ -184,7 +184,7 @@ pub enum TypeValue<'c> {
 }
 
 impl<'c> TypeValue<'c> {
-    pub fn map_type_ids<F>(&self, f: F, wall: &Wall<'c>) -> Self
+    pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
     where
         F: FnMut(TypeId) -> TypeId,
     {
@@ -206,8 +206,22 @@ impl<'c> TypeValue<'c> {
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
-            TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
-            TypeValue::Namespace(ns) => TypeValue::Namespace(*ns),
+            TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds { bounds },
+            }) => TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds {
+                    bounds: Row::from_iter(
+                        bounds.iter().map(|TraitBound { trt, params }| TraitBound {
+                            trt: *trt,
+                            params: Row::from_iter(params.iter().map(|&arg| f(arg)), wall),
+                        }),
+                        wall,
+                    ),
+                },
+            }),
+            TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
+                members: ns.members.clone(),
+            }),
         }
     }
 }
@@ -314,7 +328,7 @@ impl<'c, 'w> CoreTypeDefs {
 
 #[derive(Debug)]
 pub struct TypeDefs<'c, 'w> {
-    data: HashMap<TypeDefId, Brick<'c, TypeDefValue<'c>>>,
+    data: HashMap<TypeDefId, Cell<&'c TypeDefValue<'c>>>,
     wall: &'w Wall<'c>,
 }
 
@@ -326,13 +340,14 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
         }
     }
 
-    pub fn get(&self, ty_def: TypeDefId) -> &TypeDefValue<'c> {
-        &self.data.get(&ty_def).unwrap()
+    pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue<'c> {
+        &self.data.get(&ty_def).unwrap().get()
     }
 
     pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
         let id = TypeDefId::new();
-        self.data.insert(id, Brick::new(def, self.wall));
+        self.data
+            .insert(id, Cell::new(Brick::new(def, self.wall).disown()));
         id
     }
 }
