@@ -89,9 +89,22 @@ impl<'c> TraitImpl<'c> {
         wall: &Wall<'c>,
     ) -> TypecheckResult<Substitution> {
         let trt = traits.get(self.trait_id);
+
         let base_sub = Substitution::from_vars(&trt.args, types);
         let impl_sub = Substitution::from_vars(&self.args, types);
-        let base_subbed_fn_type = base_sub.apply(trt.fn_type, types, unifier, wall);
+
+        // let base_subbed_args = 
+
+        // let base_subbed_fn_type = base_sub.apply(trt.fn_type, types, unifier, wall);
+
+        // let impl_and_base_subbed_impl_args = self.args.iter().map(|&a| {
+        //     impl_sub
+        //         .clone()
+        //         .extend(&base_sub)
+        //         .apply(a, types, unifier, wall)
+        // });
+
+
         // let impl_subbed_fn_type = impl_sub.apply(self.fn_type, types, unifier, wall);
 
         todo!()

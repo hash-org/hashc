@@ -77,6 +77,7 @@ pub struct Unifier<'c, 'w, 'm, 'ms, 'gs> {
 //         Ok(())
 //     }
 // }
+#[derive(Debug, Clone)]
 pub struct Substitution {
     subs: Vec<(TypeId, TypeId)>,
 }
@@ -86,8 +87,8 @@ impl<'c> Substitution {
         Self { subs: Vec::new() }
     }
 
-    pub fn merge(mut self, other: Substitution) -> Self {
-        self.subs.extend(other.subs);
+    pub fn merge(mut self, other: impl Borrow<Substitution>) -> Self {
+        self.subs.extend(other.borrow().subs.iter().map(|x| *x));
         self
     }
 
@@ -99,17 +100,20 @@ impl<'c> Substitution {
         }
     }
 
-    pub fn from_vars(containing_type_vars: &[TypeId], types: &mut Types) -> Self {
+    pub fn from_vars(type_vars: &[TypeId], types: &mut Types) -> Self {
         Self {
-            subs: containing_type_vars
+            subs: type_vars
                 .iter()
-                .filter_map(|&ty| {
+                .map(|&ty| {
                     let ty_value = types.get(ty);
                     if matches!(ty_value, TypeValue::Var(_)) {
                         let unknown_ty = types.create_unknown_type();
-                        Some((ty, unknown_ty))
+                        (ty, unknown_ty)
                     } else {
-                        None
+                        panic!(
+                            "Got type list with other types than type variables: {:?}",
+                            type_vars
+                        )
                     }
                 })
                 .collect(),

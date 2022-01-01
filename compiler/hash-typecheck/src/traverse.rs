@@ -129,10 +129,15 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         unifier.unify_many(type_list, def, strategy)
     }
 
-    fn unify(&mut self, a: TypeId, b: TypeId, strategy: UnifyStrategy) -> TypecheckResult<()> {
+    fn unify(
+        &mut self,
+        target: TypeId,
+        source: TypeId,
+        strategy: UnifyStrategy,
+    ) -> TypecheckResult<()> {
         let mut unifier =
             Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage);
-        unifier.unify(a, b, strategy)
+        unifier.unify(target, source, strategy)
     }
 
     fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
@@ -143,7 +148,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &self.global_tc.global_storage.types.get(ty)
     }
 
-    fn get_type_def(&self, def: TypeDefId) -> &TypeDefValue<'c> {
+    fn get_type_def(&self, def: TypeDefId) -> &'c TypeDefValue<'c> {
         self.global_tc.global_storage.type_defs.get(def)
     }
 
@@ -632,19 +637,69 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     type StructLiteralRet = TypeId;
     fn visit_struct_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
     ) -> Result<Self::StructLiteralRet, Self::Error> {
-        todo!()
+        let symbol_res = self.resolve_compound_symbol(&node.name.path)?;
+        match symbol_res {
+            SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
+                node.name.path.to_owned(),
+            )),
+            SymbolType::Type(ty_id) => {
+                let ty = self.get_type(ty_id);
+                match ty {
+                    TypeValue::User(UserType { def_id, args: _ }) => {
+                        let type_def = self.get_type_def(*def_id);
+                        match type_def {
+                            TypeDefValue::Struct(StructDef {
+                                name: _,
+                                fields,
+                                generics: _,
+                            }) => {
+                                let walk::StructLiteral {
+                                    name: _,
+                                    entries,
+                                    type_args: _,
+                                } = walk::walk_struct_literal(self, ctx, node)?;
+
+                                // @@todo: type args
+
+                                // Unify args
+                                for &(entry_name, entry_ty) in &entries {
+                                    match fields.get_field(entry_name) {
+                                        Some(field_ty) => self.unify(
+                                            entry_ty,
+                                            field_ty,
+                                            UnifyStrategy::ModifyTarget,
+                                        )?,
+                                        None => {
+                                            return Err(TypecheckError::UnresolvedStructField(
+                                                ty_id, entry_name,
+                                            ))
+                                        }
+                                    }
+                                }
+
+                                Ok(ty_id)
+                            }
+                            _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
+                        }
+                    }
+                    _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
+                }
+            }
+        }
     }
 
     type StructLiteralEntryRet = (Identifier, TypeId);
     fn visit_struct_literal_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
     ) -> Result<Self::StructLiteralEntryRet, Self::Error> {
-        todo!()
+        let walk::StructLiteralEntry { value, .. } =
+            walk::walk_struct_literal_entry(self, ctx, node)?;
+        Ok((node.name.ident, value))
     }
 
     type FunctionDefRet = TypeId;
