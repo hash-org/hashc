@@ -304,7 +304,7 @@ where
         };
 
         self.node(AccessName {
-            path: row![&self.wall; IDENTIFIER_MAP.create_ident(name_ref)],
+            path: row![&self.wall; IDENTIFIER_MAP.create_ident_existing(name_ref)],
         })
     }
 
@@ -2769,14 +2769,14 @@ where
             Some(_) => {
                 // Parse the return type here, and then give the function name
                 type_args.push(self.parse_type()?, &self.wall);
-                IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
+                IDENTIFIER_MAP.create_ident_existing(FUNCTION_TYPE_NAME)
             }
             None => {
                 if must_be_function {
                     self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
-                IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME)
+                IDENTIFIER_MAP.create_ident_existing(TUPLE_TYPE_NAME)
             }
         };
 
@@ -2872,7 +2872,7 @@ where
                         }
 
                         // @@Incomplete: inline type names into ident map...
-                        let name = IDENTIFIER_MAP.create_ident(MAP_TYPE_NAME);
+                        let name = IDENTIFIER_MAP.create_ident_existing(MAP_TYPE_NAME);
 
                         Type::Named(NamedType {
                             name: self.make_access_name_from_identifier(name, token.span),
@@ -2882,7 +2882,7 @@ where
                     Some(_) => gen.expected_eof()?,
                     None => {
                         // @@Incomplete: inline type names into ident map...
-                        let name = IDENTIFIER_MAP.create_ident(SET_TYPE_NAME);
+                        let name = IDENTIFIER_MAP.create_ident_existing(SET_TYPE_NAME);
 
                         Type::Named(NamedType {
                             name: self.make_access_name_from_identifier(name, token.span),
@@ -2907,7 +2907,7 @@ where
                 }
 
                 // @@Incomplete: inline type names into ident map...
-                let name = IDENTIFIER_MAP.create_ident(LIST_TYPE_NAME);
+                let name = IDENTIFIER_MAP.create_ident_existing(LIST_TYPE_NAME);
 
                 Type::Named(NamedType {
                     name: self.make_access_name_from_identifier(name, token.span),

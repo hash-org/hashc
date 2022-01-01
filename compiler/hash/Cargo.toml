@@ -5,7 +5,7 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-clap = { version = "3.0.0-beta.2", features = ["derive"] }
+clap = { version = "3.0.0", features = ["derive"] }
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-parser = {path = "../hash-parser" }
