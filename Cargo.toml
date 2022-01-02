@@ -1,14 +1,16 @@
 [workspace]
 members = [
-  "compiler/hash-utils",
-  "compiler/hash-alloc",
-  "compiler/hash-utils/testing-macros",
-  "compiler/hash-ast",
-  "compiler/hash-parser",
-  "compiler/hash-interactive",
-  "compiler/hash-typecheck",
-  "compiler/hash-reporting",
   "compiler/hash",
+  "compiler/hash-alloc",
+  "compiler/hash-ast",
+  "compiler/hash-hir",
+  "compiler/hash-interactive",
+  "compiler/hash-parser",
+  "compiler/hash-reporting",
+  "compiler/hash-typecheck",
+  "compiler/hash-utils",
+  "compiler/hash-utils/testing-macros",
+  "compiler/hash-vm",
   "tests/parser",
 ]
 

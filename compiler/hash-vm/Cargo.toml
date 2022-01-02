@@ -1,0 +1,12 @@
+[package]
+name = "hash-vm"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2021"
+
+[dependencies]
+hashbrown = "0.11" 
+hash-alloc = {path = "../hash-alloc" }
+hash-utils = {path = "../hash-utils" }
+hash-ast = {path = "../hash-ast" }
+hash-reporting = {path = "../hash-reporting" }
