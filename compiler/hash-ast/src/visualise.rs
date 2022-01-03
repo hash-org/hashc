@@ -364,7 +364,7 @@ impl NodeDisplay for AccessName<'_> {
             (self
                 .path
                 .iter()
-                .map(|x| IDENTIFIER_MAP.ident_name(*x).to_owned())
+                .map(|x| IDENTIFIER_MAP.get_ident(*x).to_owned())
                 .collect::<Vec<String>>()
                 .join("::"))
         )]
@@ -373,7 +373,7 @@ impl NodeDisplay for AccessName<'_> {
 
 impl NodeDisplay for Name {
     fn node_display(&self) -> Vec<String> {
-        vec![format!("\"{}\"", IDENTIFIER_MAP.ident_name(self.ident))]
+        vec![format!("\"{}\"", IDENTIFIER_MAP.get_ident(self.ident))]
     }
 }
 
@@ -634,7 +634,7 @@ impl NodeDisplay for Expression<'_> {
             ExpressionKind::Intrinsic(intrinsic) => {
                 vec![format!(
                     "intrinsic \"{}\"",
-                    IDENTIFIER_MAP.ident_name(intrinsic.name)
+                    IDENTIFIER_MAP.get_ident(intrinsic.name)
                 )]
             }
             ExpressionKind::Variable(var) => {
@@ -665,7 +665,7 @@ impl NodeDisplay for Expression<'_> {
                 // now deal with the field
                 let field_lines = vec![format!(
                     "field \"{}\"",
-                    IDENTIFIER_MAP.ident_name(expr.property.body().ident)
+                    IDENTIFIER_MAP.get_ident(expr.property.body().ident)
                 )];
 
                 iter::once("property_access".to_string())
