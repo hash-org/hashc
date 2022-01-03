@@ -19,10 +19,10 @@ use hash_reporting::{
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
 use std::{num::NonZeroUsize, process::exit};
+use std::panic;
 
 use crate::crash_handler::panic_handler;
 
@@ -114,8 +114,8 @@ fn run_parsing<'c>(
 ) -> Modules<'c> {
     let (result, modules) = timed(
         || parser.parse(&filename, &directory),
-        log::Level::Debug,
-        |elapsed| println!("total: {:?}", elapsed),
+        log::Level::Info,
+        |elapsed| println!("parse: {:?}", elapsed),
     );
 
     match result {
@@ -141,6 +141,8 @@ fn main() {
     // if debug is specified, we want to log everything that is debug level...
     if opts.debug {
         log::set_max_level(LevelFilter::Debug);
+    } else {
+        log::set_max_level(LevelFilter::Info);
     }
 
     // check that the job count is valid...
@@ -156,42 +158,50 @@ fn main() {
     let mut parser_backend =
         ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
 
-    execute(|| {
-        let directory = env::current_dir().unwrap();
+    timed(
+        || {
+            execute(|| {
+                let directory = env::current_dir().unwrap();
 
-        // check here if we are operating in a special mode
-        if let Some(mode) = opts.mode {
-            let _modules = match mode {
-                SubCmd::AstGen(settings) => {
-                    let filename = fs::canonicalize(&settings.filename)?;
+                // check here if we are operating in a special mode
+                if let Some(mode) = opts.mode {
+                    let _modules = match mode {
+                        SubCmd::AstGen(settings) => {
+                            let filename = fs::canonicalize(&settings.filename)?;
 
-                    if settings.debug {
-                        log::set_max_level(LevelFilter::Debug);
+                            if settings.debug {
+                                log::set_max_level(LevelFilter::Debug);
+                            } else {
+                                log::set_max_level(LevelFilter::Info);
+                            }
+
+                            parser_backend.set_visualisation(settings.visualise);
+                            run_parsing(parser_backend, filename, directory)
+                        }
+                        SubCmd::IrGen(i) => {
+                            println!("Generating ir for: {} with debug={}", i.filename, i.debug);
+                            todo!()
+                        }
+                    };
+
+                    return Ok(());
+                }
+
+                match opts.execute {
+                    Some(path) => {
+                        let filename = fs::canonicalize(&path)?;
+                        let _modules = run_parsing(parser_backend, filename, directory);
+
+                        Ok(())
                     }
-
-                    parser_backend.set_visualisation(settings.visualise);
-                    run_parsing(parser_backend, filename, directory)
+                    None => {
+                        hash_interactive::init()?;
+                        Ok(())
+                    }
                 }
-                SubCmd::IrGen(i) => {
-                    println!("Generating ir for: {} with debug={}", i.filename, i.debug);
-                    todo!()
-                }
-            };
-
-            return Ok(());
-        }
-
-        match opts.execute {
-            Some(path) => {
-                let filename = fs::canonicalize(&path)?;
-                let _modules = run_parsing(parser_backend, filename, directory);
-
-                Ok(())
-            }
-            None => {
-                hash_interactive::init()?;
-                Ok(())
-            }
-        }
-    })
+            })
+        },
+        log::Level::Info,
+        |elapsed| println!("total: {:?}", elapsed),
+    )
 }
