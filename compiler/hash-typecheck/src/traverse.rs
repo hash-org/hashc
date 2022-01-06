@@ -113,38 +113,6 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         }
     }
 
-    fn unify_pairs(
-        &mut self,
-        pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
-        strategy: UnifyStrategy,
-    ) -> TypecheckResult<()> {
-        let mut unifier =
-            Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage);
-        unifier.unify_pairs(pairs, strategy)
-    }
-
-    fn unify_many(
-        &mut self,
-        type_list: impl Iterator<Item = TypeId>,
-        strategy: UnifyStrategy,
-    ) -> TypecheckResult<TypeId> {
-        let def = self.create_unknown_type();
-        let mut unifier =
-            Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage);
-        unifier.unify_many(type_list, def, strategy)
-    }
-
-    fn unify(
-        &mut self,
-        target: TypeId,
-        source: TypeId,
-        strategy: UnifyStrategy,
-    ) -> TypecheckResult<()> {
-        let mut unifier =
-            Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage);
-        unifier.unify(target, source, strategy)
-    }
-
     fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
         self.global_tc.global_storage.types.create(value)
     }
@@ -226,6 +194,10 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
 
     fn core_type_defs(&mut self) -> &CoreTypeDefs {
         &self.global_tc.global_storage.core_type_defs
+    }
+
+    fn unifier<'s>(&'s mut self) -> Unifier<'c, 'w, 'm, 's, 's> {
+        Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage)
     }
 
     fn resolve_compound_symbol(&mut self, symbols: &[Identifier]) -> TypecheckResult<SymbolType> {
@@ -344,7 +316,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             args: given_args,
             ret: ret_ty,
         }));
-        self.unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
+        self.unifier()
+            .unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
 
         Ok(ret_ty)
     }
@@ -405,7 +378,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let created_ref_ty = self.create_type(TypeValue::Ref(RefType {
             inner: created_inner_ty,
         }));
-        self.unify(created_ref_ty, given_ref_ty, UnifyStrategy::ModifyBoth)?;
+        self.unifier()
+            .unify(created_ref_ty, given_ref_ty, UnifyStrategy::ModifyBoth)?;
 
         Ok(created_inner_ty)
     }
@@ -426,7 +400,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::TypedExpr<'c>>,
     ) -> Result<Self::TypedExprRet, Self::Error> {
         let walk::TypedExpr { expr, ty } = walk::walk_typed_expr(self, ctx, node)?;
-        self.unify(expr, ty, UnifyStrategy::ModifyBoth)?;
+        self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
         Ok(expr)
     }
 
@@ -473,13 +447,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 match def {
                     TypeDefValue::Enum(EnumDef { generics, .. })
                     | TypeDefValue::Struct(StructDef { generics, .. }) => {
-                        // @@Todo: do proper unification here
-                        let instantiated_args: Vec<_> = generics
-                            .params
-                            .iter()
-                            .map(|_| self.create_unknown_type())
-                            .collect();
-                        self.unify_pairs(
+                        let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
+                        let instantiated_args = self
+                            .unifier()
+                            .apply_sub_to_list(&args_sub, &generics.params);
+
+                        self.unifier().unify_pairs(
                             type_args.iter().zip(instantiated_args.iter()),
                             UnifyStrategy::ModifyTarget,
                         )?;
@@ -565,11 +538,11 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             .map(|entry| self.visit_map_literal_entry(ctx, entry.ast_ref()))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let key_ty = self.unify_many(
+        let key_ty = self.unifier().unify_many(
             entries.iter().map(|&(key, _)| key),
             UnifyStrategy::ModifyBoth,
         )?;
-        let value_ty = self.unify_many(
+        let value_ty = self.unifier().unify_many(
             entries.iter().map(|&(_, value)| value),
             UnifyStrategy::ModifyBoth,
         )?;
@@ -598,7 +571,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             .iter()
             .map(|el| self.visit_expression(ctx, el.ast_ref()))
             .collect::<Result<Vec<_>, _>>()?;
-        let el_ty = self.unify_many(entries.iter().map(|&el| el), UnifyStrategy::ModifyBoth)?;
+        let el_ty = self
+            .unifier()
+            .unify_many(entries.iter().map(|&el| el), UnifyStrategy::ModifyBoth)?;
 
         Ok(self.create_list_type(el_ty))
     }
@@ -614,7 +589,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             .iter()
             .map(|el| self.visit_expression(ctx, el.ast_ref()))
             .collect::<Result<Vec<_>, _>>()?;
-        let el_ty = self.unify_many(entries.iter().map(|&el| el), UnifyStrategy::ModifyBoth)?;
+        let el_ty = self
+            .unifier()
+            .unify_many(entries.iter().map(|&el| el), UnifyStrategy::ModifyBoth)?;
 
         Ok(self.create_set_type(el_ty))
     }
@@ -677,7 +654,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
                 node.name.path.to_owned(),
             )),
-            SymbolType::TypeDef(_) => todo!(), // The same thing needs to happen as below, with inferred type args
+            SymbolType::TypeDef(_) => todo!(), // @@Todo The same thing needs to happen as below, with inferred type args
             SymbolType::Type(ty_id) => {
                 let ty = self.get_type(ty_id);
                 match ty {
@@ -695,12 +672,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                                     type_args: _,
                                 } = walk::walk_struct_literal(self, ctx, node)?;
 
-                                // @@todo: type args
-
                                 // Unify args
                                 for &(entry_name, entry_ty) in &entries {
                                     match fields.get_field(entry_name) {
-                                        Some(field_ty) => self.unify(
+                                        Some(field_ty) => self.unifier().unify(
                                             entry_ty,
                                             field_ty,
                                             UnifyStrategy::ModifyTarget,
@@ -762,18 +737,21 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         self.tc_state().func_ret_type = old_ret_ty;
         let ret_once = mem::replace(&mut self.tc_state().ret_once, old_ret_once);
 
-        // unify returns
+        // unifier().unify returns
         match self.get_type(body_ty) {
             TypeValue::Prim(PrimType::Void) => {
                 if ret_once {
                     let body_ty = self.create_unknown_type();
-                    self.unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
+                    self.unifier()
+                        .unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
                 } else {
-                    self.unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
+                    self.unifier()
+                        .unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
                 }
             }
             _ => {
-                self.unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
+                self.unifier()
+                    .unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
             }
         };
 
@@ -883,8 +861,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     .0
                     .unwrap_or_else(|| self.create_type(TypeValue::Prim(PrimType::Void)));
 
-                // @@Todo: Here we might want to unify bidirectionally.
-                self.unify(ret, given_ret, UnifyStrategy::ModifyBoth)?;
+                self.unifier()
+                    .unify(ret, given_ret, UnifyStrategy::ModifyBoth)?;
                 self.tc_state().ret_once = true;
 
                 Ok(())
@@ -948,7 +926,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         // @@Todo: bounds
         let annot_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
         let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
-        self.unify_many(
+        self.unifier().unify_many(
             [annot_ty, value_ty, pattern_ty].into_iter(),
             UnifyStrategy::ModifyBoth,
         )?;

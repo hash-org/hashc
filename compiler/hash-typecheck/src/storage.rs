@@ -17,6 +17,7 @@ pub struct GlobalStorage<'c, 'w, 'm> {
     pub trait_impls: TraitImpls<'c, 'w>,
     pub traits: Traits<'c, 'w>,
     pub types: Types<'c, 'w>,
+    pub wall: &'w Wall<'c>,
 }
 
 impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
@@ -36,7 +37,12 @@ impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
             types,
             core_type_defs,
             core_traits,
+            wall,
         }
+    }
+
+    pub fn wall(&self) -> &'w Wall<'c> {
+        self.wall
     }
 }
 
