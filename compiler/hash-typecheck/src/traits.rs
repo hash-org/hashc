@@ -93,7 +93,7 @@ impl<'c> TraitImpl<'c> {
         let base_sub = Substitution::from_vars(&trt.args, types);
         let impl_sub = Substitution::from_vars(&self.args, types);
 
-        // let base_subbed_args = 
+        // let base_subbed_args =
 
         // let base_subbed_fn_type = base_sub.apply(trt.fn_type, types, unifier, wall);
 
@@ -103,7 +103,6 @@ impl<'c> TraitImpl<'c> {
         //         .extend(&base_sub)
         //         .apply(a, types, unifier, wall)
         // });
-
 
         // let impl_subbed_fn_type = impl_sub.apply(self.fn_type, types, unifier, wall);
 
@@ -190,6 +189,9 @@ pub struct CoreTraits {
 
 impl<'c, 'w> CoreTraits {
     pub fn create(types: &mut Types<'c, 'w>, wall: &'w Wall<'c>) -> Self {
-        todo!()
+        CoreTraits {
+            hash: TraitId::new(),
+            eq: TraitId::new(),
+        }
     }
 }
