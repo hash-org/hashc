@@ -2,43 +2,49 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use hash_utils::counter;
-use hashbrown::HashMap;
+use std::{
+    alloc::{self, Layout},
+    iter,
+};
 
-const HEAP_GC_MULTIPLIER: u64 = 2;
-
-counter! {
-    name: HeapId,
-    counter_name: HEAP_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
-}
-
-pub struct HeapValue {}
+// const HEAP_GC_MULTIPLIER: usize = 2;
 
 /// The Heap of the Hash Virtual Machine.
 pub struct Heap {
-    allocated_bytes: u64,
-    max_bytes: u64,
-    values: HashMap<HeapId, HeapValue>,
+    values: Vec<u8>,
 }
+
+pub struct Pointer(pub u64);
 
 impl Heap {
     pub fn new() -> Self {
-        Heap {
-            allocated_bytes: 0,
-            max_bytes: 0,
-            values: HashMap::default(),
-        }
+        Heap { values: vec![] }
     }
 
-    pub fn should_collect(&self) -> bool {
-        self.allocated_bytes >= self.max_bytes
+    pub fn allocate(&mut self, size: u64) -> Pointer {
+        let offset = self.values.len();
+
+        self.values
+            .extend(iter::repeat(0).take(size.try_into().unwrap()));
+
+        Pointer(offset.try_into().unwrap())
     }
 
-    /// Increase the maximum heap size by the specified constant multiplier [HEAP_GC_MULTIPLIER]
-    /// which is by default set to 2.
-    pub fn increase_max_heap_size(&mut self) {
-        self.max_bytes *= HEAP_GC_MULTIPLIER;
+    pub fn free(&self, _ptr: Pointer) {
+        // it's freed now
     }
+
+    // pub fn collect(&self) {
+    //     todo!()
+    // }
+
+    // pub fn should_collect(&self) -> bool {
+    //     self.values.len() >= self.max_bytes
+    // }
+
+    // /// Increase the maximum heap size by the specified constant multiplier [HEAP_GC_MULTIPLIER]
+    // /// which is by default set to 2.
+    // pub fn increase_max_heap_size(&mut self) {
+    //     self.max_bytes *= HEAP_GC_MULTIPLIER;
+    // }
 }

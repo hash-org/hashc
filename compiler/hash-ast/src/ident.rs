@@ -61,12 +61,16 @@ impl IdentifierMap {
 
     /// Create the identifier in the identifiers map but also allocate the static string in a provided
     /// [Wall].
-    fn create_ident_in(&self, ident_str: &str, wall: &Wall<'static>) -> Identifier {
+    pub fn create_ident(&self, ident_str: &str) -> Identifier {
         if let Some(key) = self.identifiers.get(ident_str) {
             *key
         } else {
+            // Create the ident
+            let wall = IDENTIFIER_STORAGE_WALL.lock();
+            let ident_str_alloc = BrickString::new(ident_str, &wall).into_str();
+
+            // Reserve the identifier and then insert it into the map.
             let ident = Identifier::new();
-            let ident_str_alloc = BrickString::new(ident_str, wall).into_str();
 
             self.identifiers.insert(ident_str_alloc, ident);
             self.reverse_lookup.insert(ident, ident_str_alloc);
@@ -74,14 +78,8 @@ impl IdentifierMap {
         }
     }
 
-    /// Function to create an identifier in the identifier map.
-    pub fn create_ident(&self, ident_str: &str) -> Identifier {
-        let wall = IDENTIFIER_STORAGE_WALL.lock();
-        self.create_ident_in(ident_str, &wall)
-    }
-
     /// Function to lookup an identifier by an [Identifier] value in the identifier map.
-    pub fn ident_name(&self, ident: Identifier) -> &'static str {
+    pub fn get_ident(&self, ident: Identifier) -> &'static str {
         self.reverse_lookup.get(&ident).unwrap().value()
     }
 }

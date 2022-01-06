@@ -19,10 +19,10 @@ use hash_reporting::{
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
+use std::panic;
 use std::path::PathBuf;
 use std::{env, fs};
 use std::{num::NonZeroUsize, process::exit};
-use std::panic;
 
 use crate::crash_handler::panic_handler;
 
@@ -115,7 +115,7 @@ fn run_parsing<'c>(
     let (result, modules) = timed(
         || parser.parse(&filename, &directory),
         log::Level::Info,
-        |elapsed| println!("parse: {:?}", elapsed),
+        |elapsed| println!("total: {:?}", elapsed),
     );
 
     match result {
