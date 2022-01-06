@@ -6,10 +6,7 @@ use hash_ast::{
     resolve::ModuleResolver,
 };
 
-use crate::{
-    gen::AstGen,
-    token::{TokenAtom, TokenKind},
-};
+use crate::{gen::AstGen, token::TokenKind};
 
 /// Struct representing an operator with a kind and a flag
 /// denoting whether the operator is re-assigning the left
@@ -85,66 +82,43 @@ impl Operator {
         }
 
         let (op, mut consumed): (_, u8) = match &(token.unwrap()).kind {
-            TokenKind::Atom(atom) => {
-                match atom {
-                    // Since the 'as' keyword is also a binary operator, we have to handle it here...
-                    TokenAtom::Keyword(Keyword::As) => (Some(OperatorKind::As), 1),
-                    TokenAtom::Eq => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                            (Some(OperatorKind::EqEq), 2)
-                        }
-                        _ => (None, 0),
-                    },
-                    TokenAtom::Lt => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                            (Some(OperatorKind::LtEq), 2)
-                        }
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Lt) => {
-                            (Some(OperatorKind::Shl), 2)
-                        }
-                        _ => (Some(OperatorKind::Lt), 1),
-                    },
-                    TokenAtom::Gt => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                            (Some(OperatorKind::GtEq), 2)
-                        }
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Gt) => {
-                            (Some(OperatorKind::Shr), 2)
-                        }
-                        _ => (Some(OperatorKind::Gt), 1),
-                    },
-                    TokenAtom::Plus => (Some(OperatorKind::Add), 1),
-                    TokenAtom::Minus => (Some(OperatorKind::Sub), 1),
-                    TokenAtom::Star => (Some(OperatorKind::Mul), 1),
-                    TokenAtom::Slash => (Some(OperatorKind::Div), 1),
-                    TokenAtom::Percent => (Some(OperatorKind::Mod), 1),
-                    TokenAtom::Caret => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Caret) => {
-                            (Some(OperatorKind::Exp), 2)
-                        }
-                        _ => (Some(OperatorKind::BitXor), 1),
-                    },
-                    TokenAtom::Amp => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Amp) => {
-                            (Some(OperatorKind::And), 2)
-                        }
-                        _ => (Some(OperatorKind::BitAnd), 1),
-                    },
-                    TokenAtom::Pipe => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Pipe) => {
-                            (Some(OperatorKind::Or), 2)
-                        }
-                        _ => (Some(OperatorKind::BitOr), 1),
-                    },
-                    TokenAtom::Exclamation => match gen.peek_second() {
-                        Some(token) if token.kind == TokenKind::Atom(TokenAtom::Eq) => {
-                            (Some(OperatorKind::NotEq), 2)
-                        }
-                        _ => (None, 0), // this is a unary operator '!'
-                    },
-                    _ => (None, 0),
-                }
-            }
+            // Since the 'as' keyword is also a binary operator, we have to handle it here...
+            TokenKind::Keyword(Keyword::As) => (Some(OperatorKind::As), 1),
+            TokenKind::Eq => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::EqEq), 2),
+                _ => (None, 0),
+            },
+            TokenKind::Lt => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::LtEq), 2),
+                Some(token) if token.kind == TokenKind::Lt => (Some(OperatorKind::Shl), 2),
+                _ => (Some(OperatorKind::Lt), 1),
+            },
+            TokenKind::Gt => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::GtEq), 2),
+                Some(token) if token.kind == TokenKind::Gt => (Some(OperatorKind::Shr), 2),
+                _ => (Some(OperatorKind::Gt), 1),
+            },
+            TokenKind::Plus => (Some(OperatorKind::Add), 1),
+            TokenKind::Minus => (Some(OperatorKind::Sub), 1),
+            TokenKind::Star => (Some(OperatorKind::Mul), 1),
+            TokenKind::Slash => (Some(OperatorKind::Div), 1),
+            TokenKind::Percent => (Some(OperatorKind::Mod), 1),
+            TokenKind::Caret => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Caret => (Some(OperatorKind::Exp), 2),
+                _ => (Some(OperatorKind::BitXor), 1),
+            },
+            TokenKind::Amp => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Amp => (Some(OperatorKind::And), 2),
+                _ => (Some(OperatorKind::BitAnd), 1),
+            },
+            TokenKind::Pipe => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Pipe => (Some(OperatorKind::Or), 2),
+                _ => (Some(OperatorKind::BitOr), 1),
+            },
+            TokenKind::Exclamation => match gen.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::NotEq), 2),
+                _ => (None, 0), // this is a unary operator '!'
+            },
             _ => (None, 0),
         };
 
@@ -154,7 +128,7 @@ impl Operator {
             // 'Eq' version.
             Some(kind) => {
                 let assignable = match gen.peek_nth(consumed as usize) {
-                    Some(token) if kind.is_re_assignable() && token.has_atom(TokenAtom::Eq) => {
+                    Some(token) if kind.is_re_assignable() && token.has_kind(TokenKind::Eq) => {
                         consumed += 1;
                         true
                     }
