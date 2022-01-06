@@ -1,23 +1,15 @@
-use std::{borrow::Borrow, collections::HashMap, ops::BitOr, slice::SliceIndex};
-
-use hash_alloc::Wall;
-
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{self, RawRefType, RefType, TupleType, TypeId, TypeList, TypeValue, Types, UserType},
 };
+use std::{borrow::Borrow, slice::SliceIndex};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnifyStrategy {
     ModifyBoth,
     ModifyTarget,
     CheckOnly,
-}
-
-pub struct Unifier<'c, 'w, 'm, 'ms, 'gs> {
-    module_storage: &'ms mut ModuleStorage,
-    global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
 }
 
 // pub struct Substitution<'c> {
@@ -100,47 +92,30 @@ impl<'c> Substitution {
         }
     }
 
-    pub fn from_vars(type_vars: &[TypeId], types: &mut Types) -> Self {
-        Self {
-            subs: type_vars
-                .iter()
-                .map(|&ty| {
-                    let ty_value = types.get(ty);
-                    if matches!(ty_value, TypeValue::Var(_)) {
-                        let unknown_ty = types.create_unknown_type();
-                        (ty, unknown_ty)
-                    } else {
-                        panic!(
-                            "Got type list with other types than type variables: {:?}",
-                            type_vars
-                        )
-                    }
-                })
-                .collect(),
-        }
-    }
+    // pub fn from_vars(type_vars: &[TypeId], types: &mut Types) -> Self {
+    //     Self {
+    //         subs: type_vars
+    //             .iter()
+    //             .map(|&ty| {
+    //                 let ty_value = types.get(ty);
+    //                 if matches!(ty_value, TypeValue::Var(_)) {
+    //                     let unknown_ty = types.create_unknown_type();
+    //                     (ty, unknown_ty)
+    //                 } else {
+    //                     panic!(
+    //                         "Got type list with other types than type variables: {:?}",
+    //                         type_vars
+    //                     )
+    //                 }
+    //             })
+    //             .collect(),
+    //     }
+    // }
+}
 
-    pub fn apply(
-        &self,
-        ty: TypeId,
-        types: &mut Types<'c, '_>,
-        unifier: &mut Unifier,
-        wall: &Wall<'c>,
-    ) -> TypeId {
-        let mut curr_ty = ty;
-        for &(from, to) in &self.subs {
-            let unify_result = unifier.unify(from, ty, UnifyStrategy::CheckOnly);
-            if unify_result.is_ok() {
-                curr_ty = to;
-            }
-        }
-
-        let new_ty_value = types
-            .get(curr_ty)
-            .map_type_ids(|ty_id| self.apply(ty_id, types, unifier, wall), wall);
-
-        types.create(new_ty_value)
-    }
+pub struct Unifier<'c, 'w, 'm, 'ms, 'gs> {
+    module_storage: &'ms mut ModuleStorage,
+    global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
 }
 
 impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
@@ -171,21 +146,36 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
 
     pub fn unify_many(
         &mut self,
-        type_list: impl Iterator<Item = TypeId>,
-        default: TypeId,
+        mut type_list: impl Iterator<Item = TypeId>,
         strategy: UnifyStrategy,
     ) -> TypecheckResult<TypeId> {
-        let first = default;
+        let first = type_list
+            .next()
+            .unwrap_or_else(|| self.global_storage.types.create_unknown_type());
         for curr in type_list {
             self.unify(curr, first, strategy)?;
         }
         Ok(first)
     }
 
+    pub fn instantiate_vars_list(&mut self, vars: &[TypeId]) -> TypecheckResult<Substitution> {
+        self.instantiate_vars_for_list(vars, vars)
+    }
+
+    pub fn instantiate_vars_for_list(
+        &mut self,
+        tys: &[TypeId],
+        vars: &[TypeId],
+    ) -> TypecheckResult<Substitution> {
+        tys.iter()
+            .map(|&arg| self.instantiate_vars(arg, vars))
+            .fold(Ok(Substitution::empty()), |acc, x| Ok(acc?.merge(x?)))
+    }
+
     pub fn instantiate_vars(
         &mut self,
         ty: TypeId,
-        vars: &TypeList,
+        vars: &[TypeId],
     ) -> TypecheckResult<Substitution> {
         let ty_val = self.global_storage.types.get(ty);
         match ty_val {
@@ -221,6 +211,29 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
             TypeValue::Unknown(_) => Ok(Substitution::empty()),
             TypeValue::Namespace(_) => Ok(Substitution::empty()),
         }
+    }
+
+    pub fn apply_sub_to_list(&mut self, sub: &Substitution, tys: &[TypeId]) -> Vec<TypeId> {
+        tys.iter().map(|&ty| self.apply_sub(sub, ty)).collect()
+    }
+
+    pub fn apply_sub(&mut self, sub: &Substitution, ty: TypeId) -> TypeId {
+        let mut curr_ty = ty;
+        for &(from, to) in &sub.subs {
+            let unify_result = self.unify(from, ty, UnifyStrategy::CheckOnly);
+            if unify_result.is_ok() {
+                curr_ty = to;
+            }
+        }
+
+        let wall = self.global_storage.wall();
+        let new_ty_value = self
+            .global_storage
+            .types
+            .get(curr_ty)
+            .map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall);
+
+        self.global_storage.types.create(new_ty_value)
     }
 
     pub fn unify(

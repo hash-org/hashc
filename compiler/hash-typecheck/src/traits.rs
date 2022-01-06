@@ -90,8 +90,8 @@ impl<'c> TraitImpl<'c> {
     ) -> TypecheckResult<Substitution> {
         let trt = traits.get(self.trait_id);
 
-        let base_sub = Substitution::from_vars(&trt.args, types);
-        let impl_sub = Substitution::from_vars(&self.args, types);
+        // let base_sub = Substitution::from_vars(&trt.args, types);
+        // let impl_sub = Substitution::from_vars(&self.args, types);
 
         // let base_subbed_args =
 
