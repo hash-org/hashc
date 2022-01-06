@@ -1,7 +1,9 @@
+use hash_alloc::collections::row::Row;
+
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
-    types::{self, RawRefType, RefType, TupleType, TypeId, TypeList, TypeValue, Types, UserType},
+    types::{self, RawRefType, RefType, TupleType, TypeId, TypeValue, UserType},
 };
 use std::{borrow::Borrow, slice::SliceIndex};
 
@@ -213,7 +215,20 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         }
     }
 
-    pub fn apply_sub_to_list(&mut self, sub: &Substitution, tys: &[TypeId]) -> Vec<TypeId> {
+    pub fn apply_sub_to_list_make_row(
+        &mut self,
+        sub: &Substitution,
+        tys: &[TypeId],
+    ) -> Row<'c, TypeId> {
+        let wall = self.global_storage.wall();
+        Row::from_iter(tys.iter().map(|&ty| self.apply_sub(sub, ty)), wall)
+    }
+
+    pub fn apply_sub_to_list_make_vec(
+        &mut self,
+        sub: &Substitution,
+        tys: &[TypeId],
+    ) -> Vec<TypeId> {
         tys.iter().map(|&ty| self.apply_sub(sub, ty)).collect()
     }
 

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    scope::{Scope, ScopeStack},
+    scope::{ScopeStack},
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
