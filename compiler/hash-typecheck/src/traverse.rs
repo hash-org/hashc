@@ -1112,7 +1112,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
-        todo!()
+        Ok(self.create_type(TypeValue::Prim(PrimType::F32)))
     }
 
     type LiteralPatternRet = TypeId;
