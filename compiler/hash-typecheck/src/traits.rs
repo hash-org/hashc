@@ -60,8 +60,8 @@ pub struct TraitImpl<'c> {
 }
 
 impl<'c> TraitImpl<'c> {
-    pub fn can_resolve(&self, fn_args: &TypeList<'c>, traits: &Traits) -> bool {
-        let trt = traits.get(self.trait_id);
+    pub fn can_resolve(&self, _fn_args: &TypeList<'c>, traits: &Traits) -> bool {
+        let _trt = traits.get(self.trait_id);
         todo!()
 
         // first, does it satisfy trait bounds?
@@ -82,13 +82,13 @@ impl<'c> TraitImpl<'c> {
 
     pub fn instantiate(
         &self,
-        fn_type: &FnType<'c>,
-        unifier: &mut Unifier,
+        _fn_type: &FnType<'c>,
+        _unifier: &mut Unifier,
         traits: &Traits,
-        types: &mut Types<'c, '_>,
-        wall: &Wall<'c>,
+        _types: &mut Types<'c, '_>,
+        _wall: &Wall<'c>,
     ) -> TypecheckResult<Substitution> {
-        let trt = traits.get(self.trait_id);
+        let _trt = traits.get(self.trait_id);
 
         // let base_sub = Substitution::from_vars(&trt.args, types);
         // let impl_sub = Substitution::from_vars(&self.args, types);
@@ -124,7 +124,7 @@ pub struct ImplsForTrait<'c> {
 }
 
 impl<'c> ImplsForTrait<'c> {
-    pub fn resolve_call(&self, fn_args: &[TypeId]) -> TraitImplId {
+    pub fn resolve_call(&self, _fn_args: &[TypeId]) -> TraitImplId {
         todo!();
         // for (&impl_id, impl) in self.impls.iter() {
         // }
@@ -149,7 +149,7 @@ impl<'c, 'w> TraitImpls<'c, 'w> {
         self.data.get(&trait_id).unwrap()
     }
 
-    pub fn resolve_call(trait_id: TraitId, fn_args: &[TypeId]) -> TraitImplId {
+    pub fn resolve_call(_trait_id: TraitId, _fn_args: &[TypeId]) -> TraitImplId {
         // Should substitute given TypeIds with their correct version from the trait impl!
 
         todo!()
@@ -188,7 +188,7 @@ pub struct CoreTraits {
 }
 
 impl<'c, 'w> CoreTraits {
-    pub fn create(types: &mut Types<'c, 'w>, wall: &'w Wall<'c>) -> Self {
+    pub fn create(_types: &mut Types<'c, 'w>, _wall: &'w Wall<'c>) -> Self {
         CoreTraits {
             hash: TraitId::new(),
             eq: TraitId::new(),

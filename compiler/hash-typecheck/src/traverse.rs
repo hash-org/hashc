@@ -7,7 +7,7 @@ use crate::types::{
     TupleType, TypeId, TypeValue, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
-use crate::unify::{Unifier, UnifyStrategy};
+use crate::unify::{Substitution, Unifier, UnifyStrategy};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::ast;
@@ -19,7 +19,7 @@ use hash_ast::{
     visitor::walk,
 };
 use std::iter;
-use std::{borrow::Borrow, collections::HashMap, mem};
+use std::{collections::HashMap, mem};
 
 pub struct GlobalTypechecker<'c, 'w, 'm> {
     global_storage: GlobalStorage<'c, 'w, 'm>,
@@ -654,41 +654,24 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
                 node.name.path.to_owned(),
             )),
-            SymbolType::TypeDef(_) => todo!(), // @@Todo The same thing needs to happen as below, with inferred type args
+            SymbolType::TypeDef(def_id) => {
+                let type_def = self.get_type_def(def_id);
+                let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
+                match type_def {
+                    TypeDefValue::Struct(struct_def) => {
+                        self.typecheck_known_struct_literal(ctx, node, ty_id, struct_def)
+                    }
+                    _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
+                }
+            }
             SymbolType::Type(ty_id) => {
                 let ty = self.get_type(ty_id);
                 match ty {
-                    TypeValue::User(UserType { def_id, args: _ }) => {
+                    TypeValue::User(UserType { def_id, .. }) => {
                         let type_def = self.get_type_def(*def_id);
                         match type_def {
-                            TypeDefValue::Struct(StructDef {
-                                name: _,
-                                fields,
-                                generics: _,
-                            }) => {
-                                let walk::StructLiteral {
-                                    name: _,
-                                    entries,
-                                    type_args: _,
-                                } = walk::walk_struct_literal(self, ctx, node)?;
-
-                                // Unify args
-                                for &(entry_name, entry_ty) in &entries {
-                                    match fields.get_field(entry_name) {
-                                        Some(field_ty) => self.unifier().unify(
-                                            entry_ty,
-                                            field_ty,
-                                            UnifyStrategy::ModifyTarget,
-                                        )?,
-                                        None => {
-                                            return Err(TypecheckError::UnresolvedStructField(
-                                                ty_id, entry_name,
-                                            ))
-                                        }
-                                    }
-                                }
-
-                                Ok(ty_id)
+                            TypeDefValue::Struct(struct_def) => {
+                                self.typecheck_known_struct_literal(ctx, node, ty_id, struct_def)
                             }
                             _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
                         }
@@ -1168,5 +1151,63 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }));
 
         Ok(namespace_ty)
+    }
+}
+
+impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
+    fn typecheck_known_struct_literal(
+        &mut self,
+        ctx: &<Self as AstVisitor<'c>>::Ctx,
+        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+        ty_id: TypeId,
+        StructDef {
+            name: _,
+            fields,
+            generics: _,
+        }: &StructDef,
+    ) -> TypecheckResult<TypeId> {
+        let walk::StructLiteral {
+            name: _,
+            entries,
+            type_args: _,
+        } = walk::walk_struct_literal(self, ctx, node)?;
+
+        // Unify args
+        for &(entry_name, entry_ty) in &entries {
+            match fields.get_field(entry_name) {
+                Some(field_ty) => {
+                    self.unifier()
+                        .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
+                }
+                None => return Err(TypecheckError::UnresolvedStructField(ty_id, entry_name)),
+            }
+        }
+
+        Ok(ty_id)
+    }
+
+    /// Returns a substitution for the type arguments as well.
+    fn instantiate_type_def_unknown_args(
+        &mut self,
+        def_id: TypeDefId,
+    ) -> TypecheckResult<(TypeId, Substitution)> {
+        let type_def = self.get_type_def(def_id);
+
+        let (TypeDefValue::Struct(StructDef { generics, .. })
+        | TypeDefValue::Enum(EnumDef { generics, .. })) = type_def;
+
+        // @@Todo: bounds
+
+        // We don't know what the arguments are, so we instantiate them to be all
+        // unknown.
+        let unifier = self.unifier();
+        let vars_sub = unifier.instantiate_vars_list(&generics.params)?;
+        let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params);
+        let ty_id = self.create_type(TypeValue::User(UserType {
+            def_id,
+            args: instantiated_vars,
+        }));
+
+        Ok((ty_id, vars_sub))
     }
 }
