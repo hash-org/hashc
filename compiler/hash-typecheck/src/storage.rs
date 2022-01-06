@@ -40,9 +40,19 @@ impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ModuleStorage {
-    pub type_vars: TypeVars,
+    pub type_vars: TypeVars, // @@todo delete
     pub scopes: ScopeStack,
     pub state: TypecheckState,
+}
+
+impl ModuleStorage {
+    pub fn new(global_storage: &mut GlobalStorage) -> Self {
+        Self {
+            type_vars: TypeVars::new(),
+            scopes: ScopeStack::new(global_storage),
+            state: TypecheckState::default(),
+        }
+    }
 }

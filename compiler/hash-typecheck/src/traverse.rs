@@ -3,8 +3,8 @@ use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
 use crate::types::{
-    CoreTypeDefs, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef, TupleType,
-    TypeId, TypeValue, UnknownType,
+    CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef,
+    TupleType, TypeId, TypeValue, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
 use crate::unify::{Unifier, UnifyStrategy};
@@ -18,6 +18,7 @@ use hash_ast::{
     visitor,
     visitor::walk,
 };
+use std::iter;
 use std::{borrow::Borrow, collections::HashMap, mem};
 
 pub struct GlobalTypechecker<'c, 'w, 'm> {
@@ -83,9 +84,10 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
         module_or_interactive: ModuleOrInteractive<'i, 'c>,
     ) -> Self {
+        let module_storage = ModuleStorage::new(&mut global_tc.global_storage);
         Self {
             global_tc,
-            module_storage: ModuleStorage::default(),
+            module_storage,
             module_or_interactive,
         }
     }
@@ -298,9 +300,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     ) -> Result<Self::VariableExprRet, Self::Error> {
         match self.resolve_compound_symbol(&node.name.path)? {
             SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
-            SymbolType::Type(_) => Err(TypecheckError::UsingTypeInVariablePos(
-                node.name.path.to_owned(),
-            )),
+            SymbolType::Type(_) | SymbolType::TypeDef(_) => Err(
+                TypecheckError::UsingTypeInVariablePos(node.name.path.to_owned()),
+            ),
         }
     }
 
@@ -341,7 +343,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         }));
         self.unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
 
-        Ok(expected_fn_ty)
+        Ok(ret_ty)
     }
 
     type PropertyAccessExprRet = TypeId;
@@ -455,11 +457,37 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     type NamedTypeRet = TypeId;
     fn visit_named_type(
         &mut self,
-        _: &Self::Ctx,
+        ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
         match self.resolve_compound_symbol(&node.name.path)? {
             SymbolType::Type(ty_id) => Ok(ty_id),
+            SymbolType::TypeDef(def_id) => {
+                let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
+                let def = self.get_type_def(def_id);
+
+                // @@Todo bounds
+                match def {
+                    TypeDefValue::Enum(EnumDef { generics, .. })
+                    | TypeDefValue::Struct(StructDef { generics, .. }) => {
+                        // @@Todo: do proper unification here
+                        let instantiated_args: Vec<_> = generics
+                            .params
+                            .iter()
+                            .map(|_| self.create_unknown_type())
+                            .collect();
+                        self.unify_pairs(
+                            type_args.iter().zip(instantiated_args.iter()),
+                            UnifyStrategy::ModifyTarget,
+                        )?;
+                        let ty = self.create_type(TypeValue::User(UserType {
+                            def_id,
+                            args: type_args,
+                        }));
+                        Ok(ty)
+                    }
+                }
+            }
             SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
                 node.name.path.to_owned(),
             )),
@@ -641,10 +669,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
     ) -> Result<Self::StructLiteralRet, Self::Error> {
         let symbol_res = self.resolve_compound_symbol(&node.name.path)?;
+
         match symbol_res {
             SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
                 node.name.path.to_owned(),
             )),
+            SymbolType::TypeDef(_) => todo!(), // The same thing needs to happen as below, with inferred type args
             SymbolType::Type(ty_id) => {
                 let ty = self.get_type(ty_id);
                 match ty {
@@ -758,8 +788,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FunctionDefArg<'c>>,
     ) -> Result<Self::FunctionDefArgRet, Self::Error> {
-        let walk::FunctionDefArg { name: _, ty } = walk::walk_function_def_arg(self, ctx, node)?;
-        Ok(ty.unwrap_or_else(|| self.create_unknown_type()))
+        let ast::Name { ident } = node.name.body();
+        let walk::FunctionDefArg { ty, .. } = walk::walk_function_def_arg(self, ctx, node)?;
+        let arg_ty = ty.unwrap_or_else(|| self.create_unknown_type());
+        self.scopes()
+            .add_symbol(*ident, SymbolType::Variable(arg_ty));
+        Ok(arg_ty)
     }
 
     type BlockRet = TypeId;
@@ -1148,9 +1182,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::Module { contents: _ } = walk::walk_module(self, ctx, node)?;
 
         let curr_scope = self.scopes().extract_current_scope();
-        let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType {
-            members: curr_scope,
-        }));
+        let members =
+            ScopeStack::with_scopes(&mut self.global_tc.global_storage, iter::once(curr_scope));
+        let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }));
 
         Ok(namespace_ty)
     }

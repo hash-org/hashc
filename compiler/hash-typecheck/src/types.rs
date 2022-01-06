@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    scope::Scope,
+    scope::{Scope, ScopeStack},
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
@@ -149,7 +149,7 @@ pub struct FnType<'c> {
 
 #[derive(Debug)]
 pub struct NamespaceType {
-    pub members: Scope,
+    pub members: ScopeStack,
 }
 
 #[derive(Debug)]
