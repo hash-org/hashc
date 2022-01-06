@@ -43,36 +43,68 @@ pub struct RegisterSet {
 ///       
 ///
 impl RegisterSet {
-    pub fn set_register64(&mut self, register: Register, value: u64) -> u64 {
-        todo!()
+    /// Function to get a [Register] within the [RegisterSet]. The inner implementation
+    /// uses `unsafe` because a [Register] index cannot be larger than a [u8] and therefore
+    /// indexing the [RegisterSet] is always safe as there are always [`u8::MAX`]  number of
+    /// registers.
+    fn get_register(&self, register: Register) -> &[u8; 8] {
+        unsafe { self.registers.get_unchecked(register.0 as usize) }
     }
 
-    pub fn set_register32(&mut self, register: Register, value: u32) -> u32 {
-        todo!()
+    /// Function to get a mutable reference to a  [Register] within the [RegisterSet].
+    fn get_register_mut(&mut self, register: Register) -> &mut [u8; 8] {
+        unsafe { self.registers.get_unchecked_mut(register.0 as usize) }
     }
 
-    pub fn set_register16(&mut self, register: Register, value: u16) -> u16 {
-        todo!()
+    /// Set the bytes of a register.
+    pub fn set_register64(&mut self, register: Register, value: u64) {
+        let reg = self.get_register_mut(register);
+
+        reg.copy_from_slice(&value.to_be_bytes());
     }
 
-    pub fn set_register8(&mut self, register: Register, value: u8) -> u8 {
-        todo!()
+    /// Set the lower four bytes of a register.
+    pub fn set_register32(&mut self, register: Register, value: u32) {
+        let reg = self.get_register_mut(register);
+
+        reg[4..].copy_from_slice(&value.to_be_bytes());
     }
 
+    /// Set the lower two bytes of a register.
+    pub fn set_register16(&mut self, register: Register, value: u16) {
+        let reg = self.get_register_mut(register);
+
+        reg[6..].copy_from_slice(&value.to_be_bytes());
+    }
+
+    /// Set the lower byte of a register.
+    pub fn set_register8(&mut self, register: Register, value: u8) {
+        let reg = self.get_register_mut(register);
+        reg[7] = value;
+    }
+
+    /// Get a register.
     pub fn get_register64(&self, register: Register) -> u64 {
-        todo!()
+        let reg = self.get_register(register);
+        u64::from_be_bytes(*reg)
     }
 
+    /// Get the lower four bytes of a register.
     pub fn get_register32(&self, register: Register) -> u32 {
-        todo!()
+        let reg = self.get_register(register);
+        u32::from_be_bytes(reg[4..].try_into().unwrap())
     }
 
+    /// Get the lower two bytes of a register.
     pub fn get_register16(&self, register: Register) -> u16 {
-        todo!()
+        let reg = self.get_register(register);
+        u16::from_be_bytes(reg[6..].try_into().unwrap())
     }
 
+    /// Get the lower byte of a register.
     pub fn get_register8(&self, register: Register) -> u8 {
-        todo!()
+        let reg = self.get_register(register);
+        reg[7]
     }
 }
 
