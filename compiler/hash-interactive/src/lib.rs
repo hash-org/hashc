@@ -125,10 +125,10 @@ fn execute(input: &str) {
                 let typechecker = GlobalTypechecker::for_modules(&modules, &tc_wall);
                 let tc_result = typechecker.typecheck_interactive(block.ast_ref());
                 match tc_result {
-                    Ok((block_ty_id, global_storage)) => {
+                    (Ok(block_ty_id), global_storage) => {
                         println!("{}", TypeWithStorage::new(block_ty_id, &global_storage));
                     }
-                    Err(e) => println!("{:?}", e),
+                    (Err(e), _global_storage) => println!("{:?}", e),
                 }
             }
             None => {}

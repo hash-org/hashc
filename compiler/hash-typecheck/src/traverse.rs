@@ -36,22 +36,25 @@ impl<'c, 'w, 'm> GlobalTypechecker<'c, 'w, 'm> {
         }
     }
 
-    pub fn typecheck_all(mut self) -> TypecheckResult<GlobalStorage<'c, 'w, 'm>> {
+    pub fn typecheck_all(mut self) -> (TypecheckResult<()>, GlobalStorage<'c, 'w, 'm>) {
         for module in self.global_storage.modules.iter() {
-            self.typecheck_module(module.index())?;
+            match self.typecheck_module(module.index()) {
+                Ok(_) => continue,
+                Err(e) => {
+                    return (Err(e), self.global_storage);
+                }
+            }
         }
-        Ok(self.global_storage)
+        (Ok(()), self.global_storage)
     }
 
     pub fn typecheck_interactive(
         mut self,
         block: ast::AstNodeRef<ast::BodyBlock<'c>>,
-    ) -> TypecheckResult<(TypeId, GlobalStorage<'c, 'w, 'm>)> {
+    ) -> (TypecheckResult<TypeId>, GlobalStorage<'c, 'w, 'm>) {
         let module_checker =
             ModuleTypechecker::new(&mut self, ModuleOrInteractive::Interactive(block));
-        module_checker
-            .typecheck()
-            .map(|block_ty_id| (block_ty_id, self.global_storage))
+        (module_checker.typecheck(), self.global_storage)
     }
 
     fn typecheck_module(&mut self, module_idx: ModuleIdx) -> TypecheckResult<TypeId> {
