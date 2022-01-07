@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
 use crate::{
-    scope::{ScopeStack},
+    scope::ScopeStack,
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_utils::counter;
 use slotmap::{new_key_type, SlotMap};
-use std::hash::Hash;
 use std::{cell::Cell, collections::HashMap, ptr};
+use std::{collections::HashSet, hash::Hash};
 
 #[derive(Debug)]
 pub struct Generics<'c> {
@@ -69,6 +69,18 @@ impl StructFields {
 
     pub fn get_field(&self, field: Identifier) -> Option<TypeId> {
         self.data.get(&field).map(|&t| t)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Identifier, TypeId)> + '_ {
+        self.data.iter().map(|(&a, &b)| (a, b))
+    }
+}
+
+impl FromIterator<(Identifier, TypeId)> for StructFields {
+    fn from_iter<T: IntoIterator<Item = (Identifier, TypeId)>>(iter: T) -> Self {
+        Self {
+            data: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -346,8 +358,7 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
 
     pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
         let id = TypeDefId::new();
-        self.data
-            .insert(id, Cell::new(Brick::new(def, self.wall).disown()));
+        self.data.insert(id, Cell::new(self.wall.alloc_value(def)));
         id
     }
 }
@@ -412,14 +423,22 @@ impl<'c, 'w> Types<'c, 'w> {
     }
 
     pub fn create(&mut self, value: TypeValue<'c>) -> TypeId {
-        self.data
-            .insert(Cell::new(Brick::new(value, &self.wall).disown()))
+        self.data.insert(Cell::new(self.wall.alloc_value(value)))
     }
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct TypeVarScopeKey(usize);
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum TypeVarMode {
+    Bound,
+    Substitution(TypeId),
 }
 
 #[derive(Debug, Default)]
 pub struct TypeVars {
-    data: HashMap<TypeVar, TypeId>,
+    data: Vec<HashMap<TypeVar, TypeVarMode>>,
 }
 
 impl TypeVars {
@@ -427,127 +446,34 @@ impl TypeVars {
         Self::default()
     }
 
-    pub fn resolve(&self, var: TypeVar) -> Option<TypeId> {
-        self.data.get(&var).map(|&x| x)
+    pub fn enter_bounded_type_var_scope(
+        &mut self,
+        type_vars: impl Iterator<Item = TypeVar>,
+    ) -> TypeVarScopeKey {
+        let key = TypeVarScopeKey(self.data.len());
+        self.data
+            .push(type_vars.map(|t| (t, TypeVarMode::Bound)).collect());
+        key
     }
 
-    pub fn assign(&mut self, var: TypeVar, ty: TypeId) {
-        self.data.insert(var, ty);
+    pub fn potentially_resolve(&mut self, type_var: TypeVar) -> Option<TypeId> {
+        self.find_type_var(type_var)
+            .and_then(|(_, mode)| match mode {
+                TypeVarMode::Bound => None,
+                TypeVarMode::Substitution(ty_id) => Some(ty_id),
+            })
     }
-}
 
-// pub fn substitute_many<'c>(
-//     &self,
-//     ty: impl IntoIterator<Item = impl Deref<Target = TypeId>>,
-//     types: &mut Types<'c>,
-//     wall: &Wall<'c>,
-// ) -> Row<'c, TypeId> {
-//     Row::from_iter(
-//         ty.into_iter().map(|ty| self.substitute(*ty, types, wall)),
-//         wall,
-//     )
-// }
+    pub fn find_type_var(&mut self, type_var: TypeVar) -> Option<(TypeVarScopeKey, TypeVarMode)> {
+        for (i, scope) in self.data.iter().enumerate() {
+            if let Some(&mode) = scope.get(&type_var) {
+                return Some((TypeVarScopeKey(i), mode));
+            }
+        }
+        None
+    }
 
-// pub fn substitute<'c>(&self, ty: TypeId, types: &mut Types<'c>, wall: &Wall<'c>) -> TypeId {
-//     match types.get(ty) {
-//         TypeValue::Ref(RefType { inner }) => {
-//             let inner = self.substitute(*inner, types, wall);
-//             types.create(TypeValue::Ref(RefType { inner }), wall)
-//         }
-//         TypeValue::RawRef(RawRefType { inner }) => {
-//             let inner = self.substitute(*inner, types, wall);
-//             types.create(TypeValue::RawRef(RawRefType { inner }), wall)
-//         }
-//         TypeValue::Fn(FnType { args, ret }) => {
-//             let args = self.substitute_many(args, types, wall);
-//             let ret = self.substitute(*ret, types, wall);
-//             types.create(TypeValue::Fn(FnType { args, ret }), wall)
-//         }
-//         TypeValue::Var(type_var) => match self.resolve(*type_var) {
-//             Some(resolved) => resolved,
-//             None => ty,
-//         },
-//         TypeValue::User(UserType { def_id, args }) => {
-//             let args = self.substitute_many(args, types, wall);
-//             types.create(
-//                 TypeValue::User(UserType {
-//                     def_id: *def_id,
-//                     args,
-//                 }),
-//                 wall,
-//             )
-//         }
-//         TypeValue::Prim(_) => ty,
-//         TypeValue::Unknown(UnknownType { bounds }) => {
-//             let bounds = bounds.map(wall, |bound| TraitBound {
-//                 trt: bound.trt,
-//                 params: self.substitute_many(&bound.params, types, wall),
-//             });
-//             types.create(TypeValue::Unknown(UnknownType { bounds }), wall)
-//         }
-//         TypeValue::Namespace(_) => ty,
-//     }
-// }
-
-#[cfg(test)]
-mod tests {
-    use hash_alloc::Castle;
-    use hash_ast::module::ModuleBuilder;
-
-    #[test]
-    fn type_size() {
-        let castle = Castle::new();
-        let _wall = castle.wall();
-
-        let _modules = ModuleBuilder::new().build();
-
-        // let mut ctx = TypecheckCtx {
-        //     types: Types::new(),
-        //     type_defs: TypeDefs::new(),
-        //     type_vars: TypeVars::new(),
-        //     traits: Traits::new(),
-        //     state: TypecheckState::default(),
-        //     scopes: ScopeStack::new(),
-        //     modules: &modules,
-        // };
-
-        // let t_arg = ctx.types.create(
-        //     TypeValue::Var(TypeVar {
-        //         name: IDENTIFIER_MAP.create_ident("T"),
-        //     }),
-        //     &wall,
-        // );
-
-        // let foo_def = ctx.type_defs.create(TypeDefValue::Enum(EnumDef {
-        //     name: IDENTIFIER_MAP.create_ident("Option"),
-        //     generics: Generics {
-        //         bounds: TraitBounds::default(),
-        //         params: row![&wall; t_arg],
-        //     },
-        //     variants: EnumVariants::empty(),
-        // }));
-
-        // let char = ctx.types.create(TypeValue::Prim(PrimType::Char), &wall);
-        // let int = ctx.types.create(TypeValue::Prim(PrimType::I32), &wall);
-        // let unknown = ctx
-        //     .types
-        //     .create(TypeValue::Unknown(UnknownType::unbounded()), &wall);
-        // let foo = ctx.types.create(
-        //     TypeValue::User(UserType {
-        //         def_id: foo_def,
-        //         args: row![&wall; int, unknown],
-        //     }),
-        //     &wall,
-        // );
-
-        // let fn1 = ctx.types.create(
-        //     TypeValue::Fn(FnType {
-        //         args: row![&wall; foo, unknown, char, int, foo],
-        //         ret: int,
-        //     }),
-        //     &wall,
-        // );
-
-        // println!("{}", TypeWithCtx::new(fn1, &ctx));
+    pub fn exit_type_var_scope(&mut self, key: TypeVarScopeKey) {
+        self.data.remove(key.0);
     }
 }

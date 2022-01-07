@@ -310,7 +310,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                     UnifyStrategy::CheckOnly => {}
                 }
 
-                Ok(())
+                self.unify(target, source, strategy)
             }
             (_, Unknown(_)) => {
                 // @@TODO: Ensure that trait bounds are compatible
@@ -321,17 +321,21 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                     UnifyStrategy::ModifyTarget | UnifyStrategy::CheckOnly => {}
                 }
 
-                Ok(())
+                self.unify(target, source, strategy)
             }
-            (Var(var_target), Var(var_source)) if var_target == var_source => Ok(()),
-            (_, Var(var_source)) => match self.module_storage.type_vars.resolve(*var_source) {
-                Some(resolved) => self.unify(target, resolved, strategy),
-                None => Err(TypecheckError::TypeMismatch(target, source)),
-            },
-            (Var(var_target), _) => match self.module_storage.type_vars.resolve(*var_target) {
-                Some(resolved) => self.unify(resolved, source, strategy),
-                None => Err(TypecheckError::TypeMismatch(target, source)),
-            },
+            (Var(var_a), Var(var_b)) => {
+                match (
+                    self.module_storage.type_vars.find_type_var(*var_a),
+                    self.module_storage.type_vars.find_type_var(*var_b),
+                ) {
+                    (Some(scope_a), Some(scope_b)) if var_a == var_b && scope_a == scope_b => {
+                        Ok(())
+                    }
+                    (Some(_), Some(_)) => Err(TypecheckError::TypeMismatch(target, source)),
+                    (None, _) => Err(TypecheckError::UnresolvedSymbol(vec![var_a.name])),
+                    (_, None) => Err(TypecheckError::UnresolvedSymbol(vec![var_b.name])),
+                }
+            }
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
                 // Make sure we got same number of type arguments
                 assert_eq!(user_target.args.len(), user_source.args.len());
