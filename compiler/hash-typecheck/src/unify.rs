@@ -306,22 +306,22 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                 match strategy {
                     UnifyStrategy::ModifyBoth | UnifyStrategy::ModifyTarget => {
                         self.global_storage.types.set(target, source);
+                        self.unify(target, source, strategy)?;
                     }
                     UnifyStrategy::CheckOnly => {}
                 }
-
-                self.unify(target, source, strategy)
+                Ok(())
             }
             (_, Unknown(_)) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth => {
                         self.global_storage.types.set(source, target);
+                        self.unify(target, source, strategy)?;
                     }
                     UnifyStrategy::ModifyTarget | UnifyStrategy::CheckOnly => {}
                 }
-
-                self.unify(target, source, strategy)
+                Ok(())
             }
             (Var(var_a), Var(var_b)) => {
                 match (

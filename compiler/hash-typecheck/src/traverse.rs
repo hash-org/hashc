@@ -942,7 +942,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StructDefEntry<'c>>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        println!("{:#?}", node);
         let walk::StructDefEntry { name, ty, default } =
             walk::walk_struct_def_entry(self, ctx, node)?;
 
@@ -1242,13 +1241,12 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         ctx: &<Self as AstVisitor<'c>>::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
         ty_id: TypeId,
-        st @ StructDef {
+        StructDef {
             name: _,
             fields,
             generics: _,
         }: &StructDef,
     ) -> TypecheckResult<TypeId> {
-        println!("{:#?}", st);
 
         let walk::StructLiteral {
             name: _,
