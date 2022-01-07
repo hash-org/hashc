@@ -55,7 +55,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
-        Ok(TreeNode::leaf(IDENTIFIER_MAP.ident_name(node.ident)))
+        Ok(TreeNode::leaf(IDENTIFIER_MAP.get_ident(node.ident)))
     }
 
     type AccessNameRet = TreeNode;
@@ -67,7 +67,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(
             node.path
                 .iter()
-                .map(|p| IDENTIFIER_MAP.ident_name(*p))
+                .map(|p| IDENTIFIER_MAP.get_ident(*p))
                 .intersperse("::")
                 .collect::<String>(),
         ))
@@ -112,7 +112,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
         Ok(TreeNode::leaf(labeled(
             "intrinsic",
-            IDENTIFIER_MAP.ident_name(node.name),
+            IDENTIFIER_MAP.get_ident(node.name),
             "\"",
         )))
     }

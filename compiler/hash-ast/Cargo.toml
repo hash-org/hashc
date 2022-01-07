@@ -16,6 +16,5 @@ fnv = "1.0.7"
 strum = "0.21"
 strum_macros = "0.21"
 derive_more = "0.99"
-parking_lot = "0.11"
 hash-utils = { path = "../hash-utils" } 
 hash-alloc = { path = "../hash-alloc" }

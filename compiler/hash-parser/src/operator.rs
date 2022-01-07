@@ -224,6 +224,31 @@ impl OperatorKind {
         )
     }
 
+    pub(crate) fn to_string(&self) -> &'static str {
+        match self {
+            OperatorKind::EqEq => "eq",
+            OperatorKind::NotEq => "neq",
+            OperatorKind::BitOr => "bit_or",
+            OperatorKind::Or => "orl",
+            OperatorKind::BitAnd => "bit_and",
+            OperatorKind::And => "and",
+            OperatorKind::BitXor => "bit_xor",
+            OperatorKind::Exp => "exp",
+            OperatorKind::Gt => "gt",
+            OperatorKind::GtEq => "gt_eq",
+            OperatorKind::Lt => "lt",
+            OperatorKind::LtEq => "lt_eq",
+            OperatorKind::Shr => "shr",
+            OperatorKind::Shl => "shl",
+            OperatorKind::Add => "add",
+            OperatorKind::Sub => "sub",
+            OperatorKind::Mul => "mul",
+            OperatorKind::Div => "div",
+            OperatorKind::Mod => "mod",
+            OperatorKind::As => "as",
+        }
+    }
+
     /// Compute the precedence for an operator
     pub(crate) fn infix_binding_power(&self) -> (u8, u8) {
         match self {
@@ -250,7 +275,7 @@ impl From<Operator> for OperatorFn {
             OperatorKind::As => panic!("Cannot convert 'as' into a function call."),
             // Lazy named functions
             OperatorKind::Or | OperatorKind::And => OperatorFn::LazyNamed {
-                name: Cow::Owned(kind.to_string()),
+                name: Cow::Borrowed(kind.to_string()),
                 assigning: assignable,
             },
             // Compound functions
@@ -271,8 +296,8 @@ impl From<Operator> for OperatorFn {
                 }
             }
             // Simple named functions
-            k => OperatorFn::Named {
-                name: Cow::Owned(k.to_string()),
+            kind => OperatorFn::Named {
+                name: Cow::Borrowed(kind.to_string()),
                 assigning: assignable,
             },
         }
