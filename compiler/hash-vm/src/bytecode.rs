@@ -47,8 +47,52 @@ impl RegisterSet {
     /// uses `unsafe` because a [Register] index cannot be larger than a [u8] and therefore
     /// indexing the [RegisterSet] is always safe as there are always [`u8::MAX`]  number of
     /// registers.
-    fn get_register(&self, register: Register) -> &[u8; 8] {
+    pub fn get_register_8b(&self, register: Register) -> &[u8; 8] {
         unsafe { self.registers.get_unchecked(register.0 as usize) }
+    }
+
+    pub fn get_register_4b(&self, register: Register) -> &[u8; 4] {
+        unsafe {
+            self.registers.get_unchecked(register.0 as usize)[4..]
+                .try_into()
+                .unwrap()
+        }
+    }
+
+    pub fn get_register_2b(&self, register: Register) -> &[u8; 2] {
+        unsafe {
+            self.registers.get_unchecked(register.0 as usize)[6..]
+                .try_into()
+                .unwrap()
+        }
+    }
+
+    pub fn get_register_b(&self, register: Register) -> &[u8; 1] {
+        unsafe {
+            self.registers.get_unchecked(register.0 as usize)[7..]
+                .try_into()
+                .unwrap()
+        }
+    }
+
+    pub fn set_register_8b(&mut self, register: Register, value: &[u8; 8]) {
+        let reg = self.get_register_mut(register);
+        reg.copy_from_slice(value);
+    }
+
+    pub fn set_register_4b(&mut self, register: Register, value: &[u8; 4]) {
+        let reg = self.get_register_mut(register);
+        reg[4..].copy_from_slice(value);
+    }
+
+    pub fn set_register_2b(&mut self, register: Register, value: &[u8; 2]) {
+        let reg = self.get_register_mut(register);
+        reg[6..].copy_from_slice(value);
+    }
+
+    pub fn set_register_b(&mut self, register: Register, value: &[u8; 1]) {
+        let reg = self.get_register_mut(register);
+        reg[7] = value[0];
     }
 
     /// Function to get a mutable reference to a  [Register] within the [RegisterSet].
@@ -61,6 +105,20 @@ impl RegisterSet {
         let reg = self.get_register_mut(register);
 
         reg.copy_from_slice(&value.to_be_bytes());
+    }
+
+    /// Set the bytes of a register using a float.
+    pub fn set_register_f64(&mut self, register: Register, value: f64) {
+        let reg = self.get_register_mut(register);
+
+        reg.copy_from_slice(&value.to_be_bytes());
+    }
+
+    /// Set the lower four bytes of a register using a float.
+    pub fn set_register_f32(&mut self, register: Register, value: f32) {
+        let reg = self.get_register_mut(register);
+
+        reg[4..].copy_from_slice(&value.to_be_bytes());
     }
 
     /// Set the lower four bytes of a register.
@@ -84,26 +142,38 @@ impl RegisterSet {
     }
 
     /// Get a register.
+    pub fn get_register_f64(&self, register: Register) -> f64 {
+        let reg = self.get_register_8b(register);
+        f64::from_be_bytes(*reg)
+    }
+
+    /// Get the lower four bytes of a register.
+    pub fn get_register_f32(&self, register: Register) -> f32 {
+        let reg = self.get_register_8b(register);
+        f32::from_be_bytes(reg[4..].try_into().unwrap())
+    }
+
+    /// Get a register.
     pub fn get_register64(&self, register: Register) -> u64 {
-        let reg = self.get_register(register);
+        let reg = self.get_register_8b(register);
         u64::from_be_bytes(*reg)
     }
 
     /// Get the lower four bytes of a register.
     pub fn get_register32(&self, register: Register) -> u32 {
-        let reg = self.get_register(register);
+        let reg = self.get_register_8b(register);
         u32::from_be_bytes(reg[4..].try_into().unwrap())
     }
 
     /// Get the lower two bytes of a register.
     pub fn get_register16(&self, register: Register) -> u16 {
-        let reg = self.get_register(register);
+        let reg = self.get_register_8b(register);
         u16::from_be_bytes(reg[6..].try_into().unwrap())
     }
 
     /// Get the lower byte of a register.
     pub fn get_register8(&self, register: Register) -> u8 {
-        let reg = self.get_register(register);
+        let reg = self.get_register_8b(register);
         reg[7]
     }
 }
