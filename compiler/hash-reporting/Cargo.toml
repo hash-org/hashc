@@ -8,3 +8,4 @@ edition = "2021"
 thiserror = "1.0"
 hash-ast = {path = "../hash-ast" }
 hash-alloc = {path = "../hash-alloc" }
+hash-typecheck = {path = "../hash-typecheck" }

@@ -3,6 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use hash_ast::error::ParseError;
+use hash_typecheck::{error::TypecheckError, storage::GlobalStorage};
 use std::fmt;
 use std::{io, process::exit};
 use thiserror::Error;
@@ -35,11 +36,57 @@ pub enum InteractiveCommandError {
 #[repr(u32)]
 pub enum ErrorCode {
     Parsing = 1,
+    Typecheck = 2, // @@Temporary
 }
 
 impl fmt::Display for ErrorCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:0>4}", *self as u32)
+    }
+}
+
+impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
+    fn from((error, storage): (TypecheckError, GlobalStorage<'_, '_, '_>)) -> Self {
+        let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message("Failed to typecheck")
+            .with_error_code(ErrorCode::Typecheck); // @@ErrorReporting: Get the correct typecheck code
+
+        match error {
+            TypecheckError::TypeMismatch(_, _) => todo!(),
+            TypecheckError::UsingBreakOutsideLoop(_) => todo!(),
+            TypecheckError::UsingContinueOutsideLoop(_) => todo!(),
+            TypecheckError::UsingReturnOutsideFunction(_) => todo!(),
+            TypecheckError::RequiresIrrefutablePattern(_) => todo!(),
+            TypecheckError::UnresolvedSymbol(symbol) => {}
+            TypecheckError::TryingToNamespaceType(_) => todo!(),
+            TypecheckError::TryingToNamespaceVariable(_) => todo!(),
+            TypecheckError::UsingVariableInTypePos(_) => todo!(),
+            TypecheckError::UsingTypeInVariablePos(_) => todo!(),
+            TypecheckError::TypeIsNotStruct(_) => todo!(),
+            TypecheckError::UnresolvedStructField {
+                struct_type,
+                field_name,
+                location,
+            } => todo!(),
+            TypecheckError::InvalidPropertyAccess {
+                struct_type,
+                struct_defn_location,
+                field_name,
+                access_location,
+            } => todo!(),
+            TypecheckError::ExpectingBooleanInCondition { found, location } => todo!(),
+            TypecheckError::MissingStructField {
+                struct_type,
+                field_name,
+                struct_lit_location,
+            } => todo!(),
+            TypecheckError::BoundRequiresStrictlyTypeVars => todo!(),
+        }
+
+        // @@ErrorReporting: we might want to properly handle incomplete reports?
+        builder.build().unwrap()
     }
 }
 

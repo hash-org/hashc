@@ -45,7 +45,7 @@ impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
                 ],
             ),
             crate::types::TypeValue::Var(TypeVar { name }) => {
-                TreeNode::leaf(format!("var \"{}\"", IDENTIFIER_MAP.ident_name(*name)))
+                TreeNode::leaf(format!("var \"{}\"", IDENTIFIER_MAP.get_ident(*name)))
             }
             crate::types::TypeValue::Prim(prim) => TreeNode::leaf(format!(
                 "primitive \"{}\"",
@@ -68,12 +68,12 @@ impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
                 }
             )),
             crate::types::TypeValue::User(UserType { def_id, args }) => {
-                let label = match self.storage.type_defs.get(*def_id) {
-                    crate::types::TypeDefValue::Enum(EnumDef { name, .. }) => {
-                        format!("enum \"{}\"", IDENTIFIER_MAP.ident_name(*name))
+                let label = match self.storage.type_defs.get(*def_id).kind {
+                    crate::types::TypeDefValueKind::Enum(EnumDef { name, .. }) => {
+                        format!("enum \"{}\"", IDENTIFIER_MAP.get_ident(name))
                     }
-                    crate::types::TypeDefValue::Struct(StructDef { name, .. }) => {
-                        format!("struct \"{}\"", IDENTIFIER_MAP.ident_name(*name))
+                    crate::types::TypeDefValueKind::Struct(StructDef { name, .. }) => {
+                        format!("struct \"{}\"", IDENTIFIER_MAP.get_ident(name))
                     }
                 };
 
@@ -124,15 +124,15 @@ impl<'g, 'c, 'w, 'm> fmt::Display for TypeWithStorage<'g, 'c, 'w, 'm> {
                 write!(f, ") => {}", self.for_type(*ret))?;
             }
             crate::types::TypeValue::Var(TypeVar { name }) => {
-                write!(f, "{}", IDENTIFIER_MAP.ident_name(*name))?;
+                write!(f, "{}", IDENTIFIER_MAP.get_ident(*name))?;
             }
             crate::types::TypeValue::User(UserType { def_id, args }) => {
-                match self.storage.type_defs.get(*def_id) {
-                    crate::types::TypeDefValue::Enum(EnumDef { name, .. }) => {
-                        write!(f, "{}", IDENTIFIER_MAP.ident_name(*name))?;
+                match self.storage.type_defs.get(*def_id).kind {
+                    crate::types::TypeDefValueKind::Enum(EnumDef { name, .. }) => {
+                        write!(f, "{}", IDENTIFIER_MAP.get_ident(name))?;
                     }
-                    crate::types::TypeDefValue::Struct(StructDef { name, .. }) => {
-                        write!(f, "{}", IDENTIFIER_MAP.ident_name(*name))?;
+                    crate::types::TypeDefValueKind::Struct(StructDef { name, .. }) => {
+                        write!(f, "{}", IDENTIFIER_MAP.get_ident(name))?;
                     }
                 };
 

@@ -13,9 +13,6 @@ use hash_ast::parse::{ParParser, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::{Report, ReportWriter};
 
-#[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::HashPestParser;
-
 #[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
 
@@ -122,13 +119,18 @@ fn execute(input: &str) {
         Ok(InteractiveCommand::Code(expr)) => match parse_interactive(expr, &castle) {
             Some((block, modules)) => {
                 let tc_wall = castle.wall();
-                let typechecker = GlobalTypechecker::for_modules(&modules, &tc_wall);
-                let tc_result = typechecker.typecheck_interactive(block.ast_ref());
+                let tc = GlobalTypechecker::for_modules(&modules, &tc_wall);
+                let tc_result = tc.typecheck_interactive(block.ast_ref());
+
                 match tc_result {
                     (Ok(block_ty_id), global_storage) => {
                         println!("{}", TypeWithStorage::new(block_ty_id, &global_storage));
                     }
-                    (Err(e), _global_storage) => println!("{:?}", e),
+                    (Err(e), global_storage) => {
+                        let report_writer =
+                            ReportWriter::new(Report::from((e, global_storage)), &modules);
+                        println!("{}", report_writer);
+                    }
                 }
             }
             None => {}

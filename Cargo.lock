@@ -368,6 +368,7 @@ version = "0.1.0"
 dependencies = [
  "hash-alloc",
  "hash-ast",
+ "hash-typecheck",
  "thiserror",
 ]
 
