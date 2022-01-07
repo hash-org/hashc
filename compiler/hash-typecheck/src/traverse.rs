@@ -2,9 +2,10 @@ use crate::error::{TypecheckError, TypecheckResult};
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
+use crate::traits::{TraitBounds, TraitId, Traits};
 use crate::types::{
-    CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef,
-    TupleType, TypeId, TypeValue, UnknownType,
+    CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
+    StructDef, StructFields, TupleType, TypeDefs, TypeId, TypeValue, TypeVars, Types, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -18,6 +19,7 @@ use hash_ast::{
     visitor,
     visitor::walk,
 };
+use std::collections::HashSet;
 use std::iter;
 use std::{collections::HashMap, mem};
 
@@ -117,16 +119,28 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         self.global_tc.global_storage.types.create(value)
     }
 
-    fn get_type(&self, ty: TypeId) -> &'c TypeValue<'c> {
-        &self.global_tc.global_storage.types.get(ty)
+    fn traits(&self) -> &Traits<'c, 'w> {
+        &self.global_tc.global_storage.traits
     }
 
-    fn get_type_def(&self, def: TypeDefId) -> &'c TypeDefValue<'c> {
-        self.global_tc.global_storage.type_defs.get(def)
+    fn types(&self) -> &Types<'c, 'w> {
+        &self.global_tc.global_storage.types
     }
 
-    fn resolve_type_var(&mut self, type_var: TypeVar) -> Option<TypeId> {
-        self.module_storage.type_vars.resolve(type_var)
+    fn type_defs(&self) -> &TypeDefs<'c, 'w> {
+        &self.global_tc.global_storage.type_defs
+    }
+
+    fn type_defs_mut(&mut self) -> &mut TypeDefs<'c, 'w> {
+        &mut self.global_tc.global_storage.type_defs
+    }
+
+    fn type_vars(&self) -> &TypeVars {
+        &self.module_storage.type_vars
+    }
+
+    fn type_vars_mut(&mut self) -> &mut TypeVars {
+        &mut self.module_storage.type_vars
     }
 
     fn create_unknown_type(&mut self) -> TypeId {
@@ -339,8 +353,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             ))
         };
 
-        match self.get_type(subject) {
-            TypeValue::User(UserType { def_id, .. }) => match self.get_type_def(*def_id) {
+        match self.types().get(subject) {
+            TypeValue::User(UserType { def_id, .. }) => match self.type_defs().get(*def_id) {
                 TypeDefValue::Struct(StructDef { fields, .. }) => {
                     if let Some(field_ty) = fields.get_field(property_ident) {
                         Ok(field_ty)
@@ -441,7 +455,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             SymbolType::Type(ty_id) => Ok(ty_id),
             SymbolType::TypeDef(def_id) => {
                 let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
-                let def = self.get_type_def(def_id);
+                let def = self.type_defs().get(def_id);
 
                 // @@Todo bounds
                 match def {
@@ -450,7 +464,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                         let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
                         let instantiated_args = self
                             .unifier()
-                            .apply_sub_to_list(&args_sub, &generics.params);
+                            .apply_sub_to_list_make_vec(&args_sub, &generics.params);
 
                         self.unifier().unify_pairs(
                             type_args.iter().zip(instantiated_args.iter()),
@@ -496,14 +510,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
-        match self.resolve_type_var(TypeVar {
+        Ok(self.create_type(TypeValue::Var(TypeVar {
             name: node.name.ident,
-        }) {
-            Some(type_var_id) => Ok(type_var_id),
-            // @@Todo: maybe we should check if there is a normal symbol with that name, for more
-            // descriptive errors.
-            None => Err(TypecheckError::UnresolvedSymbol(vec![node.name.ident])),
-        }
+        })))
     }
 
     type ExistentialTypeRet = TypeId;
@@ -655,7 +664,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 node.name.path.to_owned(),
             )),
             SymbolType::TypeDef(def_id) => {
-                let type_def = self.get_type_def(def_id);
+                let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
                 match type_def {
                     TypeDefValue::Struct(struct_def) => {
@@ -665,10 +674,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 }
             }
             SymbolType::Type(ty_id) => {
-                let ty = self.get_type(ty_id);
+                let ty = self.types().get(ty_id);
                 match ty {
                     TypeValue::User(UserType { def_id, .. }) => {
-                        let type_def = self.get_type_def(*def_id);
+                        let type_def = self.type_defs().get(*def_id);
                         match type_def {
                             TypeDefValue::Struct(struct_def) => {
                                 self.typecheck_known_struct_literal(ctx, node, ty_id, struct_def)
@@ -721,7 +730,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let ret_once = mem::replace(&mut self.tc_state().ret_once, old_ret_once);
 
         // unifier().unify returns
-        match self.get_type(body_ty) {
+        match self.types().get(body_ty) {
             TypeValue::Prim(PrimType::Void) => {
                 if ret_once {
                     let body_ty = self.create_unknown_type();
@@ -927,24 +936,86 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         todo!()
     }
 
-    type StructDefEntryRet = ();
-
+    type StructDefEntryRet = (Identifier, TypeId);
     fn visit_struct_def_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructDefEntry<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructDefEntry<'c>>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        todo!()
+        println!("{:#?}", node);
+        let walk::StructDefEntry { name, ty, default } =
+            walk::walk_struct_def_entry(self, ctx, node)?;
+
+        let default_ty = default.unwrap_or_else(|| self.create_unknown_type());
+        let field_ty = ty.unwrap_or_else(|| self.create_unknown_type());
+        self.unifier()
+            .unify(field_ty, default_ty, UnifyStrategy::ModifyBoth)?;
+
+        Ok((node.name.ident, field_ty))
     }
 
     type StructDefRet = ();
-
     fn visit_struct_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructDef<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructDef<'c>>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        todo!()
+        // @@Todo: the bound scope needs to be created for each type variable successively, not at
+        // the end. Otherwise trait bounds will not resolve the type variables correctly.
+        let bound = node
+            .bound
+            .as_ref()
+            .map(|b| self.visit_bound(ctx, b.ast_ref()))
+            .transpose()?;
+
+        // Enter the bound if one exists, returning a key
+        let maybe_type_var_key = bound
+            .as_ref()
+            .map(|bound| {
+                // @@Todo: trait bounds
+                let bound_vars: Vec<_> = bound
+                    .iter()
+                    .map(|&ty| match self.types().get(ty) {
+                        TypeValue::Var(var) => Ok(*var),
+                        _ => Err(TypecheckError::BoundRequiresStrictlyTypeVars),
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                Ok(self
+                    .type_vars_mut()
+                    .enter_bounded_type_var_scope(bound_vars.into_iter()))
+            })
+            .transpose()?;
+
+        // Traverse the fields
+        let fields = node
+            .entries
+            .iter()
+            .map(|entry| self.visit_struct_def_entry(ctx, entry.ast_ref()))
+            .collect::<Result<StructFields, _>>()?;
+
+        // @@Todo: trait bounds
+
+        // Create the type
+        let def_id = self.type_defs_mut().create(TypeDefValue::Struct(StructDef {
+            name: node.name.ident,
+            generics: Generics {
+                params: bound.unwrap_or_else(|| row![]),
+                bounds: TraitBounds::empty(),
+            },
+            fields,
+        }));
+
+        // Add the name to scope
+        self.scopes()
+            .add_symbol(node.name.ident, SymbolType::TypeDef(def_id));
+
+        // Exit the bound if we entered one
+        if let Some(type_var_key) = maybe_type_var_key {
+            self.type_vars_mut().exit_type_var_scope(type_var_key);
+        }
+
+        Ok(())
     }
 
     type EnumDefEntryRet = ();
@@ -986,22 +1057,33 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TraitBoundRet = ();
+    type TraitBoundRet = TraitId;
     fn visit_trait_bound(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TraitBound<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitBound<'c>>,
     ) -> Result<Self::TraitBoundRet, Self::Error> {
+        let walk::TraitBound { name, type_args } = walk::walk_trait_bound(self, ctx, node)?;
         todo!()
+        // match self.traits().get(trait_id) {}
+
+        // @@Todo
+        // Ok(())
     }
 
-    type BoundRet = ();
+    type BoundRet = Row<'c, TypeId>;
     fn visit_bound(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::Bound<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Bound<'c>>,
     ) -> Result<Self::BoundRet, Self::Error> {
-        todo!()
+        let walk::Bound {
+            type_args,
+            trait_bounds: _,
+        } = walk::walk_bound(self, ctx, node)?;
+
+        // @@Todo: bounds
+        Ok(type_args)
     }
 
     type EnumPatternRet = TypeId;
@@ -1101,7 +1183,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::IfPattern<'c>>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
         let walk::IfPattern { pattern, condition } = walk::walk_if_pattern(self, ctx, node)?;
-        match self.get_type(condition) {
+        match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
             _ => Err(TypecheckError::ExpectingBooleanInCondition { found: condition }),
         }
@@ -1160,17 +1242,27 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         ctx: &<Self as AstVisitor<'c>>::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
         ty_id: TypeId,
-        StructDef {
+        st @ StructDef {
             name: _,
             fields,
             generics: _,
         }: &StructDef,
     ) -> TypecheckResult<TypeId> {
+        println!("{:#?}", st);
+
         let walk::StructLiteral {
             name: _,
             entries,
             type_args: _,
         } = walk::walk_struct_literal(self, ctx, node)?;
+
+        // Make sure all fields are present
+        let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+        for (expected, _) in fields.iter() {
+            if !entries_given.contains(&expected) {
+                return Err(TypecheckError::MissingStructField(ty_id, expected));
+            }
+        }
 
         // Unify args
         for &(entry_name, entry_ty) in &entries {
@@ -1191,7 +1283,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &mut self,
         def_id: TypeDefId,
     ) -> TypecheckResult<(TypeId, Substitution)> {
-        let type_def = self.get_type_def(def_id);
+        let type_def = self.type_defs().get(def_id);
 
         let (TypeDefValue::Struct(StructDef { generics, .. })
         | TypeDefValue::Enum(EnumDef { generics, .. })) = type_def;
@@ -1200,7 +1292,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
 
         // We don't know what the arguments are, so we instantiate them to be all
         // unknown.
-        let unifier = self.unifier();
+        let mut unifier = self.unifier();
         let vars_sub = unifier.instantiate_vars_list(&generics.params)?;
         let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params);
         let ty_id = self.create_type(TypeValue::User(UserType {

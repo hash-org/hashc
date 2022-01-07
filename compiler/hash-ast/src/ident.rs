@@ -76,6 +76,7 @@ impl IdentifierMap {
 
     /// Function to create an identifier in the identifier map.
     pub fn create_ident(&self, ident_str: &str) -> Identifier {
+        println!("Creating identifier {}", ident_str);
         let wall = IDENTIFIER_STORAGE_WALL.lock();
         self.create_ident_in(ident_str, &wall)
     }

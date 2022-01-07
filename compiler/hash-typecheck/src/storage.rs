@@ -48,7 +48,7 @@ impl<'c, 'w, 'm> GlobalStorage<'c, 'w, 'm> {
 
 #[derive(Debug)]
 pub struct ModuleStorage {
-    pub type_vars: TypeVars, // @@todo delete
+    pub type_vars: TypeVars,
     pub scopes: ScopeStack,
     pub state: TypecheckState,
 }

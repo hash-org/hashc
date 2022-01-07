@@ -21,6 +21,7 @@ macro_rules! counter {
 
         impl $name {
             $method_visibility fn new() -> Self {
+                println!("Current value of counter is {:?}", $counter_name);
                 Self($counter_name.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
             }
 

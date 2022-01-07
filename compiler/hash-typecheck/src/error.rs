@@ -1,6 +1,7 @@
 use crate::types::TypeId;
 use hash_ast::{ident::Identifier, location::Location};
 
+// @@Todo: add ast node locations to these
 #[derive(Debug)]
 pub enum TypecheckError {
     TypeMismatch(TypeId, TypeId),
@@ -17,8 +18,8 @@ pub enum TypecheckError {
     TypeIsNotStruct(TypeId),
     InvalidPropertyAccess(TypeId, Identifier),
     ExpectingBooleanInCondition { found: TypeId },
-    // @@Todo: turn this into variants
-    Message(String),
+    MissingStructField(TypeId, Identifier),
+    BoundRequiresStrictlyTypeVars,
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
