@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use hash_ast::error::ParseError;
+use hash_ast::{error::ParseError, ident::IDENTIFIER_MAP};
 use hash_typecheck::{error::TypecheckError, storage::GlobalStorage};
 use std::fmt;
 use std::{io, process::exit};
@@ -55,11 +55,44 @@ impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
 
         match error {
             TypecheckError::TypeMismatch(_, _) => todo!(),
-            TypecheckError::UsingBreakOutsideLoop(_) => todo!(),
-            TypecheckError::UsingContinueOutsideLoop(_) => todo!(),
+            TypecheckError::UsingBreakOutsideLoop(src) => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        "You can't use a `break` clause outside of a loop.",
+                    )));
+            }
+            TypecheckError::UsingContinueOutsideLoop(src) => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        "You can't use a `continue` clause outside of a loop.",
+                    )));
+            }
             TypecheckError::UsingReturnOutsideFunction(_) => todo!(),
             TypecheckError::RequiresIrrefutablePattern(_) => todo!(),
-            TypecheckError::UnresolvedSymbol(symbol) => {}
+            TypecheckError::UnresolvedSymbol(symbol) => {
+                let ident_path = symbol.get_ident();
+                let formatted_symbol = format!("{}", IDENTIFIER_MAP.get_path(ident_path));
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "Unresolved symbol",
+                    )));
+                }
+
+                // At-least we can print the symbol that wasn't found...
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!(
+                        "Symbol `{}` is not defined in the current scope.",
+                        formatted_symbol
+                    ),
+                )));
+            }
             TypecheckError::TryingToNamespaceType(_) => todo!(),
             TypecheckError::TryingToNamespaceVariable(_) => todo!(),
             TypecheckError::UsingVariableInTypePos(_) => todo!(),

@@ -77,4 +77,11 @@ impl<'c> IdentifierMap<'c> {
     pub fn get_ident(&self, ident: Identifier) -> &'c str {
         self.reverse_lookup.get(&ident).unwrap().value()
     }
+
+    pub fn get_path(&self, path: Vec<Identifier>) -> String {
+        path.iter()
+            .map(|ident| self.get_ident(*ident))
+            .collect::<Vec<&'_ str>>()
+            .join("::")
+    }
 }
