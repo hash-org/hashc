@@ -4,12 +4,15 @@ use crate::{
     scope::ScopeStack,
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
-use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_alloc::{collections::row::Row, row, Wall};
+use hash_ast::{
+    ident::{Identifier, IDENTIFIER_MAP},
+    location::SourceLocation,
+};
 use hash_utils::counter;
 use slotmap::{new_key_type, SlotMap};
+use std::hash::Hash;
 use std::{cell::Cell, collections::HashMap, ptr};
-use std::{collections::HashSet, hash::Hash};
 
 #[derive(Debug)]
 pub struct Generics<'c> {
@@ -92,9 +95,15 @@ pub struct StructDef<'c> {
 }
 
 #[derive(Debug)]
-pub enum TypeDefValue<'c> {
+pub enum TypeDefValueKind<'c> {
     Enum(EnumDef<'c>),
     Struct(StructDef<'c>),
+}
+
+#[derive(Debug)]
+pub struct TypeDefValue<'c> {
+    pub kind: TypeDefValueKind<'c>,
+    pub location: Option<SourceLocation>,
 }
 
 counter! {
@@ -278,56 +287,68 @@ impl<'c, 'w> CoreTypeDefs {
         core_traits: &CoreTraits,
         wall: &'w Wall<'c>,
     ) -> Self {
-        let str = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("str"),
-            generics: Generics::empty(),
-            fields: StructFields::no_fields(),
-        }));
+        let str = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("str"),
+                generics: Generics::empty(),
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         let map_key = types.create_type_var("K");
         let map_value = types.create_type_var("V");
-        let map = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("Map"),
-            generics: Generics {
-                params: row![wall; map_key, map_value],
-                bounds: TraitBounds {
-                    bounds: Row::from_iter(
-                        [
-                            TraitBound {
-                                trt: core_traits.hash,
-                                params: Row::from_iter([map_key], wall),
-                            },
-                            TraitBound {
-                                trt: core_traits.eq,
-                                params: Row::from_iter([map_key], wall),
-                            },
-                        ],
-                        wall,
-                    ),
+        let map = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("Map"),
+                generics: Generics {
+                    params: row![wall; map_key, map_value],
+                    bounds: TraitBounds {
+                        bounds: Row::from_iter(
+                            [
+                                TraitBound {
+                                    trt: core_traits.hash,
+                                    params: Row::from_iter([map_key], wall),
+                                },
+                                TraitBound {
+                                    trt: core_traits.eq,
+                                    params: Row::from_iter([map_key], wall),
+                                },
+                            ],
+                            wall,
+                        ),
+                    },
                 },
-            },
-            fields: StructFields::no_fields(),
-        }));
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         let list_el = types.create_type_var("T");
-        let list = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("List"),
-            generics: Generics {
-                params: row![wall; list_el],
-                bounds: TraitBounds::empty(),
-            },
-            fields: StructFields::no_fields(),
-        }));
+        let list = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("List"),
+                generics: Generics {
+                    params: row![wall; list_el],
+                    bounds: TraitBounds::empty(),
+                },
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         let set_el = types.create_type_var("T");
-        let set = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("Set"),
-            generics: Generics {
-                params: row![wall; set_el],
-                bounds: TraitBounds::empty(),
-            },
-            fields: StructFields::no_fields(),
-        }));
+        let set = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("Set"),
+                generics: Generics {
+                    params: row![wall; set_el],
+                    bounds: TraitBounds::empty(),
+                },
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         Self {
             str,
@@ -356,9 +377,19 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
         &self.data.get(&ty_def).unwrap().get()
     }
 
-    pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
+    pub fn create(
+        &mut self,
+        def: TypeDefValueKind<'c>,
+        location: Option<SourceLocation>,
+    ) -> TypeDefId {
         let id = TypeDefId::new();
-        self.data.insert(id, Cell::new(self.wall.alloc_value(def)));
+        self.data.insert(
+            id,
+            Cell::new(self.wall.alloc_value(TypeDefValue {
+                kind: def,
+                location,
+            })),
+        );
         id
     }
 }

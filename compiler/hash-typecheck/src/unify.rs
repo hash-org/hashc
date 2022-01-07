@@ -1,11 +1,11 @@
 use hash_alloc::collections::row::Row;
 
 use crate::{
-    error::{TypecheckError, TypecheckResult},
+    error::{Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{self, RawRefType, RefType, TupleType, TypeId, TypeValue, UserType},
 };
-use std::{borrow::Borrow, slice::SliceIndex};
+use std::borrow::Borrow;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnifyStrategy {
@@ -332,8 +332,14 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                         Ok(())
                     }
                     (Some(_), Some(_)) => Err(TypecheckError::TypeMismatch(target, source)),
-                    (None, _) => Err(TypecheckError::UnresolvedSymbol(vec![var_a.name])),
-                    (_, None) => Err(TypecheckError::UnresolvedSymbol(vec![var_b.name])),
+                    (None, _) => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                        symbol: var_a.name,
+                        location: None, // @@Temporary
+                    })),
+                    (_, None) => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                        symbol: var_b.name,
+                        location: None, // @@Temporary
+                    })),
                 }
             }
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {

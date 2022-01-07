@@ -1,7 +1,10 @@
-use crate::error::{TypecheckError, TypecheckResult};
+use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
-use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_ast::{
+    ident::{Identifier, IDENTIFIER_MAP},
+    location::{Location, SourceLocation},
+};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,6 +200,7 @@ pub fn resolve_compound_symbol(
     scopes: &ScopeStack,
     types: &Types,
     symbols: &[Identifier],
+    location: SourceLocation,
 ) -> TypecheckResult<SymbolType> {
     let mut last_scope = scopes;
     let mut symbols_iter = symbols.iter().enumerate().peekable();
@@ -214,7 +218,10 @@ pub fn resolve_compound_symbol(
                     }
                     _ if symbols_iter.peek().is_some() => {
                         return Err(TypecheckError::TryingToNamespaceVariable(
-                            symbols[..=i].to_owned(),
+                            Symbol::Compound {
+                                path: symbols[..=i].to_owned(),
+                                location: Some(location),
+                            },
                         ));
                     }
                     _ => {
@@ -222,14 +229,20 @@ pub fn resolve_compound_symbol(
                     }
                 },
                 Some(_) if symbols_iter.peek().is_some() => {
-                    return Err(TypecheckError::TryingToNamespaceType(
-                        symbols[..=i].to_owned(),
-                    ));
+                    return Err(TypecheckError::TryingToNamespaceType(Symbol::Compound {
+                        path: symbols[..=i].to_owned(),
+                        location: Some(location),
+                    }));
                 }
                 Some(symbol_ty) => {
                     return Ok(symbol_ty);
                 }
-                None => return Err(TypecheckError::UnresolvedSymbol(symbols[..=i].to_owned())),
+                None => {
+                    return Err(TypecheckError::UnresolvedSymbol(Symbol::Compound {
+                        path: symbols[..=i].to_owned(),
+                        location: Some(location),
+                    }))
+                }
             },
             None => unreachable!(),
         }

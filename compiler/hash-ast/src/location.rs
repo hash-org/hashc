@@ -1,7 +1,9 @@
 //! Frontend-agnostic token/input locations utilities and definitions.
-//
-// All rights reserved 2021 (c) The Hash Language authors
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
+
 use crate::module::ModuleIdx;
+use derive_more::Constructor;
 use std::{convert::TryInto, fmt};
 
 /// Enum representing a location of a token within the source.
@@ -79,7 +81,7 @@ impl fmt::Display for Location {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Constructor)]
 pub struct SourceLocation {
     pub location: Location,
     pub module_index: ModuleIdx,
@@ -91,11 +93,5 @@ impl SourceLocation {
             location: Location::pos(0),
             module_index: ModuleIdx(0),
         }
-    }
-}
-
-impl fmt::Display for SourceLocation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}: mod={}", self.location, self.module_index.0)
     }
 }

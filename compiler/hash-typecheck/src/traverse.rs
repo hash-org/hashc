@@ -1,4 +1,3 @@
-use crate::error::{TypecheckError, TypecheckResult};
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
@@ -7,13 +6,17 @@ use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
     StructDef, StructFields, TupleType, TypeDefs, TypeId, TypeValue, TypeVars, Types, UnknownType,
 };
-use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
+use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
+use crate::{
+    error::{Symbol, TypecheckError, TypecheckResult},
+    types::TypeDefValueKind,
+};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::ast;
 use hash_ast::ident::Identifier;
-use hash_ast::visitor::AstVisitor;
+use hash_ast::{ast, location::Location};
+use hash_ast::{location::SourceLocation, visitor::AstVisitor};
 use hash_ast::{
     module::{ModuleIdx, Modules},
     visitor,
@@ -101,6 +104,22 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         self.global_tc.global_wall
     }
 
+    /// If the [ModuleOrInteractive] is the interactive mode, we return the [ModuleIdx] of `0` because
+    /// this assumption holds when the interactive mode starts up
+    pub fn current_module(&self) -> ModuleIdx {
+        match self.module_or_interactive {
+            ModuleOrInteractive::Module(idx) => idx,
+            ModuleOrInteractive::Interactive(_) => ModuleIdx(0),
+        }
+    }
+
+    pub fn create_source_location(&self, location: Location) -> SourceLocation {
+        SourceLocation {
+            location,
+            module_index: self.current_module(),
+        }
+    }
+
     pub fn typecheck(mut self) -> TypecheckResult<TypeId> {
         match self.module_or_interactive {
             ModuleOrInteractive::Module(module_idx) => {
@@ -161,7 +180,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
             .types
             .create(TypeValue::User(UserType {
                 def_id: str_def_id,
-                args: row![],
+                args: row![self.wall()],
             }))
     }
 
@@ -214,11 +233,16 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage)
     }
 
-    fn resolve_compound_symbol(&mut self, symbols: &[Identifier]) -> TypecheckResult<SymbolType> {
+    fn resolve_compound_symbol(
+        &mut self,
+        symbols: &[Identifier],
+        location: SourceLocation,
+    ) -> TypecheckResult<SymbolType> {
         resolve_compound_symbol(
             &self.module_storage.scopes,
             &mut self.global_tc.global_storage.types,
             symbols,
+            location,
         )
     }
 }
@@ -287,11 +311,16 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        match self.resolve_compound_symbol(&node.name.path)? {
+        let loc = self.create_source_location(node.location());
+
+        match self.resolve_compound_symbol(&node.name.path, loc)? {
             SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
-            SymbolType::Type(_) | SymbolType::TypeDef(_) => Err(
-                TypecheckError::UsingTypeInVariablePos(node.name.path.to_owned()),
-            ),
+            SymbolType::Type(_) | SymbolType::TypeDef(_) => {
+                Err(TypecheckError::UsingTypeInVariablePos(Symbol::Compound {
+                    path: node.name.path.to_owned(),
+                    location: Some(loc),
+                }))
+            }
         }
     }
 
@@ -346,25 +375,32 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::PropertyAccessExpr { subject, .. } =
             walk::walk_property_access_expr(self, ctx, node)?;
 
-        let invalid_access = || -> Result<Self::PropertyAccessExprRet, Self::Error> {
-            Err(TypecheckError::InvalidPropertyAccess(
-                subject,
-                property_ident,
-            ))
-        };
+        let invalid_access =
+            |location: Option<SourceLocation>| -> Result<Self::PropertyAccessExprRet, Self::Error> {
+                Err(TypecheckError::InvalidPropertyAccess {
+                    struct_type: subject,
+                    struct_defn_location: location,
+                    field_name: property_ident,
+                    access_location: self.create_source_location(node.location()), // @@Correctness: use correct location for property access
+                })
+            };
 
         match self.types().get(subject) {
-            TypeValue::User(UserType { def_id, .. }) => match self.type_defs().get(*def_id) {
-                TypeDefValue::Struct(StructDef { fields, .. }) => {
-                    if let Some(field_ty) = fields.get_field(property_ident) {
-                        Ok(field_ty)
-                    } else {
-                        invalid_access()
+            TypeValue::User(UserType { def_id, .. }) => {
+                let ty_def = self.type_defs().get(*def_id);
+
+                match &ty_def.kind {
+                    TypeDefValueKind::Struct(StructDef { fields, .. }) => {
+                        if let Some(field_ty) = fields.get_field(property_ident) {
+                            Ok(field_ty)
+                        } else {
+                            invalid_access(ty_def.location)
+                        }
                     }
+                    _ => invalid_access(ty_def.location),
                 }
-                _ => invalid_access(),
-            },
-            _ => invalid_access(),
+            }
+            _ => invalid_access(None),
         }
     }
 
@@ -451,16 +487,18 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        match self.resolve_compound_symbol(&node.name.path)? {
+        let location = self.create_source_location(node.location());
+
+        match self.resolve_compound_symbol(&node.name.path, location)? {
             SymbolType::Type(ty_id) => Ok(ty_id),
             SymbolType::TypeDef(def_id) => {
                 let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
                 let def = self.type_defs().get(def_id);
 
                 // @@Todo bounds
-                match def {
-                    TypeDefValue::Enum(EnumDef { generics, .. })
-                    | TypeDefValue::Struct(StructDef { generics, .. }) => {
+                match &def.kind {
+                    TypeDefValueKind::Enum(EnumDef { generics, .. })
+                    | TypeDefValueKind::Struct(StructDef { generics, .. }) => {
                         let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
                         let instantiated_args = self
                             .unifier()
@@ -478,9 +516,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     }
                 }
             }
-            SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
-                node.name.path.to_owned(),
-            )),
+            SymbolType::Variable(_) => {
+                Err(TypecheckError::UsingVariableInTypePos(Symbol::Compound {
+                    path: node.name.path.to_owned(),
+                    location: Some(location),
+                }))
+            }
         }
     }
 
@@ -657,18 +698,22 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
     ) -> Result<Self::StructLiteralRet, Self::Error> {
-        let symbol_res = self.resolve_compound_symbol(&node.name.path)?;
+        let location = self.create_source_location(node.location());
+        let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
 
         match symbol_res {
-            SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
-                node.name.path.to_owned(),
-            )),
+            SymbolType::Variable(_) => {
+                Err(TypecheckError::UsingVariableInTypePos(Symbol::Compound {
+                    path: node.name.path.to_owned(),
+                    location: Some(location),
+                }))
+            }
             SymbolType::TypeDef(def_id) => {
                 let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
-                match type_def {
-                    TypeDefValue::Struct(struct_def) => {
-                        self.typecheck_known_struct_literal(ctx, node, ty_id, struct_def)
+                match &type_def.kind {
+                    TypeDefValueKind::Struct(struct_def) => {
+                        self.typecheck_known_struct_literal(ctx, node, ty_id, &struct_def)
                     }
                     _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
                 }
@@ -678,9 +723,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 match ty {
                     TypeValue::User(UserType { def_id, .. }) => {
                         let type_def = self.type_defs().get(*def_id);
-                        match type_def {
-                            TypeDefValue::Struct(struct_def) => {
-                                self.typecheck_known_struct_literal(ctx, node, ty_id, struct_def)
+
+                        match &type_def.kind {
+                            TypeDefValueKind::Struct(struct_def) => {
+                                self.typecheck_known_struct_literal(ctx, node, ty_id, &struct_def)
                             }
                             _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
                         }
@@ -859,7 +905,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
 
                 Ok(())
             }
-            None => Err(TypecheckError::UsingReturnOutsideFunction(node.location())),
+            None => Err(TypecheckError::UsingReturnOutsideFunction(
+                self.create_source_location(node.location()),
+            )),
         }
     }
 
@@ -880,7 +928,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         if !self.tc_state().in_loop {
-            Err(TypecheckError::UsingBreakOutsideLoop(node.location()))
+            Err(TypecheckError::UsingBreakOutsideLoop(
+                self.create_source_location(node.location()),
+            ))
         } else {
             Ok(())
         }
@@ -893,7 +943,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.tc_state().in_loop {
-            Err(TypecheckError::UsingContinueOutsideLoop(node.location()))
+            Err(TypecheckError::UsingContinueOutsideLoop(
+                self.create_source_location(node.location()),
+            ))
         } else {
             Ok(())
         }
@@ -942,7 +994,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StructDefEntry<'c>>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        let walk::StructDefEntry { name, ty, default } =
+        let walk::StructDefEntry { ty, default, .. } =
             walk::walk_struct_def_entry(self, ctx, node)?;
 
         let default_ty = default.unwrap_or_else(|| self.create_unknown_type());
@@ -996,14 +1048,19 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         // @@Todo: trait bounds
 
         // Create the type
-        let def_id = self.type_defs_mut().create(TypeDefValue::Struct(StructDef {
-            name: node.name.ident,
-            generics: Generics {
-                params: bound.unwrap_or_else(|| row![]),
-                bounds: TraitBounds::empty(),
-            },
-            fields,
-        }));
+        let current_module = self.current_module();
+
+        let def_id = self.type_defs_mut().create(
+            TypeDefValueKind::Struct(StructDef {
+                name: node.name.ident,
+                generics: Generics {
+                    params: bound.unwrap_or_else(|| row![ctx; ]),
+                    bounds: TraitBounds::empty(),
+                },
+                fields,
+            }),
+            Some(SourceLocation::new(node.name.location(), current_module)),
+        );
 
         // Add the name to scope
         self.scopes()
@@ -1062,7 +1119,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitBound<'c>>,
     ) -> Result<Self::TraitBoundRet, Self::Error> {
-        let walk::TraitBound { name, type_args } = walk::walk_trait_bound(self, ctx, node)?;
+        let walk::TraitBound {
+            name: _,
+            type_args: _,
+        } = walk::walk_trait_bound(self, ctx, node)?;
         todo!()
         // match self.traits().get(trait_id) {}
 
@@ -1184,7 +1244,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::IfPattern { pattern, condition } = walk::walk_if_pattern(self, ctx, node)?;
         match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
-            _ => Err(TypecheckError::ExpectingBooleanInCondition { found: condition }),
+            _ => Err(TypecheckError::ExpectingBooleanInCondition {
+                location: node.location(),
+                found: condition,
+            }),
         }
     }
 
@@ -1247,18 +1310,23 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
             generics: _,
         }: &StructDef,
     ) -> TypecheckResult<TypeId> {
-
         let walk::StructLiteral {
             name: _,
             entries,
             type_args: _,
         } = walk::walk_struct_literal(self, ctx, node)?;
 
+        let location = self.create_source_location(node.location());
+
         // Make sure all fields are present
         let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
-                return Err(TypecheckError::MissingStructField(ty_id, expected));
+                return Err(TypecheckError::MissingStructField {
+                    struct_type: ty_id,
+                    field_name: expected,
+                    struct_lit_location: location,
+                });
             }
         }
 
@@ -1269,7 +1337,13 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
                     self.unifier()
                         .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
                 }
-                None => return Err(TypecheckError::UnresolvedStructField(ty_id, entry_name)),
+                None => {
+                    return Err(TypecheckError::UnresolvedStructField {
+                        struct_type: ty_id,
+                        field_name: entry_name,
+                        location, // @@Correctness: use location of struct field rather than struct def...
+                    });
+                }
             }
         }
 
@@ -1281,10 +1355,10 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &mut self,
         def_id: TypeDefId,
     ) -> TypecheckResult<(TypeId, Substitution)> {
-        let type_def = self.type_defs().get(def_id);
+        let type_def = &self.type_defs().get(def_id).kind;
 
-        let (TypeDefValue::Struct(StructDef { generics, .. })
-        | TypeDefValue::Enum(EnumDef { generics, .. })) = type_def;
+        let (TypeDefValueKind::Struct(StructDef { generics, .. })
+        | TypeDefValueKind::Enum(EnumDef { generics, .. })) = type_def;
 
         // @@Todo: bounds
 

@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    slice::SliceIndex,
-};
+use std::collections::{BTreeMap, HashMap};
 
 use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
 use hash_utils::counter;
