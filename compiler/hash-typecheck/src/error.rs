@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::types::TypeId;
 use hash_ast::{
     ident::Identifier,
@@ -14,6 +16,22 @@ pub enum Symbol {
         symbol: Identifier,
         location: Option<SourceLocation>,
     },
+}
+
+impl Symbol {
+    /// Function to get the identifier path/symbol from the entire [Symbol]
+    pub fn get_ident(&self) -> Vec<Identifier> {
+        match self {
+            Symbol::Compound { path, .. } => path.to_vec(),
+            Symbol::Single { symbol, .. } => vec![*symbol],
+        }
+    }
+
+    pub fn location(&self) -> Option<SourceLocation> {
+        match self {
+            Symbol::Compound { location, .. } | Symbol::Single { location, .. } => *location,
+        }
+    }
 }
 
 // @@Todo: add ast node locations to these
