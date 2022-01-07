@@ -8,6 +8,7 @@ use std::cell::Cell;
 use hash_alloc::Wall;
 use hash_alloc::{collections::row::Row, row};
 
+use hash_ast::ident::CORE_IDENTIFIERS;
 use hash_ast::{
     ast::*,
     ident::{Identifier, IDENTIFIER_MAP},
@@ -2840,7 +2841,7 @@ where
                         let ident = name.body().path.get(0).unwrap();
 
                         match *ident {
-                            Identifier(0) => Type::Infer(InferType),
+                            i if i == CORE_IDENTIFIERS.underscore => Type::Infer(InferType),
                             _ => Type::Named(NamedType {
                                 name,
                                 type_args: row![&self.wall],
