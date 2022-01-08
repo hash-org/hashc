@@ -5,7 +5,7 @@
 
 use crate::ast;
 use dashmap::{lock::RwLock, DashMap, ReadOnlyView};
-use hash_source::module::{ModuleIdx, SourceMap};
+use hash_source::module::{ModuleIdx, SourceMap, SourceModule};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -90,7 +90,19 @@ impl<'c> Modules<'c> {
     }
 
     pub fn sources(&self) -> SourceMap {
-        todo!()
+        let mut map = HashMap::with_capacity(self.filenames_by_index.len());
+
+        self.filenames_by_index.iter().for_each(|key| {
+            let contents = self.contents_by_index.get(key.0).unwrap();
+
+            // @@Copying
+            map.insert(
+                *key.0,
+                SourceModule::new(key.1.to_owned(), contents.to_owned()),
+            );
+        });
+
+        SourceMap::new(map)
     }
 
     pub fn has_entry_point(&self) -> bool {
