@@ -3,7 +3,7 @@ use crate::storage::GlobalStorage;
 use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
 use hash_ast::{
     ident::{Identifier, IDENTIFIER_MAP},
-    location::{Location, SourceLocation},
+    location::SourceLocation,
 };
 use std::collections::HashMap;
 

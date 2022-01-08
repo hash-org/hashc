@@ -375,32 +375,42 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::PropertyAccessExpr { subject, .. } =
             walk::walk_property_access_expr(self, ctx, node)?;
 
-        let invalid_access =
-            |location: Option<SourceLocation>| -> Result<Self::PropertyAccessExprRet, Self::Error> {
-                Err(TypecheckError::InvalidPropertyAccess {
-                    struct_type: subject,
-                    struct_defn_location: location,
-                    field_name: property_ident,
-                    access_location: self.create_source_location(node.location()), // @@Correctness: use correct location for property access
-                })
-            };
+        let invalid_access = |name,
+                              location: Option<SourceLocation>|
+         -> Result<Self::PropertyAccessExprRet, Self::Error> {
+            Err(TypecheckError::InvalidPropertyAccess {
+                ty_def_name: name,
+                ty_def_location: location,
+                field_name: property_ident,
+                location: self.create_source_location(node.location()), // @@Correctness: use correct location for property access
+            })
+        };
 
         match self.types().get(subject) {
             TypeValue::User(UserType { def_id, .. }) => {
                 let ty_def = self.type_defs().get(*def_id);
 
                 match &ty_def.kind {
-                    TypeDefValueKind::Struct(StructDef { fields, .. }) => {
+                    TypeDefValueKind::Struct(StructDef { fields, name, .. }) => {
                         if let Some(field_ty) = fields.get_field(property_ident) {
                             Ok(field_ty)
                         } else {
-                            invalid_access(ty_def.location)
+                            invalid_access(*name, ty_def.location)
                         }
                     }
-                    _ => invalid_access(ty_def.location),
+                    TypeDefValueKind::Enum(EnumDef { /*name, */ .. }) => Err(TypecheckError::TypeIsNotStruct {
+                        ty: subject,
+                        // ty_def_name: *name,
+                        ty_def_location: ty_def.location,
+                        location: self.create_source_location(node.location()),
+                    }),
                 }
             }
-            _ => invalid_access(None),
+            _ => Err(TypecheckError::TypeIsNotStruct {
+                ty: subject,
+                ty_def_location: None,
+                location: self.create_source_location(node.location()),
+            }),
         }
     }
 
@@ -713,9 +723,13 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
                 match &type_def.kind {
                     TypeDefValueKind::Struct(struct_def) => {
-                        self.typecheck_known_struct_literal(ctx, node, ty_id, &struct_def)
+                        self.typecheck_known_struct_literal(ctx, node, def_id, ty_id, &struct_def)
                     }
-                    _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
+                    _ => Err(TypecheckError::TypeIsNotStruct {
+                        ty: ty_id,
+                        location,
+                        ty_def_location: type_def.location,
+                    }),
                 }
             }
             SymbolType::Type(ty_id) => {
@@ -725,13 +739,26 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                         let type_def = self.type_defs().get(*def_id);
 
                         match &type_def.kind {
-                            TypeDefValueKind::Struct(struct_def) => {
-                                self.typecheck_known_struct_literal(ctx, node, ty_id, &struct_def)
-                            }
-                            _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
+                            TypeDefValueKind::Struct(struct_def) => self
+                                .typecheck_known_struct_literal(
+                                    ctx,
+                                    node,
+                                    *def_id,
+                                    ty_id,
+                                    &struct_def,
+                                ),
+                            _ => Err(TypecheckError::TypeIsNotStruct {
+                                ty: ty_id,
+                                location,
+                                ty_def_location: type_def.location,
+                            }),
                         }
                     }
-                    _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
+                    _ => Err(TypecheckError::TypeIsNotStruct {
+                        ty: ty_id,
+                        location,
+                        ty_def_location: None,
+                    }),
                 }
             }
         }
@@ -1245,7 +1272,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
             _ => Err(TypecheckError::ExpectingBooleanInCondition {
-                location: node.location(),
+                location: self.create_source_location(node.location()),
                 found: condition,
             }),
         }
@@ -1303,9 +1330,10 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &mut self,
         ctx: &<Self as AstVisitor<'c>>::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+        def_id: TypeDefId,
         ty_id: TypeId,
         StructDef {
-            name: _,
+            name,
             fields,
             generics: _,
         }: &StructDef,
@@ -1322,13 +1350,18 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
+                let ty_def = self.type_defs().get(def_id);
+
                 return Err(TypecheckError::MissingStructField {
-                    struct_type: ty_id,
+                    ty_def_location: ty_def.location,
+                    ty_def_name: *name,
                     field_name: expected,
-                    struct_lit_location: location,
+                    field_location: location,
                 });
             }
         }
+
+        let ty_def = self.type_defs().get(def_id);
 
         // Unify args
         for &(entry_name, entry_ty) in &entries {
@@ -1339,7 +1372,8 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
                 }
                 None => {
                     return Err(TypecheckError::UnresolvedStructField {
-                        struct_type: ty_id,
+                        ty_def_location: ty_def.location,
+                        ty_def_name: Identifier(0),
                         field_name: entry_name,
                         location, // @@Correctness: use location of struct field rather than struct def...
                     });

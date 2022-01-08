@@ -1633,7 +1633,7 @@ where
                         Some(token.kind),
                     )?,
                     _ => {
-                        if *ident == Identifier(0) {
+                        if *ident == CORE_IDENTIFIERS.underscore {
                             Pattern::Ignore(IgnorePattern)
                         } else {
                             Pattern::Binding(BindingPattern(

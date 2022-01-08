@@ -1,10 +1,5 @@
-use std::iter;
-
 use crate::types::TypeId;
-use hash_ast::{
-    ident::Identifier,
-    location::{Location, SourceLocation},
-};
+use hash_ast::{ident::Identifier, location::SourceLocation};
 
 #[derive(Debug)]
 pub enum Symbol {
@@ -47,26 +42,32 @@ pub enum TypecheckError {
     TryingToNamespaceVariable(Symbol),
     UsingVariableInTypePos(Symbol),
     UsingTypeInVariablePos(Symbol),
-    TypeIsNotStruct(TypeId),
+    TypeIsNotStruct {
+        ty: TypeId,
+        location: SourceLocation,
+        ty_def_location: Option<SourceLocation>,
+    },
     UnresolvedStructField {
-        struct_type: TypeId,
         field_name: Identifier,
         location: SourceLocation,
+        ty_def_name: Identifier, // @@Maybe make this a symbol?
+        ty_def_location: Option<SourceLocation>,
     },
     InvalidPropertyAccess {
-        struct_type: TypeId,
-        struct_defn_location: Option<SourceLocation>,
         field_name: Identifier,
-        access_location: SourceLocation,
+        location: SourceLocation,
+        ty_def_name: Identifier,
+        ty_def_location: Option<SourceLocation>,
     },
     ExpectingBooleanInCondition {
         found: TypeId,
-        location: Location,
+        location: SourceLocation,
     },
     MissingStructField {
-        struct_type: TypeId,
         field_name: Identifier,
-        struct_lit_location: SourceLocation,
+        field_location: SourceLocation,
+        ty_def_name: Identifier,
+        ty_def_location: Option<SourceLocation>,
     },
     BoundRequiresStrictlyTypeVars,
 }
