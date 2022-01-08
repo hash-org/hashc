@@ -3,7 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use hash_ast::{error::ParseError, ident::IDENTIFIER_MAP};
-use hash_typecheck::{error::TypecheckError, storage::GlobalStorage};
+use hash_typecheck::{error::TypecheckError, storage::GlobalStorage, writer::TypeWithStorage};
 use std::fmt;
 use std::{io, process::exit};
 use thiserror::Error;
@@ -54,7 +54,20 @@ impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
             .with_error_code(ErrorCode::Typecheck); // @@ErrorReporting: Get the correct typecheck code
 
         match error {
-            TypecheckError::TypeMismatch(_, _) => todo!(),
+            TypecheckError::TypeMismatch(left, right) => {
+                let left_ty = TypeWithStorage::new(left, &storage);
+                let right_ty = TypeWithStorage::new(right, &storage);
+
+                // @@TODO: we want to print the location of the lhs_expression where the type mismatches
+                //         and the right hand side
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!(
+                        "Types mismatch, got a `{}`, but wanted a `{}`.",
+                        left_ty, right_ty
+                    ),
+                )));
+            }
             TypecheckError::UsingBreakOutsideLoop(src) => {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
@@ -71,8 +84,22 @@ impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
                         "You can't use a `continue` clause outside of a loop.",
                     )));
             }
-            TypecheckError::UsingReturnOutsideFunction(_) => todo!(),
-            TypecheckError::RequiresIrrefutablePattern(_) => todo!(),
+            TypecheckError::UsingReturnOutsideFunction(src) => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        "You can't use a `return` clause outside of a function body.",
+                    )));
+            }
+            TypecheckError::RequiresIrrefutablePattern(src) => {
+                builder
+                .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "This pattern isn't refutable")))
+                .add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    "Destructuring statements in `let` or `for` statements must use an irrefutable pattern.",
+                )));
+            }
             TypecheckError::UnresolvedSymbol(symbol) => {
                 let ident_path = symbol.get_ident();
                 let formatted_symbol = format!("{}", IDENTIFIER_MAP.get_path(ident_path));
@@ -97,25 +124,127 @@ impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
             TypecheckError::TryingToNamespaceVariable(_) => todo!(),
             TypecheckError::UsingVariableInTypePos(_) => todo!(),
             TypecheckError::UsingTypeInVariablePos(_) => todo!(),
-            TypecheckError::TypeIsNotStruct(_) => todo!(),
+            TypecheckError::TypeIsNotStruct {
+                ty,
+                location,
+                ty_def_location,
+            } => {
+                let ty = TypeWithStorage::new(ty, &storage);
+
+                // Print where the original type is defined with an annotation.
+                if let Some(ty_def_location) = ty_def_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        ty_def_location,
+                        format!("The type `{}` is defined here.", ty),
+                    )));
+                }
+
+                // Print where the literal being created...
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "Not a struct",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("This type `{}` isn't a struct.", ty),
+                    )));
+            }
             TypecheckError::UnresolvedStructField {
-                struct_type,
+                ty_def_location,
+                ty_def_name,
                 field_name,
                 location,
-            } => todo!(),
-            TypecheckError::InvalidPropertyAccess {
-                struct_type,
-                struct_defn_location,
-                field_name,
-                access_location,
-            } => todo!(),
-            TypecheckError::ExpectingBooleanInCondition { found, location } => todo!(),
+            } => {
+                let name = IDENTIFIER_MAP.get_ident(field_name);
+                let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
+
+                // If we have the location of the definition, we can print it here
+                if let Some(ty_def_location) = ty_def_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        ty_def_location,
+                        format!("The struct `{}` is defined here.", ty_name),
+                    )));
+                }
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "Unknown field",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("The field `{}` doesn't exist on struct `{}`.", name, name),
+                    )));
+            }
+            TypecheckError::ExpectingBooleanInCondition { found, location } => {
+                let found_ty = TypeWithStorage::new(found, &storage);
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "Expression should be of `boolean` type",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("In `if` statements, the condition must be explicitly of `boolean` type, however the expression was found to be of `{}` type.", found_ty),
+                    )));
+            }
             TypecheckError::MissingStructField {
-                struct_type,
+                ty_def_location,
+                ty_def_name,
                 field_name,
-                struct_lit_location,
-            } => todo!(),
+                field_location,
+            } => {
+                let name = IDENTIFIER_MAP.get_ident(field_name);
+                let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
+
+                // If we have the location of the definition, we can print it here
+                if let Some(ty_def_location) = ty_def_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        ty_def_location,
+                        format!("The struct `{}` is defined here.", ty_name),
+                    )));
+                }
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        field_location,
+                        "Struct is missing field",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("The struct `{}` is missing the field `{}`.", ty_name, name),
+                    )));
+            }
             TypecheckError::BoundRequiresStrictlyTypeVars => todo!(),
+            TypecheckError::InvalidPropertyAccess {
+                field_name,
+                location,
+                ty_def_name,
+                ty_def_location,
+            } => {
+                let name = IDENTIFIER_MAP.get_ident(field_name);
+                let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
+
+                // If we have the location of the definition, we can print it here
+                if let Some(ty_def_location) = ty_def_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        ty_def_location,
+                        format!("The struct `{}` is defined here.", ty_name),
+                    )));
+                }
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "unknown field",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("The field `{}` doesn't exist on type `{}`.", name, ty_name),
+                    )));
+            }
         }
 
         // @@ErrorReporting: we might want to properly handle incomplete reports?
