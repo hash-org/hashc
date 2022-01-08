@@ -120,10 +120,69 @@ impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
                     ),
                 )));
             }
-            TypecheckError::TryingToNamespaceType(_) => todo!(),
-            TypecheckError::TryingToNamespaceVariable(_) => todo!(),
-            TypecheckError::UsingVariableInTypePos(_) => todo!(),
-            TypecheckError::UsingTypeInVariablePos(_) => todo!(),
+            TypecheckError::TryingToNamespaceType(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "This symbol `{}` is defined as a type in the current scope.",
+                            symbol_name
+                        ),
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    "You cannot namespace a symbol that's a type.",
+                )));
+            }
+            TypecheckError::TryingToNamespaceVariable(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "This is a variable",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("`{}` is a variable. You cannot namespace a variable defined in the current scope.", symbol_name),
+                )));
+            }
+            TypecheckError::UsingVariableInTypePos(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "This is expects a type instead of a variable.",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("`{}` is a variable and not a type. You cannot use a variable in the place of a type.", symbol_name),
+                )));
+            }
+            TypecheckError::UsingTypeInVariablePos(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+                
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "You can't use a type here...",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("`{}` is a type and not a variable. You cannot use a type in the place of a variable.", symbol_name),
+                )));
+            }
             TypecheckError::TypeIsNotStruct {
                 ty,
                 location,
@@ -217,7 +276,17 @@ impl From<(TypecheckError, GlobalStorage<'_, '_, '_>)> for Report {
                         format!("The struct `{}` is missing the field `{}`.", ty_name, name),
                     )));
             }
-            TypecheckError::BoundRequiresStrictlyTypeVars => todo!(),
+            TypecheckError::BoundRequiresStrictlyTypeVars(location) => {
+                // @@TODO: Maybe report here what we found?
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location, "here",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        "This type bound should only contain type variables",
+                    )));
+            }
             TypecheckError::InvalidPropertyAccess {
                 field_name,
                 location,

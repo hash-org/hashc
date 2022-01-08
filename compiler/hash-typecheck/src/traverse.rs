@@ -1055,7 +1055,14 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     .iter()
                     .map(|&ty| match self.types().get(ty) {
                         TypeValue::Var(var) => Ok(*var),
-                        _ => Err(TypecheckError::BoundRequiresStrictlyTypeVars),
+                        _ => {
+                            // We need to get the location of the bound for error reporting
+                            let bound_location = node.bound.as_ref().unwrap().location();
+
+                            Err(TypecheckError::BoundRequiresStrictlyTypeVars(
+                                self.create_source_location(bound_location),
+                            ))
+                        }
                     })
                     .collect::<Result<_, _>>()?;
 

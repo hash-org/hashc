@@ -69,7 +69,7 @@ pub enum TypecheckError {
         ty_def_name: Identifier,
         ty_def_location: Option<SourceLocation>,
     },
-    BoundRequiresStrictlyTypeVars,
+    BoundRequiresStrictlyTypeVars(SourceLocation),
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
