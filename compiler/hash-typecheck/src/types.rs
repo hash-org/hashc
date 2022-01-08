@@ -196,6 +196,36 @@ pub enum TypeValue<'c> {
 }
 
 impl<'c> TypeValue<'c> {
+    pub fn fold_type_ids<F, T>(&self, initial: T, mut f: F) -> T
+    where
+        F: FnMut(T, TypeId) -> T,
+    {
+        match self {
+            TypeValue::Ref(RefType { inner }) => f(initial, *inner),
+            TypeValue::RawRef(RawRefType { inner }) => f(initial, *inner),
+            TypeValue::Fn(FnType { args, ret }) => {
+                let args_res = args.iter().fold(initial, |acc, x| f(acc, *x));
+                f(args_res, *ret)
+            }
+            TypeValue::User(UserType { args, def_id: _ }) => {
+                args.iter().fold(initial, |acc, x| f(acc, *x))
+            }
+            TypeValue::Tuple(TupleType { types: args }) => {
+                args.iter().fold(initial, |acc, x| f(acc, *x))
+            }
+            TypeValue::Var(_) => initial,
+            TypeValue::Prim(_) => initial,
+            TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds { bounds },
+            }) => bounds
+                .iter()
+                .fold(initial, |acc, TraitBound { params, .. }| {
+                    params.iter().fold(acc, |acc, x| f(acc, *x))
+                }),
+            TypeValue::Namespace(_) => initial,
+        }
+    }
+
     pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
     where
         F: FnMut(TypeId) -> TypeId,
