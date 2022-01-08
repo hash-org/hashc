@@ -5,10 +5,11 @@
 use crate::{
     ast::{self, *},
     error::{ParseError, ParseResult},
-    module::{ModuleBuilder, ModuleIdx, Modules},
+    module::{ModuleBuilder, Modules},
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
+use hash_source::module::ModuleIdx;
 use log::{log, Level};
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};

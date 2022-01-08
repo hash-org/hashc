@@ -5,10 +5,8 @@ use crate::{
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::{
-    ident::{Identifier, IDENTIFIER_MAP},
-    location::SourceLocation,
-};
+use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_source::location::SourceLocation;
 use hash_utils::counter;
 use slotmap::{new_key_type, SlotMap};
 use std::hash::Hash;

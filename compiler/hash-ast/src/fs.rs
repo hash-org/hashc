@@ -7,7 +7,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{error::ImportError, location::SourceLocation};
+use hash_source::location::SourceLocation;
+
+use crate::error::ImportError;
 
 /// The location of a build directory of this package, this used to resolve where the standard library
 /// is located at.

@@ -315,6 +315,8 @@ dependencies = [
  "derive_more",
  "fnv",
  "hash-alloc",
+ "hash-reporting",
+ "hash-source",
  "hash-utils",
  "lazy_static",
  "log",
@@ -345,6 +347,7 @@ dependencies = [
  "derive_more",
  "hash-alloc",
  "hash-ast",
+ "hash-source",
  "hash-utils",
  "lazy_static",
  "log",
@@ -367,8 +370,16 @@ name = "hash-reporting"
 version = "0.1.0"
 dependencies = [
  "hash-alloc",
- "hash-ast",
- "hash-typecheck",
+ "hash-source",
+ "thiserror",
+]
+
+[[package]]
+name = "hash-source"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "hash-utils",
  "thiserror",
 ]
 
@@ -379,6 +390,8 @@ dependencies = [
  "dashmap",
  "hash-alloc",
  "hash-ast",
+ "hash-reporting",
+ "hash-source",
  "hash-utils",
  "slotmap",
  "smallvec",

@@ -14,13 +14,12 @@ use crate::{
 };
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::ident::Identifier;
-use hash_ast::{ast, location::Location};
-use hash_ast::{location::SourceLocation, visitor::AstVisitor};
-use hash_ast::{
-    module::{ModuleIdx, Modules},
-    visitor,
-    visitor::walk,
+use hash_ast::visitor::AstVisitor;
+use hash_ast::{ast, ident::Identifier};
+use hash_ast::{module::Modules, visitor, visitor::walk};
+use hash_source::{
+    location::{Location, SourceLocation},
+    module::ModuleIdx,
 };
 use std::collections::HashSet;
 use std::iter;
