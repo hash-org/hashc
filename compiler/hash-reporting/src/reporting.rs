@@ -7,7 +7,7 @@ use std::{
     iter::{once, repeat},
 };
 
-use hash_ast::{location::SourceLocation, module::Modules};
+use hash_source::{location::SourceLocation, module::SourceMap};
 
 use crate::{
     errors::ErrorCode,
@@ -149,11 +149,11 @@ impl ReportCodeBlock {
     }
 
     // Get the indent widths of this code block as (outer, inner).
-    fn info(&self, modules: &Modules) -> ReportCodeBlockInfo {
+    fn info(&self, modules: &SourceMap) -> ReportCodeBlockInfo {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let module = modules.get_by_index(self.source_location.module_index);
+                let module = modules.get(self.source_location.module_index);
                 let source = module.content();
 
                 let location = self.source_location.location;
@@ -182,7 +182,7 @@ impl ReportCodeBlock {
     fn render(
         &self,
         f: &mut fmt::Formatter,
-        modules: &Modules,
+        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -191,7 +191,7 @@ impl ReportCodeBlock {
         // or equivalent unicode character.
         //
         // Print a few lines before and after location/code_message.
-        let module = modules.get_by_index(self.source_location.module_index);
+        let module = modules.get(self.source_location.module_index);
         let source = module.content();
         let ReportCodeBlockInfo {
             start_row,
@@ -295,7 +295,7 @@ impl ReportElement {
     fn render(
         &self,
         f: &mut fmt::Formatter,
-        modules: &Modules,
+        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -387,18 +387,18 @@ impl ReportBuilder {
 /// General data type for displaying [Report]s. This is needed due to the
 /// [Report] rendering process needing access to the program modules to get
 /// access to the source code.
-pub struct ReportWriter<'c, 'm> {
+pub struct ReportWriter<'m> {
     report: Report,
-    modules: &'m Modules<'c>,
+    modules: &'m SourceMap,
 }
 
-impl<'c, 'm> ReportWriter<'c, 'm> {
-    pub fn new(report: Report, modules: &'m Modules<'c>) -> Self {
+impl<'m> ReportWriter<'m> {
+    pub fn new(report: Report, modules: &'m SourceMap) -> Self {
         Self { report, modules }
     }
 }
 
-impl fmt::Display for ReportWriter<'_, '_> {
+impl fmt::Display for ReportWriter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Add the optional error code to the general message...
         let error_code_fmt = match self.report.error_code {
@@ -446,60 +446,60 @@ impl fmt::Display for ReportWriter<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    // use std::path::PathBuf;
 
-    use hash_alloc::{row, Castle};
-    use hash_ast::{ast, location::Location, module::ModuleBuilder};
+    // use hash_alloc::{row, Castle};
+    // use hash_ast::{ast, location::Location, module::ModuleBuilder};
 
     use super::*;
 
-    #[test]
-    fn reporting_test() {
-        let castle = Castle::new();
-        let wall = castle.wall();
+    // #[test]
+    // fn reporting_test() {
+    //     let castle = Castle::new();
+    //     let wall = castle.wall();
 
-        let builder = ModuleBuilder::new();
+    //     let builder = ModuleBuilder::new();
 
-        let path = PathBuf::from("./../../stdlib/prelude.hash");
-        let contents = std::fs::read_to_string(&path).unwrap();
-        let test_idx = builder.reserve_index();
+    //     let path = PathBuf::from("./../../stdlib/prelude.hash");
+    //     let contents = std::fs::read_to_string(&path).unwrap();
+    //     let test_idx = builder.reserve_index();
 
-        builder.add_contents(test_idx, path, contents);
-        builder.add_module_at(
-            test_idx,
-            ast::AstNode::new(
-                ast::Module {
-                    contents: row![&wall],
-                },
-                Location::pos(0),
-                &wall,
-            ),
-        );
+    //     builder.add_contents(test_idx, path, contents);
+    //     builder.add_module_at(
+    //         test_idx,
+    //         ast::AstNode::new(
+    //             ast::Module {
+    //                 contents: row![&wall],
+    //             },
+    //             Location::pos(0),
+    //             &wall,
+    //         ),
+    //     );
 
-        let modules = builder.build();
+    //     let modules = builder.build();
 
-        let report = ReportBuilder::new()
-            .with_message("Bro what you wrote here is wrong.")
-            .with_kind(ReportKind::Error)
-            .with_error_code(ErrorCode::Parsing)
-            .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                SourceLocation {
-                    location: Location::span(10223, 10224),
-                    module_index: test_idx,
-                },
-                "don't be crazy.",
-            )))
-            .add_element(ReportElement::Note(ReportNote::new(
-                "note",
-                "You really are a dummy.",
-            )))
-            .build()
-            .unwrap();
+    //     let report = ReportBuilder::new()
+    //         .with_message("Bro what you wrote here is wrong.")
+    //         .with_kind(ReportKind::Error)
+    //         .with_error_code(ErrorCode::Parsing)
+    //         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+    //             SourceLocation {
+    //                 location: Location::span(10223, 10224),
+    //                 module_index: test_idx,
+    //             },
+    //             "don't be crazy.",
+    //         )))
+    //         .add_element(ReportElement::Note(ReportNote::new(
+    //             "note",
+    //             "You really are a dummy.",
+    //         )))
+    //         .build()
+    //         .unwrap();
 
-        let report_writer = ReportWriter::new(report, &modules);
+    //     let report_writer = ReportWriter::new(report, &modules);
 
-        println!("{}", report_writer);
-    }
+    //     println!("{}", report_writer);
+    // }
 
     #[test]
     fn offset_test() {

@@ -10,11 +10,9 @@ use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser};
-use hash_reporting::errors::{CompilerError, InteractiveCommandError};
-use hash_reporting::reporting::{Report, ReportWriter};
-
-#[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
+use hash_reporting::errors::{CompilerError, InteractiveCommandError};
+use hash_reporting::reporting::ReportWriter;
 
 use hash_typecheck::traverse::GlobalTypechecker;
 use hash_typecheck::writer::TypeWithStorage;
@@ -85,10 +83,15 @@ fn parse_interactive<'c>(
     match parser.parse_interactive(expr, &directory) {
         (Ok(result), modules) => Some((result, modules)),
         (Err(errors), modules) => {
-            for report in errors.into_iter().map(Report::from) {
-                let report_writer = ReportWriter::new(report, &modules);
-                println!("{}", report_writer);
-            }
+            let source_modules = modules.sources();
+
+            errors
+                .into_iter()
+                .map(|err| err.create_report())
+                .for_each(|report| {
+                    let report_writer = ReportWriter::new(report, &source_modules);
+                    println!("{}", report_writer);
+                });
             None
         }
     }
@@ -127,8 +130,10 @@ fn execute(input: &str) {
                         println!("{}", TypeWithStorage::new(block_ty_id, &global_storage));
                     }
                     (Err(e), global_storage) => {
+                        let source_modules = modules.sources();
+
                         let report_writer =
-                            ReportWriter::new(Report::from((e, global_storage)), &modules);
+                            ReportWriter::new(e.create_report(global_storage), &source_modules);
                         println!("{}", report_writer);
                     }
                 }

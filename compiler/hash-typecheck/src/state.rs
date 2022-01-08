@@ -1,5 +1,6 @@
+use hash_source::module::ModuleIdx;
+
 use crate::types::TypeId;
-use hash_ast::module::ModuleIdx;
 
 #[derive(Debug)]
 pub struct TypecheckState {

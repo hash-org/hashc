@@ -5,8 +5,9 @@
 use std::path::Path;
 
 use hash_alloc::Castle;
-use hash_ast::{ast, module::ModuleIdx};
+use hash_ast::ast;
 use hash_ast::{error::ParseResult, parse::ParserBackend, resolve::ModuleResolver};
+use hash_source::module::ModuleIdx;
 use hash_utils::timed;
 
 use crate::gen::AstGen;

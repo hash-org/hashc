@@ -1,10 +1,8 @@
 use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
-use hash_ast::{
-    ident::{Identifier, IDENTIFIER_MAP},
-    location::SourceLocation,
-};
+use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_source::location::SourceLocation;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

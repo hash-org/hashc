@@ -14,10 +14,12 @@ use hash_ast::{
     ident::{Identifier, IDENTIFIER_MAP},
     keyword::Keyword,
     literal::STRING_LITERAL_MAP,
-    location::{Location, SourceLocation},
-    module::ModuleIdx,
     operator::{CompoundFn, OperatorFn},
     resolve::ModuleResolver,
+};
+use hash_source::{
+    location::{Location, SourceLocation},
+    module::ModuleIdx,
 };
 
 use crate::{

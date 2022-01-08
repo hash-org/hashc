@@ -4,11 +4,10 @@
 
 use crate::ident::Identifier;
 use crate::literal::StringLiteral;
-use crate::location::Location;
-use crate::module::ModuleIdx;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
 use hash_alloc::Wall;
+use hash_source::{location::Location, module::ModuleIdx};
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};

@@ -5,11 +5,10 @@
 use crate::{
     error::ImportError,
     fs::resolve_path,
-    location::SourceLocation,
-    module::ModuleIdx,
     parse::{ParserBackend, ParsingContext},
 };
 use derive_more::Constructor;
+use hash_source::{location::SourceLocation, module::ModuleIdx};
 use hash_utils::timed;
 use log::Level;
 use rayon::Scope;

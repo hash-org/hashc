@@ -5,19 +5,11 @@
 
 use crate::ast;
 use dashmap::{lock::RwLock, DashMap, ReadOnlyView};
-use hash_utils::counter;
+use hash_source::module::{ModuleIdx, SourceMap};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
-
-counter! {
-    name: ModuleIdx,
-    counter_name: MODULE_COUNTER,
-    visibility: pub,
-    method_visibility: pub(crate),
-}
-
 /// Creates a set of loaded modules.
 #[derive(Debug, Default)]
 pub struct ModuleBuilder<'c> {
@@ -95,6 +87,10 @@ pub struct Modules<'c> {
 impl<'c> Modules<'c> {
     pub fn has_path(&self, path: impl AsRef<Path>) -> bool {
         self.path_to_index.contains_key(path.as_ref())
+    }
+
+    pub fn sources(&self) -> SourceMap {
+        todo!()
     }
 
     pub fn has_entry_point(&self) -> bool {
