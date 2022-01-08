@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::{PathBuf, Path}};
 
 use hash_utils::counter;
 
@@ -21,11 +21,11 @@ impl SourceModule {
     }
 
     pub fn content(&self) -> &str {
-        todo!()
+        self.content.as_str()
     }
 
-    pub fn filename(&self) -> PathBuf {
-        todo!()
+    pub fn filename(&self) -> &Path {
+        self.path.as_ref()
     }
 }
 
@@ -35,7 +35,12 @@ pub struct SourceMap {
 }
 
 impl SourceMap {
-    pub fn get(&self, index: ModuleIdx) -> SourceModule {
-        todo!()
+    pub fn new(map: HashMap<ModuleIdx, SourceModule>) -> Self {
+        Self {
+            map
+        }
+    }
+    pub fn get(&self, index: ModuleIdx) -> &SourceModule {
+        self.map.get(&index).unwrap()
     }
 }
