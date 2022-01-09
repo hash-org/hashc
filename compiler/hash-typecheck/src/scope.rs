@@ -1,7 +1,7 @@
 use crate::error::{TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::traits::TraitId;
-use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
+use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, TypeStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use std::collections::HashMap;
 
@@ -197,7 +197,7 @@ impl ScopeStack {
 
 pub fn resolve_compound_symbol(
     scopes: &ScopeStack,
-    types: &Types,
+    types: &TypeStorage,
     symbols: &[Identifier],
 ) -> TypecheckResult<SymbolType> {
     let mut last_scope = scopes;
