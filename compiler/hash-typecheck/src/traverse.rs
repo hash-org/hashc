@@ -293,9 +293,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     ) -> Result<Self::VariableExprRet, Self::Error> {
         match self.resolve_compound_symbol(&node.name.path)? {
             SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
-            SymbolType::Type(_) | SymbolType::TypeDef(_) => Err(
-                TypecheckError::UsingTypeInVariablePos(node.name.path.to_owned()),
-            ),
+            _ => Err(TypecheckError::SymbolIsNotAVariable(
+                node.name.path.to_owned(),
+            )),
         }
     }
 
@@ -482,9 +482,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     }
                 }
             }
-            SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
-                node.name.path.to_owned(),
-            )),
+            _ => Err(TypecheckError::SymbolIsNotAType(node.name.path.to_owned())),
         }
     }
 
@@ -664,9 +662,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let symbol_res = self.resolve_compound_symbol(&node.name.path)?;
 
         match symbol_res {
-            SymbolType::Variable(_) => Err(TypecheckError::UsingVariableInTypePos(
-                node.name.path.to_owned(),
-            )),
             SymbolType::TypeDef(def_id) => {
                 let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
@@ -692,6 +687,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     _ => Err(TypecheckError::TypeIsNotStruct(ty_id)),
                 }
             }
+            _ => Err(TypecheckError::SymbolIsNotAType(node.name.path.to_owned())),
         }
     }
 
@@ -1022,7 +1018,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type EnumDefEntryRet = ();
-
     fn visit_enum_def_entry(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1032,7 +1027,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type EnumDefRet = ();
-
     fn visit_enum_def(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1049,14 +1043,18 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     ) -> Result<Self::TraitDefRet, Self::Error> {
         let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
         let type_var_bound = self.type_var_only_bound(&bound)?;
-        let scope_key = self.type_vars_mut()
+        let scope_key = self
+            .type_vars_mut()
             .enter_bounded_type_var_scope(type_var_bound.iter().copied());
         let fn_type = self.visit_type(ctx, node.trait_type.ast_ref())?;
         self.type_vars_mut().exit_type_var_scope(scope_key);
 
         // @@Todo trait bounds
-        let trait_id = self.traits_mut().create(bound, TraitBounds::empty(), fn_type);
-        self.scopes().add_symbol(node.name.ident, SymbolType::Trait(trait_id));
+        let trait_id = self
+            .traits_mut()
+            .create(bound, TraitBounds::empty(), fn_type);
+        self.scopes()
+            .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
 
         Ok(())
     }
