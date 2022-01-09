@@ -200,9 +200,22 @@ impl<'c, 'w> Traits<'c, 'w> {
         self.data.get(&trait_id).unwrap().get()
     }
 
-    pub fn create(&mut self, trt: Trait<'c>) -> TraitId {
+    pub fn create(
+        &mut self,
+        args: TypeList<'c>,
+        bounds: TraitBounds<'c>,
+        fn_type: TypeId,
+    ) -> TraitId {
         let id = TraitId::new();
-        self.data.insert(id, Cell::new(self.wall.alloc_value(trt)));
+        self.data.insert(
+            id,
+            Cell::new(self.wall.alloc_value(Trait {
+                id,
+                args,
+                bounds,
+                fn_type,
+            })),
+        );
         id
     }
 }

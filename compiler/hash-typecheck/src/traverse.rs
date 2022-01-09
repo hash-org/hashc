@@ -2,7 +2,7 @@ use crate::error::{TypecheckError, TypecheckResult};
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
-use crate::traits::{TraitBounds, TraitId, Traits};
+use crate::traits::{Trait, TraitBounds, TraitId, Traits};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
     StructDef, StructFields, TupleType, TypeDefs, TypeId, TypeValue, TypeVars, Types, UnknownType,
@@ -121,6 +121,10 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
 
     fn traits(&self) -> &Traits<'c, 'w> {
         &self.global_tc.global_storage.traits
+    }
+
+    fn traits_mut(&mut self) -> &mut Traits<'c, 'w> {
+        &mut self.global_tc.global_storage.traits
     }
 
     fn types(&self) -> &Types<'c, 'w> {
@@ -1038,13 +1042,23 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type TraitDefRet = ();
-
     fn visit_trait_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TraitDef<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitDef<'c>>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        todo!()
+        let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
+        let type_var_bound = self.type_var_only_bound(&bound)?;
+        let scope_key = self.type_vars_mut()
+            .enter_bounded_type_var_scope(type_var_bound.iter().copied());
+        let fn_type = self.visit_type(ctx, node.trait_type.ast_ref())?;
+        self.type_vars_mut().exit_type_var_scope(scope_key);
+
+        // @@Todo trait bounds
+        let trait_id = self.traits_mut().create(bound, TraitBounds::empty(), fn_type);
+        self.scopes().add_symbol(node.name.ident, SymbolType::Trait(trait_id));
+
+        Ok(())
     }
 
     type PatternRet = TypeId;
@@ -1056,18 +1070,23 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TraitBoundRet = TraitId;
+    type TraitBoundRet = (TraitId, Vec<TypeId>);
     fn visit_trait_bound(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitBound<'c>>,
     ) -> Result<Self::TraitBoundRet, Self::Error> {
-        let walk::TraitBound { name, type_args } = walk::walk_trait_bound(self, ctx, node)?;
-        todo!()
-        // match self.traits().get(trait_id) {}
-
-        // @@Todo
-        // Ok(())
+        match self.resolve_compound_symbol(&node.name.path)? {
+            SymbolType::Trait(trait_id) => {
+                let type_args: Vec<_> = node
+                    .type_args
+                    .iter()
+                    .map(|arg| self.visit_type(ctx, arg.ast_ref()))
+                    .collect::<Result<_, _>>()?;
+                Ok((trait_id, type_args))
+            }
+            _ => Err(TypecheckError::SymbolIsNotATrait(node.name.path.to_owned())),
+        }
     }
 
     type BoundRet = Row<'c, TypeId>;
@@ -1247,7 +1266,6 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
             generics: _,
         }: &StructDef,
     ) -> TypecheckResult<TypeId> {
-
         let walk::StructLiteral {
             name: _,
             entries,
@@ -1299,5 +1317,15 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         }));
 
         Ok((ty_id, vars_sub))
+    }
+
+    fn type_var_only_bound(&self, bound: &[TypeId]) -> TypecheckResult<Vec<TypeVar>> {
+        bound
+            .iter()
+            .map(|ty_id| match self.types().get(*ty_id) {
+                TypeValue::Var(var) => Ok(*var),
+                _ => Err(TypecheckError::BoundRequiresStrictlyTypeVars),
+            })
+            .collect()
     }
 }

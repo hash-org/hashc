@@ -15,6 +15,7 @@ pub enum TypecheckError {
     TryingToNamespaceVariable(Vec<Identifier>),
     UsingVariableInTypePos(Vec<Identifier>),
     UsingTypeInVariablePos(Vec<Identifier>),
+    SymbolIsNotATrait(Vec<Identifier>),
     TypeIsNotStruct(TypeId),
     InvalidPropertyAccess(TypeId, Identifier),
     ExpectingBooleanInCondition { found: TypeId },
