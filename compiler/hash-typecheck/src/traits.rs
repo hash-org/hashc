@@ -11,7 +11,8 @@ use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{FnType, TypeId, TypeList, TypeStorage},
-    unify::{Substitution, Unifier, UnifyStrategy},
+    unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy},
+    writer::TypeWithStorage,
 };
 
 counter! {
@@ -105,12 +106,16 @@ impl<'c, 'w> TraitImplStorage<'c, 'w> {
         id
     }
 
-    pub fn get_impls(&self, trait_id: TraitId) -> &ImplsForTrait<'c> {
-        self.data.get(&trait_id).unwrap()
+    pub fn get_impls(&mut self, trait_id: TraitId) -> &ImplsForTrait<'c> {
+        self.data
+            .entry(trait_id)
+            .or_insert_with(|| ImplsForTrait::empty())
     }
 
     pub fn get_impls_mut(&mut self, trait_id: TraitId) -> &mut ImplsForTrait<'c> {
-        self.data.get_mut(&trait_id).unwrap()
+        self.data
+            .entry(trait_id)
+            .or_insert_with(|| ImplsForTrait::empty())
     }
 }
 
@@ -193,6 +198,14 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         trait_args: &[TypeId],
         fn_type: Option<TypeId>,
     ) -> TypecheckResult<Substitution> {
+        let mut trait_args = trait_args.to_owned();
+        if trait_args.is_empty() {
+            trait_args.extend(
+                trt.args
+                    .iter()
+                    .map(|_| self.global_storage.types.create_unknown_type()),
+            )
+        }
         if trait_args.len() != trt.args.len() {
             return Err(TypecheckError::TypeArgumentLengthMismatch {
                 expected: trt.args.len(),
@@ -204,11 +217,11 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         let mut unifier = self.unifier();
         if let Some(fn_type) = fn_type {
             let trait_vars_sub = unifier.instantiate_vars_list(&trt.args)?;
-            let instantiated_fn = unifier.apply_sub(&trait_vars_sub, fn_type);
+            let instantiated_fn = unifier.apply_sub(&trait_vars_sub, fn_type)?;
             unifier.unify(fn_type, instantiated_fn, UnifyStrategy::ModifyBoth)?;
         }
 
-        let mut last_err = None;
+        // let mut last_err = None;
 
         // @@Performance: we have to collect due to lifetime issues, this is not ideal.
         let impls: Vec<_> = self
@@ -218,15 +231,25 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
             .iter()
             .collect();
         for (_, trait_impl) in impls.iter() {
-            match self.match_trait_impl(&trait_impl, trait_args) {
+            match self.match_trait_impl(&trait_impl, &trait_args) {
                 Ok(matched) => return Ok(matched),
                 Err(e) => {
-                    last_err.replace(e);
+                    println!("{:#?}", e);
+                    continue;
+                    // last_err.replace(e);
                 }
             }
         }
         // @@Todo: better errors
-        Err(last_err.unwrap())
+        Err(TypecheckError::NoMatchingTraitImplementations(trt.id))
+    }
+
+    pub fn print_types(&self, types: &[TypeId]) {
+        print!("[");
+        for &a in types {
+            print!("{}, ", TypeWithStorage::new(a, self.global_storage));
+        }
+        println!("]");
     }
 
     pub fn match_trait_impl(
@@ -260,11 +283,24 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         let trait_args_sub = unifier.instantiate_vars_list(&trt.args)?;
         let trait_impl_args_sub =
             unifier.instantiate_vars_for_list(&trait_impl.args, &impl_vars)?;
+        println!(
+            "{}",
+            SubstitutionWithStorage::new(&trait_args_sub, self.global_storage)
+        );
+        println!(
+            "{}",
+            SubstitutionWithStorage::new(&trait_impl_args_sub, self.global_storage)
+        );
 
+        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         let trait_args_instantiated =
-            unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trait_args);
+            unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
         let trait_impl_args_instantiated =
-            unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args);
+            unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args)?;
+        self.print_types(&trait_args_instantiated);
+        self.print_types(&trait_impl_args_instantiated);
+
+        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         unifier.unify_pairs(
             trait_impl_args_instantiated
                 .iter()
@@ -272,6 +308,15 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
             UnifyStrategy::ModifyBoth,
         )?;
 
-        Ok(trait_args_sub.merge(trait_impl_args_sub))
+        unifier.unify_pairs(
+            trait_impl_args_instantiated.iter().zip(trait_args.iter()),
+            UnifyStrategy::ModifyBoth,
+        )?;
+
+        let merged_sub = trait_args_sub.merge(trait_impl_args_sub);
+        println!("{:?}", trait_impl_args_instantiated);
+        println!("{}", SubstitutionWithStorage::new(&merged_sub, self.global_storage));
+
+        Ok(merged_sub)
     }
 }

@@ -226,6 +226,49 @@ impl<'c> TypeValue<'c> {
         }
     }
 
+    pub fn try_map_type_ids<F, E>(&self, mut f: F, wall: &Wall<'c>) -> Result<Self, E>
+    where
+        F: FnMut(TypeId) -> Result<TypeId, E>,
+    {
+        Ok(match self {
+            TypeValue::Ref(RefType { inner }) => TypeValue::Ref(RefType { inner: f(*inner)? }),
+            TypeValue::RawRef(RawRefType { inner }) => {
+                TypeValue::RawRef(RawRefType { inner: f(*inner)? })
+            }
+            TypeValue::Fn(FnType { args, ret }) => TypeValue::Fn(FnType {
+                args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+                ret: f(*ret)?,
+            }),
+            TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
+                args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+                def_id: *def_id,
+            }),
+            TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
+                types: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+            }),
+            TypeValue::Var(var) => TypeValue::Var(*var),
+            TypeValue::Prim(prim) => TypeValue::Prim(*prim),
+            TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds { bounds },
+            }) => TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds {
+                    bounds: Row::try_from_iter(
+                        bounds.iter().map(|TraitBound { trt, params }| {
+                            Ok(TraitBound {
+                                trt: *trt,
+                                params: Row::try_from_iter(params.iter().map(|&arg| f(arg)), wall)?,
+                            })
+                        }),
+                        wall,
+                    )?,
+                },
+            }),
+            TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
+                members: ns.members.clone(),
+            }),
+        })
+    }
+
     pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
     where
         F: FnMut(TypeId) -> TypeId,

@@ -4,7 +4,9 @@ use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{self, RawRefType, RefType, TupleType, TypeId, TypeValue, UserType},
+    writer::TypeWithStorage,
 };
+use core::fmt;
 use std::{borrow::Borrow, slice::SliceIndex};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -14,66 +16,34 @@ pub enum UnifyStrategy {
     CheckOnly,
 }
 
-// pub struct Substitution<'c> {
-//     data: HashMap<&'c TypeValue<'c>, &'c TypeValue<'c>>,
-// }
-
-// impl<'c> Substitution<'c> {
-//     pub fn new(
-//         subs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
-//         types: &Types<'c, '_>,
-//     ) -> Self {
-//         Self {
-//             data: subs
-//                 .map(|(x, y)| (types.get(*x.borrow()), types.get(*y.borrow())))
-//                 .collect(),
-//         }
-//     }
-
-//     pub fn apply(&self, dest: TypeId, types: &Types<'c, '_>) {
-//         let dest = types.get(dest);
-//         if let Some(&src) = self.data.get(&dest) {
-//             types.set(dest, src);
-//         } else {
-//             match types.get(dest) {
-//                 TypeValue::Ref(RefType { inner }) => self.apply(*inner, types),
-//                 TypeValue::RawRef(RawRefType { inner }) => self.apply(*inner, types),
-//                 TypeValue::Fn(FnType { args, ret }) => {
-//                     args.iter().for_each(|&arg| self.apply(arg, types));
-//                     self.apply(*ret, types);
-//                 }
-//                 TypeValue::Var(_) => {}
-//                 TypeValue::User(UserType { args, .. }) => {
-//                     args.iter().for_each(|&arg| self.apply(arg, types))
-//                 }
-//                 TypeValue::Prim(_) => {}
-//                 TypeValue::Tuple(TupleType { types: args }) => {
-//                     args.iter().for_each(|&arg| self.apply(arg, types))
-//                 }
-//                 TypeValue::Unknown(_) => {}
-//                 TypeValue::Namespace(_) => {}
-//             }
-//         }
-//     }
-
-//     pub fn merge(&self, other: &Substitution, types: &Types) -> TypecheckResult<()> {
-//         for (&from, &to) in self.data.iter() {
-//             other.apply(to, types);
-//         }
-
-//         for (&from, &to) in other.data.iter() {
-//             if let Some(&this_to) = self.data.get(&from) {
-//                 unifier.unify(this_to, to)?;
-//             } else if let Some(&next_to) = self.data.get(&to) {
-//             }
-//         }
-
-//         Ok(())
-//     }
-// }
 #[derive(Debug, Clone)]
 pub struct Substitution {
-    subs: Vec<(TypeId, TypeId)>,
+    pub subs: Vec<(TypeId, TypeId)>,
+}
+
+pub struct SubstitutionWithStorage<'s, 'c, 'w, 'm, 'gs>(
+    &'s Substitution,
+    &'gs GlobalStorage<'c, 'w, 'm>,
+);
+
+impl<'s, 'c, 'w, 'm, 'gs> SubstitutionWithStorage<'s, 'c, 'w, 'm, 'gs> {
+    pub fn new(sub: &'s Substitution, storage: &'gs GlobalStorage<'c, 'w, 'm>) -> Self {
+        Self(sub, storage)
+    }
+}
+
+impl<'s, 'c, 'w, 'm, 'gs> fmt::Display for SubstitutionWithStorage<'s, 'c, 'w, 'm, 'gs> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for sub in &self.0.subs {
+            writeln!(
+                f,
+                "{} -> {}",
+                TypeWithStorage::new(sub.0, self.1,),
+                TypeWithStorage::new(sub.1, self.1,),
+            )?;
+        }
+        Ok(())
+    }
 }
 
 impl<'c> Substitution {
@@ -93,26 +63,6 @@ impl<'c> Substitution {
             subs: pairs.map(|(x, y)| (*x.borrow(), *y.borrow())).collect(),
         }
     }
-
-    // pub fn from_vars(type_vars: &[TypeId], types: &mut Types) -> Self {
-    //     Self {
-    //         subs: type_vars
-    //             .iter()
-    //             .map(|&ty| {
-    //                 let ty_value = types.get(ty);
-    //                 if matches!(ty_value, TypeValue::Var(_)) {
-    //                     let unknown_ty = types.create_unknown_type();
-    //                     (ty, unknown_ty)
-    //                 } else {
-    //                     panic!(
-    //                         "Got type list with other types than type variables: {:?}",
-    //                         type_vars
-    //                     )
-    //                 }
-    //             })
-    //             .collect(),
-    //     }
-    // }
 }
 
 pub struct Unifier<'c, 'w, 'm, 'ms, 'gs> {
@@ -136,7 +86,6 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
         strategy: UnifyStrategy,
     ) -> TypecheckResult<()> {
-        let strategy = strategy.into();
         for (a, b) in pairs {
             let a_ty = *a.borrow();
             let b_ty = *b.borrow();
@@ -219,20 +168,23 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         &mut self,
         sub: &Substitution,
         tys: &[TypeId],
-    ) -> Row<'c, TypeId> {
+    ) -> TypecheckResult<Row<'c, TypeId>> {
         let wall = self.global_storage.wall();
-        Row::from_iter(tys.iter().map(|&ty| self.apply_sub(sub, ty)), wall)
+        Ok(Row::try_from_iter(
+            tys.iter().map(|&ty| self.apply_sub(sub, ty)),
+            wall,
+        )?)
     }
 
     pub fn apply_sub_to_list_make_vec(
         &mut self,
         sub: &Substitution,
         tys: &[TypeId],
-    ) -> Vec<TypeId> {
+    ) -> TypecheckResult<Vec<TypeId>> {
         tys.iter().map(|&ty| self.apply_sub(sub, ty)).collect()
     }
 
-    pub fn apply_sub(&mut self, sub: &Substitution, ty: TypeId) -> TypeId {
+    pub fn apply_sub(&mut self, sub: &Substitution, ty: TypeId) -> TypecheckResult<TypeId> {
         let mut curr_ty = ty;
         for &(from, to) in &sub.subs {
             let unify_result = self.unify(from, ty, UnifyStrategy::CheckOnly);
@@ -246,9 +198,13 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
             .global_storage
             .types
             .get(curr_ty)
-            .map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall);
+            .try_map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall)?;
+        // @@Broken: here new unknown types will get created, will lose identity. We need a
+        // different way to keep track of unknown types, basically a mapping like GenTypeVar in haskell. OR, we prevent loss of identity somehow
 
-        self.global_storage.types.create(new_ty_value)
+        let created = self.global_storage.types.create(new_ty_value);
+        // self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
+        Ok(curr_ty)
     }
 
     pub fn unify(
@@ -305,6 +261,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth | UnifyStrategy::ModifyTarget => {
+                        println!("Setting {:?} to {:?}", target, source);
                         self.global_storage.types.set(target, source);
                         self.unify(target, source, strategy)?;
                     }
@@ -316,6 +273,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth => {
+                        println!("Setting {:?} to {:?}", source, target);
                         self.global_storage.types.set(source, target);
                         self.unify(target, source, strategy)?;
                     }
@@ -323,19 +281,15 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                 }
                 Ok(())
             }
-            (Var(var_a), Var(var_b)) => {
-                match (
-                    self.module_storage.type_vars.find_type_var(*var_a),
-                    self.module_storage.type_vars.find_type_var(*var_b),
-                ) {
-                    (Some(scope_a), Some(scope_b)) if var_a == var_b && scope_a == scope_b => {
-                        Ok(())
-                    }
-                    (Some(_), Some(_)) => Err(TypecheckError::TypeMismatch(target, source)),
-                    (None, _) => Err(TypecheckError::UnresolvedSymbol(vec![var_a.name])),
-                    (_, None) => Err(TypecheckError::UnresolvedSymbol(vec![var_b.name])),
-                }
-            }
+            (Var(var_a), Var(var_b)) if var_a == var_b => Ok(()),
+            (Var(var), _) => match self.module_storage.type_vars.potentially_resolve(*var) {
+                Some(var_res) => self.unify(var_res, source, strategy),
+                None => Err(TypecheckError::TypeMismatch(target, source)),
+            },
+            (_, Var(var)) => match self.module_storage.type_vars.potentially_resolve(*var) {
+                Some(var_res) => self.unify(target, var_res, strategy),
+                None => Err(TypecheckError::TypeMismatch(target, source)),
+            },
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
                 // Make sure we got same number of type arguments
                 assert_eq!(user_target.args.len(), user_source.args.len());
