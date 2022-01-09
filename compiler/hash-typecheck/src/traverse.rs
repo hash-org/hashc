@@ -112,7 +112,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         }
     }
 
-    pub fn create_source_location(&self, location: Location) -> SourceLocation {
+    pub fn source_location(&self, location: Location) -> SourceLocation {
         SourceLocation {
             location,
             module_index: self.current_module(),
@@ -310,7 +310,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let loc = self.create_source_location(node.location());
+        let loc = self.source_location(node.location());
 
         match self.resolve_compound_symbol(&node.name.path, loc)? {
             SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
@@ -374,17 +374,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::PropertyAccessExpr { subject, .. } =
             walk::walk_property_access_expr(self, ctx, node)?;
 
-        let invalid_access = |name,
-                              location: Option<SourceLocation>|
-         -> Result<Self::PropertyAccessExprRet, Self::Error> {
-            Err(TypecheckError::InvalidPropertyAccess {
-                ty_def_name: name,
-                ty_def_location: location,
-                field_name: property_ident,
-                location: self.create_source_location(node.location()), // @@Correctness: use correct location for property access
-            })
-        };
-
         match self.types().get(subject) {
             TypeValue::User(UserType { def_id, .. }) => {
                 let ty_def = self.type_defs().get(*def_id);
@@ -394,21 +383,26 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                         if let Some(field_ty) = fields.get_field(property_ident) {
                             Ok(field_ty)
                         } else {
-                            invalid_access(*name, ty_def.location)
+                            Err(TypecheckError::InvalidPropertyAccess {
+                                ty_def_name: *name,
+                                ty_def_location: ty_def.location,
+                                field_name: property_ident,
+                                location: self.source_location(node.location()),
+                            })
                         }
                     }
                     TypeDefValueKind::Enum(EnumDef { /*name, */ .. }) => Err(TypecheckError::TypeIsNotStruct {
                         ty: subject,
                         // ty_def_name: *name,
                         ty_def_location: ty_def.location,
-                        location: self.create_source_location(node.location()),
+                        location: self.source_location(node.location()),
                     }),
                 }
             }
             _ => Err(TypecheckError::TypeIsNotStruct {
                 ty: subject,
                 ty_def_location: None,
-                location: self.create_source_location(node.location()),
+                location: self.source_location(node.location()),
             }),
         }
     }
@@ -496,7 +490,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        let location = self.create_source_location(node.location());
+        let location = self.source_location(node.location());
 
         match self.resolve_compound_symbol(&node.name.path, location)? {
             SymbolType::Type(ty_id) => Ok(ty_id),
@@ -707,7 +701,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
     ) -> Result<Self::StructLiteralRet, Self::Error> {
-        let location = self.create_source_location(node.location());
+        let location = self.source_location(node.location());
         let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
 
         match symbol_res {
@@ -932,7 +926,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 Ok(())
             }
             None => Err(TypecheckError::UsingReturnOutsideFunction(
-                self.create_source_location(node.location()),
+                self.source_location(node.location()),
             )),
         }
     }
@@ -955,7 +949,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         if !self.tc_state().in_loop {
             Err(TypecheckError::UsingBreakOutsideLoop(
-                self.create_source_location(node.location()),
+                self.source_location(node.location()),
             ))
         } else {
             Ok(())
@@ -970,7 +964,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.tc_state().in_loop {
             Err(TypecheckError::UsingContinueOutsideLoop(
-                self.create_source_location(node.location()),
+                self.source_location(node.location()),
             ))
         } else {
             Ok(())
@@ -1059,7 +1053,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                             let bound_location = node.bound.as_ref().unwrap().location();
 
                             Err(TypecheckError::BoundRequiresStrictlyTypeVars(
-                                self.create_source_location(bound_location),
+                                self.source_location(bound_location),
                             ))
                         }
                     })
@@ -1278,7 +1272,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
             _ => Err(TypecheckError::ExpectingBooleanInCondition {
-                location: self.create_source_location(node.location()),
+                location: self.source_location(node.location()),
                 found: condition,
             }),
         }
@@ -1350,7 +1344,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
             type_args: _,
         } = walk::walk_struct_literal(self, ctx, node)?;
 
-        let location = self.create_source_location(node.location());
+        let location = self.source_location(node.location());
 
         // Make sure all fields are present
         let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
