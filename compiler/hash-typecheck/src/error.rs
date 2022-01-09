@@ -1,4 +1,4 @@
-use crate::types::TypeId;
+use crate::{types::TypeId, traits::TraitId};
 use hash_ast::{ident::Identifier, location::Location};
 
 // @@Todo: add ast node locations to these
@@ -25,6 +25,7 @@ pub enum TypecheckError {
     TypeAnnotationNotAllowedInTraitImpl,
     TypeArgumentLengthMismatch { expected: usize, got: usize },
     BoundRequiresStrictlyTypeVars,
+    NoMatchingTraitImplementations(TraitId),
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;

@@ -6,16 +6,16 @@ use crate::traits::{
     Trait, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage,
 };
 use crate::types::{
-    CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
-    StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVars,
-    UnknownType,
+    self, CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
+    StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
+    TypeVarMode, TypeVars, UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
-use crate::unify::{Substitution, Unifier, UnifyStrategy};
+use crate::unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::ast;
-use hash_ast::ident::Identifier;
+use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
+use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{
     module::{ModuleIdx, Modules},
@@ -325,7 +325,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     .map(|a| self.visit_type(ctx, a.ast_ref()))
                     .collect::<Result<_, _>>()?;
                 let trt_impl_sub = self.trait_helper().find_trait_impl(trt, &args, None)?;
-                let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type);
+                println!("{}", SubstitutionWithStorage::new(&trt_impl_sub, &self.global_tc.global_storage));
+                let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type)?;
                 Ok(subbed_fn_type)
             }
             _ => Err(TypecheckError::SymbolIsNotAVariable(
@@ -493,6 +494,23 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
+        // @@Hack: ast names functions as Function, which is not ideal
+        match &node.name.path[..] {
+            [x] if *x == IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME) => {
+                let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
+                if let [args @ .., ret] = &type_args[..] {
+                    return Ok(self.create_type(TypeValue::Fn(FnType {
+                        args: Row::from_iter(args.iter().copied(), self.wall()),
+                        ret: *ret,
+                    })));
+                } else {
+                    // Will always have at least one arg.
+                    unreachable!()
+                }
+            }
+            _ => {}
+        }
+
         match self.resolve_compound_symbol(&node.name.path)? {
             SymbolType::Type(ty_id) => Ok(ty_id),
             SymbolType::TypeDef(def_id) => {
@@ -506,7 +524,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                         let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
                         let instantiated_args = self
                             .unifier()
-                            .apply_sub_to_list_make_vec(&args_sub, &generics.params);
+                            .apply_sub_to_list_make_vec(&args_sub, &generics.params)?;
 
                         self.unifier().unify_pairs(
                             type_args.iter().zip(instantiated_args.iter()),
@@ -550,9 +568,18 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Var(TypeVar {
+        let var = TypeVar {
             name: node.name.ident,
-        })))
+        };
+        if self.tc_state().in_bound_def {
+            Ok(self.create_type(TypeValue::Var(var)))
+        } else {
+            match self.module_storage.type_vars.find_type_var(var) {
+                Some((_, TypeVarMode::Bound)) => Ok(self.create_type(TypeValue::Var(var))),
+                Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
+                None => Err(TypecheckError::UnresolvedSymbol(vec![var.name])),
+            }
+        }
     }
 
     type ExistentialTypeRet = TypeId;
@@ -1163,10 +1190,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Bound<'c>>,
     ) -> Result<Self::BoundRet, Self::Error> {
+        self.tc_state().in_bound_def = true;
         let walk::Bound {
             type_args,
             trait_bounds: _,
         } = walk::walk_bound(self, ctx, node)?;
+        self.tc_state().in_bound_def = false;
 
         // @@Todo: bounds
         Ok(type_args)
@@ -1378,7 +1407,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         // unknown.
         let mut unifier = self.unifier();
         let vars_sub = unifier.instantiate_vars_list(&generics.params)?;
-        let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params);
+        let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params)?;
         let ty_id = self.create_type(TypeValue::User(UserType {
             def_id,
             args: instantiated_vars,
