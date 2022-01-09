@@ -2027,13 +2027,12 @@ where
                             // insert lhs_expr first...
                             args.entries.insert(0, lhs_expr, &self.wall);
 
-                            lhs_expr = AstNode::new(
+                            lhs_expr = self.node_from_joined_location(
                                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                                     subject,
                                     args,
                                 })),
-                                start.join(self.current_location()),
-                                &self.wall,
+                                &start,
                             );
                         }
                         ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
@@ -2043,15 +2042,14 @@ where
 
                             let node = self.node_with_location(Name { ident: *ident }, location);
 
-                            lhs_expr = AstNode::new(
+                            lhs_expr = self.node_with_location(
                                 Expression::new(ExpressionKind::PropertyAccess(
                                     PropertyAccessExpr {
                                         subject: lhs_expr,
                                         property: node,
                                     },
                                 )),
-                                start.join(self.current_location()),
-                                &self.wall,
+                                location,
                             );
                         }
                         _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
@@ -2090,7 +2088,7 @@ where
                         }
                         expr => {
                             break_now = true;
-                            AstNode::new(Expression::new(expr), location, &self.wall)
+                            self.node_with_location(Expression::new(expr), location)
                         }
                     };
 

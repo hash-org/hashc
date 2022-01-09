@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::{PathBuf, Path}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use hash_utils::counter;
 
@@ -36,9 +39,7 @@ pub struct SourceMap {
 
 impl SourceMap {
     pub fn new(map: HashMap<ModuleIdx, SourceModule>) -> Self {
-        Self {
-            map
-        }
+        Self { map }
     }
     pub fn get(&self, index: ModuleIdx) -> &SourceModule {
         self.map.get(&index).unwrap()
