@@ -1,5 +1,6 @@
 use crate::error::{TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
+use crate::traits::TraitId;
 use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use std::collections::HashMap;
@@ -9,6 +10,7 @@ pub enum SymbolType {
     Variable(TypeId),
     Type(TypeId),
     TypeDef(TypeDefId),
+    Trait(TraitId),
 }
 
 #[derive(Debug, Default, Clone)]
