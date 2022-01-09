@@ -20,6 +20,10 @@ pub enum TypecheckError {
     InvalidPropertyAccess(TypeId, Identifier),
     ExpectingBooleanInCondition { found: TypeId },
     MissingStructField(TypeId, Identifier),
+    ExpectingBindingForTraitImpl,
+    TraitDefinitionNotFound(Identifier),
+    TypeAnnotationNotAllowedInTraitImpl,
+    TypeArgumentLengthMismatch { expected: usize, got: usize },
     BoundRequiresStrictlyTypeVars,
 }
 

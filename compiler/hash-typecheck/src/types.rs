@@ -303,8 +303,8 @@ pub struct CoreTypeDefs {
 
 impl<'c, 'w> CoreTypeDefs {
     pub fn create(
-        type_defs: &mut TypeDefs<'c, 'w>,
-        types: &mut Types<'c, 'w>,
+        type_defs: &mut TypeDefStorage<'c, 'w>,
+        types: &mut TypeStorage<'c, 'w>,
         core_traits: &CoreTraits,
         wall: &'w Wall<'c>,
     ) -> Self {
@@ -369,12 +369,12 @@ impl<'c, 'w> CoreTypeDefs {
 }
 
 #[derive(Debug)]
-pub struct TypeDefs<'c, 'w> {
+pub struct TypeDefStorage<'c, 'w> {
     data: HashMap<TypeDefId, Cell<&'c TypeDefValue<'c>>>,
     wall: &'w Wall<'c>,
 }
 
-impl<'c, 'w> TypeDefs<'c, 'w> {
+impl<'c, 'w> TypeDefStorage<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self {
             data: HashMap::new(),
@@ -396,12 +396,12 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
 new_key_type! { pub struct TypeId; }
 
 #[derive(Debug)]
-pub struct Types<'c, 'w> {
+pub struct TypeStorage<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
     wall: &'w Wall<'c>,
 }
 
-impl<'c, 'w> Types<'c, 'w> {
+impl<'c, 'w> TypeStorage<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self {
             data: SlotMap::with_key(),

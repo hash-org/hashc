@@ -2,10 +2,13 @@ use crate::error::{TypecheckError, TypecheckResult};
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
-use crate::traits::{Trait, TraitBounds, TraitId, Traits};
+use crate::traits::{
+    Trait, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage,
+};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
-    StructDef, StructFields, TupleType, TypeDefs, TypeId, TypeValue, TypeVars, Types, UnknownType,
+    StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVars,
+    UnknownType,
 };
 use crate::types::{TypeDefId, TypeDefValue, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -119,23 +122,35 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         self.global_tc.global_storage.types.create(value)
     }
 
-    fn traits(&self) -> &Traits<'c, 'w> {
+    fn traits(&self) -> &TraitStorage<'c, 'w> {
         &self.global_tc.global_storage.traits
     }
 
-    fn traits_mut(&mut self) -> &mut Traits<'c, 'w> {
+    fn traits_mut(&mut self) -> &mut TraitStorage<'c, 'w> {
         &mut self.global_tc.global_storage.traits
     }
 
-    fn types(&self) -> &Types<'c, 'w> {
+    fn trait_impls(&self) -> &TraitImplStorage<'c, 'w> {
+        &self.global_tc.global_storage.trait_impls
+    }
+
+    fn trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
+        &mut self.global_tc.global_storage.trait_impls
+    }
+
+    fn trait_helper(&mut self) -> TraitHelper<'c, 'w, 'm, '_, '_> {
+        TraitHelper::new(&mut self.module_storage, &mut self.global_tc.global_storage)
+    }
+
+    fn types(&self) -> &TypeStorage<'c, 'w> {
         &self.global_tc.global_storage.types
     }
 
-    fn type_defs(&self) -> &TypeDefs<'c, 'w> {
+    fn type_defs(&self) -> &TypeDefStorage<'c, 'w> {
         &self.global_tc.global_storage.type_defs
     }
 
-    fn type_defs_mut(&mut self) -> &mut TypeDefs<'c, 'w> {
+    fn type_defs_mut(&mut self) -> &mut TypeDefStorage<'c, 'w> {
         &mut self.global_tc.global_storage.type_defs
     }
 
@@ -288,11 +303,31 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     type VariableExprRet = TypeId;
     fn visit_variable_expr(
         &mut self,
-        _ctx: &Self::Ctx,
+        ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         match self.resolve_compound_symbol(&node.name.path)? {
-            SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
+            SymbolType::Variable(var_ty_id) => {
+                if !node.type_args.is_empty() {
+                    Err(TypecheckError::TypeArgumentLengthMismatch {
+                        expected: 0,
+                        got: node.type_args.len(),
+                    })
+                } else {
+                    Ok(var_ty_id)
+                }
+            }
+            SymbolType::Trait(var_trait_id) => {
+                let trt = self.traits().get(var_trait_id);
+                let args: Vec<_> = node
+                    .type_args
+                    .iter()
+                    .map(|a| self.visit_type(ctx, a.ast_ref()))
+                    .collect::<Result<_, _>>()?;
+                let trt_impl_sub = self.trait_helper().find_trait_impl(trt, &args, None)?;
+                let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type);
+                Ok(subbed_fn_type)
+            }
             _ => Err(TypecheckError::SymbolIsNotAVariable(
                 node.name.path.to_owned(),
             )),
@@ -328,6 +363,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             args: given_args,
             subject: fn_ty,
         } = walk::walk_function_call_expr(self, ctx, node)?;
+
+        // Todo: here specialise trait resolution in order to be able to do more inference (from
+        // args)
 
         let ret_ty = self.create_unknown_type();
         let expected_fn_ty = self.create_type(TypeValue::Fn(FnType {
@@ -905,25 +943,57 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LetStatement<'c>>,
     ) -> Result<Self::LetStatementRet, Self::Error> {
-        let walk::LetStatement {
-            pattern: pattern_ty,
-            ty: annot_maybe_ty,
-            bound: _,
-            value: value_maybe_ty,
-        } = walk::walk_let_statement(self, ctx, node)?;
-        // if pattern_result.is_refutable {
-        //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
-        // }
+        if let Some(bound) = &node.bound {
+            // This is a trait implementation
+            match node.pattern.body() {
+                ast::Pattern::Binding(ast::BindingPattern(name)) => {
+                    match self.scopes().resolve_symbol(name.ident) {
+                        Some(SymbolType::Trait(trait_id)) => {
+                            if node.ty.is_some() {
+                                return Err(TypecheckError::TypeAnnotationNotAllowedInTraitImpl);
+                            }
 
-        // @@Todo: bounds
-        let annot_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
-        let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
-        self.unifier().unify_many(
-            [annot_ty, value_ty, pattern_ty].into_iter(),
-            UnifyStrategy::ModifyBoth,
-        )?;
+                            let type_args = self.visit_bound(ctx, bound.ast_ref())?;
+                            // @@Todo bounds
+                            self.trait_impls_mut().add_impl(
+                                trait_id,
+                                TraitImpl {
+                                    trait_id,
+                                    bounds: TraitBounds::empty(),
+                                    args: type_args,
+                                },
+                            );
 
-        Ok(())
+                            Ok(())
+                        }
+                        Some(_) => Err(TypecheckError::SymbolIsNotATrait(
+                            iter::once(name.ident).collect(),
+                        )),
+                        None => Err(TypecheckError::TraitDefinitionNotFound(name.ident)),
+                    }
+                }
+                _ => Err(TypecheckError::ExpectingBindingForTraitImpl),
+            }
+        } else {
+            let walk::LetStatement {
+                pattern: pattern_ty,
+                ty: annot_maybe_ty,
+                bound,
+                value: value_maybe_ty,
+            } = walk::walk_let_statement(self, ctx, node)?;
+            // if pattern_result.is_refutable {
+            //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
+            // }
+
+            // @@Todo: bounds
+            let annot_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+            let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+            self.unifier().unify_many(
+                [annot_ty, value_ty, pattern_ty].into_iter(),
+                UnifyStrategy::ModifyBoth,
+            )?;
+            Ok(())
+        }
     }
 
     type AssignStatementRet = ();
