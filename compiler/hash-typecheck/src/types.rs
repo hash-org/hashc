@@ -423,23 +423,9 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn duplicate(&mut self, ty: TypeId) -> TypeId {
-        match self.get(ty) {
-            TypeValue::Ref(RefType { inner }) => {
-                let inner = self.duplicate(*inner);
-                self.create(TypeValue::Ref(RefType { inner }))
-            }
-            TypeValue::RawRef(RawRefType { inner }) => {
-                let inner = self.duplicate(*inner);
-                self.create(TypeValue::RawRef(RawRefType { inner }))
-            }
-            TypeValue::Fn(_) => todo!(),
-            TypeValue::Var(_) => todo!(),
-            TypeValue::User(_) => todo!(),
-            TypeValue::Prim(_) => todo!(),
-            TypeValue::Tuple(_) => todo!(),
-            TypeValue::Unknown(_) => todo!(),
-            TypeValue::Namespace(_) => todo!(),
-        }
+        let wall = self.wall;
+        let created = self.get(ty).map_type_ids(|x| self.duplicate(x), wall);
+        self.create(created)
     }
 
     pub fn create_type_var(&mut self, name: &str) -> TypeId {
