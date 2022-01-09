@@ -70,7 +70,7 @@ pub enum TypecheckError {
     },
     MissingStructField {
         field_name: Identifier,
-        field_location: SourceLocation,
+        location: SourceLocation,
         ty_def_name: Identifier,
         ty_def_location: Option<SourceLocation>,
     },
@@ -141,18 +141,15 @@ impl TypecheckError {
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        "Unresolved symbol",
+                        "not found in this scope",
                     )));
                 }
 
                 // At-least we can print the symbol that wasn't found...
-                builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
-                    format!(
-                        "Symbol `{}` is not defined in the current scope.",
-                        formatted_symbol
-                    ),
-                )));
+                builder.with_message(format!(
+                    "Symbol `{}` is not defined in the current scope.",
+                    formatted_symbol
+                ));
             }
             TypecheckError::TryingToNamespaceType(symbol) => {
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
@@ -267,7 +264,10 @@ impl TypecheckError {
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         "note",
-                        format!("The field `{}` doesn't exist on struct `{}`.", name, name),
+                        format!(
+                            "The field `{}` doesn't exist on struct `{}`.",
+                            name, ty_name
+                        ),
                     )));
             }
             TypecheckError::ExpectingBooleanInCondition { found, location } => {
@@ -287,7 +287,7 @@ impl TypecheckError {
                 ty_def_location,
                 ty_def_name,
                 field_name,
-                field_location,
+                location: field_location,
             } => {
                 let name = IDENTIFIER_MAP.get_ident(field_name);
                 let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);

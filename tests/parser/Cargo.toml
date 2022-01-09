@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 hash-ast = {path = "../../compiler/hash-ast" }
+hash-source = {path = "../../compiler/hash-source" }
 hash-alloc = {path = "../../compiler/hash-alloc" }
 hash-utils = {path = "../../compiler/hash-utils" }
 hash-parser = {path = "../../compiler/hash-parser" }

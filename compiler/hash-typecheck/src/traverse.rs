@@ -12,6 +12,7 @@ use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
 };
+use core::panic;
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::visitor::AstVisitor;
@@ -1344,19 +1345,21 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
             type_args: _,
         } = walk::walk_struct_literal(self, ctx, node)?;
 
-        let location = self.source_location(node.location());
-
         // Make sure all fields are present
         let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
                 let ty_def = self.type_defs().get(def_id);
+
+                let name_node = &node.body().name;
+                let location = self.source_location(name_node.location());
 
                 return Err(TypecheckError::MissingStructField {
                     ty_def_location: ty_def.location,
                     ty_def_name: *name,
                     field_name: expected,
-                    field_location: location,
+                    location,
                 });
             }
         }
@@ -1364,18 +1367,20 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         let ty_def = self.type_defs().get(def_id);
 
         // Unify args
-        for &(entry_name, entry_ty) in &entries {
+        for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
             match fields.get_field(entry_name) {
                 Some(field_ty) => {
                     self.unifier()
                         .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
                 }
                 None => {
+                    let entry = node.entries.get(index).unwrap();
+
                     return Err(TypecheckError::UnresolvedStructField {
                         ty_def_location: ty_def.location,
-                        ty_def_name: Identifier(0),
+                        ty_def_name: *name,
                         field_name: entry_name,
-                        location, // @@Correctness: use location of struct field rather than struct def...
+                        location: self.source_location(entry.location()), // @@Correctness: use location of struct field rather than struct def...
                     });
                 }
             }

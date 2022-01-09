@@ -2277,9 +2277,8 @@ where
         let mut entries = row![&self.wall];
 
         while gen.has_token() {
-            let entry_start = gen.current_location();
-
             let name = gen.parse_ident()?;
+            let location = name.location();
 
             // we want to support the syntax where we can just assign a struct field that has
             // the same name as a variable in scope. For example, if you were to create a
@@ -2303,7 +2302,7 @@ where
                     entries.push(
                         gen.node_with_location(
                             StructLiteralEntry { name, value },
-                            entry_start.join(gen.current_location()),
+                            location.join(gen.current_location()),
                         ),
                         &self.wall,
                     );
@@ -2326,7 +2325,7 @@ where
                                 name,
                                 value: name_copy,
                             },
-                            entry_start.join(gen.current_location()),
+                            location.join(gen.current_location()),
                         ),
                         &self.wall,
                     );
@@ -2341,7 +2340,7 @@ where
                                 name,
                                 value: name_copy,
                             },
-                            entry_start.join(gen.current_location()),
+                            location.join(gen.current_location()),
                         ),
                         &self.wall,
                     );
