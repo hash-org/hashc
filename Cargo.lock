@@ -361,6 +361,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-parser",
+ "hash-source",
  "hash-utils",
  "hash-utils-testing-macros",
 ]
