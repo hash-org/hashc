@@ -174,19 +174,23 @@ where
 
     /// Get the current token in the stream.
     pub(crate) fn current_token(&self) -> &Token {
-        self.stream.get(self.offset.get() - 1).unwrap()
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
+
+        self.stream.get(offset).unwrap()
     }
 
     /// Get the current location from the current token, if there is no token at the current
     /// offset, then the location of the last token is used.
-    #[inline(always)]
+    // #[inline(always)]
     pub(crate) fn current_location(&self) -> Location {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
             return self.parent_span.unwrap_or_default();
         }
 
-        match self.stream.get(self.offset()) {
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
+
+        match self.stream.get(offset) {
             Some(token) => token.span,
             None => (*self.stream.last().unwrap()).span,
         }
@@ -459,7 +463,7 @@ where
                 // USE PREV token location
                 match self.next_token() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Ok(self.node_from_joined_location(statement, &start))
+                        Ok(self.node_from_location(statement, &start.join(current_location)))
                     }
                     Some(token) => self.error_with_location(
                         AstGenErrorKind::Expected,
@@ -475,17 +479,25 @@ where
                 let (expr, re_assigned) = self.try_parse_re_assignment_operation(lhs)?;
 
                 if re_assigned {
+                    let current_location = self.current_location(); // We don't want to include the semi in the current span
                     self.parse_token_atom(TokenKind::Semi)?;
 
-                    return Ok(self
-                        .node_from_joined_location(Statement::Expr(ExprStatement(expr)), &start));
+                    return Ok(self.node_from_location(
+                        Statement::Expr(ExprStatement(expr)),
+                        &start.join(current_location),
+                    ));
                 }
 
                 // Ensure that the next token is a Semi
                 match self.peek() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
+                        let current_location = self.current_location(); // We don't want to include the semi in the current span
                         self.skip_token();
-                        Ok(self.node_from_location(Statement::Expr(ExprStatement(expr)), &start))
+
+                        Ok(self.node_from_location(
+                            Statement::Expr(ExprStatement(expr)),
+                            &start.join(current_location),
+                        ))
                     }
                     Some(token) if token.has_kind(TokenKind::Eq) => {
                         self.skip_token();

@@ -84,8 +84,8 @@ impl TypecheckError {
         let mut builder = ReportBuilder::new();
         builder
             .with_kind(ReportKind::Error)
-            .with_message("Failed to typecheck")
-            .with_error_code(ErrorCode::Typecheck); // @@ErrorReporting: Get the correct typecheck code
+            .with_message("Failed to typecheck") // @@TODO: get general message for the appropriate error code
+            .with_error_code(ErrorCode::Typecheck); // @@TODO: @@ErrorReporting: Get the correct typecheck code
 
         match self {
             TypecheckError::TypeMismatch(left, right) => {
