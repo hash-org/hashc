@@ -4,11 +4,10 @@
 
 use crate::ident::Identifier;
 use crate::literal::StringLiteral;
-use crate::location::Location;
-use crate::module::ModuleIdx;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
 use hash_alloc::Wall;
+use hash_source::{location::Location, module::ModuleIdx};
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -104,9 +103,9 @@ pub struct AstNodeRef<'t, T> {
 impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
         Self {
-            body: self.body.clone(),
-            location: self.location.clone(),
-            id: self.id.clone(),
+            body: self.body,
+            location: self.location,
+            id: self.id,
         }
     }
 }
@@ -146,6 +145,11 @@ impl<T> Deref for AstNodeRef<'_, T> {
     }
 }
 
+// @@TODO: Ideally we want some useful methods on this and potentially a span that represents
+//         all the nodes inside it. Why is this useful? Well because sometimes we want to represent
+//         a collection ob sub nodes that might have a larger parent span like for example arguments
+//         in a function def. The entire AstNodes might include the span of the parenthesees but each
+//         argument might just have the span of the argument name and type.
 pub type AstNodes<'c, T> = Row<'c, AstNode<'c, T>>;
 
 /// [AstNode] dereferences to its inner `body` type.
