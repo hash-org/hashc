@@ -1,13 +1,12 @@
-use hash_alloc::collections::row::Row;
-
 use crate::{
-    error::{Symbol, TypecheckError, TypecheckResult},
+    error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
-    types::{self, RawRefType, RefType, TupleType, TypeId, TypeValue, UserType},
+    types::{TypeId, TypeValue},
     writer::TypeWithStorage,
 };
 use core::fmt;
-use std::{borrow::Borrow, slice::SliceIndex};
+use hash_alloc::collections::row::Row;
+use std::borrow::Borrow;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnifyStrategy {
@@ -130,39 +129,9 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         vars: &[TypeId],
     ) -> TypecheckResult<Substitution> {
         let ty_val = self.global_storage.types.get(ty);
-        match ty_val {
-            TypeValue::Ref(RefType { inner }) => self.instantiate_vars(*inner, vars),
-            TypeValue::RawRef(RawRefType { inner }) => self.instantiate_vars(*inner, vars),
-            TypeValue::Fn(types::FnType { args, ret }) => Ok(args
-                .iter()
-                .map(|&arg| self.instantiate_vars(arg, vars))
-                .fold(Ok(Substitution::empty()), |acc, x| Ok(acc?.merge(x?)))?
-                .merge(self.instantiate_vars(*ret, vars)?)),
-            TypeValue::Var(_) => Ok(Substitution::from_pairs(
-                vars.iter()
-                    .find_map(|&target_var| {
-                        let unify_result = self.unify(target_var, ty, UnifyStrategy::CheckOnly);
-                        if unify_result.is_ok() {
-                            let unknown_ty = self.global_storage.types.create_unknown_type();
-                            Some((ty, unknown_ty))
-                        } else {
-                            None
-                        }
-                    })
-                    .into_iter(),
-            )),
-            TypeValue::User(UserType { args, .. }) => args
-                .iter()
-                .map(|&arg| self.instantiate_vars(arg, vars))
-                .fold(Ok(Substitution::empty()), |acc, x| Ok(acc?.merge(x?))),
-            TypeValue::Prim(_) => Ok(Substitution::empty()),
-            TypeValue::Tuple(TupleType { types: args }) => args
-                .iter()
-                .map(|&arg| self.instantiate_vars(arg, vars))
-                .fold(Ok(Substitution::empty()), |acc, x| Ok(acc?.merge(x?))),
-            TypeValue::Unknown(_) => Ok(Substitution::empty()),
-            TypeValue::Namespace(_) => Ok(Substitution::empty()),
-        }
+        ty_val.fold_type_ids(Ok(Substitution::empty()), |acc, ty| {
+            Ok(acc?.merge(self.instantiate_vars(ty, vars)?))
+        })
     }
 
     pub fn apply_sub_to_list_make_row(
@@ -171,10 +140,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         tys: &[TypeId],
     ) -> TypecheckResult<Row<'c, TypeId>> {
         let wall = self.global_storage.wall();
-        Ok(Row::try_from_iter(
-            tys.iter().map(|&ty| self.apply_sub(sub, ty)),
-            wall,
-        )?)
+        Row::try_from_iter(tys.iter().map(|&ty| self.apply_sub(sub, ty)), wall)
     }
 
     pub fn apply_sub_to_list_make_vec(
@@ -203,7 +169,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         // @@Broken: here new unknown types will get created, will lose identity. We need a
         // different way to keep track of unknown types, basically a mapping like GenTypeVar in haskell. OR, we prevent loss of identity somehow
 
-        let created = self.global_storage.types.create(new_ty_value, None);
+        let _created = self.global_storage.types.create(new_ty_value, None);
         // self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
         Ok(curr_ty)
     }

@@ -1,5 +1,5 @@
 use crate::{
-    error::{TypecheckError, TypecheckResult, Symbol},
+    error::{Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{TypeId, TypeList, TypeStorage},
     unify::{Substitution, Unifier, UnifyStrategy},
@@ -8,8 +8,8 @@ use crate::{
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_source::location::SourceLocation;
 use hash_utils::counter;
-use std::collections::{BTreeMap, HashMap};
 use std::cell::Cell;
+use std::collections::{BTreeMap, HashMap};
 
 counter! {
     name: TraitId,
@@ -94,7 +94,7 @@ impl<'c, 'w> TraitImplStorage<'c, 'w> {
         let impls_for_trait = self
             .data
             .entry(trait_id)
-            .or_insert_with(|| ImplsForTrait::empty());
+            .or_insert_with(ImplsForTrait::empty);
         let id = TraitImplId::new();
         impls_for_trait
             .impls
@@ -105,13 +105,13 @@ impl<'c, 'w> TraitImplStorage<'c, 'w> {
     pub fn get_impls(&mut self, trait_id: TraitId) -> &ImplsForTrait<'c> {
         self.data
             .entry(trait_id)
-            .or_insert_with(|| ImplsForTrait::empty())
+            .or_insert_with(ImplsForTrait::empty)
     }
 
     pub fn get_impls_mut(&mut self, trait_id: TraitId) -> &mut ImplsForTrait<'c> {
         self.data
             .entry(trait_id)
-            .or_insert_with(|| ImplsForTrait::empty())
+            .or_insert_with(ImplsForTrait::empty)
     }
 }
 
@@ -231,9 +231,9 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
             .iter()
             .collect();
         for (_, trait_impl) in impls.iter() {
-            match self.match_trait_impl(&trait_impl, &trait_args) {
+            match self.match_trait_impl(trait_impl, &trait_args) {
                 Ok(matched) => return Ok(matched),
-                Err(e) => {
+                Err(_e) => {
                     continue;
                     // last_err.replace(e);
                 }
@@ -254,7 +254,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
     pub fn match_trait_impl(
         &mut self,
         trait_impl: &TraitImpl,
-        trait_args: &[TypeId],
+        _trait_args: &[TypeId],
     ) -> TypecheckResult<Substitution> {
         let trt = self.global_storage.traits.get(trait_impl.trait_id);
 
@@ -262,9 +262,10 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         let impl_vars: Vec<_> = trait_impl
             .args
             .iter()
-            .map(|&arg| {
+            .flat_map(|&arg| {
                 let arg_ty = self.global_storage.types.get(arg);
-                let type_vars = arg_ty.fold_type_ids(vec![], |mut vars, ty_id| {
+
+                arg_ty.fold_type_ids(vec![], |mut vars, ty_id| {
                     match self.global_storage.types.get(ty_id) {
                         crate::types::TypeValue::Var(_) => {
                             vars.push(ty_id);
@@ -272,10 +273,8 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
                         }
                         _ => vars,
                     }
-                });
-                type_vars
+                })
             })
-            .flatten()
             .collect();
 
         let mut unifier = Unifier::new(self.module_storage, self.global_storage);
@@ -283,9 +282,9 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         let trait_impl_args_sub =
             unifier.instantiate_vars_for_list(&trait_impl.args, &impl_vars)?;
 
-        let trait_args_instantiated =
+        let _trait_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
-        let trait_impl_args_instantiated =
+        let _trait_impl_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args)?;
         // self.print_types(&trait_args_instantiated);
         // self.print_types(&trait_impl_args_instantiated);

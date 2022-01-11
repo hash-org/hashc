@@ -151,10 +151,6 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &mut self.global_tc.global_storage.traits
     }
 
-    fn trait_impls(&self) -> &TraitImplStorage<'c, 'w> {
-        &self.global_tc.global_storage.trait_impls
-    }
-
     fn trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
         &mut self.global_tc.global_storage.trait_impls
     }
