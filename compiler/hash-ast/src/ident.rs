@@ -4,7 +4,7 @@ use fnv::FnvBuildHasher;
 use hash_alloc::{collections::string::BrickString, Castle, Wall};
 use hash_utils::counter;
 use lazy_static::lazy_static;
-use std::thread_local;
+use std::{borrow::Borrow, thread_local};
 
 counter! {
     name: Identifier,
@@ -78,9 +78,8 @@ impl<'c> IdentifierMap<'c> {
         self.reverse_lookup.get(&ident).unwrap().value()
     }
 
-    pub fn get_path(&self, path: Vec<Identifier>) -> String {
-        path.iter()
-            .map(|ident| self.get_ident(*ident))
+    pub fn get_path(&self, path: impl Iterator<Item = impl Borrow<Identifier>>) -> String {
+        path.map(|ident| self.get_ident(*ident.borrow()))
             .collect::<Vec<&'_ str>>()
             .join("::")
     }

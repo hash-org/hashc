@@ -1,6 +1,7 @@
 use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
-use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
+use crate::traits::TraitId;
+use crate::types::{PrimType, TypeDefId, TypeId, TypeStorage, TypeValue};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_source::location::SourceLocation;
 use std::collections::HashMap;
@@ -10,6 +11,7 @@ pub enum SymbolType {
     Variable(TypeId),
     Type(TypeId),
     TypeDef(TypeDefId),
+    Trait(TraitId),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -248,7 +250,7 @@ impl ScopeStack {
 
 pub fn resolve_compound_symbol(
     scopes: &ScopeStack,
-    types: &Types,
+    types: &TypeStorage,
     symbols: &[Identifier],
     location: SourceLocation,
 ) -> TypecheckResult<SymbolType> {

@@ -1,4 +1,5 @@
-use crate::{storage::GlobalStorage, types::TypeId, writer::TypeWithStorage};
+use crate::types::TypeId;
+use crate::{storage::GlobalStorage, writer::TypeWithStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_reporting::{
     errors::ErrorCode,
@@ -45,8 +46,9 @@ pub enum TypecheckError {
     UnresolvedSymbol(Symbol),
     TryingToNamespaceType(Symbol),
     TryingToNamespaceVariable(Symbol),
-    UsingVariableInTypePos(Symbol),
-    UsingTypeInVariablePos(Symbol),
+    SymbolIsNotAType(Symbol),
+    SymbolIsNotAVariable(Symbol),
+    SymbolIsNotATrait(Symbol),
     TypeIsNotStruct {
         ty: TypeId,
         location: SourceLocation,
@@ -75,6 +77,15 @@ pub enum TypecheckError {
         ty_def_location: Option<SourceLocation>,
     },
     BoundRequiresStrictlyTypeVars(SourceLocation),
+    ExpectingBindingForTraitImpl(SourceLocation),
+    TraitDefinitionNotFound(Symbol),
+    TypeAnnotationNotAllowedInTraitImpl(SourceLocation),
+    TypeArgumentLengthMismatch {
+        expected: usize,
+        got: usize,
+        location: Option<SourceLocation>,
+    }, // @@TODO: length definition location
+    NoMatchingTraitImplementations(Symbol),
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
@@ -154,7 +165,7 @@ impl TypecheckError {
             }
             TypecheckError::UnresolvedSymbol(symbol) => {
                 let ident_path = symbol.get_ident();
-                let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path);
+                let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -170,7 +181,7 @@ impl TypecheckError {
                 ));
             }
             TypecheckError::TryingToNamespaceType(symbol) => {
-                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -188,7 +199,7 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::TryingToNamespaceVariable(symbol) => {
-                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -202,34 +213,49 @@ impl TypecheckError {
                     format!("`{}` is a variable. You cannot namespace a variable defined in the current scope.", symbol_name),
                 )));
             }
-            TypecheckError::UsingVariableInTypePos(symbol) => {
-                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+            TypecheckError::SymbolIsNotAType(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        "This is expects a type instead of a variable.",
+                        "This expects a type.",
                     )));
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     "note",
-                    format!("`{}` is a variable and not a type. You cannot use a variable in the place of a type.", symbol_name),
+                    format!("`{}` is not a type. You cannot use a trait or variable in the place of a type.", symbol_name),
                 )));
             }
-            TypecheckError::UsingTypeInVariablePos(symbol) => {
-                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident());
+            TypecheckError::SymbolIsNotAVariable(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        "You can't use a type here...",
+                        "This expects a variable.",
                     )));
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     "note",
-                    format!("`{}` is a type and not a variable. You cannot use a type in the place of a variable.", symbol_name),
+                    format!("`{}` is not a variable. You cannot use a type or trait in the place of a variable.", symbol_name),
+                )));
+            }
+            TypecheckError::SymbolIsNotATrait(symbol) => {
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "This expects a trait.",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("`{}` is not a trait. You cannot use a type or variable in the place of a trait.", symbol_name),
                 )));
             }
             TypecheckError::TypeIsNotStruct {
@@ -365,6 +391,77 @@ impl TypecheckError {
                         "note",
                         format!("The field `{}` doesn't exist on type `{}`.", name, ty_name),
                     )));
+            }
+            TypecheckError::ExpectingBindingForTraitImpl(loc) => {
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    loc,
+                    "Use a name binding here instead of a pattern.",
+                )));
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    "Only name bindings are allowed for let statements which are trait implementations.",
+                )));
+            }
+            TypecheckError::TraitDefinitionNotFound(symbol) => {
+                let ident_path = symbol.get_ident();
+                let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "trait not found in this scope",
+                    )));
+                }
+
+                // At-least we can print the symbol that wasn't found...
+                builder.with_message(format!(
+                    "Trait `{}` is not defined in the current scope.",
+                    formatted_symbol
+                ));
+            }
+            TypecheckError::TypeAnnotationNotAllowedInTraitImpl(loc) => {
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    loc,
+                    "Remove the type annotation here.",
+                )));
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    "Type annotations are not allowed for let statements which are trait implementations.",
+                )));
+            }
+            TypecheckError::TypeArgumentLengthMismatch {
+                expected,
+                got,
+                location,
+            } => {
+                if let Some(location) = location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("Expected {} type arguments here.", expected),
+                    )));
+                }
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("Expected {} type arguments, but got {}.", expected, got),
+                )));
+                // @@Todo: it would be nice to have definition location here too.
+            }
+            TypecheckError::NoMatchingTraitImplementations(symbol) => {
+                let trt_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
+
+                if let Some(loc) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        loc,
+                        format!("No matching implementations for '{}'.", trt_name),
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("There are no implementations of the trait '{}' that satisfy this invocation.", trt_name),
+                )));
             }
         }
 

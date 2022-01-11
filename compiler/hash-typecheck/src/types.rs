@@ -203,6 +203,79 @@ pub enum TypeValue<'c> {
 }
 
 impl<'c> TypeValue<'c> {
+    pub fn fold_type_ids<F, T>(&self, initial: T, mut f: F) -> T
+    where
+        F: FnMut(T, TypeId) -> T,
+    {
+        match self {
+            TypeValue::Ref(RefType { inner }) => f(initial, *inner),
+            TypeValue::RawRef(RawRefType { inner }) => f(initial, *inner),
+            TypeValue::Fn(FnType { args, ret }) => {
+                let args_res = args.iter().fold(initial, |acc, x| f(acc, *x));
+                f(args_res, *ret)
+            }
+            TypeValue::User(UserType { args, def_id: _ }) => {
+                args.iter().fold(initial, |acc, x| f(acc, *x))
+            }
+            TypeValue::Tuple(TupleType { types: args }) => {
+                args.iter().fold(initial, |acc, x| f(acc, *x))
+            }
+            TypeValue::Var(_) => initial,
+            TypeValue::Prim(_) => initial,
+            TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds { bounds },
+            }) => bounds
+                .iter()
+                .fold(initial, |acc, TraitBound { params, .. }| {
+                    params.iter().fold(acc, |acc, x| f(acc, *x))
+                }),
+            TypeValue::Namespace(_) => initial,
+        }
+    }
+
+    pub fn try_map_type_ids<F, E>(&self, mut f: F, wall: &Wall<'c>) -> Result<Self, E>
+    where
+        F: FnMut(TypeId) -> Result<TypeId, E>,
+    {
+        Ok(match self {
+            TypeValue::Ref(RefType { inner }) => TypeValue::Ref(RefType { inner: f(*inner)? }),
+            TypeValue::RawRef(RawRefType { inner }) => {
+                TypeValue::RawRef(RawRefType { inner: f(*inner)? })
+            }
+            TypeValue::Fn(FnType { args, ret }) => TypeValue::Fn(FnType {
+                args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+                ret: f(*ret)?,
+            }),
+            TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
+                args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+                def_id: *def_id,
+            }),
+            TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
+                types: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+            }),
+            TypeValue::Var(var) => TypeValue::Var(*var),
+            TypeValue::Prim(prim) => TypeValue::Prim(*prim),
+            TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds { bounds },
+            }) => TypeValue::Unknown(UnknownType {
+                bounds: TraitBounds {
+                    bounds: Row::try_from_iter(
+                        bounds.iter().map(|TraitBound { trt, params }| {
+                            Ok(TraitBound {
+                                trt: *trt,
+                                params: Row::try_from_iter(params.iter().map(|&arg| f(arg)), wall)?,
+                            })
+                        }),
+                        wall,
+                    )?,
+                },
+            }),
+            TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
+                members: ns.members.clone(),
+            }),
+        })
+    }
+
     #[must_use]
     pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
     where
@@ -281,8 +354,8 @@ pub struct CoreTypeDefs {
 
 impl<'c, 'w> CoreTypeDefs {
     pub fn create(
-        type_defs: &mut TypeDefs<'c, 'w>,
-        types: &mut Types<'c, 'w>,
+        type_defs: &mut TypeDefStorage<'c, 'w>,
+        types: &mut TypeStorage<'c, 'w>,
         core_traits: &CoreTraits,
         wall: &'w Wall<'c>,
     ) -> Self {
@@ -359,12 +432,12 @@ impl<'c, 'w> CoreTypeDefs {
 }
 
 #[derive(Debug)]
-pub struct TypeDefs<'c, 'w> {
+pub struct TypeDefStorage<'c, 'w> {
     data: HashMap<TypeDefId, Cell<&'c TypeDefValue<'c>>>,
     wall: &'w Wall<'c>,
 }
 
-impl<'c, 'w> TypeDefs<'c, 'w> {
+impl<'c, 'w> TypeDefStorage<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self {
             data: HashMap::new(),
@@ -411,13 +484,13 @@ impl TypeLocation {
 }
 
 #[derive(Debug)]
-pub struct Types<'c, 'w> {
+pub struct TypeStorage<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
     location_map: TypeLocation,
     wall: &'w Wall<'c>,
 }
 
-impl<'c, 'w> Types<'c, 'w> {
+impl<'c, 'w> TypeStorage<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         let location_map = TypeLocation::default();
 
@@ -446,23 +519,9 @@ impl<'c, 'w> Types<'c, 'w> {
     }
 
     pub fn duplicate(&mut self, ty: TypeId) -> TypeId {
-        match self.get(ty) {
-            TypeValue::Ref(RefType { inner }) => {
-                let inner = self.duplicate(*inner);
-                self.create(TypeValue::Ref(RefType { inner }), None)
-            }
-            TypeValue::RawRef(RawRefType { inner }) => {
-                let inner = self.duplicate(*inner);
-                self.create(TypeValue::RawRef(RawRefType { inner }), None)
-            }
-            TypeValue::Fn(_) => todo!(),
-            TypeValue::Var(_) => todo!(),
-            TypeValue::User(_) => todo!(),
-            TypeValue::Prim(_) => todo!(),
-            TypeValue::Tuple(_) => todo!(),
-            TypeValue::Unknown(_) => todo!(),
-            TypeValue::Namespace(_) => todo!(),
-        }
+        let wall = self.wall;
+        let created = self.get(ty).map_type_ids(|x| self.duplicate(x), wall);
+        self.create(created, self.get_location(ty).copied())
     }
 
     pub fn add_location(&mut self, ty: TypeId, location: SourceLocation) {
