@@ -248,7 +248,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
             .get(curr_ty)
             .map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall);
 
-        self.global_storage.types.create(new_ty_value)
+        self.global_storage.types.create(new_ty_value, None)
     }
 
     pub fn unify(

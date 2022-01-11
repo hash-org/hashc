@@ -395,15 +395,40 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
 new_key_type! { pub struct TypeId; }
 
 #[derive(Debug)]
+pub struct TypeLocation {
+    data: HashMap<TypeId, SourceLocation>,
+}
+
+impl TypeLocation {
+    pub fn new() -> Self {
+        Self {
+            data: HashMap::new(),
+        }
+    }
+
+    pub fn get_location(&self, id: TypeId) -> Option<&SourceLocation> {
+        self.data.get(&id)
+    }
+
+    pub fn add_location(&mut self, id: TypeId, location: SourceLocation) {
+        self.data.insert(id, location);
+    }
+}
+
+#[derive(Debug)]
 pub struct Types<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
+    location_map: TypeLocation,
     wall: &'w Wall<'c>,
 }
 
 impl<'c, 'w> Types<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
+        let location_map = TypeLocation::new();
+
         Self {
             data: SlotMap::with_key(),
+            location_map,
             wall,
         }
     }
@@ -411,6 +436,10 @@ impl<'c, 'w> Types<'c, 'w> {
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
         // @@Todo: resolve type variables bro!
         self.data.get(ty).unwrap().get()
+    }
+
+    pub fn get_location(&self, ty: TypeId) -> Option<&SourceLocation> {
+        self.location_map.get_location(ty)
     }
 
     pub fn set(&self, target: TypeId, source: TypeId) {
@@ -425,11 +454,11 @@ impl<'c, 'w> Types<'c, 'w> {
         match self.get(ty) {
             TypeValue::Ref(RefType { inner }) => {
                 let inner = self.duplicate(*inner);
-                self.create(TypeValue::Ref(RefType { inner }))
+                self.create(TypeValue::Ref(RefType { inner }), None)
             }
             TypeValue::RawRef(RawRefType { inner }) => {
                 let inner = self.duplicate(*inner);
-                self.create(TypeValue::RawRef(RawRefType { inner }))
+                self.create(TypeValue::RawRef(RawRefType { inner }), None)
             }
             TypeValue::Fn(_) => todo!(),
             TypeValue::Var(_) => todo!(),
@@ -441,18 +470,31 @@ impl<'c, 'w> Types<'c, 'w> {
         }
     }
 
+    pub fn add_location(&mut self, ty: TypeId, location: SourceLocation) {
+        self.location_map.add_location(ty, location);
+    }
+
     pub fn create_type_var(&mut self, name: &str) -> TypeId {
-        self.create(TypeValue::Var(TypeVar {
-            name: IDENTIFIER_MAP.create_ident(name),
-        }))
+        self.create(
+            TypeValue::Var(TypeVar {
+                name: IDENTIFIER_MAP.create_ident(name),
+            }),
+            None,
+        )
     }
 
     pub fn create_unknown_type(&mut self) -> TypeId {
-        self.create(TypeValue::Unknown(UnknownType::unbounded()))
+        self.create(TypeValue::Unknown(UnknownType::unbounded()), None)
     }
 
-    pub fn create(&mut self, value: TypeValue<'c>) -> TypeId {
-        self.data.insert(Cell::new(self.wall.alloc_value(value)))
+    pub fn create(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
+        let id = self.data.insert(Cell::new(self.wall.alloc_value(value)));
+
+        if let Some(location) = location {
+            self.location_map.add_location(id, location);
+        }
+
+        return id;
     }
 }
 

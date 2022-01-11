@@ -26,68 +26,120 @@ impl Scope {
             SymbolType::Type(
                 global_storage
                     .types
-                    .create(TypeValue::Prim(PrimType::USize)),
+                    .create(TypeValue::Prim(PrimType::USize), None),
             ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("bool"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::Bool))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::Bool), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u8"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U8))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U8), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u16"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U16))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U16), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u32"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U32))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U32), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u64"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U64))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U64), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("isize"),
             SymbolType::Type(
                 global_storage
                     .types
-                    .create(TypeValue::Prim(PrimType::ISize)),
+                    .create(TypeValue::Prim(PrimType::ISize), None),
             ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i8"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I8))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I8), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i16"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I16))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I16), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i32"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I32))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I32), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i64"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I64))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I64), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("f32"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::F32))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::F32), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("f64"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::F64))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::F64), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("char"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::Char))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::Char), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("void"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::Void))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::Void), None),
+            ),
         );
 
         scope.add_symbol(

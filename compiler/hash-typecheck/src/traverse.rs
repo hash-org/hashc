@@ -12,7 +12,6 @@ use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
 };
-use core::panic;
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::visitor::AstVisitor;
@@ -134,8 +133,8 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         }
     }
 
-    fn create_type(&mut self, value: TypeValue<'c>) -> TypeId {
-        self.global_tc.global_storage.types.create(value)
+    fn create_type(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
+        self.global_tc.global_storage.types.create(value, location)
     }
 
     fn traits(&self) -> &Traits<'c, 'w> {
@@ -166,55 +165,62 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         self.global_tc.global_storage.types.create_unknown_type()
     }
 
+    fn add_location_to_ty(&mut self, ty: TypeId, location: SourceLocation) {
+        self.global_tc
+            .global_storage
+            .types
+            .add_location(ty, location)
+    }
+
     fn create_tuple_type(&mut self, types: Row<'c, TypeId>) -> TypeId {
         self.global_tc
             .global_storage
             .types
-            .create(TypeValue::Tuple(TupleType { types }))
+            .create(TypeValue::Tuple(TupleType { types }), None)
     }
 
-    fn create_str_type(&mut self) -> TypeId {
+    fn create_str_type(&mut self, location: Option<SourceLocation>) -> TypeId {
         let str_def_id = self.core_type_defs().str;
-        self.global_tc
-            .global_storage
-            .types
-            .create(TypeValue::User(UserType {
+        self.global_tc.global_storage.types.create(
+            TypeValue::User(UserType {
                 def_id: str_def_id,
                 args: row![self.wall()],
-            }))
+            }),
+            location,
+        )
     }
 
     fn create_list_type(&mut self, el_ty: TypeId) -> TypeId {
         let list_def_id = self.core_type_defs().list;
-        self.global_tc
-            .global_storage
-            .types
-            .create(TypeValue::User(UserType {
+        self.global_tc.global_storage.types.create(
+            TypeValue::User(UserType {
                 def_id: list_def_id,
                 args: row![self.wall(); el_ty],
-            }))
+            }),
+            None,
+        )
     }
 
     fn create_set_type(&mut self, el_ty: TypeId) -> TypeId {
         let set_def_id = self.core_type_defs().set;
-        self.global_tc
-            .global_storage
-            .types
-            .create(TypeValue::User(UserType {
+        self.global_tc.global_storage.types.create(
+            TypeValue::User(UserType {
                 def_id: set_def_id,
                 args: row![self.wall(); el_ty],
-            }))
+            }),
+            None,
+        )
     }
 
     fn create_map_type(&mut self, key_ty: TypeId, value_ty: TypeId) -> TypeId {
         let map_def_id = self.core_type_defs().map;
-        self.global_tc
-            .global_storage
-            .types
-            .create(TypeValue::User(UserType {
+        self.global_tc.global_storage.types.create(
+            TypeValue::User(UserType {
                 def_id: map_def_id,
                 args: row![self.wall(); key_ty, value_ty],
-            }))
+            }),
+            None,
+        )
     }
 
     fn tc_state(&mut self) -> &mut TypecheckState {
@@ -354,11 +360,16 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             subject: fn_ty,
         } = walk::walk_function_call_expr(self, ctx, node)?;
 
+        let args_ty_location = self.source_location(node.body().args.location());
+
         let ret_ty = self.create_unknown_type();
-        let expected_fn_ty = self.create_type(TypeValue::Fn(FnType {
-            args: given_args,
-            ret: ret_ty,
-        }));
+        let expected_fn_ty = self.create_type(
+            TypeValue::Fn(FnType {
+                args: given_args,
+                ret: ret_ty,
+            }),
+            Some(args_ty_location),
+        );
         self.unifier()
             .unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
 
@@ -417,7 +428,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::RefExpr {
             inner_expr: inner_ty,
         } = walk::walk_ref_expr(self, ctx, node)?;
-        Ok(self.create_type(TypeValue::Ref(RefType { inner: inner_ty })))
+
+        let ty_location = self.source_location(node.location());
+        Ok(self.create_type(
+            TypeValue::Ref(RefType { inner: inner_ty }),
+            Some(ty_location),
+        ))
     }
 
     type DerefExprRet = TypeId;
@@ -428,10 +444,15 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let walk::DerefExpr(given_ref_ty) = walk::walk_deref_expr(self, ctx, node)?;
 
-        let created_inner_ty = self.create_type(TypeValue::Unknown(UnknownType::unbounded()));
-        let created_ref_ty = self.create_type(TypeValue::Ref(RefType {
-            inner: created_inner_ty,
-        }));
+        let ref_location = self.source_location(node.location());
+
+        let created_inner_ty = self.create_type(TypeValue::Unknown(UnknownType::unbounded()), None);
+        let created_ref_ty = self.create_type(
+            TypeValue::Ref(RefType {
+                inner: created_inner_ty,
+            }),
+            Some(ref_location),
+        );
         self.unifier()
             .unify(created_ref_ty, given_ref_ty, UnifyStrategy::ModifyBoth)?;
 
@@ -512,10 +533,13 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                             type_args.iter().zip(instantiated_args.iter()),
                             UnifyStrategy::ModifyTarget,
                         )?;
-                        let ty = self.create_type(TypeValue::User(UserType {
-                            def_id,
-                            args: type_args,
-                        }));
+                        let ty = self.create_type(
+                            TypeValue::User(UserType {
+                                def_id,
+                                args: type_args,
+                            }),
+                            Some(location),
+                        );
                         Ok(ty)
                     }
                 }
@@ -536,7 +560,9 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
         let walk::RefType(inner) = walk::walk_ref_type(self, ctx, node)?;
-        Ok(self.create_type(TypeValue::Ref(RefType { inner })))
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Ref(RefType { inner }), Some(ty_location)))
     }
 
     type RawRefTypeRet = TypeId;
@@ -546,7 +572,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         node: ast::AstNodeRef<ast::RawRefType<'c>>,
     ) -> Result<Self::RawRefTypeRet, Self::Error> {
         let walk::RawRefType(inner) = walk::walk_raw_ref_type(self, ctx, node)?;
-        Ok(self.create_type(TypeValue::RawRef(RawRefType { inner })))
+        let ty_location = self.source_location(node.location());
+        Ok(self.create_type(TypeValue::RawRef(RawRefType { inner }), Some(ty_location)))
     }
 
     type TypeVarRet = TypeId;
@@ -555,9 +582,13 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Var(TypeVar {
-            name: node.name.ident,
-        })))
+        let ty_location = self.source_location(node.location());
+        Ok(self.create_type(
+            TypeValue::Var(TypeVar {
+                name: node.name.ident,
+            }),
+            Some(ty_location),
+        ))
     }
 
     type ExistentialTypeRet = TypeId;
@@ -664,36 +695,44 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     fn visit_str_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StrLiteral>,
+        node: ast::AstNodeRef<ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
-        Ok(self.create_str_type())
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_str_type(Some(ty_location)))
     }
 
     type CharLiteralRet = TypeId;
     fn visit_char_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::CharLiteral>,
+        node: ast::AstNodeRef<ast::CharLiteral>,
     ) -> Result<Self::CharLiteralRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Prim(PrimType::Char)))
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::Char), Some(ty_location)))
     }
 
     type FloatLiteralRet = TypeId;
     fn visit_float_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::FloatLiteral>,
+        node: ast::AstNodeRef<ast::FloatLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Prim(PrimType::F32)))
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
     }
 
     type IntLiteralRet = TypeId;
     fn visit_int_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::IntLiteral>,
+        node: ast::AstNodeRef<ast::IntLiteral>,
     ) -> Result<Self::IntLiteralRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Prim(PrimType::I32)))
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::I32), Some(ty_location)))
     }
 
     type StructLiteralRet = TypeId;
@@ -791,6 +830,21 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let old_ret_ty = self.tc_state().func_ret_type.replace(return_ty);
         let old_ret_once = mem::replace(&mut self.tc_state().ret_once, false);
 
+        // Try to combine the entire span of the arguments and types
+        // @@Hack: this span is so fucked lol
+        let mut location = node
+            .args
+            .iter()
+            .next()
+            .map(|item| item.location())
+            .unwrap_or(node.location());
+
+        if let Some(return_ty) = &node.return_ty {
+            location = location.join(return_ty.location());
+        }
+
+        let location = self.source_location(location);
+
         let body_ty = self.visit_expression(ctx, node.fn_body.ast_ref())?;
 
         self.tc_state().func_ret_type = old_ret_ty;
@@ -814,10 +868,13 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             }
         };
 
-        let fn_ty = self.create_type(TypeValue::Fn(FnType {
-            args: args_ty,
-            ret: return_ty,
-        }));
+        let fn_ty = self.create_type(
+            TypeValue::Fn(FnType {
+                args: args_ty,
+                ret: return_ty,
+            }),
+            Some(location),
+        ); // @@Correctness: this isn't the correct location
 
         Ok(fn_ty)
     }
@@ -873,7 +930,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         self.visit_block(ctx, node.0.ast_ref())?;
         self.tc_state().in_loop = last_in_loop;
 
-        Ok(self.create_type(TypeValue::Prim(PrimType::Void)))
+        Ok(self.create_type(TypeValue::Prim(PrimType::Void), None))
     }
 
     type BodyBlockRet = TypeId;
@@ -886,7 +943,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             statements: _,
             expr,
         } = walk::walk_body_block(self, ctx, node)?;
-        Ok(expr.unwrap_or_else(|| self.create_type(TypeValue::Prim(PrimType::Void))))
+        Ok(expr.unwrap_or_else(|| self.create_type(TypeValue::Prim(PrimType::Void), None)))
+        // @@TODO: use location of the last statement in the block
     }
 
     type StatementRet = ();
@@ -918,7 +976,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             Some(ret) => {
                 let given_ret = walk::walk_return_statement(self, ctx, node)?
                     .0
-                    .unwrap_or_else(|| self.create_type(TypeValue::Prim(PrimType::Void)));
+                    .unwrap_or_else(|| self.create_type(TypeValue::Prim(PrimType::Void), None));
 
                 self.unifier()
                     .unify(ret, given_ret, UnifyStrategy::ModifyBoth)?;
@@ -989,10 +1047,20 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         // }
 
         // @@Todo: bounds
-        let annot_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+        let annotation_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
         let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+
+        // add type location information on  pattern_ty and annotation_ty
+        if let Some(annotation) = &node.body().ty {
+            let location = self.source_location(annotation.location());
+            self.add_location_to_ty(annotation_ty, location);
+        }
+
+        let pattern_location = self.source_location(node.body().pattern.location());
+        self.add_location_to_ty(pattern_ty, pattern_location);
+
         self.unifier().unify_many(
-            [annot_ty, value_ty, pattern_ty].into_iter(),
+            [annotation_ty, value_ty, pattern_ty].into_iter(),
             UnifyStrategy::ModifyBoth,
         )?;
 
@@ -1213,36 +1281,43 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     fn visit_str_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StrLiteralPattern>,
+        node: ast::AstNodeRef<ast::StrLiteralPattern>,
     ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
-        Ok(self.create_str_type())
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_str_type(Some(ty_location)))
     }
 
     type CharLiteralPatternRet = TypeId;
     fn visit_char_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::CharLiteralPattern>,
+        node: ast::AstNodeRef<ast::CharLiteralPattern>,
     ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Prim(PrimType::Char)))
+        let ty_location = self.source_location(node.location());
+        Ok(self.create_type(TypeValue::Prim(PrimType::Char), Some(ty_location)))
     }
 
     type IntLiteralPatternRet = TypeId;
     fn visit_int_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::IntLiteralPattern>,
+        node: ast::AstNodeRef<ast::IntLiteralPattern>,
     ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Prim(PrimType::I32)))
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::I32), Some(ty_location)))
     }
 
     type FloatLiteralPatternRet = TypeId;
     fn visit_float_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::FloatLiteralPattern>,
+        node: ast::AstNodeRef<ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
-        Ok(self.create_type(TypeValue::Prim(PrimType::F32)))
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
     }
 
     type LiteralPatternRet = TypeId;
@@ -1320,7 +1395,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let curr_scope = self.scopes().extract_current_scope();
         let members =
             ScopeStack::with_scopes(&mut self.global_tc.global_storage, iter::once(curr_scope));
-        let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }));
+        let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }), None);
 
         Ok(namespace_ty)
     }
@@ -1406,10 +1481,13 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         let mut unifier = self.unifier();
         let vars_sub = unifier.instantiate_vars_list(&generics.params)?;
         let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params);
-        let ty_id = self.create_type(TypeValue::User(UserType {
-            def_id,
-            args: instantiated_vars,
-        }));
+        let ty_id = self.create_type(
+            TypeValue::User(UserType {
+                def_id,
+                args: instantiated_vars,
+            }),
+            None,
+        );
 
         Ok((ty_id, vars_sub))
     }
