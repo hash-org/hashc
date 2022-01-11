@@ -5,7 +5,7 @@ use crate::{
     scope::ScopeStack,
     state::TypecheckState,
     traits::{CoreTraits, TraitImpls, Traits},
-    types::{CoreTypeDefs, TypeDefs, TypeLocation, TypeVars, Types},
+    types::{CoreTypeDefs, TypeDefs, TypeVars, Types},
 };
 
 // @@TODO: Everything here needs to hold type locations!

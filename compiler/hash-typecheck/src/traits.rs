@@ -116,8 +116,8 @@ pub struct Trait<'c> {
 
 #[derive(Debug)]
 pub struct ImplsForTrait<'c> {
-    trt: TraitId,
-    impls: BTreeMap<TraitImplId, TraitImpl<'c>>,
+    _trt: TraitId,
+    _impls: BTreeMap<TraitImplId, TraitImpl<'c>>,
 }
 
 impl<'c> ImplsForTrait<'c> {
@@ -131,14 +131,14 @@ impl<'c> ImplsForTrait<'c> {
 #[derive(Debug)]
 pub struct TraitImpls<'c, 'w> {
     data: HashMap<TraitId, ImplsForTrait<'c>>,
-    wall: &'w Wall<'c>,
+    _wall: &'w Wall<'c>,
 }
 
 impl<'c, 'w> TraitImpls<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self {
             data: HashMap::new(),
-            wall,
+            _wall: wall,
         }
     }
 

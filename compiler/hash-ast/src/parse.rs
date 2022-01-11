@@ -9,7 +9,7 @@ use crate::{
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
-use hash_source::module::{ModuleIdx, INTERACTIVE_MODULE};
+use hash_source::module::INTERACTIVE_MODULE;
 use log::{log, Level};
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};

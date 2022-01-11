@@ -81,8 +81,9 @@ impl<'c> Substitution {
         Self { subs: Vec::new() }
     }
 
+    #[must_use]
     pub fn merge(mut self, other: impl Borrow<Substitution>) -> Self {
-        self.subs.extend(other.borrow().subs.iter().map(|x| *x));
+        self.subs.extend(other.borrow().subs.iter().copied());
         self
     }
 
@@ -136,7 +137,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
         strategy: UnifyStrategy,
     ) -> TypecheckResult<()> {
-        let strategy = strategy.into();
+        let strategy = strategy;
         for (a, b) in pairs {
             let a_ty = *a.borrow();
             let b_ty = *b.borrow();

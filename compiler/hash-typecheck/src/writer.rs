@@ -20,6 +20,7 @@ impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
         Self { ty, storage }
     }
 
+    #[must_use]
     pub fn for_type(&self, ty: TypeId) -> Self {
         Self { ty, ..*self }
     }

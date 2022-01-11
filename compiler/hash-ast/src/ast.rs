@@ -103,9 +103,9 @@ pub struct AstNodeRef<'t, T> {
 impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
         Self {
-            body: self.body.clone(),
-            location: self.location.clone(),
-            id: self.id.clone(),
+            body: self.body,
+            location: self.location,
+            id: self.id,
         }
     }
 }
