@@ -325,7 +325,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     .map(|a| self.visit_type(ctx, a.ast_ref()))
                     .collect::<Result<_, _>>()?;
                 let trt_impl_sub = self.trait_helper().find_trait_impl(trt, &args, None)?;
-                println!("{}", SubstitutionWithStorage::new(&trt_impl_sub, &self.global_tc.global_storage));
                 let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type)?;
                 Ok(subbed_fn_type)
             }

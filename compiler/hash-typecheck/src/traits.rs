@@ -234,7 +234,6 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
             match self.match_trait_impl(&trait_impl, &trait_args) {
                 Ok(matched) => return Ok(matched),
                 Err(e) => {
-                    println!("{:#?}", e);
                     continue;
                     // last_err.replace(e);
                 }
@@ -283,40 +282,15 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         let trait_args_sub = unifier.instantiate_vars_list(&trt.args)?;
         let trait_impl_args_sub =
             unifier.instantiate_vars_for_list(&trait_impl.args, &impl_vars)?;
-        println!(
-            "{}",
-            SubstitutionWithStorage::new(&trait_args_sub, self.global_storage)
-        );
-        println!(
-            "{}",
-            SubstitutionWithStorage::new(&trait_impl_args_sub, self.global_storage)
-        );
 
-        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         let trait_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
         let trait_impl_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args)?;
-        self.print_types(&trait_args_instantiated);
-        self.print_types(&trait_impl_args_instantiated);
-
-        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
-        unifier.unify_pairs(
-            trait_impl_args_instantiated
-                .iter()
-                .zip(trait_args_instantiated.iter()),
-            UnifyStrategy::ModifyBoth,
-        )?;
-
-        unifier.unify_pairs(
-            trait_impl_args_instantiated.iter().zip(trait_args.iter()),
-            UnifyStrategy::ModifyBoth,
-        )?;
+        // self.print_types(&trait_args_instantiated);
+        // self.print_types(&trait_impl_args_instantiated);
 
         let merged_sub = trait_args_sub.merge(trait_impl_args_sub);
-        println!("{:?}", trait_impl_args_instantiated);
-        println!("{}", SubstitutionWithStorage::new(&merged_sub, self.global_storage));
-
         Ok(merged_sub)
     }
 }
