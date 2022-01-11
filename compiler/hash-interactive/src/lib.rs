@@ -83,13 +83,11 @@ fn parse_interactive<'c>(
     match parser.parse_interactive(expr, &directory) {
         (Ok(result), modules) => Some((result, modules)),
         (Err(errors), modules) => {
-            let source_modules = modules.sources();
-
             errors
                 .into_iter()
                 .map(|err| err.create_report())
                 .for_each(|report| {
-                    let report_writer = ReportWriter::new(report, &source_modules);
+                    let report_writer = ReportWriter::new(report, &modules);
                     println!("{}", report_writer);
                 });
             None
@@ -130,10 +128,8 @@ fn execute(input: &str) {
                         println!("{}", TypeWithStorage::new(block_ty_id, &global_storage));
                     }
                     (Err(e), global_storage) => {
-                        let source_modules = modules.sources();
-
                         let report_writer =
-                            ReportWriter::new(e.create_report(global_storage), &source_modules);
+                            ReportWriter::new(e.create_report(global_storage), &modules);
                         println!("{}", report_writer);
                     }
                 }

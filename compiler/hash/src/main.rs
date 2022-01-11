@@ -118,10 +118,8 @@ fn run_parsing<'c>(
     match result {
         Ok(_) => modules,
         Err(errors) => {
-            let source_modules = modules.sources();
-
             for report in errors.into_iter().map(|err| err.create_report()) {
-                let report_writer = ReportWriter::new(report, &source_modules);
+                let report_writer = ReportWriter::new(report, &modules);
                 println!("{}", report_writer);
             }
 
