@@ -69,7 +69,7 @@ impl StructFields {
     }
 
     pub fn get_field(&self, field: Identifier) -> Option<TypeId> {
-        self.data.get(&field).map(|&t| t)
+        self.data.get(&field).copied()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Identifier, TypeId)> + '_ {
@@ -203,6 +203,7 @@ pub enum TypeValue<'c> {
 }
 
 impl<'c> TypeValue<'c> {
+    #[must_use]
     pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
     where
         F: FnMut(TypeId) -> TypeId,
@@ -372,7 +373,7 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
     }
 
     pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue<'c> {
-        &self.data.get(&ty_def).unwrap().get()
+        self.data.get(&ty_def).unwrap().get()
     }
 
     pub fn create(
@@ -394,18 +395,12 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
 
 new_key_type! { pub struct TypeId; }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypeLocation {
     data: HashMap<TypeId, SourceLocation>,
 }
 
 impl TypeLocation {
-    pub fn new() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
-    }
-
     pub fn get_location(&self, id: TypeId) -> Option<&SourceLocation> {
         self.data.get(&id)
     }
@@ -424,7 +419,7 @@ pub struct Types<'c, 'w> {
 
 impl<'c, 'w> Types<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
-        let location_map = TypeLocation::new();
+        let location_map = TypeLocation::default();
 
         Self {
             data: SlotMap::with_key(),
@@ -494,7 +489,7 @@ impl<'c, 'w> Types<'c, 'w> {
             self.location_map.add_location(id, location);
         }
 
-        return id;
+        id
     }
 }
 

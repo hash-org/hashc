@@ -154,7 +154,7 @@ impl TypecheckError {
             }
             TypecheckError::UnresolvedSymbol(symbol) => {
                 let ident_path = symbol.get_ident();
-                let formatted_symbol = format!("{}", IDENTIFIER_MAP.get_path(ident_path));
+                let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path);
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

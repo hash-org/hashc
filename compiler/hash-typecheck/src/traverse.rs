@@ -137,7 +137,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         self.global_tc.global_storage.types.create(value, location)
     }
 
-    fn traits(&self) -> &Traits<'c, 'w> {
+    fn _traits(&self) -> &Traits<'c, 'w> {
         &self.global_tc.global_storage.traits
     }
 
@@ -153,7 +153,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         &mut self.global_tc.global_storage.type_defs
     }
 
-    fn type_vars(&self) -> &TypeVars {
+    fn _type_vars(&self) -> &TypeVars {
         &self.module_storage.type_vars
     }
 
@@ -246,7 +246,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     ) -> TypecheckResult<SymbolType> {
         resolve_compound_symbol(
             &self.module_storage.scopes,
-            &mut self.global_tc.global_storage.types,
+            &self.global_tc.global_storage.types,
             symbols,
             location,
         )
@@ -658,7 +658,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             .collect::<Result<Vec<_>, _>>()?;
         let el_ty = self
             .unifier()
-            .unify_many(entries.iter().map(|&el| el), UnifyStrategy::ModifyBoth)?;
+            .unify_many(entries.iter().copied(), UnifyStrategy::ModifyBoth)?;
 
         Ok(self.create_list_type(el_ty))
     }
@@ -676,7 +676,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             .collect::<Result<Vec<_>, _>>()?;
         let el_ty = self
             .unifier()
-            .unify_many(entries.iter().map(|&el| el), UnifyStrategy::ModifyBoth)?;
+            .unify_many(entries.iter().copied(), UnifyStrategy::ModifyBoth)?;
 
         Ok(self.create_set_type(el_ty))
     }
@@ -756,7 +756,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
                 match &type_def.kind {
                     TypeDefValueKind::Struct(struct_def) => {
-                        self.typecheck_known_struct_literal(ctx, node, def_id, ty_id, &struct_def)
+                        self.typecheck_known_struct_literal(ctx, node, def_id, ty_id, struct_def)
                     }
                     _ => Err(TypecheckError::TypeIsNotStruct {
                         ty: ty_id,
@@ -774,11 +774,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                         match &type_def.kind {
                             TypeDefValueKind::Struct(struct_def) => self
                                 .typecheck_known_struct_literal(
-                                    ctx,
-                                    node,
-                                    *def_id,
-                                    ty_id,
-                                    &struct_def,
+                                    ctx, node, *def_id, ty_id, struct_def,
                                 ),
                             _ => Err(TypecheckError::TypeIsNotStruct {
                                 ty: ty_id,
@@ -837,7 +833,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
             .iter()
             .next()
             .map(|item| item.location())
-            .unwrap_or(node.location());
+            .unwrap_or_else(|| node.location());
 
         if let Some(return_ty) = &node.return_ty {
             location = location.join(return_ty.location());

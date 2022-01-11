@@ -170,7 +170,7 @@ impl Scope {
     }
 
     pub fn resolve_symbol(&self, symbol: Identifier) -> Option<SymbolType> {
-        self.symbols.get(&symbol).map(|&s| s)
+        self.symbols.get(&symbol).copied()
     }
 
     pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: SymbolType) {

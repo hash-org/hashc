@@ -117,8 +117,8 @@ fn execute(input: &str) {
             }
         }
         Ok(InteractiveCommand::Version) => print_version(),
-        Ok(InteractiveCommand::Code(expr)) => match parse_interactive(expr, &castle) {
-            Some((block, modules)) => {
+        Ok(InteractiveCommand::Code(expr)) => {
+            if let Some((block, modules)) = parse_interactive(expr, &castle) {
                 let tc_wall = castle.wall();
                 let tc = GlobalTypechecker::for_modules(&modules, &tc_wall);
                 let tc_result = tc.typecheck_interactive(block.ast_ref());
@@ -134,8 +134,7 @@ fn execute(input: &str) {
                     }
                 }
             }
-            None => {}
-        },
+        }
         Ok(InteractiveCommand::Type(expr)) => {
             if let Some((block, _)) = parse_interactive(expr, &castle) {
                 println!("typeof({:#?})", block);
