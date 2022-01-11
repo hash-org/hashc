@@ -8,6 +8,7 @@ use crate::{
     types::{CoreTypeDefs, TypeDefStorage, TypeVars, TypeStorage},
 };
 
+// @@TODO: Everything here needs to hold type locations!
 #[derive(Debug)]
 pub struct GlobalStorage<'c, 'w, 'm> {
     pub modules: &'m Modules<'c>,

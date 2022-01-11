@@ -1,19 +1,15 @@
-use std::{
-    cell::{Cell, Ref, RefCell},
-    collections::{BTreeMap, HashMap},
-    slice::SliceIndex,
-};
-
-use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_utils::counter;
-
 use crate::{
-    error::{TypecheckError, TypecheckResult},
+    error::{TypecheckError, TypecheckResult, Symbol},
     storage::{GlobalStorage, ModuleStorage},
-    types::{FnType, TypeId, TypeList, TypeStorage},
-    unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy},
+    types::{TypeId, TypeList, TypeStorage},
+    unify::{Substitution, Unifier, UnifyStrategy},
     writer::TypeWithStorage,
 };
+use hash_alloc::{collections::row::Row, row, Wall};
+use hash_source::location::SourceLocation;
+use hash_utils::counter;
+use std::collections::{BTreeMap, HashMap};
+use std::cell::Cell;
 
 counter! {
     name: TraitId,
@@ -197,6 +193,8 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         trt: &Trait,
         trait_args: &[TypeId],
         fn_type: Option<TypeId>,
+        trt_symbol: impl FnOnce() -> Symbol,
+        args_location: Option<SourceLocation>,
     ) -> TypecheckResult<Substitution> {
         let mut trait_args = trait_args.to_owned();
         if trait_args.is_empty() {
@@ -206,8 +204,10 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
                     .map(|_| self.global_storage.types.create_unknown_type()),
             )
         }
+
         if trait_args.len() != trt.args.len() {
             return Err(TypecheckError::TypeArgumentLengthMismatch {
+                location: args_location.or_else(|| trt_symbol().location()),
                 expected: trt.args.len(),
                 got: trait_args.len(),
             });
@@ -240,7 +240,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
             }
         }
         // @@Todo: better errors
-        Err(TypecheckError::NoMatchingTraitImplementations(trt.id))
+        Err(TypecheckError::NoMatchingTraitImplementations(trt_symbol()))
     }
 
     pub fn print_types(&self, types: &[TypeId]) {

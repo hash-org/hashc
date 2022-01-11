@@ -6,7 +6,6 @@ use crate::Wall;
 use core::fmt;
 use std::{
     borrow::{Borrow, BorrowMut},
-    iter::FromIterator,
     mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
 };

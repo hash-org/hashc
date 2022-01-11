@@ -11,14 +11,9 @@ use hash_ast::count::NodeCount;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser};
-use hash_reporting::errors::{CompilerError, InteractiveCommandError};
-use hash_reporting::reporting::{Report, ReportWriter};
-
-#[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::HashPestParser;
-
-#[cfg(not(feature = "use-pest"))]
 use hash_parser::backend::HashParser;
+use hash_reporting::errors::{CompilerError, InteractiveCommandError};
+use hash_reporting::reporting::ReportWriter;
 
 use hash_typecheck::traverse::GlobalTypechecker;
 use hash_typecheck::writer::TypeWithStorage;
@@ -89,10 +84,13 @@ fn parse_interactive<'c>(
     match parser.parse_interactive(expr, &directory) {
         (Ok(result), modules) => Some((result, modules)),
         (Err(errors), modules) => {
-            for report in errors.into_iter().map(Report::from) {
-                let report_writer = ReportWriter::new(report, &modules);
-                println!("{}", report_writer);
-            }
+            errors
+                .into_iter()
+                .map(|err| err.create_report())
+                .for_each(|report| {
+                    let report_writer = ReportWriter::new(report, &modules);
+                    println!("{}", report_writer);
+                });
             None
         }
     }
@@ -120,20 +118,24 @@ fn execute(input: &str) {
             }
         }
         Ok(InteractiveCommand::Version) => print_version(),
-        Ok(InteractiveCommand::Code(expr)) => match parse_interactive(expr, &castle) {
-            Some((block, modules)) => {
+        Ok(InteractiveCommand::Code(expr)) => {
+            if let Some((block, modules)) = parse_interactive(expr, &castle) {
                 let tc_wall = castle.wall();
-                let typechecker = GlobalTypechecker::for_modules(&modules, &tc_wall);
-                let tc_result = typechecker.typecheck_interactive(block.ast_ref());
+                let tc = GlobalTypechecker::for_modules(&modules, &tc_wall);
+                let tc_result = tc.typecheck_interactive(block.ast_ref());
+
                 match tc_result {
                     (Ok(block_ty_id), global_storage) => {
                         println!("{}", TypeWithStorage::new(block_ty_id, &global_storage));
                     }
-                    (Err(e), _global_storage) => println!("{:?}", e),
+                    (Err(e), global_storage) => {
+                        let report_writer =
+                            ReportWriter::new(e.create_report(global_storage), &modules);
+                        println!("{}", report_writer);
+                    }
                 }
             }
-            None => {}
-        },
+        }
         Ok(InteractiveCommand::Type(expr)) => {
             if let Some((block, _)) = parse_interactive(expr, &castle) {
                 println!("typeof({:#?})", block);

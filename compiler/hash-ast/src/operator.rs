@@ -11,6 +11,7 @@ pub enum UnaryOpType {
 
 /// Enum representing the type of compound function that an operator represents.
 /// @@Documentation: What's the difference between LazyNamed and Named? - LazyNamed operators exhibit short circuiting behaviour.
+#[derive(Debug)]
 pub enum OperatorFn {
     Named {
         name: Cow<'static, str>,
@@ -27,6 +28,7 @@ pub enum OperatorFn {
 }
 
 /// Compound functions that use multiple function calls when they are transformed.
+#[derive(Debug)]
 pub enum CompoundFn {
     Leq,
     Geq,
