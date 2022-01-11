@@ -2804,11 +2804,11 @@ where
 
     /// Function to parse a type
     pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
-        let start = self.current_location();
         let token = self
             .peek()
             .ok_or_else(|| self.unexpected_eof::<()>().err().unwrap())?;
 
+        let start = token.span;
         let variant = match &token.kind {
             TokenKind::Amp => {
                 self.skip_token();
