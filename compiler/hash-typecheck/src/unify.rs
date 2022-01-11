@@ -261,7 +261,6 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth | UnifyStrategy::ModifyTarget => {
-                        println!("Setting {:?} to {:?}", target, source);
                         self.global_storage.types.set(target, source);
                         self.unify(target, source, strategy)?;
                     }
@@ -273,7 +272,6 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth => {
-                        println!("Setting {:?} to {:?}", source, target);
                         self.global_storage.types.set(source, target);
                         self.unify(target, source, strategy)?;
                     }
