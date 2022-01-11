@@ -88,17 +88,35 @@ impl TypecheckError {
             .with_error_code(ErrorCode::Typecheck); // @@TODO: @@ErrorReporting: Get the correct typecheck code
 
         match self {
-            TypecheckError::TypeMismatch(left, right) => {
-                let left_ty = TypeWithStorage::new(left, &storage);
-                let right_ty = TypeWithStorage::new(right, &storage);
+            TypecheckError::TypeMismatch(given, wanted) => {
+                let given_ty = TypeWithStorage::new(given, &storage);
+                let given_ty_location = storage.types.get_location(given);
+                let wanted_ty = TypeWithStorage::new(wanted, &storage);
+                let wanted_ty_location = storage.types.get_location(wanted);
 
-                // @@TODO: we want to print the location of the lhs_expression where the type mismatches
-                //         and the right hand side
+                // @@TODO: Double notes on a CodeBlock instead of separate code blocks depending on proximity of spans
+                if let Some(location) = wanted_ty_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        format!(
+                            "This specificities that the expression should be of type `{}`",
+                            wanted_ty
+                        ),
+                    )));
+                }
+
+                if let Some(location) = given_ty_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        format!("Found this to be of type `{}`", given_ty),
+                    )));
+                }
+
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     "note",
                     format!(
                         "Types mismatch, got a `{}`, but wanted a `{}`.",
-                        left_ty, right_ty
+                        given_ty, wanted_ty
                     ),
                 )));
             }
