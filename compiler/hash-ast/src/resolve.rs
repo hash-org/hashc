@@ -15,8 +15,7 @@ use rayon::Scope;
 use std::{fs, path::Path};
 
 pub trait ModuleResolver: Clone {
-    fn module_source(&self) -> Option<&str>;
-    fn module_index(&self) -> Option<ModuleIdx>;
+    fn module_index(&self) -> ModuleIdx;
     fn add_module(
         &self,
         import_path: impl AsRef<Path>,
@@ -26,9 +25,8 @@ pub trait ModuleResolver: Clone {
 
 #[derive(Debug, Copy, Clone, Constructor)]
 pub(crate) struct ModuleParsingContext<'mod_ctx> {
-    source: Option<&'mod_ctx str>,
     root_dir: &'mod_ctx Path,
-    index: Option<ModuleIdx>,
+    index: ModuleIdx,
 }
 
 #[derive(Debug)]
@@ -72,11 +70,7 @@ where
     'ctx: 'scope,
     'scope: 'scope_ref,
 {
-    fn module_source(&self) -> Option<&str> {
-        self.module_ctx.source
-    }
-
-    fn module_index(&self) -> Option<ModuleIdx> {
+    fn module_index(&self) -> ModuleIdx {
         self.module_ctx.index
     }
 
@@ -107,11 +101,7 @@ where
                 let import_root_dir = resolved_import_path.parent().unwrap().to_owned();
 
                 // Create a module parsing context and resolver for the import
-                let import_module_ctx = ModuleParsingContext::new(
-                    Some(&import_source),
-                    &import_root_dir,
-                    Some(import_index),
-                );
+                let import_module_ctx = ModuleParsingContext::new(&import_root_dir, import_index);
 
                 let import_resolver = ParModuleResolver::new(ctx, import_module_ctx, scope);
 

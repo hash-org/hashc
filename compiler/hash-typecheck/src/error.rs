@@ -368,7 +368,6 @@ impl TypecheckError {
             }
         }
 
-        // @@ErrorReporting: we might want to properly handle incomplete reports?
         builder.build().unwrap()
     }
 }

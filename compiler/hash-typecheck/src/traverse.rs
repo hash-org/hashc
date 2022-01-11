@@ -19,7 +19,7 @@ use hash_ast::{ast, ident::Identifier};
 use hash_ast::{module::Modules, visitor, visitor::walk};
 use hash_source::{
     location::{Location, SourceLocation},
-    module::ModuleIdx,
+    module::{ModuleIdx, INTERACTIVE_MODULE},
 };
 use std::collections::HashSet;
 use std::iter;
@@ -83,7 +83,7 @@ pub enum ModuleOrInteractive<'i, 'c> {
 pub struct ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
     module_storage: ModuleStorage,
-    module_or_interactive: ModuleOrInteractive<'i, 'c>,
+    module_index: ModuleOrInteractive<'i, 'c>,
 }
 
 impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
@@ -95,7 +95,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         Self {
             global_tc,
             module_storage,
-            module_or_interactive,
+            module_index: module_or_interactive,
         }
     }
 
@@ -106,9 +106,9 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     /// If the [ModuleOrInteractive] is the interactive mode, we return the [ModuleIdx] of `0` because
     /// this assumption holds when the interactive mode starts up
     pub fn current_module(&self) -> ModuleIdx {
-        match self.module_or_interactive {
+        match self.module_index {
             ModuleOrInteractive::Module(idx) => idx,
-            ModuleOrInteractive::Interactive(_) => ModuleIdx(0),
+            ModuleOrInteractive::Interactive(_) => *INTERACTIVE_MODULE,
         }
     }
 
@@ -120,7 +120,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     }
 
     pub fn typecheck(mut self) -> TypecheckResult<TypeId> {
-        match self.module_or_interactive {
+        match self.module_index {
             ModuleOrInteractive::Module(module_idx) => {
                 let module = self
                     .global_tc

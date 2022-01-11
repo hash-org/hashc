@@ -86,12 +86,3 @@ pub struct SourceLocation {
     pub location: Location,
     pub module_index: ModuleIdx,
 }
-
-impl SourceLocation {
-    pub fn interactive() -> Self {
-        Self {
-            location: Location::pos(0),
-            module_index: ModuleIdx(0),
-        }
-    }
-}
