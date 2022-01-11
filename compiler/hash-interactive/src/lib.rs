@@ -8,7 +8,7 @@ use command::InteractiveCommand;
 use hash_alloc::Castle;
 use hash_ast::ast::{AstNode, BodyBlock};
 use hash_ast::count::NodeCount;
-use hash_ast::ident::IDENTIFIER_MAP;
+
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser};
 use hash_parser::backend::HashParser;

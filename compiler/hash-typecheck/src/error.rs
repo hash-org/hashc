@@ -1,4 +1,3 @@
-use crate::traits::TraitId;
 use crate::types::TypeId;
 use crate::{storage::GlobalStorage, writer::TypeWithStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};

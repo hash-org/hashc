@@ -1,7 +1,7 @@
 use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::traits::TraitId;
-use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, TypeStorage};
+use crate::types::{PrimType, TypeDefId, TypeId, TypeStorage, TypeValue};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_source::location::SourceLocation;
 use std::collections::HashMap;
