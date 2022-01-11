@@ -1,13 +1,15 @@
-use std::collections::{BTreeMap, HashMap};
-
-use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
-use hash_utils::counter;
-
 use crate::{
-    error::TypecheckResult,
-    types::{FnType, TypeId, TypeList, Types},
-    unify::{Substitution, Unifier},
+    error::{Symbol, TypecheckError, TypecheckResult},
+    storage::{GlobalStorage, ModuleStorage},
+    types::{TypeId, TypeList, TypeStorage},
+    unify::{Substitution, Unifier, UnifyStrategy},
+    writer::TypeWithStorage,
 };
+use hash_alloc::{collections::row::Row, row, Wall};
+use hash_source::location::SourceLocation;
+use hash_utils::counter;
+use std::cell::Cell;
+use std::collections::{BTreeMap, HashMap};
 
 counter! {
     name: TraitId,
@@ -25,13 +27,6 @@ impl<'c> TraitBounds<'c> {
     pub fn empty() -> Self {
         Self { bounds: row![] }
     }
-
-    // pub fn map(&self, f: impl FnMut(&TraitBound<'c>) -> TraitBound<'c>) -> Self {
-    //     TraitBounds {
-    //         data: Row::from_iter(self.data.iter().map(f), &self.wall),
-    //         wall: self.wall.clone(),
-    //     }
-    // }
 }
 
 #[derive(Debug)]
@@ -56,59 +51,9 @@ pub struct TraitImpl<'c> {
     pub bounds: TraitBounds<'c>,
 }
 
-impl<'c> TraitImpl<'c> {
-    pub fn can_resolve(&self, _fn_args: &TypeList<'c>, traits: &Traits) -> bool {
-        let _trt = traits.get(self.trait_id);
-        todo!()
-
-        // first, does it satisfy trait bounds?
-        // trait foo = <A, B, C, ...> => (A, C, int, B, ...) => (B, D, E, str, Map<B, E>, ...)
-        // let foo<Bar<X>, Car<Y>, Dar<Z>, ...> = (Bar<X>, Dar<Z>, ...) => (...)
-        //
-        // --- types: Bar<int>, Dar<Map<str, int>>, ...
-        // foo(new_bar(x), new_dar(z), ...)
-
-        // let unifier = Unifier::new(module_storage, global_storage)
-        //     .unify(target, source, UnifyStrategy::CheckOnly)
-        //     .is_ok();
-
-        // then, does it satisfy impl bounds?
-
-        // let substitutions = self.args.iter().zip(trt.args.iter()).
-    }
-
-    pub fn instantiate(
-        &self,
-        _fn_type: &FnType<'c>,
-        _unifier: &mut Unifier,
-        traits: &Traits,
-        _types: &mut Types<'c, '_>,
-        _wall: &Wall<'c>,
-    ) -> TypecheckResult<Substitution> {
-        let _trt = traits.get(self.trait_id);
-
-        // let base_sub = Substitution::from_vars(&trt.args, types);
-        // let impl_sub = Substitution::from_vars(&self.args, types);
-
-        // let base_subbed_args =
-
-        // let base_subbed_fn_type = base_sub.apply(trt.fn_type, types, unifier, wall);
-
-        // let impl_and_base_subbed_impl_args = self.args.iter().map(|&a| {
-        //     impl_sub
-        //         .clone()
-        //         .extend(&base_sub)
-        //         .apply(a, types, unifier, wall)
-        // });
-
-        // let impl_subbed_fn_type = impl_sub.apply(self.fn_type, types, unifier, wall);
-
-        todo!()
-    }
-}
-
 #[derive(Debug)]
 pub struct Trait<'c> {
+    pub id: TraitId,
     pub args: TypeList<'c>,
     pub bounds: TraitBounds<'c>,
     pub fn_type: TypeId,
@@ -116,50 +61,28 @@ pub struct Trait<'c> {
 
 #[derive(Debug)]
 pub struct ImplsForTrait<'c> {
-    _trt: TraitId,
-    _impls: BTreeMap<TraitImplId, TraitImpl<'c>>,
+    impls: BTreeMap<TraitImplId, &'c TraitImpl<'c>>,
 }
 
 impl<'c> ImplsForTrait<'c> {
-    pub fn resolve_call(&self, _fn_args: &[TypeId]) -> TraitImplId {
-        todo!();
-        // for (&impl_id, impl) in self.impls.iter() {
-        // }
-    }
-}
-
-#[derive(Debug)]
-pub struct TraitImpls<'c, 'w> {
-    data: HashMap<TraitId, ImplsForTrait<'c>>,
-    _wall: &'w Wall<'c>,
-}
-
-impl<'c, 'w> TraitImpls<'c, 'w> {
-    pub fn new(wall: &'w Wall<'c>) -> Self {
+    pub fn empty() -> Self {
         Self {
-            data: HashMap::new(),
-            _wall: wall,
+            impls: BTreeMap::new(),
         }
     }
 
-    pub fn for_trait(&self, trait_id: TraitId) -> &ImplsForTrait<'c> {
-        self.data.get(&trait_id).unwrap()
-    }
-
-    pub fn resolve_call(_trait_id: TraitId, _fn_args: &[TypeId]) -> TraitImplId {
-        // Should substitute given TypeIds with their correct version from the trait impl!
-
-        todo!()
+    pub fn iter(&self) -> impl Iterator<Item = (TraitImplId, &'c TraitImpl<'c>)> + '_ {
+        self.impls.iter().map(|(&a, &b)| (a, b))
     }
 }
 
 #[derive(Debug)]
-pub struct Traits<'c, 'w> {
-    data: HashMap<TraitId, Brick<'c, Trait<'c>>>,
+pub struct TraitImplStorage<'c, 'w> {
+    data: HashMap<TraitId, ImplsForTrait<'c>>,
     wall: &'w Wall<'c>,
 }
 
-impl<'c, 'w> Traits<'c, 'w> {
+impl<'c, 'w> TraitImplStorage<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self {
             data: HashMap::new(),
@@ -167,13 +90,65 @@ impl<'c, 'w> Traits<'c, 'w> {
         }
     }
 
-    pub fn get(&self, trait_id: TraitId) -> &Trait<'c> {
-        self.data.get(&trait_id).unwrap()
+    pub fn add_impl(&mut self, trait_id: TraitId, trait_impl: TraitImpl<'c>) -> TraitImplId {
+        let impls_for_trait = self
+            .data
+            .entry(trait_id)
+            .or_insert_with(ImplsForTrait::empty);
+        let id = TraitImplId::new();
+        impls_for_trait
+            .impls
+            .insert(id, self.wall.alloc_value(trait_impl));
+        id
     }
 
-    pub fn create(&mut self, trt: Trait<'c>) -> TraitId {
+    pub fn get_impls(&mut self, trait_id: TraitId) -> &ImplsForTrait<'c> {
+        self.data
+            .entry(trait_id)
+            .or_insert_with(ImplsForTrait::empty)
+    }
+
+    pub fn get_impls_mut(&mut self, trait_id: TraitId) -> &mut ImplsForTrait<'c> {
+        self.data
+            .entry(trait_id)
+            .or_insert_with(ImplsForTrait::empty)
+    }
+}
+
+#[derive(Debug)]
+pub struct TraitStorage<'c, 'w> {
+    data: HashMap<TraitId, Cell<&'c Trait<'c>>>,
+    wall: &'w Wall<'c>,
+}
+
+impl<'c, 'w> TraitStorage<'c, 'w> {
+    pub fn new(wall: &'w Wall<'c>) -> Self {
+        Self {
+            data: HashMap::new(),
+            wall,
+        }
+    }
+
+    pub fn get(&self, trait_id: TraitId) -> &'c Trait<'c> {
+        self.data.get(&trait_id).unwrap().get()
+    }
+
+    pub fn create(
+        &mut self,
+        args: TypeList<'c>,
+        bounds: TraitBounds<'c>,
+        fn_type: TypeId,
+    ) -> TraitId {
         let id = TraitId::new();
-        self.data.insert(id, Brick::new(trt, self.wall));
+        self.data.insert(
+            id,
+            Cell::new(self.wall.alloc_value(Trait {
+                id,
+                args,
+                bounds,
+                fn_type,
+            })),
+        );
         id
     }
 }
@@ -185,10 +160,136 @@ pub struct CoreTraits {
 }
 
 impl<'c, 'w> CoreTraits {
-    pub fn create(_types: &mut Types<'c, 'w>, _wall: &'w Wall<'c>) -> Self {
+    pub fn create(_types: &mut TypeStorage<'c, 'w>, _wall: &'w Wall<'c>) -> Self {
         CoreTraits {
             hash: TraitId::new(),
             eq: TraitId::new(),
         }
+    }
+}
+
+pub struct TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
+    module_storage: &'ms mut ModuleStorage,
+    global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
+}
+
+impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
+    pub fn new(
+        module_storage: &'ms mut ModuleStorage,
+        global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
+    ) -> Self {
+        Self {
+            module_storage,
+            global_storage,
+        }
+    }
+
+    fn unifier(&mut self) -> Unifier<'c, 'w, 'm, '_, '_> {
+        Unifier::new(self.module_storage, self.global_storage)
+    }
+
+    pub fn find_trait_impl(
+        &mut self,
+        trt: &Trait,
+        trait_args: &[TypeId],
+        fn_type: Option<TypeId>,
+        trt_symbol: impl FnOnce() -> Symbol,
+        args_location: Option<SourceLocation>,
+    ) -> TypecheckResult<Substitution> {
+        let mut trait_args = trait_args.to_owned();
+        if trait_args.is_empty() {
+            trait_args.extend(
+                trt.args
+                    .iter()
+                    .map(|_| self.global_storage.types.create_unknown_type()),
+            )
+        }
+
+        if trait_args.len() != trt.args.len() {
+            return Err(TypecheckError::TypeArgumentLengthMismatch {
+                location: args_location.or_else(|| trt_symbol().location()),
+                expected: trt.args.len(),
+                got: trait_args.len(),
+            });
+        }
+
+        // Resolve any remaining fn args
+        let mut unifier = self.unifier();
+        if let Some(fn_type) = fn_type {
+            let trait_vars_sub = unifier.instantiate_vars_list(&trt.args)?;
+            let instantiated_fn = unifier.apply_sub(&trait_vars_sub, fn_type)?;
+            unifier.unify(fn_type, instantiated_fn, UnifyStrategy::ModifyBoth)?;
+        }
+
+        // let mut last_err = None;
+
+        // @@Performance: we have to collect due to lifetime issues, this is not ideal.
+        let impls: Vec<_> = self
+            .global_storage
+            .trait_impls
+            .get_impls(trt.id)
+            .iter()
+            .collect();
+        for (_, trait_impl) in impls.iter() {
+            match self.match_trait_impl(trait_impl, &trait_args) {
+                Ok(matched) => return Ok(matched),
+                Err(_e) => {
+                    continue;
+                    // last_err.replace(e);
+                }
+            }
+        }
+        // @@Todo: better errors
+        Err(TypecheckError::NoMatchingTraitImplementations(trt_symbol()))
+    }
+
+    pub fn print_types(&self, types: &[TypeId]) {
+        print!("[");
+        for &a in types {
+            print!("{}, ", TypeWithStorage::new(a, self.global_storage));
+        }
+        println!("]");
+    }
+
+    pub fn match_trait_impl(
+        &mut self,
+        trait_impl: &TraitImpl,
+        _trait_args: &[TypeId],
+    ) -> TypecheckResult<Substitution> {
+        let trt = self.global_storage.traits.get(trait_impl.trait_id);
+
+        // @@Ambiguity: for now let's assume all type variables in here are new
+        let impl_vars: Vec<_> = trait_impl
+            .args
+            .iter()
+            .flat_map(|&arg| {
+                let arg_ty = self.global_storage.types.get(arg);
+
+                arg_ty.fold_type_ids(vec![], |mut vars, ty_id| {
+                    match self.global_storage.types.get(ty_id) {
+                        crate::types::TypeValue::Var(_) => {
+                            vars.push(ty_id);
+                            vars
+                        }
+                        _ => vars,
+                    }
+                })
+            })
+            .collect();
+
+        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
+        let trait_args_sub = unifier.instantiate_vars_list(&trt.args)?;
+        let trait_impl_args_sub =
+            unifier.instantiate_vars_for_list(&trait_impl.args, &impl_vars)?;
+
+        let _trait_args_instantiated =
+            unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
+        let _trait_impl_args_instantiated =
+            unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args)?;
+        // self.print_types(&trait_args_instantiated);
+        // self.print_types(&trait_impl_args_instantiated);
+
+        let merged_sub = trait_args_sub.merge(trait_impl_args_sub);
+        Ok(merged_sub)
     }
 }

@@ -1,10 +1,11 @@
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, ModuleStorage};
-use crate::traits::{TraitBounds, TraitId, Traits};
+use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
-    StructDef, StructFields, TupleType, TypeDefs, TypeId, TypeValue, TypeVars, Types, UnknownType,
+    StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
+    TypeVarMode, TypeVars, UnknownType,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -14,8 +15,9 @@ use crate::{
 };
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
+use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
+use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
-use hash_ast::{ast, ident::Identifier};
 use hash_ast::{module::Modules, visitor, visitor::walk};
 use hash_source::{
     location::{Location, SourceLocation},
@@ -112,6 +114,10 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         }
     }
 
+    pub fn some_source_location(&self, location: Location) -> Option<SourceLocation> {
+        Some(self.source_location(location))
+    }
+
     pub fn source_location(&self, location: Location) -> SourceLocation {
         SourceLocation {
             location,
@@ -137,19 +143,31 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         self.global_tc.global_storage.types.create(value, location)
     }
 
-    fn _traits(&self) -> &Traits<'c, 'w> {
+    fn traits(&self) -> &TraitStorage<'c, 'w> {
         &self.global_tc.global_storage.traits
     }
 
-    fn types(&self) -> &Types<'c, 'w> {
+    fn traits_mut(&mut self) -> &mut TraitStorage<'c, 'w> {
+        &mut self.global_tc.global_storage.traits
+    }
+
+    fn trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
+        &mut self.global_tc.global_storage.trait_impls
+    }
+
+    fn trait_helper(&mut self) -> TraitHelper<'c, 'w, 'm, '_, '_> {
+        TraitHelper::new(&mut self.module_storage, &mut self.global_tc.global_storage)
+    }
+
+    fn types(&self) -> &TypeStorage<'c, 'w> {
         &self.global_tc.global_storage.types
     }
 
-    fn type_defs(&self) -> &TypeDefs<'c, 'w> {
+    fn type_defs(&self) -> &TypeDefStorage<'c, 'w> {
         &self.global_tc.global_storage.type_defs
     }
 
-    fn type_defs_mut(&mut self) -> &mut TypeDefs<'c, 'w> {
+    fn type_defs_mut(&mut self) -> &mut TypeDefStorage<'c, 'w> {
         &mut self.global_tc.global_storage.type_defs
     }
 
@@ -314,19 +332,50 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     type VariableExprRet = TypeId;
     fn visit_variable_expr(
         &mut self,
-        _ctx: &Self::Ctx,
+        ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let loc = self.source_location(node.location());
-
         match self.resolve_compound_symbol(&node.name.path, loc)? {
-            SymbolType::Variable(var_ty_id) => Ok(var_ty_id),
-            SymbolType::Type(_) | SymbolType::TypeDef(_) => {
-                Err(TypecheckError::UsingTypeInVariablePos(Symbol::Compound {
-                    path: node.name.path.to_owned(),
-                    location: Some(loc),
-                }))
+            SymbolType::Variable(var_ty_id) => {
+                if !node.type_args.is_empty() {
+                    Err(TypecheckError::TypeArgumentLengthMismatch {
+                        expected: 0,
+                        got: node.type_args.len(),
+                        // It is not empty, as checked above.
+                        location: self.some_source_location(node.type_args.location().unwrap()),
+                    })
+                } else {
+                    Ok(var_ty_id)
+                }
             }
+            SymbolType::Trait(var_trait_id) => {
+                let trt = self.traits().get(var_trait_id);
+                let args: Vec<_> = node
+                    .type_args
+                    .iter()
+                    .map(|a| self.visit_type(ctx, a.ast_ref()))
+                    .collect::<Result<_, _>>()?;
+                let trt_name_location = self.some_source_location(node.name.location());
+                let trt_symbol = || Symbol::Compound {
+                    location: trt_name_location,
+                    path: node.name.path.to_owned(),
+                };
+                let type_args_location = node.type_args.location().map(|l| self.source_location(l));
+                let trt_impl_sub = self.trait_helper().find_trait_impl(
+                    trt,
+                    &args,
+                    None,
+                    trt_symbol,
+                    type_args_location,
+                )?;
+                let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type)?;
+                Ok(subbed_fn_type)
+            }
+            _ => Err(TypecheckError::SymbolIsNotAVariable(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(loc),
+            })),
         }
     }
 
@@ -362,6 +411,8 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
 
         let args_ty_location = self.source_location(node.body().args.location());
 
+        // Todo: here specialise trait resolution in order to be able to do more inference (from
+        // args)
         let ret_ty = self.create_unknown_type();
         let expected_fn_ty = self.create_type(
             TypeValue::Fn(FnType {
@@ -512,8 +563,27 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        let location = self.source_location(node.location());
+        // @@Hack: ast names functions as Function, which is not ideal
+        match &node.name.path[..] {
+            [x] if *x == IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME) => {
+                let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
+                if let [args @ .., ret] = &type_args[..] {
+                    return Ok(self.create_type(
+                        TypeValue::Fn(FnType {
+                            args: Row::from_iter(args.iter().copied(), self.wall()),
+                            ret: *ret,
+                        }),
+                        self.some_source_location(node.location()),
+                    ));
+                } else {
+                    // Will always have at least one arg.
+                    unreachable!()
+                }
+            }
+            _ => {}
+        }
 
+        let location = self.source_location(node.location());
         match self.resolve_compound_symbol(&node.name.path, location)? {
             SymbolType::Type(ty_id) => Ok(ty_id),
             SymbolType::TypeDef(def_id) => {
@@ -527,7 +597,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                         let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
                         let instantiated_args = self
                             .unifier()
-                            .apply_sub_to_list_make_vec(&args_sub, &generics.params);
+                            .apply_sub_to_list_make_vec(&args_sub, &generics.params)?;
 
                         self.unifier().unify_pairs(
                             type_args.iter().zip(instantiated_args.iter()),
@@ -544,12 +614,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     }
                 }
             }
-            SymbolType::Variable(_) => {
-                Err(TypecheckError::UsingVariableInTypePos(Symbol::Compound {
-                    path: node.name.path.to_owned(),
-                    location: Some(location),
-                }))
-            }
+            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(location),
+            })),
         }
     }
 
@@ -582,13 +650,24 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
-        Ok(self.create_type(
-            TypeValue::Var(TypeVar {
-                name: node.name.ident,
-            }),
-            Some(ty_location),
-        ))
+        let ty_location = self.some_source_location(node.location());
+        let var = TypeVar {
+            name: node.name.ident,
+        };
+        if self.tc_state().in_bound_def {
+            Ok(self.create_type(TypeValue::Var(var), ty_location))
+        } else {
+            match self.module_storage.type_vars.find_type_var(var) {
+                Some((_, TypeVarMode::Bound)) => {
+                    Ok(self.create_type(TypeValue::Var(var), ty_location))
+                }
+                Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
+                None => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                    symbol: var.name,
+                    location: ty_location,
+                })),
+            }
+        }
     }
 
     type ExistentialTypeRet = TypeId;
@@ -745,12 +824,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
 
         match symbol_res {
-            SymbolType::Variable(_) => {
-                Err(TypecheckError::UsingVariableInTypePos(Symbol::Compound {
-                    path: node.name.path.to_owned(),
-                    location: Some(location),
-                }))
-            }
             SymbolType::TypeDef(def_id) => {
                 let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
@@ -790,6 +863,10 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
                     }),
                 }
             }
+            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(location),
+            })),
         }
     }
 
@@ -1032,35 +1109,75 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LetStatement<'c>>,
     ) -> Result<Self::LetStatementRet, Self::Error> {
-        let walk::LetStatement {
-            pattern: pattern_ty,
-            ty: annot_maybe_ty,
-            bound: _,
-            value: value_maybe_ty,
-        } = walk::walk_let_statement(self, ctx, node)?;
-        // if pattern_result.is_refutable {
-        //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
-        // }
+        if let Some(bound) = &node.bound {
+            // This is a trait implementation
+            match node.pattern.body() {
+                ast::Pattern::Binding(ast::BindingPattern(name)) => {
+                    let name_location = self.some_source_location(name.location());
+                    let name_symbol = || Symbol::Single {
+                        symbol: name.ident,
+                        location: name_location,
+                    };
+                    match self.scopes().resolve_symbol(name.ident) {
+                        Some(SymbolType::Trait(trait_id)) => {
+                            if let Some(ref node_ty) = node.ty {
+                                return Err(TypecheckError::TypeAnnotationNotAllowedInTraitImpl(
+                                    self.source_location(node_ty.location()),
+                                ));
+                            }
 
-        // @@Todo: bounds
-        let annotation_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
-        let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+                            let type_args = self.visit_bound(ctx, bound.ast_ref())?;
+                            // @@Todo bounds
+                            self.trait_impls_mut().add_impl(
+                                trait_id,
+                                TraitImpl {
+                                    trait_id,
+                                    bounds: TraitBounds::empty(),
+                                    args: type_args,
+                                },
+                            );
 
-        // add type location information on  pattern_ty and annotation_ty
-        if let Some(annotation) = &node.body().ty {
-            let location = self.source_location(annotation.location());
-            self.add_location_to_ty(annotation_ty, location);
+                            Ok(())
+                        }
+                        Some(_) => Err(TypecheckError::SymbolIsNotATrait(name_symbol())),
+                        None => Err(TypecheckError::TraitDefinitionNotFound(name_symbol())),
+                    }
+                }
+                _ => Err(TypecheckError::ExpectingBindingForTraitImpl(
+                    self.source_location(node.pattern.location()),
+                )),
+            }
+        } else {
+            let walk::LetStatement {
+                pattern: pattern_ty,
+                ty: annot_maybe_ty,
+                bound: _,
+                value: value_maybe_ty,
+            } = walk::walk_let_statement(self, ctx, node)?;
+            // if pattern_result.is_refutable {
+            //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
+            // }
+
+            // @@Todo: bounds
+            let annotation_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+            let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+
+            // add type location information on  pattern_ty and annotation_ty
+            if let Some(annotation) = &node.body().ty {
+                let location = self.source_location(annotation.location());
+                self.add_location_to_ty(annotation_ty, location);
+            }
+
+            let pattern_location = self.source_location(node.body().pattern.location());
+            self.add_location_to_ty(pattern_ty, pattern_location);
+
+            self.unifier().unify_many(
+                [annotation_ty, value_ty, pattern_ty].into_iter(),
+                UnifyStrategy::ModifyBoth,
+            )?;
+
+            Ok(())
         }
-
-        let pattern_location = self.source_location(node.body().pattern.location());
-        self.add_location_to_ty(pattern_ty, pattern_location);
-
-        self.unifier().unify_many(
-            [annotation_ty, value_ty, pattern_ty].into_iter(),
-            UnifyStrategy::ModifyBoth,
-        )?;
-
-        Ok(())
     }
 
     type AssignStatementRet = ();
@@ -1167,7 +1284,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type EnumDefEntryRet = ();
-
     fn visit_enum_def_entry(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1177,7 +1293,6 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type EnumDefRet = ();
-
     fn visit_enum_def(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1187,13 +1302,28 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
     }
 
     type TraitDefRet = ();
-
     fn visit_trait_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TraitDef<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitDef<'c>>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        todo!()
+        let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
+        let type_var_bound =
+            self.type_var_only_bound(&bound, self.source_location(node.bound.location()))?;
+        let scope_key = self
+            .type_vars_mut()
+            .enter_bounded_type_var_scope(type_var_bound.iter().copied());
+        let fn_type = self.visit_type(ctx, node.trait_type.ast_ref())?;
+        self.type_vars_mut().exit_type_var_scope(scope_key);
+
+        // @@Todo trait bounds
+        let trait_id = self
+            .traits_mut()
+            .create(bound, TraitBounds::empty(), fn_type);
+        self.scopes()
+            .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
+
+        Ok(())
     }
 
     type PatternRet = TypeId;
@@ -1205,21 +1335,27 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TraitBoundRet = TraitId;
+    type TraitBoundRet = (TraitId, Vec<TypeId>);
     fn visit_trait_bound(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitBound<'c>>,
     ) -> Result<Self::TraitBoundRet, Self::Error> {
-        let walk::TraitBound {
-            name: _,
-            type_args: _,
-        } = walk::walk_trait_bound(self, ctx, node)?;
-        todo!()
-        // match self.traits().get(trait_id) {}
-
-        // @@Todo
-        // Ok(())
+        let name_loc = self.source_location(node.name.location());
+        match self.resolve_compound_symbol(&node.name.path, name_loc)? {
+            SymbolType::Trait(trait_id) => {
+                let type_args: Vec<_> = node
+                    .type_args
+                    .iter()
+                    .map(|arg| self.visit_type(ctx, arg.ast_ref()))
+                    .collect::<Result<_, _>>()?;
+                Ok((trait_id, type_args))
+            }
+            _ => Err(TypecheckError::SymbolIsNotATrait(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(name_loc),
+            })),
+        }
     }
 
     type BoundRet = Row<'c, TypeId>;
@@ -1228,10 +1364,12 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Bound<'c>>,
     ) -> Result<Self::BoundRet, Self::Error> {
+        self.tc_state().in_bound_def = true;
         let walk::Bound {
             type_args,
             trait_bounds: _,
         } = walk::walk_bound(self, ctx, node)?;
+        self.tc_state().in_bound_def = false;
 
         // @@Todo: bounds
         Ok(type_args)
@@ -1476,7 +1614,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         // unknown.
         let mut unifier = self.unifier();
         let vars_sub = unifier.instantiate_vars_list(&generics.params)?;
-        let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params);
+        let instantiated_vars = unifier.apply_sub_to_list_make_row(&vars_sub, &generics.params)?;
         let ty_id = self.create_type(
             TypeValue::User(UserType {
                 def_id,
@@ -1486,5 +1624,21 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         );
 
         Ok((ty_id, vars_sub))
+    }
+
+    fn type_var_only_bound(
+        &self,
+        bound: &[TypeId],
+        bound_location: SourceLocation,
+    ) -> TypecheckResult<Vec<TypeVar>> {
+        bound
+            .iter()
+            .map(|ty_id| match self.types().get(*ty_id) {
+                TypeValue::Var(var) => Ok(*var),
+                _ => Err(TypecheckError::BoundRequiresStrictlyTypeVars(
+                    bound_location,
+                )),
+            })
+            .collect()
     }
 }
