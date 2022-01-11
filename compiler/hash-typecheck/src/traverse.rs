@@ -1455,7 +1455,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
                         ty_def_location: ty_def.location,
                         ty_def_name: *name,
                         field_name: entry_name,
-                        location: self.source_location(entry.location()), // @@Correctness: use location of struct field rather than struct def...
+                        location: self.source_location(entry.location()),
                     });
                 }
             }
