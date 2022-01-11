@@ -149,12 +149,12 @@ impl ReportCodeBlock {
     }
 
     // Get the indent widths of this code block as (outer, inner).
-    fn info(&self, modules: &SourceMap) -> ReportCodeBlockInfo {
+    fn info<T: SourceMap>(&self, modules: &T) -> ReportCodeBlockInfo {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let module = modules.get(self.source_location.module_index);
-                let source = module.content();
+                let index = self.source_location.module_index;
+                let source = modules.contents_by_index(index);
 
                 let location = self.source_location.location;
 
@@ -179,10 +179,10 @@ impl ReportCodeBlock {
 
     /// Function to render the [ReportCodeBlock] using the provided [SourceLocation], message and
     /// [ReportKind].
-    fn render(
+    fn render<T: SourceMap>(
         &self,
         f: &mut fmt::Formatter,
-        modules: &SourceMap,
+        modules: &T,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -191,8 +191,8 @@ impl ReportCodeBlock {
         // or equivalent unicode character.
         //
         // Print a few lines before and after location/code_message.
-        let module = modules.get(self.source_location.module_index);
-        let source = module.content();
+        let index = self.source_location.module_index;
+        let source = modules.contents_by_index(index);
         let ReportCodeBlockInfo {
             start_row,
             end_row,
@@ -223,7 +223,7 @@ impl ReportCodeBlock {
                 Modifier::Underline,
                 format!(
                     "{}:{}:{}",
-                    module.filename().to_string_lossy(),
+                    modules.path_by_index(index).to_string_lossy(),
                     start_row + 1,
                     start_col + 1,
                 )
@@ -292,10 +292,10 @@ pub enum ReportElement {
 }
 
 impl ReportElement {
-    fn render(
+    fn render<T: SourceMap>(
         &self,
         f: &mut fmt::Formatter,
-        modules: &SourceMap,
+        modules: &T,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -387,18 +387,18 @@ impl ReportBuilder {
 /// General data type for displaying [Report]s. This is needed due to the
 /// [Report] rendering process needing access to the program modules to get
 /// access to the source code.
-pub struct ReportWriter<'m> {
+pub struct ReportWriter<'m, T: SourceMap> {
     report: Report,
-    modules: &'m SourceMap,
+    modules: &'m T,
 }
 
-impl<'m> ReportWriter<'m> {
-    pub fn new(report: Report, modules: &'m SourceMap) -> Self {
+impl<'m, T: SourceMap> ReportWriter<'m, T> {
+    pub fn new(report: Report, modules: &'m T) -> Self {
         Self { report, modules }
     }
 }
 
-impl fmt::Display for ReportWriter<'_> {
+impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Add the optional error code to the general message...
         let error_code_fmt = match self.report.error_code {
