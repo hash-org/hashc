@@ -4,12 +4,13 @@ use crate::{
     scope::ScopeStack,
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
-use hash_alloc::{brick::Brick, collections::row::Row, row, Wall};
+use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_source::location::SourceLocation;
 use hash_utils::counter;
 use slotmap::{new_key_type, SlotMap};
+use std::hash::Hash;
 use std::{cell::Cell, collections::HashMap, ptr};
-use std::{collections::HashSet, hash::Hash};
 
 #[derive(Debug)]
 pub struct Generics<'c> {
@@ -68,7 +69,7 @@ impl StructFields {
     }
 
     pub fn get_field(&self, field: Identifier) -> Option<TypeId> {
-        self.data.get(&field).map(|&t| t)
+        self.data.get(&field).copied()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Identifier, TypeId)> + '_ {
@@ -92,9 +93,15 @@ pub struct StructDef<'c> {
 }
 
 #[derive(Debug)]
-pub enum TypeDefValue<'c> {
+pub enum TypeDefValueKind<'c> {
     Enum(EnumDef<'c>),
     Struct(StructDef<'c>),
+}
+
+#[derive(Debug)]
+pub struct TypeDefValue<'c> {
+    pub kind: TypeDefValueKind<'c>,
+    pub location: Option<SourceLocation>,
 }
 
 counter! {
@@ -196,6 +203,7 @@ pub enum TypeValue<'c> {
 }
 
 impl<'c> TypeValue<'c> {
+    #[must_use]
     pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
     where
         F: FnMut(TypeId) -> TypeId,
@@ -278,56 +286,68 @@ impl<'c, 'w> CoreTypeDefs {
         core_traits: &CoreTraits,
         wall: &'w Wall<'c>,
     ) -> Self {
-        let str = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("str"),
-            generics: Generics::empty(),
-            fields: StructFields::no_fields(),
-        }));
+        let str = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("str"),
+                generics: Generics::empty(),
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         let map_key = types.create_type_var("K");
         let map_value = types.create_type_var("V");
-        let map = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("Map"),
-            generics: Generics {
-                params: row![wall; map_key, map_value],
-                bounds: TraitBounds {
-                    bounds: Row::from_iter(
-                        [
-                            TraitBound {
-                                trt: core_traits.hash,
-                                params: Row::from_iter([map_key], wall),
-                            },
-                            TraitBound {
-                                trt: core_traits.eq,
-                                params: Row::from_iter([map_key], wall),
-                            },
-                        ],
-                        wall,
-                    ),
+        let map = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("Map"),
+                generics: Generics {
+                    params: row![wall; map_key, map_value],
+                    bounds: TraitBounds {
+                        bounds: Row::from_iter(
+                            [
+                                TraitBound {
+                                    trt: core_traits.hash,
+                                    params: Row::from_iter([map_key], wall),
+                                },
+                                TraitBound {
+                                    trt: core_traits.eq,
+                                    params: Row::from_iter([map_key], wall),
+                                },
+                            ],
+                            wall,
+                        ),
+                    },
                 },
-            },
-            fields: StructFields::no_fields(),
-        }));
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         let list_el = types.create_type_var("T");
-        let list = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("List"),
-            generics: Generics {
-                params: row![wall; list_el],
-                bounds: TraitBounds::empty(),
-            },
-            fields: StructFields::no_fields(),
-        }));
+        let list = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("List"),
+                generics: Generics {
+                    params: row![wall; list_el],
+                    bounds: TraitBounds::empty(),
+                },
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         let set_el = types.create_type_var("T");
-        let set = type_defs.create(TypeDefValue::Struct(StructDef {
-            name: IDENTIFIER_MAP.create_ident("Set"),
-            generics: Generics {
-                params: row![wall; set_el],
-                bounds: TraitBounds::empty(),
-            },
-            fields: StructFields::no_fields(),
-        }));
+        let set = type_defs.create(
+            TypeDefValueKind::Struct(StructDef {
+                name: IDENTIFIER_MAP.create_ident("Set"),
+                generics: Generics {
+                    params: row![wall; set_el],
+                    bounds: TraitBounds::empty(),
+                },
+                fields: StructFields::no_fields(),
+            }),
+            None,
+        );
 
         Self {
             str,
@@ -353,28 +373,57 @@ impl<'c, 'w> TypeDefs<'c, 'w> {
     }
 
     pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue<'c> {
-        &self.data.get(&ty_def).unwrap().get()
+        self.data.get(&ty_def).unwrap().get()
     }
 
-    pub fn create(&mut self, def: TypeDefValue<'c>) -> TypeDefId {
+    pub fn create(
+        &mut self,
+        def: TypeDefValueKind<'c>,
+        location: Option<SourceLocation>,
+    ) -> TypeDefId {
         let id = TypeDefId::new();
-        self.data.insert(id, Cell::new(self.wall.alloc_value(def)));
+        self.data.insert(
+            id,
+            Cell::new(self.wall.alloc_value(TypeDefValue {
+                kind: def,
+                location,
+            })),
+        );
         id
     }
 }
 
 new_key_type! { pub struct TypeId; }
 
+#[derive(Debug, Default)]
+pub struct TypeLocation {
+    data: HashMap<TypeId, SourceLocation>,
+}
+
+impl TypeLocation {
+    pub fn get_location(&self, id: TypeId) -> Option<&SourceLocation> {
+        self.data.get(&id)
+    }
+
+    pub fn add_location(&mut self, id: TypeId, location: SourceLocation) {
+        self.data.insert(id, location);
+    }
+}
+
 #[derive(Debug)]
 pub struct Types<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
+    location_map: TypeLocation,
     wall: &'w Wall<'c>,
 }
 
 impl<'c, 'w> Types<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
+        let location_map = TypeLocation::default();
+
         Self {
             data: SlotMap::with_key(),
+            location_map,
             wall,
         }
     }
@@ -382,6 +431,10 @@ impl<'c, 'w> Types<'c, 'w> {
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
         // @@Todo: resolve type variables bro!
         self.data.get(ty).unwrap().get()
+    }
+
+    pub fn get_location(&self, ty: TypeId) -> Option<&SourceLocation> {
+        self.location_map.get_location(ty)
     }
 
     pub fn set(&self, target: TypeId, source: TypeId) {
@@ -396,11 +449,11 @@ impl<'c, 'w> Types<'c, 'w> {
         match self.get(ty) {
             TypeValue::Ref(RefType { inner }) => {
                 let inner = self.duplicate(*inner);
-                self.create(TypeValue::Ref(RefType { inner }))
+                self.create(TypeValue::Ref(RefType { inner }), None)
             }
             TypeValue::RawRef(RawRefType { inner }) => {
                 let inner = self.duplicate(*inner);
-                self.create(TypeValue::RawRef(RawRefType { inner }))
+                self.create(TypeValue::RawRef(RawRefType { inner }), None)
             }
             TypeValue::Fn(_) => todo!(),
             TypeValue::Var(_) => todo!(),
@@ -412,18 +465,31 @@ impl<'c, 'w> Types<'c, 'w> {
         }
     }
 
+    pub fn add_location(&mut self, ty: TypeId, location: SourceLocation) {
+        self.location_map.add_location(ty, location);
+    }
+
     pub fn create_type_var(&mut self, name: &str) -> TypeId {
-        self.create(TypeValue::Var(TypeVar {
-            name: IDENTIFIER_MAP.create_ident(name),
-        }))
+        self.create(
+            TypeValue::Var(TypeVar {
+                name: IDENTIFIER_MAP.create_ident(name),
+            }),
+            None,
+        )
     }
 
     pub fn create_unknown_type(&mut self) -> TypeId {
-        self.create(TypeValue::Unknown(UnknownType::unbounded()))
+        self.create(TypeValue::Unknown(UnknownType::unbounded()), None)
     }
 
-    pub fn create(&mut self, value: TypeValue<'c>) -> TypeId {
-        self.data.insert(Cell::new(self.wall.alloc_value(value)))
+    pub fn create(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
+        let id = self.data.insert(Cell::new(self.wall.alloc_value(value)));
+
+        if let Some(location) = location {
+            self.location_map.add_location(id, location);
+        }
+
+        id
     }
 }
 

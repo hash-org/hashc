@@ -1,11 +1,11 @@
 use hash_alloc::collections::row::Row;
 
 use crate::{
-    error::{TypecheckError, TypecheckResult},
+    error::{Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{self, RawRefType, RefType, TupleType, TypeId, TypeValue, UserType},
 };
-use std::{borrow::Borrow, slice::SliceIndex};
+use std::borrow::Borrow;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnifyStrategy {
@@ -81,8 +81,9 @@ impl<'c> Substitution {
         Self { subs: Vec::new() }
     }
 
+    #[must_use]
     pub fn merge(mut self, other: impl Borrow<Substitution>) -> Self {
-        self.subs.extend(other.borrow().subs.iter().map(|x| *x));
+        self.subs.extend(other.borrow().subs.iter().copied());
         self
     }
 
@@ -136,7 +137,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
         strategy: UnifyStrategy,
     ) -> TypecheckResult<()> {
-        let strategy = strategy.into();
+        let strategy = strategy;
         for (a, b) in pairs {
             let a_ty = *a.borrow();
             let b_ty = *b.borrow();
@@ -248,7 +249,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
             .get(curr_ty)
             .map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall);
 
-        self.global_storage.types.create(new_ty_value)
+        self.global_storage.types.create(new_ty_value, None)
     }
 
     pub fn unify(
@@ -332,8 +333,14 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
                         Ok(())
                     }
                     (Some(_), Some(_)) => Err(TypecheckError::TypeMismatch(target, source)),
-                    (None, _) => Err(TypecheckError::UnresolvedSymbol(vec![var_a.name])),
-                    (_, None) => Err(TypecheckError::UnresolvedSymbol(vec![var_b.name])),
+                    (None, _) => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                        symbol: var_a.name,
+                        location: None, // @@Temporary
+                    })),
+                    (_, None) => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                        symbol: var_b.name,
+                        location: None, // @@Temporary
+                    })),
                 }
             }
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {

@@ -1,7 +1,8 @@
-use crate::error::{TypecheckError, TypecheckResult};
+use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::types::{PrimType, TypeDefId, TypeId, TypeValue, Types};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_source::location::SourceLocation;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,68 +26,120 @@ impl Scope {
             SymbolType::Type(
                 global_storage
                     .types
-                    .create(TypeValue::Prim(PrimType::USize)),
+                    .create(TypeValue::Prim(PrimType::USize), None),
             ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("bool"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::Bool))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::Bool), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u8"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U8))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U8), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u16"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U16))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U16), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u32"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U32))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U32), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u64"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::U64))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::U64), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("isize"),
             SymbolType::Type(
                 global_storage
                     .types
-                    .create(TypeValue::Prim(PrimType::ISize)),
+                    .create(TypeValue::Prim(PrimType::ISize), None),
             ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i8"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I8))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I8), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i16"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I16))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I16), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i32"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I32))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I32), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("i64"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::I64))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::I64), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("f32"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::F32))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::F32), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("f64"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::F64))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::F64), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("char"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::Char))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::Char), None),
+            ),
         );
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("void"),
-            SymbolType::Type(global_storage.types.create(TypeValue::Prim(PrimType::Void))),
+            SymbolType::Type(
+                global_storage
+                    .types
+                    .create(TypeValue::Prim(PrimType::Void), None),
+            ),
         );
 
         scope.add_symbol(
@@ -117,7 +170,7 @@ impl Scope {
     }
 
     pub fn resolve_symbol(&self, symbol: Identifier) -> Option<SymbolType> {
-        self.symbols.get(&symbol).map(|&s| s)
+        self.symbols.get(&symbol).copied()
     }
 
     pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: SymbolType) {
@@ -197,6 +250,7 @@ pub fn resolve_compound_symbol(
     scopes: &ScopeStack,
     types: &Types,
     symbols: &[Identifier],
+    location: SourceLocation,
 ) -> TypecheckResult<SymbolType> {
     let mut last_scope = scopes;
     let mut symbols_iter = symbols.iter().enumerate().peekable();
@@ -214,7 +268,10 @@ pub fn resolve_compound_symbol(
                     }
                     _ if symbols_iter.peek().is_some() => {
                         return Err(TypecheckError::TryingToNamespaceVariable(
-                            symbols[..=i].to_owned(),
+                            Symbol::Compound {
+                                path: symbols[..=i].to_owned(),
+                                location: Some(location),
+                            },
                         ));
                     }
                     _ => {
@@ -222,14 +279,20 @@ pub fn resolve_compound_symbol(
                     }
                 },
                 Some(_) if symbols_iter.peek().is_some() => {
-                    return Err(TypecheckError::TryingToNamespaceType(
-                        symbols[..=i].to_owned(),
-                    ));
+                    return Err(TypecheckError::TryingToNamespaceType(Symbol::Compound {
+                        path: symbols[..=i].to_owned(),
+                        location: Some(location),
+                    }));
                 }
                 Some(symbol_ty) => {
                     return Ok(symbol_ty);
                 }
-                None => return Err(TypecheckError::UnresolvedSymbol(symbols[..=i].to_owned())),
+                None => {
+                    return Err(TypecheckError::UnresolvedSymbol(Symbol::Compound {
+                        path: symbols[..=i].to_owned(),
+                        location: Some(location),
+                    }))
+                }
             },
             None => unreachable!(),
         }

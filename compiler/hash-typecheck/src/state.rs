@@ -1,4 +1,5 @@
-use hash_ast::module::ModuleIdx;
+use hash_source::module::ModuleIdx;
+
 use crate::types::TypeId;
 
 #[derive(Debug)]
@@ -15,7 +16,7 @@ impl Default for TypecheckState {
             in_loop: false,
             ret_once: false,
             func_ret_type: None,
-            current_module: ModuleIdx(0),
+            current_module: ModuleIdx(0), // @@TODO: don't rely on the default module index being 0
         }
     }
 }
