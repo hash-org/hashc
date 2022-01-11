@@ -12,7 +12,7 @@ use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
-use hash_ast::location::Location;
+use hash_source::location::Location;
 
 use crate::error::TokenError;
 
@@ -58,7 +58,7 @@ impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TokenKind::Ident(ident) => {
-                write!(f, "Ident ({})", IDENTIFIER_MAP.ident_name(*ident))
+                write!(f, "Ident ({})", IDENTIFIER_MAP.get_ident(*ident))
             }
             TokenKind::StrLiteral(literal) => {
                 write!(
@@ -305,7 +305,7 @@ impl fmt::Display for TokenKind {
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),
             TokenKind::Ident(ident) => {
-                write!(f, "{}", IDENTIFIER_MAP.ident_name(*ident))
+                write!(f, "{}", IDENTIFIER_MAP.get_ident(*ident))
             }
         }
     }

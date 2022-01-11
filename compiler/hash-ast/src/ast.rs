@@ -4,11 +4,10 @@
 
 use crate::ident::Identifier;
 use crate::literal::StringLiteral;
-use crate::location::Location;
-use crate::module::ModuleIdx;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
-use hash_alloc::Wall;
+use hash_alloc::{row, Wall};
+use hash_source::{location::Location, module::ModuleIdx};
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -104,9 +103,9 @@ pub struct AstNodeRef<'t, T> {
 impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
         Self {
-            body: self.body.clone(),
-            location: self.location.clone(),
-            id: self.id.clone(),
+            body: self.body,
+            location: self.location,
+            id: self.id,
         }
     }
 }
@@ -146,7 +145,61 @@ impl<T> Deref for AstNodeRef<'_, T> {
     }
 }
 
-pub type AstNodes<'c, T> = Row<'c, AstNode<'c, T>>;
+#[derive(Debug, PartialEq)]
+pub struct AstNodes<'c, T> {
+    pub nodes: Row<'c, AstNode<'c, T>>,
+}
+
+#[macro_export]
+macro_rules! ast_nodes {
+    () => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new())
+    };
+    ($wall:expr) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new())
+    };
+    ($wall:expr; $($item:expr),*) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall))
+    };
+    ($wall:expr; $($item:expr,)*) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall))
+    };
+    ($wall:expr; $item:expr; $count:expr) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter(std::iter::repeat($item).take($count), $wall))
+    };
+}
+
+impl<'c, T> AstNodes<'c, T> {
+    pub fn empty() -> Self {
+        Self { nodes: row![] }
+    }
+
+    pub fn new(nodes: Row<'c, AstNode<'c, T>>) -> Self {
+        Self { nodes }
+    }
+
+    // @@TODO: Maybe this should always return a Location, its parent.
+    pub fn location(&self) -> Option<Location> {
+        Some(
+            self.nodes
+                .first()?
+                .location()
+                .join(self.nodes.last()?.location()),
+        )
+    }
+}
+
+impl<'c, T> Deref for AstNodes<'c, T> {
+    type Target = [AstNode<'c, T>];
+    fn deref(&self) -> &Self::Target {
+        &*self.nodes
+    }
+}
+impl<'c, T> DerefMut for AstNodes<'c, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.nodes
+    }
+}
 
 /// [AstNode] dereferences to its inner `body` type.
 impl<T> Deref for AstNode<'_, T> {

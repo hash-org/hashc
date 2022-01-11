@@ -2,8 +2,8 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use hash_ast::{
-    error::{ImportError, ParseError},
+use hash_ast::error::{ImportError, ParseError};
+use hash_source::{
     location::{Location, SourceLocation},
     module::ModuleIdx,
 };

@@ -1,7 +1,7 @@
 use hash_alloc::collections::row::Row;
 
 use crate::{
-    error::{TypecheckError, TypecheckResult},
+    error::{Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, ModuleStorage},
     types::{self, RawRefType, RefType, TupleType, TypeId, TypeValue, UserType},
     writer::TypeWithStorage,
@@ -51,8 +51,9 @@ impl<'c> Substitution {
         Self { subs: Vec::new() }
     }
 
+    #[must_use]
     pub fn merge(mut self, other: impl Borrow<Substitution>) -> Self {
-        self.subs.extend(other.borrow().subs.iter().map(|x| *x));
+        self.subs.extend(other.borrow().subs.iter().copied());
         self
     }
 
@@ -202,7 +203,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
         // @@Broken: here new unknown types will get created, will lose identity. We need a
         // different way to keep track of unknown types, basically a mapping like GenTypeVar in haskell. OR, we prevent loss of identity somehow
 
-        let created = self.global_storage.types.create(new_ty_value);
+        let created = self.global_storage.types.create(new_ty_value, None);
         // self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
         Ok(curr_ty)
     }

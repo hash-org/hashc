@@ -55,7 +55,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
-        Ok(TreeNode::leaf(IDENTIFIER_MAP.ident_name(node.ident)))
+        Ok(TreeNode::leaf(IDENTIFIER_MAP.get_ident(node.ident)))
     }
 
     type AccessNameRet = TreeNode;
@@ -67,7 +67,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(
             node.path
                 .iter()
-                .map(|p| IDENTIFIER_MAP.ident_name(*p))
+                .map(|p| IDENTIFIER_MAP.get_ident(*p))
                 .intersperse("::")
                 .collect::<String>(),
         ))
@@ -79,7 +79,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Literal<'c>>,
     ) -> Result<Self::LiteralRet, Self::Error> {
-        Ok(walk::walk_literal_same_children(self, ctx, node)?)
+        walk::walk_literal_same_children(self, ctx, node)
     }
 
     type ExpressionRet = TreeNode;
@@ -88,7 +88,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Expression<'c>>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
-        Ok(walk::walk_expression_same_children(self, ctx, node)?)
+        walk::walk_expression_same_children(self, ctx, node)
     }
 
     type VariableExprRet = TreeNode;
@@ -112,7 +112,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
         Ok(TreeNode::leaf(labeled(
             "intrinsic",
-            IDENTIFIER_MAP.ident_name(node.name),
+            IDENTIFIER_MAP.get_ident(node.name),
             "\"",
         )))
     }
@@ -230,7 +230,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error> {
-        Ok(walk::walk_type_same_children(self, ctx, node)?)
+        walk::walk_type_same_children(self, ctx, node)
     }
 
     type NamedTypeRet = TreeNode;
@@ -479,7 +479,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Block<'c>>,
     ) -> Result<Self::BlockRet, Self::Error> {
-        Ok(walk::walk_block_same_children(self, ctx, node)?)
+        walk::walk_block_same_children(self, ctx, node)
     }
 
     type MatchCaseRet = TreeNode;
@@ -547,7 +547,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Statement<'c>>,
     ) -> Result<Self::StatementRet, Self::Error> {
-        Ok(walk::walk_statement_same_children(self, ctx, node)?)
+        walk::walk_statement_same_children(self, ctx, node)
     }
 
     type ExprStatementRet = TreeNode;
@@ -731,7 +731,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Self::PatternRet, Self::Error> {
-        Ok(walk::walk_pattern_same_children(self, ctx, node)?)
+        walk::walk_pattern_same_children(self, ctx, node)
     }
 
     type TraitBoundRet = TreeNode;
@@ -875,7 +875,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::LiteralPattern>,
     ) -> Result<Self::LiteralPatternRet, Self::Error> {
-        Ok(walk::walk_literal_pattern_same_children(self, ctx, node)?)
+        walk::walk_literal_pattern_same_children(self, ctx, node)
     }
 
     type OrPatternRet = TreeNode;
