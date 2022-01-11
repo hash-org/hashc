@@ -13,17 +13,17 @@ static IDENTIFIERS: &str = include_str!("examples/identifiers.hash");
 static NUMBERS: &str = include_str!("examples/numbers.hash");
 
 macro_rules! bench_func {
-    ($fn_name:ident,$token:tt) => {
+    ($fn_name:ident,$source:tt) => {
         #[bench]
         fn $fn_name(b: &mut Bencher) {
-            b.bytes = $token.len() as u64;
+            b.bytes = $source.len() as u64;
 
             let castle = Castle::new();
             let wall = castle.wall();
 
             b.iter(|| {
                 // create a new lexer
-                let mut lex = Lexer::new($token, ModuleIdx(0), &wall);
+                let mut lex = Lexer::new($source, ModuleIdx::new(), &wall);
 
                 while let Ok(Some(token)) = lex.advance_token() {
                     black_box(token);

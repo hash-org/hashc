@@ -9,7 +9,7 @@ use crate::{
     resolve::{ModuleParsingContext, ModuleResolver, ParModuleResolver},
 };
 use derive_more::Constructor;
-use hash_source::module::ModuleIdx;
+use hash_source::module::{ModuleIdx, INTERACTIVE_MODULE};
 use log::{log, Level};
 use std::{collections::VecDeque, path::PathBuf, sync::Mutex};
 use std::{num::NonZeroUsize, path::Path};
@@ -158,15 +158,11 @@ where
             match entry {
                 EntryPoint::Module { filename } => {
                     // The entry point has no parent module, or parent source.
-                    let entry_parent_index = None;
-                    let entry_parent_source = None;
+                    let entry_parent_index = *INTERACTIVE_MODULE;
 
                     // Create a module context and resolver for the entry point.
-                    let entry_module_ctx = ModuleParsingContext::new(
-                        entry_parent_source,
-                        entry_root_dir,
-                        entry_parent_index,
-                    );
+                    let entry_module_ctx =
+                        ModuleParsingContext::new(entry_root_dir, entry_parent_index);
                     let entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
 
                     // No location for the first import
@@ -189,14 +185,11 @@ where
                     contents: interactive_source,
                 } => {
                     // The entry point has no parent module
-                    let entry_parent_index = None;
+                    let entry_parent_index = *INTERACTIVE_MODULE;
 
                     // Create a module context and resolver for the entry point.
-                    let entry_module_ctx = ModuleParsingContext::new(
-                        Some(interactive_source),
-                        entry_root_dir,
-                        entry_parent_index,
-                    );
+                    let entry_module_ctx =
+                        ModuleParsingContext::new(entry_root_dir, entry_parent_index);
                     let entry_resolver = ParModuleResolver::new(ctx, entry_module_ctx, scope);
 
                     // @@Cleanup: we need to insert the contents of interactive into the module builder...
@@ -211,7 +204,11 @@ where
                     //
                     //            @@Copying: we're also having to copy the source because we get a &str instead of a String.
                     let copy = interactive_source.to_string();
-                    module_builder.add_contents(ModuleIdx(0), PathBuf::from("<interactive>"), copy);
+                    module_builder.add_contents(
+                        *INTERACTIVE_MODULE,
+                        PathBuf::from("<interactive>"),
+                        copy,
+                    );
 
                     // Return the interactive node for interactive entry point.
                     Ok(Some(

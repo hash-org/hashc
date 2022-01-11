@@ -17,10 +17,7 @@ use hash_ast::{
     operator::{CompoundFn, OperatorFn},
     resolve::ModuleResolver,
 };
-use hash_source::{
-    location::{Location, SourceLocation},
-    module::ModuleIdx,
-};
+use hash_source::location::{Location, SourceLocation};
 
 use crate::{
     error::{AstGenError, AstGenErrorKind, TyArgumentKind},
@@ -109,15 +106,9 @@ where
 
     /// Function to create a [SourceLocation] from a [Location] by using the provided resolver
     fn source_location(&self, location: &Location) -> SourceLocation {
-        match self.resolver.module_index() {
-            Some(module_index) => SourceLocation {
-                location: *location,
-                module_index,
-            },
-            None => SourceLocation {
-                location: *location,
-                module_index: ModuleIdx(0),
-            },
+        SourceLocation {
+            location: *location,
+            module_index: self.resolver.module_index(),
         }
     }
 
