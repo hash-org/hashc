@@ -9,8 +9,6 @@ mod logger;
 
 use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
-use hash_ast::module::Modules;
-use hash_ast::parse::{ParParser, Parser, ParserBackend};
 use hash_parser::backend::HashParser;
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_utils::timed;
@@ -104,29 +102,29 @@ fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
     }
 }
 
-fn run_parsing<'c>(
-    parser: ParParser<impl ParserBackend<'c>>,
-    filename: PathBuf,
-    directory: PathBuf,
-) -> Modules<'c> {
-    let (result, modules) = timed(
-        || parser.parse(&filename, &directory),
-        log::Level::Debug,
-        |elapsed| println!("total: {:?}", elapsed),
-    );
+// fn run_parsing<'c>(
+//     parser: ParParser<impl ParserBackend<'c>>,
+//     filename: PathBuf,
+//     directory: PathBuf,
+// ) -> Modules<'c> {
+//     let (result, modules) = timed(
+//         || parser.parse(&filename, &directory),
+//         log::Level::Debug,
+//         |elapsed| println!("total: {:?}", elapsed),
+//     );
 
-    match result {
-        Ok(_) => modules,
-        Err(errors) => {
-            for report in errors.into_iter().map(|err| err.create_report()) {
-                let report_writer = ReportWriter::new(report, &modules);
-                println!("{}", report_writer);
-            }
+//     match result {
+//         Ok(_) => modules,
+//         Err(errors) => {
+//             for report in errors.into_iter().map(|err| err.create_report()) {
+//                 let report_writer = ReportWriter::new(report, &modules);
+//                 println!("{}", report_writer);
+//             }
 
-            exit(-1)
-        }
-    }
-}
+//             exit(-1)
+//         }
+//     }
+// }
 
 fn main() {
     // Initial grunt work, panic handler and logger setup...
@@ -141,47 +139,47 @@ fn main() {
     }
 
     // check that the job count is valid...
-    let worker_count = NonZeroUsize::new(opts.worker_count).unwrap_or_else(|| {
-        (CompilerError::ArgumentError {
-            message: "Invalid number of worker threads".to_owned(),
-        })
-        .report_and_exit()
-    });
+    // let worker_count = NonZeroUsize::new(opts.worker_count).unwrap_or_else(|| {
+    //     (CompilerError::ArgumentError {
+    //         message: "Invalid number of worker threads".to_owned(),
+    //     })
+    //     .report_and_exit()
+    // });
 
-    let castle = Castle::new();
+    // let castle = Castle::new();
 
-    let mut parser_backend =
-        ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
+    // let mut parser_backend =
+    //     ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
 
     execute(|| {
         let directory = env::current_dir().unwrap();
 
         // check here if we are operating in a special mode
-        if let Some(mode) = opts.mode {
-            let _modules = match mode {
-                SubCmd::AstGen(settings) => {
-                    let filename = fs::canonicalize(&settings.filename)?;
+        // if let Some(mode) = opts.mode {
+        //     let _modules = match mode {
+        //         SubCmd::AstGen(settings) => {
+        //             let filename = fs::canonicalize(&settings.filename)?;
 
-                    if settings.debug {
-                        log::set_max_level(LevelFilter::Debug);
-                    }
+        //             if settings.debug {
+        //                 log::set_max_level(LevelFilter::Debug);
+        //             }
 
-                    parser_backend.set_visualisation(settings.visualise);
-                    run_parsing(parser_backend, filename, directory)
-                }
-                SubCmd::IrGen(i) => {
-                    println!("Generating ir for: {} with debug={}", i.filename, i.debug);
-                    todo!()
-                }
-            };
+        //             parser_backend.set_visualisation(settings.visualise);
+        //             run_parsing(parser_backend, filename, directory)
+        //         }
+        //         SubCmd::IrGen(i) => {
+        //             println!("Generating ir for: {} with debug={}", i.filename, i.debug);
+        //             todo!()
+        //         }
+        //     };
 
-            return Ok(());
-        }
+        //     return Ok(());
+        // }
 
         match opts.execute {
             Some(path) => {
-                let filename = fs::canonicalize(&path)?;
-                let _modules = run_parsing(parser_backend, filename, directory);
+                // let filename = fs::canonicalize(&path)?;
+                // let _modules = run_parsing(parser_backend, filename, directory);
 
                 Ok(())
             }

@@ -10,6 +10,7 @@ hash-source = { path = "../hash-source" }
 hash-utils = { path = "../hash-utils" }
 hash-alloc = { path = "../hash-alloc" }
 hash-reporting = {path = "../hash-reporting" }
+hash-pipeline = {path = "../hash-pipeline" }
 smallvec = { version = "1.6", features = ["union"] }
 slotmap = "1.0"
 dashmap = "4.0"

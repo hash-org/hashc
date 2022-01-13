@@ -12,6 +12,7 @@ hash-parser = {path = "../hash-parser" }
 hash-alloc = {path = "../hash-alloc" }
 hash-interactive = {path = "../hash-interactive" } 
 hash-reporting = {path = "../hash-reporting" }
+hash-pipeline = {path = "../hash-pipeline" }
 thiserror = "1.0"
 log = "0.4"
 backtrace = "0.3"

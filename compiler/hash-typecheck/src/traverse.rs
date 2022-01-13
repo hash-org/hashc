@@ -1,6 +1,6 @@
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
-use crate::storage::{GlobalStorage, ModuleStorage};
+use crate::storage::{GlobalStorage, SourceStorage};
 use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
@@ -18,100 +18,48 @@ use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
-use hash_ast::{module::Modules, visitor, visitor::walk};
+use hash_ast::{visitor, visitor::walk};
+use hash_pipeline::{SourceRef, Sources};
 use hash_source::{
     location::{Location, SourceLocation},
-    module::{ModuleIdx, INTERACTIVE_MODULE},
+    SourceId,
 };
 use std::collections::HashSet;
 use std::iter;
-use std::{collections::HashMap, mem};
+use std::mem;
 
-pub struct GlobalTypechecker<'c, 'w, 'm> {
-    global_storage: GlobalStorage<'c, 'w, 'm>,
-    already_checked: HashMap<ModuleIdx, TypeId>,
-    global_wall: &'w Wall<'c>,
+pub struct SourceTypechecker<'c, 'w, 'g, 'src> {
+    global_storage: &'g mut GlobalStorage<'c, 'w>,
+    wall: &'w Wall<'c>,
+    sources: &'src Sources<'c>,
+    source_storage: SourceStorage,
+    source_id: SourceId,
 }
 
-impl<'c, 'w, 'm> GlobalTypechecker<'c, 'w, 'm> {
-    pub fn for_modules(modules: &'m Modules<'c>, wall: &'w Wall<'c>) -> Self {
-        Self {
-            global_storage: GlobalStorage::new_with_modules(modules, wall),
-            already_checked: HashMap::new(),
-            global_wall: wall,
-        }
-    }
-
-    pub fn typecheck_all(mut self) -> (TypecheckResult<()>, GlobalStorage<'c, 'w, 'm>) {
-        for module in self.global_storage.modules.iter() {
-            match self.typecheck_module(module.index()) {
-                Ok(_) => continue,
-                Err(e) => {
-                    return (Err(e), self.global_storage);
-                }
-            }
-        }
-        (Ok(()), self.global_storage)
-    }
-
-    pub fn typecheck_interactive(
-        mut self,
-        block: ast::AstNodeRef<ast::BodyBlock<'c>>,
-    ) -> (TypecheckResult<TypeId>, GlobalStorage<'c, 'w, 'm>) {
-        let module_checker =
-            ModuleTypechecker::new(&mut self, ModuleOrInteractive::Interactive(block));
-        (module_checker.typecheck(), self.global_storage)
-    }
-
-    fn typecheck_module(&mut self, module_idx: ModuleIdx) -> TypecheckResult<TypeId> {
-        if let Some(&ty_id) = self.already_checked.get(&module_idx) {
-            Ok(ty_id)
-        } else {
-            let module_checker =
-                ModuleTypechecker::new(self, ModuleOrInteractive::Module(module_idx));
-            let ty_id = module_checker.typecheck()?;
-            self.already_checked.insert(module_idx, ty_id);
-            Ok(ty_id)
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum ModuleOrInteractive<'i, 'c> {
-    Module(ModuleIdx),
-    Interactive(ast::AstNodeRef<'i, ast::BodyBlock<'c>>),
-}
-
-pub struct ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
-    global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
-    module_storage: ModuleStorage,
-    module_index: ModuleOrInteractive<'i, 'c>,
-}
-
-impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
+impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     pub fn new(
-        global_tc: &'g mut GlobalTypechecker<'c, 'w, 'm>,
-        module_or_interactive: ModuleOrInteractive<'i, 'c>,
+        source_id: SourceId,
+        sources: &'src Sources<'c>,
+        global_storage: &'g mut GlobalStorage<'c, 'w>,
+        scopes: ScopeStack,
+        wall: &'w Wall<'c>,
     ) -> Self {
-        let module_storage = ModuleStorage::new(&mut global_tc.global_storage);
+        let source_storage = SourceStorage::new(source_id, scopes);
         Self {
-            global_tc,
-            module_storage,
-            module_index: module_or_interactive,
+            sources,
+            global_storage,
+            source_storage,
+            wall,
+            source_id,
         }
+    }
+
+    pub fn into_source_storage(self) -> SourceStorage {
+        self.source_storage
     }
 
     pub fn wall(&self) -> &'w Wall<'c> {
-        self.global_tc.global_wall
-    }
-
-    /// If the [ModuleOrInteractive] is the interactive mode, we return the [ModuleIdx] of `0` because
-    /// this assumption holds when the interactive mode starts up
-    pub fn current_module(&self) -> ModuleIdx {
-        match self.module_index {
-            ModuleOrInteractive::Module(idx) => idx,
-            ModuleOrInteractive::Interactive(_) => *INTERACTIVE_MODULE,
-        }
+        self.wall
     }
 
     pub fn some_source_location(&self, location: Location) -> Option<SourceLocation> {
@@ -121,85 +69,96 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     pub fn source_location(&self, location: Location) -> SourceLocation {
         SourceLocation {
             location,
-            module_index: self.current_module(),
+            source_id: self.source_id,
         }
     }
 
-    pub fn typecheck(mut self) -> TypecheckResult<TypeId> {
-        match self.module_index {
-            ModuleOrInteractive::Module(module_idx) => {
-                let module = self
-                    .global_tc
-                    .global_storage
-                    .modules
-                    .get_by_index(module_idx);
-                self.visit_module(self.wall(), module.ast())
+    pub fn typecheck(&mut self) -> TypecheckResult<TypeId> {
+        let ctx = self.wall();
+
+        if let Some(ty_id) = self
+            .global_storage
+            .checked_sources
+            .source_type_id(self.source_id)
+        {
+            Ok(ty_id)
+        } else {
+            match self.sources.get_source(self.source_id) {
+                SourceRef::Interactive(interactive) => {
+                    let result = self.visit_body_block(ctx, interactive.node())?;
+                    self.global_storage
+                        .checked_sources
+                        .mark_checked(self.source_id, result);
+                    Ok(result)
+                }
+                SourceRef::Module(module) => {
+                    let result = self.visit_module(ctx, module.node())?;
+                    self.global_storage
+                        .checked_sources
+                        .mark_checked(self.source_id, result);
+                    Ok(result)
+                }
             }
-            ModuleOrInteractive::Interactive(block) => self.visit_body_block(self.wall(), block),
         }
     }
 
     fn create_type(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
-        self.global_tc.global_storage.types.create(value, location)
+        self.global_storage.types.create(value, location)
     }
 
     fn traits(&self) -> &TraitStorage<'c, 'w> {
-        &self.global_tc.global_storage.traits
+        &self.global_storage.traits
     }
 
     fn traits_mut(&mut self) -> &mut TraitStorage<'c, 'w> {
-        &mut self.global_tc.global_storage.traits
+        &mut self.global_storage.traits
     }
 
     fn trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
-        &mut self.global_tc.global_storage.trait_impls
+        &mut self.global_storage.trait_impls
     }
 
-    fn trait_helper(&mut self) -> TraitHelper<'c, 'w, 'm, '_, '_> {
-        TraitHelper::new(&mut self.module_storage, &mut self.global_tc.global_storage)
+    fn trait_helper(&mut self) -> TraitHelper<'c, 'w, '_, '_> {
+        TraitHelper::new(&mut self.source_storage, &mut self.global_storage)
     }
 
     fn types(&self) -> &TypeStorage<'c, 'w> {
-        &self.global_tc.global_storage.types
+        &self.global_storage.types
     }
 
     fn type_defs(&self) -> &TypeDefStorage<'c, 'w> {
-        &self.global_tc.global_storage.type_defs
+        &self.global_storage.type_defs
     }
 
     fn type_defs_mut(&mut self) -> &mut TypeDefStorage<'c, 'w> {
-        &mut self.global_tc.global_storage.type_defs
+        &mut self.global_storage.type_defs
     }
 
     fn _type_vars(&self) -> &TypeVars {
-        &self.module_storage.type_vars
+        &self.source_storage.type_vars
     }
 
     fn type_vars_mut(&mut self) -> &mut TypeVars {
-        &mut self.module_storage.type_vars
+        &mut self.source_storage.type_vars
     }
 
     fn create_unknown_type(&mut self) -> TypeId {
-        self.global_tc.global_storage.types.create_unknown_type()
+        self.global_storage.types.create_unknown_type()
     }
 
     fn add_location_to_ty(&mut self, ty: TypeId, location: SourceLocation) {
-        self.global_tc
-            .global_storage
-            .types
-            .add_location(ty, location)
+        self.global_storage.types.add_location(ty, location)
     }
 
     fn create_tuple_type(&mut self, types: Row<'c, TypeId>) -> TypeId {
-        self.global_tc
-            .global_storage
+        self.global_storage
             .types
             .create(TypeValue::Tuple(TupleType { types }), None)
     }
 
     fn create_str_type(&mut self, location: Option<SourceLocation>) -> TypeId {
         let str_def_id = self.core_type_defs().str;
-        self.global_tc.global_storage.types.create(
+        self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: str_def_id,
                 args: row![self.wall()],
@@ -210,7 +169,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
 
     fn create_list_type(&mut self, el_ty: TypeId) -> TypeId {
         let list_def_id = self.core_type_defs().list;
-        self.global_tc.global_storage.types.create(
+        self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: list_def_id,
                 args: row![self.wall(); el_ty],
@@ -221,7 +180,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
 
     fn create_set_type(&mut self, el_ty: TypeId) -> TypeId {
         let set_def_id = self.core_type_defs().set;
-        self.global_tc.global_storage.types.create(
+        self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: set_def_id,
                 args: row![self.wall(); el_ty],
@@ -232,7 +191,7 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
 
     fn create_map_type(&mut self, key_ty: TypeId, value_ty: TypeId) -> TypeId {
         let map_def_id = self.core_type_defs().map;
-        self.global_tc.global_storage.types.create(
+        self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: map_def_id,
                 args: row![self.wall(); key_ty, value_ty],
@@ -242,19 +201,19 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
     }
 
     fn tc_state(&mut self) -> &mut TypecheckState {
-        &mut self.module_storage.state
+        &mut self.source_storage.state
     }
 
     fn scopes(&mut self) -> &mut ScopeStack {
-        &mut self.module_storage.scopes
+        &mut self.source_storage.scopes
     }
 
     fn core_type_defs(&mut self) -> &CoreTypeDefs {
-        &self.global_tc.global_storage.core_type_defs
+        &self.global_storage.core_type_defs
     }
 
-    fn unifier<'s>(&'s mut self) -> Unifier<'c, 'w, 'm, 's, 's> {
-        Unifier::new(&mut self.module_storage, &mut self.global_tc.global_storage)
+    fn unifier<'s>(&'s mut self) -> Unifier<'c, 'w, 's, 's> {
+        Unifier::new(&mut self.source_storage, &mut self.global_storage)
     }
 
     fn resolve_compound_symbol(
@@ -263,15 +222,15 @@ impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
         location: SourceLocation,
     ) -> TypecheckResult<SymbolType> {
         resolve_compound_symbol(
-            &self.module_storage.scopes,
-            &self.global_tc.global_storage.types,
+            &self.source_storage.scopes,
+            &self.global_storage.types,
             symbols,
             location,
         )
     }
 }
 
-impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
+impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g, 'src> {
     type Ctx = Wall<'c>;
 
     type CollectionContainer<T: 'c> = Row<'c, T>;
@@ -290,7 +249,19 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        self.global_tc.typecheck_module(node.index)
+        let import_module_id = self
+            .sources
+            .get_module_id_by_path(&node.resolved_path)
+            .unwrap();
+        let scope_stack = ScopeStack::new(self.global_storage);
+        let mut inner_checker = SourceTypechecker::new(
+            SourceId::Module(import_module_id),
+            self.sources,
+            self.global_storage,
+            scope_stack,
+            self.wall,
+        );
+        inner_checker.typecheck()
     }
 
     type NameRet = ();
@@ -657,7 +628,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         if self.tc_state().in_bound_def {
             Ok(self.create_type(TypeValue::Var(var), ty_location))
         } else {
-            match self.module_storage.type_vars.find_type_var(var) {
+            match self.source_storage.type_vars.find_type_var(var) {
                 Some((_, TypeVarMode::Bound)) => {
                     Ok(self.create_type(TypeValue::Var(var), ty_location))
                 }
@@ -1257,7 +1228,7 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         // @@Todo: trait bounds
 
         // Create the type
-        let current_module = self.current_module();
+        let current_module = self.source_id;
 
         let def_id = self.type_defs_mut().create(
             TypeDefValueKind::Struct(StructDef {
@@ -1527,15 +1498,14 @@ impl<'c, 'w, 'm, 'g, 'i> visitor::AstVisitor<'c> for ModuleTypechecker<'c, 'w, '
         let walk::Module { contents: _ } = walk::walk_module(self, ctx, node)?;
 
         let curr_scope = self.scopes().extract_current_scope();
-        let members =
-            ScopeStack::with_scopes(&mut self.global_tc.global_storage, iter::once(curr_scope));
+        let members = ScopeStack::with_scopes(&mut self.global_storage, iter::once(curr_scope));
         let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }), None);
 
         Ok(namespace_ty)
     }
 }
 
-impl<'c, 'w, 'm, 'g, 'i> ModuleTypechecker<'c, 'w, 'm, 'g, 'i> {
+impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     fn typecheck_known_struct_literal(
         &mut self,
         ctx: &<Self as AstVisitor<'c>>::Ctx,

@@ -1,0 +1,13 @@
+[package]
+name = "hash-pipeline"
+version = "0.1.0"
+authors = ["The Hash Language authors"]
+edition = "2021"
+
+[dependencies]
+hash-utils = { path = "../hash-utils" }
+hash-ast = { path = "../hash-ast" }
+hash-reporting = { path = "../hash-reporting" }
+hash-source = { path = "../hash-source" }
+slotmap = "1.0"
+thiserror = "1.0"

@@ -91,7 +91,7 @@ pub enum TypecheckError {
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
 
 impl TypecheckError {
-    pub fn create_report(self, storage: GlobalStorage<'_, '_, '_>) -> Report {
+    pub fn create_report(self, storage: &GlobalStorage<'_, '_>) -> Report {
         let mut builder = ReportBuilder::new();
         builder
             .with_kind(ReportKind::Error)

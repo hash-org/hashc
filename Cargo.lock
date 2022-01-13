@@ -291,6 +291,7 @@ dependencies = [
  "hash-ast",
  "hash-interactive",
  "hash-parser",
+ "hash-pipeline",
  "hash-reporting",
  "hash-utils",
  "log",
@@ -334,6 +335,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-parser",
+ "hash-pipeline",
  "hash-reporting",
  "hash-typecheck",
  "rustyline",
@@ -343,14 +345,19 @@ dependencies = [
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "dashmap",
  "derive_more",
  "hash-alloc",
  "hash-ast",
+ "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "hash-utils",
  "lazy_static",
  "log",
+ "num_cpus",
+ "rayon",
  "thiserror",
 ]
 
@@ -364,6 +371,18 @@ dependencies = [
  "hash-source",
  "hash-utils",
  "hash-utils-testing-macros",
+]
+
+[[package]]
+name = "hash-pipeline"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-reporting",
+ "hash-source",
+ "hash-utils",
+ "slotmap",
+ "thiserror",
 ]
 
 [[package]]
@@ -382,6 +401,7 @@ dependencies = [
  "derive_more",
  "hash-utils",
  "lazy_static",
+ "slotmap",
  "thiserror",
 ]
 
@@ -392,6 +412,7 @@ dependencies = [
  "dashmap",
  "hash-alloc",
  "hash-ast",
+ "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-utils",
