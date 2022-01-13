@@ -2,15 +2,20 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use hash_ast::error::{ImportError, ParseError};
-use hash_source::{
-    location::{Location, SourceLocation},
-    module::ModuleIdx,
-};
-use hash_utils::printing::SequenceDisplay;
+use std::io;
 
 use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
+use hash_pipeline::fs::ImportError;
+use hash_reporting::{
+    errors::ErrorCode,
+    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+};
+use hash_source::{
+    location::{Location, SourceLocation},
+    SourceId,
+};
+use hash_utils::printing::SequenceDisplay;
 use thiserror::Error;
 
 /// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
@@ -50,15 +55,15 @@ pub enum TokenErrorKind {
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
-pub struct TokenErrorWrapper(pub ModuleIdx, pub TokenError);
+pub struct TokenErrorWrapper(pub SourceId, pub TokenError);
 
 impl From<TokenErrorWrapper> for ParseError {
-    fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
+    fn from(TokenErrorWrapper(source_id, err): TokenErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
             src: Some(SourceLocation {
                 location: err.location,
-                module_index: idx,
+                source_id,
             }),
         }
     }
@@ -134,7 +139,7 @@ pub enum AstGenErrorKind {
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
-pub struct GeneratorErrorWrapper<'a>(pub ModuleIdx, pub AstGenError<'a>);
+pub struct GeneratorErrorWrapper<'a>(pub SourceId, pub AstGenError<'a>);
 
 impl std::fmt::Display for TyArgumentKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -221,3 +226,66 @@ impl<'a> From<AstGenError<'a>> for ParseError {
         }
     }
 }
+
+/// Hash ParseError enum representing the variants of possible errors.
+#[derive(Debug)]
+pub enum ParseError {
+    Import(ImportError),
+    IO(io::Error),
+    Parsing {
+        message: String,
+        src: Option<SourceLocation>,
+    },
+    Token {
+        message: String,
+        src: SourceLocation,
+    },
+}
+
+impl From<io::Error> for ParseError {
+    fn from(err: io::Error) -> Self {
+        Self::IO(err)
+    }
+}
+
+impl From<ParseError> for Report {
+    fn from(err: ParseError) -> Self {
+        err.create_report()
+    }
+}
+
+impl ParseError {
+    pub fn create_report(self) -> Report {
+        let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message("Failed to parse")
+            .with_error_code(ErrorCode::Parsing);
+
+        match self {
+            ParseError::Import(import_error) => return import_error.create_report(),
+            ParseError::Parsing {
+                message,
+                src: Some(src),
+            }
+            | ParseError::Token { message, src } => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new("note", message)));
+            }
+            // When we don't have a source for the error, just add a note
+            ParseError::Parsing { message, src: None } => {
+                builder.with_message(message);
+            }
+            ParseError::IO(inner) => {
+                // @@UX: we might want to show a bit more info here.
+                builder.with_message(inner.to_string());
+            }
+        };
+
+        // @@ErrorReporting: we might want to properly handle incomplete reports?
+        builder.build().unwrap()
+    }
+}
+
+pub type ParseResult<T> = Result<T, ParseError>;

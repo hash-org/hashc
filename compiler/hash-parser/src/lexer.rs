@@ -3,12 +3,12 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::error::ParseResult;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_ast::{ident::CORE_IDENTIFIERS, keyword::Keyword};
-use hash_source::{location::Location, module::ModuleIdx};
+use hash_source::{location::Location, SourceId};
 
+use crate::error::ParseResult;
 use crate::{
     error::{TokenError, TokenErrorKind, TokenErrorWrapper},
     token::{Delimiter, Token, TokenKind, TokenResult},
@@ -31,7 +31,7 @@ pub struct Lexer<'w, 'c, 'a> {
     contents: &'a str,
 
     /// Representative module index of the current source.
-    module_idx: ModuleIdx,
+    source_id: SourceId,
 
     /// Representing the last character the lexer encountered. This is only set
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a check
@@ -47,10 +47,10 @@ pub struct Lexer<'w, 'c, 'a> {
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
+    pub fn new(contents: &'a str, source_id: SourceId, wall: &'w Wall<'c>) -> Self {
         Lexer {
             offset: Cell::new(0),
-            module_idx,
+            source_id,
             previous_delimiter: Cell::new(None),
             contents,
             wall,
@@ -706,9 +706,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let wall = self.wall;
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        Ok(
-            Row::try_from_iter(iter, wall)
-                .map_err(|err| TokenErrorWrapper(self.module_idx, err))?,
-        )
+        Ok(Row::try_from_iter(iter, wall).map_err(|err| TokenErrorWrapper(self.source_id, err))?)
     }
 }

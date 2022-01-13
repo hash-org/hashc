@@ -2,96 +2,311 @@
 //! which provides a general interface to write a parser.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use std::path::Path;
-
-use hash_alloc::Castle;
-use hash_ast::ast;
-use hash_ast::{error::ParseResult, parse::ParserBackend, resolve::ModuleResolver};
-use hash_utils::timed;
-
+use crate::error::{ParseError, ParseResult};
 use crate::gen::AstGen;
 use crate::lexer::Lexer;
+use crossbeam_channel::{unbounded, Sender};
+use hash_alloc::Castle;
+use hash_ast::ast;
+use hash_pipeline::fs::{resolve_path, ImportError};
+use hash_pipeline::{CompilerResult, Module, Parser, Sources};
+use hash_source::location::SourceLocation;
+use hash_source::{InteractiveId, ModuleId, SourceId};
+use std::borrow::Cow;
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// Implementation structure for the parser.
-pub struct HashParser<'c> {
-    /// Parser allocator object.
-    castle: &'c Castle,
+#[derive(Debug)]
+pub enum ParserAction<'c> {
+    Error(ParseError),
+    ParseImport {
+        resolved_path: PathBuf,
+    },
+    SetInteractiveInfo {
+        interactive_id: InteractiveId,
+        node: ast::AstNode<'c, ast::BodyBlock<'c>>,
+    },
+    SetModuleInfo {
+        module_id: ModuleId,
+        contents: String,
+        node: ast::AstNode<'c, ast::Module<'c>>,
+    },
 }
 
-impl<'c> HashParser<'c> {
-    /// Create a new Hash parser with the self hosted backend.
-    pub fn new(castle: &'c Castle) -> Self {
-        Self { castle }
+pub struct ImportResolver<'c> {
+    source_id: SourceId,
+    root_dir: PathBuf,
+    sender: Sender<ParserAction<'c>>,
+}
+
+impl<'c> ImportResolver<'c> {
+    pub fn new(source_id: SourceId, root_dir: PathBuf, sender: Sender<ParserAction<'c>>) -> Self {
+        Self {
+            root_dir,
+            sender,
+            source_id,
+        }
+    }
+
+    pub fn current_source_id(&self) -> SourceId {
+        self.source_id
+    }
+
+    pub fn parse_import(
+        &self,
+        import_path: &Path,
+        source_location: SourceLocation,
+    ) -> Result<PathBuf, ImportError> {
+        let resolved_path = resolve_path(import_path, &self.root_dir, Some(source_location))?;
+        self.sender
+            .send(ParserAction::ParseImport {
+                resolved_path: resolved_path.clone(),
+            })
+            .unwrap();
+        Ok(resolved_path)
+    }
+
+    pub fn into_sender(self) -> Sender<ParserAction<'c>> {
+        self.sender
     }
 }
 
-impl<'c> ParserBackend<'c> for HashParser<'c> {
-    /// Parse a module.
-    fn parse_module(
-        &self,
-        resolver: impl ModuleResolver,
-        _path: &Path,
-        contents: &str,
-    ) -> ParseResult<ast::AstNode<'c, ast::Module<'c>>> {
-        let wall = self.castle.wall();
+enum ParseSourceKind {
+    Module {
+        resolved_path: PathBuf,
+        module_id: ModuleId,
+    },
+    Interactive {
+        current_dir: PathBuf,
+        interactive_contents: String,
+        interactive_id: InteractiveId,
+    },
+}
 
-        let index = resolver.module_index();
-        let mut lexer = Lexer::new(contents, index, &wall);
-
-        let tokens = timed(
-            || lexer.tokenise(),
-            log::Level::Debug,
-            |elapsed| println!("tokenise:    {:?}", elapsed),
-        )?;
-
-        let trees = lexer.into_token_trees();
-        let ast_wall = self.castle.wall();
-
-        let gen = AstGen::new(&tokens, &trees, &resolver, ast_wall);
-
-        timed(
-            || match gen.parse_module() {
-                Err(err) => Err(err.into()),
-                Ok(module) => Ok(module),
-            },
-            log::Level::Debug,
-            |elapsed| println!("translation: {:?}", elapsed),
-        )
+impl<'c> ParseSourceKind {
+    pub fn from_source(source_id: SourceId, sources: &Sources<'c>, current_dir: PathBuf) -> Self {
+        match source_id {
+            SourceId::Interactive(interactive_id) => {
+                let interactive = sources.get_interactive_block(interactive_id);
+                Self::Interactive {
+                    interactive_id,
+                    interactive_contents: interactive.contents().to_owned(),
+                    current_dir,
+                }
+            }
+            SourceId::Module(module_id) => {
+                let module = sources.get_module(module_id);
+                Self::Module {
+                    module_id,
+                    resolved_path: module.path().to_owned(),
+                }
+            }
+        }
     }
 
-    /// Parse interactive statements.
-    fn parse_interactive(
-        &self,
-        resolver: impl ModuleResolver,
-        contents: &str,
-    ) -> ParseResult<ast::AstNode<'c, ast::BodyBlock<'c>>> {
-        let wall = self.castle.wall();
+    pub fn source(&self) -> ParseResult<Cow<str>> {
+        match self {
+            ParseSourceKind::Module { resolved_path, .. } => Ok(Cow::Owned(
+                fs::read_to_string(&resolved_path).map_err(|_| {
+                    let path = resolved_path.to_string_lossy();
+                    ParseError::Import(ImportError {
+                        src: None,
+                        message: format!("Cannot read file: {}", path),
+                        filename: resolved_path.to_owned(),
+                    })
+                })?,
+            )),
+            ParseSourceKind::Interactive {
+                interactive_contents,
+                ..
+            } => Ok(Cow::Borrowed(interactive_contents.as_str())),
+        }
+    }
 
-        let index = resolver.module_index();
-        let mut lexer = Lexer::new(contents, index, &wall);
+    pub fn source_id(&self) -> SourceId {
+        match self {
+            ParseSourceKind::Module { module_id, .. } => SourceId::Module(*module_id),
+            ParseSourceKind::Interactive { interactive_id, .. } => {
+                SourceId::Interactive(*interactive_id)
+            }
+        }
+    }
 
-        let tokens = lexer.tokenise()?;
-
-        let trees = lexer.into_token_trees();
-        let ast_wall = self.castle.wall();
-
-        let gen = AstGen::new(&tokens, &trees, &resolver, ast_wall);
-
-        match gen.parse_expression_from_interactive() {
-            Err(err) => Err(err.into()),
-            Ok(block) => Ok(block),
+    pub fn current_dir(&self) -> PathBuf {
+        match self {
+            ParseSourceKind::Module { resolved_path, .. } => {
+                resolved_path.parent().unwrap().to_owned()
+            }
+            ParseSourceKind::Interactive { current_dir, .. } => current_dir.to_owned(),
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use hash_ast::resolve::ParModuleResolver;
+fn parse_source<'c>(
+    parse_source_kind: ParseSourceKind,
+    sender: Sender<ParserAction<'c>>,
+    castle: &'c Castle,
+) -> ParseResult<()> {
+    // @@TODO: deal with error, send it back to channel
+    let source = parse_source_kind.source()?;
+    let current_dir = parse_source_kind.current_dir();
+    let source_id = parse_source_kind.source_id();
 
-    use super::*;
+    let wall = castle.wall();
+    let mut lexer = Lexer::new(&source, source_id, &wall);
+    let tokens = lexer.tokenise()?;
+    let trees = lexer.into_token_trees();
 
-    #[test]
-    fn type_size() {
-        println!("{:?}", std::mem::size_of::<ParModuleResolver<HashParser>>());
+    let wall = castle.wall();
+    let resolver = ImportResolver::new(source_id, current_dir, sender);
+    let gen = AstGen::new(&tokens, &trees, &resolver, wall);
+
+    match &parse_source_kind {
+        ParseSourceKind::Module { module_id, .. } => match gen.parse_module() {
+            Err(err) => Err(err.into()),
+            Ok(node) => {
+                let sender = resolver.into_sender();
+                sender
+                    .send(ParserAction::SetModuleInfo {
+                        module_id: *module_id,
+                        node,
+                        contents: source.into_owned(),
+                    })
+                    .unwrap();
+                Ok(())
+            }
+        },
+        ParseSourceKind::Interactive { interactive_id, .. } => {
+            match gen.parse_expression_from_interactive() {
+                Err(err) => Err(err.into()),
+                Ok(node) => {
+                    let sender = resolver.into_sender();
+                    sender
+                        .send(ParserAction::SetInteractiveInfo {
+                            interactive_id: *interactive_id,
+                            node,
+                        })
+                        .unwrap();
+                    Ok(())
+                }
+            }
+        }
+    }
+}
+
+/// Implementation structure for the parser.
+pub struct HashParser<'c> {
+    castle: &'c Castle,
+    pool: rayon::ThreadPool,
+}
+
+impl<'c> HashParser<'c> {
+    /// Create a new Hash parser with the self hosted backend.
+    pub fn new(worker_count: usize, castle: &'c Castle) -> Self {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(worker_count + 1)
+            .thread_name(|id| format!("parse-worker-{}", id))
+            .build()
+            .unwrap();
+        Self { pool, castle }
+    }
+
+    pub fn parse_main(
+        &mut self,
+        sources: &mut Sources<'c>,
+        entry_point_id: SourceId,
+    ) -> Vec<ParseError> {
+        let castle = self.castle;
+        let mut errors = Vec::new();
+        let pool_result = self.pool.scope(|scope| -> ParseResult<()> {
+            let sender_count = AtomicUsize::new(0);
+            let (sender, receiver) = unbounded::<ParserAction>();
+
+            // Parse the entry point
+            let current_dir = env::current_dir()?;
+            let entry_source_kind =
+                ParseSourceKind::from_source(entry_point_id, sources, current_dir);
+            sender_count.fetch_add(1, Ordering::SeqCst);
+            parse_source(entry_source_kind, sender.clone(), castle)?;
+
+            loop {
+                match receiver.try_recv() {
+                    Ok(message) => match message {
+                        ParserAction::SetInteractiveInfo {
+                            interactive_id,
+                            node,
+                        } => {
+                            sources
+                                .get_interactive_block_mut(interactive_id)
+                                .set_node(node);
+                            sender_count.fetch_sub(1, Ordering::SeqCst);
+                        }
+                        ParserAction::SetModuleInfo {
+                            module_id,
+                            node,
+                            contents,
+                        } => {
+                            let module = sources.get_module_mut(module_id);
+                            module.set_contents(contents);
+                            module.set_node(node);
+                            sender_count.fetch_sub(1, Ordering::SeqCst);
+                        }
+                        ParserAction::ParseImport { resolved_path } => {
+                            if sources.get_module_id_by_path(&resolved_path).is_some() {
+                                continue;
+                            }
+                            let module_id = sources.add_module(Module::new(resolved_path.clone()));
+
+                            let sender = sender.clone();
+                            sender_count.fetch_add(1, Ordering::SeqCst);
+                            scope.spawn(move |_| {
+                                parse_source(
+                                    ParseSourceKind::Module {
+                                        module_id,
+                                        resolved_path,
+                                    },
+                                    sender.clone(),
+                                    castle,
+                                )
+                                .unwrap_or_else(|err| {
+                                    sender.send(ParserAction::Error(err)).unwrap();
+                                });
+                            });
+                        }
+                        ParserAction::Error(err) => {
+                            errors.push(err);
+                            sender_count.fetch_sub(1, Ordering::SeqCst);
+                        }
+                    },
+                    Err(_) => {
+                        if sender_count.load(Ordering::SeqCst) == 0 {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            Ok(())
+        });
+
+        if let Err(pool_err) = pool_result {
+            errors.push(pool_err);
+        }
+
+        errors
+    }
+}
+
+impl<'c> Parser<'c> for HashParser<'c> {
+    fn parse(&mut self, target: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
+        let errors = self.parse_main(sources, target);
+
+        // @@Todo: merge errors
+        match errors.into_iter().next() {
+            Some(err) => Err(err.into()),
+            None => Ok(()),
+        }
     }
 }

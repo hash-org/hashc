@@ -5,7 +5,7 @@
 
 use crate::ast;
 use dashmap::{lock::RwLock, DashMap, ReadOnlyView};
-use hash_source::module::{ModuleIdx, SourceMap};
+use hash_source::{SourceId, SourceMap};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -13,13 +13,13 @@ use std::{
 /// Creates a set of loaded modules.
 #[derive(Debug, Default)]
 pub struct ModuleBuilder<'c> {
-    indexes: DashMap<ModuleIdx, ()>,
-    path_to_index: DashMap<PathBuf, ModuleIdx>,
-    filenames_by_index: DashMap<ModuleIdx, PathBuf>,
-    modules_by_index: DashMap<ModuleIdx, ast::AstNode<'c, ast::Module<'c>>>,
-    contents_by_index: DashMap<ModuleIdx, String>,
-    deps_by_index: DashMap<ModuleIdx, DashMap<ModuleIdx, ()>>,
-    entry_point: RwLock<Option<ModuleIdx>>,
+    indexes: DashMap<SourceId, ()>,
+    path_to_index: DashMap<PathBuf, SourceId>,
+    filenames_by_index: DashMap<SourceId, PathBuf>,
+    modules_by_index: DashMap<SourceId, ast::AstNode<'c, ast::Module<'c>>>,
+    contents_by_index: DashMap<SourceId, String>,
+    deps_by_index: DashMap<SourceId, DashMap<SourceId, ()>>,
+    entry_point: RwLock<Option<SourceId>>,
 }
 
 impl<'c> ModuleBuilder<'c> {
@@ -27,29 +27,29 @@ impl<'c> ModuleBuilder<'c> {
         Self::default()
     }
 
-    pub fn add_module_at(&self, index: ModuleIdx, node: ast::AstNode<'c, ast::Module<'c>>) {
+    pub fn add_module_at(&self, index: SourceId, node: ast::AstNode<'c, ast::Module<'c>>) {
         self.modules_by_index.insert(index, node);
     }
 
-    pub fn add_contents(&self, index: ModuleIdx, path: PathBuf, contents: String) {
+    pub fn add_contents(&self, index: SourceId, path: PathBuf, contents: String) {
         self.path_to_index.insert(path.clone(), index);
         self.contents_by_index.insert(index, contents);
         self.filenames_by_index.insert(index, path);
     }
 
-    pub fn reserve_index(&self) -> ModuleIdx {
-        let next = ModuleIdx::new();
+    pub fn reserve_index(&self) -> SourceId {
+        let next = SourceId::new();
         self.indexes.insert(next, ());
         self.deps_by_index.insert(next, DashMap::new());
         next
     }
 
-    pub fn set_entry_point(&self, index: ModuleIdx) {
+    pub fn set_entry_point(&self, index: SourceId) {
         let mut entry = self.entry_point.write();
         *entry = Some(index);
     }
 
-    pub fn add_dependency(&self, parent: ModuleIdx, child: ModuleIdx) {
+    pub fn add_dependency(&self, parent: SourceId, child: SourceId) {
         self.deps_by_index.get(&parent).unwrap().insert(child, ());
     }
 
@@ -75,21 +75,21 @@ impl<'c> ModuleBuilder<'c> {
 /// Represents a set of loaded modules.
 #[derive(Debug)]
 pub struct Modules<'c> {
-    indexes: ReadOnlyView<ModuleIdx, ()>,
-    path_to_index: ReadOnlyView<PathBuf, ModuleIdx>,
-    filenames_by_index: ReadOnlyView<ModuleIdx, PathBuf>,
-    modules_by_index: ReadOnlyView<ModuleIdx, ast::AstNode<'c, ast::Module<'c>>>,
-    contents_by_index: ReadOnlyView<ModuleIdx, String>,
-    deps_by_index: HashMap<ModuleIdx, ReadOnlyView<ModuleIdx, ()>>,
-    entry_point: Option<ModuleIdx>,
+    indexes: ReadOnlyView<SourceId, ()>,
+    path_to_index: ReadOnlyView<PathBuf, SourceId>,
+    filenames_by_index: ReadOnlyView<SourceId, PathBuf>,
+    modules_by_index: ReadOnlyView<SourceId, ast::AstNode<'c, ast::Module<'c>>>,
+    contents_by_index: ReadOnlyView<SourceId, String>,
+    deps_by_index: HashMap<SourceId, ReadOnlyView<SourceId, ()>>,
+    entry_point: Option<SourceId>,
 }
 
 impl SourceMap for Modules<'_> {
-    fn path_by_index(&self, index: ModuleIdx) -> &Path {
+    fn path_by_index(&self, index: SourceId) -> &Path {
         self.get_by_index(index).filename()
     }
 
-    fn contents_by_index(&self, index: ModuleIdx) -> &str {
+    fn contents_by_index(&self, index: SourceId) -> &str {
         self.get_by_index(index).content()
     }
 }
@@ -127,7 +127,7 @@ impl<'c> Modules<'c> {
         self.get_entry_point().unwrap()
     }
 
-    pub fn get_by_index<'m>(&'m self, index: ModuleIdx) -> Module<'c, 'm> {
+    pub fn get_by_index<'m>(&'m self, index: SourceId) -> Module<'c, 'm> {
         Module {
             index,
             modules: self,
@@ -151,14 +151,14 @@ impl<'c> Modules<'c> {
         })
     }
 
-    pub fn has_index(&self, index: ModuleIdx) -> bool {
+    pub fn has_index(&self, index: SourceId) -> bool {
         self.indexes.contains_key(&index)
     }
 }
 
 /// Represents a single module.
 pub struct Module<'c, 'm> {
-    index: ModuleIdx,
+    index: SourceId,
     modules: &'m Modules<'c>,
 }
 
@@ -167,7 +167,7 @@ impl<'c, 'm> Module<'c, 'm> {
         self.modules
     }
 
-    pub fn index(&self) -> ModuleIdx {
+    pub fn index(&self) -> SourceId {
         self.index
     }
 
