@@ -74,7 +74,7 @@ impl<'c> ImportResolver<'c> {
     }
 }
 
-enum ParseSourceKind {
+enum ParseSource {
     Module {
         resolved_path: PathBuf,
         module_id: ModuleId,
@@ -86,30 +86,39 @@ enum ParseSourceKind {
     },
 }
 
-impl<'c> ParseSourceKind {
-    pub fn from_source(source_id: SourceId, sources: &Sources<'c>, current_dir: PathBuf) -> Self {
-        match source_id {
-            SourceId::Interactive(interactive_id) => {
-                let interactive = sources.get_interactive_block(interactive_id);
-                Self::Interactive {
-                    interactive_id,
-                    interactive_contents: interactive.contents().to_owned(),
-                    current_dir,
-                }
-            }
-            SourceId::Module(module_id) => {
-                let module = sources.get_module(module_id);
-                Self::Module {
-                    module_id,
-                    resolved_path: module.path().to_owned(),
-                }
-            }
+impl<'c> ParseSource {
+    pub fn from_module(module_id: ModuleId, sources: &Sources<'c>) -> Self {
+        let module = sources.get_module(module_id);
+        Self::Module {
+            module_id,
+            resolved_path: module.path().to_owned(),
+        }
+    }
+    pub fn from_interactive(
+        interactive_id: InteractiveId,
+        sources: &Sources<'c>,
+        current_dir: PathBuf,
+    ) -> Self {
+        let interactive = sources.get_interactive_block(interactive_id);
+        Self::Interactive {
+            interactive_id,
+            interactive_contents: interactive.contents().to_owned(),
+            current_dir,
         }
     }
 
-    pub fn source(&self) -> ParseResult<Cow<str>> {
+    pub fn from_source(source_id: SourceId, sources: &Sources<'c>, current_dir: PathBuf) -> Self {
+        match source_id {
+            SourceId::Interactive(interactive_id) => {
+                Self::from_interactive(interactive_id, sources, current_dir)
+            }
+            SourceId::Module(module_id) => Self::from_module(module_id, sources),
+        }
+    }
+
+    pub fn contents(&self) -> ParseResult<Cow<str>> {
         match self {
-            ParseSourceKind::Module { resolved_path, .. } => Ok(Cow::Owned(
+            ParseSource::Module { resolved_path, .. } => Ok(Cow::Owned(
                 fs::read_to_string(&resolved_path).map_err(|_| {
                     let path = resolved_path.to_string_lossy();
                     ParseError::Import(ImportError {
@@ -119,7 +128,7 @@ impl<'c> ParseSourceKind {
                     })
                 })?,
             )),
-            ParseSourceKind::Interactive {
+            ParseSource::Interactive {
                 interactive_contents,
                 ..
             } => Ok(Cow::Borrowed(interactive_contents.as_str())),
@@ -128,8 +137,8 @@ impl<'c> ParseSourceKind {
 
     pub fn source_id(&self) -> SourceId {
         match self {
-            ParseSourceKind::Module { module_id, .. } => SourceId::Module(*module_id),
-            ParseSourceKind::Interactive { interactive_id, .. } => {
+            ParseSource::Module { module_id, .. } => SourceId::Module(*module_id),
+            ParseSource::Interactive { interactive_id, .. } => {
                 SourceId::Interactive(*interactive_id)
             }
         }
@@ -137,30 +146,24 @@ impl<'c> ParseSourceKind {
 
     pub fn current_dir(&self) -> PathBuf {
         match self {
-            ParseSourceKind::Module { resolved_path, .. } => {
-                resolved_path.parent().unwrap().to_owned()
-            }
-            ParseSourceKind::Interactive { current_dir, .. } => current_dir.to_owned(),
+            ParseSource::Module { resolved_path, .. } => resolved_path.parent().unwrap().to_owned(),
+            ParseSource::Interactive { current_dir, .. } => current_dir.to_owned(),
         }
     }
 }
 
-fn parse_source<'c>(
-    parse_source_kind: ParseSourceKind,
-    sender: Sender<ParserAction<'c>>,
-    castle: &'c Castle,
-) {
-    let source = match parse_source_kind.source() {
+fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castle: &'c Castle) {
+    let contents = match source.contents() {
         Ok(source) => source,
         Err(err) => {
             return sender.send(ParserAction::Error(err)).unwrap();
         }
     };
-    let current_dir = parse_source_kind.current_dir();
-    let source_id = parse_source_kind.source_id();
+    let current_dir = source.current_dir();
+    let source_id = source.source_id();
 
     let wall = castle.wall();
-    let mut lexer = Lexer::new(&source, source_id, &wall);
+    let mut lexer = Lexer::new(&contents, source_id, &wall);
     let tokens = match lexer.tokenise() {
         Ok(source) => source,
         Err(err) => {
@@ -173,16 +176,16 @@ fn parse_source<'c>(
     let resolver = ImportResolver::new(source_id, current_dir, sender);
     let gen = AstGen::new(&tokens, &trees, &resolver, wall);
 
-    let action = match &parse_source_kind {
-        ParseSourceKind::Module { module_id, .. } => match gen.parse_module() {
+    let action = match &source {
+        ParseSource::Module { module_id, .. } => match gen.parse_module() {
             Err(err) => ParserAction::Error(err.into()),
             Ok(node) => ParserAction::SetModuleInfo {
                 module_id: *module_id,
                 node,
-                contents: source.into_owned(),
+                contents: contents.into_owned(),
             },
         },
-        ParseSourceKind::Interactive { interactive_id, .. } => {
+        ParseSource::Interactive { interactive_id, .. } => {
             match gen.parse_expression_from_interactive() {
                 Err(err) => ParserAction::Error(err.into()),
                 Ok(node) => ParserAction::SetInteractiveInfo {
@@ -225,7 +228,7 @@ impl<'c> HashParser<'c> {
         let (sender, receiver) = unbounded::<ParserAction>();
 
         // Parse the entry point
-        let entry_source_kind = ParseSourceKind::from_source(entry_point_id, sources, current_dir);
+        let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);
         parse_source(entry_source_kind, sender, castle);
 
         self.pool.scope(|scope| loop {
@@ -257,16 +260,8 @@ impl<'c> HashParser<'c> {
                         }
 
                         let module_id = sources.add_module(Module::new(resolved_path.clone()));
-                        scope.spawn(move |_| {
-                            parse_source(
-                                ParseSourceKind::Module {
-                                    module_id,
-                                    resolved_path,
-                                },
-                                sender,
-                                castle,
-                            )
-                        });
+                        let source = ParseSource::from_module(module_id, sources);
+                        scope.spawn(move |_| parse_source(source, sender, castle));
                     }
                     ParserAction::Error(err) => {
                         errors.push(err);
@@ -282,11 +277,8 @@ impl<'c> HashParser<'c> {
 
 impl<'c> Parser<'c> for HashParser<'c> {
     fn parse(&mut self, target: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
-        let errors = self.parse_main(
-            sources,
-            target,
-            env::current_dir().map_err(|e| ParseError::from(e))?,
-        );
+        let current_dir = env::current_dir().map_err(|e| ParseError::from(e))?;
+        let errors = self.parse_main(sources, target, current_dir);
 
         // @@Todo: merge errors
         match errors.into_iter().next() {
