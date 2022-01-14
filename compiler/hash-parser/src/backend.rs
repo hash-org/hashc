@@ -228,9 +228,9 @@ impl<'c> HashParser<'c> {
         let entry_source_kind = ParseSourceKind::from_source(entry_point_id, sources, current_dir);
         parse_source(entry_source_kind, sender, castle);
 
-        self.pool.scope(|scope| loop {
-            match receiver.recv() {
-                Ok(message) => match message {
+        self.pool.scope(|scope| {
+            while let Ok(message) = receiver.recv() {
+                match message {
                     ParserAction::SetInteractiveInfo {
                         interactive_id,
                         node,
@@ -271,8 +271,7 @@ impl<'c> HashParser<'c> {
                     ParserAction::Error(err) => {
                         errors.push(err);
                     }
-                },
-                Err(_) => break,
+                }
             }
         });
 
@@ -285,7 +284,7 @@ impl<'c> Parser<'c> for HashParser<'c> {
         let errors = self.parse_main(
             sources,
             target,
-            env::current_dir().map_err(|e| ParseError::from(e))?,
+            env::current_dir().map_err(ParseError::from)?,
         );
 
         // @@Todo: merge errors

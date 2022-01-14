@@ -3,7 +3,8 @@ pub mod fs;
 use hash_ast::ast;
 use hash_reporting::reporting::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
-use slotmap::{new_key_type, Key, SlotMap};
+use hash_utils::timed;
+use slotmap::SlotMap;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -85,7 +86,7 @@ pub enum SourceRef<'i, 'c> {
     Module(&'i Module<'c>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Sources<'c> {
     interactive_offset: usize,
     interactive_blocks: SlotMap<InteractiveId, InteractiveBlock<'c>>,
@@ -168,7 +169,7 @@ impl<'c> Sources<'c> {
     pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
         self.dependencies
             .entry(source_id)
-            .or_insert_with(|| HashSet::new())
+            .or_insert_with(HashSet::new)
             .insert(dependency);
     }
 }
@@ -274,11 +275,42 @@ where
         // Typechecking
         let (result, checker_interactive_state) = self.checker.check_interactive(
             interactive_id,
-            &mut compiler_state.sources,
+            &compiler_state.sources,
             &mut compiler_state.checker_state,
             compiler_state.checker_interactive_state,
         );
         compiler_state.checker_interactive_state = checker_interactive_state;
+        (result, compiler_state)
+    }
+
+    pub fn run_module(
+        &mut self,
+        module_id: ModuleId,
+        mut compiler_state: CompilerState<'c, C>,
+    ) -> (CompilerResult<()>, CompilerState<'c, C>) {
+        // Parsing
+        let result = timed(
+            || {
+                self.parser
+                    .parse(SourceId::Module(module_id), &mut compiler_state.sources)
+            },
+            log::Level::Debug,
+            |elapsed| println!("parse: {:?}", elapsed),
+        );
+
+        if let Err(err) = result {
+            return (Err(err), compiler_state);
+        }
+
+        // Typechecking
+        let (result, checker_module_state) = self.checker.check_module(
+            module_id,
+            &compiler_state.sources,
+            &mut compiler_state.checker_state,
+            compiler_state.checker_module_state,
+        );
+
+        compiler_state.checker_module_state = checker_module_state;
         (result, compiler_state)
     }
 }

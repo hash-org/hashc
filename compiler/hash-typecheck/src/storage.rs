@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use hash_alloc::Wall;
-use hash_pipeline::Sources;
 use hash_source::SourceId;
 
 use crate::{
@@ -11,7 +10,7 @@ use crate::{
     types::{CoreTypeDefs, TypeDefStorage, TypeId, TypeStorage, TypeVars},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CheckedSources {
     data: HashMap<SourceId, TypeId>,
 }
