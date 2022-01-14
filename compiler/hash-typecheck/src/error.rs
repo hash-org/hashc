@@ -100,9 +100,9 @@ impl TypecheckError {
 
         match self {
             TypecheckError::TypeMismatch(given, wanted) => {
-                let given_ty = TypeWithStorage::new(given, &storage);
+                let given_ty = TypeWithStorage::new(given, storage);
                 let given_ty_location = storage.types.get_location(given);
-                let wanted_ty = TypeWithStorage::new(wanted, &storage);
+                let wanted_ty = TypeWithStorage::new(wanted, storage);
                 let wanted_ty_location = storage.types.get_location(wanted);
 
                 // @@TODO: Double notes on a CodeBlock instead of separate code blocks depending on proximity of spans
@@ -263,7 +263,7 @@ impl TypecheckError {
                 location,
                 ty_def_location,
             } => {
-                let ty = TypeWithStorage::new(ty, &storage);
+                let ty = TypeWithStorage::new(ty, storage);
 
                 // Print where the original type is defined with an annotation.
                 if let Some(ty_def_location) = ty_def_location {
@@ -315,7 +315,7 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::ExpectingBooleanInCondition { found, location } => {
-                let found_ty = TypeWithStorage::new(found, &storage);
+                let found_ty = TypeWithStorage::new(found, storage);
 
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

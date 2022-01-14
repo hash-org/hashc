@@ -5,7 +5,12 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-clap = { version = "3.0.0-beta.2", features = ["derive"] }
+thiserror = "1.0"
+log = "0.4"
+backtrace = "0.3"
+num_cpus = "1.13.0"
+clap = { version = "3.0.0", features = ["derive"] }
+
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-parser = {path = "../hash-parser" }
@@ -13,7 +18,5 @@ hash-alloc = {path = "../hash-alloc" }
 hash-interactive = {path = "../hash-interactive" } 
 hash-reporting = {path = "../hash-reporting" }
 hash-pipeline = {path = "../hash-pipeline" }
-thiserror = "1.0"
-log = "0.4"
-backtrace = "0.3"
-num_cpus = "1.13.0"
+hash-typecheck = {path = "../hash-typecheck" }
+

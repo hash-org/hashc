@@ -8,7 +8,7 @@ use hash_reporting::{
 use hash_source::location::SourceLocation;
 use std::{
     fs,
-    path::{Path, PathBuf}, io,
+    path::{Path, PathBuf},
 };
 use thiserror::Error;
 
