@@ -281,11 +281,8 @@ impl<'c> HashParser<'c> {
 
 impl<'c> Parser<'c> for HashParser<'c> {
     fn parse(&mut self, target: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
-        let errors = self.parse_main(
-            sources,
-            target,
-            env::current_dir().map_err(ParseError::from)?,
-        );
+        let current_dir = env::current_dir().map_err(ParseError::from)?;
+        let errors = self.parse_main(sources, target, current_dir);
 
         // @@Todo: merge errors
         match errors.into_iter().next() {

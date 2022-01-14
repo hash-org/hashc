@@ -9,14 +9,10 @@ extern crate strum_macros;
 
 pub mod ast;
 pub mod count;
-// mod fs;
 pub mod ident;
 pub mod keyword;
 pub mod literal;
-// pub mod module;
 pub mod operator;
-// pub mod parse;
-// pub mod resolve;
 pub mod storage;
 pub mod tree;
 pub mod visitor;

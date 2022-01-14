@@ -9,7 +9,7 @@ log = "0.4"
 slotmap = "1.0"
 thiserror = "1.0"
 
-hash-utils = { path = "../hash-utils" }
 hash-ast = { path = "../hash-ast" }
-hash-reporting = { path = "../hash-reporting" }
+hash-utils = { path = "../hash-utils" }
 hash-source = { path = "../hash-source" }
+hash-reporting = { path = "../hash-reporting" }
