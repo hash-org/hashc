@@ -791,9 +791,7 @@ pub struct Expression<'c> {
 
 impl<'c> Expression<'c> {
     pub fn new(kind: ExpressionKind<'c>) -> Self {
-        Self {
-            kind,
-        }
+        Self { kind }
     }
 
     pub fn into_kind(self) -> ExpressionKind<'c> {
