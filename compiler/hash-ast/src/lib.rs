@@ -14,7 +14,6 @@ mod fs;
 pub mod ident;
 pub mod keyword;
 pub mod literal;
-pub mod location;
 pub mod module;
 pub mod operator;
 pub mod parse;

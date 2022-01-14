@@ -12,10 +12,7 @@ use hash_alloc::Castle;
 use hash_ast::module::Modules;
 use hash_ast::parse::{ParParser, Parser, ParserBackend};
 use hash_parser::backend::HashParser;
-use hash_reporting::{
-    errors::CompilerError,
-    reporting::{Report, ReportWriter},
-};
+use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
@@ -121,7 +118,7 @@ fn run_parsing<'c>(
     match result {
         Ok(_) => modules,
         Err(errors) => {
-            for report in errors.into_iter().map(Report::from) {
+            for report in errors.into_iter().map(|err| err.create_report()) {
                 let report_writer = ReportWriter::new(report, &modules);
                 println!("{}", report_writer);
             }
