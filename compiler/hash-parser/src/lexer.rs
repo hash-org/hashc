@@ -355,8 +355,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             _ => {
                 let digits = pre_digits.collect::<String>();
 
-                // TODO: Implement display for parse errors
-                // TODO: Use our own parser for integers and floats instead of relying on rust's default one.
+                // @@TODO: Implement display for parse errors
+                // @@TODO: Use our own parser for integers and floats instead of relying on rust's default one.
                 match digits.parse::<u64>() {
                     Err(_e) => Err(TokenError::new(
                         Some(format!("Malformed integer literal '{}'.", digits)),
