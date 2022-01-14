@@ -1,6 +1,6 @@
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
-    storage::{GlobalStorage, ModuleStorage},
+    storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeList, TypeStorage},
     unify::{Substitution, Unifier, UnifyStrategy},
     writer::TypeWithStorage,
@@ -168,15 +168,15 @@ impl<'c, 'w> CoreTraits {
     }
 }
 
-pub struct TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
-    module_storage: &'ms mut ModuleStorage,
-    global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
+pub struct TraitHelper<'c, 'w, 'ms, 'gs> {
+    module_storage: &'ms mut SourceStorage,
+    global_storage: &'gs mut GlobalStorage<'c, 'w>,
 }
 
-impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
+impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
     pub fn new(
-        module_storage: &'ms mut ModuleStorage,
-        global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
+        module_storage: &'ms mut SourceStorage,
+        global_storage: &'gs mut GlobalStorage<'c, 'w>,
     ) -> Self {
         Self {
             module_storage,
@@ -184,7 +184,7 @@ impl<'c, 'w, 'm, 'ms, 'gs> TraitHelper<'c, 'w, 'm, 'ms, 'gs> {
         }
     }
 
-    fn unifier(&mut self) -> Unifier<'c, 'w, 'm, '_, '_> {
+    fn unifier(&mut self) -> Unifier<'c, 'w, '_, '_> {
         Unifier::new(self.module_storage, self.global_storage)
     }
 

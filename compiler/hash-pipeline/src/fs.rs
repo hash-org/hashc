@@ -1,15 +1,45 @@
-//! Hash Compiler AST filesystem utility functions
+//! Hash Compiler filesystem utility functions
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-
+use hash_reporting::{
+    errors::ErrorCode,
+    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+};
+use hash_source::location::SourceLocation;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
+use thiserror::Error;
 
-use hash_source::location::SourceLocation;
+/// Import error is an abstraction to represent errors that are in relevance to IO
+/// operations rather than parsing operations.
+#[derive(Debug, Clone, Error)]
+#[error("Couldn't import module '{filename}':\n {message}")]
+pub struct ImportError {
+    pub filename: PathBuf,
+    pub message: String,
+    pub src: Option<SourceLocation>,
+}
 
-use crate::error::ImportError;
+impl ImportError {
+    pub fn create_report(&self) -> Report {
+        let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message("Failed to import")
+            .with_error_code(ErrorCode::Parsing); // @@Todo: add a better error code
+
+        if let Some(src) = self.src {
+            builder
+                .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                .add_element(ReportElement::Note(ReportNote::new("note", &self.message)));
+        } else {
+            builder.with_message(format!("Failed to import: {}", self.message));
+        }
+        builder.build().unwrap()
+    }
+}
 
 /// The location of a build directory of this package, this used to resolve where the standard library
 /// is located at.

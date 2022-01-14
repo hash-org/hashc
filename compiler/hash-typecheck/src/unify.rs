@@ -1,6 +1,6 @@
 use crate::{
     error::{TypecheckError, TypecheckResult},
-    storage::{GlobalStorage, ModuleStorage},
+    storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeValue},
     writer::TypeWithStorage,
 };
@@ -20,18 +20,15 @@ pub struct Substitution {
     pub subs: Vec<(TypeId, TypeId)>,
 }
 
-pub struct SubstitutionWithStorage<'s, 'c, 'w, 'm, 'gs>(
-    &'s Substitution,
-    &'gs GlobalStorage<'c, 'w, 'm>,
-);
+pub struct SubstitutionWithStorage<'s, 'c, 'w, 'gs>(&'s Substitution, &'gs GlobalStorage<'c, 'w>);
 
-impl<'s, 'c, 'w, 'm, 'gs> SubstitutionWithStorage<'s, 'c, 'w, 'm, 'gs> {
-    pub fn new(sub: &'s Substitution, storage: &'gs GlobalStorage<'c, 'w, 'm>) -> Self {
+impl<'s, 'c, 'w, 'gs> SubstitutionWithStorage<'s, 'c, 'w, 'gs> {
+    pub fn new(sub: &'s Substitution, storage: &'gs GlobalStorage<'c, 'w>) -> Self {
         Self(sub, storage)
     }
 }
 
-impl<'s, 'c, 'w, 'm, 'gs> fmt::Display for SubstitutionWithStorage<'s, 'c, 'w, 'm, 'gs> {
+impl<'s, 'c, 'w, 'gs> fmt::Display for SubstitutionWithStorage<'s, 'c, 'w, 'gs> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for sub in &self.0.subs {
             writeln!(
@@ -65,15 +62,15 @@ impl<'c> Substitution {
     }
 }
 
-pub struct Unifier<'c, 'w, 'm, 'ms, 'gs> {
-    module_storage: &'ms mut ModuleStorage,
-    global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
+pub struct Unifier<'c, 'w, 'ms, 'gs> {
+    module_storage: &'ms mut SourceStorage,
+    global_storage: &'gs mut GlobalStorage<'c, 'w>,
 }
 
-impl<'c, 'w, 'm, 'ms, 'gs> Unifier<'c, 'w, 'm, 'ms, 'gs> {
+impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
     pub fn new(
-        module_storage: &'ms mut ModuleStorage,
-        global_storage: &'gs mut GlobalStorage<'c, 'w, 'm>,
+        module_storage: &'ms mut SourceStorage,
+        global_storage: &'gs mut GlobalStorage<'c, 'w>,
     ) -> Self {
         Self {
             module_storage,

@@ -5,12 +5,14 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-log = "0.4"
-lazy_static = "1.4.0"
-dashmap = "4.0"
 thiserror = "1.0"
 derive_more = "0.99"
+crossbeam-channel = "0.5.1"
+rayon = "1.5.0"
+
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-alloc = {path = "../hash-alloc" }
 hash-source = {path = "../hash-source" }
+hash-pipeline = {path = "../hash-pipeline"}
+hash-reporting = {path = "../hash-reporting"}

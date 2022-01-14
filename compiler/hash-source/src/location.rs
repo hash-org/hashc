@@ -1,8 +1,7 @@
 //! Frontend-agnostic token/input locations utilities and definitions.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-
-use crate::module::ModuleIdx;
+use crate::SourceId;
 use derive_more::Constructor;
 use std::{convert::TryInto, fmt};
 
@@ -84,5 +83,5 @@ impl fmt::Display for Location {
 #[derive(Debug, Clone, Copy, Constructor)]
 pub struct SourceLocation {
     pub location: Location,
-    pub module_index: ModuleIdx,
+    pub source_id: SourceId,
 }

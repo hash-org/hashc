@@ -10,13 +10,13 @@ use crate::{
     },
 };
 
-pub struct TypeWithStorage<'g, 'c, 'w, 'm> {
+pub struct TypeWithStorage<'g, 'c, 'w> {
     ty: TypeId,
-    storage: &'g GlobalStorage<'c, 'w, 'm>,
+    storage: &'g GlobalStorage<'c, 'w>,
 }
 
-impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
-    pub fn new(ty: TypeId, storage: &'g GlobalStorage<'c, 'w, 'm>) -> Self {
+impl<'g, 'c, 'w> TypeWithStorage<'g, 'c, 'w> {
+    pub fn new(ty: TypeId, storage: &'g GlobalStorage<'c, 'w>) -> Self {
         Self { ty, storage }
     }
 
@@ -105,7 +105,7 @@ impl<'g, 'c, 'w, 'm> TypeWithStorage<'g, 'c, 'w, 'm> {
     }
 }
 
-impl<'g, 'c, 'w, 'm> fmt::Display for TypeWithStorage<'g, 'c, 'w, 'm> {
+impl<'g, 'c, 'w> fmt::Display for TypeWithStorage<'g, 'c, 'w> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.storage.types.get(self.ty) {
             crate::types::TypeValue::Ref(RefType { inner }) => {

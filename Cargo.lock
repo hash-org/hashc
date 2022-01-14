@@ -93,9 +93,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "clap"
-version = "3.0.0-rc.7"
+version = "3.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9468f8012246b0836c6fd11725102b0844254985f2462b6c637d50040ef49df0"
+checksum = "12e8611f9ae4e068fa3e56931fded356ff745e70987ff76924a6e0ab1c8ef2e3"
 dependencies = [
  "atty",
  "bitflags",
@@ -110,11 +110,11 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.0.0-rc.7"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b72e1af32a4de4d21a43d26de33fe69c00e895371bd8b1523d674f011b610467"
+checksum = "517358c28fcef6607bf6f76108e02afad7e82297d132a6b846dcc1fc3efcd153"
 dependencies = [
- "heck",
+ "heck 0.4.0",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -140,9 +140,9 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ed27e177f16d65f0f0c22a213e17c696ace5dd64b14258b52f9417ccb52db4"
+checksum = "e54ea8bc3fb1ee042f5aace6e3c6e025d3874866da222930f70ce62aceba0bfa"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -161,9 +161,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.9.5"
+version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ec02e091aa634e2c3ada4a392989e7c3116673ef0ac5b72232439094d73b7fd"
+checksum = "97242a70df9b89a65d0b6df3c4bf5b9ce03c5b7309019777fbde37e7537f8762"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -174,9 +174,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d82cfc11ce7f2c3faef78d8a684447b40d503d9681acebed6cb728d45940c4db"
+checksum = "cfcae03edb34f947e64acdb1c33ec169824e20657e9ecb61cef6c8c74dcb8120"
 dependencies = [
  "cfg-if",
  "lazy_static",
@@ -291,7 +291,9 @@ dependencies = [
  "hash-ast",
  "hash-interactive",
  "hash-parser",
+ "hash-pipeline",
  "hash-reporting",
+ "hash-typecheck",
  "hash-utils",
  "log",
  "num_cpus",
@@ -310,7 +312,6 @@ dependencies = [
 name = "hash-ast"
 version = "0.1.0"
 dependencies = [
- "crossbeam-channel",
  "dashmap",
  "derive_more",
  "fnv",
@@ -320,8 +321,6 @@ dependencies = [
  "hash-utils",
  "lazy_static",
  "log",
- "num_cpus",
- "rayon",
  "strum",
  "strum_macros",
  "thiserror",
@@ -334,6 +333,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-parser",
+ "hash-pipeline",
  "hash-reporting",
  "hash-typecheck",
  "rustyline",
@@ -343,14 +343,15 @@ dependencies = [
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
- "dashmap",
+ "crossbeam-channel",
  "derive_more",
  "hash-alloc",
  "hash-ast",
+ "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "hash-utils",
- "lazy_static",
- "log",
+ "rayon",
  "thiserror",
 ]
 
@@ -361,9 +362,23 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-parser",
+ "hash-pipeline",
  "hash-source",
  "hash-utils",
  "hash-utils-testing-macros",
+]
+
+[[package]]
+name = "hash-pipeline"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-reporting",
+ "hash-source",
+ "hash-utils",
+ "log",
+ "slotmap",
+ "thiserror",
 ]
 
 [[package]]
@@ -381,8 +396,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-utils",
- "lazy_static",
- "thiserror",
+ "slotmap",
 ]
 
 [[package]]
@@ -392,11 +406,11 @@ dependencies = [
  "dashmap",
  "hash-alloc",
  "hash-ast",
+ "hash-pipeline",
  "hash-reporting",
  "hash-source",
  "hash-utils",
  "slotmap",
- "smallvec",
 ]
 
 [[package]]
@@ -432,6 +446,12 @@ checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
 dependencies = [
  "unicode-segmentation",
 ]
+
+[[package]]
+name = "heck"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
 
 [[package]]
 name = "hermit-abi"
@@ -751,7 +771,7 @@ version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
 dependencies = [
- "heck",
+ "heck 0.3.3",
  "proc-macro2",
  "quote",
  "syn",

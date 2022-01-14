@@ -7,9 +7,6 @@ edition = "2021"
 [dependencies]
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_debug"] }
 lazy_static = "1.4.0"
-crossbeam-channel = "0.5.1"
-num_cpus = "1.13.0"
-rayon = "1.5.0"
 thiserror = "1.0"
 dashmap = "4.0"
 fnv = "1.0.7"

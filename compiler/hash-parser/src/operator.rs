@@ -3,7 +3,6 @@ use std::{borrow::Cow, fmt::Debug};
 use hash_ast::{
     keyword::Keyword,
     operator::{CompoundFn, OperatorFn},
-    resolve::ModuleResolver,
 };
 
 use crate::{gen::AstGen, token::TokenKind};
@@ -73,7 +72,7 @@ impl Operator {
     /// all binary operators are made of that many tokens). The function returns an optional derived
     /// operator, and the number of tokens that was consumed deriving the operator, it is the responsibility
     /// of the caller to increment the token stream by the provided number.
-    pub(crate) fn from_token_stream<R: ModuleResolver>(gen: &AstGen<R>) -> (Option<Operator>, u8) {
+    pub(crate) fn from_token_stream(gen: &AstGen) -> (Option<Operator>, u8) {
         let token = gen.peek();
 
         // check if there is a token that we can peek at ahead...
