@@ -10,14 +10,15 @@ mod logger;
 use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
 use hash_parser::backend::HashParser;
+use hash_pipeline::{Compiler, Module};
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
+use hash_typecheck::HashTypechecker;
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
+use std::fs;
+use std::num::NonZeroUsize;
 use std::panic;
-use std::path::PathBuf;
-use std::{env, fs};
-use std::{num::NonZeroUsize, process::exit};
 
 use crate::crash_handler::panic_handler;
 
@@ -102,30 +103,6 @@ fn execute(f: impl FnOnce() -> Result<(), CompilerError>) {
     }
 }
 
-// fn run_parsing<'c>(
-//     parser: ParParser<impl ParserBackend<'c>>,
-//     filename: PathBuf,
-//     directory: PathBuf,
-// ) -> Modules<'c> {
-//     let (result, modules) = timed(
-//         || parser.parse(&filename, &directory),
-//         log::Level::Debug,
-//         |elapsed| println!("total: {:?}", elapsed),
-//     );
-
-//     match result {
-//         Ok(_) => modules,
-//         Err(errors) => {
-//             for report in errors.into_iter().map(|err| err.create_report()) {
-//                 let report_writer = ReportWriter::new(report, &modules);
-//                 println!("{}", report_writer);
-//             }
-
-//             exit(-1)
-//         }
-//     }
-// }
-
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(panic_handler));
@@ -139,52 +116,50 @@ fn main() {
     }
 
     // check that the job count is valid...
-    // let worker_count = NonZeroUsize::new(opts.worker_count).unwrap_or_else(|| {
-    //     (CompilerError::ArgumentError {
-    //         message: "Invalid number of worker threads".to_owned(),
-    //     })
-    //     .report_and_exit()
-    // });
+    let worker_count = NonZeroUsize::new(opts.worker_count)
+        .unwrap_or_else(|| {
+            (CompilerError::ArgumentError {
+                message: "Invalid number of worker threads".to_owned(),
+            })
+            .report_and_exit()
+        })
+        .into();
 
-    // let castle = Castle::new();
-
-    // let mut parser_backend =
-    //     ParParser::new_with_workers(HashParser::new(&castle), worker_count, false);
-
+    // Create a castle for allocations in the pipeline
+    let castle = Castle::new();
+    
     execute(|| {
-        let directory = env::current_dir().unwrap();
-
-        // check here if we are operating in a special mode
-        // if let Some(mode) = opts.mode {
-        //     let _modules = match mode {
-        //         SubCmd::AstGen(settings) => {
-        //             let filename = fs::canonicalize(&settings.filename)?;
-
-        //             if settings.debug {
-        //                 log::set_max_level(LevelFilter::Debug);
-        //             }
-
-        //             parser_backend.set_visualisation(settings.visualise);
-        //             run_parsing(parser_backend, filename, directory)
-        //         }
-        //         SubCmd::IrGen(i) => {
-        //             println!("Generating ir for: {} with debug={}", i.filename, i.debug);
-        //             todo!()
-        //         }
-        //     };
-
-        //     return Ok(());
-        // }
-
         match opts.execute {
             Some(path) => {
-                // let filename = fs::canonicalize(&path)?;
-                // let _modules = run_parsing(parser_backend, filename, directory);
+                let filename = fs::canonicalize(&path)?;
+                let module = Module::new(filename);
+
+                let parser = HashParser::new(worker_count, &castle);
+                let tc_wall = &castle.wall();
+                let checker = HashTypechecker::new(tc_wall);
+                let mut compiler = Compiler::new(parser, checker);
+                let mut compiler_state = compiler.create_state().unwrap();
+
+                let module_id = compiler_state.sources.add_module(module);
+
+                // Wrap the compilation job in timed to time the total time taken to run the job
+                timed(
+                    || {
+                        let (result, new_state) = compiler.run_module(module_id, compiler_state);
+
+                        // Report the error if one occurred...
+                        if let Err(err) = result {
+                            println!("{}", ReportWriter::new(err, &new_state.sources));
+                        }
+                    },
+                    log::Level::Debug,
+                    |elapsed| println!("total: {:?}", elapsed),
+                );
 
                 Ok(())
             }
             None => {
-                hash_interactive::init()?;
+                hash_interactive::init(worker_count, castle)?;
                 Ok(())
             }
         }
