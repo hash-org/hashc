@@ -5,7 +5,6 @@
 
 pub mod error;
 pub mod gen;
-pub mod interface;
 pub mod lexer;
 mod operator;
 pub mod parser;
