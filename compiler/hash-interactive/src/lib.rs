@@ -7,7 +7,7 @@ mod command;
 use command::InteractiveCommand;
 use hash_alloc::Castle;
 
-use hash_parser::backend::HashParser;
+use hash_parser::parser::HashParser;
 use hash_pipeline::{Checker, Compiler, CompilerState, InteractiveBlock, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;

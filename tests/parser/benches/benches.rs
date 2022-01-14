@@ -25,7 +25,8 @@ macro_rules! bench_func {
 
             // make a new sources
             let mut sources = Sources::new();
-            let interactive_id = sources.add_interactive_block(InteractiveBlock::new($source.to_string()));
+            let interactive_id =
+                sources.add_interactive_block(InteractiveBlock::new($source.to_string()));
 
             b.iter(|| {
                 // create a new lexer
