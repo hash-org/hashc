@@ -172,7 +172,6 @@ where
 
     /// Get the current location from the current token, if there is no token at the current
     /// offset, then the location of the last token is used.
-    // #[inline(always)]
     pub(crate) fn current_location(&self) -> Location {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {

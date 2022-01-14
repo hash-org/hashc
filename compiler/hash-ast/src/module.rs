@@ -99,22 +99,6 @@ impl<'c> Modules<'c> {
         self.path_to_index.contains_key(path.as_ref())
     }
 
-    // pub fn sources(&self) -> SourceMap {
-    //     let mut map = HashMap::with_capacity(self.filenames_by_index.len());
-
-    //     self.filenames_by_index.iter().for_each(|key| {
-    //         let contents = self.contents_by_index.get(key.0).unwrap();
-
-    //         // @@Copying
-    //         map.insert(
-    //             *key.0,
-    //             SourceModule::new(key.1.to_owned(), contents.to_owned()),
-    //         );
-    //     });
-
-    //     SourceMap::new(map)
-    // }
-
     pub fn has_entry_point(&self) -> bool {
         self.entry_point.is_some()
     }
