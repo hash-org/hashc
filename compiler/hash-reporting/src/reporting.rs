@@ -1,17 +1,15 @@
 //! Hash Compiler error and warning reporting module.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use core::fmt;
-use std::{
-    cell::Cell,
-    iter::{once, repeat},
-};
-
-use hash_source::{location::SourceLocation, module::SourceMap};
-
 use crate::{
     errors::ErrorCode,
     highlight::{highlight, Colour, Modifier},
+};
+use core::fmt;
+use hash_source::{location::SourceLocation, SourceMap};
+use std::{
+    cell::Cell,
+    iter::{once, repeat},
 };
 
 /// Enumeration describing the type of report; either being a warning, info or a
@@ -153,8 +151,8 @@ impl ReportCodeBlock {
         match self.info.get() {
             Some(info) => info,
             None => {
-                let index = self.source_location.module_index;
-                let source = modules.contents_by_index(index);
+                let source_id = self.source_location.source_id;
+                let source = modules.contents_by_id(source_id);
 
                 let location = self.source_location.location;
 
@@ -191,8 +189,8 @@ impl ReportCodeBlock {
         // or equivalent unicode character.
         //
         // Print a few lines before and after location/code_message.
-        let index = self.source_location.module_index;
-        let source = modules.contents_by_index(index);
+        let source_id = self.source_location.source_id;
+        let source = modules.contents_by_id(source_id);
         let ReportCodeBlockInfo {
             start_row,
             end_row,
@@ -223,7 +221,7 @@ impl ReportCodeBlock {
                 Modifier::Underline,
                 format!(
                     "{}:{}:{}",
-                    modules.path_by_index(index).to_string_lossy(),
+                    modules.path_by_id(source_id).to_string_lossy(),
                     start_row + 1,
                     start_col + 1,
                 )
@@ -389,12 +387,12 @@ impl ReportBuilder {
 /// access to the source code.
 pub struct ReportWriter<'m, T: SourceMap> {
     report: Report,
-    modules: &'m T,
+    sources: &'m T,
 }
 
 impl<'m, T: SourceMap> ReportWriter<'m, T> {
-    pub fn new(report: Report, modules: &'m T) -> Self {
-        Self { report, modules }
+    pub fn new(report: Report, sources: &'m T) -> Self {
+        Self { report, sources }
     }
 }
 
@@ -424,7 +422,7 @@ impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
                 .iter()
                 .fold(0, |longest_indent_width, element| match element {
                     ReportElement::CodeBlock(code_block) => code_block
-                        .info(self.modules)
+                        .info(self.sources)
                         .indent_width
                         .max(longest_indent_width),
                     ReportElement::Note(_) => longest_indent_width,
@@ -433,7 +431,7 @@ impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
         let mut iter = self.report.contents.iter().peekable();
 
         while let Some(note) = iter.next() {
-            note.render(f, self.modules, longest_indent_width, self.report.kind)?;
+            note.render(f, self.sources, longest_indent_width, self.report.kind)?;
 
             if matches!(iter.peek(), Some(ReportElement::CodeBlock(_))) {
                 writeln!(f)?;

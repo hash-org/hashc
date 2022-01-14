@@ -8,6 +8,7 @@ members = [
   "compiler/hash-interactive",
   "compiler/hash-reporting",
   "compiler/hash-source",
+  "compiler/hash-pipeline",
   "compiler/hash-typecheck",
   "compiler/hash",
   "tests/parser",

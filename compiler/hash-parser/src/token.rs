@@ -316,7 +316,7 @@ impl fmt::Display for TokenKind {
 /// The wrapper exists because once again you cannot specify implementations for types
 /// that don't originate from the current crate.
 ///
-/// TODO(alex): Instead of using a [TokenKind], we should use an enum to custom
+/// @@TODO(alex): Instead of using a [TokenKind], we should use an enum to custom
 /// variants or descriptors such as 'operator'. Instead of token atoms we can just
 /// the display representations of the token atoms. Or even better, we can use the
 /// [`ToString`] trait and just auto cast into a string, whilst holding a vector of

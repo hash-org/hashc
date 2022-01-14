@@ -4,6 +4,8 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 
 use std::cell::Cell;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use hash_alloc::collections::row::Row;
 use hash_alloc::{row, Wall};
@@ -15,10 +17,10 @@ use hash_ast::{
     keyword::Keyword,
     literal::STRING_LITERAL_MAP,
     operator::{CompoundFn, OperatorFn},
-    resolve::ModuleResolver,
 };
 use hash_source::location::{Location, SourceLocation};
 
+use crate::parser::ImportResolver;
 use crate::{
     error::{AstGenError, AstGenErrorKind, TyArgumentKind},
     operator::Operator,
@@ -31,7 +33,7 @@ use crate::{
 
 pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
 
-pub struct AstGen<'c, 'stream, 'resolver, R> {
+pub struct AstGen<'c, 'stream, 'resolver> {
     /// Current token stream offset.
     offset: Cell<usize>,
 
@@ -57,23 +59,20 @@ pub struct AstGen<'c, 'stream, 'resolver, R> {
     /// the parent has specifically checked ahead to ensure it isn't a struct literal.
     disallow_struct_literals: Cell<bool>,
 
-    /// Instance of a [ModuleResolver] to notify the parser of encountered imports.
-    resolver: &'resolver R,
+    /// Instance of an [ImportResolver] to notify the parser of encountered imports.
+    resolver: &'resolver ImportResolver<'c>,
 
     wall: Wall<'c>,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
 /// language components.
-impl<'c, 'stream, 'resolver, R> AstGen<'c, 'stream, 'resolver, R>
-where
-    R: ModuleResolver,
-{
+impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Create new AST generator from a token stream.
     pub fn new(
         stream: &'stream [Token],
         token_trees: &'stream [Row<'stream, Token>],
-        resolver: &'resolver R,
+        resolver: &'resolver ImportResolver<'c>,
         wall: Wall<'c>,
     ) -> Self {
         Self {
@@ -108,7 +107,7 @@ where
     fn source_location(&self, location: &Location) -> SourceLocation {
         SourceLocation {
             location: *location,
-            module_index: self.resolver.module_index(),
+            source_id: self.resolver.current_source_id(),
         }
     }
 
@@ -2156,17 +2155,18 @@ where
         }
 
         // Attempt to add the module via the resolver
-        let resolved_module = self
+        let import_path = PathBuf::from_str(path).unwrap_or_else(|err| match err {});
+        let resolved_import_path = self
             .resolver
-            .add_module(path, Some(self.source_location(span)));
+            .parse_import(&import_path, self.source_location(span));
 
-        match resolved_module {
-            Ok(idx) => Ok(self.node_from_joined_location(
+        match resolved_import_path {
+            Ok(resolved_import_path) => Ok(self.node_from_joined_location(
                 Expression::new(ExpressionKind::Import(ImportExpr(
                     self.node_from_joined_location(
                         Import {
                             path: *raw,
-                            index: idx,
+                            resolved_path: resolved_import_path,
                         },
                         &start,
                     ),

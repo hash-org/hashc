@@ -7,10 +7,11 @@ use crate::literal::StringLiteral;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
 use hash_alloc::{row, Wall};
-use hash_source::{location::Location, module::ModuleIdx};
+use hash_source::location::Location;
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 
 counter! {
     name: AstNodeId,
@@ -734,7 +735,7 @@ pub struct TypedExpr<'c> {
 #[derive(Debug, PartialEq)]
 pub struct Import {
     pub path: StringLiteral,
-    pub index: ModuleIdx,
+    pub resolved_path: PathBuf,
 }
 
 /// A variable expression.

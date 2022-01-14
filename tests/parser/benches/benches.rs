@@ -3,7 +3,9 @@ extern crate test;
 
 use hash_alloc::Castle;
 use hash_parser::lexer::Lexer;
-use hash_source::module::ModuleIdx;
+use hash_pipeline::InteractiveBlock;
+use hash_pipeline::Sources;
+use hash_source::SourceId;
 use test::{black_box, Bencher};
 
 static STRINGS: &str = r#""tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree." "tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree." "tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree." "tree" "to" "a" "graph" "that can" "more adequately represent" "loops and arbitrary state jumps" "with\"\"\"out" "the\n\n\n\n\n" "expl\"\"\"osive" "nature\"""of trying to build up all possible permutations in a tree.""#;
@@ -21,9 +23,14 @@ macro_rules! bench_func {
             let castle = Castle::new();
             let wall = castle.wall();
 
+            // make a new sources
+            let mut sources = Sources::new();
+            let interactive_id =
+                sources.add_interactive_block(InteractiveBlock::new($source.to_string()));
+
             b.iter(|| {
                 // create a new lexer
-                let mut lex = Lexer::new($source, ModuleIdx::new(), &wall);
+                let mut lex = Lexer::new($source, SourceId::Interactive(interactive_id), &wall);
 
                 while let Ok(Some(token)) = lex.advance_token() {
                     black_box(token);

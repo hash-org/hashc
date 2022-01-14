@@ -187,6 +187,11 @@ pub struct ScopeStack {
 }
 
 impl ScopeStack {
+    pub fn empty() -> Self {
+        Self {
+            scopes: vec![Scope::new()],
+        }
+    }
     pub fn new(global_storage: &mut GlobalStorage) -> Self {
         let root_scope = Scope::root(global_storage);
         Self {
@@ -210,6 +215,10 @@ impl ScopeStack {
         }
 
         None
+    }
+
+    pub fn append(&mut self, other: ScopeStack) {
+        self.scopes.extend(other.scopes);
     }
 
     pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: SymbolType) {

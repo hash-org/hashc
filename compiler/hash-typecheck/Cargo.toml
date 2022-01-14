@@ -5,11 +5,12 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
+slotmap = "1.0"
+dashmap = "4.0"
+
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }
 hash-utils = { path = "../hash-utils" }
 hash-alloc = { path = "../hash-alloc" }
 hash-reporting = {path = "../hash-reporting" }
-smallvec = { version = "1.6", features = ["union"] }
-slotmap = "1.0"
-dashmap = "4.0"
+hash-pipeline = {path = "../hash-pipeline" }
