@@ -221,12 +221,12 @@ impl<'c> HashParser<'c> {
     ) -> Vec<ParseError> {
         let castle = self.castle;
         let mut errors = Vec::new();
-        let sender_count = AtomicUsize::new(0);
+        let mut sender_count = 0;
         let (sender, receiver) = unbounded::<ParserAction>();
 
         // Parse the entry point
         let entry_source_kind = ParseSourceKind::from_source(entry_point_id, sources, current_dir);
-        sender_count.fetch_add(1, Ordering::SeqCst);
+        sender_count += 1;
         parse_source(entry_source_kind, sender.clone(), castle);
 
         self.pool.scope(|scope| loop {
@@ -239,7 +239,7 @@ impl<'c> HashParser<'c> {
                         sources
                             .get_interactive_block_mut(interactive_id)
                             .set_node(node);
-                        sender_count.fetch_sub(1, Ordering::SeqCst);
+                        sender_count -= 1;
                     }
                     ParserAction::SetModuleInfo {
                         module_id,
@@ -249,7 +249,7 @@ impl<'c> HashParser<'c> {
                         let module = sources.get_module_mut(module_id);
                         module.set_contents(contents);
                         module.set_node(node);
-                        sender_count.fetch_sub(1, Ordering::SeqCst);
+                        sender_count -= 1;
                     }
                     ParserAction::ParseImport { resolved_path } => {
                         if sources.get_module_id_by_path(&resolved_path).is_some() {
@@ -257,7 +257,7 @@ impl<'c> HashParser<'c> {
                         }
                         let module_id = sources.add_module(Module::new(resolved_path.clone()));
 
-                        sender_count.fetch_add(1, Ordering::SeqCst);
+                        sender_count += 1;
                         let sender = sender.clone();
                         scope.spawn(move |_| {
                             parse_source(
@@ -272,10 +272,10 @@ impl<'c> HashParser<'c> {
                     }
                     ParserAction::Error(err) => {
                         errors.push(err);
-                        sender_count.fetch_sub(1, Ordering::SeqCst);
+                        sender_count -= 1;
                     }
                 },
-                Err(_) if sender_count.load(Ordering::SeqCst) == 0 => break,
+                Err(_) if sender_count == 0 => break,
                 Err(_) => {}
             }
         });
