@@ -13,7 +13,7 @@ use hash_pipeline::{CompilerResult, Module, Parser, Sources};
 use hash_source::location::SourceLocation;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use std::borrow::Cow;
-use std::env;
+use std::env::{self, current_dir};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -148,52 +148,52 @@ fn parse_source<'c>(
     parse_source_kind: ParseSourceKind,
     sender: Sender<ParserAction<'c>>,
     castle: &'c Castle,
-) -> ParseResult<()> {
-    // @@TODO: deal with error, send it back to channel
-    let source = parse_source_kind.source()?;
+) {
+    let source = match parse_source_kind.source() {
+        Ok(source) => source,
+        Err(err) => {
+            return sender.send(ParserAction::Error(err)).unwrap();
+        }
+    };
     let current_dir = parse_source_kind.current_dir();
     let source_id = parse_source_kind.source_id();
 
     let wall = castle.wall();
     let mut lexer = Lexer::new(&source, source_id, &wall);
-    let tokens = lexer.tokenise()?;
+    let tokens = match lexer.tokenise() {
+        Ok(source) => source,
+        Err(err) => {
+            return sender.send(ParserAction::Error(err)).unwrap();
+        }
+    };
     let trees = lexer.into_token_trees();
 
     let wall = castle.wall();
     let resolver = ImportResolver::new(source_id, current_dir, sender);
     let gen = AstGen::new(&tokens, &trees, &resolver, wall);
 
-    match &parse_source_kind {
+    let action = match &parse_source_kind {
         ParseSourceKind::Module { module_id, .. } => match gen.parse_module() {
-            Err(err) => Err(err.into()),
-            Ok(node) => {
-                let sender = resolver.into_sender();
-                sender
-                    .send(ParserAction::SetModuleInfo {
-                        module_id: *module_id,
-                        node,
-                        contents: source.into_owned(),
-                    })
-                    .unwrap();
-                Ok(())
-            }
+            Err(err) => ParserAction::Error(err.into()),
+            Ok(node) => ParserAction::SetModuleInfo {
+                module_id: *module_id,
+                node,
+                contents: source.into_owned(),
+            },
         },
         ParseSourceKind::Interactive { interactive_id, .. } => {
             match gen.parse_expression_from_interactive() {
-                Err(err) => Err(err.into()),
-                Ok(node) => {
-                    let sender = resolver.into_sender();
-                    sender
-                        .send(ParserAction::SetInteractiveInfo {
-                            interactive_id: *interactive_id,
-                            node,
-                        })
-                        .unwrap();
-                    Ok(())
-                }
+                Err(err) => ParserAction::Error(err.into()),
+                Ok(node) => ParserAction::SetInteractiveInfo {
+                    interactive_id: *interactive_id,
+                    node,
+                },
             }
         }
-    }
+    };
+
+    let sender = resolver.into_sender();
+    sender.send(action).unwrap();
 }
 
 /// Implementation structure for the parser.
@@ -217,83 +217,68 @@ impl<'c> HashParser<'c> {
         &mut self,
         sources: &mut Sources<'c>,
         entry_point_id: SourceId,
+        current_dir: PathBuf,
     ) -> Vec<ParseError> {
         let castle = self.castle;
         let mut errors = Vec::new();
-        let pool_result = self.pool.scope(|scope| -> ParseResult<()> {
-            let sender_count = AtomicUsize::new(0);
-            let (sender, receiver) = unbounded::<ParserAction>();
+        let sender_count = AtomicUsize::new(0);
+        let (sender, receiver) = unbounded::<ParserAction>();
 
-            // Parse the entry point
-            let current_dir = env::current_dir()?;
-            let entry_source_kind =
-                ParseSourceKind::from_source(entry_point_id, sources, current_dir);
-            sender_count.fetch_add(1, Ordering::SeqCst);
-            parse_source(entry_source_kind, sender.clone(), castle)?;
+        // Parse the entry point
+        let entry_source_kind = ParseSourceKind::from_source(entry_point_id, sources, current_dir);
+        sender_count.fetch_add(1, Ordering::SeqCst);
+        parse_source(entry_source_kind, sender.clone(), castle);
 
-            loop {
-                match receiver.try_recv() {
-                    Ok(message) => match message {
-                        ParserAction::SetInteractiveInfo {
-                            interactive_id,
-                            node,
-                        } => {
-                            sources
-                                .get_interactive_block_mut(interactive_id)
-                                .set_node(node);
-                            sender_count.fetch_sub(1, Ordering::SeqCst);
-                        }
-                        ParserAction::SetModuleInfo {
-                            module_id,
-                            node,
-                            contents,
-                        } => {
-                            let module = sources.get_module_mut(module_id);
-                            module.set_contents(contents);
-                            module.set_node(node);
-                            sender_count.fetch_sub(1, Ordering::SeqCst);
-                        }
-                        ParserAction::ParseImport { resolved_path } => {
-                            if sources.get_module_id_by_path(&resolved_path).is_some() {
-                                continue;
-                            }
-                            let module_id = sources.add_module(Module::new(resolved_path.clone()));
-
-                            let sender = sender.clone();
-                            sender_count.fetch_add(1, Ordering::SeqCst);
-                            scope.spawn(move |_| {
-                                parse_source(
-                                    ParseSourceKind::Module {
-                                        module_id,
-                                        resolved_path,
-                                    },
-                                    sender.clone(),
-                                    castle,
-                                )
-                                .unwrap_or_else(|err| {
-                                    sender.send(ParserAction::Error(err)).unwrap();
-                                });
-                            });
-                        }
-                        ParserAction::Error(err) => {
-                            errors.push(err);
-                            sender_count.fetch_sub(1, Ordering::SeqCst);
-                        }
-                    },
-                    Err(_) => {
-                        if sender_count.load(Ordering::SeqCst) == 0 {
-                            break;
-                        }
+        self.pool.scope(|scope| loop {
+            match receiver.try_recv() {
+                Ok(message) => match message {
+                    ParserAction::SetInteractiveInfo {
+                        interactive_id,
+                        node,
+                    } => {
+                        sources
+                            .get_interactive_block_mut(interactive_id)
+                            .set_node(node);
+                        sender_count.fetch_sub(1, Ordering::SeqCst);
                     }
-                }
+                    ParserAction::SetModuleInfo {
+                        module_id,
+                        node,
+                        contents,
+                    } => {
+                        let module = sources.get_module_mut(module_id);
+                        module.set_contents(contents);
+                        module.set_node(node);
+                        sender_count.fetch_sub(1, Ordering::SeqCst);
+                    }
+                    ParserAction::ParseImport { resolved_path } => {
+                        if sources.get_module_id_by_path(&resolved_path).is_some() {
+                            continue;
+                        }
+                        let module_id = sources.add_module(Module::new(resolved_path.clone()));
+
+                        sender_count.fetch_add(1, Ordering::SeqCst);
+                        let sender = sender.clone();
+                        scope.spawn(move |_| {
+                            parse_source(
+                                ParseSourceKind::Module {
+                                    module_id,
+                                    resolved_path,
+                                },
+                                sender,
+                                castle,
+                            )
+                        });
+                    }
+                    ParserAction::Error(err) => {
+                        errors.push(err);
+                        sender_count.fetch_sub(1, Ordering::SeqCst);
+                    }
+                },
+                Err(_) if sender_count.load(Ordering::SeqCst) == 0 => break,
+                Err(_) => {}
             }
-
-            Ok(())
         });
-
-        if let Err(pool_err) = pool_result {
-            errors.push(pool_err);
-        }
 
         errors
     }
@@ -301,7 +286,11 @@ impl<'c> HashParser<'c> {
 
 impl<'c> Parser<'c> for HashParser<'c> {
     fn parse(&mut self, target: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
-        let errors = self.parse_main(sources, target);
+        let errors = self.parse_main(
+            sources,
+            target,
+            env::current_dir().map_err(|e| ParseError::from(e))?,
+        );
 
         // @@Todo: merge errors
         match errors.into_iter().next() {
