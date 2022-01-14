@@ -6,15 +6,12 @@ mod command;
 
 use command::InteractiveCommand;
 use hash_alloc::Castle;
-use hash_ast::ast::{AstNode, BodyBlock};
-use hash_ast::count::NodeCount;
 
 use hash_parser::backend::HashParser;
 use hash_pipeline::{Checker, Compiler, CompilerState, InteractiveBlock, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
 
-use hash_typecheck::writer::TypeWithStorage;
 use hash_typecheck::HashTypechecker;
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
@@ -39,14 +36,13 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init() -> CompilerResult<()> {
+pub fn init(worker_count: usize, castle: Castle) -> CompilerResult<()> {
     // Display the version on start-up
     print_version();
 
     let mut rl = Editor::<()>::new();
 
-    let castle = Castle::new();
-    let parser = HashParser::new(8, &castle);
+    let parser = HashParser::new(worker_count, &castle);
     let tc_wall = &castle.wall();
     let checker = HashTypechecker::new(tc_wall);
     let mut compiler = Compiler::new(parser, checker);
@@ -120,18 +116,18 @@ where
             }
             return new_state;
         }
-        Ok(InteractiveCommand::Type(expr)) => {
+        Ok(InteractiveCommand::Type(_expr)) => {
             println!("Not implemented yet");
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("typeof({:#?})", block);
             // }
         }
-        Ok(InteractiveCommand::Display(expr)) => {
+        Ok(InteractiveCommand::Display(_expr)) => {
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("{}", block);
             // }
         }
-        Ok(InteractiveCommand::Count(expr)) => {
+        Ok(InteractiveCommand::Count(_expr)) => {
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("{} nodes", block.node_count());
             // }

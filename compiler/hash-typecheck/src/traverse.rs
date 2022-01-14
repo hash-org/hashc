@@ -119,7 +119,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     }
 
     fn trait_helper(&mut self) -> TraitHelper<'c, 'w, '_, '_> {
-        TraitHelper::new(&mut self.source_storage, &mut self.global_storage)
+        TraitHelper::new(&mut self.source_storage, self.global_storage)
     }
 
     fn types(&self) -> &TypeStorage<'c, 'w> {
@@ -213,7 +213,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     }
 
     fn unifier<'s>(&'s mut self) -> Unifier<'c, 'w, 's, 's> {
-        Unifier::new(&mut self.source_storage, &mut self.global_storage)
+        Unifier::new(&mut self.source_storage, self.global_storage)
     }
 
     fn resolve_compound_symbol(
@@ -1498,7 +1498,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let walk::Module { contents: _ } = walk::walk_module(self, ctx, node)?;
 
         let curr_scope = self.scopes().extract_current_scope();
-        let members = ScopeStack::with_scopes(&mut self.global_storage, iter::once(curr_scope));
+        let members = ScopeStack::with_scopes(self.global_storage, iter::once(curr_scope));
         let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }), None);
 
         Ok(namespace_ty)

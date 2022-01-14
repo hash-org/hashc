@@ -293,6 +293,7 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-typecheck",
  "hash-utils",
  "log",
  "num_cpus",
@@ -368,6 +369,7 @@ dependencies = [
  "hash-alloc",
  "hash-ast",
  "hash-parser",
+ "hash-pipeline",
  "hash-source",
  "hash-utils",
  "hash-utils-testing-macros",
@@ -381,6 +383,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-utils",
+ "log",
  "slotmap",
  "thiserror",
 ]
