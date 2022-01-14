@@ -5,19 +5,11 @@
 
 use crate::ast;
 use dashmap::{lock::RwLock, DashMap, ReadOnlyView};
-use hash_utils::counter;
+use hash_source::module::{ModuleIdx, SourceMap};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
-
-counter! {
-    name: ModuleIdx,
-    counter_name: MODULE_COUNTER,
-    visibility: pub,
-    method_visibility: pub(crate),
-}
-
 /// Creates a set of loaded modules.
 #[derive(Debug, Default)]
 pub struct ModuleBuilder<'c> {
@@ -90,6 +82,16 @@ pub struct Modules<'c> {
     contents_by_index: ReadOnlyView<ModuleIdx, String>,
     deps_by_index: HashMap<ModuleIdx, ReadOnlyView<ModuleIdx, ()>>,
     entry_point: Option<ModuleIdx>,
+}
+
+impl SourceMap for Modules<'_> {
+    fn path_by_index(&self, index: ModuleIdx) -> &Path {
+        self.get_by_index(index).filename()
+    }
+
+    fn contents_by_index(&self, index: ModuleIdx) -> &str {
+        self.get_by_index(index).content()
+    }
 }
 
 impl<'c> Modules<'c> {
@@ -168,7 +170,7 @@ impl<'c, 'm> Module<'c, 'm> {
         self.ast_checked().unwrap()
     }
 
-    pub fn content(&self) -> &str {
+    pub fn content(&self) -> &'m str {
         self.modules
             .contents_by_index
             .get(&self.index)
@@ -188,7 +190,7 @@ impl<'c, 'm> Module<'c, 'm> {
             })
     }
 
-    pub fn filename(&self) -> &Path {
+    pub fn filename(&self) -> &'m Path {
         self.modules
             .filenames_by_index
             .get(&self.index)

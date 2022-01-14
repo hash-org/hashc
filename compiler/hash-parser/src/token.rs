@@ -12,7 +12,7 @@ use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
-use hash_ast::location::Location;
+use hash_source::location::Location;
 
 use crate::error::TokenError;
 

@@ -13,3 +13,4 @@ derive_more = "0.99"
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-alloc = {path = "../hash-alloc" }
+hash-source = {path = "../hash-source" }

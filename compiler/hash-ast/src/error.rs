@@ -1,8 +1,12 @@
 //! Compiler AST error data types for reporting
-//
-// All rights reserved 2021 (c) The Hash Language authors
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
 
-use crate::location::SourceLocation;
+use hash_reporting::{
+    errors::ErrorCode,
+    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+};
+use hash_source::location::SourceLocation;
 use std::{io, path::PathBuf};
 use thiserror::Error;
 
@@ -17,6 +21,35 @@ pub enum ParseError {
         message: String,
         src: SourceLocation,
     },
+}
+
+impl ParseError {
+    pub fn create_report(self) -> Report {
+        let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message("Failed to parse")
+            .with_error_code(ErrorCode::Parsing);
+
+        match self {
+            ParseError::Parsing {
+                message,
+                src: Some(src),
+            }
+            | ParseError::Token { message, src } => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new("note", message)));
+            }
+            // When we don't have a source for the error, just add a note
+            ParseError::Parsing { message, src: None } => {
+                builder.with_message(message);
+            }
+        };
+
+        // @@ErrorReporting: we might want to properly handle incomplete reports?
+        builder.build().unwrap()
+    }
 }
 
 pub type ParseResult<T> = Result<T, ParseError>;

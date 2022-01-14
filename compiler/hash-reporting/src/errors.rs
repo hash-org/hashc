@@ -2,15 +2,11 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use hash_ast::error::ParseError;
 use std::fmt;
 use std::{io, process::exit};
 use thiserror::Error;
 
-use crate::{
-    highlight::{highlight, Colour, Modifier},
-    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
-};
+use crate::highlight::{highlight, Colour, Modifier};
 
 /// Enum representing the variants of error that can occur when running an interactive session
 #[derive(Error, Debug)]
@@ -35,6 +31,7 @@ pub enum InteractiveCommandError {
 #[repr(u32)]
 pub enum ErrorCode {
     Parsing = 1,
+    Typecheck = 2, // @@Temporary
 }
 
 impl fmt::Display for ErrorCode {
@@ -42,36 +39,6 @@ impl fmt::Display for ErrorCode {
         write!(f, "{:0>4}", *self as u32)
     }
 }
-
-impl From<ParseError> for Report {
-    fn from(error: ParseError) -> Self {
-        let mut builder = ReportBuilder::new();
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message("Failed to parse")
-            .with_error_code(ErrorCode::Parsing);
-
-        match error {
-            ParseError::Parsing {
-                message,
-                src: Some(src),
-            }
-            | ParseError::Token { message, src } => {
-                builder
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
-                    .add_element(ReportElement::Note(ReportNote::new("note", message)));
-            }
-            // When we don't have a source for the error, just add a note
-            ParseError::Parsing { message, src: None } => {
-                builder.with_message(message);
-            }
-        };
-
-        // @@ErrorReporting: we might want to properly handle incomplete reports?
-        builder.build().unwrap()
-    }
-}
-
 /// Errors that might occur when attempting to compile and or interpret a
 /// program.
 #[derive(Debug, Error)]

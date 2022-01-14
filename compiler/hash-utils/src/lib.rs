@@ -16,7 +16,7 @@ macro_rules! counter {
     ) => {
         static $counter_name: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
-        #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
         $visibility struct $name(pub u32);
 
         impl $name {

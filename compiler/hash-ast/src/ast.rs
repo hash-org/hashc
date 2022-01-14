@@ -4,11 +4,10 @@
 
 use crate::ident::Identifier;
 use crate::literal::StringLiteral;
-use crate::location::Location;
-use crate::module::ModuleIdx;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
-use hash_alloc::Wall;
+use hash_alloc::{row, Wall};
+use hash_source::{location::Location, module::ModuleIdx};
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -16,13 +15,6 @@ use std::ops::{Deref, DerefMut};
 counter! {
     name: AstNodeId,
     counter_name: AST_NODE_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
-}
-
-counter! {
-    name: TypeId,
-    counter_name: TYPE_ID_COUNTER,
     visibility: pub,
     method_visibility: pub,
 }
@@ -94,12 +86,24 @@ impl<'c, T> AstNode<'c, T> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct AstNodeRef<'t, T> {
     body: &'t T,
     location: Location,
     id: AstNodeId,
 }
+
+impl<T> Clone for AstNodeRef<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            body: self.body,
+            location: self.location,
+            id: self.id,
+        }
+    }
+}
+
+impl<T> Copy for AstNodeRef<'_, T> {}
 
 impl<'t, T> AstNodeRef<'t, T> {
     /// Get a reference to the reference contained within this node.
@@ -134,7 +138,61 @@ impl<T> Deref for AstNodeRef<'_, T> {
     }
 }
 
-pub type AstNodes<'c, T> = Row<'c, AstNode<'c, T>>;
+#[derive(Debug, PartialEq)]
+pub struct AstNodes<'c, T> {
+    pub nodes: Row<'c, AstNode<'c, T>>,
+}
+
+#[macro_export]
+macro_rules! ast_nodes {
+    () => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new())
+    };
+    ($wall:expr) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new())
+    };
+    ($wall:expr; $($item:expr),*) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall))
+    };
+    ($wall:expr; $($item:expr,)*) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall))
+    };
+    ($wall:expr; $item:expr; $count:expr) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter(std::iter::repeat($item).take($count), $wall))
+    };
+}
+
+impl<'c, T> AstNodes<'c, T> {
+    pub fn empty() -> Self {
+        Self { nodes: row![] }
+    }
+
+    pub fn new(nodes: Row<'c, AstNode<'c, T>>) -> Self {
+        Self { nodes }
+    }
+
+    // @@TODO: Maybe this should always return a Location, its parent.
+    pub fn location(&self) -> Option<Location> {
+        Some(
+            self.nodes
+                .first()?
+                .location()
+                .join(self.nodes.last()?.location()),
+        )
+    }
+}
+
+impl<'c, T> Deref for AstNodes<'c, T> {
+    type Target = [AstNode<'c, T>];
+    fn deref(&self) -> &Self::Target {
+        &*self.nodes
+    }
+}
+impl<'c, T> DerefMut for AstNodes<'c, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.nodes
+    }
+}
 
 /// [AstNode] dereferences to its inner `body` type.
 impl<T> Deref for AstNode<'_, T> {
@@ -729,15 +787,11 @@ pub enum ExpressionKind<'c> {
 #[derive(Debug, PartialEq)]
 pub struct Expression<'c> {
     kind: ExpressionKind<'c>,
-    type_id: Option<TypeId>,
 }
 
 impl<'c> Expression<'c> {
     pub fn new(kind: ExpressionKind<'c>) -> Self {
-        Self {
-            kind,
-            type_id: None,
-        }
+        Self { kind }
     }
 
     pub fn into_kind(self) -> ExpressionKind<'c> {
@@ -746,21 +800,6 @@ impl<'c> Expression<'c> {
 
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
-    }
-
-    /// Set the type ID of the node.
-    pub fn set_type_id(&mut self, type_id: TypeId) {
-        self.type_id = Some(type_id);
-    }
-
-    /// Clear the type ID of the node.
-    pub fn clear_type_id(&mut self) {
-        self.type_id = None;
-    }
-
-    /// Get the type ID of this node.
-    pub fn type_id(&self) -> Option<TypeId> {
-        self.type_id
     }
 }
 

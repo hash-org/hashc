@@ -9,4 +9,5 @@ hash-ast = {path = "../hash-ast" }
 hash-parser = {path = "../hash-parser" }
 hash-reporting = {path = "../hash-reporting" }
 hash-alloc = {path = "../hash-alloc" }
+hash-typecheck = {path = "../hash-typecheck" }
 rustyline = "8.0.0"
