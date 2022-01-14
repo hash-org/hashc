@@ -20,7 +20,7 @@ use hash_ast::{
 };
 use hash_source::location::{Location, SourceLocation};
 
-use crate::backend::ImportResolver;
+use crate::parser::ImportResolver;
 use crate::{
     error::{AstGenError, AstGenErrorKind, TyArgumentKind},
     operator::Operator,

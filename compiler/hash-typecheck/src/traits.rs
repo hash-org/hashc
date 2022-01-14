@@ -168,7 +168,7 @@ impl<'c, 'w> CoreTraits {
     }
 }
 
-pub struct TraitHelper<'c, 'w, 'ms, 'gs, > {
+pub struct TraitHelper<'c, 'w, 'ms, 'gs> {
     module_storage: &'ms mut SourceStorage,
     global_storage: &'gs mut GlobalStorage<'c, 'w>,
 }

@@ -3,11 +3,11 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 #![feature(cell_update)]
 
-pub mod backend;
 pub mod error;
 pub mod gen;
+pub mod interface;
 pub mod lexer;
 mod operator;
+pub mod parser;
 pub mod token;
 pub mod utils;
-pub mod interface;

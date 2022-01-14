@@ -9,7 +9,7 @@ mod logger;
 
 use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
-use hash_parser::backend::HashParser;
+use hash_parser::parser::HashParser;
 use hash_pipeline::{Compiler, Module};
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_typecheck::HashTypechecker;
@@ -127,7 +127,7 @@ fn main() {
 
     // Create a castle for allocations in the pipeline
     let castle = Castle::new();
-    
+
     execute(|| {
         match opts.execute {
             Some(path) => {
