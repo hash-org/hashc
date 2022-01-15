@@ -392,6 +392,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             }),
             Some(args_ty_location),
         );
+
         self.unifier()
             .unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
 
@@ -875,13 +876,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let old_ret_once = mem::replace(&mut self.tc_state().ret_once, false);
 
         // Try to combine the entire span of the arguments and types
-        // @@Hack: this span is so fucked lol
-        let mut location = node
-            .args
-            .iter()
-            .next()
-            .map(|item| item.location())
-            .unwrap_or_else(|| node.location());
+        let mut location = node.args.location().unwrap_or_else(|| node.location());
 
         if let Some(return_ty) = &node.return_ty {
             location = location.join(return_ty.location());

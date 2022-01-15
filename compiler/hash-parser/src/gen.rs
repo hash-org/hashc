@@ -267,7 +267,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.node_from_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.make_access_name_from_str(name, *location),
-                type_args: ast_nodes![&self.wall],
+                type_args: AstNodes::empty(),
             })),
             location,
         )
@@ -280,7 +280,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstNode<'c, Pattern<'c>> {
         self.node(Pattern::Enum(EnumPattern {
             name: self.make_access_name_from_str(symbol, location),
-            args: ast_nodes![&self.wall],
+            args: AstNodes::empty(),
         }))
     }
 
@@ -288,7 +288,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
-            type_args: ast_nodes![&self.wall],
+            type_args: AstNodes::empty(),
         })))
     }
 
@@ -348,7 +348,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     },
                     &location,
                 ),
-                type_args: ast_nodes![&self.wall],
+                type_args: AstNodes::empty(),
             })),
             location,
             &self.wall,
@@ -401,13 +401,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a [Module] which is simply made of a list of statements
     pub fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
         let start = self.current_location();
-        let mut contents = ast_nodes![&self.wall];
+        let mut contents = AstNodes::empty();
 
         while self.has_token() {
             contents.nodes.push(self.parse_statement()?, &self.wall);
         }
 
-        Ok(self.node_from_joined_location(Module { contents }, &start))
+        let span = start.join(self.current_location());
+        contents.span = Some(span);
+
+        Ok(self.node_with_location(Module { contents }, span))
     }
 
     /// Parse a statement.
@@ -600,7 +603,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         subject: self.node(Expression::new(ExpressionKind::Variable(
                             VariableExpr {
                                 name: self.make_access_name_from_str(name, self.current_location()),
-                                type_args: ast_nodes![&self.wall],
+                                type_args: AstNodes::empty(),
                             },
                         ))),
                         args: self.node_from_joined_location(
@@ -632,7 +635,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         subject: self.node(Expression::new(ExpressionKind::Variable(
                             VariableExpr {
                                 name: self.make_access_name_from_str(name, self.current_location()),
-                                type_args: ast_nodes![&self.wall],
+                                type_args: AstNodes::empty(),
                             },
                         ))),
                         args: self.node(FunctionCallArgs {
@@ -640,7 +643,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 self.transform_expr_into_ref(lhs, assigning),
                                 self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
                                     Literal::Function(FunctionDef {
-                                        args: ast_nodes![&self.wall],
+                                        args: AstNodes::empty(),
                                         return_ty: None,
                                         fn_body: rhs,
                                     }),
@@ -749,7 +752,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         parse_fn: impl Fn() -> AstGenResult<'c, AstNode<'c, T>>,
         separator_fn: impl Fn() -> AstGenResult<'c, ()>,
     ) -> AstGenResult<'c, AstNodes<'c, T>> {
-        let mut args = ast_nodes![&self.wall;];
+        let mut args = AstNodes::empty();
+        let start = self.current_location();
 
         // so parse the arguments to the function here... with potential type annotations
         while self.has_token() {
@@ -767,6 +771,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             self.expected_eof()?;
         }
 
+        args.span = Some(start.join(self.current_location()));
         Ok(args)
     }
 
@@ -947,7 +952,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
         let name = self.parse_ident()?;
 
-        let mut args = ast_nodes![&self.wall;];
+        let mut args = AstNodes::empty();
 
         if let Some(Token {
             kind: TokenKind::Tree(Delimiter::Paren, tree_index),
@@ -955,6 +960,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }) = self.peek()
         {
             self.skip_token();
+            args.span = Some(*span);
             let tree = self.token_trees.get(*tree_index).unwrap();
 
             let gen = self.from_stream(tree, *span);
@@ -1134,7 +1140,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     subject: self.node(Expression::new(ExpressionKind::Variable(
                         VariableExpr {
                             name: self.make_access_name_from_str("next", iterator.location()),
-                            type_args: ast_nodes![&self.wall],
+                            type_args: AstNodes::empty(),
                         },
                     ))),
                     args: self.node_from_location(FunctionCallArgs {
@@ -1166,7 +1172,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                         "None",
                                         self.current_location()
                                     ),
-                                args: ast_nodes![&self.wall],
+                                args: AstNodes::empty(),
                             },
                         ),
                     ),
@@ -1219,14 +1225,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("true", body_location),
-                                args: ast_nodes![&self.wall],
+                                args: AstNodes::empty(),
                             })),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("false", body_location),
-                                args: ast_nodes![&self.wall],
+                                args: AstNodes::empty(),
                             })),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
@@ -1268,7 +1274,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let subject = self.parse_expression_with_precedence(0)?;
         self.disallow_struct_literals.set(false);
 
-        let mut cases = ast_nodes![&self.wall];
+        let mut cases = AstNodes::empty();
         // cases are wrapped in a brace tree
         match self.peek() {
             Some(Token {
@@ -1327,7 +1333,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let start = self.current_location();
 
-        let mut cases = ast_nodes![&self.wall];
+        let mut cases = AstNodes::empty();
         let mut has_else_branch = false;
 
         while self.has_token() {
@@ -1420,7 +1426,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     pattern: self.node(Pattern::Ignore(IgnorePattern)),
                     expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                         self.node(Block::Body(BodyBlock {
-                            statements: ast_nodes![&self.wall],
+                            statements: AstNodes::empty(),
                             expr: None,
                         })),
                     )))),
@@ -1562,7 +1568,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
         let gen = self.from_stream(tree, span);
 
-        let mut patterns = ast_nodes![&self.wall;];
+        let mut patterns = AstNodes::new(row![&self.wall;], Some(span));
 
         while gen.has_token() {
             match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern()) {
@@ -1587,9 +1593,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             return self.unexpected_eof()?;
         }
 
-        let start = self.current_location();
+        let token = token.unwrap();
+        let start = token.span;
 
-        let pattern = match token.unwrap() {
+        let pattern = match token {
             Token {
                 kind: TokenKind::Ident(ident),
                 span,
@@ -1663,7 +1670,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     if token.has_kind(TokenKind::Comma) {
                         return Ok(self.node_from_location(
                             Pattern::Tuple(TuplePattern {
-                                elements: ast_nodes![&self.wall],
+                                elements: AstNodes::empty(),
                             }),
                             span,
                         ));
@@ -1751,7 +1758,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         } else {
             BodyBlock {
-                statements: ast_nodes![&self.wall],
+                statements: AstNodes::empty(),
                 expr: None,
             }
         };
@@ -1885,7 +1892,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let start = self.current_location();
 
                 let (name, type_args) = self.parse_name_with_type_args(ident)?;
-                let type_args = type_args.unwrap_or_else(|| ast_nodes![&self.wall]);
+                let type_args = type_args.unwrap_or_else(AstNodes::empty);
 
                 // create the lhs expr.
                 self.node_with_location(
@@ -2193,7 +2200,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let gen = self.from_stream(tree, span);
         let mut args = AstNode::new(
             FunctionCallArgs {
-                entries: ast_nodes![&self.wall],
+                entries: AstNodes::empty(),
             },
             span,
             &self.wall,
@@ -2267,7 +2274,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
         let gen = self.from_stream(tree, start);
 
-        let mut entries = ast_nodes![&self.wall];
+        let mut entries = AstNodes::empty();
 
         while gen.has_token() {
             let name = gen.parse_ident()?;
@@ -2603,7 +2610,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
         Ok(AstNode::new(
             BodyBlock {
-                statements: ast_nodes![&self.wall],
+                statements: AstNodes::empty(),
                 expr: None,
             },
             Location::span(0, 0),
@@ -2687,7 +2694,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// be parsed as an order comparison.
     pub fn parse_type_args(&self) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
         self.parse_token_atom(TokenKind::Lt)?;
-        let mut type_args = ast_nodes![&self.wall];
+        let mut type_args = AstNodes::empty();
 
         loop {
             // Check if the type argument is parsed, if we have already encountered a comma, we
@@ -2732,7 +2739,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
-        let mut type_args = ast_nodes![&self.wall; ];
+        let mut type_args = AstNodes::empty();
 
         // handle the function arguments first by checking for parentheses
         match self.peek() {
@@ -2741,6 +2748,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 span,
             }) => {
                 self.skip_token();
+
+                // update the type argument span...
+                type_args.span = Some(*span);
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 let gen = self.from_stream(tree, *span);
@@ -2848,7 +2858,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             i if i == CORE_IDENTIFIERS.underscore => Type::Infer(InferType),
                             _ => Type::Named(NamedType {
                                 name,
-                                type_args: ast_nodes![&self.wall],
+                                type_args: AstNodes::empty(),
                             }),
                         }
                     }
@@ -2945,7 +2955,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 span: id_span,
             }) => {
                 let type_args = self.peek_resultant_fn(|| self.parse_type_args());
-                let type_args = type_args.unwrap_or_else(|| ast_nodes![&self.wall]);
+                let type_args = type_args.unwrap_or_else(AstNodes::empty);
 
                 // create the subject of the call
                 let subject = self.node_with_location(
@@ -2968,7 +2978,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         //                   generator and form function call arguments from the stream...
                         let mut args = self.node_with_location(
                             FunctionCallArgs {
-                                entries: ast_nodes![&self.wall],
+                                entries: AstNodes::empty(),
                             },
                             *span,
                         );
@@ -3024,7 +3034,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_from_location(
                                 Literal::Map(MapLiteral {
-                                    elements: ast_nodes![&self.wall],
+                                    elements: AstNodes::empty(),
                                 }),
                                 span,
                             ),
@@ -3037,7 +3047,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_from_location(
                                 Literal::Set(SetLiteral {
-                                    elements: ast_nodes![&self.wall],
+                                    elements: AstNodes::empty(),
                                 }),
                                 span,
                             ),
@@ -3054,7 +3064,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             return Ok(self.node_from_location(
                 Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                     Block::Body(BodyBlock {
-                        statements: ast_nodes![&self.wall],
+                        statements: AstNodes::empty(),
                         expr: None,
                     }),
                     span,
@@ -3142,7 +3152,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Ok(self.node_from_location(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                         Block::Body(BodyBlock {
-                            statements: ast_nodes![&self.wall],
+                            statements: AstNodes::empty(),
                             expr: Some(expr),
                         }),
                         span,
@@ -3220,7 +3230,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a pattern with an optional if guard after the singular pattern.
     pub fn parse_pattern_with_if(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
-        let start = self.current_location();
+        let start = self.next_location();
         let pattern = self.parse_singular_pattern()?;
 
         match self.peek() {
@@ -3240,7 +3250,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a compound pattern.
     pub fn parse_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
-        let start = self.current_location();
+        // attempt to get the next token location as we're starting a pattern here, if there is no token
+        // we should exit and return an error
+        let start = self.next_location();
 
         // Parse the first pattern, but throw away the location information since that will be
         // computed at the end anyway...
@@ -3425,7 +3437,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let gen = self.from_stream(tree, *span);
         let start = gen.current_location();
 
-        let mut elements = ast_nodes![&self.wall];
+        let mut elements = AstNodes::empty();
 
         while gen.has_token() {
             let expr = gen.parse_expression_with_precedence(0)?;
