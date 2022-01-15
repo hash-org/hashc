@@ -142,44 +142,51 @@ impl<T> Deref for AstNodeRef<'_, T> {
 #[derive(Debug, PartialEq)]
 pub struct AstNodes<'c, T> {
     pub nodes: Row<'c, AstNode<'c, T>>,
+
+    /// The span of the AST nodes if one is available,
+    pub span: Option<Location>,
 }
 
 #[macro_export]
 macro_rules! ast_nodes {
     () => {
-        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new())
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new(), None)
     };
     ($wall:expr) => {
-        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new())
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new(), None)
     };
     ($wall:expr; $($item:expr),*) => {
-        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall))
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall), None)
     };
     ($wall:expr; $($item:expr,)*) => {
-        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall))
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall), None)
     };
     ($wall:expr; $item:expr; $count:expr) => {
-        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter(std::iter::repeat($item).take($count), $wall))
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter(std::iter::repeat($item).take($count), $wall), None)
     };
 }
 
 impl<'c, T> AstNodes<'c, T> {
     pub fn empty() -> Self {
-        Self { nodes: row![] }
+        Self {
+            nodes: row![],
+            span: None,
+        }
     }
 
-    pub fn new(nodes: Row<'c, AstNode<'c, T>>) -> Self {
-        Self { nodes }
+    pub fn new(nodes: Row<'c, AstNode<'c, T>>, span: Option<Location>) -> Self {
+        Self { nodes, span }
     }
 
-    // @@TODO: Maybe this should always return a Location, its parent.
     pub fn location(&self) -> Option<Location> {
-        Some(
-            self.nodes
-                .first()?
-                .location()
-                .join(self.nodes.last()?.location()),
-        )
+        self.span.or_else(|| {
+            Some(
+                self.nodes
+                    .first()?
+                    .location()
+                    .join(self.nodes.last()?.location()),
+            )
+        })
     }
 }
 

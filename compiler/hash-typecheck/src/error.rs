@@ -86,6 +86,12 @@ pub enum TypecheckError {
         location: Option<SourceLocation>,
     }, // @@TODO: length definition location
     NoMatchingTraitImplementations(Symbol),
+    FunctionArgumentLengthMismatch {
+        target: TypeId,
+        source: TypeId,
+        expected: usize,
+        received: usize,
+    },
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
@@ -462,6 +468,59 @@ impl TypecheckError {
                     "note",
                     format!("There are no implementations of the trait '{}' that satisfy this invocation.", trt_name),
                 )));
+            }
+            TypecheckError::FunctionArgumentLengthMismatch {
+                // expected,
+                source,
+                target,
+                expected,
+                received,
+            } => {
+                let source_location = storage.types.get_location(source);
+                let target_location = storage.types.get_location(target);
+
+                builder.with_message(format!(
+                    "Function argument mismatch, expected {} arguments, but got {}.",
+                    expected, received
+                ));
+
+                if let Some(location) = source_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        "Function definition here".to_string(),
+                    )));
+                }
+
+                if let Some(location) = target_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        "Arguments mismatch".to_string(),
+                    )));
+                }
+
+                if expected > received {
+                    let diff = expected - received;
+
+                    builder.add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("consider adding {} argument(s).", diff),
+                    )));
+                } else {
+                    let diff = received - expected;
+
+                    if diff == 1 {
+                        // @@Reporting: suggestions!
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            "note",
+                            "consider removing the last argument.".to_string(),
+                        )));
+                    } else {
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            "note",
+                            format!("consider removing the last {} arguments.", diff),
+                        )));
+                    }
+                }
             }
         }
 
