@@ -3,17 +3,17 @@ use std::iter;
 
 use hash_utils::tree_writing::TreeNode;
 
-use crate::ident::IDENTIFIER_MAP;
+use crate::{ident::IDENTIFIER_MAP};
 use crate::literal::STRING_LITERAL_MAP;
 use crate::{ast, visitor::walk, visitor::AstVisitor};
 
 /// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
-/// [TreeNode] tree, for visualisation purposes. It is meant to replace [crate::ast::visualise].
+/// [TreeNode] tree, for visualisation purposes.
 struct AstTreeGenerator;
 
 /// Easy way to format a [TreeNode] label with a main label as well as short contents, and a
 /// quoting string.
-fn labeled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
+fn labelled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
     format!(
         "{} {}{}{}",
         label.to_string(),
@@ -22,6 +22,7 @@ fn labeled(label: impl ToString, contents: impl ToString, quote_str: &str) -> St
         quote_str
     )
 }
+
 
 impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type Ctx = ();
@@ -42,7 +43,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled(
+        Ok(TreeNode::leaf(labelled(
             "import",
             STRING_LITERAL_MAP.lookup(node.path),
             "\"",
@@ -110,7 +111,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntrinsicKey>,
     ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled(
+        Ok(TreeNode::leaf(labelled(
             "intrinsic",
             IDENTIFIER_MAP.get_ident(node.name),
             "\"",
@@ -247,7 +248,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
                 vec![TreeNode::branch("type_args", type_args)]
             }
         };
-        Ok(TreeNode::branch(labeled("name", name.label, ""), children))
+        Ok(TreeNode::branch(labelled("name", name.label, ""), children))
     }
 
     type RefTypeRet = TreeNode;
@@ -277,7 +278,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
         let walk::TypeVar { name } = walk::walk_type_var(self, ctx, node)?;
-        Ok(TreeNode::leaf(labeled("var", name.label, "")))
+        Ok(TreeNode::leaf(labelled("var", name.label, "")))
     }
 
     type ExistentialTypeRet = TreeNode;
@@ -362,7 +363,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled(
+        Ok(TreeNode::leaf(labelled(
             "str",
             STRING_LITERAL_MAP.lookup(node.0),
             "\"",
@@ -375,7 +376,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::CharLiteral>,
     ) -> Result<Self::CharLiteralRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled("char", node.0, "'")))
+        Ok(TreeNode::leaf(labelled("char", node.0, "'")))
     }
 
     type FloatLiteralRet = TreeNode;
@@ -384,7 +385,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled("float", node.0, "")))
+        Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
     type IntLiteralRet = TreeNode;
@@ -393,7 +394,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLiteral>,
     ) -> Result<Self::IntLiteralRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled("int", node.0, "")))
+        Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
     type StructLiteralRet = TreeNode;
@@ -647,7 +648,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::StructDefEntry { name, ty, default } =
             walk::walk_struct_def_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
-            labeled("field", name.label, "\""),
+            labelled("field", name.label, "\""),
             ty.map(|t| TreeNode::branch("type", vec![t]))
                 .into_iter()
                 .chain(default.map(|d| TreeNode::branch("default", vec![d])))
@@ -683,7 +684,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
-            labeled("variant", name.label, "\""),
+            labelled("variant", name.label, "\""),
             if args.is_empty() { vec![] } else { vec![TreeNode::branch("args", args)] },
         ))
     }
@@ -701,7 +702,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         } = walk::walk_enum_def(self, ctx, node)?;
         Ok(TreeNode::branch(
             "enum_def",
-            iter::once(TreeNode::leaf(labeled("name", name.label, "\"")))
+            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
                 .chain(bound.into_iter())
                 .chain(iter::once(TreeNode::branch("variants", entries)))
                 .collect(),
@@ -742,7 +743,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::TraitBoundRet, Self::Error> {
         let walk::TraitBound { name, type_args } = walk::walk_trait_bound(self, ctx, node)?;
         Ok(TreeNode::branch(
-            labeled("requires", name.label, "\""),
+            labelled("requires", name.label, "\""),
             vec![TreeNode::branch("args", type_args)],
         ))
     }
@@ -775,7 +776,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::EnumPattern { args, name } = walk::walk_enum_pattern(self, ctx, node)?;
         Ok(TreeNode::branch(
             "enum",
-            iter::once(TreeNode::leaf(labeled("name", name.label, "\"")))
+            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
                 .chain(
                     (if args.is_empty() { None } else { Some(TreeNode::branch("args", args)) })
                         .into_iter(),
@@ -793,7 +794,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::StructPattern { name, entries } = walk::walk_struct_pattern(self, ctx, node)?;
         Ok(TreeNode::branch(
             "struct",
-            iter::once(TreeNode::leaf(labeled("name", name.label, "\"")))
+            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
                 .chain(
                     (if entries.is_empty() {
                         None
@@ -835,7 +836,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::StrLiteralPattern>,
     ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled(
+        Ok(TreeNode::leaf(labelled(
             "str",
             STRING_LITERAL_MAP.lookup(node.0),
             "\"",
@@ -848,7 +849,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::CharLiteralPattern>,
     ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled("char", node.0, "\'")))
+        Ok(TreeNode::leaf(labelled("char", node.0, "\'")))
     }
 
     type IntLiteralPatternRet = TreeNode;
@@ -857,7 +858,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLiteralPattern>,
     ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled("int", node.0, "")))
+        Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
     type FloatLiteralPatternRet = TreeNode;
@@ -866,7 +867,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
-        Ok(TreeNode::leaf(labeled("float", node.0, "")))
+        Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
     type LiteralPatternRet = TreeNode;
@@ -911,7 +912,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
         let walk::BindingPattern(name) = walk::walk_binding_pattern(self, ctx, node)?;
-        Ok(TreeNode::leaf(labeled("binding", name.label, "\"")))
+        Ok(TreeNode::leaf(labelled("binding", name.label, "\"")))
     }
 
     type IgnorePatternRet = TreeNode;
@@ -932,7 +933,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::DestructuringPattern { name, pattern } =
             walk::walk_destructuring_pattern(self, ctx, node)?;
         Ok(TreeNode::branch(
-            labeled("binding", name.label, "\""),
+            labelled("binding", name.label, "\""),
             vec![pattern],
         ))
     }

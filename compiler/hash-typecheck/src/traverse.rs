@@ -253,6 +253,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
+
+        // println!("{}", node);
+
         let import_module_id = self
             .sources
             .get_module_id_by_path(&node.resolved_path)
