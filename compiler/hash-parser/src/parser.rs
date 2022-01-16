@@ -28,10 +28,13 @@ pub enum ParserAction<'c> {
         interactive_id: InteractiveId,
         node: ast::AstNode<'c, ast::BodyBlock<'c>>,
     },
-    SetModuleInfo {
+    SetModuleNode {
+        module_id: ModuleId,
+        node: ast::AstNode<'c, ast::Module<'c>>,
+    },
+    SetModuleContents {
         module_id: ModuleId,
         contents: String,
-        node: ast::AstNode<'c, ast::Module<'c>>,
     },
 }
 
@@ -153,17 +156,29 @@ impl<'c> ParseSource {
 }
 
 fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castle: &'c Castle) {
+    let source_id = source.source_id();
     let contents = match source.contents() {
         Ok(source) => source,
         Err(err) => {
             return sender.send(ParserAction::Error(err)).unwrap();
         }
     };
+
     let current_dir = source.current_dir();
-    let source_id = source.source_id();
 
     let wall = castle.wall();
     let mut lexer = Lexer::new(&contents, source_id, &wall);
+
+    // We need to send the source either way
+    if let SourceId::Module(module_id) = source_id {
+        sender
+            .send(ParserAction::SetModuleContents {
+                contents: contents.to_string(),
+                module_id,
+            })
+            .unwrap();
+    }
+
     let tokens = match lexer.tokenise() {
         Ok(source) => source,
         Err(err) => {
@@ -179,10 +194,9 @@ fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castl
     let action = match &source {
         ParseSource::Module { module_id, .. } => match gen.parse_module() {
             Err(err) => ParserAction::Error(err.into()),
-            Ok(node) => ParserAction::SetModuleInfo {
+            Ok(node) => ParserAction::SetModuleNode {
                 module_id: *module_id,
                 node,
-                contents: contents.into_owned(),
             },
         },
         ParseSource::Interactive { interactive_id, .. } => {
@@ -242,13 +256,15 @@ impl<'c> HashParser<'c> {
                             .get_interactive_block_mut(interactive_id)
                             .set_node(node);
                     }
-                    ParserAction::SetModuleInfo {
+                    ParserAction::SetModuleContents {
                         module_id,
-                        node,
                         contents,
                     } => {
                         let module = sources.get_module_mut(module_id);
                         module.set_contents(contents);
+                    }
+                    ParserAction::SetModuleNode { module_id, node } => {
+                        let module = sources.get_module_mut(module_id);
                         module.set_node(node);
                     }
                     ParserAction::ParseImport {
