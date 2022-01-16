@@ -303,14 +303,20 @@ where
         }
 
         // Typechecking
-        let (result, checker_module_state) = self.checker.check_module(
-            module_id,
-            &compiler_state.sources,
-            &mut compiler_state.checker_state,
-            compiler_state.checker_module_state,
-        );
-
-        compiler_state.checker_module_state = checker_module_state;
-        (result, compiler_state)
+        timed(
+            || {
+                let (result, checker_module_state) = self.checker.check_module(
+                    module_id,
+                    &compiler_state.sources,
+                    &mut compiler_state.checker_state,
+                    compiler_state.checker_module_state,
+                );
+        
+                compiler_state.checker_module_state = checker_module_state;
+                (result, compiler_state)
+            },
+            log::Level::Debug,
+            |elapsed| println!("typecheck: {:?}", elapsed),
+        )
     }
 }
