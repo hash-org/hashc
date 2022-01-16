@@ -16,4 +16,3 @@ pub mod operator;
 pub mod storage;
 pub mod tree;
 pub mod visitor;
-pub mod visualise;

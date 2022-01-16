@@ -90,7 +90,7 @@ impl Default for TreeWriterConfig {
     }
 }
 
-/// Can print a tree through [fmt::Display], using a refernce to a [TreeNode].
+/// Can print a tree through [fmt::Display], using a reference to a [TreeNode].
 #[derive(Debug, Clone)]
 pub struct TreeWriter<'t, 'cfg> {
     tree: &'t TreeNode,
