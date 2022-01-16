@@ -126,6 +126,10 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &self.global_storage.types
     }
 
+    fn types_mut(&mut self) -> &mut TypeStorage<'c, 'w> {
+        &mut self.global_storage.types
+    }
+
     fn type_defs(&self) -> &TypeDefStorage<'c, 'w> {
         &self.global_storage.type_defs
     }
@@ -317,7 +321,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         location: self.some_source_location(node.type_args.location().unwrap()),
                     })
                 } else {
-                    Ok(var_ty_id)
+                    Ok(self.types_mut().duplicate(var_ty_id, Some(loc)))
                 }
             }
             SymbolType::Trait(var_trait_id) => {
@@ -526,7 +530,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error> {
-        walk::walk_type_same_children(self, ctx, node)
+        let ty_id = walk::walk_type_same_children(self, ctx, node)?;
+        // self.global_storage.types.add_location(ty_id, self.source_location(node.location()));
+        Ok(ty_id)
     }
 
     type NamedTypeRet = TypeId;
@@ -557,7 +563,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let location = self.source_location(node.location());
         match self.resolve_compound_symbol(&node.name.path, location)? {
-            SymbolType::Type(ty_id) => Ok(ty_id),
+            SymbolType::Type(ty_id) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
             SymbolType::TypeDef(def_id) => {
                 let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
                 let def = self.type_defs().get(def_id);
@@ -903,7 +909,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             }
             _ => {
                 self.unifier()
-                    .unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
+                    .unify(body_ty, return_ty, UnifyStrategy::ModifyBoth)?;
             }
         };
 
@@ -927,6 +933,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let ast::Name { ident } = node.name.body();
         let walk::FunctionDefArg { ty, .. } = walk::walk_function_def_arg(self, ctx, node)?;
         let arg_ty = ty.unwrap_or_else(|| self.create_unknown_type());
+
         self.scopes()
             .add_symbol(*ident, SymbolType::Variable(arg_ty));
         Ok(arg_ty)

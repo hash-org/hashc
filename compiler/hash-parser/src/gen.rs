@@ -3284,8 +3284,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a function definition argument, which is made of an identifier and a function type.
     pub fn parse_function_def_arg(&self) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
-        let start = self.current_location();
         let name = self.parse_ident()?;
+        let start = name.location();
 
         // @@Future: default values for argument...
         let ty = match self.peek() {

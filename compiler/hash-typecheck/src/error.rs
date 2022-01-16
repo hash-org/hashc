@@ -116,7 +116,7 @@ impl TypecheckError {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         *location,
                         format!(
-                            "This specificities that the expression should be of type `{}`",
+                            "This specifies that the expression should be of type `{}`",
                             wanted_ty
                         ),
                     )));
@@ -129,13 +129,10 @@ impl TypecheckError {
                     )));
                 }
 
-                builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
-                    format!(
-                        "Types mismatch, got a `{}`, but wanted a `{}`.",
-                        given_ty, wanted_ty
-                    ),
-                )));
+                builder.with_message(format!(
+                    "Types mismatch, got a `{}`, but wanted a `{}`.",
+                    given_ty, wanted_ty
+                ));
             }
             TypecheckError::UsingBreakOutsideLoop(src) => {
                 builder
