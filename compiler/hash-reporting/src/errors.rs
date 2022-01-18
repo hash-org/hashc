@@ -2,7 +2,6 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use std::fmt;
 use std::{io, process::exit};
 use thiserror::Error;
 
@@ -26,19 +25,6 @@ pub enum InteractiveCommandError {
     InternalError(String),
 }
 
-/// General enumeration of all reportable errors with associated error codes.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-#[repr(u32)]
-pub enum ErrorCode {
-    Parsing = 1,
-    Typecheck = 2, // @@Temporary
-}
-
-impl fmt::Display for ErrorCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:0>4}", *self as u32)
-    }
-}
 /// Errors that might occur when attempting to compile and or interpret a
 /// program.
 #[derive(Debug, Error)]

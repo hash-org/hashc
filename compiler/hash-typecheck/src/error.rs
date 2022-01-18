@@ -1,9 +1,8 @@
 use crate::types::TypeId;
 use crate::{storage::GlobalStorage, writer::TypeWithStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
-use hash_reporting::{
-    errors::ErrorCode,
-    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+use hash_reporting::reporting::{
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
 };
 use hash_source::location::SourceLocation;
 
@@ -35,13 +34,13 @@ impl Symbol {
     }
 }
 
-// @@Todo: add ast node locations to these
 #[derive(Debug)]
+#[repr(u32)]
 pub enum TypecheckError {
-    TypeMismatch(TypeId, TypeId),
-    UsingBreakOutsideLoop(SourceLocation),
-    UsingContinueOutsideLoop(SourceLocation),
-    UsingReturnOutsideFunction(SourceLocation),
+    TypeMismatch(TypeId, TypeId) = 0,
+    UsingBreakOutsideLoop(SourceLocation) = 1,
+    UsingContinueOutsideLoop(SourceLocation) = 2,
+    UsingReturnOutsideFunction(SourceLocation) = 3,
     RequiresIrrefutablePattern(SourceLocation),
     UnresolvedSymbol(Symbol),
     TryingToNamespaceType(Symbol),
@@ -53,7 +52,7 @@ pub enum TypecheckError {
         ty: TypeId,
         location: SourceLocation,
         ty_def_location: Option<SourceLocation>,
-    },
+    } = 123,
     UnresolvedStructField {
         field_name: Identifier,
         location: SourceLocation,
@@ -97,15 +96,22 @@ pub enum TypecheckError {
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
 
 impl TypecheckError {
+    pub fn as_code(&self) -> u32 {
+        unsafe { *(self as *const Self as *const u32) }
+    }
     pub fn create_report(self, storage: &GlobalStorage<'_, '_>) -> Report {
         let mut builder = ReportBuilder::new();
+
+        // We use generic error code and message until we set them later.
         builder
             .with_kind(ReportKind::Error)
-            .with_message("Failed to typecheck") // @@TODO: get general message for the appropriate error code
-            .with_error_code(ErrorCode::Typecheck); // @@TODO: @@ErrorReporting: Get the correct typecheck code
+            .with_message("Failed to typecheck")
+            .with_error_code(self.as_code());
 
         match self {
             TypecheckError::TypeMismatch(given, wanted) => {
+                builder.with_error_code(1);
+
                 let given_ty = TypeWithStorage::new(given, storage);
                 let given_ty_location = storage.types.get_location(given);
                 let wanted_ty = TypeWithStorage::new(wanted, storage);
@@ -135,6 +141,8 @@ impl TypecheckError {
                 ));
             }
             TypecheckError::UsingBreakOutsideLoop(src) => {
+                builder.with_error_code(2);
+
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -143,6 +151,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::UsingContinueOutsideLoop(src) => {
+                builder.with_error_code(3);
+
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -151,6 +161,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::UsingReturnOutsideFunction(src) => {
+                builder.with_error_code(4);
+
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -159,6 +171,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::RequiresIrrefutablePattern(src) => {
+                builder.with_error_code(5);
+
                 builder
                 .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "This pattern isn't refutable")))
                 .add_element(ReportElement::Note(ReportNote::new(
@@ -167,6 +181,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::UnresolvedSymbol(symbol) => {
+                builder.with_error_code(6);
+
                 let ident_path = symbol.get_ident();
                 let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
 
@@ -184,6 +200,8 @@ impl TypecheckError {
                 ));
             }
             TypecheckError::TryingToNamespaceType(symbol) => {
+                builder.with_error_code(7);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -202,6 +220,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::TryingToNamespaceVariable(symbol) => {
+                builder.with_error_code(8);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -217,6 +237,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::SymbolIsNotAType(symbol) => {
+                builder.with_error_code(9);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -232,6 +254,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::SymbolIsNotAVariable(symbol) => {
+                builder.with_error_code(10);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -247,6 +271,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::SymbolIsNotATrait(symbol) => {
+                builder.with_error_code(11);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -266,6 +292,7 @@ impl TypecheckError {
                 location,
                 ty_def_location,
             } => {
+                builder.with_error_code(12);
                 let ty = TypeWithStorage::new(ty, storage);
 
                 // Print where the original type is defined with an annotation.
@@ -293,6 +320,8 @@ impl TypecheckError {
                 field_name,
                 location,
             } => {
+                builder.with_error_code(13);
+
                 let name = IDENTIFIER_MAP.get_ident(field_name);
                 let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
 
@@ -467,7 +496,6 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::FunctionArgumentLengthMismatch {
-                // expected,
                 source,
                 target,
                 expected,

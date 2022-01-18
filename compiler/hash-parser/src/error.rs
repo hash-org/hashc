@@ -7,9 +7,8 @@ use std::io;
 use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
 use hash_pipeline::fs::ImportError;
-use hash_reporting::{
-    errors::ErrorCode,
-    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+use hash_reporting::reporting::{
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
 };
 use hash_source::{
     location::{Location, SourceLocation},
@@ -259,8 +258,7 @@ impl ParseError {
         let mut builder = ReportBuilder::new();
         builder
             .with_kind(ReportKind::Error)
-            .with_message("Failed to parse")
-            .with_error_code(ErrorCode::Parsing);
+            .with_message("Failed to parse");
 
         match self {
             ParseError::Import(import_error) => return import_error.create_report(),

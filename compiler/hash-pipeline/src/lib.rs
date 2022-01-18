@@ -311,7 +311,7 @@ where
                     &mut compiler_state.checker_state,
                     compiler_state.checker_module_state,
                 );
-        
+
                 compiler_state.checker_module_state = checker_module_state;
                 (result, compiler_state)
             },
