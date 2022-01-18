@@ -9,6 +9,8 @@ use std::{
     iter::{once, repeat},
 };
 
+const ERROR_MARKING_CHAR: &str = "^";
+
 /// Enumeration describing the type of report; either being a warning, info or a
 /// error.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -155,8 +157,14 @@ impl ReportCodeBlock {
 
                 let (start_col, start_row) = offset_col_row(location.start(), source);
                 let (end_col, end_row) = offset_col_row(location.end(), source);
+                let (_, last_row) = offset_col_row(source.len(), source);
 
-                let indent_width = (start_row + 1).max(end_row + 1).to_string().chars().count();
+                let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
+                let indent_width = ((start_row - top_buf).max(0) + 1)
+                    .max((end_row + bottom_buf).min(last_row) + 1)
+                    .to_string()
+                    .chars()
+                    .count();
 
                 let info = ReportCodeBlockInfo {
                     indent_width,
@@ -196,11 +204,7 @@ impl ReportCodeBlock {
             ..
         } = self.info(modules);
 
-        const MAX_BUFFER: usize = 5;
-        let top_buffer: usize = (end_row - start_row + 1).min(MAX_BUFFER);
-        let bottom_buffer: usize = (end_row - start_row + 1).min(MAX_BUFFER);
-
-        const ERROR_MARKING_CHAR: &str = "^";
+        let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
         let error_view = source
             .trim_end_matches('\n')
@@ -276,6 +280,15 @@ impl ReportCodeBlock {
 
         Ok(())
     }
+}
+
+/// Compute the top buffer and bottom buffer sizes from the given start and
+/// end row for a code block.
+fn compute_buffers(start_row: usize, end_row: usize) -> (usize, usize) {
+    const MAX_BUFFER: usize = 5;
+    let top_buffer: usize = (end_row - start_row + 1).min(MAX_BUFFER);
+    let bottom_buffer: usize = (end_row - start_row + 1).min(MAX_BUFFER);
+    (top_buffer, bottom_buffer)
 }
 
 /// Enumeration representing types of components of a [Report]. A [Report] can be made of
