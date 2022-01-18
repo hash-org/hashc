@@ -253,7 +253,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-
         // println!("{}", node);
 
         let import_module_id = self
@@ -1532,6 +1531,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         // Make sure all fields are present
         let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
 
+        // @@Reporting: we could report multiple missing fields here...
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
                 let ty_def = self.type_defs().get(def_id);

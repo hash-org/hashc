@@ -3,7 +3,7 @@ use std::iter;
 
 use hash_utils::tree_writing::TreeNode;
 
-use crate::{ident::IDENTIFIER_MAP};
+use crate::ident::IDENTIFIER_MAP;
 use crate::literal::STRING_LITERAL_MAP;
 use crate::{ast, visitor::walk, visitor::AstVisitor};
 
@@ -22,7 +22,6 @@ fn labelled(label: impl ToString, contents: impl ToString, quote_str: &str) -> S
         quote_str
     )
 }
-
 
 impl<'c> AstVisitor<'c> for AstTreeGenerator {
     type Ctx = ();

@@ -327,6 +327,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-error-codes"
+version = "0.1.0"
+
+[[package]]
 name = "hash-interactive"
 version = "0.1.0"
 dependencies = [
@@ -386,6 +390,7 @@ name = "hash-reporting"
 version = "0.1.0"
 dependencies = [
  "hash-alloc",
+ "hash-error-codes",
  "hash-source",
  "thiserror",
 ]
@@ -406,6 +411,7 @@ dependencies = [
  "dashmap",
  "hash-alloc",
  "hash-ast",
+ "hash-error-codes",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",

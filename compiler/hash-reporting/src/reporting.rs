@@ -1,10 +1,7 @@
 //! Hash Compiler error and warning reporting module.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use crate::{
-    errors::ErrorCode,
-    highlight::{highlight, Colour, Modifier},
-};
+use crate::highlight::{highlight, Colour, Modifier};
 use core::fmt;
 use hash_source::{location::SourceLocation, SourceMap};
 use std::{
@@ -315,7 +312,7 @@ pub struct Report {
     /// A general associated message with the report.
     pub message: String,
     /// An optional associated general error code with the report.
-    pub error_code: Option<ErrorCode>,
+    pub error_code: Option<u32>,
     /// A vector of additional [ReportElement]s in order to add additional context
     /// to errors.
     pub contents: Vec<ReportElement>,
@@ -336,7 +333,7 @@ impl fmt::Display for IncompleteReportError {
 pub struct ReportBuilder {
     kind: Option<ReportKind>,
     message: Option<String>,
-    error_code: Option<ErrorCode>,
+    error_code: Option<u32>,
     contents: Vec<ReportElement>,
 }
 
@@ -360,7 +357,7 @@ impl ReportBuilder {
     }
 
     /// Add an associated [ErrorCode] to the [Report].
-    pub fn with_error_code(&mut self, error_code: ErrorCode) -> &mut Self {
+    pub fn with_error_code(&mut self, error_code: u32) -> &mut Self {
         self.error_code = Some(error_code);
         self
     }
@@ -402,7 +399,7 @@ impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
         let error_code_fmt = match self.report.error_code {
             Some(error_code) => highlight(
                 self.report.kind.as_colour() | Modifier::Bold,
-                format!("[{}]", error_code),
+                format!("[{:0>4}]", error_code),
             ),
             None => String::new(),
         };

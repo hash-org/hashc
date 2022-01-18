@@ -1,9 +1,8 @@
 //! Hash Compiler filesystem utility functions
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-use hash_reporting::{
-    errors::ErrorCode,
-    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+use hash_reporting::reporting::{
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
 };
 use hash_source::location::SourceLocation;
 use std::{
@@ -27,8 +26,7 @@ impl ImportError {
         let mut builder = ReportBuilder::new();
         builder
             .with_kind(ReportKind::Error)
-            .with_message("Failed to import")
-            .with_error_code(ErrorCode::Parsing); // @@Todo: add a better error code
+            .with_message("Failed to import");
 
         if let Some(src) = self.src {
             builder
