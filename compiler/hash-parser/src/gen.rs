@@ -1865,8 +1865,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token();
 
+        // Rather than just reporting that we reached 'EOF' which isn't necessarily true if we're in a
+        // block, we will simply specify that we expected an expression...
         if token.is_none() {
-            return self.unexpected_eof()?;
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedExpression,
+                None,
+                None,
+                &self.next_location(),
+            );
         }
 
         let prev_allowance = self.disallow_struct_literals.get();
