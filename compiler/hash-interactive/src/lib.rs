@@ -104,7 +104,6 @@ where
                 .add_interactive_block(new_interactive_block);
             let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
             match result {
-                // @@TODO: print types
                 Ok(()) => (),
                 Err(err) => {
                     println!("{}", ReportWriter::new(err, &new_state.sources));
@@ -113,19 +112,16 @@ where
             return new_state;
         }
         Ok(InteractiveCommand::Type(_expr)) => {
+            // @@TODO: print types.
             println!("Not implemented yet");
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("typeof({:#?})", block);
             // }
         }
         Ok(InteractiveCommand::Display(_expr)) => {
+            // @@TODO: print the parsed node.
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("{}", block);
-            // }
-        }
-        Ok(InteractiveCommand::Count(_expr)) => {
-            // if let Some((block, _)) = parse_interactive(expr, &castle) {
-            //     println!("{} nodes", block.node_count());
             // }
         }
         Err(e) => CompilerError::from(e).report(),

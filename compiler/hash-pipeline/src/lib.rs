@@ -205,7 +205,7 @@ impl<'c> SourceMap for Sources<'c> {
 pub type CompilerResult<T> = Result<T, Report>;
 
 /// The [Parser] represents an abstract parser that can parse all aspects of the Hash programming
-/// language. 
+/// language.
 pub trait Parser<'c> {
     /// Given a [SourceId], parse the current job and append any parsed modules to the
     /// provided sources parameter. On success, the function returns nothing and on
@@ -214,15 +214,15 @@ pub trait Parser<'c> {
 }
 
 /// The [Checker] represents an abstract type checker that implements all the specified
-/// typechecking methods and internally performs some kind of typechecking operations. 
-/// The methods [Checker::check_module] and [Checker::check_interactive] will return 
+/// typechecking methods and internally performs some kind of typechecking operations.
+/// The methods [Checker::check_module] and [Checker::check_interactive] will return
 /// a unit on success, or a generated diagnostic error report which can be displayed
-/// and printed by the user of the pipeline. Both functions modify the states of the 
-/// checker and return them regardless of error, both states are considered to be the 
+/// and printed by the user of the pipeline. Both functions modify the states of the
+/// checker and return them regardless of error, both states are considered to be the
 /// new states and should be set in the compiler pipeline.
 pub trait Checker<'c> {
-    /// The general [Checker] state. This is implementation specific to the 
-    /// typechecker that implements this trait. The pipeline should have no 
+    /// The general [Checker] state. This is implementation specific to the
+    /// typechecker that implements this trait. The pipeline should have no
     /// dealings with the actual state, except saving it.
     type State;
 
@@ -232,7 +232,6 @@ pub trait Checker<'c> {
     /// The module typechecker state.
     type ModuleState;
     fn make_module_state(&mut self, state: &mut Self::State) -> CompilerResult<Self::ModuleState>;
-  
 
     /// The interactive [Checker] state.
     type InteractiveState;
@@ -243,7 +242,7 @@ pub trait Checker<'c> {
         state: &mut Self::State,
     ) -> CompilerResult<Self::InteractiveState>;
 
-    /// Given a [InteractiveId], check the interactive statement with the specific rules 
+    /// Given a [InteractiveId], check the interactive statement with the specific rules
     /// that are applied in interactive rules. The function accepts the previous [Checker]
     /// state and previous [Checker::InteractiveState].
     fn check_interactive(
@@ -253,7 +252,6 @@ pub trait Checker<'c> {
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<()>, Self::InteractiveState);
-
 
     /// Given a [ModuleId], check the module. The function accepts the previous [Checker]
     /// state and [Checker::ModuleState]
