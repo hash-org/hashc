@@ -1,3 +1,15 @@
+//! Hash Compiler pipeline implementation. The pipeline is a abstract representation
+//! of the compiler flow managing the compiling steps like parsing, typechecking, optimisation
+//! passes, etc. The pipeline is used to abstract away the idea of depending on specific
+//! implementations of the parser or typechecker and just use a common trait
+//! interface that can be used. This file also has definitions for how to access
+//! sources whether module or interactive.
+//!
+//! @@Cleanup: Probably move all the source map stuff somewhere else?
+//!
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
+
 pub mod fs;
 
 use hash_ast::ast;
@@ -236,6 +248,9 @@ pub struct CompilerState<'c, C: Checker<'c>> {
     pub checker_module_state: C::ModuleState,
 }
 
+/// The Hash Compiler interface.
+///
+/// @@Future: Compiler metrics.
 impl<'c, P, C> Compiler<P, C>
 where
     P: Parser<'c>,

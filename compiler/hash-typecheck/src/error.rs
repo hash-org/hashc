@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::types::TypeId;
 use crate::{storage::GlobalStorage, writer::TypeWithStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};

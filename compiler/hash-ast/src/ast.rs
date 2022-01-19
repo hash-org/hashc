@@ -1,6 +1,6 @@
-//! Frontend-agnostic Hash abstract syntax tree type definitions.
+//! Frontend-agnostic Hash AST (abstract syntax tree) type definitions.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use crate::ident::Identifier;
 use crate::literal::StringLiteral;

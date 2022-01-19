@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, SourceStorage};

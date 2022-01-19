@@ -1,6 +1,6 @@
 //! Parser library lib file.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 #![feature(cell_update)]
 
 pub mod error;

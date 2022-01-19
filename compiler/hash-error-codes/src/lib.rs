@@ -1,24 +1,25 @@
-// macro_rules! register_diagnostics {
-//     ($($ecode:ident: $message:expr,)* ; $($code:ident,)*) => (
-//         pub static DIAGNOSTICS: &[(&str, Option<&str>)] = &[
-//             $( (stringify!($ecode), Some($message)), )*
-//             $( (stringify!($code), None), )*
-//         ];
-//     )
-// }
+//! Hash Error code library file.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 
-// pub enum DiagnosticId {
-//     Error(String),
-// }
+/// Error code macro is used to generate the [HashErrorCode] macro.
+macro_rules! error_codes {
+    ($($name:ident = $code:expr,)*) => (
+        #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+        #[allow(dead_code)]
+        pub enum HashErrorCode {
+            $($name, )*
+        }
 
-// mod error_codes;
-// pub use error_codes::DIAGNOSTICS;
-
-// #[macro_export]
-// macro_rules! error_code {
-//     ($code:ident) => {{
-//         $crate::DiagnosticId::Error(stringify!($code).to_owned())
-//     }};
-// }
+        impl HashErrorCode {
+            #[allow(unused)]
+            pub fn to_num(&self) -> u32 {
+                match self {
+                    $(Self::$name => $code, )*
+                }
+            }
+        }
+    )
+}
 
 pub mod error_codes;

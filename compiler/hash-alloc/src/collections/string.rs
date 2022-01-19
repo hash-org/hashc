@@ -1,6 +1,6 @@
 //! Contains a [`String`]-like implementation for allocating strings within a [`Wall`].
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use super::row::Row;
 use crate::Wall;

@@ -1,14 +1,13 @@
-use core::fmt;
-
-use hash_ast::ident::IDENTIFIER_MAP;
-use hash_utils::tree_writing::TreeNode;
-
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::{
     storage::GlobalStorage,
     types::{
         EnumDef, FnType, RawRefType, RefType, StructDef, TupleType, TypeId, TypeVar, UserType,
     },
 };
+use core::fmt;
+use hash_ast::ident::IDENTIFIER_MAP;
+use hash_utils::tree_writing::TreeNode;
 
 pub struct TypeWithStorage<'g, 'c, 'w> {
     ty: TypeId,

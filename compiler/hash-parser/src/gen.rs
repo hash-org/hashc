@@ -1,7 +1,7 @@
 //! Hash compiler AST generation sources. This file contains the sources to the logic
 //! that transforms tokens into an AST.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_alloc::collections::row::Row;
 use hash_alloc::{row, Wall};

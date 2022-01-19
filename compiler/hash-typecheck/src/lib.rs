@@ -1,6 +1,6 @@
 //! Hash Compiler Typecheck library file
 //
-// All rights reserved 2021 (c) The Hash Language authors
+// All rights reserved 2022 (c) The Hash Language authors
 #![feature(map_try_insert)]
 #![feature(extend_one)]
 #![feature(trait_alias)]

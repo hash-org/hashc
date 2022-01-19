@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::traits::TraitId;

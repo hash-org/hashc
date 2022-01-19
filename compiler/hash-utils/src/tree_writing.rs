@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use core::fmt;
 use std::{borrow::Cow, iter};
 

@@ -1,7 +1,7 @@
 //! File describing all the variants of Tokens that can be present within a
 //! Hash source file.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use std::fmt;
 
