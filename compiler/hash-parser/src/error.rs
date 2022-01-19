@@ -284,7 +284,7 @@ impl ParseError {
                 builder.with_message(message);
             }
             ParseError::IO(inner) => {
-                // @@UX: we might want to show a bit more info here.
+                // @@ErrorReporting: we might want to show a bit more info here.
                 builder.with_message(inner.to_string());
             }
         };

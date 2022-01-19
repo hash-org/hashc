@@ -12,8 +12,6 @@ pub enum InteractiveCommand<'i> {
     Clear,
     /// Get the type of the expression
     Type(&'i str),
-    /// Count the nodes in the expression
-    Count(&'i str),
     /// Display the node tree of the expression
     Display(&'i str),
     /// Just prints the version of the current interactive mode
@@ -73,7 +71,6 @@ impl InteractiveCommand<'_> {
             ":c" | ":cls" | ":clear" => d.without_arg(InteractiveCommand::Clear),
             ":v" => d.without_arg(InteractiveCommand::Version),
             ":t" => d.with_arg(|arg| Ok(InteractiveCommand::Type(arg))),
-            ":n" => d.with_arg(|arg| Ok(InteractiveCommand::Count(arg))),
             ":d" => d.with_arg(|arg| Ok(InteractiveCommand::Display(arg))),
             _ => Err(InteractiveCommandError::UnrecognisedCommand(
                 command.to_string(),
