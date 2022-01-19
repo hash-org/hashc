@@ -6,7 +6,6 @@
 pub mod error;
 pub mod gen;
 pub mod lexer;
-mod operator;
 pub mod parser;
 pub mod token;
-pub mod utils;
+mod utils;
