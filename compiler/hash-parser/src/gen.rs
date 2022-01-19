@@ -2537,11 +2537,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
-            Some(token) => self.error(
-                // @@Cleanup: Use ident
-                AstGenErrorKind::ExpectedExpression,
-                Some(TokenKindVector::empty(&self.wall)),
+            Some(token) => self.error_with_location(
+                AstGenErrorKind::ExpectedIdentifier,
+                None,
                 Some(token.kind),
+                &token.span,
             ),
             None => self.unexpected_eof(),
         }
