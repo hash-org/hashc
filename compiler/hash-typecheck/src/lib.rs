@@ -5,7 +5,6 @@
 #![feature(extend_one)]
 #![feature(trait_alias)]
 #![feature(generic_associated_types)]
-#![feature(arbitrary_enum_discriminant)]
 #![feature(never_type)]
 
 pub mod error;

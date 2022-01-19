@@ -3,6 +3,7 @@
 //! All rights reserved 2021 (c) The Hash Language authors
 use crate::highlight::{highlight, Colour, Modifier};
 use core::fmt;
+use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::{location::SourceLocation, SourceMap};
 use std::{
     cell::Cell,
@@ -160,7 +161,7 @@ impl ReportCodeBlock {
                 let (_, last_row) = offset_col_row(source.len(), source);
 
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
-                let indent_width = ((start_row - top_buf).max(0) + 1)
+                let indent_width = (start_row.saturating_sub(top_buf) + 1)
                     .max((end_row + bottom_buf).min(last_row) + 1)
                     .to_string()
                     .chars()
@@ -325,7 +326,7 @@ pub struct Report {
     /// A general associated message with the report.
     pub message: String,
     /// An optional associated general error code with the report.
-    pub error_code: Option<u32>,
+    pub error_code: Option<HashErrorCode>,
     /// A vector of additional [ReportElement]s in order to add additional context
     /// to errors.
     pub contents: Vec<ReportElement>,
@@ -346,7 +347,7 @@ impl fmt::Display for IncompleteReportError {
 pub struct ReportBuilder {
     kind: Option<ReportKind>,
     message: Option<String>,
-    error_code: Option<u32>,
+    error_code: Option<HashErrorCode>,
     contents: Vec<ReportElement>,
 }
 
@@ -370,7 +371,7 @@ impl ReportBuilder {
     }
 
     /// Add an associated [ErrorCode] to the [Report].
-    pub fn with_error_code(&mut self, error_code: u32) -> &mut Self {
+    pub fn with_error_code(&mut self, error_code: HashErrorCode) -> &mut Self {
         self.error_code = Some(error_code);
         self
     }
@@ -412,7 +413,7 @@ impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
         let error_code_fmt = match self.report.error_code {
             Some(error_code) => highlight(
                 self.report.kind.as_colour() | Modifier::Bold,
-                format!("[{:0>4}]", error_code),
+                format!("[{:0>4}]", error_code.to_num()),
             ),
             None => String::new(),
         };
