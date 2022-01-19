@@ -1,6 +1,6 @@
 //! Hash compiler lexer utilities for identifiers and other character sequences.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 /// True if `c` is valid as a first character of an identifier.
 // @@ Future: Support unicode within idents?

@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use hash_source::SourceId;
 
 use crate::types::TypeId;

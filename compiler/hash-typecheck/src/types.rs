@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use crate::{
     scope::ScopeStack,

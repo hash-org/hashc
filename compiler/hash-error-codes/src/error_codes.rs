@@ -1,22 +1,6 @@
-macro_rules! error_codes {
-    ($($name:ident = $code:expr,)*) => (
-        #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-        #[allow(dead_code)]
-        pub enum HashErrorCode {
-            $($name, )*
-        }
-
-        impl HashErrorCode {
-            #[allow(unused)]
-            pub fn to_num(&self) -> u32 {
-                match self {
-                    $(Self::$name => $code, )*
-                }
-            }
-        }
-    )
-}
-
+//! Hash Error code definitions.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 error_codes! {
     TypeMismatch = 1,
     UsingBreakOutsideLoop = 2,

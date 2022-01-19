@@ -1,7 +1,7 @@
 //! Hash compiler low level implementation for the language lexer. Convert
 //! an arbitrary string into a sequence of Lexemes.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::literal::STRING_LITERAL_MAP;
@@ -338,7 +338,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             // an identifier. This enables for infix calls on integer literals in the form of '2.pow(...)'
             // If we don't check this here, it leads to the tokeniser being too greedy and eating the
             // 'dot' without reason. Admittedly, this is a slight ambiguity in the language syntax, but
-            // there isn't currently a clear way to resolve this ambiguity. - Alex. 07 Sep 2021
+            // there isn't currently a clear way to resolve this ambiguity. - Alex. 07 Sep 2022
             '.' if !is_id_start(self.peek_second()) => {
                 self.skip();
 

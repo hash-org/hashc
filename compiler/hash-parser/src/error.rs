@@ -1,6 +1,6 @@
 //! Hash compiler parser error data types.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use std::io;
 

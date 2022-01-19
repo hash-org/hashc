@@ -1,7 +1,7 @@
 //! Self hosted hash parser, this function contains the implementations for `hash-ast`
 //! which provides a general interface to write a parser.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::error::{ParseError, ParseResult};
 use crate::gen::AstGen;
 use crate::lexer::Lexer;
