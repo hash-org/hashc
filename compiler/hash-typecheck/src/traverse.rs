@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, SourceStorage};
@@ -19,7 +20,7 @@ use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
-use hash_pipeline::{SourceRef, Sources};
+use hash_pipeline::sources::{SourceRef, Sources};
 use hash_source::{
     location::{Location, SourceLocation},
     SourceId,
@@ -124,6 +125,10 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
 
     fn types(&self) -> &TypeStorage<'c, 'w> {
         &self.global_storage.types
+    }
+
+    fn types_mut(&mut self) -> &mut TypeStorage<'c, 'w> {
+        &mut self.global_storage.types
     }
 
     fn type_defs(&self) -> &TypeDefStorage<'c, 'w> {
@@ -249,6 +254,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
+        // println!("{}", node);
+
         let import_module_id = self
             .sources
             .get_module_id_by_path(&node.resolved_path)
@@ -317,7 +324,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         location: self.some_source_location(node.type_args.location().unwrap()),
                     })
                 } else {
-                    Ok(var_ty_id)
+                    Ok(self.types_mut().duplicate(var_ty_id, Some(loc)))
                 }
             }
             SymbolType::Trait(var_trait_id) => {
@@ -392,6 +399,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             }),
             Some(args_ty_location),
         );
+
         self.unifier()
             .unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
 
@@ -525,7 +533,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error> {
-        walk::walk_type_same_children(self, ctx, node)
+        let ty_id = walk::walk_type_same_children(self, ctx, node)?;
+        // self.global_storage.types.add_location(ty_id, self.source_location(node.location()));
+        Ok(ty_id)
     }
 
     type NamedTypeRet = TypeId;
@@ -556,7 +566,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let location = self.source_location(node.location());
         match self.resolve_compound_symbol(&node.name.path, location)? {
-            SymbolType::Type(ty_id) => Ok(ty_id),
+            SymbolType::Type(ty_id) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
             SymbolType::TypeDef(def_id) => {
                 let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
                 let def = self.type_defs().get(def_id);
@@ -875,13 +885,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let old_ret_once = mem::replace(&mut self.tc_state().ret_once, false);
 
         // Try to combine the entire span of the arguments and types
-        // @@Hack: this span is so fucked lol
-        let mut location = node
-            .args
-            .iter()
-            .next()
-            .map(|item| item.location())
-            .unwrap_or_else(|| node.location());
+        let mut location = node.args.location().unwrap_or_else(|| node.location());
 
         if let Some(return_ty) = &node.return_ty {
             location = location.join(return_ty.location());
@@ -908,7 +912,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             }
             _ => {
                 self.unifier()
-                    .unify(return_ty, body_ty, UnifyStrategy::ModifyBoth)?;
+                    .unify(body_ty, return_ty, UnifyStrategy::ModifyBoth)?;
             }
         };
 
@@ -932,6 +936,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let ast::Name { ident } = node.name.body();
         let walk::FunctionDefArg { ty, .. } = walk::walk_function_def_arg(self, ctx, node)?;
         let arg_ty = ty.unwrap_or_else(|| self.create_unknown_type());
+
         self.scopes()
             .add_symbol(*ident, SymbolType::Variable(arg_ty));
         Ok(arg_ty)
@@ -1527,6 +1532,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         // Make sure all fields are present
         let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
 
+        // @@Reporting: we could report multiple missing fields here...
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
                 let ty_def = self.type_defs().get(def_id);

@@ -1,6 +1,6 @@
 //! Hash compiler crash handler
 //
-// All rights reserved 2021 (c) The Hash Language authors
+// All rights reserved 2022 (c) The Hash Language authors
 
 use backtrace::Backtrace;
 use std::panic::PanicInfo;

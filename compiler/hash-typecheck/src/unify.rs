@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
@@ -203,6 +204,16 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
                 Ok(())
             }
             (Fn(fn_target), Fn(fn_source)) => {
+                // Ensure that the target and source arguments are the same length
+                if fn_target.args.len() != fn_source.args.len() {
+                    return Err(TypecheckError::FunctionArgumentLengthMismatch {
+                        source,
+                        target,
+                        received: fn_target.args.len(),
+                        expected: fn_source.args.len(),
+                    });
+                }
+
                 self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), strategy)?;
                 // Maybe this should be flipped (see variance comment above)
                 self.unify(fn_target.ret, fn_source.ret, strategy)?;

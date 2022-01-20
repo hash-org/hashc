@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::error::{Symbol, TypecheckError, TypecheckResult};
 use crate::storage::GlobalStorage;
 use crate::traits::TraitId;
@@ -31,14 +32,26 @@ impl Scope {
                     .create(TypeValue::Prim(PrimType::USize), None),
             ),
         );
+
+        // Create the boolean type
+        let bool_ty_id = global_storage
+            .types
+            .create(TypeValue::Prim(PrimType::Bool), None);
+
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("bool"),
-            SymbolType::Type(
-                global_storage
-                    .types
-                    .create(TypeValue::Prim(PrimType::Bool), None),
-            ),
+            SymbolType::Type(bool_ty_id),
         );
+
+        scope.add_symbol(
+            IDENTIFIER_MAP.create_ident("false"),
+            SymbolType::Variable(bool_ty_id),
+        );
+        scope.add_symbol(
+            IDENTIFIER_MAP.create_ident("true"),
+            SymbolType::Variable(bool_ty_id),
+        );
+
         scope.add_symbol(
             IDENTIFIER_MAP.create_ident("u8"),
             SymbolType::Type(

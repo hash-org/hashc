@@ -8,3 +8,4 @@ edition = "2021"
 thiserror = "1.0"
 hash-source = {path = "../hash-source" }
 hash-alloc = {path = "../hash-alloc" }
+hash-error-codes = {path = "../hash-error-codes" }

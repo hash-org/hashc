@@ -1,18 +1,15 @@
 //! Main module for Hash interactive mode.
 //
-// All rights reserved 2021 (c) The Hash Language authors
+// All rights reserved 2022 (c) The Hash Language authors
 
 mod command;
 
 use command::InteractiveCommand;
-use hash_alloc::Castle;
 
-use hash_parser::parser::HashParser;
-use hash_pipeline::{Checker, Compiler, CompilerState, InteractiveBlock, Parser};
+use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
 
-use hash_typecheck::HashTypechecker;
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
@@ -36,16 +33,15 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init(worker_count: usize, castle: Castle) -> CompilerResult<()> {
+pub fn init<'c, P, C>(mut compiler: Compiler<P, C>) -> CompilerResult<()>
+where
+    P: Parser<'c>,
+    C: Checker<'c>,
+{
     // Display the version on start-up
     print_version();
 
     let mut rl = Editor::<()>::new();
-
-    let parser = HashParser::new(worker_count, &castle);
-    let tc_wall = &castle.wall();
-    let checker = HashTypechecker::new(tc_wall);
-    let mut compiler = Compiler::new(parser, checker);
     let mut compiler_state = compiler.create_state().unwrap();
 
     loop {
@@ -108,7 +104,6 @@ where
                 .add_interactive_block(new_interactive_block);
             let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
             match result {
-                // @@TODO: print types
                 Ok(()) => (),
                 Err(err) => {
                     println!("{}", ReportWriter::new(err, &new_state.sources));
@@ -117,19 +112,16 @@ where
             return new_state;
         }
         Ok(InteractiveCommand::Type(_expr)) => {
+            // @@TODO: print types.
             println!("Not implemented yet");
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("typeof({:#?})", block);
             // }
         }
         Ok(InteractiveCommand::Display(_expr)) => {
+            // @@TODO: print the parsed node.
             // if let Some((block, _)) = parse_interactive(expr, &castle) {
             //     println!("{}", block);
-            // }
-        }
-        Ok(InteractiveCommand::Count(_expr)) => {
-            // if let Some((block, _)) = parse_interactive(expr, &castle) {
-            //     println!("{} nodes", block.node_count());
             // }
         }
         Err(e) => CompilerError::from(e).report(),

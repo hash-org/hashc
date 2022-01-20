@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 #![feature(proc_macro_span)]
 #![feature(iter_intersperse)]
 #![feature(try_find)]

@@ -1,15 +1,14 @@
 //! Hash compiler parser error data types.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use std::io;
 
 use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
 use hash_pipeline::fs::ImportError;
-use hash_reporting::{
-    errors::ErrorCode,
-    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+use hash_reporting::reporting::{
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
 };
 use hash_source::{
     location::{Location, SourceLocation},
@@ -112,6 +111,8 @@ pub enum AstGenErrorKind {
     /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
     /// is to add additional information in the error message.
     TyArgument(TyArgumentKind),
+    /// Expected an identifier here.
+    ExpectedIdentifier,
     /// Expected statement.
     ExpectedStatement,
     /// Expected an expression.
@@ -174,21 +175,22 @@ impl<'a> From<AstGenError<'a>> for ParseError {
                 }
             }
             AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
-            AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator here".to_string(),
+            AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator".to_string(),
             AstGenErrorKind::TyArgument(ty) => {
                 format!(
                     "Expected {} type arguments, or {} definition entries here which begin with a '{{'",
                     ty, ty
                 )
             }
-            AstGenErrorKind::ExpectedStatement => "Expected an statement here".to_string(),
-            AstGenErrorKind::ExpectedExpression => "Expected an expression here".to_string(),
-            AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' here".to_string(),
+            AstGenErrorKind::ExpectedStatement => "Expected an statement".to_string(),
+            AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
+            AstGenErrorKind::ExpectedIdentifier => "Expected an identifier ".to_string(),
+            AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {
                 "Expected an arrow '=>' after type arguments denoting a function type".to_string()
             }
-            AstGenErrorKind::ExpectedFnBody => "Expected a function body here".to_string(),
-            AstGenErrorKind::ExpectedType => "Expected a type annotation here".to_string(),
+            AstGenErrorKind::ExpectedFnBody => "Expected a function body".to_string(),
+            AstGenErrorKind::ExpectedType => "Expected a type annotation".to_string(),
             AstGenErrorKind::InfixCall => {
                 "Expected field name access or an infix function call".to_string()
             }
@@ -206,15 +208,20 @@ impl<'a> From<AstGenError<'a>> for ParseError {
         if !matches!(&err.kind, AstGenErrorKind::Block) {
             if !matches!(&err.kind, AstGenErrorKind::Expected) {
                 if let Some(atom) = err.received {
-                    let atom_msg = format!(", however received a '{}'", atom);
+                    let atom_msg = format!(", however received a `{}`", atom);
                     base_message.push_str(&atom_msg);
                 }
             }
 
+            // If the generated error has suggested tokens that aren't empty.
             if let Some(expected) = expected {
-                let slice_display = SequenceDisplay(expected.into_inner().into_slice());
-                let expected_items_msg = format!(". Consider adding {}", slice_display);
-                base_message.push_str(&expected_items_msg);
+                if expected.is_empty() {
+                    base_message.push('.');
+                } else {
+                    let slice_display = SequenceDisplay(expected.into_inner().into_slice());
+                    let expected_items_msg = format!(". Consider adding {}", slice_display);
+                    base_message.push_str(&expected_items_msg);
+                }
             } else {
                 base_message.push('.');
             }
@@ -259,8 +266,7 @@ impl ParseError {
         let mut builder = ReportBuilder::new();
         builder
             .with_kind(ReportKind::Error)
-            .with_message("Failed to parse")
-            .with_error_code(ErrorCode::Parsing);
+            .with_message("Failed to parse");
 
         match self {
             ParseError::Import(import_error) => return import_error.create_report(),
@@ -278,7 +284,7 @@ impl ParseError {
                 builder.with_message(message);
             }
             ParseError::IO(inner) => {
-                // @@UX: we might want to show a bit more info here.
+                // @@ErrorReporting: we might want to show a bit more info here.
                 builder.with_message(inner.to_string());
             }
         };

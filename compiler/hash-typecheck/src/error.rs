@@ -1,9 +1,10 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::types::TypeId;
 use crate::{storage::GlobalStorage, writer::TypeWithStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
-use hash_reporting::{
-    errors::ErrorCode,
-    reporting::{Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote},
+use hash_error_codes::error_codes::HashErrorCode;
+use hash_reporting::reporting::{
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
 };
 use hash_source::location::SourceLocation;
 
@@ -35,7 +36,6 @@ impl Symbol {
     }
 }
 
-// @@Todo: add ast node locations to these
 #[derive(Debug)]
 pub enum TypecheckError {
     TypeMismatch(TypeId, TypeId),
@@ -86,6 +86,12 @@ pub enum TypecheckError {
         location: Option<SourceLocation>,
     }, // @@TODO: length definition location
     NoMatchingTraitImplementations(Symbol),
+    FunctionArgumentLengthMismatch {
+        target: TypeId,
+        source: TypeId,
+        expected: usize,
+        received: usize,
+    },
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
@@ -93,13 +99,16 @@ pub type TypecheckResult<T> = Result<T, TypecheckError>;
 impl TypecheckError {
     pub fn create_report(self, storage: &GlobalStorage<'_, '_>) -> Report {
         let mut builder = ReportBuilder::new();
+
+        // We use generic error code and message until we set them later.
         builder
             .with_kind(ReportKind::Error)
-            .with_message("Failed to typecheck") // @@TODO: get general message for the appropriate error code
-            .with_error_code(ErrorCode::Typecheck); // @@TODO: @@ErrorReporting: Get the correct typecheck code
+            .with_message("Failed to typecheck");
 
         match self {
             TypecheckError::TypeMismatch(given, wanted) => {
+                builder.with_error_code(HashErrorCode::TypeMismatch);
+
                 let given_ty = TypeWithStorage::new(given, storage);
                 let given_ty_location = storage.types.get_location(given);
                 let wanted_ty = TypeWithStorage::new(wanted, storage);
@@ -110,7 +119,7 @@ impl TypecheckError {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         *location,
                         format!(
-                            "This specificities that the expression should be of type `{}`",
+                            "This specifies that the expression should be of type `{}`",
                             wanted_ty
                         ),
                     )));
@@ -123,15 +132,14 @@ impl TypecheckError {
                     )));
                 }
 
-                builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
-                    format!(
-                        "Types mismatch, got a `{}`, but wanted a `{}`.",
-                        given_ty, wanted_ty
-                    ),
-                )));
+                builder.with_message(format!(
+                    "Types mismatch, got a `{}`, but wanted a `{}`.",
+                    given_ty, wanted_ty
+                ));
             }
             TypecheckError::UsingBreakOutsideLoop(src) => {
+                builder.with_error_code(HashErrorCode::UsingBreakOutsideLoop);
+
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -140,6 +148,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::UsingContinueOutsideLoop(src) => {
+                builder.with_error_code(HashErrorCode::UsingContinueOutsideLoop);
+
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -148,6 +158,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::UsingReturnOutsideFunction(src) => {
+                builder.with_error_code(HashErrorCode::UsingReturnOutsideFunction);
+
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -156,6 +168,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::RequiresIrrefutablePattern(src) => {
+                builder.with_error_code(HashErrorCode::RequiresIrrefutablePattern);
+
                 builder
                 .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "This pattern isn't refutable")))
                 .add_element(ReportElement::Note(ReportNote::new(
@@ -164,6 +178,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::UnresolvedSymbol(symbol) => {
+                builder.with_error_code(HashErrorCode::UnresolvedSymbol);
+
                 let ident_path = symbol.get_ident();
                 let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
 
@@ -181,6 +197,8 @@ impl TypecheckError {
                 ));
             }
             TypecheckError::TryingToNamespaceType(symbol) => {
+                builder.with_error_code(HashErrorCode::TryingToNamespaceType);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -199,6 +217,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::TryingToNamespaceVariable(symbol) => {
+                builder.with_error_code(HashErrorCode::TryingToNamespaceVariable);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -214,6 +234,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::SymbolIsNotAType(symbol) => {
+                builder.with_error_code(HashErrorCode::SymbolIsNotAType);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -229,6 +251,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::SymbolIsNotAVariable(symbol) => {
+                builder.with_error_code(HashErrorCode::SymbolIsNotAVariable);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -244,6 +268,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::SymbolIsNotATrait(symbol) => {
+                builder.with_error_code(HashErrorCode::SymbolIsNotATrait);
+
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
@@ -263,6 +289,7 @@ impl TypecheckError {
                 location,
                 ty_def_location,
             } => {
+                builder.with_error_code(HashErrorCode::TypeIsNotStruct);
                 let ty = TypeWithStorage::new(ty, storage);
 
                 // Print where the original type is defined with an annotation.
@@ -290,6 +317,8 @@ impl TypecheckError {
                 field_name,
                 location,
             } => {
+                builder.with_error_code(HashErrorCode::UnresolvedStructField);
+
                 let name = IDENTIFIER_MAP.get_ident(field_name);
                 let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
 
@@ -315,6 +344,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::ExpectingBooleanInCondition { found, location } => {
+                builder.with_error_code(HashErrorCode::ExpectingBooleanInCondition);
+
                 let found_ty = TypeWithStorage::new(found, storage);
 
                 builder
@@ -333,6 +364,8 @@ impl TypecheckError {
                 field_name,
                 location: field_location,
             } => {
+                builder.with_error_code(HashErrorCode::MissingStructField);
+
                 let name = IDENTIFIER_MAP.get_ident(field_name);
                 let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
 
@@ -355,6 +388,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::BoundRequiresStrictlyTypeVars(location) => {
+                builder.with_error_code(HashErrorCode::BoundRequiresStrictlyTypeVars);
+
                 // @@TODO: Maybe report here what we found?
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -371,6 +406,8 @@ impl TypecheckError {
                 ty_def_name,
                 ty_def_location,
             } => {
+                builder.with_error_code(HashErrorCode::InvalidPropertyAccess);
+
                 let name = IDENTIFIER_MAP.get_ident(field_name);
                 let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
 
@@ -393,6 +430,8 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::ExpectingBindingForTraitImpl(loc) => {
+                builder.with_error_code(HashErrorCode::ExpectingBindingForTraitImpl);
+
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     loc,
                     "Use a name binding here instead of a pattern.",
@@ -404,6 +443,8 @@ impl TypecheckError {
                 )));
             }
             TypecheckError::TraitDefinitionNotFound(symbol) => {
+                builder.with_error_code(HashErrorCode::TraitDefinitionNotFound);
+
                 let ident_path = symbol.get_ident();
                 let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
 
@@ -421,6 +462,8 @@ impl TypecheckError {
                 ));
             }
             TypecheckError::TypeAnnotationNotAllowedInTraitImpl(loc) => {
+                builder.with_error_code(HashErrorCode::TypeAnnotationNotAllowedInTraitImpl);
+
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     loc,
                     "Remove the type annotation here.",
@@ -436,6 +479,8 @@ impl TypecheckError {
                 got,
                 location,
             } => {
+                builder.with_error_code(HashErrorCode::TypeArgumentLengthMismatch);
+
                 if let Some(location) = location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
@@ -449,6 +494,8 @@ impl TypecheckError {
                 // @@Todo: it would be nice to have definition location here too.
             }
             TypecheckError::NoMatchingTraitImplementations(symbol) => {
+                builder.with_error_code(HashErrorCode::NoMatchingTraitImplementations);
+
                 let trt_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(loc) = symbol.location() {
@@ -462,6 +509,60 @@ impl TypecheckError {
                     "note",
                     format!("There are no implementations of the trait '{}' that satisfy this invocation.", trt_name),
                 )));
+            }
+            TypecheckError::FunctionArgumentLengthMismatch {
+                source,
+                target,
+                expected,
+                received,
+            } => {
+                builder.with_error_code(HashErrorCode::FunctionArgumentLengthMismatch);
+
+                let source_location = storage.types.get_location(source);
+                let target_location = storage.types.get_location(target);
+
+                builder.with_message(format!(
+                    "Function argument mismatch, expected {} arguments, but got {}.",
+                    expected, received
+                ));
+
+                if let Some(location) = source_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        "Function definition here".to_string(),
+                    )));
+                }
+
+                if let Some(location) = target_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        "Arguments mismatch".to_string(),
+                    )));
+                }
+
+                if expected > received {
+                    let diff = expected - received;
+
+                    builder.add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!("consider adding {} argument(s).", diff),
+                    )));
+                } else {
+                    let diff = received - expected;
+
+                    if diff == 1 {
+                        // @@Reporting: suggestions!
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            "note",
+                            "consider removing the last argument.".to_string(),
+                        )));
+                    } else {
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            "note",
+                            format!("consider removing the last {} arguments.", diff),
+                        )));
+                    }
+                }
             }
         }
 
