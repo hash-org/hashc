@@ -12,7 +12,7 @@ use crate::{ast, visitor::walk, visitor::AstVisitor};
 
 /// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
 /// [TreeNode] tree, for visualisation purposes.
-struct AstTreeGenerator;
+pub struct AstTreeGenerator;
 
 /// Easy way to format a [TreeNode] label with a main label as well as short contents, and a
 /// quoting string.
