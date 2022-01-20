@@ -2,12 +2,12 @@
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
-    types::{TypeId, TypeValue},
+    types::{TypeId, TypeStorage, TypeValue},
     writer::TypeWithStorage,
 };
 use core::fmt;
 use hash_alloc::collections::row::Row;
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::HashSet, iter};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnifyStrategy {
@@ -61,11 +61,36 @@ impl<'c> Substitution {
             subs: pairs.map(|(x, y)| (*x.borrow(), *y.borrow())).collect(),
         }
     }
+
+    pub fn add(&mut self, from: TypeId, to: TypeId) {
+        self.subs.push((from, to));
+    }
 }
 
 pub struct Unifier<'c, 'w, 'ms, 'gs> {
     module_storage: &'ms mut SourceStorage,
     global_storage: &'gs mut GlobalStorage<'c, 'w>,
+}
+
+fn _extract_type_var_set(ty: TypeId, types: &TypeStorage) -> HashSet<TypeId> {
+    types
+        .get(ty)
+        .fold_type_ids(HashSet::new(), |mut vars, inner_ty| {
+            match types.get(inner_ty) {
+                TypeValue::Var(_) => {
+                    vars.insert(inner_ty);
+                    vars
+                }
+                _ => vars,
+            }
+        })
+}
+
+fn _extract_type_var_set_from_list(tys: &[TypeId], types: &TypeStorage) -> HashSet<TypeId> {
+    tys.iter().fold(HashSet::new(), |mut type_vars, &ty| {
+        type_vars.extend(_extract_type_var_set(ty, types));
+        type_vars
+    })
 }
 
 impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
@@ -127,8 +152,32 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
         vars: &[TypeId],
     ) -> TypecheckResult<Substitution> {
         let ty_val = self.global_storage.types.get(ty);
+
+        let maybe_get_ty_sub = |ty: TypeId, unifier: &mut Unifier| {
+            if matches!(unifier.global_storage.types.get(ty), TypeValue::Var(_)) {
+                for &var_ty in vars {
+                    let unify_result = unifier.unify(ty, var_ty, UnifyStrategy::CheckOnly);
+                    if unify_result.is_ok() {
+                        return Some((ty, unifier.global_storage.types.create_unknown_type()));
+                    }
+                }
+            }
+            None
+        };
+
+        // Edge case where ty is a type variable.
+        if let Some(sub) = maybe_get_ty_sub(ty, self) {
+            return Ok(Substitution::from_pairs(iter::once(sub)));
+        }
+
         ty_val.fold_type_ids(Ok(Substitution::empty()), |acc, ty| {
-            Ok(acc?.merge(self.instantiate_vars(ty, vars)?))
+            if let Some(sub) = maybe_get_ty_sub(ty, self) {
+                let mut acc = acc?;
+                acc.add(sub.0, sub.1);
+                Ok(acc)
+            } else {
+                Ok(acc?.merge(self.instantiate_vars(ty, vars)?))
+            }
         })
     }
 

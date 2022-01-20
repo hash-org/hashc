@@ -64,7 +64,7 @@ pub trait Checker<'c> {
         sources: &Sources<'c>,
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
-    ) -> (CompilerResult<()>, Self::InteractiveState);
+    ) -> (CompilerResult<String>, Self::InteractiveState);
 
     /// Given a [ModuleId], check the module. The function accepts the previous [Checker]
     /// state and [Checker::ModuleState]
@@ -134,20 +134,26 @@ where
         })
     }
 
+    /// Function to invoke a parsing job of a specified [SourceId].
+    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
+        self.parser.parse(id, sources)
+    }
+
     /// Run a interactive job with the provided [InteractiveId] pointing to the
     /// interpreted command to execute.
     pub fn run_interactive(
         &mut self,
         interactive_id: InteractiveId,
         mut compiler_state: CompilerState<'c, C>,
-    ) -> (CompilerResult<()>, CompilerState<'c, C>) {
+    ) -> (CompilerResult<String>, CompilerState<'c, C>) {
         // Parsing
-        match self.parser.parse(
+        let parse_result = self.parse_source(
             SourceId::Interactive(interactive_id),
             &mut compiler_state.sources,
-        ) {
-            Ok(_) => {}
-            Err(e) => return (Err(e), compiler_state),
+        );
+
+        if let Err(err) = parse_result {
+            return (Err(err), compiler_state);
         }
 
         // Typechecking

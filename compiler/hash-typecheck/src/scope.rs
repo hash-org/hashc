@@ -10,6 +10,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolType {
     Variable(TypeId),
+    EnumVariant(TypeDefId),
     Type(TypeId),
     TypeDef(TypeDefId),
     Trait(TraitId),
@@ -275,7 +276,7 @@ pub fn resolve_compound_symbol(
     types: &TypeStorage,
     symbols: &[Identifier],
     location: SourceLocation,
-) -> TypecheckResult<SymbolType> {
+) -> TypecheckResult<(Identifier, SymbolType)> {
     let mut last_scope = scopes;
     let mut symbols_iter = symbols.iter().enumerate().peekable();
 
@@ -288,7 +289,7 @@ pub fn resolve_compound_symbol(
                         continue;
                     }
                     TypeValue::Namespace(_) => {
-                        return Ok(symbol_ty);
+                        return Ok((symbol, symbol_ty));
                     }
                     _ if symbols_iter.peek().is_some() => {
                         return Err(TypecheckError::TryingToNamespaceVariable(
@@ -299,7 +300,7 @@ pub fn resolve_compound_symbol(
                         ));
                     }
                     _ => {
-                        return Ok(symbol_ty);
+                        return Ok((symbol, symbol_ty));
                     }
                 },
                 Some(_) if symbols_iter.peek().is_some() => {
@@ -309,7 +310,7 @@ pub fn resolve_compound_symbol(
                     }));
                 }
                 Some(symbol_ty) => {
-                    return Ok(symbol_ty);
+                    return Ok((symbol, symbol_ty));
                 }
                 None => {
                     return Err(TypecheckError::UnresolvedSymbol(Symbol::Compound {
