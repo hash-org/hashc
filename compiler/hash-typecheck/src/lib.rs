@@ -93,20 +93,8 @@ impl<'c, 'w> Checker<'c> for HashTypechecker<'c, 'w> {
     ) -> CompilerResult<Self::InteractiveState> {
         Ok(ScopeStack::new(state))
     }
+
     fn check_interactive(
-        &mut self,
-        interactive_id: InteractiveId,
-        sources: &Sources<'c>,
-        state: &mut Self::State,
-        interactive_state: Self::InteractiveState,
-    ) -> (CompilerResult<()>, Self::InteractiveState) {
-        let (result, new_state) =
-            self.check_interactive_statement(interactive_id, sources, state, interactive_state);
-
-        (result.map(|_| ()), new_state)
-    }
-
-    fn check_interactive_and_return_type(
         &mut self,
         interactive_id: InteractiveId,
         sources: &Sources<'c>,

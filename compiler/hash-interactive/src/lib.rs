@@ -104,8 +104,7 @@ where
                 .sources
                 .add_interactive_block(new_interactive_block);
 
-            let (result, new_state) =
-                compiler.run_interactive_and_return_type(interactive_id, compiler_state);
+            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
 
             match result {
                 Ok(value) => {
@@ -151,7 +150,7 @@ where
             let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
 
             match result {
-                Ok(()) => {}
+                Ok(_) => {}
                 Err(err) => {
                     println!("{}", ReportWriter::new(err, &new_state.sources));
                 }

@@ -9,6 +9,21 @@ use core::fmt;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_utils::tree_writing::TreeNode;
 
+pub fn print_type(ty: TypeId, storage: &GlobalStorage) {
+    println!("{}", TypeWithStorage::new(ty, storage));
+}
+
+pub fn print_type_list(types: &[TypeId], storage: &GlobalStorage) {
+    print!("[");
+    for (i, ty) in types.iter().enumerate() {
+        print!("{}", TypeWithStorage::new(*ty, storage));
+        if i != types.len() - 1 {
+            print!(", ");
+        }
+    }
+    println!("]");
+}
+
 pub struct TypeWithStorage<'g, 'c, 'w> {
     ty: TypeId,
     storage: &'g GlobalStorage<'c, 'w>,

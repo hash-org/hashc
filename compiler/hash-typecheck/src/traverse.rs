@@ -16,10 +16,7 @@ use crate::{
     scope::{resolve_compound_symbol, ScopeStack, SymbolType},
     types::EnumVariants,
 };
-use crate::{
-    state::TypecheckState,
-    types::{EnumVariant, EnumVariantParams},
-};
+use crate::{state::TypecheckState, types::EnumVariant};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
@@ -231,7 +228,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &mut self,
         symbols: &[Identifier],
         location: SourceLocation,
-    ) -> TypecheckResult<SymbolType> {
+    ) -> TypecheckResult<(Identifier, SymbolType)> {
         resolve_compound_symbol(
             &self.source_storage.scopes,
             &self.global_storage.types,
@@ -321,7 +318,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let loc = self.source_location(node.location());
         match self.resolve_compound_symbol(&node.name.path, loc)? {
-            SymbolType::Variable(var_ty_id) => {
+            (_, SymbolType::Variable(var_ty_id)) => {
                 if !node.type_args.is_empty() {
                     Err(TypecheckError::TypeArgumentLengthMismatch {
                         expected: 0,
@@ -333,7 +330,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     Ok(self.types_mut().duplicate(var_ty_id, Some(loc)))
                 }
             }
-            SymbolType::Trait(var_trait_id) => {
+            (_, SymbolType::Trait(var_trait_id)) => {
                 let trt = self.traits().get(var_trait_id);
                 let args: Vec<_> = node
                     .type_args
@@ -355,6 +352,50 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 )?;
                 let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type)?;
                 Ok(subbed_fn_type)
+            }
+            (ident, SymbolType::EnumVariant(ty_def_id)) => {
+                let ty_def = self.type_defs().get(ty_def_id);
+
+                match &ty_def.kind {
+                    TypeDefValueKind::Enum(EnumDef {
+                        variants, generics, ..
+                    }) => {
+                        // here we need to find the variant in variants by the node name
+                        let variant = variants.get_variant(ident).unwrap();
+                        let sub = self.unifier().instantiate_vars_list(&generics.params)?;
+
+                        let enum_ty_args = self
+                            .unifier()
+                            .apply_sub_to_list_make_row(&sub, &generics.params)?;
+
+                        let enum_ty_id = self.types_mut().create(
+                            TypeValue::User(UserType {
+                                def_id: ty_def_id,
+                                args: enum_ty_args,
+                            }),
+                            Some(loc),
+                        );
+
+                        if variant.data.is_empty() {
+                            return Ok(enum_ty_id);
+                        };
+
+                        let args = self
+                            .unifier()
+                            .apply_sub_to_list_make_row(&sub, &variant.data)?;
+
+                        let enum_variant_fn_ty = self.types_mut().create(
+                            TypeValue::Fn(FnType {
+                                args,
+                                ret: enum_ty_id,
+                            }),
+                            Some(loc),
+                        );
+
+                        Ok(enum_variant_fn_ty)
+                    }
+                    TypeDefValueKind::Struct(_) => unreachable!(),
+                }
             }
             _ => Err(TypecheckError::SymbolIsNotAVariable(Symbol::Compound {
                 path: node.name.path.to_owned(),
@@ -572,8 +613,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let location = self.source_location(node.location());
         match self.resolve_compound_symbol(&node.name.path, location)? {
-            SymbolType::Type(ty_id) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
-            SymbolType::TypeDef(def_id) => {
+            (_, SymbolType::Type(ty_id)) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
+            (_, SymbolType::TypeDef(def_id)) => {
                 let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
                 let def = self.type_defs().get(def_id);
 
@@ -811,7 +852,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
 
         match symbol_res {
-            SymbolType::TypeDef(def_id) => {
+            (_, SymbolType::TypeDef(def_id)) => {
                 let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
                 match &type_def.kind {
@@ -825,7 +866,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     }),
                 }
             }
-            SymbolType::Type(ty_id) => {
+            (_, SymbolType::Type(ty_id)) => {
                 let ty = self.types().get(ty_id);
                 match ty {
                     TypeValue::User(UserType { def_id, .. }) => {
@@ -1270,27 +1311,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        let walk::EnumDefEntry { args, .. } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let walk::EnumDefEntry { args: data, .. } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let name = node.name.ident;
 
-        // create the new type
-        let field_ty = self.create_type(
-            TypeValue::Var(TypeVar {
-                name: node.name.ident,
-            }),
-            self.some_source_location(node.location()),
-        );
-
-        // Add this variant to the global scope so that it can be used.
-        self.scopes()
-            .add_symbol(node.name.ident, SymbolType::Variable(field_ty));
-
-        Ok((
-            node.name.ident,
-            EnumVariant {
-                name: node.name.ident,
-                data: EnumVariantParams { data: args },
-            },
-        ))
+        Ok((name, EnumVariant { name, data }))
     }
 
     type EnumDefRet = ();
@@ -1353,6 +1377,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             def_location,
         );
 
+        // Iterate each variant in the definition and add it to this scope...
+        if let TypeDefValueKind::Enum(EnumDef { variants, .. }) = &self.type_defs().get(def_id).kind
+        {
+            for (symbol, _) in variants.iter() {
+                self.scopes()
+                    .add_symbol(symbol, SymbolType::EnumVariant(def_id))
+            }
+        }
+
         // Add the name to scope
         self.scopes()
             .add_symbol(node.name.ident, SymbolType::TypeDef(def_id));
@@ -1407,7 +1440,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::TraitBoundRet, Self::Error> {
         let name_loc = self.source_location(node.name.location());
         match self.resolve_compound_symbol(&node.name.path, name_loc)? {
-            SymbolType::Trait(trait_id) => {
+            (_, SymbolType::Trait(trait_id)) => {
                 let type_args: Vec<_> = node
                     .type_args
                     .iter()

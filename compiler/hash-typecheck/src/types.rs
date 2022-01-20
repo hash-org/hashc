@@ -29,14 +29,9 @@ impl Generics<'_> {
 }
 
 #[derive(Debug)]
-pub struct EnumVariantParams<'c> {
-    pub data: Row<'c, TypeId>,
-}
-
-#[derive(Debug)]
 pub struct EnumVariant<'c> {
     pub name: Identifier,
-    pub data: EnumVariantParams<'c>,
+    pub data: Row<'c, TypeId>,
 }
 
 #[derive(Debug, Default)]
@@ -44,9 +39,17 @@ pub struct EnumVariants<'c> {
     data: HashMap<Identifier, EnumVariant<'c>>,
 }
 
-impl EnumVariants<'_> {
+impl<'c> EnumVariants<'c> {
     pub fn empty() -> Self {
         Self::default()
+    }
+
+    pub fn get_variant(&self, name: Identifier) -> Option<&EnumVariant<'c>> {
+        self.data.get(&name)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Identifier, &EnumVariant<'c>)> + '_ {
+        self.data.iter().map(|(key, value)| (*key, value))
     }
 }
 
