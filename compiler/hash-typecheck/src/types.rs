@@ -30,7 +30,7 @@ impl Generics<'_> {
 
 #[derive(Debug)]
 pub struct EnumVariantParams<'c> {
-    data: Row<'c, TypeId>,
+    pub data: Row<'c, TypeId>,
 }
 
 #[derive(Debug)]
@@ -47,6 +47,14 @@ pub struct EnumVariants<'c> {
 impl EnumVariants<'_> {
     pub fn empty() -> Self {
         Self::default()
+    }
+}
+
+impl<'c> FromIterator<(Identifier, EnumVariant<'c>)> for EnumVariants<'c> {
+    fn from_iter<T: IntoIterator<Item = (Identifier, EnumVariant<'c>)>>(iter: T) -> Self {
+        Self {
+            data: iter.into_iter().collect(),
+        }
     }
 }
 

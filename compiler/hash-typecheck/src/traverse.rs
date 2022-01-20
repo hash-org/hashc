@@ -1,6 +1,4 @@
 //! All rights reserved 2022 (c) The Hash Language authors
-use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
-use crate::state::TypecheckState;
 use crate::storage::{GlobalStorage, SourceStorage};
 use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage};
 use crate::types::{
@@ -13,6 +11,14 @@ use crate::unify::{Substitution, Unifier, UnifyStrategy};
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
+};
+use crate::{
+    scope::{resolve_compound_symbol, ScopeStack, SymbolType},
+    types::EnumVariants,
+};
+use crate::{
+    state::TypecheckState,
+    types::{EnumVariant, EnumVariantParams},
 };
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
@@ -1233,8 +1239,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // @@Todo: trait bounds
 
         // Create the type
-        let current_module = self.source_id;
-
+        let def_location = self.some_source_location(node.name.location());
         let def_id = self.type_defs_mut().create(
             TypeDefValueKind::Struct(StructDef {
                 name: node.name.ident,
@@ -1244,7 +1249,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 },
                 fields,
             }),
-            Some(SourceLocation::new(node.name.location(), current_module)),
+            def_location,
         );
 
         // Add the name to scope
@@ -1259,22 +1264,105 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(())
     }
 
-    type EnumDefEntryRet = ();
+    type EnumDefEntryRet = (Identifier, EnumVariant<'c>);
     fn visit_enum_def_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        todo!()
+        let walk::EnumDefEntry { args, .. } = walk::walk_enum_def_entry(self, ctx, node)?;
+
+        // create the new type
+        let field_ty = self.create_type(
+            TypeValue::Var(TypeVar {
+                name: node.name.ident,
+            }),
+            self.some_source_location(node.location()),
+        );
+
+        // Add this variant to the global scope so that it can be used.
+        self.scopes()
+            .add_symbol(node.name.ident, SymbolType::Variable(field_ty));
+
+        Ok((
+            node.name.ident,
+            EnumVariant {
+                name: node.name.ident,
+                data: EnumVariantParams { data: args },
+            },
+        ))
     }
 
     type EnumDefRet = ();
     fn visit_enum_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::EnumDef<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumDef<'c>>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        todo!()
+        // @@Todo: the bound scope needs to be created for each type variable successively, not at
+        // the end. Otherwise trait bounds will not resolve the type variables correctly.
+        let bound = node
+            .bound
+            .as_ref()
+            .map(|b| self.visit_bound(ctx, b.ast_ref()))
+            .transpose()?;
+
+        // Enter the bound if one exists, returning a key
+        let maybe_type_var_key = bound
+            .as_ref()
+            .map(|bound| {
+                // @@Todo: trait bounds
+                let bound_vars: Vec<_> = bound
+                    .iter()
+                    .map(|&ty| match self.types().get(ty) {
+                        TypeValue::Var(var) => Ok(*var),
+                        _ => {
+                            // We need to get the location of the bound for error reporting
+                            let bound_location = node.bound.as_ref().unwrap().location();
+
+                            Err(TypecheckError::BoundRequiresStrictlyTypeVars(
+                                self.source_location(bound_location),
+                            ))
+                        }
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                Ok(self
+                    .type_vars_mut()
+                    .enter_bounded_type_var_scope(bound_vars.into_iter()))
+            })
+            .transpose()?;
+
+        let variants = node
+            .entries
+            .iter()
+            .map(|entry| self.visit_enum_def_entry(ctx, entry.ast_ref()))
+            .collect::<Result<EnumVariants, _>>()?;
+
+        // create the type
+        let def_location = self.some_source_location(node.name.location());
+        let def_id = self.type_defs_mut().create(
+            TypeDefValueKind::Enum(EnumDef {
+                name: node.name.ident,
+                generics: Generics {
+                    params: bound.unwrap_or_else(|| row![ctx; ]),
+                    bounds: TraitBounds::empty(),
+                },
+                variants,
+            }),
+            def_location,
+        );
+
+        // Add the name to scope
+        self.scopes()
+            .add_symbol(node.name.ident, SymbolType::TypeDef(def_id));
+
+        // Exit the bound if we entered one
+        if let Some(type_var_key) = maybe_type_var_key {
+            self.type_vars_mut().exit_type_var_scope(type_var_key);
+        }
+
+        Ok(())
     }
 
     type TraitDefRet = ();
