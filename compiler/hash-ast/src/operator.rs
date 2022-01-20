@@ -13,7 +13,7 @@ pub struct Operator {
     pub assignable: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 /// The operator kind enumeration. This represents all types of
 /// operator present in the language.
 pub enum OperatorKind {
@@ -90,36 +90,6 @@ impl std::fmt::Display for OperatorKind {
     }
 }
 
-/// This implementation will be used for error messages. The debug formatter is
-/// mainly used in error reports whereas the display formatter is used when
-/// printing code from tokens.
-impl std::fmt::Debug for OperatorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OperatorKind::EqEq => write!(f, "eq"),
-            OperatorKind::NotEq => write!(f, "neq"),
-            OperatorKind::BitOr => write!(f, "bit_or"),
-            OperatorKind::Or => write!(f, "orl"),
-            OperatorKind::BitAnd => write!(f, "bit_and"),
-            OperatorKind::And => write!(f, "and"),
-            OperatorKind::BitXor => write!(f, "bit_xor"),
-            OperatorKind::Exp => write!(f, "exp"),
-            OperatorKind::Gt => write!(f, "gt"),
-            OperatorKind::GtEq => write!(f, "gt_eq"),
-            OperatorKind::Lt => write!(f, "lt"),
-            OperatorKind::LtEq => write!(f, "lt_eq"),
-            OperatorKind::Shr => write!(f, "shr"),
-            OperatorKind::Shl => write!(f, "shl"),
-            OperatorKind::Add => write!(f, "add"),
-            OperatorKind::Sub => write!(f, "sub"),
-            OperatorKind::Mul => write!(f, "mul"),
-            OperatorKind::Div => write!(f, "div"),
-            OperatorKind::Mod => write!(f, "mod"),
-            OperatorKind::As => write!(f, "as"),
-        }
-    }
-}
-
 impl OperatorKind {
     /// This returns if an operator is actually re-assignable. By re-assignable, this is in the sense
     /// that you can add a '=' to mean that you are performing a re-assigning operation using the left
@@ -157,7 +127,7 @@ impl OperatorKind {
         )
     }
 
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_str(&self) -> &'static str {
         match self {
             OperatorKind::EqEq => "eq",
             OperatorKind::NotEq => "neq",
