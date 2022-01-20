@@ -66,6 +66,16 @@ pub trait Checker<'c> {
         interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<()>, Self::InteractiveState);
 
+    /// Check a interactive statement, and return a [String] representation of the
+    /// resultant type
+    fn check_interactive_and_return_type(
+        &mut self,
+        interactive_id: InteractiveId,
+        sources: &Sources<'c>,
+        state: &mut Self::State,
+        interactive_state: Self::InteractiveState,
+    ) -> (CompilerResult<String>, Self::InteractiveState);
+
     /// Given a [ModuleId], check the module. The function accepts the previous [Checker]
     /// state and [Checker::ModuleState]
     fn check_module(
@@ -139,19 +149,34 @@ where
     pub fn run_interactive(
         &mut self,
         interactive_id: InteractiveId,
-        mut compiler_state: CompilerState<'c, C>,
+        compiler_state: CompilerState<'c, C>,
     ) -> (CompilerResult<()>, CompilerState<'c, C>) {
+        let (result, state) = self.run_interactive_and_return_type(interactive_id, compiler_state);
+        (result.map(|_| ()), state)
+    }
+
+    /// Function to invoke a parsing job of a specified [SourceId].
+    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
+        self.parser.parse(id, sources)
+    }
+
+    pub fn run_interactive_and_return_type(
+        &mut self,
+        interactive_id: InteractiveId,
+        mut compiler_state: CompilerState<'c, C>,
+    ) -> (CompilerResult<String>, CompilerState<'c, C>) {
         // Parsing
-        match self.parser.parse(
+        let parse_result = self.parse_source(
             SourceId::Interactive(interactive_id),
             &mut compiler_state.sources,
-        ) {
-            Ok(_) => {}
-            Err(e) => return (Err(e), compiler_state),
+        );
+
+        if let Err(err) = parse_result {
+            return (Err(err), compiler_state);
         }
 
         // Typechecking
-        let (result, checker_interactive_state) = self.checker.check_interactive(
+        let (result, checker_interactive_state) = self.checker.check_interactive_and_return_type(
             interactive_id,
             &compiler_state.sources,
             &mut compiler_state.checker_state,

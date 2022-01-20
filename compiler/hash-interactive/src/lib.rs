@@ -7,9 +7,11 @@ mod command;
 use command::InteractiveCommand;
 
 use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
+use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
-
+use hash_source::SourceId;
+use hash_utils::tree_writing::TreeWriter;
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
@@ -97,32 +99,65 @@ where
             }
         }
         Ok(InteractiveCommand::Version) => print_version(),
-        Ok(InteractiveCommand::Code(expr)) => {
+        Ok(InteractiveCommand::Type(expr)) => {
             let new_interactive_block = InteractiveBlock::new(expr.to_string());
             let interactive_id = compiler_state
                 .sources
                 .add_interactive_block(new_interactive_block);
-            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
+
+            let (result, new_state) =
+                compiler.run_interactive_and_return_type(interactive_id, compiler_state);
+
             match result {
-                Ok(()) => (),
+                Ok(value) => {
+                    println!("= {value}");
+                }
                 Err(err) => {
                     println!("{}", ReportWriter::new(err, &new_state.sources));
                 }
             }
             return new_state;
         }
-        Ok(InteractiveCommand::Type(_expr)) => {
-            // @@TODO: print types.
-            println!("Not implemented yet");
-            // if let Some((block, _)) = parse_interactive(expr, &castle) {
-            //     println!("typeof({:#?})", block);
-            // }
+        Ok(InteractiveCommand::Display(expr)) => {
+            let new_interactive_block = InteractiveBlock::new(expr.to_string());
+            let interactive_id = compiler_state
+                .sources
+                .add_interactive_block(new_interactive_block);
+
+            let result = compiler.parse_source(
+                SourceId::Interactive(interactive_id),
+                &mut compiler_state.sources,
+            );
+
+            match result {
+                Ok(()) => {
+                    let block = compiler_state.sources.get_interactive_block(interactive_id);
+                    let tree = AstTreeGenerator
+                        .visit_body_block(&(), block.node())
+                        .unwrap();
+
+                    println!("{}", TreeWriter::new(&tree));
+                }
+                Err(err) => {
+                    println!("{}", ReportWriter::new(err, &compiler_state.sources));
+                }
+            }
         }
-        Ok(InteractiveCommand::Display(_expr)) => {
-            // @@TODO: print the parsed node.
-            // if let Some((block, _)) = parse_interactive(expr, &castle) {
-            //     println!("{}", block);
-            // }
+        Ok(InteractiveCommand::Code(expr)) => {
+            let new_interactive_block = InteractiveBlock::new(expr.to_string());
+            let interactive_id = compiler_state
+                .sources
+                .add_interactive_block(new_interactive_block);
+
+            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
+
+            match result {
+                Ok(()) => {}
+                Err(err) => {
+                    println!("{}", ReportWriter::new(err, &new_state.sources));
+                }
+            }
+            return new_state;
         }
         Err(e) => CompilerError::from(e).report(),
     }
