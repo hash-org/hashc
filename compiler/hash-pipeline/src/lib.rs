@@ -64,16 +64,6 @@ pub trait Checker<'c> {
         sources: &Sources<'c>,
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
-    ) -> (CompilerResult<()>, Self::InteractiveState);
-
-    /// Check a interactive statement, and return a [String] representation of the
-    /// resultant type
-    fn check_interactive_and_return_type(
-        &mut self,
-        interactive_id: InteractiveId,
-        sources: &Sources<'c>,
-        state: &mut Self::State,
-        interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<String>, Self::InteractiveState);
 
     /// Given a [ModuleId], check the module. The function accepts the previous [Checker]
@@ -144,23 +134,14 @@ where
         })
     }
 
-    /// Run a interactive job with the provided [InteractiveId] pointing to the
-    /// interpreted command to execute.
-    pub fn run_interactive(
-        &mut self,
-        interactive_id: InteractiveId,
-        compiler_state: CompilerState<'c, C>,
-    ) -> (CompilerResult<()>, CompilerState<'c, C>) {
-        let (result, state) = self.run_interactive_and_return_type(interactive_id, compiler_state);
-        (result.map(|_| ()), state)
-    }
-
     /// Function to invoke a parsing job of a specified [SourceId].
     pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
         self.parser.parse(id, sources)
     }
 
-    pub fn run_interactive_and_return_type(
+    /// Run a interactive job with the provided [InteractiveId] pointing to the
+    /// interpreted command to execute.
+    pub fn run_interactive(
         &mut self,
         interactive_id: InteractiveId,
         mut compiler_state: CompilerState<'c, C>,
@@ -176,7 +157,7 @@ where
         }
 
         // Typechecking
-        let (result, checker_interactive_state) = self.checker.check_interactive_and_return_type(
+        let (result, checker_interactive_state) = self.checker.check_interactive(
             interactive_id,
             &compiler_state.sources,
             &mut compiler_state.checker_state,
