@@ -5,9 +5,8 @@
 mod command;
 
 use command::InteractiveCommand;
-
-use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
 use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
+use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
 use hash_source::SourceId;
