@@ -609,7 +609,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     FunctionCallExpr {
                         subject: self.node_from_location(
                             Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: self.make_access_name_from_str(kind.to_string(), op.location()),
+                                name: self.make_access_name_from_str(kind.to_str(), op.location()),
                                 type_args: AstNodes::empty(),
                             })),
                             &op.location(),
@@ -636,7 +636,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.node_from_location(
                         Expression::new(ExpressionKind::Variable(VariableExpr {
-                            name: self.make_access_name_from_str(kind.to_string(), op.location()),
+                            name: self.make_access_name_from_str(kind.to_str(), op.location()),
                             type_args: AstNodes::empty(),
                         })),
                         &op.location(),
