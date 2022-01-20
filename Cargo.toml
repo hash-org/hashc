@@ -18,6 +18,11 @@ members = [
 [profile.release]
 opt-level = 3
 lto = true
+debug-assertions = false
+overflow-checks = false
+
+# strip any symbols from the executable, this makes backtraces un-readable
+strip = false
 
 # set debug to true when profiling
 debug = false

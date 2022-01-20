@@ -16,12 +16,15 @@ pub mod traverse;
 pub mod types;
 pub mod unify;
 pub mod writer;
+
 use crate::scope::ScopeStack;
 use crate::storage::GlobalStorage;
 use hash_alloc::Wall;
 use hash_pipeline::{sources::Sources, Checker, CompilerResult};
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use traverse::SourceTypechecker;
+use types::TypeId;
+use writer::TypeWithStorage;
 
 pub struct HashTypechecker<'c, 'w> {
     global_wall: &'w Wall<'c>,
@@ -30,6 +33,29 @@ pub struct HashTypechecker<'c, 'w> {
 impl<'c, 'w> HashTypechecker<'c, 'w> {
     pub fn new(wall: &'w Wall<'c>) -> Self {
         Self { global_wall: wall }
+    }
+
+    fn check_interactive_statement(
+        &mut self,
+        interactive_id: InteractiveId,
+        sources: &Sources<'c>,
+        state: &mut GlobalStorage<'c, 'w>,
+        interactive_state: ScopeStack,
+    ) -> (CompilerResult<TypeId>, ScopeStack) {
+        let wall = self.global_wall;
+        let mut source_checker = SourceTypechecker::new(
+            SourceId::Interactive(interactive_id),
+            sources,
+            state,
+            interactive_state,
+            wall,
+        );
+        let typecheck_result = source_checker.typecheck();
+        let new_state = source_checker.into_source_storage().scopes;
+        match typecheck_result {
+            Ok(ty_id) => (Ok(ty_id), new_state),
+            Err(e) => (Err(e.create_report(state)), new_state),
+        }
     }
 }
 
@@ -67,26 +93,23 @@ impl<'c, 'w> Checker<'c> for HashTypechecker<'c, 'w> {
     ) -> CompilerResult<Self::InteractiveState> {
         Ok(ScopeStack::new(state))
     }
+
     fn check_interactive(
         &mut self,
         interactive_id: InteractiveId,
         sources: &Sources<'c>,
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
-    ) -> (CompilerResult<()>, Self::InteractiveState) {
-        let wall = self.global_wall;
-        let mut source_checker = SourceTypechecker::new(
-            SourceId::Interactive(interactive_id),
-            sources,
-            state,
-            interactive_state,
-            wall,
-        );
-        let typecheck_result = source_checker.typecheck();
-        let new_state = source_checker.into_source_storage().scopes;
-        match typecheck_result {
-            Ok(_) => (Ok(()), new_state),
-            Err(e) => (Err(e.create_report(state)), new_state),
-        }
+    ) -> (CompilerResult<String>, Self::InteractiveState) {
+        let (result, new_state) =
+            self.check_interactive_statement(interactive_id, sources, state, interactive_state);
+
+        (
+            result.map(|ty| {
+                let ty_storage = TypeWithStorage::new(ty, state);
+                ty_storage.to_string()
+            }),
+            new_state,
+        )
     }
 }
