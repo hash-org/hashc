@@ -2,7 +2,10 @@
 
 use hash_alloc::Castle;
 use hash_parser::parser::HashParser;
-use hash_pipeline::{Module, Parser, Sources};
+use hash_pipeline::{
+    sources::{Module, Sources},
+    Parser,
+};
 use hash_source::SourceId;
 use hash_utils::testing::TestingInput;
 use hash_utils_testing_macros::generate_tests;

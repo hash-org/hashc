@@ -3,8 +3,7 @@ extern crate test;
 
 use hash_alloc::Castle;
 use hash_parser::lexer::Lexer;
-use hash_pipeline::InteractiveBlock;
-use hash_pipeline::Sources;
+use hash_pipeline::sources::{InteractiveBlock, Sources};
 use hash_source::SourceId;
 use test::{black_box, Bencher};
 

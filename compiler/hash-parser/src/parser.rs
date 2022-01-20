@@ -8,8 +8,11 @@ use crate::lexer::Lexer;
 use crossbeam_channel::{unbounded, Sender};
 use hash_alloc::Castle;
 use hash_ast::ast;
-use hash_pipeline::fs::{resolve_path, ImportError};
-use hash_pipeline::{CompilerResult, Module, Parser, Sources};
+use hash_pipeline::{
+    fs::{resolve_path, ImportError},
+    sources::{Module, Sources},
+};
+use hash_pipeline::{CompilerResult, Parser};
 use hash_source::location::SourceLocation;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use std::borrow::Cow;

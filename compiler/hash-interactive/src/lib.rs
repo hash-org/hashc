@@ -6,7 +6,7 @@ mod command;
 
 use command::InteractiveCommand;
 
-use hash_pipeline::{Checker, Compiler, CompilerState, InteractiveBlock, Parser};
+use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
 

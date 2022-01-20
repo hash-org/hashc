@@ -20,7 +20,7 @@ use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
-use hash_pipeline::{SourceRef, Sources};
+use hash_pipeline::sources::{SourceRef, Sources};
 use hash_source::{
     location::{Location, SourceLocation},
     SourceId,
