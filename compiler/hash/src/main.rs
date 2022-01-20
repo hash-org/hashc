@@ -1,6 +1,6 @@
 //! Main module.
 //
-// All rights reserved 2021 (c) The Hash Language authors
+// All rights reserved 2022 (c) The Hash Language authors
 
 #![feature(panic_info_message)]
 
@@ -10,15 +10,15 @@ mod logger;
 use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
 use hash_parser::parser::HashParser;
-use hash_pipeline::{Compiler, Module};
+use hash_pipeline::{fs::resolve_path, sources::Module, Compiler};
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_typecheck::HashTypechecker;
 use hash_utils::timed;
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::fs;
 use std::num::NonZeroUsize;
 use std::panic;
+use std::{env, fs};
 
 use crate::crash_handler::panic_handler;
 
@@ -128,18 +128,27 @@ fn main() {
     // Create a castle for allocations in the pipeline
     let castle = Castle::new();
 
+    let parser = HashParser::new(worker_count, &castle);
+    let tc_wall = &castle.wall();
+    let checker = HashTypechecker::new(tc_wall);
+    let mut compiler = Compiler::new(parser, checker);
+    let mut compiler_state = compiler.create_state().unwrap();
+
     execute(|| {
         match opts.execute {
             Some(path) => {
-                let filename = fs::canonicalize(&path)?;
-                let module = Module::new(filename);
+                let current_dir = env::current_dir()?;
+                let filename = resolve_path(fs::canonicalize(&path)?, current_dir, None);
 
-                let parser = HashParser::new(worker_count, &castle);
-                let tc_wall = &castle.wall();
-                let checker = HashTypechecker::new(tc_wall);
-                let mut compiler = Compiler::new(parser, checker);
-                let mut compiler_state = compiler.create_state().unwrap();
+                if let Err(err) = filename {
+                    println!(
+                        "{}",
+                        ReportWriter::new(err.create_report(), &compiler_state.sources)
+                    );
+                    return Ok(());
+                };
 
+                let module = Module::new(filename.unwrap());
                 let module_id = compiler_state.sources.add_module(module);
 
                 // Wrap the compilation job in timed to time the total time taken to run the job
@@ -159,7 +168,7 @@ fn main() {
                 Ok(())
             }
             None => {
-                hash_interactive::init(worker_count, castle)?;
+                hash_interactive::init(compiler)?;
                 Ok(())
             }
         }

@@ -1,15 +1,18 @@
 //! Self hosted hash parser, this function contains the implementations for `hash-ast`
 //! which provides a general interface to write a parser.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::error::{ParseError, ParseResult};
 use crate::gen::AstGen;
 use crate::lexer::Lexer;
 use crossbeam_channel::{unbounded, Sender};
 use hash_alloc::Castle;
 use hash_ast::ast;
-use hash_pipeline::fs::{resolve_path, ImportError};
-use hash_pipeline::{CompilerResult, Module, Parser, Sources};
+use hash_pipeline::{
+    fs::{resolve_path, ImportError},
+    sources::{Module, Sources},
+};
+use hash_pipeline::{CompilerResult, Parser};
 use hash_source::location::SourceLocation;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use std::borrow::Cow;
@@ -28,10 +31,13 @@ pub enum ParserAction<'c> {
         interactive_id: InteractiveId,
         node: ast::AstNode<'c, ast::BodyBlock<'c>>,
     },
-    SetModuleInfo {
+    SetModuleNode {
+        module_id: ModuleId,
+        node: ast::AstNode<'c, ast::Module<'c>>,
+    },
+    SetModuleContents {
         module_id: ModuleId,
         contents: String,
-        node: ast::AstNode<'c, ast::Module<'c>>,
     },
 }
 
@@ -153,17 +159,29 @@ impl<'c> ParseSource {
 }
 
 fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castle: &'c Castle) {
+    let source_id = source.source_id();
     let contents = match source.contents() {
         Ok(source) => source,
         Err(err) => {
             return sender.send(ParserAction::Error(err)).unwrap();
         }
     };
+
     let current_dir = source.current_dir();
-    let source_id = source.source_id();
 
     let wall = castle.wall();
     let mut lexer = Lexer::new(&contents, source_id, &wall);
+
+    // We need to send the source either way
+    if let SourceId::Module(module_id) = source_id {
+        sender
+            .send(ParserAction::SetModuleContents {
+                contents: contents.to_string(),
+                module_id,
+            })
+            .unwrap();
+    }
+
     let tokens = match lexer.tokenise() {
         Ok(source) => source,
         Err(err) => {
@@ -179,10 +197,9 @@ fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castl
     let action = match &source {
         ParseSource::Module { module_id, .. } => match gen.parse_module() {
             Err(err) => ParserAction::Error(err.into()),
-            Ok(node) => ParserAction::SetModuleInfo {
+            Ok(node) => ParserAction::SetModuleNode {
                 module_id: *module_id,
                 node,
-                contents: contents.into_owned(),
             },
         },
         ParseSource::Interactive { interactive_id, .. } => {
@@ -242,13 +259,15 @@ impl<'c> HashParser<'c> {
                             .get_interactive_block_mut(interactive_id)
                             .set_node(node);
                     }
-                    ParserAction::SetModuleInfo {
+                    ParserAction::SetModuleContents {
                         module_id,
-                        node,
                         contents,
                     } => {
                         let module = sources.get_module_mut(module_id);
                         module.set_contents(contents);
+                    }
+                    ParserAction::SetModuleNode { module_id, node } => {
+                        let module = sources.get_module_mut(module_id);
                         module.set_node(node);
                     }
                     ParserAction::ParseImport {

@@ -1,3 +1,6 @@
+//! Hash AST node counting utilities.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::ast::*;
 
 pub trait NodeCount {

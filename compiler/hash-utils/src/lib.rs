@@ -1,10 +1,12 @@
+//! Hash compiler timing and profiling utilities.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 pub mod printing;
 pub mod testing;
 pub mod tree_writing;
 
-use std::time::{Duration, Instant};
-
 use log::log_enabled;
+use std::time::{Duration, Instant};
 
 #[macro_export]
 macro_rules! counter {

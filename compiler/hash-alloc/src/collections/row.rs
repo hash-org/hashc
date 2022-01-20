@@ -1,6 +1,6 @@
 //! Contains a [`Vec`]-like implementation for allocating contiguous sequences within a [`Wall`].
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use crate::Wall;
 use core::fmt;

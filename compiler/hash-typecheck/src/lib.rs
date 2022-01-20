@@ -1,6 +1,6 @@
 //! Hash Compiler Typecheck library file
 //
-// All rights reserved 2021 (c) The Hash Language authors
+// All rights reserved 2022 (c) The Hash Language authors
 #![feature(map_try_insert)]
 #![feature(extend_one)]
 #![feature(trait_alias)]
@@ -19,7 +19,7 @@ pub mod writer;
 use crate::scope::ScopeStack;
 use crate::storage::GlobalStorage;
 use hash_alloc::Wall;
-use hash_pipeline::{Checker, CompilerResult, Sources};
+use hash_pipeline::{sources::Sources, Checker, CompilerResult};
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use traverse::SourceTypechecker;
 

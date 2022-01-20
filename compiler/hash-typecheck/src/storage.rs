@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-
-use hash_alloc::Wall;
-use hash_source::SourceId;
-
+//! All rights reserved 2022 (c) The Hash Language authors
 use crate::{
     scope::ScopeStack,
     state::TypecheckState,
     traits::{CoreTraits, TraitImplStorage, TraitStorage},
     types::{CoreTypeDefs, TypeDefStorage, TypeId, TypeStorage, TypeVars},
 };
+use hash_alloc::Wall;
+use hash_source::SourceId;
+use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct CheckedSources {

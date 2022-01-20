@@ -1,4 +1,5 @@
-#![allow(dead_code)]
+//! All rights reserved 2022 (c) The Hash Language authors
+#![allow(dead_code)] // @@Temporary until enums are implemented.
 
 use crate::{
     scope::ScopeStack,
@@ -518,10 +519,23 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         self.data.get(target).unwrap().set(other_val);
     }
 
-    pub fn duplicate(&mut self, ty: TypeId) -> TypeId {
+    pub fn duplicate(&mut self, ty: TypeId, location: Option<SourceLocation>) -> TypeId {
+        let orig = self.get(ty);
+        let new_ty = self.data.insert(Cell::new(orig));
+        if let Some(location) = location {
+            self.add_location(new_ty, location);
+        }
+        new_ty
+    }
+
+    pub fn duplicate_deep(&mut self, ty: TypeId, location: Option<SourceLocation>) -> TypeId {
         let wall = self.wall;
-        let created = self.get(ty).map_type_ids(|x| self.duplicate(x), wall);
-        self.create(created, self.get_location(ty).copied())
+        // @@Correctness: here we set all inner TypeId locations to the same location, this might
+        // produce unexpected results.
+        let created = self
+            .get(ty)
+            .map_type_ids(|x| self.duplicate_deep(x, location), wall);
+        self.create(created, location)
     }
 
     pub fn add_location(&mut self, ty: TypeId, location: SourceLocation) {

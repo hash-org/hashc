@@ -1,7 +1,7 @@
 //! Hash compiler low level implementation for the language lexer. Convert
 //! an arbitrary string into a sequence of Lexemes.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::literal::STRING_LITERAL_MAP;
@@ -355,11 +355,10 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             _ => {
                 let digits = pre_digits.collect::<String>();
 
-                // @@TODO: Implement display for parse errors
                 // @@TODO: Use our own parser for integers and floats instead of relying on rust's default one.
                 match digits.parse::<u64>() {
-                    Err(_e) => Err(TokenError::new(
-                        Some(format!("Malformed integer literal '{}'.", digits)),
+                    Err(e) => Err(TokenError::new(
+                        Some(format!("Malformed integer literal: '{}'.", e)),
                         TokenErrorKind::MalformedNumericalLiteral,
                         Location::span(start, self.offset.get()),
                     )),
@@ -460,8 +459,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
                 let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
-
-                // @@TODO: validate the fact that it can only be a max of 6 chars...
 
                 if self.peek() != '}' {
                     return Err(TokenError::new(
