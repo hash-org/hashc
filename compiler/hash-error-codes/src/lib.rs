@@ -11,6 +11,12 @@ macro_rules! error_codes {
             $($name, )*
         }
 
+        // This is used to verify that error codes cannot be re-used for error variants.
+        #[allow(dead_code)]
+        enum Dummy {
+            $($name = $code, )*
+        }
+
         impl HashErrorCode {
             #[allow(unused)]
             pub fn to_num(&self) -> u32 {

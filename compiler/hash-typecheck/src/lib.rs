@@ -19,7 +19,7 @@ pub mod writer;
 use crate::scope::ScopeStack;
 use crate::storage::GlobalStorage;
 use hash_alloc::Wall;
-use hash_pipeline::{Checker, CompilerResult, Sources};
+use hash_pipeline::{sources::Sources, Checker, CompilerResult};
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use traverse::SourceTypechecker;
 

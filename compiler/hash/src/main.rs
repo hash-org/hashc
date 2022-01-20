@@ -10,7 +10,7 @@ mod logger;
 use clap::{AppSettings, Parser as ClapParser};
 use hash_alloc::Castle;
 use hash_parser::parser::HashParser;
-use hash_pipeline::{fs::resolve_path, Compiler, Module};
+use hash_pipeline::{fs::resolve_path, sources::Module, Compiler};
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_typecheck::HashTypechecker;
 use hash_utils::timed;

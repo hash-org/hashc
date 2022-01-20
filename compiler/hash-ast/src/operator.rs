@@ -55,10 +55,7 @@ pub enum OperatorKind {
     Div,
     /// '%'
     Mod,
-
     /// 'as'
-    // @@Cleanup: This is a special operator since it performs a higher order operation compared
-    //            to all other members of the Operator enum, maybe it should be in it's own enum??
     As,
 }
 
