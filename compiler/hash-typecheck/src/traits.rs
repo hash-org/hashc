@@ -3,8 +3,8 @@ use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeList, TypeStorage},
-    unify::{Substitution, Unifier, UnifyStrategy},
-    writer::TypeWithStorage,
+    unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy},
+    writer::{TypeWithStorage, print_type_list},
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_source::location::SourceLocation;
@@ -233,7 +233,9 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
             .collect();
         for (_, trait_impl) in impls.iter() {
             match self.match_trait_impl(trait_impl, &trait_args) {
-                Ok(matched) => return Ok(matched),
+                Ok(matched) => {
+                    return Ok(matched);
+                }
                 Err(_e) => {
                     continue;
                     // last_err.replace(e);
@@ -278,11 +280,18 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
             })
             .collect();
 
+        print_type_list(&trt.args, self.global_storage);
+        print_type_list(&trait_impl.args, self.global_storage);
         let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         let trait_args_sub = unifier.instantiate_vars_list(&trt.args)?;
         let trait_impl_args_sub =
             unifier.instantiate_vars_for_list(&trait_impl.args, &impl_vars)?;
+        println!(
+            "{}",
+            SubstitutionWithStorage::new(&trait_impl_args_sub, self.global_storage)
+        );
 
+        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         let _trait_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
         let _trait_impl_args_instantiated =

@@ -4,7 +4,7 @@ use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStora
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
     StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
-    TypeVarMode, TypeVars, UnknownType,
+    TypeVarMode, TypeVars,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -523,7 +523,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let ref_location = self.source_location(node.location());
 
-        let created_inner_ty = self.create_type(TypeValue::Unknown(UnknownType::unbounded()), None);
+        let created_inner_ty = self.create_unknown_type();
         let created_ref_ty = self.create_type(
             TypeValue::Ref(RefType {
                 inner: created_inner_ty,
