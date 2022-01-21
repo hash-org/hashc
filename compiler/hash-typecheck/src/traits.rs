@@ -4,7 +4,7 @@ use crate::{
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeList, TypeStorage},
     unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy},
-    writer::{print_type_list, TypeWithStorage},
+    writer::{print_type, print_type_list, TypeWithStorage},
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_source::location::SourceLocation;
@@ -224,11 +224,16 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
         let mut unifier = self.unifier();
         if let Some(fn_type) = fn_type {
             let trait_vars_sub = unifier.instantiate_vars_list(&trt.args)?;
-            let instantiated_fn = unifier.apply_sub(&trait_vars_sub, fn_type)?;
+            let instantiated_fn = unifier.apply_sub(&trait_vars_sub, trt.fn_type)?;
             unifier.unify(fn_type, instantiated_fn, UnifyStrategy::ModifyBoth)?;
-        }
 
-        // let mut last_err = None;
+            let instantiated_args =
+                unifier.apply_sub_to_list_make_vec(&trait_vars_sub, &trt.args)?;
+            unifier.unify_pairs(
+                trait_args.iter().zip(instantiated_args.iter()),
+                UnifyStrategy::ModifyTarget,
+            )?;
+        }
 
         // @@Performance: we have to collect due to lifetime issues, this is not ideal.
         let impls: Vec<_> = self
@@ -295,8 +300,6 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
             unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
         let trait_impl_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args)?;
-        // self.print_types(&trait_args_instantiated);
-        // self.print_types(&trait_impl_args_instantiated);
 
         let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         unifier.unify_pairs(
@@ -315,7 +318,6 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
         let sub_from_trait_impl =
             Substitution::from_pairs(trait_impl.args.iter().zip(trait_args_instantiated.iter()));
 
-        // let merged_sub = trait_args_sub.merge(trait_impl_args_sub);
         Ok(MatchTraitImplResult {
             sub_from_trait_def,
             sub_from_trait_impl,

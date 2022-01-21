@@ -9,7 +9,7 @@ use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_source::location::SourceLocation;
 use hash_utils::counter;
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{new_key_type, Key, SlotMap};
 use std::hash::Hash;
 use std::{cell::Cell, collections::HashMap, ptr};
 
@@ -183,24 +183,13 @@ pub struct NamespaceType {
     pub members: ScopeStack,
 }
 
-counter! {
-    name: UnknownTypeId,
-    counter_name: UNKNOWN_TYPE_ID_COUNTER,
-    visibility: pub,
-    method_visibility:,
+new_key_type! {
+    pub struct UnknownTypeId;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct UnknownType {
     pub unknown_id: UnknownTypeId,
-}
-
-impl UnknownType {
-    pub fn new() -> Self {
-        Self {
-            unknown_id: UnknownTypeId::new(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -473,6 +462,7 @@ impl TypeLocation {
 #[derive(Debug)]
 pub struct TypeStorage<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
+    unknown_data: SlotMap<UnknownTypeId, Cell<Option<TypeId>>>,
     location_map: TypeLocation,
     wall: &'w Wall<'c>,
 }
@@ -483,6 +473,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
 
         Self {
             data: SlotMap::with_key(),
+            unknown_data: SlotMap::with_key(),
             location_map,
             wall,
         }
@@ -490,19 +481,33 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
 
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
         // @@Todo: resolve type variables bro!
-        self.data.get(ty).unwrap().get()
+        match self.data.get(ty).unwrap().get() {
+            val @ TypeValue::Unknown(UnknownType { unknown_id }) => {
+                if let Some(mapping) = self.unknown_data.get(*unknown_id).unwrap().get() {
+                    self.get(mapping)
+                } else {
+                    val
+                }
+            }
+            val => val,
+        }
     }
 
     pub fn get_location(&self, ty: TypeId) -> Option<&SourceLocation> {
         self.location_map.get_location(ty)
     }
 
-    pub fn set(&self, target: TypeId, source: TypeId) {
-        if target == source {
-            return;
+    pub fn set_unknown(&self, target: UnknownTypeId, source: TypeId) {
+        if let Some(current) = self.unknown_data.get(target) {
+            let current = current.get();
+            match current {
+                Some(current) if current == source => {
+                    return;
+                }
+                _ => {}
+            }
         }
-        let other_val = self.data.get(source).unwrap().get();
-        self.data.get(target).unwrap().set(other_val);
+        self.unknown_data.get(target).unwrap().set(Some(source));
     }
 
     pub fn duplicate(&mut self, ty: TypeId, location: Option<SourceLocation>) -> TypeId {
@@ -538,7 +543,13 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn create_unknown_type(&mut self) -> TypeId {
-        self.create(TypeValue::Unknown(UnknownType::new()), None)
+        let mut type_id = TypeId::null();
+        self.unknown_data.insert_with_key(|unknown_id| {
+            let value = TypeValue::Unknown(UnknownType { unknown_id });
+            type_id = self.data.insert(Cell::new(self.wall.alloc_value(value)));
+            Cell::new(None)
+        });
+        type_id
     }
 
     pub fn create(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {

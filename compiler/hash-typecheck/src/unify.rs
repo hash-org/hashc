@@ -2,8 +2,8 @@
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
-    types::{TypeId, TypeStorage, TypeValue},
-    writer::{TypeWithStorage, print_type},
+    types::{TypeId, TypeStorage, TypeValue, UnknownType},
+    writer::{print_type, TypeWithStorage},
 };
 use core::fmt;
 use hash_alloc::collections::row::Row;
@@ -278,22 +278,22 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
 
                 Ok(())
             }
-            (Unknown(_), _) => {
+            (Unknown(UnknownType { unknown_id }), _) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth | UnifyStrategy::ModifyTarget => {
-                        self.global_storage.types.set(target, source);
+                        self.global_storage.types.set_unknown(*unknown_id, source);
                         self.unify(target, source, strategy)?;
                     }
                     UnifyStrategy::CheckOnly => {}
                 }
                 Ok(())
             }
-            (_, Unknown(_)) => {
+            (_, Unknown(UnknownType { unknown_id })) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth => {
-                        self.global_storage.types.set(source, target);
+                        self.global_storage.types.set_unknown(*unknown_id, target);
                         self.unify(target, source, strategy)?;
                     }
                     UnifyStrategy::ModifyTarget | UnifyStrategy::CheckOnly => {}
