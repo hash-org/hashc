@@ -69,8 +69,9 @@ impl ReportNote {
     fn render(&self, f: &mut fmt::Formatter<'_>, longest_indent_width: usize) -> fmt::Result {
         writeln!(
             f,
-            "{} = {}: {}",
+            "{} {} {}: {}",
             " ".repeat(longest_indent_width),
+            highlight(Colour::Blue, "="),
             highlight(Modifier::Bold, &self.label),
             self.message
         )?;
@@ -217,8 +218,9 @@ impl ReportCodeBlock {
         // Print the filename of the code block...
         writeln!(
             f,
-            "{}--> {}",
+            "{}{} {}",
             " ".repeat(longest_indent_width),
+            highlight(Colour::Blue, "-->"),
             highlight(
                 Modifier::Underline,
                 format!(
@@ -239,12 +241,13 @@ impl ReportCodeBlock {
             );
             writeln!(
                 f,
-                "{} |   {}",
+                "{} {}   {}",
                 if (start_row..=end_row).contains(&index) {
                     highlight(report_kind.as_colour(), &index_str)
                 } else {
                     index_str
                 },
+                highlight(Colour::Blue, "|"),
                 line
             )?;
 
@@ -272,8 +275,9 @@ impl ReportCodeBlock {
 
                 writeln!(
                     f,
-                    "{} |   {}",
+                    "{} {}   {}",
                     " ".repeat(longest_indent_width),
+                    highlight(Colour::Blue, "|"),
                     highlight(report_kind.as_colour(), &code_note)
                 )?;
             }
