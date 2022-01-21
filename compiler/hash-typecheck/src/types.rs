@@ -183,15 +183,22 @@ pub struct NamespaceType {
     pub members: ScopeStack,
 }
 
-#[derive(Debug)]
-pub struct UnknownType<'c> {
-    pub bounds: TraitBounds<'c>,
+counter! {
+    name: UnknownTypeId,
+    counter_name: UNKNOWN_TYPE_ID_COUNTER,
+    visibility: pub,
+    method_visibility:,
 }
 
-impl UnknownType<'_> {
-    pub fn unbounded() -> Self {
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct UnknownType {
+    pub unknown_id: UnknownTypeId,
+}
+
+impl UnknownType {
+    pub fn new() -> Self {
         Self {
-            bounds: TraitBounds::empty(),
+            unknown_id: UnknownTypeId::new(),
         }
     }
 }
@@ -210,7 +217,7 @@ pub enum TypeValue<'c> {
     User(UserType<'c>),
     Prim(PrimType),
     Tuple(TupleType<'c>),
-    Unknown(UnknownType<'c>),
+    Unknown(UnknownType),
     Namespace(NamespaceType),
 }
 
@@ -234,13 +241,7 @@ impl<'c> TypeValue<'c> {
             }
             TypeValue::Var(_) => initial,
             TypeValue::Prim(_) => initial,
-            TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds { bounds },
-            }) => bounds
-                .iter()
-                .fold(initial, |acc, TraitBound { params, .. }| {
-                    params.iter().fold(acc, |acc, x| f(acc, *x))
-                }),
+            TypeValue::Unknown(_) => initial,
             TypeValue::Namespace(_) => initial,
         }
     }
@@ -267,21 +268,7 @@ impl<'c> TypeValue<'c> {
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
-            TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds { bounds },
-            }) => TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds {
-                    bounds: Row::try_from_iter(
-                        bounds.iter().map(|TraitBound { trt, params }| {
-                            Ok(TraitBound {
-                                trt: *trt,
-                                params: Row::try_from_iter(params.iter().map(|&arg| f(arg)), wall)?,
-                            })
-                        }),
-                        wall,
-                    )?,
-                },
-            }),
+            TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
             TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
                 members: ns.members.clone(),
             }),
@@ -311,19 +298,7 @@ impl<'c> TypeValue<'c> {
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
-            TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds { bounds },
-            }) => TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds {
-                    bounds: Row::from_iter(
-                        bounds.iter().map(|TraitBound { trt, params }| TraitBound {
-                            trt: *trt,
-                            params: Row::from_iter(params.iter().map(|&arg| f(arg)), wall),
-                        }),
-                        wall,
-                    ),
-                },
-            }),
+            TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
             TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
                 members: ns.members.clone(),
             }),
@@ -563,7 +538,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn create_unknown_type(&mut self) -> TypeId {
-        self.create(TypeValue::Unknown(UnknownType::unbounded()), None)
+        self.create(TypeValue::Unknown(UnknownType::new()), None)
     }
 
     pub fn create(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {

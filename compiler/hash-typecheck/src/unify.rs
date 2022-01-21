@@ -54,16 +54,16 @@ impl<'c> Substitution {
         self
     }
 
+    pub fn add(&mut self, from: TypeId, to: TypeId) {
+        self.subs.push((from, to));
+    }
+
     pub fn from_pairs(
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
     ) -> Self {
         Self {
             subs: pairs.map(|(x, y)| (*x.borrow(), *y.borrow())).collect(),
         }
-    }
-
-    pub fn add(&mut self, from: TypeId, to: TypeId) {
-        self.subs.push((from, to));
     }
 }
 
@@ -216,9 +216,9 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
         // @@Broken: here new unknown types will get created, will lose identity. We need a
         // different way to keep track of unknown types, basically a mapping like GenTypeVar in haskell. OR, we prevent loss of identity somehow
 
-        let _created = self.global_storage.types.create(new_ty_value, None);
-        // self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
-        Ok(curr_ty)
+        let created = self.global_storage.types.create(new_ty_value, None);
+        self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
+        Ok(created)
     }
 
     pub fn unify(
