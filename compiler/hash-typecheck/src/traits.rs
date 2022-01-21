@@ -4,7 +4,7 @@ use crate::{
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeList, TypeStorage},
     unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy},
-    writer::{TypeWithStorage, print_type_list},
+    writer::{print_type_list, TypeWithStorage},
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_source::location::SourceLocation;
@@ -169,6 +169,12 @@ impl<'c, 'w> CoreTraits {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MatchTraitImplResult {
+    pub sub_from_trait_def: Substitution,
+    pub sub_from_trait_impl: Substitution,
+}
+
 pub struct TraitHelper<'c, 'w, 'ms, 'gs> {
     module_storage: &'ms mut SourceStorage,
     global_storage: &'gs mut GlobalStorage<'c, 'w>,
@@ -196,7 +202,7 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
         fn_type: Option<TypeId>,
         trt_symbol: impl FnOnce() -> Symbol,
         args_location: Option<SourceLocation>,
-    ) -> TypecheckResult<Substitution> {
+    ) -> TypecheckResult<MatchTraitImplResult> {
         let mut trait_args = trait_args.to_owned();
         if trait_args.is_empty() {
             trait_args.extend(
@@ -257,8 +263,8 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
     pub fn match_trait_impl(
         &mut self,
         trait_impl: &TraitImpl,
-        _trait_args: &[TypeId],
-    ) -> TypecheckResult<Substitution> {
+        trait_args: &[TypeId],
+    ) -> TypecheckResult<MatchTraitImplResult> {
         let trt = self.global_storage.traits.get(trait_impl.trait_id);
 
         // @@Ambiguity: for now let's assume all type variables in here are new
@@ -280,26 +286,39 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
             })
             .collect();
 
-        print_type_list(&trt.args, self.global_storage);
-        print_type_list(&trait_impl.args, self.global_storage);
         let mut unifier = Unifier::new(self.module_storage, self.global_storage);
         let trait_args_sub = unifier.instantiate_vars_list(&trt.args)?;
         let trait_impl_args_sub =
             unifier.instantiate_vars_for_list(&trait_impl.args, &impl_vars)?;
-        println!(
-            "{}",
-            SubstitutionWithStorage::new(&trait_impl_args_sub, self.global_storage)
-        );
-
         let mut unifier = Unifier::new(self.module_storage, self.global_storage);
-        let _trait_args_instantiated =
+        let trait_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_args_sub, &trt.args)?;
-        let _trait_impl_args_instantiated =
+        let trait_impl_args_instantiated =
             unifier.apply_sub_to_list_make_vec(&trait_impl_args_sub, &trait_impl.args)?;
         // self.print_types(&trait_args_instantiated);
         // self.print_types(&trait_impl_args_instantiated);
 
-        let merged_sub = trait_args_sub.merge(trait_impl_args_sub);
-        Ok(merged_sub)
+        let mut unifier = Unifier::new(self.module_storage, self.global_storage);
+        unifier.unify_pairs(
+            trait_impl_args_instantiated
+                .iter()
+                .zip(trait_args_instantiated.iter()),
+            UnifyStrategy::ModifyBoth,
+        )?;
+        unifier.unify_pairs(
+            trait_args_instantiated.iter().zip(trait_args.iter()),
+            UnifyStrategy::ModifyTarget,
+        )?;
+
+        let sub_from_trait_def =
+            Substitution::from_pairs(trt.args.iter().zip(trait_args_instantiated.iter()));
+        let sub_from_trait_impl =
+            Substitution::from_pairs(trait_impl.args.iter().zip(trait_args_instantiated.iter()));
+
+        // let merged_sub = trait_args_sub.merge(trait_impl_args_sub);
+        Ok(MatchTraitImplResult {
+            sub_from_trait_def,
+            sub_from_trait_impl,
+        })
     }
 }

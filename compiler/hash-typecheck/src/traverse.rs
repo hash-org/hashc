@@ -1,6 +1,6 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::storage::{GlobalStorage, SourceStorage};
-use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage};
+use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage, MatchTraitImplResult};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
     StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
@@ -8,6 +8,7 @@ use crate::types::{
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
+use crate::writer::print_type;
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
@@ -257,7 +258,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        // println!("{}", node);
 
         let import_module_id = self
             .sources
@@ -343,15 +343,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     path: node.name.path.to_owned(),
                 };
                 let type_args_location = node.type_args.location().map(|l| self.source_location(l));
-                let trt_impl_sub = self.trait_helper().find_trait_impl(
+                let MatchTraitImplResult { sub_from_trait_def, .. } = self.trait_helper().find_trait_impl(
                     trt,
                     &args,
                     None,
                     trt_symbol,
                     type_args_location,
                 )?;
-                let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type)?;
-                Ok(subbed_fn_type)
+
+                Ok(self.unifier().apply_sub(&sub_from_trait_def, trt.fn_type)?)
             }
             (ident, SymbolType::EnumVariant(ty_def_id)) => {
                 let ty_def = self.type_defs().get(ty_def_id);
@@ -431,7 +431,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
         let walk::FunctionCallExpr {
             args: given_args,
-            subject: fn_ty,
+            subject: given_ty,
         } = walk::walk_function_call_expr(self, ctx, node)?;
 
         let args_ty_location = self.source_location(node.body().args.location());
@@ -448,7 +448,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         );
 
         self.unifier()
-            .unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
+            .unify(expected_fn_ty, given_ty, UnifyStrategy::ModifyBoth)?;
 
         Ok(ret_ty)
     }

@@ -3,7 +3,7 @@ use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeStorage, TypeValue},
-    writer::TypeWithStorage,
+    writer::{TypeWithStorage, print_type},
 };
 use core::fmt;
 use hash_alloc::collections::row::Row;
@@ -213,11 +213,8 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
             .types
             .get(curr_ty)
             .try_map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall)?;
-        // @@Broken: here new unknown types will get created, will lose identity. We need a
-        // different way to keep track of unknown types, basically a mapping like GenTypeVar in haskell. OR, we prevent loss of identity somehow
 
         let created = self.global_storage.types.create(new_ty_value, None);
-        self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
         Ok(created)
     }
 
