@@ -732,6 +732,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             self.node(Block::Match(MatchBlock {
                 subject: fn_call,
                 cases: branches,
+                origin: MatchOrigin::Match,
             })),
         ))))
     }
@@ -1181,6 +1182,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     )))),
                 }),
             ],
+            origin: MatchOrigin::For
         }), &start))), &start))
     }
 
@@ -1239,6 +1241,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             )))),
                         }),
                     ],
+                    origin: MatchOrigin::While
                 }),
                 condition_location,
             ))),
@@ -1300,7 +1303,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => self.unexpected_eof()?,
         };
 
-        Ok(self.node_from_joined_location(Block::Match(MatchBlock { subject, cases }), &start))
+        Ok(self.node_from_joined_location(
+            Block::Match(MatchBlock {
+                subject,
+                cases,
+                origin: MatchOrigin::Match,
+            }),
+            &start,
+        ))
     }
 
     /// we transpile if-else blocks into match blocks in order to simplify
@@ -1436,6 +1446,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Block::Match(MatchBlock {
                 subject: self.make_ident("true", &self.current_location()),
                 cases,
+                origin: MatchOrigin::If,
             }),
             &start,
         ))
@@ -2782,29 +2793,34 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         // If there is an arrow '=>', then this must be a function type
-        let name = match self.peek_resultant_fn(|| self.parse_arrow()) {
+        match self.peek_resultant_fn(|| self.parse_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
                 type_args.nodes.push(self.parse_type()?, &self.wall);
-                IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
+                let name = IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME);
+
+                Ok(self.node_from_joined_location(
+                    Type::Named(NamedType {
+                        name: self.make_access_name_from_identifier(
+                            name,
+                            start.join(self.current_location()),
+                        ),
+                        type_args,
+                    }),
+                    &start,
+                ))
             }
             None => {
                 if must_be_function {
                     self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
-                IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME)
+                Ok(self.node_from_joined_location(
+                    Type::Tuple(TupleType { entries: type_args }),
+                    &start,
+                ))
             }
-        };
-
-        Ok(self.node_from_joined_location(
-            Type::Named(NamedType {
-                name: self
-                    .make_access_name_from_identifier(name, start.join(self.current_location())),
-                type_args,
-            }),
-            &start,
-        ))
+        }
     }
 
     /// Function to parse a type

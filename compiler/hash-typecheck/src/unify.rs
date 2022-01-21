@@ -263,15 +263,15 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
                 self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), strategy)?;
                 // Maybe this should be flipped (see variance comment above)
                 self.unify(fn_target.ret, fn_source.ret, strategy)?;
-
-                // let merged_sub = args_sub.merge(self, &ret_sub);
-
-                // let unified_ty = Fn(FnType {
-                //     args: unified_args,
-                //     ret: Box::new(unified_ret),
-                // });
-
                 Ok(())
+            }
+            (Tuple(tuple_target), Tuple(tuple_source))
+                if tuple_target.types.len() == tuple_source.types.len() =>
+            {
+                self.unify_pairs(
+                    tuple_target.types.iter().zip(tuple_source.types.iter()),
+                    strategy,
+                )
             }
             (Unknown(_), Unknown(_)) => {
                 // @@TODO: Ensure that trait bounds are compatible

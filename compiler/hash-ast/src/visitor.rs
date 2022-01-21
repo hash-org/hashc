@@ -460,6 +460,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TuplePattern<'c>>,
     ) -> Result<Self::TuplePatternRet, Self::Error>;
 
+    type TupleTypeRet: 'c;
+    fn visit_tuple_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error>;
+
     type StrLiteralPatternRet: 'c;
     fn visit_str_literal_pattern(
         &mut self,
@@ -1154,6 +1161,25 @@ pub mod walk {
         })
     }
 
+    pub struct TupleType<'c, V: AstVisitor<'c>> {
+        pub entries: V::CollectionContainer<V::TypeRet>,
+    }
+
+    pub fn walk_tuple_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TupleType<'c>>,
+    ) -> Result<TupleType<'c, V>, V::Error> {
+        Ok(TupleType {
+            entries: V::try_collect_items(
+                ctx,
+                node.entries
+                    .iter()
+                    .map(|e| visitor.visit_type(ctx, e.ast_ref())),
+            )?,
+        })
+    }
+
     pub struct NamedType<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
         pub type_args: V::CollectionContainer<V::TypeRet>,
@@ -1210,6 +1236,7 @@ pub mod walk {
     }
 
     pub enum Type<'c, V: AstVisitor<'c>> {
+        Tuple(V::TupleTypeRet),
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
         RawRef(V::RawRefTypeRet),
@@ -1224,6 +1251,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Type<'c, V>, V::Error> {
         Ok(match &*node {
+            ast::Type::Tuple(r) => Type::Tuple(visitor.visit_tuple_type(ctx, node.with_body(r))?),
             ast::Type::Named(r) => Type::Named(visitor.visit_named_type(ctx, node.with_body(r))?),
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
             ast::Type::RawRef(r) => {
@@ -1245,6 +1273,7 @@ pub mod walk {
     where
         V: AstVisitor<
             'c,
+            TupleTypeRet = Ret,
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
             RawRefTypeRet = Ret,
@@ -1254,6 +1283,7 @@ pub mod walk {
         >,
     {
         Ok(match walk_type(visitor, ctx, node)? {
+            Type::Tuple(r) => r,
             Type::Named(r) => r,
             Type::Ref(r) => r,
             Type::RawRef(r) => r,

@@ -50,14 +50,14 @@ impl TreeWriterConfig {
             vertical_line: '│',
             middle_intersect: '├',
             end_intersect: '└',
-            child_prefix: "─ ".into(),
+            child_prefix: "─".into(),
         }
     }
 
     /// Draw trees using Unicode box drawing characters and longer child prefixes.
     pub fn unicode_long() -> Self {
         Self {
-            child_prefix: "── ".into(),
+            child_prefix: "──".into(),
             ..Self::unicode()
         }
     }
@@ -69,7 +69,7 @@ impl TreeWriterConfig {
             vertical_line: '|',
             middle_intersect: '|',
             end_intersect: '`',
-            child_prefix: "- ".into(),
+            child_prefix: "-".into(),
         }
     }
 
@@ -80,7 +80,7 @@ impl TreeWriterConfig {
             vertical_line: ' ',
             middle_intersect: ' ',
             end_intersect: ' ',
-            child_prefix: "- ".into(),
+            child_prefix: "-".into(),
         }
     }
 }
