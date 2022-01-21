@@ -480,7 +480,6 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
-        // @@Todo: resolve type variables bro!
         match self.data.get(ty).unwrap().get() {
             val @ TypeValue::Unknown(UnknownType { unknown_id }) => {
                 if let Some(mapping) = self.unknown_data.get(*unknown_id).unwrap().get() {
