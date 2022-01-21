@@ -67,13 +67,15 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::AccessName<'c>>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
-        Ok(TreeNode::leaf(
+        Ok(TreeNode::leaf(labelled(
+            "name",
             node.path
                 .iter()
                 .map(|p| IDENTIFIER_MAP.get_ident(*p))
                 .intersperse("::")
                 .collect::<String>(),
-        ))
+            "\"",
+        )))
     }
 
     type LiteralRet = TreeNode;
