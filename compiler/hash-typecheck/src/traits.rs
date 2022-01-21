@@ -3,8 +3,8 @@ use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeList, TypeStorage},
-    unify::{Substitution, SubstitutionWithStorage, Unifier, UnifyStrategy},
-    writer::{print_type, print_type_list, TypeWithStorage},
+    unify::{Substitution, Unifier, UnifyStrategy},
+    writer::TypeWithStorage,
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_source::location::SourceLocation;
