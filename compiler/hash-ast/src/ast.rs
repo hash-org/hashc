@@ -670,6 +670,15 @@ pub struct MatchCase<'c> {
     pub expr: AstNode<'c, Expression<'c>>,
 }
 
+/// The origin of a match block
+#[derive(Debug, PartialEq)]
+pub enum MatchOrigin {
+    If,
+    Match,
+    For,
+    While,
+}
+
 /// A `match` block.
 #[derive(Debug, PartialEq)]
 pub struct MatchBlock<'c> {
@@ -677,6 +686,8 @@ pub struct MatchBlock<'c> {
     pub subject: AstNode<'c, Expression<'c>>,
     /// The match cases to execute.
     pub cases: AstNodes<'c, MatchCase<'c>>,
+    /// Whether the match block represents a for, while, if or match statement
+    pub origin: MatchOrigin,
 }
 
 /// A body block.
