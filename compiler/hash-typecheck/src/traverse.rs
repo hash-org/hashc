@@ -1,13 +1,17 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::storage::{GlobalStorage, SourceStorage};
-use crate::traits::{TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage, TraitStorage};
+use crate::traits::{
+    MatchTraitImplResult, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage,
+    TraitStorage,
+};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
     StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
-    TypeVarMode, TypeVars, UnknownType,
+    TypeVarMode, TypeVars,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
+
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
@@ -257,8 +261,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        // println!("{}", node);
-
         let import_module_id = self
             .sources
             .get_module_id_by_path(&node.resolved_path)
@@ -331,27 +333,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 }
             }
             (_, SymbolType::Trait(var_trait_id)) => {
-                let trt = self.traits().get(var_trait_id);
-                let args: Vec<_> = node
-                    .type_args
-                    .iter()
-                    .map(|a| self.visit_type(ctx, a.ast_ref()))
-                    .collect::<Result<_, _>>()?;
-                let trt_name_location = self.some_source_location(node.name.location());
-                let trt_symbol = || Symbol::Compound {
-                    location: trt_name_location,
-                    path: node.name.path.to_owned(),
-                };
-                let type_args_location = node.type_args.location().map(|l| self.source_location(l));
-                let trt_impl_sub = self.trait_helper().find_trait_impl(
-                    trt,
-                    &args,
-                    None,
-                    trt_symbol,
-                    type_args_location,
-                )?;
-                let subbed_fn_type = self.unifier().apply_sub(&trt_impl_sub, trt.fn_type)?;
-                Ok(subbed_fn_type)
+                self.visit_trait_variable(ctx, var_trait_id, node, None)
             }
             (ident, SymbolType::EnumVariant(ty_def_id)) => {
                 let ty_def = self.type_defs().get(ty_def_id);
@@ -429,16 +411,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FunctionCallExpr<'c>>,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
-        let walk::FunctionCallExpr {
-            args: given_args,
-            subject: fn_ty,
-        } = walk::walk_function_call_expr(self, ctx, node)?;
-
-        let args_ty_location = self.source_location(node.body().args.location());
-
-        // Todo: here specialise trait resolution in order to be able to do more inference (from
-        // args)
+        let given_args = self.visit_function_call_args(ctx, node.args.ast_ref())?;
         let ret_ty = self.create_unknown_type();
+        let args_ty_location = self.source_location(node.body().args.location());
         let expected_fn_ty = self.create_type(
             TypeValue::Fn(FnType {
                 args: given_args,
@@ -447,8 +422,26 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             Some(args_ty_location),
         );
 
+        let given_ty = match node.subject.kind() {
+            ast::ExpressionKind::Variable(var) => {
+                match self
+                    .resolve_compound_symbol(&var.name.path, self.source_location(node.location()))?
+                    .1
+                {
+                    SymbolType::Trait(trait_id) => self.visit_trait_variable(
+                        ctx,
+                        trait_id,
+                        node.with_body(var),
+                        Some(expected_fn_ty),
+                    )?,
+                    _ => walk::walk_function_call_expr(self, ctx, node)?.subject,
+                }
+            }
+            _ => walk::walk_function_call_expr(self, ctx, node)?.subject,
+        };
+
         self.unifier()
-            .unify(expected_fn_ty, fn_ty, UnifyStrategy::ModifyBoth)?;
+            .unify(expected_fn_ty, given_ty, UnifyStrategy::ModifyBoth)?;
 
         Ok(ret_ty)
     }
@@ -523,7 +516,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let ref_location = self.source_location(node.location());
 
-        let created_inner_ty = self.create_type(TypeValue::Unknown(UnknownType::unbounded()), None);
+        let created_inner_ty = self.create_unknown_type();
         let created_ref_ty = self.create_type(
             TypeValue::Ref(RefType {
                 inner: created_inner_ty,
@@ -1737,5 +1730,37 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                 )),
             })
             .collect()
+    }
+
+    fn visit_trait_variable(
+        &mut self,
+        ctx: &<Self as AstVisitor<'c>>::Ctx,
+        trait_id: TraitId,
+        node: ast::AstNodeRef<ast::VariableExpr<'c>>,
+        fn_type: Option<TypeId>,
+    ) -> TypecheckResult<TypeId> {
+        let trt = self.traits().get(trait_id);
+        let args: Vec<_> = node
+            .type_args
+            .iter()
+            .map(|a| self.visit_type(ctx, a.ast_ref()))
+            .collect::<Result<_, _>>()?;
+        let trt_name_location = self.some_source_location(node.name.location());
+        let trt_symbol = || Symbol::Compound {
+            location: trt_name_location,
+            path: node.name.path.to_owned(),
+        };
+        let type_args_location = node.type_args.location().map(|l| self.source_location(l));
+        let MatchTraitImplResult {
+            sub_from_trait_def, ..
+        } = self.trait_helper().find_trait_impl(
+            trt,
+            &args,
+            fn_type,
+            trt_symbol,
+            type_args_location,
+        )?;
+
+        self.unifier().apply_sub(&sub_from_trait_def, trt.fn_type)
     }
 }

@@ -2,7 +2,7 @@
 use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
-    types::{TypeId, TypeStorage, TypeValue},
+    types::{TypeId, TypeStorage, TypeValue, UnknownType},
     writer::TypeWithStorage,
 };
 use core::fmt;
@@ -54,16 +54,16 @@ impl<'c> Substitution {
         self
     }
 
+    pub fn add(&mut self, from: TypeId, to: TypeId) {
+        self.subs.push((from, to));
+    }
+
     pub fn from_pairs(
         pairs: impl Iterator<Item = (impl Borrow<TypeId>, impl Borrow<TypeId>)>,
     ) -> Self {
         Self {
             subs: pairs.map(|(x, y)| (*x.borrow(), *y.borrow())).collect(),
         }
-    }
-
-    pub fn add(&mut self, from: TypeId, to: TypeId) {
-        self.subs.push((from, to));
     }
 }
 
@@ -213,12 +213,9 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
             .types
             .get(curr_ty)
             .try_map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall)?;
-        // @@Broken: here new unknown types will get created, will lose identity. We need a
-        // different way to keep track of unknown types, basically a mapping like GenTypeVar in haskell. OR, we prevent loss of identity somehow
 
-        let _created = self.global_storage.types.create(new_ty_value, None);
-        // self.unify(created, curr_ty, UnifyStrategy::ModifyTarget)?;
-        Ok(curr_ty)
+        let created = self.global_storage.types.create(new_ty_value, None);
+        Ok(created)
     }
 
     pub fn unify(
@@ -281,22 +278,22 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
 
                 Ok(())
             }
-            (Unknown(_), _) => {
+            (Unknown(UnknownType { unknown_id }), _) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth | UnifyStrategy::ModifyTarget => {
-                        self.global_storage.types.set(target, source);
+                        self.global_storage.types.set_unknown(*unknown_id, source);
                         self.unify(target, source, strategy)?;
                     }
                     UnifyStrategy::CheckOnly => {}
                 }
                 Ok(())
             }
-            (_, Unknown(_)) => {
+            (_, Unknown(UnknownType { unknown_id })) => {
                 // @@TODO: Ensure that trait bounds are compatible
                 match strategy {
                     UnifyStrategy::ModifyBoth => {
-                        self.global_storage.types.set(source, target);
+                        self.global_storage.types.set_unknown(*unknown_id, target);
                         self.unify(target, source, strategy)?;
                     }
                     UnifyStrategy::ModifyTarget | UnifyStrategy::CheckOnly => {}

@@ -9,7 +9,7 @@ use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_source::location::SourceLocation;
 use hash_utils::counter;
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{new_key_type, Key, SlotMap};
 use std::hash::Hash;
 use std::{cell::Cell, collections::HashMap, ptr};
 
@@ -183,17 +183,13 @@ pub struct NamespaceType {
     pub members: ScopeStack,
 }
 
-#[derive(Debug)]
-pub struct UnknownType<'c> {
-    pub bounds: TraitBounds<'c>,
+new_key_type! {
+    pub struct UnknownTypeId;
 }
 
-impl UnknownType<'_> {
-    pub fn unbounded() -> Self {
-        Self {
-            bounds: TraitBounds::empty(),
-        }
-    }
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct UnknownType {
+    pub unknown_id: UnknownTypeId,
 }
 
 #[derive(Debug)]
@@ -210,7 +206,7 @@ pub enum TypeValue<'c> {
     User(UserType<'c>),
     Prim(PrimType),
     Tuple(TupleType<'c>),
-    Unknown(UnknownType<'c>),
+    Unknown(UnknownType),
     Namespace(NamespaceType),
 }
 
@@ -234,13 +230,7 @@ impl<'c> TypeValue<'c> {
             }
             TypeValue::Var(_) => initial,
             TypeValue::Prim(_) => initial,
-            TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds { bounds },
-            }) => bounds
-                .iter()
-                .fold(initial, |acc, TraitBound { params, .. }| {
-                    params.iter().fold(acc, |acc, x| f(acc, *x))
-                }),
+            TypeValue::Unknown(_) => initial,
             TypeValue::Namespace(_) => initial,
         }
     }
@@ -267,21 +257,7 @@ impl<'c> TypeValue<'c> {
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
-            TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds { bounds },
-            }) => TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds {
-                    bounds: Row::try_from_iter(
-                        bounds.iter().map(|TraitBound { trt, params }| {
-                            Ok(TraitBound {
-                                trt: *trt,
-                                params: Row::try_from_iter(params.iter().map(|&arg| f(arg)), wall)?,
-                            })
-                        }),
-                        wall,
-                    )?,
-                },
-            }),
+            TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
             TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
                 members: ns.members.clone(),
             }),
@@ -311,19 +287,7 @@ impl<'c> TypeValue<'c> {
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
-            TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds { bounds },
-            }) => TypeValue::Unknown(UnknownType {
-                bounds: TraitBounds {
-                    bounds: Row::from_iter(
-                        bounds.iter().map(|TraitBound { trt, params }| TraitBound {
-                            trt: *trt,
-                            params: Row::from_iter(params.iter().map(|&arg| f(arg)), wall),
-                        }),
-                        wall,
-                    ),
-                },
-            }),
+            TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
             TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
                 members: ns.members.clone(),
             }),
@@ -498,6 +462,7 @@ impl TypeLocation {
 #[derive(Debug)]
 pub struct TypeStorage<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
+    unknown_data: SlotMap<UnknownTypeId, Cell<Option<TypeId>>>,
     location_map: TypeLocation,
     wall: &'w Wall<'c>,
 }
@@ -508,26 +473,40 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
 
         Self {
             data: SlotMap::with_key(),
+            unknown_data: SlotMap::with_key(),
             location_map,
             wall,
         }
     }
 
     pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
-        // @@Todo: resolve type variables bro!
-        self.data.get(ty).unwrap().get()
+        match self.data.get(ty).unwrap().get() {
+            val @ TypeValue::Unknown(UnknownType { unknown_id }) => {
+                if let Some(mapping) = self.unknown_data.get(*unknown_id).unwrap().get() {
+                    self.get(mapping)
+                } else {
+                    val
+                }
+            }
+            val => val,
+        }
     }
 
     pub fn get_location(&self, ty: TypeId) -> Option<&SourceLocation> {
         self.location_map.get_location(ty)
     }
 
-    pub fn set(&self, target: TypeId, source: TypeId) {
-        if target == source {
-            return;
+    pub fn set_unknown(&self, target: UnknownTypeId, source: TypeId) {
+        if let Some(current) = self.unknown_data.get(target) {
+            let current = current.get();
+            match current {
+                Some(current) if current == source => {
+                    return;
+                }
+                _ => {}
+            }
         }
-        let other_val = self.data.get(source).unwrap().get();
-        self.data.get(target).unwrap().set(other_val);
+        self.unknown_data.get(target).unwrap().set(Some(source));
     }
 
     pub fn duplicate(&mut self, ty: TypeId, location: Option<SourceLocation>) -> TypeId {
@@ -563,7 +542,13 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn create_unknown_type(&mut self) -> TypeId {
-        self.create(TypeValue::Unknown(UnknownType::unbounded()), None)
+        let mut type_id = TypeId::null();
+        self.unknown_data.insert_with_key(|unknown_id| {
+            let value = TypeValue::Unknown(UnknownType { unknown_id });
+            type_id = self.data.insert(Cell::new(self.wall.alloc_value(value)));
+            Cell::new(None)
+        });
+        type_id
     }
 
     pub fn create(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
