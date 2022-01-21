@@ -10,7 +10,7 @@ use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState,
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
 use hash_source::SourceId;
-use hash_utils::tree_writing::TreeWriter;
+use hash_utils::tree_writing::{TreeWriter, TreeWriterConfig};
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
@@ -134,7 +134,13 @@ where
                         .visit_body_block(&(), block.node())
                         .unwrap();
 
-                    println!("{}", TreeWriter::new(&tree));
+                    // Don't use any spaces between the label and child...
+                    let config = TreeWriterConfig {
+                        child_prefix: "─".into(),
+                        ..TreeWriterConfig::unicode()
+                    };
+
+                    println!("{}", TreeWriter::new_with_config(&tree, config));
                 }
                 Err(err) => {
                     println!("{}", ReportWriter::new(err, &compiler_state.sources));
