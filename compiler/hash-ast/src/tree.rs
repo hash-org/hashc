@@ -67,15 +67,13 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::AccessName<'c>>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled(
-            "name",
+        Ok(TreeNode::leaf(
             node.path
                 .iter()
                 .map(|p| IDENTIFIER_MAP.get_ident(*p))
                 .intersperse("::")
                 .collect::<String>(),
-            "\"",
-        )))
+        ))
     }
 
     type LiteralRet = TreeNode;
@@ -103,10 +101,14 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name, type_args } = walk::walk_variable_expr(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "variable",
-            vec![name, TreeNode::branch("type_args", type_args)],
-        ))
+
+        let mut children = vec![TreeNode::leaf(labelled("named", name.label, "\""))];
+
+        if !type_args.is_empty() {
+            children.extend(iter::once(TreeNode::branch("type_args", type_args)));
+        }
+
+        Ok(TreeNode::branch("variable", children))
     }
 
     type IntrinsicKeyRet = TreeNode;
@@ -142,10 +144,14 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
         let walk::FunctionCallExpr { subject, args } =
             walk::walk_function_call_expr(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "function_call",
-            vec![TreeNode::branch("subject", vec![subject]), args],
-        ))
+
+        let children = if !node.args.entries.is_empty() {
+            vec![TreeNode::branch("subject", vec![subject]), args]
+        } else {
+            vec![TreeNode::branch("subject", vec![subject])]
+        };
+
+        Ok(TreeNode::branch("function_call", children))
     }
 
     type PropertyAccessExprRet = TreeNode;
@@ -238,6 +244,17 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         walk::walk_type_same_children(self, ctx, node)
     }
 
+    type TupleTypeRet = TreeNode;
+    fn visit_tuple_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
+
+        Ok(TreeNode::branch("tuple", entries))
+    }
+
     type NamedTypeRet = TreeNode;
     fn visit_named_type(
         &mut self,
@@ -252,7 +269,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
                 vec![TreeNode::branch("type_args", type_args)]
             }
         };
-        Ok(TreeNode::branch(labelled("name", name.label, ""), children))
+        Ok(TreeNode::branch(
+            labelled("named", name.label, "\""),
+            children,
+        ))
     }
 
     type RefTypeRet = TreeNode;
@@ -282,7 +302,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::TypeVar<'c>>,
     ) -> Result<Self::TypeVarRet, Self::Error> {
         let walk::TypeVar { name } = walk::walk_type_var(self, ctx, node)?;
-        Ok(TreeNode::leaf(labelled("var", name.label, "")))
+        Ok(TreeNode::leaf(labelled("var", name.label, "\"")))
     }
 
     type ExistentialTypeRet = TreeNode;
