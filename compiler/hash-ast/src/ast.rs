@@ -287,9 +287,16 @@ pub struct ExistentialType;
 #[derive(Debug, PartialEq)]
 pub struct InferType;
 
+/// The type infer operator.
+#[derive(Debug, PartialEq)]
+pub struct TupleType<'c> {
+    pub entries: AstNodes<'c, Type<'c>>,
+}
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
+    Tuple(TupleType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),

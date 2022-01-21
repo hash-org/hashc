@@ -2793,29 +2793,34 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         // If there is an arrow '=>', then this must be a function type
-        let name = match self.peek_resultant_fn(|| self.parse_arrow()) {
+        match self.peek_resultant_fn(|| self.parse_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
                 type_args.nodes.push(self.parse_type()?, &self.wall);
-                IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME)
+                let name = IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME);
+
+                Ok(self.node_from_joined_location(
+                    Type::Named(NamedType {
+                        name: self.make_access_name_from_identifier(
+                            name,
+                            start.join(self.current_location()),
+                        ),
+                        type_args,
+                    }),
+                    &start,
+                ))
             }
             None => {
                 if must_be_function {
                     self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
-                IDENTIFIER_MAP.create_ident(TUPLE_TYPE_NAME)
+                Ok(self.node_from_joined_location(
+                    Type::Tuple(TupleType { entries: type_args }),
+                    &start,
+                ))
             }
-        };
-
-        Ok(self.node_from_joined_location(
-            Type::Named(NamedType {
-                name: self
-                    .make_access_name_from_identifier(name, start.join(self.current_location())),
-                type_args,
-            }),
-            &start,
-        ))
+        }
     }
 
     /// Function to parse a type
