@@ -567,6 +567,20 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(walk::walk_import_expr(self, ctx, node)?.0)
     }
 
+    type TupleTypeRet = TypeId;
+    fn visit_tuple_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
+        let ty_location = self.some_source_location(node.location());
+
+        Ok(self
+            .types_mut()
+            .create(TypeValue::Tuple(TupleType { types: entries }), ty_location))
+    }
+
     type TypeRet = TypeId;
     fn visit_type(
         &mut self,

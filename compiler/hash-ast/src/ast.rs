@@ -287,9 +287,16 @@ pub struct ExistentialType;
 #[derive(Debug, PartialEq)]
 pub struct InferType;
 
+/// The type infer operator.
+#[derive(Debug, PartialEq)]
+pub struct TupleType<'c> {
+    pub entries: AstNodes<'c, Type<'c>>,
+}
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
+    Tuple(TupleType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
@@ -670,6 +677,15 @@ pub struct MatchCase<'c> {
     pub expr: AstNode<'c, Expression<'c>>,
 }
 
+/// The origin of a match block
+#[derive(Debug, PartialEq)]
+pub enum MatchOrigin {
+    If,
+    Match,
+    For,
+    While,
+}
+
 /// A `match` block.
 #[derive(Debug, PartialEq)]
 pub struct MatchBlock<'c> {
@@ -677,6 +693,8 @@ pub struct MatchBlock<'c> {
     pub subject: AstNode<'c, Expression<'c>>,
     /// The match cases to execute.
     pub cases: AstNodes<'c, MatchCase<'c>>,
+    /// Whether the match block represents a for, while, if or match statement
+    pub origin: MatchOrigin,
 }
 
 /// A body block.
