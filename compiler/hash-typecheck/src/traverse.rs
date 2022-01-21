@@ -11,7 +11,7 @@ use crate::types::{
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
-use crate::writer::print_type;
+
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
@@ -1761,6 +1761,6 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
             type_args_location,
         )?;
 
-        Ok(self.unifier().apply_sub(&sub_from_trait_def, trt.fn_type)?)
+        self.unifier().apply_sub(&sub_from_trait_def, trt.fn_type)
     }
 }

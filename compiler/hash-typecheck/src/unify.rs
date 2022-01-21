@@ -3,7 +3,7 @@ use crate::{
     error::{TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeStorage, TypeValue, UnknownType},
-    writer::{print_type, TypeWithStorage},
+    writer::TypeWithStorage,
 };
 use core::fmt;
 use hash_alloc::collections::row::Row;
