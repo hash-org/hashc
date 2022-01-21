@@ -24,8 +24,6 @@ pub fn print_type(ty: TypeId, storage: &GlobalStorage) {
     println!("{}", TypeWithStorage::new(ty, storage));
 }
 
-// pub fn print_type_list(type_list: )
-
 pub struct TypeWithStorage<'g, 'c, 'w> {
     ty: TypeId,
     storage: &'g GlobalStorage<'c, 'w>,
