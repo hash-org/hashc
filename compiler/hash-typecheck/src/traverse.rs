@@ -1005,22 +1005,41 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         walk::walk_block_same_children(self, ctx, node)
     }
 
-    type MatchCaseRet = TypeId;
+    type MatchCaseRet = (TypeId, TypeId);
     fn visit_match_case(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MatchCase<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MatchCase<'c>>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        todo!()
+        let walk::MatchCase { pattern, expr } = walk::walk_match_case(self, ctx, node)?;
+
+        // we need to return both the type of the pattern and the type of the
+        // expression so that we can verify everything matches...
+        Ok((pattern, expr))
     }
 
     type MatchBlockRet = TypeId;
     fn visit_match_block(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MatchBlock<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MatchBlock<'c>>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
-        todo!()
+        let walk::MatchBlock { subject, cases } = walk::walk_match_block(self, ctx, node)?;
+
+        // we need to verify that for every case pattern, the type of the subject matches
+        // the case...
+        for (pat, _) in cases.iter() {
+            self.unifier()
+                .unify(subject, *pat, UnifyStrategy::CheckOnly)?;
+        }
+
+        // we need to verify that all of case branches also return the same type and then finally unify
+        // and set the return type of the block as the return ty...
+        let general_ty = self
+            .unifier()
+            .unify_many(cases.iter().map(|case| case.1), UnifyStrategy::ModifyBoth)?;
+
+        Ok(general_ty)
     }
 
     type LoopBlockRet = TypeId;
@@ -1509,10 +1528,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type TuplePatternRet = TypeId;
     fn visit_tuple_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TuplePattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TuplePattern<'c>>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
-        todo!()
+        let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
+
+        Ok(self.create_tuple_type(elements))
     }
 
     type StrLiteralPatternRet = TypeId;
@@ -1570,10 +1591,21 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type OrPatternRet = TypeId;
     fn visit_or_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::OrPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::OrPattern<'c>>,
     ) -> Result<Self::OrPatternRet, Self::Error> {
-        todo!()
+        let entries = node
+            .variants
+            .iter()
+            .map(|el| self.visit_pattern(ctx, el.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // The type should unify to a single type as the or patterns follow the rule that they don't have differing types...
+        let general_ty = self
+            .unifier()
+            .unify_many(entries.iter().copied(), UnifyStrategy::ModifyBoth)?;
+
+        Ok(general_ty)
     }
 
     type IfPatternRet = TypeId;
@@ -1583,6 +1615,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::IfPattern<'c>>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
         let walk::IfPattern { pattern, condition } = walk::walk_if_pattern(self, ctx, node)?;
+
         match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
             _ => Err(TypecheckError::ExpectingBooleanInCondition {
@@ -1599,6 +1632,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
         let variable_ty = self.create_unknown_type();
+
+        // @@Correctness, should we add the node into scope if the variable ident is equal to '_' ignore?
         self.scopes()
             .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
         Ok(variable_ty)
