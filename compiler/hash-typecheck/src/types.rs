@@ -175,7 +175,7 @@ pub struct UserType<'c> {
 #[derive(Debug)]
 pub struct FnType<'c> {
     pub args: TypeList<'c>,
-    pub ret: TypeId,
+    pub return_ty: TypeId,
 }
 
 #[derive(Debug)]
@@ -218,9 +218,9 @@ impl<'c> TypeValue<'c> {
         match self {
             TypeValue::Ref(RefType { inner }) => f(initial, *inner),
             TypeValue::RawRef(RawRefType { inner }) => f(initial, *inner),
-            TypeValue::Fn(FnType { args, ret }) => {
+            TypeValue::Fn(FnType { args, return_ty }) => {
                 let args_res = args.iter().fold(initial, |acc, x| f(acc, *x));
-                f(args_res, *ret)
+                f(args_res, *return_ty)
             }
             TypeValue::User(UserType { args, def_id: _ }) => {
                 args.iter().fold(initial, |acc, x| f(acc, *x))
@@ -244,9 +244,9 @@ impl<'c> TypeValue<'c> {
             TypeValue::RawRef(RawRefType { inner }) => {
                 TypeValue::RawRef(RawRefType { inner: f(*inner)? })
             }
-            TypeValue::Fn(FnType { args, ret }) => TypeValue::Fn(FnType {
+            TypeValue::Fn(FnType { args, return_ty }) => TypeValue::Fn(FnType {
                 args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
-                ret: f(*ret)?,
+                return_ty: f(*return_ty)?,
             }),
             TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
                 args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
@@ -274,9 +274,9 @@ impl<'c> TypeValue<'c> {
             TypeValue::RawRef(RawRefType { inner }) => {
                 TypeValue::RawRef(RawRefType { inner: f(*inner) })
             }
-            TypeValue::Fn(FnType { args, ret }) => TypeValue::Fn(FnType {
+            TypeValue::Fn(FnType { args, return_ty }) => TypeValue::Fn(FnType {
                 args: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
-                ret: f(*ret),
+                return_ty: f(*return_ty),
             }),
             TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
                 args: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
