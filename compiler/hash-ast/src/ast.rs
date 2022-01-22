@@ -256,8 +256,6 @@ pub struct TypeVar<'c> {
 
 /// Names for compound types that represent data structures or functions are
 /// translated into string form, and thus are represented by these names.
-pub const FUNCTION_TYPE_NAME: &str = "Function";
-pub const TUPLE_TYPE_NAME: &str = "Tuple";
 pub const LIST_TYPE_NAME: &str = "List";
 pub const SET_TYPE_NAME: &str = "Set";
 pub const MAP_TYPE_NAME: &str = "Map";
@@ -287,16 +285,24 @@ pub struct ExistentialType;
 #[derive(Debug, PartialEq)]
 pub struct InferType;
 
-/// The type infer operator.
+/// The tuple type.
 #[derive(Debug, PartialEq)]
 pub struct TupleType<'c> {
     pub entries: AstNodes<'c, Type<'c>>,
+}
+
+/// The function type.
+#[derive(Debug, PartialEq)]
+pub struct FnType<'c> {
+    pub args: AstNodes<'c, Type<'c>>,
+    pub return_ty: AstNode<'c, Type<'c>>,
 }
 
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
     Tuple(TupleType<'c>),
+    Fn(FnType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
