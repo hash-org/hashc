@@ -255,6 +255,27 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("tuple", entries))
     }
 
+    type FnTypeRet = TreeNode;
+    fn visit_function_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FnType<'c>>,
+    ) -> Result<Self::FnTypeRet, Self::Error> {
+        let walk::FnType { args, return_ty } = walk::walk_function_type(self, ctx, node)?;
+
+        let return_child = TreeNode::branch("return", vec![return_ty]);
+
+        let children = {
+            if args.is_empty() {
+                vec![return_child]
+            } else {
+                vec![TreeNode::branch("arguments", args), return_child]
+            }
+        };
+
+        Ok(TreeNode::branch("function", children))
+    }
+
     type NamedTypeRet = TreeNode;
     fn visit_named_type(
         &mut self,

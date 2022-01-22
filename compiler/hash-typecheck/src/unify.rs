@@ -262,7 +262,7 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
 
                 self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), strategy)?;
                 // Maybe this should be flipped (see variance comment above)
-                self.unify(fn_target.ret, fn_source.ret, strategy)?;
+                self.unify(fn_target.return_ty, fn_source.return_ty, strategy)?;
                 Ok(())
             }
             (Tuple(tuple_target), Tuple(tuple_source))
