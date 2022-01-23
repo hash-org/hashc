@@ -47,7 +47,7 @@ impl<'g, 'c, 'w> TypeWithStorage<'g, 'c, 'w> {
             crate::types::TypeValue::RawRef(RawRefType { inner }) => {
                 TreeNode::branch("raw_ref", vec![self.for_type(*inner).to_tree_node()])
             }
-            crate::types::TypeValue::Fn(FnType { args, ret }) => TreeNode::branch(
+            crate::types::TypeValue::Fn(FnType { args, return_ty }) => TreeNode::branch(
                 "function",
                 vec![
                     TreeNode::branch(
@@ -56,7 +56,7 @@ impl<'g, 'c, 'w> TypeWithStorage<'g, 'c, 'w> {
                             .map(|a| self.for_type(*a).to_tree_node())
                             .collect(),
                     ),
-                    TreeNode::branch("return", vec![self.for_type(*ret).to_tree_node()]),
+                    TreeNode::branch("return", vec![self.for_type(*return_ty).to_tree_node()]),
                 ],
             ),
             crate::types::TypeValue::Var(TypeVar { name }) => {
@@ -128,7 +128,7 @@ impl<'g, 'c, 'w> fmt::Display for TypeWithStorage<'g, 'c, 'w> {
             crate::types::TypeValue::RawRef(RawRefType { inner }) => {
                 write!(f, "&raw {}", self.for_type(*inner))?;
             }
-            crate::types::TypeValue::Fn(FnType { args, ret }) => {
+            crate::types::TypeValue::Fn(FnType { args, return_ty }) => {
                 write!(f, "(")?;
                 for (i, arg) in args.iter().enumerate() {
                     write!(f, "{}", self.for_type(*arg))?;
@@ -136,7 +136,7 @@ impl<'g, 'c, 'w> fmt::Display for TypeWithStorage<'g, 'c, 'w> {
                         write!(f, ", ")?;
                     }
                 }
-                write!(f, ") => {}", self.for_type(*ret))?;
+                write!(f, ") => {}", self.for_type(*return_ty))?;
             }
             crate::types::TypeValue::Var(TypeVar { name }) => {
                 write!(f, "{}", IDENTIFIER_MAP.get_ident(*name))?;

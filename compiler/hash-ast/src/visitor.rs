@@ -152,6 +152,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error>;
 
+    type FnTypeRet: 'c;
+    fn visit_function_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FnType<'c>>,
+    ) -> Result<Self::FnTypeRet, Self::Error>;
+
     type NamedTypeRet: 'c;
     fn visit_named_type(
         &mut self,
@@ -1161,6 +1168,27 @@ pub mod walk {
         })
     }
 
+    pub struct FnType<'c, V: AstVisitor<'c>> {
+        pub args: V::CollectionContainer<V::TypeRet>,
+        pub return_ty: V::TypeRet,
+    }
+
+    pub fn walk_function_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::FnType<'c>>,
+    ) -> Result<FnType<'c, V>, V::Error> {
+        Ok(FnType {
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter()
+                    .map(|e| visitor.visit_type(ctx, e.ast_ref())),
+            )?,
+            return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
+        })
+    }
+
     pub struct TupleType<'c, V: AstVisitor<'c>> {
         pub entries: V::CollectionContainer<V::TypeRet>,
     }
@@ -1236,6 +1264,7 @@ pub mod walk {
     }
 
     pub enum Type<'c, V: AstVisitor<'c>> {
+        Fn(V::FnTypeRet),
         Tuple(V::TupleTypeRet),
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
@@ -1251,6 +1280,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Type<'c, V>, V::Error> {
         Ok(match &*node {
+            ast::Type::Fn(r) => Type::Fn(visitor.visit_function_type(ctx, node.with_body(r))?),
             ast::Type::Tuple(r) => Type::Tuple(visitor.visit_tuple_type(ctx, node.with_body(r))?),
             ast::Type::Named(r) => Type::Named(visitor.visit_named_type(ctx, node.with_body(r))?),
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
@@ -1273,6 +1303,7 @@ pub mod walk {
     where
         V: AstVisitor<
             'c,
+            FnTypeRet = Ret,
             TupleTypeRet = Ret,
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
@@ -1283,6 +1314,7 @@ pub mod walk {
         >,
     {
         Ok(match walk_type(visitor, ctx, node)? {
+            Type::Fn(r) => r,
             Type::Tuple(r) => r,
             Type::Named(r) => r,
             Type::Ref(r) => r,
