@@ -336,48 +336,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.visit_trait_variable(ctx, var_trait_id, node, None)
             }
             (ident, SymbolType::EnumVariant(ty_def_id)) => {
-                let ty_def = self.type_defs().get(ty_def_id);
-
-                match &ty_def.kind {
-                    TypeDefValueKind::Enum(EnumDef {
-                        variants, generics, ..
-                    }) => {
-                        // here we need to find the variant in variants by the node name
-                        let variant = variants.get_variant(ident).unwrap();
-                        let sub = self.unifier().instantiate_vars_list(&generics.params)?;
-
-                        let enum_ty_args = self
-                            .unifier()
-                            .apply_sub_to_list_make_row(&sub, &generics.params)?;
-
-                        let enum_ty_id = self.types_mut().create(
-                            TypeValue::User(UserType {
-                                def_id: ty_def_id,
-                                args: enum_ty_args,
-                            }),
-                            Some(loc),
-                        );
-
-                        if variant.data.is_empty() {
-                            return Ok(enum_ty_id);
-                        };
-
-                        let args = self
-                            .unifier()
-                            .apply_sub_to_list_make_row(&sub, &variant.data)?;
-
-                        let enum_variant_fn_ty = self.types_mut().create(
-                            TypeValue::Fn(FnType {
-                                args,
-                                ret: enum_ty_id,
-                            }),
-                            Some(loc),
-                        );
-
-                        Ok(enum_variant_fn_ty)
-                    }
-                    TypeDefValueKind::Struct(_) => unreachable!(),
-                }
+                self.query_type_of_enum_variant(ty_def_id, ident, loc)
             }
             _ => Err(TypecheckError::SymbolIsNotAVariable(Symbol::Compound {
                 path: node.name.path.to_owned(),
@@ -1517,10 +1476,62 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type EnumPatternRet = TypeId;
     fn visit_enum_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::EnumPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
     ) -> Result<Self::EnumPatternRet, Self::Error> {
-        todo!()
+        let walk::EnumPattern { name: _, args } = walk::walk_enum_pattern(self, ctx, node)?;
+
+        let location = self.source_location(node.location());
+
+        let variant_data_mismatches = |ident, ty_def_location| {
+            Err(TypecheckError::EnumVariantArgumentsMismatch {
+                variant_name: ident,
+                location,
+                ty_def_name: ident,
+                ty_def_location,
+            })
+        };
+
+        match self.resolve_compound_symbol(&node.name.path, location)? {
+            (ident, SymbolType::EnumVariant(ty_def_id)) => {
+                let variant_id = self.query_type_of_enum_variant(ty_def_id, ident, location)?;
+                let variant_type = self.types().get(variant_id);
+
+                // if the variant itself has no arguments and the definition expects no arguments...
+                // we don't need to do anything and can just exit early, otherwise we need to unify with
+                // the resultant arguments produced from the query...
+                match variant_type {
+                    TypeValue::Fn(FnType { args: expected, .. }) => {
+                        // let received_ty =  TypeValue::Fn(FnType {
+                        //     args,
+                        //     ret: variant_id,
+                        // });
+
+                        if expected.len() != args.len() {
+                            let ty_def = self.type_defs().get(ty_def_id);
+                            return variant_data_mismatches(ident, ty_def.location);
+                        }
+
+                        self.unifier().unify_pairs(
+                            expected.iter().zip(args.iter()),
+                            UnifyStrategy::CheckOnly,
+                        )?;
+                    }
+                    _ => {
+                        if !args.is_empty() {
+                            let ty_def = self.type_defs().get(ty_def_id);
+                            return variant_data_mismatches(ident, ty_def.location);
+                        }
+                    }
+                }
+
+                Ok(variant_id)
+            }
+            _ => Err(TypecheckError::SymbolIsNotAEnum(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(location),
+            })),
+        }
     }
 
     type StructPatternRet = TypeId;
@@ -1704,12 +1715,37 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let variable_ty = self.create_unknown_type();
+        let location = self.source_location(node.location());
 
-        // @@Correctness, should we add the node into scope if the variable ident is equal to '_' ignore?
-        self.scopes()
-            .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
-        Ok(variable_ty)
+        // we need to resolve the symbol in the current scope and firstly check if it's
+        // an enum...
+        match self.resolve_compound_symbol(&[node.0.ident], location) {
+            Ok((ident, SymbolType::EnumVariant(ty_def_id))) => {
+                let variant_id = self.query_type_of_enum_variant(ty_def_id, ident, location)?;
+
+                // This means that the variants mis-match...
+                if let TypeValue::Fn(FnType { .. }) = self.types().get(variant_id) {
+                    let ty_def = self.type_defs().get(ty_def_id);
+
+                    return Err(TypecheckError::EnumVariantArgumentsMismatch {
+                        variant_name: ident,
+                        location,
+                        ty_def_name: ident,
+                        ty_def_location: ty_def.location,
+                    });
+                };
+
+                Ok(variant_id)
+            }
+            _ => {
+                let variable_ty = self.create_unknown_type();
+
+                // @@Correctness, should we add the node into scope if the variable ident is equal to '_' ignore?
+                self.scopes()
+                    .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
+                Ok(variable_ty)
+            }
+        }
     }
 
     type IgnorePatternRet = TypeId;
@@ -1857,6 +1893,56 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         }
 
         Ok(ty_id)
+    }
+
+    fn query_type_of_enum_variant(
+        &mut self,
+        ty_def_id: TypeDefId,
+        ident: Identifier,
+        location: SourceLocation,
+    ) -> TypecheckResult<TypeId> {
+        let ty_def = self.type_defs().get(ty_def_id);
+
+        match &ty_def.kind {
+            TypeDefValueKind::Enum(EnumDef {
+                variants, generics, ..
+            }) => {
+                // here we need to find the variant in variants by the node name
+                let variant = variants.get_variant(ident).unwrap();
+                let sub = self.unifier().instantiate_vars_list(&generics.params)?;
+
+                let enum_ty_args = self
+                    .unifier()
+                    .apply_sub_to_list_make_row(&sub, &generics.params)?;
+
+                let enum_ty_id = self.types_mut().create(
+                    TypeValue::User(UserType {
+                        def_id: ty_def_id,
+                        args: enum_ty_args,
+                    }),
+                    Some(location),
+                );
+
+                if variant.data.is_empty() {
+                    return Ok(enum_ty_id);
+                };
+
+                let args = self
+                    .unifier()
+                    .apply_sub_to_list_make_row(&sub, &variant.data)?;
+
+                let enum_variant_fn_ty = self.types_mut().create(
+                    TypeValue::Fn(FnType {
+                        args,
+                        ret: enum_ty_id,
+                    }),
+                    Some(location),
+                );
+
+                Ok(enum_variant_fn_ty)
+            }
+            TypeDefValueKind::Struct(_) => unreachable!(),
+        }
     }
 
     /// Returns a substitution for the type arguments as well.

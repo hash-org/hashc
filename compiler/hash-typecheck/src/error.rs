@@ -49,6 +49,7 @@ pub enum TypecheckError {
     SymbolIsNotAType(Symbol),
     SymbolIsNotAVariable(Symbol),
     SymbolIsNotATrait(Symbol),
+    SymbolIsNotAEnum(Symbol),
     TypeIsNotStruct {
         ty: TypeId,
         location: SourceLocation,
@@ -72,6 +73,12 @@ pub enum TypecheckError {
     },
     MissingStructField {
         field_name: Identifier,
+        location: SourceLocation,
+        ty_def_name: Identifier,
+        ty_def_location: Option<SourceLocation>,
+    },
+    EnumVariantArgumentsMismatch {
+        variant_name: Identifier,
         location: SourceLocation,
         ty_def_name: Identifier,
         ty_def_location: Option<SourceLocation>,
@@ -250,6 +257,23 @@ impl TypecheckError {
                     format!("`{}` is not a type. You cannot use a trait or variable in the place of a type.", symbol_name),
                 )));
             }
+            TypecheckError::SymbolIsNotAEnum(symbol) => {
+                builder.with_error_code(HashErrorCode::SymbolIsNotAType);
+
+                let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
+
+                if let Some(location) = symbol.location() {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "This expects a type.",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    "note",
+                    format!("`{}` is not a type. You cannot use a trait or variable in the place of a type.", symbol_name),
+                )));
+            }
             TypecheckError::SymbolIsNotAVariable(symbol) => {
                 builder.with_error_code(HashErrorCode::SymbolIsNotAVariable);
 
@@ -340,6 +364,39 @@ impl TypecheckError {
                         format!(
                             "The field `{}` doesn't exist on struct `{}`.",
                             name, ty_name
+                        ),
+                    )));
+            }
+            TypecheckError::EnumVariantArgumentsMismatch {
+                ty_def_location,
+                ty_def_name,
+                variant_name,
+                location,
+            } => {
+                builder
+                    .with_error_code(HashErrorCode::UnresolvedStructField)
+                    .with_message("Enum variant arguments mismatch");
+
+                let name = IDENTIFIER_MAP.get_ident(variant_name);
+                let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
+
+                // If we have the location of the definition, we can print it here
+                if let Some(ty_def_location) = ty_def_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        ty_def_location,
+                        format!("The enum variant `{}` is defined here.", ty_name),
+                    )));
+                }
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location, "here",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        "note",
+                        format!(
+                            "This variant `{}` has an invalid number of arguments.",
+                            name
                         ),
                     )));
             }
