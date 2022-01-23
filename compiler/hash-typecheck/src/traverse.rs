@@ -863,9 +863,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
                 match &type_def.kind {
-                    TypeDefValueKind::Struct(struct_def) => {
-                        self.typecheck_known_struct_literal(ctx, node, def_id, ty_id, struct_def)
-                    }
+                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_literal(
+                        ctx,
+                        node,
+                        ty_id,
+                        struct_def,
+                        type_def.location,
+                    ),
                     _ => Err(TypecheckError::TypeIsNotStruct {
                         ty: ty_id,
                         location,
@@ -882,7 +886,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         match &type_def.kind {
                             TypeDefValueKind::Struct(struct_def) => self
                                 .typecheck_known_struct_literal(
-                                    ctx, node, *def_id, ty_id, struct_def,
+                                    ctx,
+                                    node,
+                                    ty_id,
+                                    struct_def,
+                                    type_def.location,
                                 ),
                             _ => Err(TypecheckError::TypeIsNotStruct {
                                 ty: ty_id,
@@ -1510,10 +1518,67 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type StructPatternRet = TypeId;
     fn visit_struct_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructPattern<'c>>,
     ) -> Result<Self::StructPatternRet, Self::Error> {
-        todo!()
+        let location = self.source_location(node.location());
+        let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
+
+        match symbol_res {
+            (_, SymbolType::TypeDef(def_id)) => {
+                let type_def = self.type_defs().get(def_id);
+                let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
+
+                match &type_def.kind {
+                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_pattern(
+                        ctx,
+                        node,
+                        ty_id,
+                        struct_def,
+                        type_def.location,
+                    ),
+                    _ => Err(TypecheckError::TypeIsNotStruct {
+                        ty: ty_id,
+                        location,
+                        ty_def_location: type_def.location,
+                    }),
+                }
+            }
+            (_, SymbolType::Type(ty_id)) => {
+                let ty = self.types().get(ty_id);
+
+                match ty {
+                    TypeValue::User(UserType { def_id, .. }) => {
+                        let type_def = self.type_defs().get(*def_id);
+
+                        match &type_def.kind {
+                            TypeDefValueKind::Struct(struct_def) => self
+                                .typecheck_known_struct_pattern(
+                                    ctx,
+                                    node,
+                                    ty_id,
+                                    struct_def,
+                                    type_def.location,
+                                ),
+                            _ => Err(TypecheckError::TypeIsNotStruct {
+                                ty: ty_id,
+                                location,
+                                ty_def_location: type_def.location,
+                            }),
+                        }
+                    }
+                    _ => Err(TypecheckError::TypeIsNotStruct {
+                        ty: ty_id,
+                        location,
+                        ty_def_location: None,
+                    }),
+                }
+            }
+            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(location),
+            })),
+        }
     }
 
     type NamespacePatternRet = TypeId;
@@ -1648,13 +1713,20 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_unknown_type())
     }
 
-    type DestructuringPatternRet = TypeId;
+    type DestructuringPatternRet = (Identifier, TypeId);
     fn visit_destructuring_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
-        todo!()
+        let walk::DestructuringPattern { name: _, pattern } =
+            walk::walk_destructuring_pattern(self, ctx, node)?;
+
+        let ident = node.name.ident;
+        self.scopes()
+            .add_symbol(ident, SymbolType::Variable(pattern));
+
+        Ok((ident, pattern))
     }
 
     type ModuleRet = TypeId;
@@ -1678,13 +1750,13 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &mut self,
         ctx: &<Self as AstVisitor<'c>>::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-        def_id: TypeDefId,
         ty_id: TypeId,
         StructDef {
             name,
             fields,
             generics: _,
         }: &StructDef,
+        ty_def_location: Option<SourceLocation>,
     ) -> TypecheckResult<TypeId> {
         let walk::StructLiteral {
             name: _,
@@ -1698,21 +1770,17 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         // @@Reporting: we could report multiple missing fields here...
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
-                let ty_def = self.type_defs().get(def_id);
-
                 let name_node = &node.body().name;
                 let location = self.source_location(name_node.location());
 
                 return Err(TypecheckError::MissingStructField {
-                    ty_def_location: ty_def.location,
+                    ty_def_location,
                     ty_def_name: *name,
                     field_name: expected,
                     location,
                 });
             }
         }
-
-        let ty_def = self.type_defs().get(def_id);
 
         // Unify args
         for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
@@ -1725,7 +1793,53 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     let entry = node.entries.get(index).unwrap();
 
                     return Err(TypecheckError::UnresolvedStructField {
-                        ty_def_location: ty_def.location,
+                        ty_def_location,
+                        ty_def_name: *name,
+                        field_name: entry_name,
+                        location: self.source_location(entry.location()),
+                    });
+                }
+            }
+        }
+
+        Ok(ty_id)
+    }
+
+    fn typecheck_known_struct_pattern(
+        &mut self,
+        ctx: &<Self as AstVisitor<'c>>::Ctx,
+        node: ast::AstNodeRef<ast::StructPattern<'c>>,
+        ty_id: TypeId,
+        StructDef {
+            name,
+            fields,
+            generics: _,
+        }: &StructDef,
+        ty_def_location: Option<SourceLocation>,
+    ) -> TypecheckResult<TypeId> {
+        let walk::StructPattern { name: _, entries } = walk::walk_struct_pattern(self, ctx, node)?;
+
+        // @@Cleanup: until we don't introduce a some kind of ignore spread operator
+        //            that can be used for structs, we essentially implicitly treat as fields
+        //            that aren't specified in the pattern as being ignored.
+        //
+        //            This can be done by de-sugaring the ast into assigning all missing fields of a
+        //            a struct assigned to an ignore pattern. This current implementation doesn't do
+        //            that at the moment.
+        // let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+
+        // Unify args
+        for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
+            match fields.get_field(entry_name) {
+                Some(field_ty) => {
+                    self.unifier()
+                        .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
+                }
+                None => {
+                    let entry = node.entries.get(index).unwrap();
+
+                    return Err(TypecheckError::UnresolvedStructField {
+                        ty_def_location,
                         ty_def_name: *name,
                         field_name: entry_name,
                         location: self.source_location(entry.location()),
