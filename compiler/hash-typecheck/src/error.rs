@@ -72,7 +72,7 @@ impl ArgumentLengthMismatch {
         }
     }
 
-    /// Utility function for formatting the expected number of arguments compared to the 
+    /// Utility function for formatting the expected number of arguments compared to the
     /// received number of arguments.
     pub fn as_expected_vs_received_note(&self) -> String {
         let pluralise = |num| {
@@ -441,7 +441,7 @@ impl TypecheckError {
                 if let Some(ty_def_location) = ty_def_location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         ty_def_location,
-                        format!("The enum variant `{}` is defined here.", ty_name),
+                        format!("The enum tuple variant `{}` is defined here.", ty_name),
                     )));
                 }
 
@@ -452,7 +452,7 @@ impl TypecheckError {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
                         format!(
-                            "This variant `{}` has an invalid number of arguments. The variant {}.",
+                            "This variant `{}` has an incorrect number of arguments. The variant {}.",
                             name,
                             mismatch.as_expected_vs_received_note()
                         ),

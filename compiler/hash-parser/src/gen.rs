@@ -947,8 +947,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse an Enum definition entry.
     pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
-        let start = self.current_location();
         let name = self.parse_ident()?;
+        let name_location = name.location();
 
         let mut args = AstNodes::empty();
 
@@ -972,7 +972,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &start))
+        Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &name_location))
     }
 
     /// Parse struct definition field entries.
