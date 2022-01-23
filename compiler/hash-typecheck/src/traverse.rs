@@ -337,9 +337,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             (_, SymbolType::Trait(var_trait_id)) => {
                 self.visit_trait_variable(ctx, var_trait_id, node, None)
             }
-            (ident, SymbolType::EnumVariant(ty_def_id)) => {
-                self.query_type_of_enum_variant(ty_def_id, ident, loc)
-            }
+            (ident, SymbolType::EnumVariant(ty_def_id)) => self
+                .query_type_of_enum_variant(ty_def_id, ident, loc)
+                .map(|(id, _)| id),
             _ => Err(TypecheckError::SymbolIsNotAVariable(Symbol::Compound {
                 path: node.name.path.to_owned(),
                 location: Some(loc),
@@ -1303,16 +1303,19 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(())
     }
 
-    type EnumDefEntryRet = (Identifier, EnumVariant<'c>);
+    type EnumDefEntryRet = EnumVariant<'c>;
     fn visit_enum_def_entry(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { args: data, .. } = walk::walk_enum_def_entry(self, ctx, node)?;
-        let name = node.name.ident;
 
-        Ok((name, EnumVariant { name, data }))
+        Ok(EnumVariant {
+            name: node.name.ident,
+            data,
+            location: self.source_location(node.location()),
+        })
     }
 
     type EnumDefRet = ();
@@ -1492,7 +1495,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         match self.resolve_compound_symbol(&node.name.path, location)? {
             (ident, SymbolType::EnumVariant(ty_def_id)) => {
-                let variant_id = self.query_type_of_enum_variant(ty_def_id, ident, location)?;
+                let (variant_id, variant_location) =
+                    self.query_type_of_enum_variant(ty_def_id, ident, location)?;
                 let variant_type = self.types().get(variant_id);
 
                 // if the variant itself has no arguments and the definition expects no arguments...
@@ -1503,32 +1507,30 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         args: expected,
                         return_ty,
                     }) => {
-                        // let received_ty =  TypeValue::Fn(FnType {
-                        //     args,
-                        //     ret: variant_id,
-                        // });
+                        self.unifier().unify_pairs(
+                            args.iter().zip(expected.iter()),
+                            UnifyStrategy::CheckOnly,
+                        )?;
 
                         if expected.len() != args.len() {
-                            let ty_def = self.type_defs().get(ty_def_id);
                             return variant_data_mismatches(
                                 ident,
-                                ty_def.location,
+                                Some(variant_location),
                                 expected.len(),
                                 args.len(),
                             );
                         }
 
-                        self.unifier().unify_pairs(
-                            expected.iter().zip(args.iter()),
-                            UnifyStrategy::CheckOnly,
-                        )?;
-
                         Ok(*return_ty)
                     }
                     _ => {
                         if !args.is_empty() {
-                            let ty_def = self.type_defs().get(ty_def_id);
-                            return variant_data_mismatches(ident, ty_def.location, 0, args.len());
+                            return variant_data_mismatches(
+                                ident,
+                                Some(variant_location),
+                                0,
+                                args.len(),
+                            );
                         }
 
                         Ok(variant_id)
@@ -1729,17 +1731,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // an enum...
         match self.resolve_compound_symbol(&[node.0.ident], location) {
             Ok((ident, SymbolType::EnumVariant(ty_def_id))) => {
-                let variant_id = self.query_type_of_enum_variant(ty_def_id, ident, location)?;
+                let (variant_id, variant_location) =
+                    self.query_type_of_enum_variant(ty_def_id, ident, location)?;
 
                 // This means that the variants mis-match...
                 if let TypeValue::Fn(FnType { args, .. }) = self.types().get(variant_id) {
-                    let ty_def = self.type_defs().get(ty_def_id);
-
                     return Err(TypecheckError::EnumVariantArgumentsMismatch {
                         variant_name: ident,
                         location,
                         ty_def_name: ident,
-                        ty_def_location: ty_def.location,
+                        ty_def_location: Some(variant_location),
                         mismatch: ArgumentLengthMismatch::new(0, args.len()),
                     });
                 };
@@ -1909,7 +1910,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         ty_def_id: TypeDefId,
         ident: Identifier,
         location: SourceLocation,
-    ) -> TypecheckResult<TypeId> {
+    ) -> TypecheckResult<(TypeId, SourceLocation)> {
         let ty_def = self.type_defs().get(ty_def_id);
 
         match &ty_def.kind {
@@ -1933,7 +1934,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                 );
 
                 if variant.data.is_empty() {
-                    return Ok(enum_ty_id);
+                    return Ok((enum_ty_id, variant.location));
                 };
 
                 let args = self
@@ -1948,7 +1949,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     Some(location),
                 );
 
-                Ok(enum_variant_fn_ty)
+                Ok((enum_variant_fn_ty, variant.location))
             }
             TypeDefValueKind::Struct(_) => unreachable!(),
         }

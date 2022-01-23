@@ -54,7 +54,7 @@ impl ArgumentLengthMismatch {
 
     /// Convert the arguments mismatch into a printable reporting note that essentially
     /// suggests if an argument should be added or removed.
-    pub fn to_note(&self) -> String {
+    pub fn as_suggestion(&self) -> String {
         let Self { wanted, given } = self;
 
         if wanted > given {
@@ -70,6 +70,26 @@ impl ArgumentLengthMismatch {
                 format!("consider removing the last {} arguments.", diff)
             }
         }
+    }
+
+    /// Utility function for formatting the expected number of arguments compared to the 
+    /// received number of arguments.
+    pub fn as_expected_vs_received_note(&self) -> String {
+        let pluralise = |num| {
+            if num == 1 {
+                "argument"
+            } else {
+                "arguments"
+            }
+        };
+
+        format!(
+            "expected {} {}, but received {} {}",
+            self.wanted,
+            pluralise(self.wanted),
+            self.given,
+            pluralise(self.given)
+        )
     }
 }
 
@@ -432,13 +452,14 @@ impl TypecheckError {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
                         format!(
-                            "This variant `{}` has an invalid number of arguments.",
-                            name
+                            "This variant `{}` has an invalid number of arguments. The variant {}.",
+                            name,
+                            mismatch.as_expected_vs_received_note()
                         ),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Help,
-                        mismatch.to_note(),
+                        mismatch.as_suggestion(),
                     )));
             }
             TypecheckError::ExpectingBooleanInCondition { found, location } => {
@@ -640,7 +661,7 @@ impl TypecheckError {
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Help,
-                    mismatch.to_note(),
+                    mismatch.as_suggestion(),
                 )));
             }
         }
