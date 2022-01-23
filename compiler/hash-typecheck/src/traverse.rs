@@ -1314,7 +1314,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(EnumVariant {
             name: node.name.ident,
             data,
-            location: self.source_location(node.location()),
+            location: self.source_location(node.name.location()),
         })
     }
 
