@@ -1,6 +1,6 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::{
-    error::{TypecheckError, TypecheckResult},
+    error::{ArgumentLengthMismatch, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeStorage, TypeValue, UnknownType},
     writer::TypeWithStorage,
@@ -255,8 +255,10 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
                     return Err(TypecheckError::FunctionArgumentLengthMismatch {
                         source,
                         target,
-                        received: fn_target.args.len(),
-                        expected: fn_source.args.len(),
+                        mismatch: ArgumentLengthMismatch::new(
+                            fn_source.args.len(),
+                            fn_target.args.len(),
+                        ),
                     });
                 }
 
