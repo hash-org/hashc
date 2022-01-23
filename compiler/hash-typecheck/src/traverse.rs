@@ -26,8 +26,8 @@ use crate::{
 use crate::{state::TypecheckState, types::EnumVariant};
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::ast::{self, FUNCTION_TYPE_NAME};
-use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
+use hash_ast::ast;
+use hash_ast::ident::Identifier;
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
 use hash_pipeline::sources::{SourceRef, Sources};
@@ -373,12 +373,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::FunctionCallExpr<'c>>,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
         let given_args = self.visit_function_call_args(ctx, node.args.ast_ref())?;
-        let ret_ty = self.create_unknown_type();
+        let return_ty = self.create_unknown_type();
         let args_ty_location = self.source_location(node.body().args.location());
         let expected_fn_ty = self.create_type(
             TypeValue::Fn(FnType {
                 args: given_args,
-                ret: ret_ty,
+                return_ty,
             }),
             Some(args_ty_location),
         );
@@ -404,7 +404,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         self.unifier()
             .unify(expected_fn_ty, given_ty, UnifyStrategy::ModifyBoth)?;
 
-        Ok(ret_ty)
+        Ok(return_ty)
     }
 
     type PropertyAccessExprRet = TypeId;
@@ -542,6 +542,20 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .create(TypeValue::Tuple(TupleType { types: entries }), ty_location))
     }
 
+    type FnTypeRet = TypeId;
+    fn visit_function_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FnType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::FnType { args, return_ty } = walk::walk_function_type(self, ctx, node)?;
+
+        Ok(self.create_type(
+            TypeValue::Fn(FnType { args, return_ty }),
+            self.some_source_location(node.location()),
+        ))
+    }
+
     type TypeRet = TypeId;
     fn visit_type(
         &mut self,
@@ -559,27 +573,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        // @@Hack: ast names functions as Function, which is not ideal
-        match &node.name.path[..] {
-            [x] if *x == IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME) => {
-                let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
-                if let [args @ .., ret] = &type_args[..] {
-                    return Ok(self.create_type(
-                        TypeValue::Fn(FnType {
-                            args: Row::from_iter(args.iter().copied(), self.wall()),
-                            ret: *ret,
-                        }),
-                        self.some_source_location(node.location()),
-                    ));
-                } else {
-                    // Will always have at least one arg.
-                    unreachable!()
-                }
-            }
-            _ => {}
-        }
-
         let location = self.source_location(node.location());
+
         match self.resolve_compound_symbol(&node.name.path, location)? {
             (_, SymbolType::Type(ty_id)) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
             (_, SymbolType::TypeDef(def_id)) => {
@@ -942,7 +937,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let fn_ty = self.create_type(
             TypeValue::Fn(FnType {
                 args: args_ty,
-                ret: return_ty,
+                return_ty,
             }),
             Some(location),
         ); // @@Correctness: this isn't the correct location
@@ -1506,7 +1501,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 match variant_type {
                     TypeValue::Fn(FnType {
                         args: expected,
-                        ret,
+                        return_ty,
                     }) => {
                         // let received_ty =  TypeValue::Fn(FnType {
                         //     args,
@@ -1528,7 +1523,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                             UnifyStrategy::CheckOnly,
                         )?;
 
-                        Ok(*ret)
+                        Ok(*return_ty)
                     }
                     _ => {
                         if !args.is_empty() {
@@ -1948,7 +1943,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                 let enum_variant_fn_ty = self.types_mut().create(
                     TypeValue::Fn(FnType {
                         args,
-                        ret: enum_ty_id,
+                        return_ty: enum_ty_id,
                     }),
                     Some(location),
                 );

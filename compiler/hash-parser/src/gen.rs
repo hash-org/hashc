@@ -2752,7 +2752,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
-        let mut type_args = AstNodes::empty();
+        let mut args = AstNodes::empty();
 
         // handle the function arguments first by checking for parentheses
         match self.peek() {
@@ -2763,7 +2763,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
 
                 // update the type argument span...
-                type_args.span = Some(*span);
+                args.span = Some(*span);
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 let gen = self.from_stream(tree, *span);
@@ -2775,7 +2775,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         gen.skip_token();
                     }
                     _ => {
-                        type_args = gen.parse_separated_fn(
+                        args = gen.parse_separated_fn(
                             || gen.parse_type(),
                             || gen.parse_token_atom(TokenKind::Comma),
                         )?;
@@ -2796,16 +2796,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                type_args.nodes.push(self.parse_type()?, &self.wall);
-                let name = IDENTIFIER_MAP.create_ident(FUNCTION_TYPE_NAME);
-
                 Ok(self.node_from_joined_location(
-                    Type::Named(NamedType {
-                        name: self.make_access_name_from_identifier(
-                            name,
-                            start.join(self.current_location()),
-                        ),
-                        type_args,
+                    Type::Fn(FnType {
+                        args,
+                        return_ty: self.parse_type()?,
                     }),
                     &start,
                 ))
@@ -2815,10 +2809,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
-                Ok(self.node_from_joined_location(
-                    Type::Tuple(TupleType { entries: type_args }),
-                    &start,
-                ))
+                Ok(
+                    self.node_from_joined_location(
+                        Type::Tuple(TupleType { entries: args }),
+                        &start,
+                    ),
+                )
             }
         }
     }
