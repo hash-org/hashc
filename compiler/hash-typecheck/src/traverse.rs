@@ -1,5 +1,4 @@
 //! All rights reserved 2022 (c) The Hash Language authors
-use crate::storage::{GlobalStorage, SourceStorage};
 use crate::traits::{
     MatchTraitImplResult, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage,
     TraitStorage,
@@ -11,6 +10,10 @@ use crate::types::{
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
+use crate::{
+    error::ArgumentLengthMismatch,
+    storage::{GlobalStorage, SourceStorage},
+};
 
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
@@ -323,8 +326,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             (_, SymbolType::Variable(var_ty_id)) => {
                 if !node.type_args.is_empty() {
                     Err(TypecheckError::TypeArgumentLengthMismatch {
-                        expected: 0,
-                        got: node.type_args.len(),
+                        mismatch: ArgumentLengthMismatch::new(0, node.type_args.len()),
                         // It is not empty, as checked above.
                         location: self.some_source_location(node.type_args.location().unwrap()),
                     })
@@ -1483,12 +1485,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let location = self.source_location(node.location());
 
-        let variant_data_mismatches = |ident, ty_def_location| {
+        let variant_data_mismatches = |ident, ty_def_location, wanted, given| {
             Err(TypecheckError::EnumVariantArgumentsMismatch {
                 variant_name: ident,
                 location,
                 ty_def_name: ident,
                 ty_def_location,
+                mismatch: ArgumentLengthMismatch::new(wanted, given),
             })
         };
 
@@ -1501,7 +1504,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 // we don't need to do anything and can just exit early, otherwise we need to unify with
                 // the resultant arguments produced from the query...
                 match variant_type {
-                    TypeValue::Fn(FnType { args: expected, .. }) => {
+                    TypeValue::Fn(FnType {
+                        args: expected,
+                        ret,
+                    }) => {
                         // let received_ty =  TypeValue::Fn(FnType {
                         //     args,
                         //     ret: variant_id,
@@ -1509,23 +1515,30 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
                         if expected.len() != args.len() {
                             let ty_def = self.type_defs().get(ty_def_id);
-                            return variant_data_mismatches(ident, ty_def.location);
+                            return variant_data_mismatches(
+                                ident,
+                                ty_def.location,
+                                expected.len(),
+                                args.len(),
+                            );
                         }
 
                         self.unifier().unify_pairs(
                             expected.iter().zip(args.iter()),
                             UnifyStrategy::CheckOnly,
                         )?;
+
+                        Ok(*ret)
                     }
                     _ => {
                         if !args.is_empty() {
                             let ty_def = self.type_defs().get(ty_def_id);
-                            return variant_data_mismatches(ident, ty_def.location);
+                            return variant_data_mismatches(ident, ty_def.location, 0, args.len());
                         }
+
+                        Ok(variant_id)
                     }
                 }
-
-                Ok(variant_id)
             }
             _ => Err(TypecheckError::SymbolIsNotAEnum(Symbol::Compound {
                 path: node.name.path.to_owned(),
@@ -1724,7 +1737,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 let variant_id = self.query_type_of_enum_variant(ty_def_id, ident, location)?;
 
                 // This means that the variants mis-match...
-                if let TypeValue::Fn(FnType { .. }) = self.types().get(variant_id) {
+                if let TypeValue::Fn(FnType { args, .. }) = self.types().get(variant_id) {
                     let ty_def = self.type_defs().get(ty_def_id);
 
                     return Err(TypecheckError::EnumVariantArgumentsMismatch {
@@ -1732,6 +1745,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         location,
                         ty_def_name: ident,
                         ty_def_location: ty_def.location,
+                        mismatch: ArgumentLengthMismatch::new(0, args.len()),
                     });
                 };
 

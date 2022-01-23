@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 use hash_reporting::reporting::{
-    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };
 use hash_source::location::SourceLocation;
 use std::{
@@ -31,7 +31,10 @@ impl ImportError {
         if let Some(src) = self.src {
             builder
                 .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
-                .add_element(ReportElement::Note(ReportNote::new("note", &self.message)));
+                .add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Note,
+                    &self.message,
+                )));
         } else {
             builder.with_message(format!("Failed to import: {}", self.message));
         }

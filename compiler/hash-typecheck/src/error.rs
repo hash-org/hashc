@@ -4,7 +4,7 @@ use crate::{storage::GlobalStorage, writer::TypeWithStorage};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::reporting::{
-    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };
 use hash_source::location::SourceLocation;
 
@@ -32,6 +32,43 @@ impl Symbol {
     pub fn location(&self) -> Option<SourceLocation> {
         match self {
             Symbol::Compound { location, .. } | Symbol::Single { location, .. } => *location,
+        }
+    }
+}
+
+/// This is a generic representation of a class of errors that inform the user that
+/// some construct required an exact amount of arguments but however found a different
+/// amount of arguments. This is used by many variants in the [TypecheckError] enum and
+/// it implements a collection of useful methods for creating report notes/suggestions.
+#[derive(Debug)]
+pub struct ArgumentLengthMismatch {
+    wanted: usize,
+    given: usize,
+}
+
+impl ArgumentLengthMismatch {
+    /// Create a new [ArgumentLengthMismatch]
+    pub fn new(wanted: usize, given: usize) -> Self {
+        ArgumentLengthMismatch { wanted, given }
+    }
+
+    /// Convert the arguments mismatch into a printable reporting note that essentially
+    /// suggests if an argument should be added or removed.
+    pub fn to_note(&self) -> String {
+        let Self { wanted, given } = self;
+
+        if wanted > given {
+            let diff = wanted - given;
+
+            format!("consider adding {} argument(s).", diff)
+        } else {
+            let diff = given - wanted;
+
+            if diff == 1 {
+                "consider removing the last argument.".to_string() // @@Reporting: suggestions!
+            } else {
+                format!("consider removing the last {} arguments.", diff)
+            }
         }
     }
 }
@@ -82,22 +119,21 @@ pub enum TypecheckError {
         location: SourceLocation,
         ty_def_name: Identifier,
         ty_def_location: Option<SourceLocation>,
+        mismatch: ArgumentLengthMismatch,
     },
     BoundRequiresStrictlyTypeVars(SourceLocation),
     ExpectingBindingForTraitImpl(SourceLocation),
     TraitDefinitionNotFound(Symbol),
     TypeAnnotationNotAllowedInTraitImpl(SourceLocation),
     TypeArgumentLengthMismatch {
-        expected: usize,
-        got: usize,
+        mismatch: ArgumentLengthMismatch,
         location: Option<SourceLocation>,
     }, // @@TODO: length definition location
     NoMatchingTraitImplementations(Symbol),
     FunctionArgumentLengthMismatch {
         target: TypeId,
         source: TypeId,
-        expected: usize,
-        received: usize,
+        mismatch: ArgumentLengthMismatch,
     },
 }
 
@@ -150,7 +186,7 @@ impl TypecheckError {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         "You can't use a `break` clause outside of a loop.",
                     )));
             }
@@ -160,7 +196,7 @@ impl TypecheckError {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         "You can't use a `continue` clause outside of a loop.",
                     )));
             }
@@ -170,7 +206,7 @@ impl TypecheckError {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         "You can't use a `return` clause outside of a function body.",
                     )));
             }
@@ -180,7 +216,7 @@ impl TypecheckError {
                 builder
                 .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "This pattern isn't refutable")))
                 .add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     "Destructuring statements in `let` or `for` statements must use an irrefutable pattern.",
                 )));
             }
@@ -219,7 +255,7 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     "You cannot namespace a symbol that's a type.",
                 )));
             }
@@ -236,7 +272,7 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     format!("`{}` is a variable. You cannot namespace a variable defined in the current scope.", symbol_name),
                 )));
             }
@@ -253,7 +289,7 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     format!("`{}` is not a type. You cannot use a trait or variable in the place of a type.", symbol_name),
                 )));
             }
@@ -270,7 +306,7 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     format!("`{}` is not a type. You cannot use a trait or variable in the place of a type.", symbol_name),
                 )));
             }
@@ -287,7 +323,7 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     format!("`{}` is not a variable. You cannot use a type or trait in the place of a variable.", symbol_name),
                 )));
             }
@@ -304,7 +340,7 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     format!("`{}` is not a trait. You cannot use a type or variable in the place of a trait.", symbol_name),
                 )));
             }
@@ -331,7 +367,7 @@ impl TypecheckError {
                         "Not a struct",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         format!("This type `{}` isn't a struct.", ty),
                     )));
             }
@@ -360,7 +396,7 @@ impl TypecheckError {
                         "Unknown field",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         format!(
                             "The field `{}` doesn't exist on struct `{}`.",
                             name, ty_name
@@ -372,6 +408,7 @@ impl TypecheckError {
                 ty_def_name,
                 variant_name,
                 location,
+                mismatch,
             } => {
                 builder
                     .with_error_code(HashErrorCode::UnresolvedStructField)
@@ -393,11 +430,15 @@ impl TypecheckError {
                         location, "here",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         format!(
                             "This variant `{}` has an invalid number of arguments.",
                             name
                         ),
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Help,
+                        mismatch.to_note(),
                     )));
             }
             TypecheckError::ExpectingBooleanInCondition { found, location } => {
@@ -411,7 +452,7 @@ impl TypecheckError {
                         "Expression should be of `boolean` type",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         format!("In `if` statements, the condition must be explicitly of `boolean` type, however the expression was found to be of `{}` type.", found_ty),
                     )));
             }
@@ -440,7 +481,7 @@ impl TypecheckError {
                         "Struct is missing field",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         format!("The struct `{}` is missing the field `{}`.", ty_name, name),
                     )));
             }
@@ -453,7 +494,7 @@ impl TypecheckError {
                         location, "here",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         "This type bound should only contain type variables",
                     )));
             }
@@ -482,7 +523,7 @@ impl TypecheckError {
                         "unknown field",
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
-                        "note",
+                        ReportNoteKind::Note,
                         format!("The field `{}` doesn't exist on type `{}`.", name, ty_name),
                     )));
             }
@@ -495,7 +536,7 @@ impl TypecheckError {
                 )));
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     "Only name bindings are allowed for let statements which are trait implementations.",
                 )));
             }
@@ -527,26 +568,26 @@ impl TypecheckError {
                 )));
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     "Type annotations are not allowed for let statements which are trait implementations.",
                 )));
             }
-            TypecheckError::TypeArgumentLengthMismatch {
-                expected,
-                got,
-                location,
-            } => {
-                builder.with_error_code(HashErrorCode::TypeArgumentLengthMismatch);
+            TypecheckError::TypeArgumentLengthMismatch { mismatch, location } => {
+                builder
+                    .with_message("Type arguments mismatch")
+                    .with_error_code(HashErrorCode::TypeArgumentLengthMismatch);
+
+                let ArgumentLengthMismatch { wanted, given } = mismatch;
 
                 if let Some(location) = location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("Expected {} type arguments here.", expected),
+                        format!("Expected {} type arguments here.", wanted),
                     )));
                 }
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
-                    format!("Expected {} type arguments, but got {}.", expected, got),
+                    ReportNoteKind::Note,
+                    format!("Expected {} type arguments, but got {}.", wanted, given),
                 )));
                 // @@Todo: it would be nice to have definition location here too.
             }
@@ -563,24 +604,24 @@ impl TypecheckError {
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
-                    "note",
+                    ReportNoteKind::Note,
                     format!("There are no implementations of the trait '{}' that satisfy this invocation.", trt_name),
                 )));
             }
             TypecheckError::FunctionArgumentLengthMismatch {
                 source,
                 target,
-                expected,
-                received,
+                mismatch,
             } => {
                 builder.with_error_code(HashErrorCode::FunctionArgumentLengthMismatch);
 
+                let ArgumentLengthMismatch { wanted, given } = mismatch;
                 let source_location = storage.types.get_location(source);
                 let target_location = storage.types.get_location(target);
 
                 builder.with_message(format!(
                     "Function argument mismatch, expected {} arguments, but got {}.",
-                    expected, received
+                    wanted, given,
                 ));
 
                 if let Some(location) = source_location {
@@ -597,29 +638,10 @@ impl TypecheckError {
                     )));
                 }
 
-                if expected > received {
-                    let diff = expected - received;
-
-                    builder.add_element(ReportElement::Note(ReportNote::new(
-                        "note",
-                        format!("consider adding {} argument(s).", diff),
-                    )));
-                } else {
-                    let diff = received - expected;
-
-                    if diff == 1 {
-                        // @@Reporting: suggestions!
-                        builder.add_element(ReportElement::Note(ReportNote::new(
-                            "note",
-                            "consider removing the last argument.".to_string(),
-                        )));
-                    } else {
-                        builder.add_element(ReportElement::Note(ReportNote::new(
-                            "note",
-                            format!("consider removing the last {} arguments.", diff),
-                        )));
-                    }
-                }
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Help,
+                    mismatch.to_note(),
+                )));
             }
         }
 
