@@ -1241,10 +1241,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
     fn visit_assign_statement(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::AssignStatement<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
     ) -> Result<Self::AssignStatementRet, Self::Error> {
-        todo!()
+        let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
+
+        // @@Correctness: we should use the location of the definition instead of the most
+        //                recent assignment.
+
+        // Ensure the the expression on the right hand side matches the type
+        // that was found found for the left hand side
+        self.unifier().unify(rhs, lhs, UnifyStrategy::CheckOnly)?;
+        Ok(())
     }
 
     type StructDefEntryRet = (Identifier, TypeId);
