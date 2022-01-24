@@ -95,7 +95,10 @@ impl ArgumentLengthMismatch {
 
 #[derive(Debug)]
 pub enum TypecheckError {
-    TypeMismatch(TypeId, TypeId),
+    TypeMismatch {
+        given: TypeId,
+        wanted: TypeId,
+    },
     UsingBreakOutsideLoop(SourceLocation),
     UsingContinueOutsideLoop(SourceLocation),
     UsingReturnOutsideFunction(SourceLocation),
@@ -155,6 +158,7 @@ pub enum TypecheckError {
         source: TypeId,
         mismatch: ArgumentLengthMismatch,
     },
+    UnresolvedType(TypeId),
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
@@ -169,7 +173,7 @@ impl TypecheckError {
             .with_message("Failed to typecheck");
 
         match self {
-            TypecheckError::TypeMismatch(given, wanted) => {
+            TypecheckError::TypeMismatch { given, wanted } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch);
 
                 let given_ty = TypeWithStorage::new(given, storage);
@@ -648,20 +652,40 @@ impl TypecheckError {
                 if let Some(location) = source_location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         *location,
-                        "Function definition here".to_string(),
+                        "Function definition here",
                     )));
                 }
 
                 if let Some(location) = target_location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         *location,
-                        "Arguments mismatch".to_string(),
+                        "Arguments mismatch",
                     )));
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Help,
                     mismatch.as_suggestion(),
+                )));
+            }
+            TypecheckError::UnresolvedType(ty) => {
+                builder.with_error_code(HashErrorCode::UnresolvedType);
+                let source_location = storage.types.get_location(ty);
+
+                builder.with_message(
+                    "Cannot resolve this type.", // @@Todo: get smart about whether this is a pattern, expression, etc.
+                );
+
+                if let Some(location) = source_location {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        *location,
+                        "Cannot infer the type of this",
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Help,
+                    "Try adding more type annotations.",
                 )));
             }
         }

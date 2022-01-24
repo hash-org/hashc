@@ -31,6 +31,7 @@ use hash_ast::ident::Identifier;
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
 use hash_pipeline::sources::{SourceRef, Sources};
+use hash_source::location;
 use hash_source::{
     location::{Location, SourceLocation},
     SourceId,
@@ -1161,19 +1162,19 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 )),
             }
         } else {
-            let walk::LetStatement {
-                pattern: pattern_ty,
-                ty: annot_maybe_ty,
-                bound: _,
-                value: value_maybe_ty,
-            } = walk::walk_let_statement(self, ctx, node)?;
-            // if pattern_result.is_refutable {
-            //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
-            // }
-
             // @@Todo: bounds
-            let annotation_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
-            let value_ty = value_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
+            let annotation_ty = node
+                .ty
+                .as_ref()
+                .map(|t| self.visit_type(ctx, t.ast_ref()))
+                .transpose()?
+                .unwrap_or_else(|| self.create_unknown_type());
+            let value_ty = node
+                .value
+                .as_ref()
+                .map(|t| self.visit_expression(ctx, t.ast_ref()))
+                .transpose()?
+                .unwrap_or_else(|| self.create_unknown_type());
 
             // add type location information on  pattern_ty and annotation_ty
             if let Some(annotation) = &node.body().ty {
@@ -1181,13 +1182,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.add_location_to_ty(annotation_ty, location);
             }
 
+            self.unifier()
+                .unify(annotation_ty, value_ty, UnifyStrategy::ModifyBoth)?;
+
+            self.tc_state().pattern_hint = Some(value_ty);
+            let pattern_ty = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+            self.tc_state().pattern_hint = None;
+
             let pattern_location = self.source_location(node.body().pattern.location());
             self.add_location_to_ty(pattern_ty, pattern_location);
 
-            self.unifier().unify_many(
-                [annotation_ty, value_ty, pattern_ty].into_iter(),
-                UnifyStrategy::ModifyBoth,
-            )?;
+            self.unifier()
+                .unify(value_ty, pattern_ty, UnifyStrategy::ModifyBoth)?;
 
             Ok(())
         }
@@ -1613,10 +1619,57 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type NamespacePatternRet = TypeId;
     fn visit_namespace_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
-        todo!()
+        let walk::NamespacePattern { patterns } = walk::walk_namespace_pattern(self, ctx, node)?;
+        let location = self.source_location(node.location());
+
+        let pattern_ty = self.create_unknown_type();
+        self.add_location_to_ty(pattern_ty, location);
+
+        let subject_ty = self
+            .tc_state()
+            .pattern_hint
+            .unwrap_or_else(|| self.create_unknown_type());
+        self.unifier()
+            .unify(pattern_ty, subject_ty, UnifyStrategy::ModifyTarget);
+
+        match self.types().get(pattern_ty) {
+            TypeValue::Namespace(NamespaceType { members }) => {
+                let symbols: Vec<_> = patterns
+                    .iter()
+                    .map(
+                        |&(ident, ty, location)| match members.resolve_symbol(ident) {
+                            Some(symbol) => Ok((ident, symbol)),
+                            None => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                                symbol: ident,
+                                location: Some(location),
+                            })),
+                        },
+                    )
+                    .collect::<Result<_, _>>()?;
+
+                for (ident, symbol) in symbols {
+                    self.scopes().add_symbol(ident, symbol);
+                }
+
+                Ok(pattern_ty)
+            }
+            TypeValue::Unknown(_) => Err(TypecheckError::UnresolvedType(pattern_ty)),
+            _ => {
+                let dummy_namespace_ty = self.create_type(
+                    TypeValue::Namespace(NamespaceType {
+                        members: ScopeStack::empty(),
+                    }),
+                    Some(location),
+                );
+                Err(TypecheckError::TypeMismatch {
+                    given: subject_ty,
+                    wanted: dummy_namespace_ty,
+                })
+            }
+        }
     }
 
     type TuplePatternRet = TypeId;
@@ -1767,7 +1820,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_unknown_type())
     }
 
-    type DestructuringPatternRet = (Identifier, TypeId);
+    type DestructuringPatternRet = (Identifier, TypeId, SourceLocation);
     fn visit_destructuring_pattern(
         &mut self,
         ctx: &Self::Ctx,
@@ -1775,12 +1828,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
         let walk::DestructuringPattern { name: _, pattern } =
             walk::walk_destructuring_pattern(self, ctx, node)?;
-
         let ident = node.name.ident;
-        self.scopes()
-            .add_symbol(ident, SymbolType::Variable(pattern));
 
-        Ok((ident, pattern))
+        Ok((ident, pattern, self.source_location(node.name.location())))
     }
 
     type ModuleRet = TypeId;
@@ -1883,23 +1933,27 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         // let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
 
         // Unify args
-        for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
+        for &(entry_name, entry_ty, location) in entries.iter() {
             match fields.get_field(entry_name) {
                 Some(field_ty) => {
                     self.unifier()
                         .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
                 }
                 None => {
-                    let entry = node.entries.get(index).unwrap();
-
                     return Err(TypecheckError::UnresolvedStructField {
                         ty_def_location,
                         ty_def_name: *name,
                         field_name: entry_name,
-                        location: self.source_location(entry.location()),
+                        location,
                     });
                 }
             }
+        }
+
+        // Add all entries to scope
+        for (ident, type_id, _) in &entries {
+            self.scopes()
+                .add_symbol(*ident, SymbolType::Variable(*type_id));
         }
 
         Ok(ty_id)
