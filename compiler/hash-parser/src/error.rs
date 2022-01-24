@@ -8,7 +8,7 @@ use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::reporting::{
-    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote,
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };
 use hash_source::{
     location::{Location, SourceLocation},
@@ -277,7 +277,10 @@ impl ParseError {
             | ParseError::Token { message, src } => {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
-                    .add_element(ReportElement::Note(ReportNote::new("note", message)));
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        message,
+                    )));
             }
             // When we don't have a source for the error, just add a note
             ParseError::Parsing { message, src: None } => {
