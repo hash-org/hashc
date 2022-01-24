@@ -274,7 +274,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstNode<'c, Pattern<'c>> {
         self.node(Pattern::Enum(EnumPattern {
             name: self.make_access_name_from_str(symbol, location),
-            args: AstNodes::empty(),
+            fields: AstNodes::empty(),
         }))
     }
 
@@ -1155,7 +1155,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                         "Some",
                                         self.current_location()
                                     ),
-                                args: ast_nodes![&self.wall; pattern],
+                                fields: ast_nodes![&self.wall; pattern],
                             },
                         ), &pattern_location
                     ),
@@ -1170,7 +1170,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                         "None",
                                         self.current_location()
                                     ),
-                                args: AstNodes::empty(),
+                                fields: AstNodes::empty(),
                             },
                         ),
                     ),
@@ -1224,14 +1224,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("true", body_location),
-                                args: AstNodes::empty(),
+                                fields: AstNodes::empty(),
                             })),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("false", body_location),
-                                args: AstNodes::empty(),
+                                fields: AstNodes::empty(),
                             })),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
@@ -1629,7 +1629,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                         Pattern::Struct(StructPattern {
                             name,
-                            entries: self.parse_destructuring_patterns(tree, *span)?,
+                            fields: self.parse_destructuring_patterns(tree, *span)?,
                         })
                     }
                     // enum_pattern
@@ -1642,7 +1642,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                         Pattern::Enum(EnumPattern {
                             name,
-                            args: self.parse_pattern_collection(tree, *span)?,
+                            fields: self.parse_pattern_collection(tree, *span)?,
                         })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
@@ -1678,7 +1678,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     if token.has_kind(TokenKind::Comma) {
                         return Ok(self.node_from_location(
                             Pattern::Tuple(TuplePattern {
-                                elements: AstNodes::empty(),
+                                fields: AstNodes::empty(),
                             }),
                             span,
                         ));
@@ -1694,7 +1694,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     let element = elements.nodes.pop().unwrap();
                     return Ok(element);
                 } else {
-                    Pattern::Tuple(TuplePattern { elements })
+                    Pattern::Tuple(TuplePattern { fields: elements })
                 }
             }
             Token {
@@ -1705,7 +1705,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_destructuring_patterns(tree, *span)?,
+                    fields: self.parse_destructuring_patterns(tree, *span)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.

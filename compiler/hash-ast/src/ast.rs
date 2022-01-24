@@ -443,7 +443,7 @@ pub struct EnumPattern<'c> {
     /// The name of the enum variant.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
-    pub args: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, Pattern<'c>>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
@@ -463,21 +463,21 @@ pub struct StructPattern<'c> {
     /// The name of the struct.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The entries of the struct, as [DestructuringPattern] entries.
-    pub entries: AstNodes<'c, DestructuringPattern<'c>>,
+    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq)]
 pub struct NamespacePattern<'c> {
     /// The entries of the namespace, as [DestructuringPattern] entries.
-    pub patterns: AstNodes<'c, DestructuringPattern<'c>>,
+    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
 /// A tuple pattern, e.g. `(1, 2, x)`
 #[derive(Debug, PartialEq)]
 pub struct TuplePattern<'c> {
     /// The element of the tuple, as patterns.
-    pub elements: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, Pattern<'c>>,
 }
 
 /// A string literal pattern.
