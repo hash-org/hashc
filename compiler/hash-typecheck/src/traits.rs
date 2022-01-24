@@ -1,6 +1,6 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::{
-    error::{Symbol, TypecheckError, TypecheckResult},
+    error::{ArgumentLengthMismatch, Symbol, TypecheckError, TypecheckResult},
     storage::{GlobalStorage, SourceStorage},
     types::{TypeId, TypeList, TypeStorage},
     unify::{Substitution, Unifier, UnifyStrategy},
@@ -215,8 +215,7 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
         if trait_args.len() != trt.args.len() {
             return Err(TypecheckError::TypeArgumentLengthMismatch {
                 location: args_location.or_else(|| trt_symbol().location()),
-                expected: trt.args.len(),
-                got: trait_args.len(),
+                mismatch: ArgumentLengthMismatch::new(trt.args.len(), trait_args.len()),
             });
         }
 

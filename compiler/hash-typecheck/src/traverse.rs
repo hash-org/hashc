@@ -1,5 +1,4 @@
 //! All rights reserved 2022 (c) The Hash Language authors
-use crate::storage::{GlobalStorage, SourceStorage};
 use crate::traits::{
     MatchTraitImplResult, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage,
     TraitStorage,
@@ -11,6 +10,10 @@ use crate::types::{
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
+use crate::{
+    error::ArgumentLengthMismatch,
+    storage::{GlobalStorage, SourceStorage},
+};
 
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
@@ -323,8 +326,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             (_, SymbolType::Variable(var_ty_id)) => {
                 if !node.type_args.is_empty() {
                     Err(TypecheckError::TypeArgumentLengthMismatch {
-                        expected: 0,
-                        got: node.type_args.len(),
+                        mismatch: ArgumentLengthMismatch::new(0, node.type_args.len()),
                         // It is not empty, as checked above.
                         location: self.some_source_location(node.type_args.location().unwrap()),
                     })
@@ -335,50 +337,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             (_, SymbolType::Trait(var_trait_id)) => {
                 self.visit_trait_variable(ctx, var_trait_id, node, None)
             }
-            (ident, SymbolType::EnumVariant(ty_def_id)) => {
-                let ty_def = self.type_defs().get(ty_def_id);
-
-                match &ty_def.kind {
-                    TypeDefValueKind::Enum(EnumDef {
-                        variants, generics, ..
-                    }) => {
-                        // here we need to find the variant in variants by the node name
-                        let variant = variants.get_variant(ident).unwrap();
-                        let sub = self.unifier().instantiate_vars_list(&generics.params)?;
-
-                        let enum_ty_args = self
-                            .unifier()
-                            .apply_sub_to_list_make_row(&sub, &generics.params)?;
-
-                        let enum_ty_id = self.types_mut().create(
-                            TypeValue::User(UserType {
-                                def_id: ty_def_id,
-                                args: enum_ty_args,
-                            }),
-                            Some(loc),
-                        );
-
-                        if variant.data.is_empty() {
-                            return Ok(enum_ty_id);
-                        };
-
-                        let args = self
-                            .unifier()
-                            .apply_sub_to_list_make_row(&sub, &variant.data)?;
-
-                        let enum_variant_fn_ty = self.types_mut().create(
-                            TypeValue::Fn(FnType {
-                                args,
-                                return_ty: enum_ty_id,
-                            }),
-                            Some(loc),
-                        );
-
-                        Ok(enum_variant_fn_ty)
-                    }
-                    TypeDefValueKind::Struct(_) => unreachable!(),
-                }
-            }
+            (ident, SymbolType::EnumVariant(ty_def_id)) => self
+                .query_type_of_enum_variant(ty_def_id, ident, loc)
+                .map(|(id, _)| id),
             _ => Err(TypecheckError::SymbolIsNotAVariable(Symbol::Compound {
                 path: node.name.path.to_owned(),
                 location: Some(loc),
@@ -858,9 +819,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 let type_def = self.type_defs().get(def_id);
                 let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
                 match &type_def.kind {
-                    TypeDefValueKind::Struct(struct_def) => {
-                        self.typecheck_known_struct_literal(ctx, node, def_id, ty_id, struct_def)
-                    }
+                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_literal(
+                        ctx,
+                        node,
+                        ty_id,
+                        struct_def,
+                        type_def.location,
+                    ),
                     _ => Err(TypecheckError::TypeIsNotStruct {
                         ty: ty_id,
                         location,
@@ -877,7 +842,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         match &type_def.kind {
                             TypeDefValueKind::Struct(struct_def) => self
                                 .typecheck_known_struct_literal(
-                                    ctx, node, *def_id, ty_id, struct_def,
+                                    ctx,
+                                    node,
+                                    ty_id,
+                                    struct_def,
+                                    type_def.location,
                                 ),
                             _ => Err(TypecheckError::TypeIsNotStruct {
                                 ty: ty_id,
@@ -1000,22 +969,41 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         walk::walk_block_same_children(self, ctx, node)
     }
 
-    type MatchCaseRet = TypeId;
+    type MatchCaseRet = (TypeId, TypeId);
     fn visit_match_case(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MatchCase<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MatchCase<'c>>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        todo!()
+        let walk::MatchCase { pattern, expr } = walk::walk_match_case(self, ctx, node)?;
+
+        // we need to return both the type of the pattern and the type of the
+        // expression so that we can verify everything matches...
+        Ok((pattern, expr))
     }
 
     type MatchBlockRet = TypeId;
     fn visit_match_block(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MatchBlock<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MatchBlock<'c>>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
-        todo!()
+        let walk::MatchBlock { subject, cases } = walk::walk_match_block(self, ctx, node)?;
+
+        // we need to verify that for every case pattern, the type of the subject matches
+        // the case...
+        for (pat, _) in cases.iter() {
+            self.unifier()
+                .unify(subject, *pat, UnifyStrategy::CheckOnly)?;
+        }
+
+        // we need to verify that all of case branches also return the same type and then finally unify
+        // and set the return type of the block as the return ty...
+        let general_ty = self
+            .unifier()
+            .unify_many(cases.iter().map(|case| case.1), UnifyStrategy::ModifyBoth)?;
+
+        Ok(general_ty)
     }
 
     type LoopBlockRet = TypeId;
@@ -1209,10 +1197,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
     fn visit_assign_statement(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::AssignStatement<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
     ) -> Result<Self::AssignStatementRet, Self::Error> {
-        todo!()
+        let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
+
+        // @@Correctness: we should use the location of the definition instead of the most
+        //                recent assignment.
+
+        // Ensure the the expression on the right hand side matches the type
+        // that was found found for the left hand side
+        self.unifier().unify(rhs, lhs, UnifyStrategy::CheckOnly)?;
+        Ok(())
     }
 
     type StructDefEntryRet = (Identifier, TypeId);
@@ -1307,16 +1303,19 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(())
     }
 
-    type EnumDefEntryRet = (Identifier, EnumVariant<'c>);
+    type EnumDefEntryRet = EnumVariant<'c>;
     fn visit_enum_def_entry(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { args: data, .. } = walk::walk_enum_def_entry(self, ctx, node)?;
-        let name = node.name.ident;
 
-        Ok((name, EnumVariant { name, data }))
+        Ok(EnumVariant {
+            name: node.name.ident,
+            data,
+            location: self.source_location(node.name.location()),
+        })
     }
 
     type EnumDefRet = ();
@@ -1477,19 +1476,138 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type EnumPatternRet = TypeId;
     fn visit_enum_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::EnumPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
     ) -> Result<Self::EnumPatternRet, Self::Error> {
-        todo!()
+        let walk::EnumPattern { name: _, args } = walk::walk_enum_pattern(self, ctx, node)?;
+
+        let location = self.source_location(node.location());
+
+        let variant_data_mismatches = |ident, ty_def_location, wanted, given| {
+            Err(TypecheckError::EnumVariantArgumentsMismatch {
+                variant_name: ident,
+                location,
+                ty_def_name: ident,
+                ty_def_location,
+                mismatch: ArgumentLengthMismatch::new(wanted, given),
+            })
+        };
+
+        match self.resolve_compound_symbol(&node.name.path, location)? {
+            (ident, SymbolType::EnumVariant(ty_def_id)) => {
+                let (variant_id, variant_location) =
+                    self.query_type_of_enum_variant(ty_def_id, ident, location)?;
+                let variant_type = self.types().get(variant_id);
+
+                // if the variant itself has no arguments and the definition expects no arguments...
+                // we don't need to do anything and can just exit early, otherwise we need to unify with
+                // the resultant arguments produced from the query...
+                match variant_type {
+                    TypeValue::Fn(FnType {
+                        args: expected,
+                        return_ty,
+                    }) => {
+                        self.unifier().unify_pairs(
+                            args.iter().zip(expected.iter()),
+                            UnifyStrategy::CheckOnly,
+                        )?;
+
+                        if expected.len() != args.len() {
+                            return variant_data_mismatches(
+                                ident,
+                                Some(variant_location),
+                                expected.len(),
+                                args.len(),
+                            );
+                        }
+
+                        Ok(*return_ty)
+                    }
+                    _ => {
+                        if !args.is_empty() {
+                            return variant_data_mismatches(
+                                ident,
+                                Some(variant_location),
+                                0,
+                                args.len(),
+                            );
+                        }
+
+                        Ok(variant_id)
+                    }
+                }
+            }
+            _ => Err(TypecheckError::SymbolIsNotAEnum(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(location),
+            })),
+        }
     }
 
     type StructPatternRet = TypeId;
     fn visit_struct_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::StructPattern<'c>>,
     ) -> Result<Self::StructPatternRet, Self::Error> {
-        todo!()
+        let location = self.source_location(node.location());
+        let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
+
+        match symbol_res {
+            (_, SymbolType::TypeDef(def_id)) => {
+                let type_def = self.type_defs().get(def_id);
+                let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
+
+                match &type_def.kind {
+                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_pattern(
+                        ctx,
+                        node,
+                        ty_id,
+                        struct_def,
+                        type_def.location,
+                    ),
+                    _ => Err(TypecheckError::TypeIsNotStruct {
+                        ty: ty_id,
+                        location,
+                        ty_def_location: type_def.location,
+                    }),
+                }
+            }
+            (_, SymbolType::Type(ty_id)) => {
+                let ty = self.types().get(ty_id);
+
+                match ty {
+                    TypeValue::User(UserType { def_id, .. }) => {
+                        let type_def = self.type_defs().get(*def_id);
+
+                        match &type_def.kind {
+                            TypeDefValueKind::Struct(struct_def) => self
+                                .typecheck_known_struct_pattern(
+                                    ctx,
+                                    node,
+                                    ty_id,
+                                    struct_def,
+                                    type_def.location,
+                                ),
+                            _ => Err(TypecheckError::TypeIsNotStruct {
+                                ty: ty_id,
+                                location,
+                                ty_def_location: type_def.location,
+                            }),
+                        }
+                    }
+                    _ => Err(TypecheckError::TypeIsNotStruct {
+                        ty: ty_id,
+                        location,
+                        ty_def_location: None,
+                    }),
+                }
+            }
+            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
+                path: node.name.path.to_owned(),
+                location: Some(location),
+            })),
+        }
     }
 
     type NamespacePatternRet = TypeId;
@@ -1504,10 +1622,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type TuplePatternRet = TypeId;
     fn visit_tuple_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TuplePattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TuplePattern<'c>>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
-        todo!()
+        let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
+
+        Ok(self.create_tuple_type(elements))
     }
 
     type StrLiteralPatternRet = TypeId;
@@ -1565,10 +1685,21 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     type OrPatternRet = TypeId;
     fn visit_or_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::OrPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::OrPattern<'c>>,
     ) -> Result<Self::OrPatternRet, Self::Error> {
-        todo!()
+        let entries = node
+            .variants
+            .iter()
+            .map(|el| self.visit_pattern(ctx, el.ast_ref()))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // The type should unify to a single type as the or patterns follow the rule that they don't have differing types...
+        let general_ty = self
+            .unifier()
+            .unify_many(entries.iter().copied(), UnifyStrategy::ModifyBoth)?;
+
+        Ok(general_ty)
     }
 
     type IfPatternRet = TypeId;
@@ -1578,6 +1709,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::IfPattern<'c>>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
         let walk::IfPattern { pattern, condition } = walk::walk_if_pattern(self, ctx, node)?;
+
         match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
             _ => Err(TypecheckError::ExpectingBooleanInCondition {
@@ -1593,10 +1725,37 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let variable_ty = self.create_unknown_type();
-        self.scopes()
-            .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
-        Ok(variable_ty)
+        let location = self.source_location(node.location());
+
+        // we need to resolve the symbol in the current scope and firstly check if it's
+        // an enum...
+        match self.resolve_compound_symbol(&[node.0.ident], location) {
+            Ok((ident, SymbolType::EnumVariant(ty_def_id))) => {
+                let (variant_id, variant_location) =
+                    self.query_type_of_enum_variant(ty_def_id, ident, location)?;
+
+                // This means that the variants mis-match...
+                if let TypeValue::Fn(FnType { args, .. }) = self.types().get(variant_id) {
+                    return Err(TypecheckError::EnumVariantArgumentsMismatch {
+                        variant_name: ident,
+                        location,
+                        ty_def_name: ident,
+                        ty_def_location: Some(variant_location),
+                        mismatch: ArgumentLengthMismatch::new(0, args.len()),
+                    });
+                };
+
+                Ok(variant_id)
+            }
+            _ => {
+                let variable_ty = self.create_unknown_type();
+
+                // @@Correctness, should we add the node into scope if the variable ident is equal to '_' ignore?
+                self.scopes()
+                    .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
+                Ok(variable_ty)
+            }
+        }
     }
 
     type IgnorePatternRet = TypeId;
@@ -1608,13 +1767,20 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_unknown_type())
     }
 
-    type DestructuringPatternRet = TypeId;
+    type DestructuringPatternRet = (Identifier, TypeId);
     fn visit_destructuring_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
-        todo!()
+        let walk::DestructuringPattern { name: _, pattern } =
+            walk::walk_destructuring_pattern(self, ctx, node)?;
+
+        let ident = node.name.ident;
+        self.scopes()
+            .add_symbol(ident, SymbolType::Variable(pattern));
+
+        Ok((ident, pattern))
     }
 
     type ModuleRet = TypeId;
@@ -1638,13 +1804,13 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &mut self,
         ctx: &<Self as AstVisitor<'c>>::Ctx,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-        def_id: TypeDefId,
         ty_id: TypeId,
         StructDef {
             name,
             fields,
             generics: _,
         }: &StructDef,
+        ty_def_location: Option<SourceLocation>,
     ) -> TypecheckResult<TypeId> {
         let walk::StructLiteral {
             name: _,
@@ -1658,21 +1824,17 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         // @@Reporting: we could report multiple missing fields here...
         for (expected, _) in fields.iter() {
             if !entries_given.contains(&expected) {
-                let ty_def = self.type_defs().get(def_id);
-
                 let name_node = &node.body().name;
                 let location = self.source_location(name_node.location());
 
                 return Err(TypecheckError::MissingStructField {
-                    ty_def_location: ty_def.location,
+                    ty_def_location,
                     ty_def_name: *name,
                     field_name: expected,
                     location,
                 });
             }
         }
-
-        let ty_def = self.type_defs().get(def_id);
 
         // Unify args
         for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
@@ -1685,7 +1847,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     let entry = node.entries.get(index).unwrap();
 
                     return Err(TypecheckError::UnresolvedStructField {
-                        ty_def_location: ty_def.location,
+                        ty_def_location,
                         ty_def_name: *name,
                         field_name: entry_name,
                         location: self.source_location(entry.location()),
@@ -1695,6 +1857,102 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         }
 
         Ok(ty_id)
+    }
+
+    fn typecheck_known_struct_pattern(
+        &mut self,
+        ctx: &<Self as AstVisitor<'c>>::Ctx,
+        node: ast::AstNodeRef<ast::StructPattern<'c>>,
+        ty_id: TypeId,
+        StructDef {
+            name,
+            fields,
+            generics: _,
+        }: &StructDef,
+        ty_def_location: Option<SourceLocation>,
+    ) -> TypecheckResult<TypeId> {
+        let walk::StructPattern { name: _, entries } = walk::walk_struct_pattern(self, ctx, node)?;
+
+        // @@Cleanup: until we don't introduce a some kind of ignore spread operator
+        //            that can be used for structs, we essentially implicitly treat as fields
+        //            that aren't specified in the pattern as being ignored.
+        //
+        //            This can be done by de-sugaring the ast into assigning all missing fields of a
+        //            a struct assigned to an ignore pattern. This current implementation doesn't do
+        //            that at the moment.
+        // let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+
+        // Unify args
+        for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
+            match fields.get_field(entry_name) {
+                Some(field_ty) => {
+                    self.unifier()
+                        .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
+                }
+                None => {
+                    let entry = node.entries.get(index).unwrap();
+
+                    return Err(TypecheckError::UnresolvedStructField {
+                        ty_def_location,
+                        ty_def_name: *name,
+                        field_name: entry_name,
+                        location: self.source_location(entry.location()),
+                    });
+                }
+            }
+        }
+
+        Ok(ty_id)
+    }
+
+    fn query_type_of_enum_variant(
+        &mut self,
+        ty_def_id: TypeDefId,
+        ident: Identifier,
+        location: SourceLocation,
+    ) -> TypecheckResult<(TypeId, SourceLocation)> {
+        let ty_def = self.type_defs().get(ty_def_id);
+
+        match &ty_def.kind {
+            TypeDefValueKind::Enum(EnumDef {
+                variants, generics, ..
+            }) => {
+                // here we need to find the variant in variants by the node name
+                let variant = variants.get_variant(ident).unwrap();
+                let sub = self.unifier().instantiate_vars_list(&generics.params)?;
+
+                let enum_ty_args = self
+                    .unifier()
+                    .apply_sub_to_list_make_row(&sub, &generics.params)?;
+
+                let enum_ty_id = self.types_mut().create(
+                    TypeValue::User(UserType {
+                        def_id: ty_def_id,
+                        args: enum_ty_args,
+                    }),
+                    Some(location),
+                );
+
+                if variant.data.is_empty() {
+                    return Ok((enum_ty_id, variant.location));
+                };
+
+                let args = self
+                    .unifier()
+                    .apply_sub_to_list_make_row(&sub, &variant.data)?;
+
+                let enum_variant_fn_ty = self.types_mut().create(
+                    TypeValue::Fn(FnType {
+                        args,
+                        return_ty: enum_ty_id,
+                    }),
+                    Some(location),
+                );
+
+                Ok((enum_variant_fn_ty, variant.location))
+            }
+            TypeDefValueKind::Struct(_) => unreachable!(),
+        }
     }
 
     /// Returns a substitution for the type arguments as well.

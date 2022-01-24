@@ -32,6 +32,7 @@ impl Generics<'_> {
 pub struct EnumVariant<'c> {
     pub name: Identifier,
     pub data: Row<'c, TypeId>,
+    pub location: SourceLocation,
 }
 
 #[derive(Debug, Default)]
@@ -53,10 +54,10 @@ impl<'c> EnumVariants<'c> {
     }
 }
 
-impl<'c> FromIterator<(Identifier, EnumVariant<'c>)> for EnumVariants<'c> {
-    fn from_iter<T: IntoIterator<Item = (Identifier, EnumVariant<'c>)>>(iter: T) -> Self {
+impl<'c> FromIterator<EnumVariant<'c>> for EnumVariants<'c> {
+    fn from_iter<T: IntoIterator<Item = EnumVariant<'c>>>(iter: T) -> Self {
         Self {
-            data: iter.into_iter().collect(),
+            data: iter.into_iter().map(|var| (var.name, var)).collect(),
         }
     }
 }

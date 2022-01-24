@@ -50,18 +50,32 @@ impl fmt::Display for ReportKind {
         )
     }
 }
+#[derive(Debug, Clone)]
+pub enum ReportNoteKind {
+    Help,
+    Note,
+}
+
+impl fmt::Display for ReportNoteKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ReportNoteKind::Note => write!(f, "note"),
+            ReportNoteKind::Help => write!(f, "{}", highlight(Colour::Cyan, "help")),
+        }
+    }
+}
 
 /// Data type representing a report note which consists of a label and the message.
 #[derive(Debug, Clone)]
 pub struct ReportNote {
-    pub label: String,
+    pub label: ReportNoteKind,
     pub message: String,
 }
 
 impl ReportNote {
-    pub fn new(label: impl ToString, message: impl ToString) -> Self {
+    pub fn new(label: ReportNoteKind, message: impl ToString) -> Self {
         Self {
-            label: label.to_string(),
+            label,
             message: message.to_string(),
         }
     }
