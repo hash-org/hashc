@@ -305,11 +305,17 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
             (Var(var_a), Var(var_b)) if var_a == var_b => Ok(()),
             (Var(var), _) => match self.module_storage.type_vars.potentially_resolve(*var) {
                 Some(var_res) => self.unify(var_res, source, strategy),
-                None => Err(TypecheckError::TypeMismatch(target, source)),
+                None => Err(TypecheckError::TypeMismatch {
+                    given: target,
+                    wanted: source,
+                }),
             },
             (_, Var(var)) => match self.module_storage.type_vars.potentially_resolve(*var) {
                 Some(var_res) => self.unify(target, var_res, strategy),
-                None => Err(TypecheckError::TypeMismatch(target, source)),
+                None => Err(TypecheckError::TypeMismatch {
+                    given: target,
+                    wanted: source,
+                }),
             },
             (User(user_target), User(user_source)) if user_target.def_id == user_source.def_id => {
                 // Make sure we got same number of type arguments
@@ -334,7 +340,10 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
             // {
             //     Ok(())
             // }
-            _ => Err(TypecheckError::TypeMismatch(target, source)),
+            _ => Err(TypecheckError::TypeMismatch {
+                given: target,
+                wanted: source,
+            }),
         }
     }
 }

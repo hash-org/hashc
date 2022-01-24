@@ -27,4 +27,5 @@ error_codes! {
     TypeArgumentLengthMismatch = 23,
     NoMatchingTraitImplementations = 24,
     FunctionArgumentLengthMismatch = 25,
+    UnresolvedType = 26,
 }
