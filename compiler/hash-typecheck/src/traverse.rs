@@ -1165,10 +1165,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             }
         } else {
             let walk::LetStatement {
-                pattern: pattern_ty,
-                ty: annot_maybe_ty,
+                pattern: _pattern_ty,
+                ty: _annot_maybe_ty,
                 bound: _,
-                value: value_maybe_ty,
+                value: _value_maybe_ty,
             } = walk::walk_let_statement(self, ctx, node)?;
 
             // Ensure that the given pattern for let statements is irrefutable
@@ -1648,14 +1648,14 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .pattern_hint
             .unwrap_or_else(|| self.create_unknown_type());
         self.unifier()
-            .unify(pattern_ty, subject_ty, UnifyStrategy::ModifyTarget);
+            .unify(pattern_ty, subject_ty, UnifyStrategy::ModifyTarget)?;
 
         match self.types().get(pattern_ty) {
             TypeValue::Namespace(NamespaceType { members }) => {
                 let symbols: Vec<_> = patterns
                     .iter()
                     .map(
-                        |&(ident, ty, location)| match members.resolve_symbol(ident) {
+                        |&(ident, _ty, location)| match members.resolve_symbol(ident) {
                             Some(symbol) => Ok((ident, symbol)),
                             None => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
                                 symbol: ident,
