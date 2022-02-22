@@ -28,4 +28,5 @@ error_codes! {
     NoMatchingTraitImplementations = 24,
     FunctionArgumentLengthMismatch = 25,
     UnresolvedType = 26,
+    DisallowedPatternNonVariable = 27,
 }

@@ -7,7 +7,7 @@ use crate::{
 };
 use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
-use hash_source::location::SourceLocation;
+use hash_source::{location::SourceLocation, ModuleId};
 use hash_utils::counter;
 use slotmap::{new_key_type, Key, SlotMap};
 use std::hash::Hash;
@@ -181,6 +181,7 @@ pub struct FnType<'c> {
 
 #[derive(Debug)]
 pub struct NamespaceType {
+    pub module_id: ModuleId,
     pub members: ScopeStack,
 }
 
@@ -261,6 +262,7 @@ impl<'c> TypeValue<'c> {
             TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
             TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
                 members: ns.members.clone(),
+                ..*ns
             }),
         })
     }
@@ -291,6 +293,7 @@ impl<'c> TypeValue<'c> {
             TypeValue::Unknown(unknown) => TypeValue::Unknown(*unknown),
             TypeValue::Namespace(ns) => TypeValue::Namespace(NamespaceType {
                 members: ns.members.clone(),
+                ..*ns
             }),
         }
     }
