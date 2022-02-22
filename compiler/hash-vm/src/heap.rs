@@ -4,8 +4,6 @@
 #![allow(dead_code)]
 use std::iter;
 
-// const HEAP_GC_MULTIPLIER: usize = 2;
-
 /// The Heap of the Hash Virtual Machine.
 #[derive(Debug)]
 pub struct Heap {
@@ -29,20 +27,6 @@ impl Heap {
     }
 
     pub fn free(&self, _ptr: Pointer) {
-        // it's freed now
+        todo!()
     }
-
-    // pub fn collect(&self) {
-    //     todo!()
-    // }
-
-    // pub fn should_collect(&self) -> bool {
-    //     self.values.len() >= self.max_bytes
-    // }
-
-    // /// Increase the maximum heap size by the specified constant multiplier [HEAP_GC_MULTIPLIER]
-    // /// which is by default set to 2.
-    // pub fn increase_max_heap_size(&mut self) {
-    //     self.max_bytes *= HEAP_GC_MULTIPLIER;
-    // }
 }

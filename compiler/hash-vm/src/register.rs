@@ -57,41 +57,45 @@ impl Default for RegisterSet {
 ///       
 ///
 impl RegisterSet {
-    /// Function to get a [Register] within the [RegisterSet]. The inner implementation
-    /// uses `unsafe` because a [Register] index cannot be larger than a [u8] and therefore
-    /// indexing the [RegisterSet] is always safe as there are always [`u8::MAX`]  number of
-    /// registers.
+    /// Function to get a [Register] within the [RegisterSet].
     pub fn get_register_8b(&self, register: Register) -> &[u8; 8] {
         &self.registers[register.0 as usize]
     }
 
+    /// Function to get a lower four bytes of a [Register] within the [RegisterSet].
     pub fn get_register_4b(&self, register: Register) -> &[u8; 4] {
         self.registers[register.0 as usize][4..].try_into().unwrap()
     }
 
+    /// Function to get a lower two bytes of a [Register] within the [RegisterSet].
     pub fn get_register_2b(&self, register: Register) -> &[u8; 2] {
         self.registers[register.0 as usize][6..].try_into().unwrap()
     }
 
+    /// Function to get a lower byte of a [Register] within the [RegisterSet].
     pub fn get_register_b(&self, register: Register) -> &[u8; 1] {
         self.registers[register.0 as usize][7..].try_into().unwrap()
     }
 
+    /// Function to set a [Register] within the [RegisterSet].
     pub fn set_register_8b(&mut self, register: Register, value: &[u8; 8]) {
         let reg = self.get_register_mut(register);
         reg.copy_from_slice(value);
     }
 
+    /// Function to set the lower four bytes of a [Register] within the [RegisterSet].
     pub fn set_register_4b(&mut self, register: Register, value: &[u8; 4]) {
         let reg = self.get_register_mut(register);
         reg[4..].copy_from_slice(value);
     }
 
+    /// Function to set the lower two bytes of a [Register] within the [RegisterSet].
     pub fn set_register_2b(&mut self, register: Register, value: &[u8; 2]) {
         let reg = self.get_register_mut(register);
         reg[6..].copy_from_slice(value);
     }
 
+    /// Function to set the lower byte of a [Register] within the [RegisterSet].
     pub fn set_register_b(&mut self, register: Register, value: &[u8; 1]) {
         let reg = self.get_register_mut(register);
         reg[7] = value[0];
@@ -99,7 +103,7 @@ impl RegisterSet {
 
     /// Function to get a mutable reference to a  [Register] within the [RegisterSet].
     fn get_register_mut(&mut self, register: Register) -> &mut [u8; 8] {
-        unsafe { self.registers.get_unchecked_mut(register.0 as usize) }
+        self.registers.get_mut(register.0 as usize).unwrap()
     }
 
     /// Set the bytes of a register.

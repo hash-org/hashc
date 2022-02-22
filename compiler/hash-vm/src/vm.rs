@@ -698,14 +698,13 @@ impl Interpreter {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);
 
-                // @@Correctness
-                let value = if r1 > r2 {
-                    unsafe { r1.unchecked_sub(r2) as i64 }
+                let value = if r1 >= r2 {
+                    (r1 - r2).to_be_bytes()
                 } else {
-                    unsafe { (r2.unchecked_sub(r1) as i64).wrapping_neg() }
+                    (-((r2 - r1) as i64)).to_be_bytes()
                 };
 
-                self.registers.set_register_8b(l1, &value.to_be_bytes());
+                self.registers.set_register_8b(l1, &value);
             }
             Instruction::Pop8 { l1 } => {
                 // Pop the top byte on top of the stack and put it into the register
