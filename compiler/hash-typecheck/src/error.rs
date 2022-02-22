@@ -113,10 +113,8 @@ pub enum TypecheckError {
         ty_def_location: Option<SourceLocation>,
     },
     UnresolvedStructField {
-        field_name: Identifier,
-        location: SourceLocation,
-        ty_def_name: Identifier, // @@Maybe make this a symbol?
-        ty_def_location: Option<SourceLocation>,
+        field: Symbol,
+        ty_def: Symbol,
     },
     InvalidPropertyAccess {
         field_name: Identifier,
@@ -390,37 +388,34 @@ impl TypecheckError {
                         format!("This type `{}` isn't a struct.", ty),
                     )));
             }
-            TypecheckError::UnresolvedStructField {
-                ty_def_location,
-                ty_def_name,
-                field_name,
-                location,
-            } => {
+            TypecheckError::UnresolvedStructField { ty_def, field } => {
                 builder.with_error_code(HashErrorCode::UnresolvedStructField);
 
-                let name = IDENTIFIER_MAP.get_ident(field_name);
-                let ty_name = IDENTIFIER_MAP.get_ident(ty_def_name);
+                let field_name = IDENTIFIER_MAP.get_path(field.get_ident().into_iter());
+                let ty_def_name = IDENTIFIER_MAP.get_path(ty_def.get_ident().into_iter());
 
                 // If we have the location of the definition, we can print it here
-                if let Some(ty_def_location) = ty_def_location {
+                if let Some(ty_def_location) = ty_def.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         ty_def_location,
-                        format!("The struct `{}` is defined here.", ty_name),
+                        format!("The struct `{}` is defined here.", ty_def_name),
                     )));
                 }
 
-                builder
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        "Unknown field",
-                    )))
-                    .add_element(ReportElement::Note(ReportNote::new(
-                        ReportNoteKind::Note,
-                        format!(
-                            "The field `{}` doesn't exist on struct `{}`.",
-                            name, ty_name
-                        ),
-                    )));
+                if let Some(field_location) = field.location() {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            field_location,
+                            "Unknown field",
+                        )))
+                        .add_element(ReportElement::Note(ReportNote::new(
+                            ReportNoteKind::Note,
+                            format!(
+                                "The field `{}` doesn't exist on struct `{}`.",
+                                field_name, ty_def_name
+                            ),
+                        )));
+                }
             }
             TypecheckError::EnumVariantArgumentsMismatch {
                 ty_def_location,
