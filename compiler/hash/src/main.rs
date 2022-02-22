@@ -7,7 +7,7 @@
 mod crash_handler;
 mod logger;
 
-use clap::{AppSettings, Parser as ClapParser};
+use clap::Parser as ClapParser;
 use hash_alloc::Castle;
 use hash_parser::parser::HashParser;
 use hash_pipeline::{fs::resolve_path, sources::Module, Compiler};
@@ -33,7 +33,7 @@ use crate::crash_handler::panic_handler;
     author = "Hash Language Authors",
     about = "Run and execute hash programs"
 )]
-#[clap(setting = AppSettings::DisableColoredHelp)]
+#[clap(disable_colored_help = true)]
 struct CompilerOptions {
     //  Include a directory into runtime. The current directory is included by default
     // #[clap(short, long, multiple_values = true)]
