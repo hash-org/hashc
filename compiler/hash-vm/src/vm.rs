@@ -771,7 +771,7 @@ impl VirtualMachine<'_> for Interpreter {
     type State = ();
 
     fn make_state(&mut self) -> hash_pipeline::CompilerResult<Self::State> {
-        todo!()
+        Ok(())
     }
 
     fn run(&mut self, _state: &mut Self::State) -> hash_pipeline::CompilerResult<()> {
