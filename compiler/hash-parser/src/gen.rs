@@ -2000,6 +2000,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
+        // If this is an import, we need to return here...
+        if let ExpressionKind::Import(_) = &subject.kind() {
+            return Ok(subject);
+        }
+
         // reset the struct literal state in any case
         self.disallow_struct_literals.set(prev_allowance);
 
@@ -2142,6 +2147,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                 span,
             }) => {
+                self.skip_token();
+
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 (tree, *span)
             }
