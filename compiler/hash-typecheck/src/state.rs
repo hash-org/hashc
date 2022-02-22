@@ -10,6 +10,7 @@ pub struct TypecheckState {
     pub ret_once: bool,
     pub func_ret_type: Option<TypeId>,
     pub current_module: SourceId,
+    pub pattern_hint: Option<TypeId>,
 }
 
 impl TypecheckState {
@@ -20,6 +21,7 @@ impl TypecheckState {
             ret_once: false,
             func_ret_type: None,
             current_module,
+            pattern_hint: None,
         }
     }
 }
