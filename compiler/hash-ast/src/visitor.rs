@@ -1432,7 +1432,7 @@ pub mod walk {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
-                node.args
+                node.fields
                     .iter()
                     .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
             )?,
@@ -1452,7 +1452,7 @@ pub mod walk {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
             entries: V::try_collect_items(
                 ctx,
-                node.entries
+                node.fields
                     .iter()
                     .map(|a| visitor.visit_destructuring_pattern(ctx, a.ast_ref())),
             )?,
@@ -1470,7 +1470,7 @@ pub mod walk {
         Ok(NamespacePattern {
             patterns: V::try_collect_items(
                 ctx,
-                node.patterns
+                node.fields
                     .iter()
                     .map(|a| visitor.visit_destructuring_pattern(ctx, a.ast_ref())),
             )?,
@@ -1488,7 +1488,7 @@ pub mod walk {
         Ok(TuplePattern {
             elements: V::try_collect_items(
                 ctx,
-                node.elements
+                node.fields
                     .iter()
                     .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
             )?,

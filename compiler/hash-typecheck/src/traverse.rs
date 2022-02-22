@@ -1,8 +1,4 @@
 //! All rights reserved 2022 (c) The Hash Language authors
-use crate::traits::{
-    MatchTraitImplResult, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage,
-    TraitStorage,
-};
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
     StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
@@ -13,6 +9,13 @@ use crate::unify::{Substitution, Unifier, UnifyStrategy};
 use crate::{
     error::ArgumentLengthMismatch,
     storage::{GlobalStorage, SourceStorage},
+};
+use crate::{
+    refutability::is_pattern_irrefutable,
+    traits::{
+        MatchTraitImplResult, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage,
+        TraitStorage,
+    },
 };
 
 use crate::{
@@ -1167,9 +1170,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 bound: _,
                 value: value_maybe_ty,
             } = walk::walk_let_statement(self, ctx, node)?;
-            // if pattern_result.is_refutable {
-            //     return Err(TypecheckError::RequiresIrrefutablePattern(node.location()));
-            // }
+
+            // Ensure that the given pattern for let statements is irrefutable
+            if !is_pattern_irrefutable(node.pattern.body()) {
+                let location = self.source_location(node.pattern.location());
+                return Err(TypecheckError::RequiresIrrefutablePattern(location));
+            }
 
             // @@Todo: bounds
             let annotation_ty = annot_maybe_ty.unwrap_or_else(|| self.create_unknown_type());
@@ -1890,7 +1896,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                         .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
                 }
                 None => {
-                    let entry = node.entries.get(index).unwrap();
+                    let entry = node.fields.get(index).unwrap();
 
                     return Err(TypecheckError::UnresolvedStructField {
                         ty_def_location,
