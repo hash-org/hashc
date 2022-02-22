@@ -160,17 +160,22 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::Keyword => {
                 let keyword = err.received.unwrap();
 
-                format!("Encountered an unexpected keyword '{}'", keyword)
+                format!(
+                    "Encountered an unexpected keyword {}",
+                    keyword.as_error_string()
+                )
             }
             AstGenErrorKind::Expected => match &err.received {
-                Some(atom) => format!("Unexpectedly encountered '{}'", atom),
+                Some(kind) => format!("Unexpectedly encountered {}", kind.as_error_string()),
                 None => "Unexpectedly reached the end of input".to_string(),
             },
             AstGenErrorKind::Block => {
                 let base: String = "Expected block body, which begins with a '{'".into();
 
                 match err.received {
-                    Some(atom) => format!("{}, however received '{}'.", base, atom),
+                    Some(kind) => {
+                        format!("{}, however received '{}'.", base, kind.as_error_string())
+                    }
                     None => base,
                 }
             }
@@ -207,8 +212,8 @@ impl<'a> From<AstGenError<'a>> for ParseError {
         // other error types follow a conformed order to formatting expected tokens
         if !matches!(&err.kind, AstGenErrorKind::Block) {
             if !matches!(&err.kind, AstGenErrorKind::Expected) {
-                if let Some(atom) = err.received {
-                    let atom_msg = format!(", however received a `{}`", atom);
+                if let Some(kind) = err.received {
+                    let atom_msg = format!(", however received {}", kind.as_error_string());
                     base_message.push_str(&atom_msg);
                 }
             }
