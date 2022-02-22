@@ -4,53 +4,68 @@
 
 use std::cell::Cell;
 
-use hash_ast::ident::Identifier;
+use hash_pipeline::VirtualMachine;
+use hash_reporting::reporting::Report;
 
 use crate::{
     bytecode::{Instruction, Register, RegisterSet},
     error::RuntimeError,
-    heap::Heap,
     stack::Stack,
 };
 
-struct Function {
-    block: Vec<Instruction>,
-    arity: u8,
-    name: Vec<Identifier>,
+/// Options specified to the Interpreter
+pub struct InterpreterOptions {
+    /// The stack size of the interpreter
+    stack_size: usize,
 }
 
-struct CallFrame {
-    function: Box<Function>,
-    base: usize,
-    offset: usize,
+impl InterpreterOptions {
+    pub fn new(stack_size: usize) -> Self {
+        Self { stack_size }
+    }
 }
 
-struct InterpreterFlags {
+/// Interpreter flags represent generated context from the current
+/// execution. This flags store information about the last executed
+/// instruction (if relevant).
+#[derive(Debug, Default)]
+pub struct InterpreterFlags {
+    /// If the recent arithmetic operation resulted in an 'overflow'
     pub overflow: Cell<bool>,
 
     /// Result from performing a comparison
     pub comparison: Cell<i64>,
 }
 
-struct Interpreter {
+/// The [Interpreter] is a structure representing the current execution context of the program. It
+/// contains the program stack, heap, instruction vector, registers, etc.
+///
+#[derive(Debug)]
+pub struct Interpreter {
+    /// The Interpreter stack holds the current execution context of the function. This is
+    /// very similar to the way that the x86 architecture handles the flag.
     stack: Stack,
-    frames: Vec<CallFrame>,
-
+    /// Interpreter flags represent the result of some operation that has occurred
     flags: InterpreterFlags,
-
+    /// A vector of [Instruction]s representing the program that it will run
     instructions: Vec<Instruction>,
-
-    /// We have 256 registers available to the interpreter at any time
+    /// We have 256 [Register]s available to the interpreter at any time
     registers: RegisterSet,
-
-    /// The VM Heap containing a bunch of objects
-    heap: Heap,
-
-    // TODO: symbol table: Strings, Integers, Floats, etc...
-    constants: (),
+    // /// The interpreter [Heap] containing heap allocated values that are not contained on the stack
+    // heap: Heap,
 }
 
 impl Interpreter {
+    #[must_use]
+    pub fn new(options: InterpreterOptions) -> Self {
+        Self {
+            stack: Stack::new(options.stack_size),
+            instructions: Vec::new(),
+            registers: RegisterSet::default(),
+            flags: InterpreterFlags::default(),
+        }
+    }
+
     fn run_next_instruction(&mut self) -> Result<(), RuntimeError> {
         let ip = self.get_instruction_pointer();
         let instruction = unsafe { self.instructions.get_unchecked(ip) };
@@ -539,37 +554,37 @@ impl Interpreter {
                 let r1 = self.registers.get_register16(l1);
                 let r2 = self.registers.get_register16(l2);
 
-                self.registers.set_register16(l1, (r1 << r2));
+                self.registers.set_register16(l1, r1 << r2);
             }
             Instruction::Shr16 { l1, l2 } => {
                 let r1 = self.registers.get_register16(l1);
                 let r2 = self.registers.get_register16(l2);
 
-                self.registers.set_register16(l1, (r1 >> r2));
+                self.registers.set_register16(l1, r1 >> r2);
             }
             Instruction::Shl32 { l1, l2 } => {
                 let r1 = self.registers.get_register32(l1);
                 let r2 = self.registers.get_register32(l2);
 
-                self.registers.set_register32(l1, (r1 << r2));
+                self.registers.set_register32(l1, r1 << r2);
             }
             Instruction::Shr32 { l1, l2 } => {
                 let r1 = self.registers.get_register32(l1);
                 let r2 = self.registers.get_register32(l2);
 
-                self.registers.set_register32(l1, (r1 >> r2));
+                self.registers.set_register32(l1, r1 >> r2);
             }
             Instruction::Shl64 { l1, l2 } => {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);
 
-                self.registers.set_register64(l1, (r1 << r2));
+                self.registers.set_register64(l1, r1 << r2);
             }
             Instruction::Shr64 { l1, l2 } => {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);
 
-                self.registers.set_register64(l1, (r1 >> r2));
+                self.registers.set_register64(l1, r1 >> r2);
             }
             Instruction::Mov { src, dest } => {
                 let value = self.registers.get_register64(src);
@@ -663,9 +678,54 @@ impl Interpreter {
             }
 
             // Function related instructions
-            Instruction::Call { func } => todo!(),
-            Instruction::Syscall { id } => todo!(),
-            Instruction::Return => todo!(),
+            Instruction::Call { func } => {
+                // Save the ip onto the stack
+                self.stack.push64(
+                    &self
+                        .registers
+                        .get_register64(Register::INSTRUCTION_POINTER)
+                        .to_be_bytes(),
+                );
+                // Save the bp onto the stack
+                self.stack.push64(
+                    &self
+                        .registers
+                        .get_register64(Register::BASE_POINTER)
+                        .to_be_bytes(),
+                );
+
+                // Set the new bp as the stack pointer
+                self.registers.set_register64(
+                    Register::BASE_POINTER,
+                    self.registers.get_register64(Register::STACK_POINTER),
+                );
+
+                // Jump to the function
+                self.registers.set_register64(
+                    Register::INSTRUCTION_POINTER,
+                    self.registers.get_register64(func),
+                );
+            }
+            Instruction::Return => {
+                // Set the stack pointer back to the base pointer
+                self.registers.set_register64(
+                    Register::STACK_POINTER,
+                    self.registers.get_register64(Register::BASE_POINTER),
+                );
+
+                // Get the BP from stack and set it
+                self.registers.set_register64(
+                    Register::BASE_POINTER,
+                    u64::from_be_bytes(*self.stack.pop64()),
+                );
+
+                // Get the IP from stack and set it
+                self.registers.set_register64(
+                    Register::INSTRUCTION_POINTER,
+                    u64::from_be_bytes(*self.stack.pop64()),
+                );
+            }
+            Instruction::Syscall { .. } => todo!(),
         };
 
         Ok(())
@@ -704,5 +764,17 @@ impl Interpreter {
         }
 
         Ok(())
+    }
+}
+
+impl VirtualMachine<'_> for Interpreter {
+    type State = ();
+
+    fn make_state(&mut self) -> hash_pipeline::CompilerResult<Self::State> {
+        todo!()
+    }
+
+    fn run(&mut self, _state: &mut Self::State) -> hash_pipeline::CompilerResult<()> {
+        self.run().map_err(Report::from)
     }
 }

@@ -1,3 +1,9 @@
+//! Hash compiler virtual machine stack implementation.
+//!
+//! All rights reserved 2021 (c) The Hash Language authors
+#![allow(dead_code)]
+
+#[derive(Debug)]
 pub struct Stack {
     data: Vec<u8>,
 }
