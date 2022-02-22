@@ -25,6 +25,12 @@ impl InterpreterOptions {
     }
 }
 
+impl Default for InterpreterOptions {
+    fn default() -> Self {
+        Self { stack_size: 10000 }
+    }
+}
+
 /// Interpreter flags represent generated context from the current
 /// execution. This flags store information about the last executed
 /// instruction (if relevant).
@@ -68,7 +74,7 @@ impl Interpreter {
 
     fn run_next_instruction(&mut self) -> Result<(), RuntimeError> {
         let ip = self.get_instruction_pointer();
-        let instruction = unsafe { self.instructions.get_unchecked(ip) };
+        let instruction = self.instructions.get(ip).unwrap();
 
         match *instruction {
             Instruction::Add8 { l1, l2 } => {
@@ -76,7 +82,7 @@ impl Interpreter {
                 let r2 = self.registers.get_register8(l2);
 
                 // Check whether an overflow occurs when adding, if an overflow does occur, we
-                // set the `overflow` interp flag, otherwise set it to false
+                // set the `overflow` interpreter flag, otherwise set it to false
                 match r1.checked_add(r2) {
                     Some(result) => {
                         self.registers.set_register8(l1, result);
@@ -805,6 +811,18 @@ impl Interpreter {
             .set_register64(Register::INSTRUCTION_POINTER, value.try_into().unwrap());
     }
 
+    pub fn set_program(&mut self, program: Vec<Instruction>) {
+        self.instructions = program;
+    }
+
+    pub fn registers(&self) -> &RegisterSet {
+        &self.registers
+    }
+
+    pub fn registers_mut(&mut self) -> &mut RegisterSet {
+        &mut self.registers
+    }
+
     pub fn run(&mut self) -> Result<(), RuntimeError> {
         let ip = self.get_instruction_pointer();
 
@@ -816,7 +834,7 @@ impl Interpreter {
 
             // TODO: we probably need to refactor this out into a function as the 'done' state will become
             //       significantly more complicated...
-            if ip == self.instructions.len() {
+            if ip == self.instructions.len() - 1 {
                 return Ok(());
             }
 

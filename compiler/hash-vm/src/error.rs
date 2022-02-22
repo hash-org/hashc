@@ -2,6 +2,7 @@ use std::fmt;
 
 use hash_reporting::reporting::{Report, ReportKind};
 
+#[derive(Debug)]
 pub enum StackAccessKind {
     Push,
     Pop,
@@ -16,6 +17,7 @@ impl fmt::Display for StackAccessKind {
     }
 }
 
+#[derive(Debug)]
 pub enum RuntimeError {
     StackViolationAccess {
         kind: StackAccessKind,
