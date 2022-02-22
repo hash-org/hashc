@@ -34,7 +34,7 @@ impl From<RuntimeError> for Report {
             RuntimeError::StackViolationAccess { kind, size, total } => {
                 Report {
                     kind: ReportKind::Error,
-                    message: format!("Stack access violation occurred: tried to `{}` {}bytes from stack, but stack stack size is {}", kind, size, total ),
+                    message: format!("Stack access violation occurred: tried to `{}` {}bytes from stack, but stack size is {}", kind, size, total ),
                     error_code: None,
                     contents: vec![],
                 }
