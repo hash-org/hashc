@@ -1,6 +1,6 @@
 //! Hash Compiler Typecheck library file
-//
-// All rights reserved 2022 (c) The Hash Language authors
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 #![feature(map_try_insert)]
 #![feature(extend_one)]
 #![feature(trait_alias)]
@@ -16,6 +16,9 @@ pub mod traverse;
 pub mod types;
 pub mod unify;
 pub mod writer;
+
+// @@TODO: Implement the actual algorithm...
+mod refutability;
 
 use crate::scope::ScopeStack;
 use crate::storage::GlobalStorage;
