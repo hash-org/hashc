@@ -1647,9 +1647,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         match self.types().get(pattern_ty) {
             TypeValue::Namespace(NamespaceType { members, .. }) => {
+                // Here we do not use self.visit_destructuring_pattern because namespace patterns
+                // support types and traits in addition to variables, whereas the implementation
+                // for self.visit_destructuring_pattern does not.
                 for field in node.fields.iter() {
                     let location = self.source_location(field.location());
                     match members.resolve_symbol(field.name.ident) {
+                        // Only variables are allowed actual pattern destructuring
                         Some(SymbolType::Variable(variable_type_id)) => {
                             let ty = self.visit_pattern(ctx, field.pattern.ast_ref())?;
                             self.unifier().unify(
@@ -1658,6 +1662,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                                 UnifyStrategy::ModifyTarget,
                             )?;
                         }
+                        // Everything else better be just a binding
                         Some(symbol_type) => match field.pattern.body() {
                             ast::Pattern::Binding(BindingPattern(binding)) => {
                                 self.scopes().add_symbol(binding.ident, symbol_type);
