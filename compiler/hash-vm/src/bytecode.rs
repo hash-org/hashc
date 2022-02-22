@@ -16,6 +16,10 @@ impl Register {
 
     /// The current instruction pointer register (RIP)
     pub const INSTRUCTION_POINTER: Register = Register(255);
+
+    pub fn new(index: u8) -> Self {
+        Self(index)
+    }
 }
 
 /// The register set
