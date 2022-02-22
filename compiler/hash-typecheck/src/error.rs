@@ -177,7 +177,6 @@ impl TypecheckError {
                 let wanted_ty = TypeWithStorage::new(wanted, storage);
                 let wanted_ty_location = storage.types.get_location(wanted);
 
-                // @@TODO: Double notes on a CodeBlock instead of separate code blocks depending on proximity of spans
                 if let Some(location) = wanted_ty_location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         *location,
