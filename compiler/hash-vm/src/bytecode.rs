@@ -2,24 +2,34 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-/// Register type, we reserve the first
-///
-///
-///
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// Register type, we reserve the last 3 [Register] indices (by convention) to
+/// store the stack pointer, instruction pointer and the base pointer.
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub struct Register(u8);
 
 impl Register {
+    /// The current base pointer register (PB)
     pub const BASE_POINTER: Register = Register(253);
+
+    /// The current stack pointer register (SP)
     pub const STACK_POINTER: Register = Register(254);
 
-    /// The current instruction pointer (RIP)
+    /// The current instruction pointer register (RIP)
     pub const INSTRUCTION_POINTER: Register = Register(255);
 }
 
 /// The register set
+#[derive(Debug)]
 pub struct RegisterSet {
-    registers: [[u8; 8]; 256],
+    pub registers: [[u8; 8]; 256],
+}
+
+impl Default for RegisterSet {
+    fn default() -> Self {
+        Self {
+            registers: [[0; 8]; 256],
+        }
+    }
 }
 
 ///

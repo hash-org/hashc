@@ -1,15 +1,13 @@
 //! Hash compiler virtual machine crate.
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
-
-use std::{
-    alloc::{self, Layout},
-    iter,
-};
+#![allow(dead_code)]
+use std::iter;
 
 // const HEAP_GC_MULTIPLIER: usize = 2;
 
 /// The Heap of the Hash Virtual Machine.
+#[derive(Debug)]
 pub struct Heap {
     values: Vec<u8>,
 }
