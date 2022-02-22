@@ -501,6 +501,66 @@ impl Interpreter {
                     }
                 }
             }
+            Instruction::AddF32 { l1, l2 } => {
+                let r1 = self.registers.get_register_f32(l1);
+                let r2 = self.registers.get_register_f32(l2);
+
+                self.registers.set_register_f32(l1, r1 + r2);
+            }
+            Instruction::SubF32 { l1, l2 } => {
+                let r1 = self.registers.get_register_f32(l1);
+                let r2 = self.registers.get_register_f32(l2);
+
+                self.registers.set_register_f32(l1, r1 - r2);
+            }
+            Instruction::DivF32 { l1, l2 } => {
+                let r1 = self.registers.get_register_f32(l1);
+                let r2 = self.registers.get_register_f32(l2);
+
+                self.registers.set_register_f32(l1, r1 / r2);
+            }
+            Instruction::MulF32 { l1, l2 } => {
+                let r1 = self.registers.get_register_f32(l1);
+                let r2 = self.registers.get_register_f32(l2);
+
+                self.registers.set_register_f32(l1, r1 * r2);
+            }
+            Instruction::ModF32 { l1, l2 } => {
+                let r1 = self.registers.get_register_f32(l1);
+                let r2 = self.registers.get_register_f32(l2);
+
+                self.registers.set_register_f32(l1, r1 % r2);
+            }
+            Instruction::AddF64 { l1, l2 } => {
+                let r1 = self.registers.get_register_f64(l1);
+                let r2 = self.registers.get_register_f64(l2);
+
+                self.registers.set_register_f64(l1, r1 + r2);
+            }
+            Instruction::SubF64 { l1, l2 } => {
+                let r1 = self.registers.get_register_f64(l1);
+                let r2 = self.registers.get_register_f64(l2);
+
+                self.registers.set_register_f64(l1, r1 - r2);
+            }
+            Instruction::DivF64 { l1, l2 } => {
+                let r1 = self.registers.get_register_f64(l1);
+                let r2 = self.registers.get_register_f64(l2);
+
+                self.registers.set_register_f64(l1, r1 / r2);
+            }
+            Instruction::MulF64 { l1, l2 } => {
+                let r1 = self.registers.get_register_f64(l1);
+                let r2 = self.registers.get_register_f64(l2);
+
+                self.registers.set_register_f64(l1, r1 * r2);
+            }
+            Instruction::ModF64 { l1, l2 } => {
+                let r1 = self.registers.get_register_f64(l1);
+                let r2 = self.registers.get_register_f64(l2);
+
+                self.registers.set_register_f64(l1, r1 % r2);
+            }
             Instruction::Xor { l1, l2 } => {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);

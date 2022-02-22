@@ -316,7 +316,46 @@ pub enum Instruction {
         l1: Register,
         l2: Register,
     },
-
+    AddF32 {
+        l1: Register,
+        l2: Register,
+    },
+    SubF32 {
+        l1: Register,
+        l2: Register,
+    },
+    DivF32 {
+        l1: Register,
+        l2: Register,
+    },
+    MulF32 {
+        l1: Register,
+        l2: Register,
+    },
+    ModF32 {
+        l1: Register,
+        l2: Register,
+    },
+    AddF64 {
+        l1: Register,
+        l2: Register,
+    },
+    SubF64 {
+        l1: Register,
+        l2: Register,
+    },
+    DivF64 {
+        l1: Register,
+        l2: Register,
+    },
+    MulF64 {
+        l1: Register,
+        l2: Register,
+    },
+    ModF64 {
+        l1: Register,
+        l2: Register,
+    },
     /// Logical Exclusive OR
     Xor {
         l1: Register,
