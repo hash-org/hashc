@@ -156,16 +156,16 @@ impl NodeCount for Pattern<'_> {
     fn children_count(&self) -> usize {
         match &self {
             Pattern::Enum(pat) => {
-                let arg_count: usize = pat.args.iter().map(|s| s.node_count()).sum();
+                let arg_count: usize = pat.fields.iter().map(|s| s.node_count()).sum();
                 pat.name.node_count() + arg_count
             }
             Pattern::Struct(pat) => {
-                let arg_count: usize = pat.entries.iter().map(|s| s.node_count()).sum();
+                let arg_count: usize = pat.fields.iter().map(|s| s.node_count()).sum();
 
                 pat.name.node_count() + arg_count
             }
-            Pattern::Namespace(pat) => pat.patterns.iter().map(|p| p.node_count()).sum(),
-            Pattern::Tuple(pat) => pat.elements.iter().map(|e| e.node_count()).sum(),
+            Pattern::Namespace(pat) => pat.fields.iter().map(|p| p.node_count()).sum(),
+            Pattern::Tuple(pat) => pat.fields.iter().map(|e| e.node_count()).sum(),
             Pattern::Literal(_) => 0,
             Pattern::Or(pat) => pat.variants.iter().map(|e| e.node_count()).sum(),
             Pattern::If(pat) => {
