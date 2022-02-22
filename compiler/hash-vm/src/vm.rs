@@ -642,39 +642,39 @@ impl Interpreter {
             }
             Instruction::Pop8 { l1 } => {
                 // Pop the top byte on top of the stack and put it into the register
-                let value = self.stack.pop8();
+                let value = self.stack.pop8()?;
                 self.registers.set_register_b(l1, value);
             }
             Instruction::Pop16 { l1 } => {
                 // Pop the top two bytes on top of the stack and put it into the register
-                let value = self.stack.pop16();
+                let value = self.stack.pop16()?;
                 self.registers.set_register_2b(l1, value);
             }
             Instruction::Pop32 { l1 } => {
                 // Pop the top four bytes on top of the stack and put it into the register
-                let value = self.stack.pop32();
+                let value = self.stack.pop32()?;
                 self.registers.set_register_4b(l1, value);
             }
             Instruction::Pop64 { l1 } => {
                 // Pop the top four bytes on top of the stack and put it into the register
-                let value = self.stack.pop64();
+                let value = self.stack.pop64()?;
                 self.registers.set_register_8b(l1, value);
             }
             Instruction::Push8 { l1 } => {
                 let value = self.registers.get_register_b(l1);
-                self.stack.push8(value);
+                self.stack.push8(value)?;
             }
             Instruction::Push16 { l1 } => {
                 let value = self.registers.get_register_2b(l1);
-                self.stack.push16(value);
+                self.stack.push16(value)?;
             }
             Instruction::Push32 { l1 } => {
                 let value = self.registers.get_register_4b(l1);
-                self.stack.push32(value);
+                self.stack.push32(value)?;
             }
             Instruction::Push64 { l1 } => {
                 let value = self.registers.get_register_8b(l1);
-                self.stack.push64(value);
+                self.stack.push64(value)?;
             }
 
             // Function related instructions
@@ -685,14 +685,14 @@ impl Interpreter {
                         .registers
                         .get_register64(Register::INSTRUCTION_POINTER)
                         .to_be_bytes(),
-                );
+                )?;
                 // Save the bp onto the stack
                 self.stack.push64(
                     &self
                         .registers
                         .get_register64(Register::BASE_POINTER)
                         .to_be_bytes(),
-                );
+                )?;
 
                 // Set the new bp as the stack pointer
                 self.registers.set_register64(
@@ -716,13 +716,13 @@ impl Interpreter {
                 // Get the BP from stack and set it
                 self.registers.set_register64(
                     Register::BASE_POINTER,
-                    u64::from_be_bytes(*self.stack.pop64()),
+                    u64::from_be_bytes(*self.stack.pop64()?),
                 );
 
                 // Get the IP from stack and set it
                 self.registers.set_register64(
                     Register::INSTRUCTION_POINTER,
-                    u64::from_be_bytes(*self.stack.pop64()),
+                    u64::from_be_bytes(*self.stack.pop64()?),
                 );
             }
             Instruction::Syscall { .. } => todo!(),
