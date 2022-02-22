@@ -91,8 +91,6 @@ pub struct Compiler<P, C> {
 /// The [CompilerState] holds all the information and state of the compiler instance.
 /// Each stage of the compiler contains a `State` type parameter which the compiler stores
 /// so that incremental executions of the compiler are possible.
-///
-/// @@Future: Compiler metrics.
 pub struct CompilerState<'c, C: Checker<'c>> {
     /// The collected workspace sources for the current job.
     pub sources: Sources<'c>,
