@@ -11,12 +11,21 @@ members = [
   "compiler/hash-utils",
   "compiler/hash-utils/testing-macros",
   "compiler/hash-vm",
+  "compiler/hash-source",
+  "compiler/hash-error-codes",
+  "compiler/hash-pipeline",
+  "compiler/hash",
   "tests/parser",
 ]
 
 [profile.release]
 opt-level = 3
-lto = true
+lto = "fat"
+debug-assertions = false
+overflow-checks = false
+
+# strip any symbols from the executable, this makes backtraces un-readable
+strip = false
 
 # set debug to true when profiling
 debug = false

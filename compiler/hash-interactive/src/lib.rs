@@ -1,24 +1,16 @@
 //! Main module for Hash interactive mode.
 //
-// All rights reserved 2021 (c) The Hash Language authors
+// All rights reserved 2022 (c) The Hash Language authors
 
 mod command;
 
 use command::InteractiveCommand;
-use hash_alloc::Castle;
-use hash_ast::ast::{AstNode, BodyBlock};
-use hash_ast::count::NodeCount;
-use hash_ast::module::Modules;
-use hash_ast::parse::{ParParser, Parser};
+use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
+use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
-use hash_reporting::reporting::{Report, ReportWriter};
-
-#[cfg(feature = "use-pest")]
-use hash_pest_parser::backend::HashPestParser;
-
-#[cfg(not(feature = "use-pest"))]
-use hash_parser::backend::HashParser;
-
+use hash_reporting::reporting::ReportWriter;
+use hash_source::SourceId;
+use hash_utils::tree_writing::TreeWriter;
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
@@ -42,11 +34,16 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init() -> CompilerResult<()> {
+pub fn init<'c, P, C>(mut compiler: Compiler<P, C>) -> CompilerResult<()>
+where
+    P: Parser<'c>,
+    C: Checker<'c>,
+{
     // Display the version on start-up
     print_version();
 
     let mut rl = Editor::<()>::new();
+    let mut compiler_state = compiler.create_state().unwrap();
 
     loop {
         let line = rl.readline(">>> ");
@@ -54,7 +51,7 @@ pub fn init() -> CompilerResult<()> {
         match line {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                execute(line.as_str());
+                compiler_state = execute(line.as_str(), &mut compiler, compiler_state);
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                 println!("Exiting!");
@@ -73,37 +70,21 @@ pub fn init() -> CompilerResult<()> {
     Ok(())
 }
 
-fn parse_interactive<'c>(
-    expr: &str,
-    castle: &'c Castle,
-) -> Option<(AstNode<'c, BodyBlock<'c>>, Modules<'c>)> {
-    let directory = env::current_dir().unwrap();
-
-    // setup the parser
-    let parser = ParParser::new(HashParser::new(castle), false);
-
-    // parse the input
-    match parser.parse_interactive(expr, &directory) {
-        (Ok(result), modules) => Some((result, modules)),
-        (Err(errors), modules) => {
-            for report in errors.into_iter().map(Report::from) {
-                let report_writer = ReportWriter::new(report, &modules);
-                println!("{}", report_writer);
-            }
-            None
-        }
-    }
-}
-
 /// Function to process a single line of input from the REPL instance.
-fn execute(input: &str) {
+fn execute<'c, P, C>(
+    input: &str,
+    compiler: &mut Compiler<P, C>,
+    mut compiler_state: CompilerState<'c, C>,
+) -> CompilerState<'c, C>
+where
+    P: Parser<'c>,
+    C: Checker<'c>,
+{
     if input.is_empty() {
-        return;
+        return compiler_state;
     }
 
     let command = InteractiveCommand::from(input);
-
-    let castle = Castle::new();
 
     match command {
         Ok(InteractiveCommand::Quit) => goodbye(),
@@ -117,27 +98,67 @@ fn execute(input: &str) {
             }
         }
         Ok(InteractiveCommand::Version) => print_version(),
-        Ok(InteractiveCommand::Code(expr)) => {
-            if parse_interactive(expr, &castle).is_some() {
-                println!("running code...");
-                // Typecheck and execute...
-            }
-        }
         Ok(InteractiveCommand::Type(expr)) => {
-            if let Some((block, _)) = parse_interactive(expr, &castle) {
-                println!("typeof({:#?})", block);
+            let new_interactive_block = InteractiveBlock::new(expr.to_string());
+            let interactive_id = compiler_state
+                .sources
+                .add_interactive_block(new_interactive_block);
+
+            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
+
+            match result {
+                Ok(value) => {
+                    println!("= {value}");
+                }
+                Err(err) => {
+                    println!("{}", ReportWriter::new(err, &new_state.sources));
+                }
             }
+            return new_state;
         }
         Ok(InteractiveCommand::Display(expr)) => {
-            if let Some((block, _)) = parse_interactive(expr, &castle) {
-                println!("{}", block);
+            let new_interactive_block = InteractiveBlock::new(expr.to_string());
+            let interactive_id = compiler_state
+                .sources
+                .add_interactive_block(new_interactive_block);
+
+            let result = compiler.parse_source(
+                SourceId::Interactive(interactive_id),
+                &mut compiler_state.sources,
+            );
+
+            match result {
+                Ok(()) => {
+                    let block = compiler_state.sources.get_interactive_block(interactive_id);
+                    let tree = AstTreeGenerator
+                        .visit_body_block(&(), block.node())
+                        .unwrap();
+
+                    println!("{}", TreeWriter::new(&tree));
+                }
+                Err(err) => {
+                    println!("{}", ReportWriter::new(err, &compiler_state.sources));
+                }
             }
         }
-        Ok(InteractiveCommand::Count(expr)) => {
-            if let Some((block, _)) = parse_interactive(expr, &castle) {
-                println!("{} nodes", block.node_count());
+        Ok(InteractiveCommand::Code(expr)) => {
+            let new_interactive_block = InteractiveBlock::new(expr.to_string());
+            let interactive_id = compiler_state
+                .sources
+                .add_interactive_block(new_interactive_block);
+
+            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
+
+            match result {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("{}", ReportWriter::new(err, &new_state.sources));
+                }
             }
+            return new_state;
         }
         Err(e) => CompilerError::from(e).report(),
     }
+
+    compiler_state
 }

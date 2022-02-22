@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
+hash-alloc = { path = "../hash-alloc" }

@@ -1,0 +1,32 @@
+//! Hash Error code definitions.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
+error_codes! {
+    TypeMismatch = 1,
+    UsingBreakOutsideLoop = 2,
+    UsingContinueOutsideLoop = 3,
+    UsingReturnOutsideFunction = 4,
+    RequiresIrrefutablePattern = 5,
+    UnresolvedSymbol = 6,
+    TryingToNamespaceType = 7,
+    TryingToNamespaceVariable = 8,
+    SymbolIsNotAType = 9,
+    SymbolIsNotAVariable = 10,
+    SymbolIsNotATrait = 11,
+    SymbolIsNotAEnum = 12,
+    TypeIsNotStruct = 13,
+    TypeIsNotEnum = 14,
+    UnresolvedStructField = 15,
+    InvalidPropertyAccess = 16,
+    ExpectingBooleanInCondition = 17,
+    MissingStructField = 18,
+    BoundRequiresStrictlyTypeVars = 19,
+    ExpectingBindingForTraitImpl = 20,
+    TraitDefinitionNotFound = 21,
+    TypeAnnotationNotAllowedInTraitImpl = 22,
+    TypeArgumentLengthMismatch = 23,
+    NoMatchingTraitImplementations = 24,
+    FunctionArgumentLengthMismatch = 25,
+    UnresolvedType = 26,
+    DisallowedPatternNonVariable = 27,
+}

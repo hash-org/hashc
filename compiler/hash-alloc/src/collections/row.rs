@@ -1,6 +1,6 @@
 //! Contains a [`Vec`]-like implementation for allocating contiguous sequences within a [`Wall`].
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use crate::Wall;
 use core::fmt;
@@ -24,6 +24,12 @@ pub struct Row<'c, T> {
     length: usize,
 }
 
+impl<T> Default for Row<'_, T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// How much to initially reserve in the row.
 const ROW_INITIAL_REALLOC_SIZE: usize = 4;
 
@@ -31,9 +37,12 @@ const ROW_INITIAL_REALLOC_SIZE: usize = 4;
 const ROW_REALLOC_MULT_DIV: (usize, usize) = (2, 1);
 
 impl<'c, T> Row<'c, T> {
-    /// Create a new `Row` within the given [`Wall`] with zero length and capacity.
-    pub fn new(wall: &Wall<'c>) -> Self {
-        Self::with_capacity(0, wall)
+    /// Create a new `Row` with zero length and capacity.
+    pub fn new() -> Self {
+        Self {
+            data: &mut [],
+            length: 0,
+        }
     }
 
     /// Create a new `Row` within the given [`Wall`] with zero length and a given capacity.
@@ -258,8 +267,11 @@ impl<'c, T: Clone> Row<'c, T> {
 /// ```
 #[macro_export]
 macro_rules! row {
+    () => {
+        $crate::collections::row::Row::new()
+    };
     ($wall:expr) => {
-        $crate::collections::row::Row::new($wall)
+        $crate::collections::row::Row::new()
     };
     ($wall:expr; $($item:expr),*) => {
         $crate::collections::row::Row::from_iter([$($item,)*], $wall)
@@ -326,6 +338,24 @@ impl<T> BorrowMut<[T]> for Row<'_, T> {
     }
 }
 
+impl<'r, 'c, T> IntoIterator for &'r Row<'c, T> {
+    type Item = &'r T;
+    type IntoIter = std::slice::Iter<'r, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.deref().iter()
+    }
+}
+
+impl<'r, 'c, T> IntoIterator for &'r mut Row<'c, T> {
+    type Item = &'r mut T;
+    type IntoIter = std::slice::IterMut<'r, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.deref_mut().iter_mut()
+    }
+}
+
 impl<T> Drop for Row<'_, T> {
     fn drop(&mut self) {
         // ##Safety: values until self.length are initialised, and ManuallyDrop<T> has the same layout as T.
@@ -360,7 +390,7 @@ mod tests {
         let castle = Castle::new();
         let wall = castle.wall();
 
-        let row = Row::<i32>::new(&wall);
+        let row = Row::<i32>::new();
         assert_eq!(row.capacity(), 0);
 
         let capacity = 10;
@@ -373,7 +403,7 @@ mod tests {
         let castle = Castle::new();
         let wall = castle.wall();
 
-        let mut row = Row::<i32>::new(&wall);
+        let mut row = Row::<i32>::new();
         assert_eq!(row.capacity(), 0);
 
         row.reserve(10, &wall);
@@ -391,7 +421,7 @@ mod tests {
         let castle = Castle::new();
         let wall = castle.wall();
 
-        let mut row = Row::<i32>::new(&wall);
+        let mut row = Row::<i32>::new();
 
         // Empty
         assert_eq!(row.as_ref(), &[]);
@@ -458,7 +488,7 @@ mod tests {
         assert_eq!(r.len(), 5);
         assert_eq!(r.as_ref(), &[1, 2, 3, 4, 5]);
 
-        let mut r = row![&wall];
+        let mut r = row![];
         assert_eq!(r.len(), 0);
         r.insert(0, 1, &wall);
         assert_eq!(r.len(), 1);

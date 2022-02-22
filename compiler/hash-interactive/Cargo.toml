@@ -5,8 +5,13 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-hash-ast = {path = "../hash-ast" }
-hash-parser = {path = "../hash-parser" }
-hash-reporting = {path = "../hash-reporting" }
-hash-alloc = {path = "../hash-alloc" }
 rustyline = "8.0.0"
+
+hash-ast = {path = "../hash-ast" }
+hash-utils = {path = "../hash-utils" }
+hash-alloc = {path = "../hash-alloc" }
+hash-parser = {path = "../hash-parser" }
+hash-pipeline = {path = "../hash-pipeline" }
+hash-reporting = {path = "../hash-reporting" }
+hash-typecheck = {path = "../hash-typecheck" }
+hash-source = {path = "../hash-source" }

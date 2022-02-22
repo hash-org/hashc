@@ -1,0 +1,7 @@
+// Create a new dog called viktor! 
+let viktor = Dog { 
+    name = "Viktor",
+    has_brother = true // <--- Error should be reported here since there is no comma....
+    age = 12, 
+    gender = false
+};

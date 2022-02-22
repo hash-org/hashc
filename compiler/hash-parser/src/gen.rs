@@ -1,37 +1,33 @@
 //! Hash compiler AST generation sources. This file contains the sources to the logic
 //! that transforms tokens into an AST.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
-use std::cell::Cell;
-
-use hash_alloc::Wall;
-use hash_alloc::{collections::row::Row, row};
-
+use hash_alloc::collections::row::Row;
+use hash_alloc::{row, Wall};
 use hash_ast::{
     ast::*,
     ident::{Identifier, IDENTIFIER_MAP},
     keyword::Keyword,
     literal::STRING_LITERAL_MAP,
-    location::{Location, SourceLocation},
-    module::ModuleIdx,
-    operator::{CompoundFn, OperatorFn},
-    resolve::ModuleResolver,
 };
+use hash_ast::{ast_nodes, operator::Operator};
+use hash_ast::{ident::CORE_IDENTIFIERS, operator::OperatorKind};
+use hash_source::location::{Location, SourceLocation};
+use std::cell::Cell;
+use std::path::PathBuf;
+use std::str::FromStr;
 
+use crate::parser::ImportResolver;
+use crate::token::{Delimiter, Token, TokenKindVector};
 use crate::{
     error::{AstGenError, AstGenErrorKind, TyArgumentKind},
-    operator::Operator,
     token::TokenKind,
-};
-use crate::{
-    operator::OperatorKind,
-    token::{Delimiter, Token, TokenKindVector},
 };
 
 pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
 
-pub struct AstGen<'c, 'stream, 'resolver, R> {
+pub struct AstGen<'c, 'stream, 'resolver> {
     /// Current token stream offset.
     offset: Cell<usize>,
 
@@ -57,23 +53,20 @@ pub struct AstGen<'c, 'stream, 'resolver, R> {
     /// the parent has specifically checked ahead to ensure it isn't a struct literal.
     disallow_struct_literals: Cell<bool>,
 
-    /// Instance of a [ModuleResolver] to notify the parser of encountered imports.
-    resolver: &'resolver R,
+    /// Instance of an [ImportResolver] to notify the parser of encountered imports.
+    resolver: &'resolver ImportResolver<'c>,
 
     wall: Wall<'c>,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
 /// language components.
-impl<'c, 'stream, 'resolver, R> AstGen<'c, 'stream, 'resolver, R>
-where
-    R: ModuleResolver,
-{
+impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Create new AST generator from a token stream.
     pub fn new(
         stream: &'stream [Token],
         token_trees: &'stream [Row<'stream, Token>],
-        resolver: &'resolver R,
+        resolver: &'resolver ImportResolver<'c>,
         wall: Wall<'c>,
     ) -> Self {
         Self {
@@ -106,15 +99,9 @@ where
 
     /// Function to create a [SourceLocation] from a [Location] by using the provided resolver
     fn source_location(&self, location: &Location) -> SourceLocation {
-        match self.resolver.module_index() {
-            Some(module_index) => SourceLocation {
-                location: *location,
-                module_index,
-            },
-            None => SourceLocation {
-                location: *location,
-                module_index: ModuleIdx(0),
-            },
+        SourceLocation {
+            location: *location,
+            source_id: self.resolver.current_source_id(),
         }
     }
 
@@ -171,19 +158,22 @@ where
 
     /// Get the current token in the stream.
     pub(crate) fn current_token(&self) -> &Token {
-        self.stream.get(self.offset.get() - 1).unwrap()
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
+
+        self.stream.get(offset).unwrap()
     }
 
     /// Get the current location from the current token, if there is no token at the current
     /// offset, then the location of the last token is used.
-    #[inline(always)]
     pub(crate) fn current_location(&self) -> Location {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
             return self.parent_span.unwrap_or_default();
         }
 
-        match self.stream.get(self.offset()) {
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
+
+        match self.stream.get(offset) {
             Some(token) => token.span,
             None => (*self.stream.last().unwrap()).span,
         }
@@ -271,7 +261,7 @@ where
         self.node_from_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.make_access_name_from_str(name, *location),
-                type_args: row![&self.wall],
+                type_args: AstNodes::empty(),
             })),
             location,
         )
@@ -284,7 +274,7 @@ where
     ) -> AstNode<'c, Pattern<'c>> {
         self.node(Pattern::Enum(EnumPattern {
             name: self.make_access_name_from_str(symbol, location),
-            args: row![&self.wall],
+            fields: AstNodes::empty(),
         }))
     }
 
@@ -292,7 +282,7 @@ where
     fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
             name,
-            type_args: row![&self.wall],
+            type_args: AstNodes::empty(),
         })))
     }
 
@@ -304,7 +294,7 @@ where
         };
 
         self.node(AccessName {
-            path: row![&self.wall; IDENTIFIER_MAP.create_ident_existing(name_ref)],
+            path: row![&self.wall; IDENTIFIER_MAP.create_ident(name_ref)],
         })
     }
 
@@ -352,7 +342,7 @@ where
                     },
                     &location,
                 ),
-                type_args: row![&self.wall],
+                type_args: AstNodes::empty(),
             })),
             location,
             &self.wall,
@@ -405,13 +395,16 @@ where
     /// Parse a [Module] which is simply made of a list of statements
     pub fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
         let start = self.current_location();
-        let mut contents = row![&self.wall];
+        let mut contents = AstNodes::empty();
 
         while self.has_token() {
-            contents.push(self.parse_statement()?, &self.wall);
+            contents.nodes.push(self.parse_statement()?, &self.wall);
         }
 
-        Ok(self.node_from_joined_location(Module { contents }, &start))
+        let span = start.join(self.current_location());
+        contents.span = Some(span);
+
+        Ok(self.node_with_location(Module { contents }, span))
     }
 
     /// Parse a statement.
@@ -456,7 +449,7 @@ where
                 // USE PREV token location
                 match self.next_token() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Ok(self.node_from_joined_location(statement, &start))
+                        Ok(self.node_from_location(statement, &start.join(current_location)))
                     }
                     Some(token) => self.error_with_location(
                         AstGenErrorKind::Expected,
@@ -472,17 +465,25 @@ where
                 let (expr, re_assigned) = self.try_parse_re_assignment_operation(lhs)?;
 
                 if re_assigned {
+                    let current_location = self.current_location(); // We don't want to include the semi in the current span
                     self.parse_token_atom(TokenKind::Semi)?;
 
-                    return Ok(self
-                        .node_from_joined_location(Statement::Expr(ExprStatement(expr)), &start));
+                    return Ok(self.node_from_location(
+                        Statement::Expr(ExprStatement(expr)),
+                        &start.join(current_location),
+                    ));
                 }
 
                 // Ensure that the next token is a Semi
                 match self.peek() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
+                        let current_location = self.current_location(); // We don't want to include the semi in the current span
                         self.skip_token();
-                        Ok(self.node_from_location(Statement::Expr(ExprStatement(expr)), &start))
+
+                        Ok(self.node_from_location(
+                            Statement::Expr(ExprStatement(expr)),
+                            &start.join(current_location),
+                        ))
                     }
                     Some(token) if token.has_kind(TokenKind::Eq) => {
                         self.skip_token();
@@ -528,16 +529,11 @@ where
         lhs: AstNode<'c, Expression<'c>>,
     ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
         if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
-            let transformed_op: OperatorFn = op.into();
-
             // Parse the rhs and the semi
             let rhs = self.parse_expression_with_precedence(0)?;
 
             // Now we need to transform the re-assignment operator into a function call
-            Ok((
-                self.transform_binary_expression(lhs, rhs, transformed_op),
-                false,
-            ))
+            Ok((self.transform_binary_expression(lhs, rhs, op), false))
         } else {
             Ok((lhs, false))
         }
@@ -585,81 +581,84 @@ where
         &self,
         lhs: AstNode<'c, Expression<'c>>,
         rhs: AstNode<'c, Expression<'c>>,
-        op: OperatorFn,
+        op: AstNode<'c, Operator>,
     ) -> AstNode<'c, Expression<'c>> {
-        match op {
-            OperatorFn::Named { name, assigning } => {
-                let rhs_location = rhs.location();
+        let Operator { kind, assignable } = op.body();
 
-                self.node(Expression::new(ExpressionKind::FunctionCall(
+        if kind.is_compound() {
+            // for compound functions that include ordering, we essentially transpile
+            // into a match block that checks the result of the 'ord' fn call to the
+            // 'Ord' enum variants. This also happens for operators such as '>=' which
+            // essentially means that we have to check if the result of 'ord()' is either
+            // 'Eq' or 'Gt'.
+            self.transform_compound_ord_fn(*kind, *assignable, lhs, rhs)
+        } else if kind.is_lazy() {
+            // some functions have to exhibit a short-circuiting behaviour, namely
+            // the logical 'and' and 'or' operators. To do this, we expect the 'and'
+            // 'or' trait (and their assignment counterparts) to expect the rhs part
+            // as a lambda. So, we essentially create a lambda that calls the rhs, or
+            // in other words, something like this happens:
+            //
+            // >>> lhs && rhs
+            // vvv (transpiles to...)
+            // >>> and(lhs, () => rhs)
+            //
+            let location = lhs.location().join(rhs.location());
+
+            self.node_from_location(Expression::new(ExpressionKind::FunctionCall(
                     FunctionCallExpr {
-                        subject: self.node(Expression::new(ExpressionKind::Variable(
-                            VariableExpr {
-                                name: self.make_access_name_from_str(name, self.current_location()),
-                                type_args: row![&self.wall],
-                            },
-                        ))),
+                        subject: self.node_from_location(
+                            Expression::new(ExpressionKind::Variable(VariableExpr {
+                                name: self.make_access_name_from_str(kind.to_str(), op.location()),
+                                type_args: AstNodes::empty(),
+                            })),
+                            &op.location(),
+                        ),
                         args: self.node_from_joined_location(
                             FunctionCallArgs {
-                                entries: row![&self.wall;
-                                    self.transform_expr_into_ref(lhs, assigning),
-                                    rhs,
-                                ],
-                            },
-                            &rhs_location,
-                        ),
-                    },
-                )))
-            }
-            OperatorFn::LazyNamed { name, assigning } => {
-                // some functions have to exhibit a short-circuiting behaviour, namely
-                // the logical 'and' and 'or' operators. To do this, we expect the 'and'
-                // 'or' trait (and their assignment counterparts) to expect the rhs part
-                // as a lambda. So, we essentially create a lambda that calls the rhs, or
-                // in other words, something like this happens:
-                //
-                // >>> lhs && rhs
-                // vvv (transpiles to...)
-                // >>> and(lhs, () => rhs)
-                //
-
-                self.node(Expression::new(ExpressionKind::FunctionCall(
-                    FunctionCallExpr {
-                        subject: self.node(Expression::new(ExpressionKind::Variable(
-                            VariableExpr {
-                                name: self.make_access_name_from_str(name, self.current_location()),
-                                type_args: row![&self.wall],
-                            },
-                        ))),
-                        args: self.node(FunctionCallArgs {
-                            entries: row![&self.wall;
-                                self.transform_expr_into_ref(lhs, assigning),
+                            entries: ast_nodes![&self.wall;
+                                self.transform_expr_into_ref(lhs, *assignable),
                                 self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
                                     Literal::Function(FunctionDef {
-                                        args: row![&self.wall],
+                                        args: AstNodes::empty(),
                                         return_ty: None,
                                         fn_body: rhs,
                                     }),
                                 )))))
                             ],
-                        }),
+                        },  &location),
                     },
-                )))
-            }
-            OperatorFn::Compound { name, assigning } => {
-                // for compound functions that include ordering, we essentially transpile
-                // into a match block that checks the result of the 'ord' fn call to the
-                // 'Ord' enum variants. This also happens for operators such as '>=' which
-                // essentially means that we have to check if the result of 'ord()' is either
-                // 'Eq' or 'Gt'.
-                self.transform_compound_ord_fn(name, assigning, lhs, rhs)
-            }
+                )), &location)
+        } else {
+            let location = lhs.location().join(rhs.location());
+
+            self.node_from_location(
+                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                    subject: self.node_from_location(
+                        Expression::new(ExpressionKind::Variable(VariableExpr {
+                            name: self.make_access_name_from_str(kind.to_str(), op.location()),
+                            type_args: AstNodes::empty(),
+                        })),
+                        &op.location(),
+                    ),
+                    args: self.node_from_joined_location(
+                        FunctionCallArgs {
+                            entries: ast_nodes![&self.wall;
+                                self.transform_expr_into_ref(lhs, *assignable),
+                                rhs,
+                            ],
+                        },
+                        &location,
+                    ),
+                })),
+                &op.location(),
+            )
         }
     }
 
     fn transform_compound_ord_fn(
         &self,
-        fn_ty: CompoundFn,
+        fn_ty: OperatorKind,
         assigning: bool,
         lhs: AstNode<'c, Expression<'c>>,
         rhs: AstNode<'c, Expression<'c>>,
@@ -673,7 +672,7 @@ where
             FunctionCallExpr {
                 subject: self.make_ident("ord", &location),
                 args: self.node(FunctionCallArgs {
-                    entries: row![&self.wall; lhs, rhs],
+                    entries: ast_nodes![&self.wall; lhs, rhs],
                 }),
             },
         )));
@@ -682,10 +681,10 @@ where
         // should return 'true' on, and all the rest will return false...
         // the order is (Lt, Eq, Gt)
         let mut branches = match fn_ty {
-            CompoundFn::Leq => {
-                row![&self.wall; self.node(MatchCase {
+            OperatorKind::LtEq => {
+                ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
-                        variants: row![&self.wall;
+                        variants: ast_nodes![&self.wall;
                         self.make_enum_pattern_from_str("Lt", location),
                         self.make_enum_pattern_from_str("Eq", location),
                         ],
@@ -693,10 +692,10 @@ where
                     expr: self.make_variable(self.make_boolean(true)),
                 })]
             }
-            CompoundFn::Geq => {
-                row![&self.wall; self.node(MatchCase {
+            OperatorKind::GtEq => {
+                ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
-                        variants: row![&self.wall;
+                        variants: ast_nodes![&self.wall;
                         self.make_enum_pattern_from_str("Gt", location),
                         self.make_enum_pattern_from_str("Eq", location),
                         ],
@@ -704,23 +703,24 @@ where
                     expr: self.make_variable(self.make_boolean(true)),
                 })]
             }
-            CompoundFn::Lt => {
-                row![&self.wall; self.node(MatchCase {
+            OperatorKind::Lt => {
+                ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.make_enum_pattern_from_str("Lt", location),
                     expr: self.make_variable(self.make_boolean(false)),
                 })]
             }
-            CompoundFn::Gt => {
-                row![&self.wall; self.node(MatchCase {
+            OperatorKind::Gt => {
+                ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.make_enum_pattern_from_str("Gt", location),
                     expr: self.make_variable(self.make_boolean(false)),
                 })]
             }
+            _ => unreachable!(),
         };
 
         // add the '_' case to the branches to return false on any other
         // condition
-        branches.push(
+        branches.nodes.push(
             self.node(MatchCase {
                 pattern: self.node(Pattern::Ignore(IgnorePattern)),
                 expr: self.make_variable(self.make_boolean(false)),
@@ -732,6 +732,7 @@ where
             self.node(Block::Match(MatchBlock {
                 subject: fn_call,
                 cases: branches,
+                origin: MatchOrigin::Match,
             })),
         ))))
     }
@@ -745,12 +746,13 @@ where
         parse_fn: impl Fn() -> AstGenResult<'c, AstNode<'c, T>>,
         separator_fn: impl Fn() -> AstGenResult<'c, ()>,
     ) -> AstGenResult<'c, AstNodes<'c, T>> {
-        let mut args = row![&self.wall;];
+        let mut args = AstNodes::empty();
+        let start = self.current_location();
 
         // so parse the arguments to the function here... with potential type annotations
         while self.has_token() {
             match parse_fn() {
-                Ok(el) => args.push(el, &self.wall),
+                Ok(el) => args.nodes.push(el, &self.wall),
                 Err(err) => return Err(err),
             }
 
@@ -763,14 +765,16 @@ where
             self.expected_eof()?;
         }
 
+        args.span = Some(start.join(self.current_location()));
         Ok(args)
     }
 
     /// This will parse an operator and check that it is re-assignable, if the operator is not
     /// re-assignable then the result of the function is an [AstGenError] since it expects there
     /// to be this operator.
-    pub fn parse_re_assignment_op(&self) -> AstGenResult<'c, Operator> {
-        let (operator, consumed_tokens) = Operator::from_token_stream(self);
+    pub fn parse_re_assignment_op(&self) -> AstGenResult<'c, AstNode<'c, Operator>> {
+        let start = self.next_location();
+        let (operator, consumed_tokens) = self.parse_operator();
 
         match operator {
             Some(Operator {
@@ -780,10 +784,13 @@ where
                 // consume the number of tokens eaten whilst getting the operator...
                 self.offset.update(|x| x + consumed_tokens as usize);
 
-                Ok(Operator {
-                    kind,
-                    assignable: true,
-                })
+                Ok(self.node_from_joined_location(
+                    Operator {
+                        kind,
+                        assignable: true,
+                    },
+                    &start,
+                ))
             }
             _ => self.error(AstGenErrorKind::ReAssignmentOp, None, None), // TODO: actually add information here
         }
@@ -940,10 +947,10 @@ where
 
     /// Parse an Enum definition entry.
     pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
-        let start = self.current_location();
         let name = self.parse_ident()?;
+        let name_location = name.location();
 
-        let mut args = row![&self.wall;];
+        let mut args = AstNodes::empty();
 
         if let Some(Token {
             kind: TokenKind::Tree(Delimiter::Paren, tree_index),
@@ -951,12 +958,13 @@ where
         }) = self.peek()
         {
             self.skip_token();
+            args.span = Some(*span);
             let tree = self.token_trees.get(*tree_index).unwrap();
 
             let gen = self.from_stream(tree, *span);
             while gen.has_token() {
                 let ty = gen.parse_type()?;
-                args.push(ty, &self.wall);
+                args.nodes.push(ty, &self.wall);
 
                 if gen.has_token() {
                     gen.parse_token_atom(TokenKind::Comma)?;
@@ -964,7 +972,7 @@ where
             }
         }
 
-        Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &start))
+        Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &name_location))
     }
 
     /// Parse struct definition field entries.
@@ -1024,14 +1032,14 @@ where
     /// Parse a type bound. Type bounds can occur in traits, function, struct and enum
     /// definitions.
     pub fn parse_type_bound(&self) -> AstGenResult<'c, AstNode<'c, Bound<'c>>> {
-        let start = self.current_location();
         let type_args = self.parse_type_args()?;
+        let type_args_location = type_args.location().unwrap();
 
         let trait_bounds = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
                 self.skip_token();
 
-                let mut trait_bounds = row![&self.wall;];
+                let mut trait_bounds = ast_nodes![&self.wall;];
 
                 loop {
                     match self.peek() {
@@ -1044,7 +1052,7 @@ where
                             let bound_start = self.current_location();
                             let (name, type_args) = self.parse_trait_bound(ident)?;
 
-                            trait_bounds.push(
+                            trait_bounds.nodes.push(
                                 self.node_from_joined_location(
                                     TraitBound { name, type_args },
                                     &bound_start,
@@ -1067,7 +1075,7 @@ where
 
                 trait_bounds
             }
-            _ => row![&self.wall;],
+            _ => ast_nodes![&self.wall;],
         };
 
         Ok(self.node_from_joined_location(
@@ -1075,7 +1083,7 @@ where
                 type_args,
                 trait_bounds,
             },
-            &start,
+            &type_args_location,
         ))
     }
 
@@ -1130,15 +1138,15 @@ where
                     subject: self.node(Expression::new(ExpressionKind::Variable(
                         VariableExpr {
                             name: self.make_access_name_from_str("next", iterator.location()),
-                            type_args: row![&self.wall],
+                            type_args: AstNodes::empty(),
                         },
                     ))),
                     args: self.node_from_location(FunctionCallArgs {
-                        entries: row![&self.wall; iterator],
+                        entries: ast_nodes![&self.wall; iterator],
                     }, &iterator_location),
                 },
             ))),
-            cases: row![&self.wall; self.node_from_location(MatchCase {
+            cases: ast_nodes![&self.wall; self.node_from_location(MatchCase {
                     pattern: self.node_from_location(
                         Pattern::Enum(
                             EnumPattern {
@@ -1147,7 +1155,7 @@ where
                                         "Some",
                                         self.current_location()
                                     ),
-                                args: row![&self.wall; pattern],
+                                fields: ast_nodes![&self.wall; pattern],
                             },
                         ), &pattern_location
                     ),
@@ -1162,18 +1170,19 @@ where
                                         "None",
                                         self.current_location()
                                     ),
-                                args: row![&self.wall],
+                                fields: AstNodes::empty(),
                             },
                         ),
                     ),
                     expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                         self.node(Block::Body(BodyBlock {
-                            statements: row![&self.wall; self.node(Statement::Break(BreakStatement))],
+                            statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
                             expr: None,
                         })),
                     )))),
                 }),
             ],
+            origin: MatchOrigin::For
         }), &start))), &start))
     }
 
@@ -1212,26 +1221,27 @@ where
             Block::Loop(LoopBlock(self.node_with_location(
                 Block::Match(MatchBlock {
                     subject: condition,
-                    cases: row![&self.wall; self.node(MatchCase {
+                    cases: ast_nodes![&self.wall; self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("true", body_location),
-                                args: row![&self.wall],
+                                fields: AstNodes::empty(),
                             })),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Enum(EnumPattern {
                                 name: self.make_access_name_from_str("false", body_location),
-                                args: row![&self.wall],
+                                fields: AstNodes::empty(),
                             })),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
-                                    statements: row![&self.wall; self.node(Statement::Break(BreakStatement))],
+                                    statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
                                     expr: None,
                                 })),
                             )))),
                         }),
                     ],
+                    origin: MatchOrigin::While
                 }),
                 condition_location,
             ))),
@@ -1264,7 +1274,7 @@ where
         let subject = self.parse_expression_with_precedence(0)?;
         self.disallow_struct_literals.set(false);
 
-        let mut cases = row![&self.wall];
+        let mut cases = AstNodes::empty();
         // cases are wrapped in a brace tree
         match self.peek() {
             Some(Token {
@@ -1277,7 +1287,7 @@ where
                 let gen = self.from_stream(tree, *span);
 
                 while gen.has_token() {
-                    cases.push(gen.parse_match_case()?, &self.wall);
+                    cases.nodes.push(gen.parse_match_case()?, &self.wall);
 
                     gen.parse_token_atom(TokenKind::Semi)?;
                 }
@@ -1293,7 +1303,14 @@ where
             _ => self.unexpected_eof()?,
         };
 
-        Ok(self.node_from_joined_location(Block::Match(MatchBlock { subject, cases }), &start))
+        Ok(self.node_from_joined_location(
+            Block::Match(MatchBlock {
+                subject,
+                cases,
+                origin: MatchOrigin::Match,
+            }),
+            &start,
+        ))
     }
 
     /// we transpile if-else blocks into match blocks in order to simplify
@@ -1323,7 +1340,7 @@ where
 
         let start = self.current_location();
 
-        let mut cases = row![&self.wall];
+        let mut cases = AstNodes::empty();
         let mut has_else_branch = false;
 
         while self.has_token() {
@@ -1344,7 +1361,7 @@ where
             let branch = self.parse_block()?;
             let branch_loc = branch.location();
 
-            cases.push(
+            cases.nodes.push(
                 self.node_from_location(
                     MatchCase {
                         pattern: self.node_from_location(
@@ -1390,7 +1407,7 @@ where
 
                     has_else_branch = true;
 
-                    cases.push(
+                    cases.nodes.push(
                         self.node_from_location(
                             MatchCase {
                                 pattern: self.node(Pattern::Ignore(IgnorePattern)),
@@ -1411,12 +1428,12 @@ where
         }
 
         if !has_else_branch {
-            cases.push(
+            cases.nodes.push(
                 self.node(MatchCase {
                     pattern: self.node(Pattern::Ignore(IgnorePattern)),
                     expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                         self.node(Block::Body(BodyBlock {
-                            statements: row![&self.wall],
+                            statements: AstNodes::empty(),
                             expr: None,
                         })),
                     )))),
@@ -1429,6 +1446,7 @@ where
             Block::Match(MatchBlock {
                 subject: self.make_ident("true", &self.current_location()),
                 cases,
+                origin: MatchOrigin::If,
             }),
             &start,
         ))
@@ -1558,11 +1576,11 @@ where
     ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
         let gen = self.from_stream(tree, span);
 
-        let mut patterns = row![&self.wall;];
+        let mut patterns = AstNodes::new(row![&self.wall;], Some(span));
 
         while gen.has_token() {
             match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern()) {
-                Some(pat) => patterns.push(pat, &self.wall),
+                Some(pat) => patterns.nodes.push(pat, &self.wall),
                 None => break,
             }
 
@@ -1583,9 +1601,10 @@ where
             return self.unexpected_eof()?;
         }
 
-        let start = self.current_location();
+        let token = token.unwrap();
+        let start = token.span;
 
-        let pattern = match token.unwrap() {
+        let pattern = match token {
             Token {
                 kind: TokenKind::Ident(ident),
                 span,
@@ -1610,7 +1629,7 @@ where
 
                         Pattern::Struct(StructPattern {
                             name,
-                            entries: self.parse_destructuring_patterns(tree, *span)?,
+                            fields: self.parse_destructuring_patterns(tree, *span)?,
                         })
                     }
                     // enum_pattern
@@ -1623,7 +1642,7 @@ where
 
                         Pattern::Enum(EnumPattern {
                             name,
-                            args: self.parse_pattern_collection(tree, *span)?,
+                            fields: self.parse_pattern_collection(tree, *span)?,
                         })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
@@ -1632,7 +1651,7 @@ where
                         Some(token.kind),
                     )?,
                     _ => {
-                        if *ident == Identifier(0) {
+                        if *ident == CORE_IDENTIFIERS.underscore {
                             Pattern::Ignore(IgnorePattern)
                         } else {
                             Pattern::Binding(BindingPattern(
@@ -1659,7 +1678,7 @@ where
                     if token.has_kind(TokenKind::Comma) {
                         return Ok(self.node_from_location(
                             Pattern::Tuple(TuplePattern {
-                                elements: row![&self.wall],
+                                fields: AstNodes::empty(),
                             }),
                             span,
                         ));
@@ -1672,10 +1691,10 @@ where
                 let mut elements = self.parse_pattern_collection(tree, *span)?;
 
                 if elements.len() == 1 {
-                    let element = elements.pop().unwrap();
+                    let element = elements.nodes.pop().unwrap();
                     return Ok(element);
                 } else {
-                    Pattern::Tuple(TuplePattern { elements })
+                    Pattern::Tuple(TuplePattern { fields: elements })
                 }
             }
             Token {
@@ -1686,7 +1705,7 @@ where
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
                 Pattern::Namespace(NamespacePattern {
-                    patterns: self.parse_destructuring_patterns(tree, *span)?,
+                    fields: self.parse_destructuring_patterns(tree, *span)?,
                 })
             }
             // @@Future: List patterns aren't supported yet.
@@ -1742,12 +1761,12 @@ where
         // Append the initial statement if there is one.
         let mut block = if initial_statement.is_some() {
             BodyBlock {
-                statements: row![&self.wall; initial_statement.unwrap()],
+                statements: ast_nodes![&self.wall; initial_statement.unwrap()],
                 expr: None,
             }
         } else {
             BodyBlock {
-                statements: row![&self.wall],
+                statements: AstNodes::empty(),
                 expr: None,
             }
         };
@@ -1763,7 +1782,10 @@ where
             let token = gen.peek().unwrap();
 
             if token.kind.begins_statement() {
-                block.statements.push(gen.parse_statement()?, &self.wall);
+                block
+                    .statements
+                    .nodes
+                    .push(gen.parse_statement()?, &self.wall);
                 continue;
             }
 
@@ -1775,21 +1797,16 @@ where
             // check for assigning operators here if the lhs expression is not compound
             match gen.peek_resultant_fn(|| gen.parse_re_assignment_op()) {
                 Some(op) => {
-                    // transform the operator kind into OperatorFn so we can transform the operator into a function call.
-                    let transformed_op: OperatorFn = op.into();
-
                     // since this is followed by an expression, we try to parse another expression, and then
                     // ensure that after an expression there is a ending semi colon.
                     let rhs = gen.parse_expression_with_precedence(0)?;
                     gen.parse_token_atom(TokenKind::Semi)?;
 
-                    block.statements.push(
+                    block.statements.nodes.push(
                         gen.node_from_joined_location(
-                            Statement::Expr(ExprStatement(self.transform_binary_expression(
-                                expr,
-                                rhs,
-                                transformed_op,
-                            ))),
+                            Statement::Expr(ExprStatement(
+                                self.transform_binary_expression(expr, rhs, op),
+                            )),
                             &expr_loc,
                         ),
                         &self.wall,
@@ -1800,7 +1817,7 @@ where
                         Some(token) if token.has_kind(TokenKind::Semi) => {
                             gen.skip_token();
 
-                            block.statements.push(
+                            block.statements.nodes.push(
                                 gen.node_from_joined_location(
                                     Statement::Expr(ExprStatement(expr)),
                                     &expr_loc,
@@ -1815,7 +1832,7 @@ where
                             let rhs = gen.parse_expression_with_precedence(0)?;
                             gen.parse_token_atom(TokenKind::Semi)?;
 
-                            block.statements.push(
+                            block.statements.nodes.push(
                                 gen.node_from_joined_location(
                                     Statement::Assign(AssignStatement { lhs: expr, rhs }),
                                     &start,
@@ -1826,7 +1843,7 @@ where
                         Some(token) => {
                             match expr.into_body().move_out().into_kind() {
                                 ExpressionKind::Block(BlockExpr(inner_block)) => {
-                                    block.statements.push(
+                                    block.statements.nodes.push(
                                         gen.node_from_joined_location(
                                             Statement::Block(BlockStatement(inner_block)),
                                             &expr_loc,
@@ -1859,8 +1876,15 @@ where
     pub fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token();
 
+        // Rather than just reporting that we reached 'EOF' which isn't necessarily true if we're in a
+        // block, we will simply specify that we expected an expression...
         if token.is_none() {
-            return self.unexpected_eof()?;
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedExpression,
+                None,
+                None,
+                &self.next_location(),
+            );
         }
 
         let prev_allowance = self.disallow_struct_literals.get();
@@ -1878,7 +1902,7 @@ where
                 let start = self.current_location();
 
                 let (name, type_args) = self.parse_name_with_type_args(ident)?;
-                let type_args = type_args.unwrap_or_else(|| row![&self.wall]);
+                let type_args = type_args.unwrap_or_else(AstNodes::empty);
 
                 // create the lhs expr.
                 self.node_with_location(
@@ -1976,6 +2000,11 @@ where
             }
         };
 
+        // If this is an import, we need to return here...
+        if let ExpressionKind::Import(_) = &subject.kind() {
+            return Ok(subject);
+        }
+
         // reset the struct literal state in any case
         self.disallow_struct_literals.set(prev_allowance);
 
@@ -2022,15 +2051,14 @@ where
                             // >>> bar(foo, baz)
 
                             // insert lhs_expr first...
-                            args.entries.insert(0, lhs_expr, &self.wall);
+                            args.entries.nodes.insert(0, lhs_expr, &self.wall);
 
-                            lhs_expr = AstNode::new(
+                            lhs_expr = self.node_from_joined_location(
                                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                                     subject,
                                     args,
                                 })),
-                                start.join(self.current_location()),
-                                &self.wall,
+                                &start,
                             );
                         }
                         ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
@@ -2040,15 +2068,14 @@ where
 
                             let node = self.node_with_location(Name { ident: *ident }, location);
 
-                            lhs_expr = AstNode::new(
+                            lhs_expr = self.node_with_location(
                                 Expression::new(ExpressionKind::PropertyAccess(
                                     PropertyAccessExpr {
                                         subject: lhs_expr,
                                         property: node,
                                     },
                                 )),
-                                start.join(self.current_location()),
-                                &self.wall,
+                                location,
                             );
                         }
                         _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
@@ -2087,7 +2114,7 @@ where
                         }
                         expr => {
                             break_now = true;
-                            AstNode::new(Expression::new(expr), location, &self.wall)
+                            self.node_with_location(Expression::new(expr), location)
                         }
                     };
 
@@ -2120,6 +2147,8 @@ where
                 kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                 span,
             }) => {
+                self.skip_token();
+
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 (tree, *span)
             }
@@ -2150,17 +2179,18 @@ where
         }
 
         // Attempt to add the module via the resolver
-        let resolved_module = self
+        let import_path = PathBuf::from_str(path).unwrap_or_else(|err| match err {});
+        let resolved_import_path = self
             .resolver
-            .add_module(path, Some(self.source_location(span)));
+            .parse_import(&import_path, self.source_location(span));
 
-        match resolved_module {
-            Ok(idx) => Ok(self.node_from_joined_location(
+        match resolved_import_path {
+            Ok(resolved_import_path) => Ok(self.node_from_joined_location(
                 Expression::new(ExpressionKind::Import(ImportExpr(
                     self.node_from_joined_location(
                         Import {
                             path: *raw,
-                            index: idx,
+                            resolved_path: resolved_import_path,
                         },
                         &start,
                     ),
@@ -2187,7 +2217,7 @@ where
         let gen = self.from_stream(tree, span);
         let mut args = AstNode::new(
             FunctionCallArgs {
-                entries: row![&self.wall],
+                entries: AstNodes::empty(),
             },
             span,
             &self.wall,
@@ -2195,7 +2225,7 @@ where
 
         while gen.has_token() {
             let arg = gen.parse_expression_with_precedence(0);
-            args.entries.push(arg?, &self.wall);
+            args.entries.nodes.push(arg?, &self.wall);
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
@@ -2255,18 +2285,17 @@ where
     pub fn parse_struct_literal(
         &self,
         name: AstNode<'c, AccessName<'c>>,
-        type_args: Row<'c, AstNode<'c, Type<'c>>>,
+        type_args: AstNodes<'c, Type<'c>>,
         tree: &'stream Row<'stream, Token>,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let start = self.current_location();
         let gen = self.from_stream(tree, start);
 
-        let mut entries = row![&self.wall];
+        let mut entries = AstNodes::empty();
 
         while gen.has_token() {
-            let entry_start = gen.current_location();
-
             let name = gen.parse_ident()?;
+            let location = name.location();
 
             // we want to support the syntax where we can just assign a struct field that has
             // the same name as a variable in scope. For example, if you were to create a
@@ -2287,10 +2316,10 @@ where
 
                     let value = gen.parse_expression_with_precedence(0)?;
 
-                    entries.push(
+                    entries.nodes.push(
                         gen.node_with_location(
                             StructLiteralEntry { name, value },
-                            entry_start.join(gen.current_location()),
+                            location.join(gen.current_location()),
                         ),
                         &self.wall,
                     );
@@ -2298,7 +2327,15 @@ where
                     // now we eat the next token, checking that it is a comma
                     match gen.peek() {
                         Some(token) if token.has_kind(TokenKind::Comma) => gen.skip_token(),
-                        _ => break,
+                        Some(token) => gen.error_with_location(
+                            AstGenErrorKind::Expected,
+                            Some(TokenKindVector::from_row(
+                                row![&self.wall; TokenKind::Comma, TokenKind::Delimiter(Delimiter::Brace, false)],
+                            )),
+                            Some(token.kind),
+                            &token.span,
+                        )?,
+                        None => break,
                     };
                 }
                 Some(token) if token.has_kind(TokenKind::Comma) => {
@@ -2307,13 +2344,13 @@ where
                     // we need to copy the name node and make it into a new expression with the same span
                     let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
 
-                    entries.push(
+                    entries.nodes.push(
                         gen.node_with_location(
                             StructLiteralEntry {
                                 name,
                                 value: name_copy,
                             },
-                            entry_start.join(gen.current_location()),
+                            location.join(gen.current_location()),
                         ),
                         &self.wall,
                     );
@@ -2322,13 +2359,13 @@ where
                     // we need to copy the name node and make it into a new expression with the same span
                     let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
 
-                    entries.push(
+                    entries.nodes.push(
                         gen.node_with_location(
                             StructLiteralEntry {
                                 name,
                                 value: name_copy,
                             },
-                            entry_start.join(gen.current_location()),
+                            location.join(gen.current_location()),
                         ),
                         &self.wall,
                     );
@@ -2338,7 +2375,7 @@ where
                 Some(token) => gen.error_with_location(
                     AstGenErrorKind::Expected,
                     Some(TokenKindVector::from_row(
-                        row![&self.wall; TokenKind::Eq, TokenKind::Comma],
+                        row![&self.wall; TokenKind::Eq, TokenKind::Comma, TokenKind::Delimiter(Delimiter::Brace, false)],
                     )),
                     Some(token.kind),
                     &token.span,
@@ -2387,7 +2424,7 @@ where
                 subject: self.make_ident("index", &start),
                 args: self.node_with_location(
                     FunctionCallArgs {
-                        entries: row![&self.wall; ident, index_expr],
+                        entries: ast_nodes![&self.wall; ident, index_expr],
                     },
                     index_loc,
                 ),
@@ -2435,7 +2472,7 @@ where
                     subject: self.make_ident(fn_name, &start),
                     args: self.node_from_location(
                         FunctionCallArgs {
-                            entries: row![&self.wall; expr],
+                            entries: ast_nodes![&self.wall; expr],
                         },
                         &loc,
                     ),
@@ -2449,7 +2486,7 @@ where
                     subject: self.make_ident("notb", &start),
                     args: self.node_from_location(
                         FunctionCallArgs {
-                            entries: row![&self.wall; arg],
+                            entries: ast_nodes![&self.wall; arg],
                         },
                         &loc,
                     ),
@@ -2477,7 +2514,7 @@ where
                     subject: self.make_ident("not", &start),
                     args: self.node_from_location(
                         FunctionCallArgs {
-                            entries: row![&self.wall; arg],
+                            entries: ast_nodes![&self.wall; arg],
                         },
                         &loc,
                     ),
@@ -2533,11 +2570,11 @@ where
 
                 Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
             }
-            Some(token) => self.error(
-                // @@Cleanup: Use ident
-                AstGenErrorKind::ExpectedExpression,
-                Some(TokenKindVector::empty(&self.wall)),
+            Some(token) => self.error_with_location(
+                AstGenErrorKind::ExpectedIdentifier,
+                None,
                 Some(token.kind),
+                &token.span,
             ),
             None => self.unexpected_eof(),
         }
@@ -2598,7 +2635,7 @@ where
     ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
         Ok(AstNode::new(
             BodyBlock {
-                statements: row![&self.wall],
+                statements: AstNodes::empty(),
                 expr: None,
             },
             Location::span(0, 0),
@@ -2621,10 +2658,10 @@ where
         self.is_compound_expr.set(false);
 
         loop {
-            let op_start = self.current_location();
+            let op_start = self.next_location();
             // this doesn't consider operators that have an 'eq' variant because that is handled at the statement level,
             // since it isn't really a binary operator...
-            let (op, consumed_tokens) = Operator::from_token_stream(self);
+            let (op, consumed_tokens) = self.parse_operator();
 
             match op {
                 // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
@@ -2663,8 +2700,11 @@ where
                         self.is_compound_expr.set(true);
 
                         // transform the operator into an OperatorFn
-                        let transformed_op: OperatorFn = op.into();
-                        lhs = self.transform_binary_expression(lhs, rhs, transformed_op);
+                        lhs = self.transform_binary_expression(
+                            lhs,
+                            rhs,
+                            self.node_with_location(op, op_span),
+                        );
                     }
                 }
                 _ => break,
@@ -2682,13 +2722,15 @@ where
     /// be parsed as an order comparison.
     pub fn parse_type_args(&self) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
         self.parse_token_atom(TokenKind::Lt)?;
-        let mut type_args = row![&self.wall];
+        let start = self.current_location();
+
+        let mut type_args = AstNodes::empty();
 
         loop {
             // Check if the type argument is parsed, if we have already encountered a comma, we
             // return a hard error because it has already started on a comma.
             match self.parse_type() {
-                Ok(ty) => type_args.push(ty, &self.wall),
+                Ok(ty) => type_args.nodes.push(ty, &self.wall),
                 Err(err) => return Err(err),
             };
 
@@ -2712,6 +2754,8 @@ where
             }
         }
 
+        // Update the location of the type bound to reflect the '<' and '>' tokens...
+        type_args.set_span(start.join(self.current_location()));
         Ok(type_args)
     }
 
@@ -2727,7 +2771,7 @@ where
     ) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
-        let mut type_args = row![&self.wall; ];
+        let mut args = AstNodes::empty();
 
         // handle the function arguments first by checking for parentheses
         match self.peek() {
@@ -2736,6 +2780,9 @@ where
                 span,
             }) => {
                 self.skip_token();
+
+                // update the type argument span...
+                args.span = Some(*span);
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 let gen = self.from_stream(tree, *span);
@@ -2747,7 +2794,7 @@ where
                         gen.skip_token();
                     }
                     _ => {
-                        type_args = gen.parse_separated_fn(
+                        args = gen.parse_separated_fn(
                             || gen.parse_type(),
                             || gen.parse_token_atom(TokenKind::Comma),
                         )?;
@@ -2765,38 +2812,39 @@ where
         };
 
         // If there is an arrow '=>', then this must be a function type
-        let name = match self.peek_resultant_fn(|| self.parse_arrow()) {
+        match self.peek_resultant_fn(|| self.parse_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                type_args.push(self.parse_type()?, &self.wall);
-                IDENTIFIER_MAP.create_ident_existing(FUNCTION_TYPE_NAME)
+                Ok(self.node_from_joined_location(
+                    Type::Fn(FnType {
+                        args,
+                        return_ty: self.parse_type()?,
+                    }),
+                    &start,
+                ))
             }
             None => {
                 if must_be_function {
                     self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
-                IDENTIFIER_MAP.create_ident_existing(TUPLE_TYPE_NAME)
+                Ok(
+                    self.node_from_joined_location(
+                        Type::Tuple(TupleType { entries: args }),
+                        &start,
+                    ),
+                )
             }
-        };
-
-        Ok(self.node_from_joined_location(
-            Type::Named(NamedType {
-                name: self
-                    .make_access_name_from_identifier(name, start.join(self.current_location())),
-                type_args,
-            }),
-            &start,
-        ))
+        }
     }
 
     /// Function to parse a type
     pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
-        let start = self.current_location();
         let token = self
             .peek()
             .ok_or_else(|| self.unexpected_eof::<()>().err().unwrap())?;
 
+        let start = token.span;
         let variant = match &token.kind {
             TokenKind::Amp => {
                 self.skip_token();
@@ -2840,10 +2888,10 @@ where
                         let ident = name.body().path.get(0).unwrap();
 
                         match *ident {
-                            Identifier(0) => Type::Infer(InferType),
+                            i if i == CORE_IDENTIFIERS.underscore => Type::Infer(InferType),
                             _ => Type::Named(NamedType {
                                 name,
-                                type_args: row![&self.wall],
+                                type_args: AstNodes::empty(),
                             }),
                         }
                     }
@@ -2872,21 +2920,21 @@ where
                         }
 
                         // @@Incomplete: inline type names into ident map...
-                        let name = IDENTIFIER_MAP.create_ident_existing(MAP_TYPE_NAME);
+                        let name = IDENTIFIER_MAP.create_ident(MAP_TYPE_NAME);
 
                         Type::Named(NamedType {
                             name: self.make_access_name_from_identifier(name, token.span),
-                            type_args: row![&self.wall; lhs_type, rhs_type],
+                            type_args: ast_nodes![&self.wall; lhs_type, rhs_type],
                         })
                     }
                     Some(_) => gen.expected_eof()?,
                     None => {
                         // @@Incomplete: inline type names into ident map...
-                        let name = IDENTIFIER_MAP.create_ident_existing(SET_TYPE_NAME);
+                        let name = IDENTIFIER_MAP.create_ident(SET_TYPE_NAME);
 
                         Type::Named(NamedType {
                             name: self.make_access_name_from_identifier(name, token.span),
-                            type_args: row![&self.wall; lhs_type],
+                            type_args: ast_nodes![&self.wall; lhs_type],
                         })
                     }
                 }
@@ -2907,11 +2955,11 @@ where
                 }
 
                 // @@Incomplete: inline type names into ident map...
-                let name = IDENTIFIER_MAP.create_ident_existing(LIST_TYPE_NAME);
+                let name = IDENTIFIER_MAP.create_ident(LIST_TYPE_NAME);
 
                 Type::Named(NamedType {
                     name: self.make_access_name_from_identifier(name, token.span),
-                    type_args: row![&self.wall; inner_type],
+                    type_args: ast_nodes![&self.wall; inner_type],
                 })
             }
 
@@ -2940,7 +2988,7 @@ where
                 span: id_span,
             }) => {
                 let type_args = self.peek_resultant_fn(|| self.parse_type_args());
-                let type_args = type_args.unwrap_or_else(|| row![&self.wall]);
+                let type_args = type_args.unwrap_or_else(AstNodes::empty);
 
                 // create the subject of the call
                 let subject = self.node_with_location(
@@ -2963,7 +3011,7 @@ where
                         //                   generator and form function call arguments from the stream...
                         let mut args = self.node_with_location(
                             FunctionCallArgs {
-                                entries: row![&self.wall],
+                                entries: AstNodes::empty(),
                             },
                             *span,
                         );
@@ -2975,7 +3023,7 @@ where
 
                         while gen.has_token() {
                             let arg = gen.parse_expression_with_precedence(0);
-                            args.entries.push(arg?, &self.wall);
+                            args.entries.nodes.push(arg?, &self.wall);
 
                             // now we eat the next token, checking that it is a comma
                             match gen.peek() {
@@ -3019,7 +3067,7 @@ where
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_from_location(
                                 Literal::Map(MapLiteral {
-                                    elements: row![&self.wall],
+                                    elements: AstNodes::empty(),
                                 }),
                                 span,
                             ),
@@ -3032,7 +3080,7 @@ where
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_from_location(
                                 Literal::Set(SetLiteral {
-                                    elements: row![&self.wall],
+                                    elements: AstNodes::empty(),
                                 }),
                                 span,
                             ),
@@ -3049,7 +3097,7 @@ where
             return Ok(self.node_from_location(
                 Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                     Block::Body(BodyBlock {
-                        statements: row![&self.wall],
+                        statements: AstNodes::empty(),
                         expr: None,
                     }),
                     span,
@@ -3109,7 +3157,7 @@ where
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_from_location(
                                 Literal::Map(MapLiteral {
-                                    elements: row![&self.wall; entry],
+                                    elements: ast_nodes![&self.wall; entry],
                                 }),
                                 span,
                             ),
@@ -3137,7 +3185,7 @@ where
                 Ok(self.node_from_location(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                         Block::Body(BodyBlock {
-                            statements: row![&self.wall],
+                            statements: AstNodes::empty(),
                             expr: Some(expr),
                         }),
                         span,
@@ -3153,7 +3201,7 @@ where
                 Ok(self.node_from_location(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
                         Block::Body(BodyBlock {
-                            statements: row![&self.wall; statement],
+                            statements: ast_nodes![&self.wall; statement],
                             expr: None,
                         }),
                         span,
@@ -3188,7 +3236,7 @@ where
             || gen.parse_token_atom(TokenKind::Comma),
         )?;
 
-        elements.insert(0, initial_entry, &self.wall);
+        elements.nodes.insert(0, initial_entry, &self.wall);
 
         Ok(self.node_from_joined_location(Literal::Map(MapLiteral { elements }), &start))
     }
@@ -3208,14 +3256,14 @@ where
         )?;
 
         // insert the first item into elements
-        elements.insert(0, initial_entry, &self.wall);
+        elements.nodes.insert(0, initial_entry, &self.wall);
 
         Ok(self.node_from_joined_location(Literal::Set(SetLiteral { elements }), &start))
     }
 
     /// Parse a pattern with an optional if guard after the singular pattern.
     pub fn parse_pattern_with_if(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
-        let start = self.current_location();
+        let start = self.next_location();
         let pattern = self.parse_singular_pattern()?;
 
         match self.peek() {
@@ -3235,15 +3283,17 @@ where
 
     /// Parse a compound pattern.
     pub fn parse_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
-        let start = self.current_location();
+        // attempt to get the next token location as we're starting a pattern here, if there is no token
+        // we should exit and return an error
+        let start = self.next_location();
 
         // Parse the first pattern, but throw away the location information since that will be
         // computed at the end anyway...
-        let mut patterns = row![&self.wall;];
+        let mut patterns = ast_nodes![&self.wall;];
 
         while self.has_token() {
             let pattern = self.parse_pattern_with_if()?;
-            patterns.push(pattern, &self.wall);
+            patterns.nodes.push(pattern, &self.wall);
 
             // Check if this is going to be another pattern following the current one.
             match self.peek() {
@@ -3257,7 +3307,7 @@ where
         // if the length of patterns is greater than one, we return an 'OR' pattern,
         // otherwise just the first pattern.
         if patterns.len() == 1 {
-            let pat = patterns.pop().unwrap();
+            let pat = patterns.nodes.pop().unwrap();
             Ok(pat)
         } else {
             Ok(self
@@ -3267,8 +3317,8 @@ where
 
     /// Parse a function definition argument, which is made of an identifier and a function type.
     pub fn parse_function_def_arg(&self) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
-        let start = self.current_location();
         let name = self.parse_ident()?;
+        let start = name.location();
 
         // @@Future: default values for argument...
         let ty = match self.peek() {
@@ -3354,7 +3404,7 @@ where
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             gen.node_from_joined_location(
                                 Literal::Tuple(TupleLiteral {
-                                    elements: row![&self.wall;],
+                                    elements: ast_nodes![&self.wall;],
                                 }),
                                 &start,
                             ),
@@ -3378,7 +3428,7 @@ where
             return Ok(expr);
         }
 
-        let mut elements = row![&self.wall; expr];
+        let mut elements = ast_nodes![&self.wall; expr];
 
         loop {
             match gen.peek() {
@@ -3390,7 +3440,9 @@ where
                         break;
                     }
 
-                    elements.push(gen.parse_expression_with_precedence(0)?, &self.wall)
+                    elements
+                        .nodes
+                        .push(gen.parse_expression_with_precedence(0)?, &self.wall)
                 }
                 Some(token) => gen.error(
                     AstGenErrorKind::ExpectedExpression,
@@ -3418,11 +3470,11 @@ where
         let gen = self.from_stream(tree, *span);
         let start = gen.current_location();
 
-        let mut elements = row![&self.wall];
+        let mut elements = AstNodes::empty();
 
         while gen.has_token() {
             let expr = gen.parse_expression_with_precedence(0)?;
-            elements.push(expr, &self.wall);
+            elements.nodes.push(expr, &self.wall);
 
             match gen.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => {
@@ -3480,5 +3532,78 @@ where
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
             &token.span,
         )
+    }
+
+    /// This function is used to pickup 'glued' operator tokens to form more complex binary operators
+    /// that might be made up of multiple tokens. The function will peek ahead (2 tokens at most since
+    /// all binary operators are made of that many tokens). The function returns an optional derived
+    /// operator, and the number of tokens that was consumed deriving the operator, it is the responsibility
+    /// of the caller to increment the token stream by the provided number.
+    pub(crate) fn parse_operator(&self) -> (Option<Operator>, u8) {
+        let token = self.peek();
+
+        // check if there is a token that we can peek at ahead...
+        if token.is_none() {
+            return (None, 0);
+        }
+
+        let (op, mut consumed): (_, u8) = match &(token.unwrap()).kind {
+            // Since the 'as' keyword is also a binary operator, we have to handle it here...
+            TokenKind::Keyword(Keyword::As) => (Some(OperatorKind::As), 1),
+            TokenKind::Eq => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::EqEq), 2),
+                _ => (None, 0),
+            },
+            TokenKind::Lt => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::LtEq), 2),
+                Some(token) if token.kind == TokenKind::Lt => (Some(OperatorKind::Shl), 2),
+                _ => (Some(OperatorKind::Lt), 1),
+            },
+            TokenKind::Gt => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::GtEq), 2),
+                Some(token) if token.kind == TokenKind::Gt => (Some(OperatorKind::Shr), 2),
+                _ => (Some(OperatorKind::Gt), 1),
+            },
+            TokenKind::Plus => (Some(OperatorKind::Add), 1),
+            TokenKind::Minus => (Some(OperatorKind::Sub), 1),
+            TokenKind::Star => (Some(OperatorKind::Mul), 1),
+            TokenKind::Slash => (Some(OperatorKind::Div), 1),
+            TokenKind::Percent => (Some(OperatorKind::Mod), 1),
+            TokenKind::Caret => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Caret => (Some(OperatorKind::Exp), 2),
+                _ => (Some(OperatorKind::BitXor), 1),
+            },
+            TokenKind::Amp => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Amp => (Some(OperatorKind::And), 2),
+                _ => (Some(OperatorKind::BitAnd), 1),
+            },
+            TokenKind::Pipe => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Pipe => (Some(OperatorKind::Or), 2),
+                _ => (Some(OperatorKind::BitOr), 1),
+            },
+            TokenKind::Exclamation => match self.peek_second() {
+                Some(token) if token.kind == TokenKind::Eq => (Some(OperatorKind::NotEq), 2),
+                _ => (None, 0), // this is a unary operator '!'
+            },
+            _ => (None, 0),
+        };
+
+        match op {
+            // check if the operator is re-assignable and if so try to parse a equality operator.
+            // If we see this one then we can parse and then just convert the operator into the
+            // 'Eq' version.
+            Some(kind) => {
+                let assignable = match self.peek_nth(consumed as usize) {
+                    Some(token) if kind.is_re_assignable() && token.has_kind(TokenKind::Eq) => {
+                        consumed += 1;
+                        true
+                    }
+                    _ => false,
+                };
+
+                (Some(Operator { kind, assignable }), consumed)
+            }
+            None => (None, 0),
+        }
     }
 }
