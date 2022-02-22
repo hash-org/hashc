@@ -8,8 +8,9 @@ use hash_pipeline::VirtualMachine;
 use hash_reporting::reporting::Report;
 
 use crate::{
-    bytecode::{Instruction, Register, RegisterSet},
+    bytecode::Instruction,
     error::RuntimeError,
+    register::{Register, RegisterSet},
     stack::Stack,
 };
 

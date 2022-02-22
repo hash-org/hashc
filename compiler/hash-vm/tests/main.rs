@@ -1,10 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use hash_vm::vm::Interpreter;
     use hash_vm::{
-        bytecode::{Instruction, Register},
-        bytecode_builder::BytecodeBuilder,
-        vm::InterpreterOptions,
+        bytecode::Instruction, bytecode_builder::BytecodeBuilder, register::Register,
+        vm::Interpreter, vm::InterpreterOptions,
     };
 
     #[test]
