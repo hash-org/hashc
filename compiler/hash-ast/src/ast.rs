@@ -178,6 +178,14 @@ impl<'c, T> AstNodes<'c, T> {
         Self { nodes, span }
     }
 
+    /// Function to adjust the span location of [AstNodes] if it is initially
+    /// incorrectly offset because there is a 'pre-conditional' token that must
+    /// be parsed before parsing the nodes. This token could be something like a
+    /// '<' or '(' which starts a tuple, or type bound
+    pub fn set_span(&mut self, span: Location) {
+        self.span = Some(span);
+    }
+
     pub fn location(&self) -> Option<Location> {
         self.span.or_else(|| {
             Some(

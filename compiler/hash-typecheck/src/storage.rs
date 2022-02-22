@@ -30,7 +30,6 @@ impl CheckedSources {
     }
 }
 
-// @@TODO: Everything here needs to hold type locations!
 #[derive(Debug)]
 pub struct GlobalStorage<'c, 'w> {
     pub checked_sources: CheckedSources,
