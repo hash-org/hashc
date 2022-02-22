@@ -815,7 +815,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::StructLiteral<'c>>,
     ) -> Result<Self::StructLiteralRet, Self::Error> {
         let location = self.source_location(node.location());
-        let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
+
+        let symbol_res = self
+            .resolve_compound_symbol(&node.name.path, self.source_location(node.name.location()))?;
 
         match symbol_res {
             (_, SymbolType::TypeDef(def_id)) => {
@@ -1557,7 +1559,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::StructPattern<'c>>,
     ) -> Result<Self::StructPatternRet, Self::Error> {
         let location = self.source_location(node.location());
-        let symbol_res = self.resolve_compound_symbol(&node.name.path, location)?;
+
+        let symbol_res = self
+            .resolve_compound_symbol(&node.name.path, self.source_location(node.name.location()))?;
 
         match symbol_res {
             (_, SymbolType::TypeDef(def_id)) => {
@@ -1853,10 +1857,14 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     let entry = node.entries.get(index).unwrap();
 
                     return Err(TypecheckError::UnresolvedStructField {
-                        ty_def_location,
-                        ty_def_name: *name,
-                        field_name: entry_name,
-                        location: self.source_location(entry.location()),
+                        ty_def: Symbol::Single {
+                            symbol: *name,
+                            location: ty_def_location,
+                        },
+                        field: Symbol::Single {
+                            symbol: entry_name,
+                            location: self.some_source_location(entry.location()),
+                        },
                     });
                 }
             }
@@ -1899,10 +1907,14 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     let entry = node.fields.get(index).unwrap();
 
                     return Err(TypecheckError::UnresolvedStructField {
-                        ty_def_location,
-                        ty_def_name: *name,
-                        field_name: entry_name,
-                        location: self.source_location(entry.location()),
+                        ty_def: Symbol::Single {
+                            symbol: *name,
+                            location: ty_def_location,
+                        },
+                        field: Symbol::Single {
+                            symbol: entry_name,
+                            location: self.some_source_location(entry.location()),
+                        },
                     });
                 }
             }

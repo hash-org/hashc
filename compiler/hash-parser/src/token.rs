@@ -263,6 +263,27 @@ pub enum TokenKind {
     Unexpected(char),
 }
 
+impl TokenKind {
+    /// This function is used to create an error message representing when a token
+    /// was unexpectedly encountered or was expected in a particular context.
+    pub fn as_error_string(&self) -> String {
+        match self {
+            TokenKind::Unexpected(ch) => format!("an unknown character `{}`", ch),
+            TokenKind::IntLiteral(num) => format!("`{}`", num),
+            TokenKind::FloatLiteral(num) => format!("`{}`", num),
+            TokenKind::CharLiteral(ch) => format!("`{}`", ch),
+            TokenKind::StrLiteral(str) => {
+                format!("the string `{}`", STRING_LITERAL_MAP.lookup(*str))
+            }
+            TokenKind::Keyword(kwd) => format!("`{}`", kwd),
+            TokenKind::Ident(ident) => {
+                format!("the identifier `{}`", IDENTIFIER_MAP.get_ident(*ident))
+            }
+            kind => format!("a `{}`", kind),
+        }
+    }
+}
+
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -287,6 +308,11 @@ impl fmt::Display for TokenKind {
             TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
+            TokenKind::SingleQuote => write!(f, "'"),
+            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
+            TokenKind::IntLiteral(num) => write!(f, "{}", num),
+            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
+            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
             TokenKind::Delimiter(delim, left) => {
                 if *left {
                     write!(f, "{}", delim.left())
@@ -294,12 +320,7 @@ impl fmt::Display for TokenKind {
                     write!(f, "{}", delim.right())
                 }
             }
-            TokenKind::Tree(delim, _) => write!(f, "{} tree {}", delim.left(), delim.right()),
-            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
-            TokenKind::SingleQuote => write!(f, "'"),
-            TokenKind::IntLiteral(num) => write!(f, "{}", num),
-            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
-            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
+            TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
             TokenKind::StrLiteral(str) => {
                 write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
             }
