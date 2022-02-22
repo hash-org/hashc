@@ -159,6 +159,7 @@ pub enum TypecheckError {
         mismatch: ArgumentLengthMismatch,
     },
     UnresolvedType(TypeId),
+    DisallowedPatternNonVariable(Symbol, SourceLocation),
 }
 
 pub type TypecheckResult<T> = Result<T, TypecheckError>;
@@ -690,6 +691,19 @@ impl TypecheckError {
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Help,
                     "Try adding more type annotations.",
+                )));
+            }
+            TypecheckError::DisallowedPatternNonVariable(symbol, location) => {
+                builder.with_error_code(HashErrorCode::DisallowedPatternNonVariable);
+
+                builder.with_message(format!(
+                    "This destructuring pattern is not allowed because {} is not a variable.",
+                    IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter())
+                ));
+
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    location,
+                    "Destructuring pattern not allowed here.",
                 )));
             }
         }

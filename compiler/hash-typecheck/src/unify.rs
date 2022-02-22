@@ -335,11 +335,11 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
                 Ok(())
             }
             (Prim(prim_target), Prim(prim_source)) if prim_target == prim_source => Ok(()),
-            // (Namespace(ns_target), Namespace(ns_source))
-            //     if ns_target.module_idx == ns_source.module_idx =>
-            // {
-            //     Ok(())
-            // }
+            (Namespace(ns_target), Namespace(ns_source))
+                if ns_target.module_id == ns_source.module_id =>
+            {
+                Ok(())
+            }
             _ => Err(TypecheckError::TypeMismatch {
                 given: target,
                 wanted: source,

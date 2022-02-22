@@ -27,17 +27,20 @@ use crate::{
     types::EnumVariants,
 };
 use crate::{state::TypecheckState, types::EnumVariant};
+use core::panic;
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::ast;
+use hash_ast::ast::{self, BindingPattern};
 use hash_ast::ident::Identifier;
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
 use hash_pipeline::sources::{SourceRef, Sources};
+use hash_source::ModuleId;
 use hash_source::{
     location::{Location, SourceLocation},
     SourceId,
 };
+use slotmap::Key;
 use std::collections::HashSet;
 use std::iter;
 use std::mem;
@@ -1164,13 +1167,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 )),
             }
         } else {
-            let walk::LetStatement {
-                pattern: _pattern_ty,
-                ty: _annot_maybe_ty,
-                bound: _,
-                value: _value_maybe_ty,
-            } = walk::walk_let_statement(self, ctx, node)?;
-
             // Ensure that the given pattern for let statements is irrefutable
             if !is_pattern_irrefutable(node.pattern.body()) {
                 let location = self.source_location(node.pattern.location());
@@ -1637,7 +1633,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
-        let walk::NamespacePattern { patterns } = walk::walk_namespace_pattern(self, ctx, node)?;
         let location = self.source_location(node.location());
 
         let pattern_ty = self.create_unknown_type();
@@ -1651,22 +1646,39 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .unify(pattern_ty, subject_ty, UnifyStrategy::ModifyTarget)?;
 
         match self.types().get(pattern_ty) {
-            TypeValue::Namespace(NamespaceType { members }) => {
-                let symbols: Vec<_> = patterns
-                    .iter()
-                    .map(
-                        |&(ident, _ty, location)| match members.resolve_symbol(ident) {
-                            Some(symbol) => Ok((ident, symbol)),
-                            None => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
-                                symbol: ident,
-                                location: Some(location),
-                            })),
+            TypeValue::Namespace(NamespaceType { members, .. }) => {
+                for field in node.fields.iter() {
+                    let location = self.source_location(field.location());
+                    match members.resolve_symbol(field.name.ident) {
+                        Some(SymbolType::Variable(variable_type_id)) => {
+                            let ty = self.visit_pattern(ctx, field.pattern.ast_ref())?;
+                            self.unifier().unify(
+                                ty,
+                                variable_type_id,
+                                UnifyStrategy::ModifyTarget,
+                            )?;
+                        }
+                        Some(symbol_type) => match field.pattern.body() {
+                            ast::Pattern::Binding(BindingPattern(binding)) => {
+                                self.scopes().add_symbol(binding.ident, symbol_type);
+                            }
+                            _ => {
+                                return Err(TypecheckError::DisallowedPatternNonVariable(
+                                    Symbol::Single {
+                                        symbol: field.name.ident,
+                                        location: Some(location),
+                                    },
+                                    self.source_location(field.pattern.location()),
+                                ))
+                            }
                         },
-                    )
-                    .collect::<Result<_, _>>()?;
-
-                for (ident, symbol) in symbols {
-                    self.scopes().add_symbol(ident, symbol);
+                        None => {
+                            return Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
+                                symbol: field.name.ident,
+                                location: Some(location),
+                            }))
+                        }
+                    }
                 }
 
                 Ok(pattern_ty)
@@ -1675,6 +1687,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             _ => {
                 let dummy_namespace_ty = self.create_type(
                     TypeValue::Namespace(NamespaceType {
+                        module_id: ModuleId::null(),
                         members: ScopeStack::empty(),
                     }),
                     Some(location),
@@ -1841,11 +1854,17 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
-        let walk::DestructuringPattern { name: _, pattern } =
-            walk::walk_destructuring_pattern(self, ctx, node)?;
+        let walk::DestructuringPattern {
+            name: _,
+            pattern: pattern_ty,
+        } = walk::walk_destructuring_pattern(self, ctx, node)?;
         let ident = node.name.ident;
 
-        Ok((ident, pattern, self.source_location(node.name.location())))
+        Ok((
+            ident,
+            pattern_ty,
+            self.source_location(node.name.location()),
+        ))
     }
 
     type ModuleRet = TypeId;
@@ -1858,7 +1877,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         let curr_scope = self.scopes().extract_current_scope();
         let members = ScopeStack::with_scopes(self.global_storage, iter::once(curr_scope));
-        let namespace_ty = self.create_type(TypeValue::Namespace(NamespaceType { members }), None);
+
+        let namespace_ty = match self.source_id {
+            SourceId::Interactive(_) => {
+                panic!("Unexpected interactive SourceId when traversing module");
+            }
+            SourceId::Module(module_id) => self.create_type(
+                TypeValue::Namespace(NamespaceType { members, module_id }),
+                None,
+            ),
+        };
 
         Ok(namespace_ty)
     }
