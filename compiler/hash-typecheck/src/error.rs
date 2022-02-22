@@ -235,14 +235,19 @@ impl TypecheckError {
                     )));
             }
             TypecheckError::RequiresIrrefutablePattern(src) => {
-                builder.with_error_code(HashErrorCode::RequiresIrrefutablePattern);
+                builder
+                    .with_error_code(HashErrorCode::RequiresIrrefutablePattern)
+                    .with_message("Pattern cannot be proved to be irrefutable");
 
                 builder
-                .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "This pattern isn't refutable")))
-                .add_element(ReportElement::Note(ReportNote::new(
-                    ReportNoteKind::Note,
-                    "Destructuring statements in `let` or `for` statements must use an irrefutable pattern.",
-                )));
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        src,
+                        "This pattern isn't refutable",
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        "Destructuring patterns in `let` statements must use an irrefutable.",
+                    )));
             }
             TypecheckError::UnresolvedSymbol(symbol) => {
                 builder.with_error_code(HashErrorCode::UnresolvedSymbol);
