@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use std::fmt;
 
 /// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds

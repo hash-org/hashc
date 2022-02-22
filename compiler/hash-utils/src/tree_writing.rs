@@ -1,3 +1,4 @@
+//! All rights reserved 2022 (c) The Hash Language authors
 use core::fmt;
 use std::{borrow::Cow, iter};
 
@@ -49,14 +50,14 @@ impl TreeWriterConfig {
             vertical_line: '│',
             middle_intersect: '├',
             end_intersect: '└',
-            child_prefix: "─ ".into(),
+            child_prefix: "─".into(),
         }
     }
 
     /// Draw trees using Unicode box drawing characters and longer child prefixes.
     pub fn unicode_long() -> Self {
         Self {
-            child_prefix: "── ".into(),
+            child_prefix: "──".into(),
             ..Self::unicode()
         }
     }
@@ -68,7 +69,7 @@ impl TreeWriterConfig {
             vertical_line: '|',
             middle_intersect: '|',
             end_intersect: '`',
-            child_prefix: "- ".into(),
+            child_prefix: "-".into(),
         }
     }
 
@@ -79,7 +80,7 @@ impl TreeWriterConfig {
             vertical_line: ' ',
             middle_intersect: ' ',
             end_intersect: ' ',
-            child_prefix: "- ".into(),
+            child_prefix: "-".into(),
         }
     }
 }
@@ -90,7 +91,7 @@ impl Default for TreeWriterConfig {
     }
 }
 
-/// Can print a tree through [fmt::Display], using a refernce to a [TreeNode].
+/// Can print a tree through [fmt::Display], using a reference to a [TreeNode].
 #[derive(Debug, Clone)]
 pub struct TreeWriter<'t, 'cfg> {
     tree: &'t TreeNode,

@@ -1,10 +1,12 @@
+//! Hash compiler timing and profiling utilities.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 pub mod printing;
 pub mod testing;
 pub mod tree_writing;
 
-use std::time::{Duration, Instant};
-
 use log::log_enabled;
+use std::time::{Duration, Instant};
 
 #[macro_export]
 macro_rules! counter {
@@ -16,7 +18,7 @@ macro_rules! counter {
     ) => {
         static $counter_name: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
-        #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
         $visibility struct $name(pub u32);
 
         impl $name {
@@ -24,12 +26,20 @@ macro_rules! counter {
                 Self($counter_name.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
             }
 
-            $method_visibility fn from(id: u32) -> Self {
-                $name(id)
-            }
-
             $method_visibility fn total() -> u32 {
                 $counter_name.load(std::sync::atomic::Ordering::SeqCst)
+            }
+        }
+
+        impl From<u32> for $name {
+            fn from(id: u32) -> Self {
+                $name(id)
+            }
+        }
+
+        impl From<$name> for u32 {
+            fn from(counter: $name) -> u32 {
+                counter.0
             }
         }
     };

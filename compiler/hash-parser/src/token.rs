@@ -1,7 +1,7 @@
 //! File describing all the variants of Tokens that can be present within a
 //! Hash source file.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use std::fmt;
 
@@ -12,7 +12,7 @@ use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
-use hash_ast::location::Location;
+use hash_source::location::Location;
 
 use crate::error::TokenError;
 
@@ -263,6 +263,27 @@ pub enum TokenKind {
     Unexpected(char),
 }
 
+impl TokenKind {
+    /// This function is used to create an error message representing when a token
+    /// was unexpectedly encountered or was expected in a particular context.
+    pub fn as_error_string(&self) -> String {
+        match self {
+            TokenKind::Unexpected(ch) => format!("an unknown character `{}`", ch),
+            TokenKind::IntLiteral(num) => format!("`{}`", num),
+            TokenKind::FloatLiteral(num) => format!("`{}`", num),
+            TokenKind::CharLiteral(ch) => format!("`{}`", ch),
+            TokenKind::StrLiteral(str) => {
+                format!("the string `{}`", STRING_LITERAL_MAP.lookup(*str))
+            }
+            TokenKind::Keyword(kwd) => format!("`{}`", kwd),
+            TokenKind::Ident(ident) => {
+                format!("the identifier `{}`", IDENTIFIER_MAP.get_ident(*ident))
+            }
+            kind => format!("a `{}`", kind),
+        }
+    }
+}
+
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -287,6 +308,11 @@ impl fmt::Display for TokenKind {
             TokenKind::Dollar => write!(f, "$"),
             TokenKind::Comma => write!(f, ","),
             TokenKind::Quote => write!(f, "\""),
+            TokenKind::SingleQuote => write!(f, "'"),
+            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
+            TokenKind::IntLiteral(num) => write!(f, "{}", num),
+            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
+            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
             TokenKind::Delimiter(delim, left) => {
                 if *left {
                     write!(f, "{}", delim.left())
@@ -294,12 +320,7 @@ impl fmt::Display for TokenKind {
                     write!(f, "{}", delim.right())
                 }
             }
-            TokenKind::Tree(delim, _) => write!(f, "{} tree {}", delim.left(), delim.right()),
-            TokenKind::Unexpected(ch) => write!(f, "{}", ch),
-            TokenKind::SingleQuote => write!(f, "'"),
-            TokenKind::IntLiteral(num) => write!(f, "{}", num),
-            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
-            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
+            TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
             TokenKind::StrLiteral(str) => {
                 write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
             }
@@ -316,7 +337,7 @@ impl fmt::Display for TokenKind {
 /// The wrapper exists because once again you cannot specify implementations for types
 /// that don't originate from the current crate.
 ///
-/// TODO(alex): Instead of using a [TokenKind], we should use an enum to custom
+/// @@TODO(alex): Instead of using a [TokenKind], we should use an enum to custom
 /// variants or descriptors such as 'operator'. Instead of token atoms we can just
 /// the display representations of the token atoms. Or even better, we can use the
 /// [`ToString`] trait and just auto cast into a string, whilst holding a vector of

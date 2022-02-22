@@ -1,3 +1,6 @@
+//! Hash AST string literal storage utilities and wrappers.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 use fnv::FnvBuildHasher;
 use hash_utils::counter;
 use lazy_static::lazy_static;

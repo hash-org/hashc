@@ -1,28 +1,21 @@
-//! Frontend-agnostic Hash abstract syntax tree type definitions.
+//! Frontend-agnostic Hash AST (abstract syntax tree) type definitions.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
 use crate::ident::Identifier;
 use crate::literal::StringLiteral;
-use crate::location::Location;
-use crate::module::ModuleIdx;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
-use hash_alloc::Wall;
+use hash_alloc::{row, Wall};
+use hash_source::location::Location;
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 
 counter! {
     name: AstNodeId,
     counter_name: AST_NODE_ID_COUNTER,
-    visibility: pub,
-    method_visibility: pub,
-}
-
-counter! {
-    name: TypeId,
-    counter_name: TYPE_ID_COUNTER,
     visibility: pub,
     method_visibility: pub,
 }
@@ -94,12 +87,24 @@ impl<'c, T> AstNode<'c, T> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct AstNodeRef<'t, T> {
     body: &'t T,
     location: Location,
     id: AstNodeId,
 }
+
+impl<T> Clone for AstNodeRef<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            body: self.body,
+            location: self.location,
+            id: self.id,
+        }
+    }
+}
+
+impl<T> Copy for AstNodeRef<'_, T> {}
 
 impl<'t, T> AstNodeRef<'t, T> {
     /// Get a reference to the reference contained within this node.
@@ -134,7 +139,76 @@ impl<T> Deref for AstNodeRef<'_, T> {
     }
 }
 
-pub type AstNodes<'c, T> = Row<'c, AstNode<'c, T>>;
+#[derive(Debug, PartialEq)]
+pub struct AstNodes<'c, T> {
+    pub nodes: Row<'c, AstNode<'c, T>>,
+
+    /// The span of the AST nodes if one is available,
+    pub span: Option<Location>,
+}
+
+#[macro_export]
+macro_rules! ast_nodes {
+    () => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new(), None)
+    };
+    ($wall:expr) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::new(), None)
+    };
+    ($wall:expr; $($item:expr),*) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall), None)
+    };
+    ($wall:expr; $($item:expr,)*) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter([$($item,)*], $wall), None)
+    };
+    ($wall:expr; $item:expr; $count:expr) => {
+        $crate::ast::AstNodes::new(hash_alloc::collections::row::Row::from_iter(std::iter::repeat($item).take($count), $wall), None)
+    };
+}
+
+impl<'c, T> AstNodes<'c, T> {
+    pub fn empty() -> Self {
+        Self {
+            nodes: row![],
+            span: None,
+        }
+    }
+
+    pub fn new(nodes: Row<'c, AstNode<'c, T>>, span: Option<Location>) -> Self {
+        Self { nodes, span }
+    }
+
+    /// Function to adjust the span location of [AstNodes] if it is initially
+    /// incorrectly offset because there is a 'pre-conditional' token that must
+    /// be parsed before parsing the nodes. This token could be something like a
+    /// '<' or '(' which starts a tuple, or type bound
+    pub fn set_span(&mut self, span: Location) {
+        self.span = Some(span);
+    }
+
+    pub fn location(&self) -> Option<Location> {
+        self.span.or_else(|| {
+            Some(
+                self.nodes
+                    .first()?
+                    .location()
+                    .join(self.nodes.last()?.location()),
+            )
+        })
+    }
+}
+
+impl<'c, T> Deref for AstNodes<'c, T> {
+    type Target = [AstNode<'c, T>];
+    fn deref(&self) -> &Self::Target {
+        &*self.nodes
+    }
+}
+impl<'c, T> DerefMut for AstNodes<'c, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.nodes
+    }
+}
 
 /// [AstNode] dereferences to its inner `body` type.
 impl<T> Deref for AstNode<'_, T> {
@@ -190,8 +264,6 @@ pub struct TypeVar<'c> {
 
 /// Names for compound types that represent data structures or functions are
 /// translated into string form, and thus are represented by these names.
-pub const FUNCTION_TYPE_NAME: &str = "Function";
-pub const TUPLE_TYPE_NAME: &str = "Tuple";
 pub const LIST_TYPE_NAME: &str = "List";
 pub const SET_TYPE_NAME: &str = "Set";
 pub const MAP_TYPE_NAME: &str = "Map";
@@ -221,9 +293,24 @@ pub struct ExistentialType;
 #[derive(Debug, PartialEq)]
 pub struct InferType;
 
+/// The tuple type.
+#[derive(Debug, PartialEq)]
+pub struct TupleType<'c> {
+    pub entries: AstNodes<'c, Type<'c>>,
+}
+
+/// The function type.
+#[derive(Debug, PartialEq)]
+pub struct FnType<'c> {
+    pub args: AstNodes<'c, Type<'c>>,
+    pub return_ty: AstNode<'c, Type<'c>>,
+}
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
+    Tuple(TupleType<'c>),
+    Fn(FnType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
@@ -364,7 +451,7 @@ pub struct EnumPattern<'c> {
     /// The name of the enum variant.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
-    pub args: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, Pattern<'c>>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
@@ -384,21 +471,21 @@ pub struct StructPattern<'c> {
     /// The name of the struct.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The entries of the struct, as [DestructuringPattern] entries.
-    pub entries: AstNodes<'c, DestructuringPattern<'c>>,
+    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq)]
 pub struct NamespacePattern<'c> {
     /// The entries of the namespace, as [DestructuringPattern] entries.
-    pub patterns: AstNodes<'c, DestructuringPattern<'c>>,
+    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
 /// A tuple pattern, e.g. `(1, 2, x)`
 #[derive(Debug, PartialEq)]
 pub struct TuplePattern<'c> {
     /// The element of the tuple, as patterns.
-    pub elements: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, Pattern<'c>>,
 }
 
 /// A string literal pattern.
@@ -604,6 +691,15 @@ pub struct MatchCase<'c> {
     pub expr: AstNode<'c, Expression<'c>>,
 }
 
+/// The origin of a match block
+#[derive(Debug, PartialEq)]
+pub enum MatchOrigin {
+    If,
+    Match,
+    For,
+    While,
+}
+
 /// A `match` block.
 #[derive(Debug, PartialEq)]
 pub struct MatchBlock<'c> {
@@ -611,6 +707,8 @@ pub struct MatchBlock<'c> {
     pub subject: AstNode<'c, Expression<'c>>,
     /// The match cases to execute.
     pub cases: AstNodes<'c, MatchCase<'c>>,
+    /// Whether the match block represents a for, while, if or match statement
+    pub origin: MatchOrigin,
 }
 
 /// A body block.
@@ -676,7 +774,7 @@ pub struct TypedExpr<'c> {
 #[derive(Debug, PartialEq)]
 pub struct Import {
     pub path: StringLiteral,
-    pub index: ModuleIdx,
+    pub resolved_path: PathBuf,
 }
 
 /// A variable expression.
@@ -729,15 +827,11 @@ pub enum ExpressionKind<'c> {
 #[derive(Debug, PartialEq)]
 pub struct Expression<'c> {
     kind: ExpressionKind<'c>,
-    type_id: Option<TypeId>,
 }
 
 impl<'c> Expression<'c> {
     pub fn new(kind: ExpressionKind<'c>) -> Self {
-        Self {
-            kind,
-            type_id: None,
-        }
+        Self { kind }
     }
 
     pub fn into_kind(self) -> ExpressionKind<'c> {
@@ -746,21 +840,6 @@ impl<'c> Expression<'c> {
 
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
-    }
-
-    /// Set the type ID of the node.
-    pub fn set_type_id(&mut self, type_id: TypeId) {
-        self.type_id = Some(type_id);
-    }
-
-    /// Clear the type ID of the node.
-    pub fn clear_type_id(&mut self) {
-        self.type_id = None;
-    }
-
-    /// Get the type ID of this node.
-    pub fn type_id(&self) -> Option<TypeId> {
-        self.type_id
     }
 }
 

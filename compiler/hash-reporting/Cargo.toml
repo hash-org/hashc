@@ -6,5 +6,6 @@ edition = "2021"
 
 [dependencies]
 thiserror = "1.0"
-hash-ast = {path = "../hash-ast" }
+hash-source = {path = "../hash-source" }
 hash-alloc = {path = "../hash-alloc" }
+hash-error-codes = {path = "../hash-error-codes" }

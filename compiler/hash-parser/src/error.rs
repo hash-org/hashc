@@ -1,16 +1,20 @@
 //! Hash compiler parser error data types.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_ast::{
-    error::{ImportError, ParseError},
-    location::{Location, SourceLocation},
-    module::ModuleIdx,
-};
-use hash_utils::printing::SequenceDisplay;
+use std::io;
 
 use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
+use hash_pipeline::fs::ImportError;
+use hash_reporting::reporting::{
+    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
+};
+use hash_source::{
+    location::{Location, SourceLocation},
+    SourceId,
+};
+use hash_utils::printing::SequenceDisplay;
 use thiserror::Error;
 
 /// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
@@ -50,15 +54,15 @@ pub enum TokenErrorKind {
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
-pub struct TokenErrorWrapper(pub ModuleIdx, pub TokenError);
+pub struct TokenErrorWrapper(pub SourceId, pub TokenError);
 
 impl From<TokenErrorWrapper> for ParseError {
-    fn from(TokenErrorWrapper(idx, err): TokenErrorWrapper) -> Self {
+    fn from(TokenErrorWrapper(source_id, err): TokenErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
             src: Some(SourceLocation {
                 location: err.location,
-                module_index: idx,
+                source_id,
             }),
         }
     }
@@ -107,6 +111,8 @@ pub enum AstGenErrorKind {
     /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
     /// is to add additional information in the error message.
     TyArgument(TyArgumentKind),
+    /// Expected an identifier here.
+    ExpectedIdentifier,
     /// Expected statement.
     ExpectedStatement,
     /// Expected an expression.
@@ -134,7 +140,7 @@ pub enum AstGenErrorKind {
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
-pub struct GeneratorErrorWrapper<'a>(pub ModuleIdx, pub AstGenError<'a>);
+pub struct GeneratorErrorWrapper<'a>(pub SourceId, pub AstGenError<'a>);
 
 impl std::fmt::Display for TyArgumentKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -154,36 +160,42 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::Keyword => {
                 let keyword = err.received.unwrap();
 
-                format!("Encountered an unexpected keyword '{}'", keyword)
+                format!(
+                    "Encountered an unexpected keyword {}",
+                    keyword.as_error_string()
+                )
             }
             AstGenErrorKind::Expected => match &err.received {
-                Some(atom) => format!("Unexpectedly encountered '{}'", atom),
+                Some(kind) => format!("Unexpectedly encountered {}", kind.as_error_string()),
                 None => "Unexpectedly reached the end of input".to_string(),
             },
             AstGenErrorKind::Block => {
                 let base: String = "Expected block body, which begins with a '{'".into();
 
                 match err.received {
-                    Some(atom) => format!("{}, however received '{}'.", base, atom),
+                    Some(kind) => {
+                        format!("{}, however received '{}'.", base, kind.as_error_string())
+                    }
                     None => base,
                 }
             }
             AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
-            AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator here".to_string(),
+            AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator".to_string(),
             AstGenErrorKind::TyArgument(ty) => {
                 format!(
                     "Expected {} type arguments, or {} definition entries here which begin with a '{{'",
                     ty, ty
                 )
             }
-            AstGenErrorKind::ExpectedStatement => "Expected an statement here".to_string(),
-            AstGenErrorKind::ExpectedExpression => "Expected an expression here".to_string(),
-            AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' here".to_string(),
+            AstGenErrorKind::ExpectedStatement => "Expected an statement".to_string(),
+            AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
+            AstGenErrorKind::ExpectedIdentifier => "Expected an identifier ".to_string(),
+            AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {
                 "Expected an arrow '=>' after type arguments denoting a function type".to_string()
             }
-            AstGenErrorKind::ExpectedFnBody => "Expected a function body here".to_string(),
-            AstGenErrorKind::ExpectedType => "Expected a type annotation here".to_string(),
+            AstGenErrorKind::ExpectedFnBody => "Expected a function body".to_string(),
+            AstGenErrorKind::ExpectedType => "Expected a type annotation".to_string(),
             AstGenErrorKind::InfixCall => {
                 "Expected field name access or an infix function call".to_string()
             }
@@ -200,16 +212,21 @@ impl<'a> From<AstGenError<'a>> for ParseError {
         // other error types follow a conformed order to formatting expected tokens
         if !matches!(&err.kind, AstGenErrorKind::Block) {
             if !matches!(&err.kind, AstGenErrorKind::Expected) {
-                if let Some(atom) = err.received {
-                    let atom_msg = format!(", however received a '{}'", atom);
+                if let Some(kind) = err.received {
+                    let atom_msg = format!(", however received {}", kind.as_error_string());
                     base_message.push_str(&atom_msg);
                 }
             }
 
+            // If the generated error has suggested tokens that aren't empty.
             if let Some(expected) = expected {
-                let slice_display = SequenceDisplay(expected.into_inner().into_slice());
-                let expected_items_msg = format!(". Consider adding {}", slice_display);
-                base_message.push_str(&expected_items_msg);
+                if expected.is_empty() {
+                    base_message.push('.');
+                } else {
+                    let slice_display = SequenceDisplay(expected.into_inner().into_slice());
+                    let expected_items_msg = format!(". Consider adding {}", slice_display);
+                    base_message.push_str(&expected_items_msg);
+                }
             } else {
                 base_message.push('.');
             }
@@ -221,3 +238,68 @@ impl<'a> From<AstGenError<'a>> for ParseError {
         }
     }
 }
+
+/// Hash ParseError enum representing the variants of possible errors.
+#[derive(Debug)]
+pub enum ParseError {
+    Import(ImportError),
+    IO(io::Error),
+    Parsing {
+        message: String,
+        src: Option<SourceLocation>,
+    },
+    Token {
+        message: String,
+        src: SourceLocation,
+    },
+}
+
+impl From<io::Error> for ParseError {
+    fn from(err: io::Error) -> Self {
+        Self::IO(err)
+    }
+}
+
+impl From<ParseError> for Report {
+    fn from(err: ParseError) -> Self {
+        err.create_report()
+    }
+}
+
+impl ParseError {
+    pub fn create_report(self) -> Report {
+        let mut builder = ReportBuilder::new();
+        builder
+            .with_kind(ReportKind::Error)
+            .with_message("Failed to parse");
+
+        match self {
+            ParseError::Import(import_error) => return import_error.create_report(),
+            ParseError::Parsing {
+                message,
+                src: Some(src),
+            }
+            | ParseError::Token { message, src } => {
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        message,
+                    )));
+            }
+            // When we don't have a source for the error, just add a note
+            ParseError::Parsing { message, src: None } => {
+                builder.with_message(message);
+            }
+            ParseError::IO(inner) => {
+                // @@ErrorReporting: we might want to show a bit more info here.
+                builder.with_message(inner.to_string());
+            }
+        };
+
+        // @@ErrorReporting: we might want to properly handle incomplete reports?
+        builder.build().unwrap()
+    }
+}
+
+pub type ParseResult<T> = Result<T, ParseError>;

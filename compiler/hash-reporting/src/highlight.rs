@@ -1,6 +1,6 @@
 //! Hash Compiler error and warning reporting module.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 use std::ops::BitOr;
 
 /// Variants of highlighter colour that can be used.

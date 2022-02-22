@@ -1,14 +1,14 @@
 //! Hash compiler low level implementation for the language lexer. Convert
 //! an arbitrary string into a sequence of Lexemes.
 //!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! All rights reserved 2022 (c) The Hash Language authors
 use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::keyword::Keyword;
+use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::literal::STRING_LITERAL_MAP;
-use hash_ast::location::Location;
-use hash_ast::{error::ParseResult, ident::Identifier};
-use hash_ast::{ident::IDENTIFIER_MAP, module::ModuleIdx};
+use hash_ast::{ident::CORE_IDENTIFIERS, keyword::Keyword};
+use hash_source::{location::Location, SourceId};
 
+use crate::error::ParseResult;
 use crate::{
     error::{TokenError, TokenErrorKind, TokenErrorWrapper},
     token::{Delimiter, Token, TokenKind, TokenResult},
@@ -31,7 +31,7 @@ pub struct Lexer<'w, 'c, 'a> {
     contents: &'a str,
 
     /// Representative module index of the current source.
-    module_idx: ModuleIdx,
+    source_id: SourceId,
 
     /// Representing the last character the lexer encountered. This is only set
     /// by [Lexer::advance_token] so that [Lexer::eat_token_tree] can perform a check
@@ -47,10 +47,10 @@ pub struct Lexer<'w, 'c, 'a> {
 
 impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, module_idx: ModuleIdx, wall: &'w Wall<'c>) -> Self {
+    pub fn new(contents: &'a str, source_id: SourceId, wall: &'w Wall<'c>) -> Self {
         Lexer {
             offset: Cell::new(0),
-            module_idx,
+            source_id,
             previous_delimiter: Cell::new(None),
             contents,
             wall,
@@ -279,7 +279,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             "return" => TokenKind::Keyword(Keyword::Return),
             "import" => TokenKind::Keyword(Keyword::Import),
             "raw" => TokenKind::Keyword(Keyword::Raw),
-            "_" => TokenKind::Ident(Identifier(0)),
+            "_" => TokenKind::Ident(CORE_IDENTIFIERS.underscore),
             _ => {
                 // create the identifier here from the created map
                 let ident = IDENTIFIER_MAP.create_ident(name);
@@ -355,11 +355,10 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             _ => {
                 let digits = pre_digits.collect::<String>();
 
-                // TODO: Implement display for parse errors
-                // TODO: Use our own parser for integers and floats instead of relying on rust's default one.
+                // @@TODO: Use our own parser for integers and floats instead of relying on rust's default one.
                 match digits.parse::<u64>() {
-                    Err(_e) => Err(TokenError::new(
-                        Some(format!("Malformed integer literal '{}'.", digits)),
+                    Err(e) => Err(TokenError::new(
+                        Some(format!("Malformed integer literal: '{}'.", e)),
                         TokenErrorKind::MalformedNumericalLiteral,
                         Location::span(start, self.offset.get()),
                     )),
@@ -460,8 +459,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 // here we expect up to 6 hex digits, which is finally closed by a '}'
                 let chars = self.eat_while_and_slice(|c| c.is_ascii_hexdigit());
-
-                // @@TODO: validate the fact that it can only be a max of 6 chars...
 
                 if self.peek() != '}' {
                     return Err(TokenError::new(
@@ -706,9 +703,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let wall = self.wall;
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        Ok(
-            Row::try_from_iter(iter, wall)
-                .map_err(|err| TokenErrorWrapper(self.module_idx, err))?,
-        )
+        Ok(Row::try_from_iter(iter, wall).map_err(|err| TokenErrorWrapper(self.source_id, err))?)
     }
 }
