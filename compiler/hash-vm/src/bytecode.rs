@@ -58,31 +58,19 @@ impl RegisterSet {
     /// indexing the [RegisterSet] is always safe as there are always [`u8::MAX`]  number of
     /// registers.
     pub fn get_register_8b(&self, register: Register) -> &[u8; 8] {
-        unsafe { self.registers.get_unchecked(register.0 as usize) }
+        &self.registers[register.0 as usize]
     }
 
     pub fn get_register_4b(&self, register: Register) -> &[u8; 4] {
-        unsafe {
-            self.registers.get_unchecked(register.0 as usize)[4..]
-                .try_into()
-                .unwrap()
-        }
+        self.registers[register.0 as usize][4..].try_into().unwrap()
     }
 
     pub fn get_register_2b(&self, register: Register) -> &[u8; 2] {
-        unsafe {
-            self.registers.get_unchecked(register.0 as usize)[6..]
-                .try_into()
-                .unwrap()
-        }
+        self.registers[register.0 as usize][6..].try_into().unwrap()
     }
 
     pub fn get_register_b(&self, register: Register) -> &[u8; 1] {
-        unsafe {
-            self.registers.get_unchecked(register.0 as usize)[7..]
-                .try_into()
-                .unwrap()
-        }
+        self.registers[register.0 as usize][7..].try_into().unwrap()
     }
 
     pub fn set_register_8b(&mut self, register: Register, value: &[u8; 8]) {
