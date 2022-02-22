@@ -1032,8 +1032,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a type bound. Type bounds can occur in traits, function, struct and enum
     /// definitions.
     pub fn parse_type_bound(&self) -> AstGenResult<'c, AstNode<'c, Bound<'c>>> {
-        let start = self.current_location();
         let type_args = self.parse_type_args()?;
+        let type_args_location = type_args.location().unwrap();
 
         let trait_bounds = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
@@ -1083,7 +1083,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 type_args,
                 trait_bounds,
             },
-            &start,
+            &type_args_location,
         ))
     }
 
@@ -2000,6 +2000,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
+        // If this is an import, we need to return here...
+        if let ExpressionKind::Import(_) = &subject.kind() {
+            return Ok(subject);
+        }
+
         // reset the struct literal state in any case
         self.disallow_struct_literals.set(prev_allowance);
 
@@ -2142,6 +2147,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                 span,
             }) => {
+                self.skip_token();
+
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 (tree, *span)
             }
@@ -2707,6 +2714,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// be parsed as an order comparison.
     pub fn parse_type_args(&self) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
         self.parse_token_atom(TokenKind::Lt)?;
+        let start = self.current_location();
+
         let mut type_args = AstNodes::empty();
 
         loop {
@@ -2737,6 +2746,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
+        // Update the location of the type bound to reflect the '<' and '>' tokens...
+        type_args.set_span(start.join(self.current_location()));
         Ok(type_args)
     }
 
