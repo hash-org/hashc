@@ -5,6 +5,7 @@ use crate::highlight::{highlight, Colour, Modifier};
 use core::fmt;
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::{location::SourceLocation, SourceMap};
+use hash_utils::path::adjust_canonicalization;
 use std::{
     cell::Cell,
     iter::{once, repeat},
@@ -239,7 +240,7 @@ impl ReportCodeBlock {
                 Modifier::Underline,
                 format!(
                     "{}:{}:{}",
-                    modules.path_by_id(source_id).to_string_lossy(),
+                    adjust_canonicalization(modules.path_by_id(source_id)),
                     start_row + 1,
                     start_col + 1,
                 )
