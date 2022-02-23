@@ -7,13 +7,14 @@
 mod crash_handler;
 mod logger;
 
-use clap::{AppSettings, Parser as ClapParser};
+use clap::Parser as ClapParser;
 use hash_alloc::Castle;
 use hash_parser::parser::HashParser;
 use hash_pipeline::{fs::resolve_path, sources::Module, Compiler};
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_typecheck::HashTypechecker;
 use hash_utils::timed;
+use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
 use std::num::NonZeroUsize;
@@ -32,7 +33,7 @@ use crate::crash_handler::panic_handler;
     author = "Hash Language Authors",
     about = "Run and execute hash programs"
 )]
-#[clap(setting = AppSettings::DisableColoredHelp)]
+#[clap(disable_colored_help = true)]
 struct CompilerOptions {
     //  Include a directory into runtime. The current directory is included by default
     // #[clap(short, long, multiple_values = true)]
@@ -41,12 +42,13 @@ struct CompilerOptions {
     #[clap(short, long)]
     execute: Option<String>,
 
-    // Set the maximum stack size for the current running instance.
-    // #[clap(short, long, default_value = "10000")]
-    // stack_size: u32,
     /// Run the compiler in debug mode
     #[clap(short, long)]
     debug: bool,
+
+    /// Set the maximum stack size for the current running instance.
+    #[clap(short, long, default_value = "10000")]
+    stack_size: usize,
 
     /// Number of worker threads the compiler should use
     #[clap(short, long, default_value = Box::leak(num_cpus::get().to_string().into_boxed_str()))]
@@ -113,6 +115,8 @@ fn main() {
     // if debug is specified, we want to log everything that is debug level...
     if opts.debug {
         log::set_max_level(LevelFilter::Debug);
+    } else {
+        log::set_max_level(LevelFilter::Info);
     }
 
     // check that the job count is valid...
@@ -131,7 +135,11 @@ fn main() {
     let parser = HashParser::new(worker_count, &castle);
     let tc_wall = &castle.wall();
     let checker = HashTypechecker::new(tc_wall);
-    let mut compiler = Compiler::new(parser, checker);
+
+    // Create the vm
+    let vm = Interpreter::new(InterpreterOptions::new(opts.stack_size));
+
+    let mut compiler = Compiler::new(parser, checker, vm);
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {
