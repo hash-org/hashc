@@ -568,25 +568,94 @@ impl Interpreter {
 
                 self.registers.set_register_f64(l1, r1 % r2);
             }
-            Instruction::Xor { l1, l2 } => {
+            Instruction::Xor8 { l1, l2 } => {
+                let r1 = self.registers.get_register8(l1);
+                let r2 = self.registers.get_register8(l2);
+
+                self.registers.set_register8(l1, r1 ^ r2);
+            }
+            Instruction::Xor16 { l1, l2 } => {
+                let r1 = self.registers.get_register16(l1);
+                let r2 = self.registers.get_register16(l2);
+
+                self.registers.set_register16(l1, r1 ^ r2);
+            }
+            Instruction::Xor32 { l1, l2 } => {
+                let r1 = self.registers.get_register32(l1);
+                let r2 = self.registers.get_register32(l2);
+
+                self.registers.set_register32(l1, r1 ^ r2);
+            }
+            Instruction::Xor64 { l1, l2 } => {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);
 
                 self.registers.set_register64(l1, r1 ^ r2);
             }
-            Instruction::Or { l1, l2 } => {
+            Instruction::Or8 { l1, l2 } => {
+                let r1 = self.registers.get_register8(l1);
+                let r2 = self.registers.get_register8(l2);
+
+                self.registers.set_register8(l1, r1 | r2);
+            }
+            Instruction::Or16 { l1, l2 } => {
+                let r1 = self.registers.get_register16(l1);
+                let r2 = self.registers.get_register16(l2);
+
+                self.registers.set_register16(l1, r1 | r2);
+            }
+            Instruction::Or32 { l1, l2 } => {
+                let r1 = self.registers.get_register32(l1);
+                let r2 = self.registers.get_register32(l2);
+
+                self.registers.set_register32(l1, r1 | r2);
+            }
+            Instruction::Or64 { l1, l2 } => {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);
 
                 self.registers.set_register64(l1, r1 | r2);
             }
-            Instruction::And { l1, l2 } => {
+            Instruction::And8 { l1, l2 } => {
+                let r1 = self.registers.get_register8(l1);
+                let r2 = self.registers.get_register8(l2);
+
+                self.registers.set_register8(l1, r1 & r2);
+            }
+            Instruction::And16 { l1, l2 } => {
+                let r1 = self.registers.get_register16(l1);
+                let r2 = self.registers.get_register16(l2);
+
+                self.registers.set_register16(l1, r1 & r2);
+            }
+            Instruction::And32 { l1, l2 } => {
+                let r1 = self.registers.get_register32(l1);
+                let r2 = self.registers.get_register32(l2);
+
+                self.registers.set_register32(l1, r1 & r2);
+            }
+            Instruction::And64 { l1, l2 } => {
                 let r1 = self.registers.get_register64(l1);
                 let r2 = self.registers.get_register64(l2);
 
                 self.registers.set_register64(l1, r1 & r2);
             }
-            Instruction::Not { l1 } => {
+            Instruction::Not8 { l1 } => {
+                let r1 = self.registers.get_register8(l1);
+
+                self.registers.set_register8(l1, !r1);
+            }
+            Instruction::Not16 { l1 } => {
+                let r1 = self.registers.get_register16(l1);
+
+                self.registers.set_register16(l1, !r1);
+            }
+            Instruction::Not32 { l1 } => {
+                let r1 = self.registers.get_register32(l1);
+
+                self.registers.set_register32(l1, !r1);
+            }
+            Instruction::Not64 { l1 } => {
                 let r1 = self.registers.get_register64(l1);
 
                 self.registers.set_register64(l1, !r1);
