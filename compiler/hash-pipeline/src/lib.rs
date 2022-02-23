@@ -77,21 +77,37 @@ pub trait Checker<'c> {
     ) -> (CompilerResult<()>, Self::ModuleState);
 }
 
+/// The virtual machine trait
+pub trait VirtualMachine<'c> {
+    /// The general [VirtualMachine] state. This is implementation specific to the
+    /// VM that implements this trait. The pipeline should have no
+    /// dealings with the actual state, except saving it.
+    type State;
+
+    /// Make the general [VirtualMachine::State].
+    fn make_state(&mut self) -> CompilerResult<Self::State>;
+
+    /// Run the currently generated VM
+    fn run(&mut self, state: &mut Self::State) -> CompilerResult<()>;
+}
+
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<P, C> {
+pub struct Compiler<P, C, V> {
     /// The parser stage of the compiler.
     parser: P,
     /// The typechecking stage of the compiler.
     checker: C,
+    /// The current VM.
+    vm: V,
 }
 
 /// The [CompilerState] holds all the information and state of the compiler instance.
 /// Each stage of the compiler contains a `State` type parameter which the compiler stores
 /// so that incremental executions of the compiler are possible.
-pub struct CompilerState<'c, C: Checker<'c>> {
+pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
     /// The collected workspace sources for the current job.
     pub sources: Sources<'c>,
     /// The typechecker state.
@@ -102,33 +118,43 @@ pub struct CompilerState<'c, C: Checker<'c>> {
     pub checker_interactive_state: C::InteractiveState,
     /// The module checker stage.
     pub checker_module_state: C::ModuleState,
+    ///
+    pub vm_state: V::State,
 }
 
-impl<'c, P, C> Compiler<P, C>
+impl<'c, P, C, V> Compiler<P, C, V>
 where
     P: Parser<'c>,
     C: Checker<'c>,
+    V: VirtualMachine<'c>,
 {
     /// Create a new instance of a [Compiler] with the provided parser and
     /// typechecker implementations.
-    pub fn new(parser: P, checker: C) -> Self {
-        Self { parser, checker }
+    pub fn new(parser: P, checker: C, vm: V) -> Self {
+        Self {
+            parser,
+            checker,
+            vm,
+        }
     }
 
     /// Create a compiler state to accompany with compiler execution. Internally, this
     /// calls the [Checker] state making functions and saves it into the created
     /// [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C, V>> {
         let sources = Sources::new();
         let mut checker_state = self.checker.make_state()?;
         let checker_interactive_state = self.checker.make_interactive_state(&mut checker_state)?;
         let checker_module_state = self.checker.make_module_state(&mut checker_state)?;
+
+        let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
             sources,
             checker_state,
             checker_interactive_state,
             checker_module_state,
+            vm_state,
         })
     }
 
@@ -142,8 +168,8 @@ where
     pub fn run_interactive(
         &mut self,
         interactive_id: InteractiveId,
-        mut compiler_state: CompilerState<'c, C>,
-    ) -> (CompilerResult<String>, CompilerState<'c, C>) {
+        mut compiler_state: CompilerState<'c, C, V>,
+    ) -> (CompilerResult<String>, CompilerState<'c, C, V>) {
         // Parsing
         let parse_result = self.parse_source(
             SourceId::Interactive(interactive_id),
@@ -171,8 +197,8 @@ where
     pub fn run_module(
         &mut self,
         module_id: ModuleId,
-        mut compiler_state: CompilerState<'c, C>,
-    ) -> (CompilerResult<()>, CompilerState<'c, C>) {
+        mut compiler_state: CompilerState<'c, C, V>,
+    ) -> (CompilerResult<()>, CompilerState<'c, C, V>) {
         // Parsing
         let result = timed(
             || {

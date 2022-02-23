@@ -6,7 +6,9 @@ mod command;
 
 use command::InteractiveCommand;
 use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
-use hash_pipeline::{sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser};
+use hash_pipeline::{
+    sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser, VirtualMachine,
+};
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_reporting::reporting::ReportWriter;
 use hash_source::SourceId;
@@ -34,10 +36,11 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init<'c, P, C>(mut compiler: Compiler<P, C>) -> CompilerResult<()>
+pub fn init<'c, P, C, V>(mut compiler: Compiler<P, C, V>) -> CompilerResult<()>
 where
     P: Parser<'c>,
     C: Checker<'c>,
+    V: VirtualMachine<'c>,
 {
     // Display the version on start-up
     print_version();
@@ -71,14 +74,15 @@ where
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'c, P, C>(
+fn execute<'c, P, C, V>(
     input: &str,
-    compiler: &mut Compiler<P, C>,
-    mut compiler_state: CompilerState<'c, C>,
-) -> CompilerState<'c, C>
+    compiler: &mut Compiler<P, C, V>,
+    mut compiler_state: CompilerState<'c, C, V>,
+) -> CompilerState<'c, C, V>
 where
     P: Parser<'c>,
     C: Checker<'c>,
+    V: VirtualMachine<'c>,
 {
     if input.is_empty() {
         return compiler_state;

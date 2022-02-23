@@ -19,4 +19,4 @@ hash-interactive = {path = "../hash-interactive" }
 hash-reporting = {path = "../hash-reporting" }
 hash-pipeline = {path = "../hash-pipeline" }
 hash-typecheck = {path = "../hash-typecheck" }
-
+hash-vm = {path = "../hash-vm" }
