@@ -584,7 +584,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         }
 
         // So here we know that this is an invalid character literal, to improve
-        // the reporting aspect, we want to eat up until the next `'` in order 
+        // the reporting aspect, we want to eat up until the next `'` in order
         // to highlight the entire literal
         let literal = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace());
 

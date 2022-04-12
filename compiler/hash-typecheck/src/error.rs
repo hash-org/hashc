@@ -607,12 +607,12 @@ impl TypecheckError {
                 if let Some(location) = location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("Expected {} type arguments here.", wanted),
+                        format!("Expected `{}` type arguments here.", wanted),
                     )));
                 }
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Note,
-                    format!("Expected {} type arguments, but got {}.", wanted, given),
+                    format!("Expected `{}` type arguments, but got `{}`.", wanted, given),
                 )));
                 // @@Todo: it would be nice to have definition location here too.
             }
@@ -624,13 +624,13 @@ impl TypecheckError {
                 if let Some(loc) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         loc,
-                        format!("No matching implementations for '{}'.", trt_name),
+                        format!("No matching implementations for `{}`.", trt_name),
                     )));
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Note,
-                    format!("There are no implementations of the trait '{}' that satisfy this invocation.", trt_name),
+                    format!("There are no implementations of the trait `{}` that satisfy this invocation.", trt_name),
                 )));
             }
             TypecheckError::FunctionArgumentLengthMismatch {
@@ -645,7 +645,7 @@ impl TypecheckError {
                 let target_location = storage.types.get_location(target);
 
                 builder.with_message(format!(
-                    "Function argument mismatch, expected {} arguments, but got {}.",
+                    "Function argument mismatch, expected `{}` arguments, but got `{}`.",
                     wanted, given,
                 ));
 
@@ -692,7 +692,7 @@ impl TypecheckError {
                 builder.with_error_code(HashErrorCode::DisallowedPatternNonVariable);
 
                 builder.with_message(format!(
-                    "This destructuring pattern is not allowed because {} is not a variable.",
+                    "This destructuring pattern is not allowed because `{}` is not a variable.",
                     IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter())
                 ));
 
