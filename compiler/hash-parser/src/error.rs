@@ -21,7 +21,7 @@ use thiserror::Error;
 /// with the error, the [TokenErrorKind] which classifies the error, and a [Location] that represents
 /// where the tokenisation error occurred.
 #[derive(Debug, Constructor, Error)]
-#[error("{} {kind}", .message.as_ref().unwrap_or(&String::from("")))]
+#[error("{kind} {}", .message.as_ref().unwrap_or(&String::from("")))]
 pub struct TokenError {
     pub(crate) message: Option<String>,
     kind: TokenErrorKind,
@@ -33,22 +33,25 @@ pub struct TokenError {
 #[derive(Debug, Error)]
 pub enum TokenErrorKind {
     /// Occurs when a escape sequence (within a character or a string) is malformed.
-    #[error("Invalid character escape sequence.")]
+    #[error("Invalid character escape sequence")]
     BadEscapeSequence,
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
-    #[error("Malformed numerical literal.")]
+    #[error("Malformed numerical literal")]
     MalformedNumericalLiteral,
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
-    #[error("Unclosed string literal.")]
+    #[error("Unclosed string literal")]
     UnclosedStringLiteral,
+    /// Occurs when a character literal is comprised of more than one character
+    #[error("Invalid character literal `{0}`, character literals may only contain one codepoint")]
+    InvalidCharacterLiteral(String),
     /// Occurs when a char is unexpected in the current context
-    #[error("Encountered unexpected character {0}")]
+    #[error("Encountered unexpected character `{0}`")]
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
-    #[error("Expected token '{0}' here.")]
+    #[error("Expected token `{0}` here")]
     Expected(TokenKind),
     /// Unclosed tree block
-    #[error("Encountered unclosed delimiter '{}', consider adding a '{0}' after inner expression.", .0.left())]
+    #[error("Encountered unclosed delimiter `{}`, consider adding a `{0}` after inner expression", .0.left())]
     Unclosed(Delimiter),
 }
 
