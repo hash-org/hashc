@@ -252,6 +252,7 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
                 }
             }
         }
+
         // @@Todo: better errors
         Err(TypecheckError::NoMatchingTraitImplementations(trt_symbol()))
     }
