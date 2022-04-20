@@ -583,9 +583,14 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             return Ok(TokenKind::CharLiteral(ch));
         }
 
+        // So here we know that this is an invalid character literal, to improve
+        // the reporting aspect, we want to eat up until the next `'` in order
+        // to highlight the entire literal
+        let literal = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace());
+
         Err(TokenError::new(
-            Some("Invalid character literal.".to_string()),
-            TokenErrorKind::Unexpected(self.peek()),
+            None,
+            TokenErrorKind::InvalidCharacterLiteral(literal.to_string()),
             Location::span(start, self.offset.get() + 1),
         ))
     }
