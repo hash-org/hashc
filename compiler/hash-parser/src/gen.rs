@@ -1479,6 +1479,33 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(())
     }
 
+    /// Function to parse a fat arrow component '=>' in any given context.
+    fn parse_thin_arrow(&self) -> AstGenResult<'c, ()> {
+        let current_location = self.current_location();
+
+        // Essentially, we want to re-map the error into a more concise one given
+        // the parsing context.
+        if self.parse_token_atom(TokenKind::Minus).is_err() {
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedFnArrow,
+                None,
+                None,
+                &current_location,
+            )?;
+        }
+
+        if self.parse_token_atom(TokenKind::Gt).is_err() {
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedFnArrow,
+                None,
+                None,
+                &current_location,
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// Parse a let declaration statement.
     ///
     /// Let statement parser which parses three possible variations. The let keyword
@@ -1948,27 +1975,31 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Paren, tree_index) => {
                 self.disallow_struct_literals.set(true); // @@Cleanup
 
-                // check whether a function return type is following...
-                let mut is_func =
-                    matches!(self.peek(), Some(token) if token.has_kind(TokenKind::Colon));
+                let mut is_func = false;
 
                 // Now here we have to look ahead after the token_tree to see if there is an arrow
-                if !is_func {
-                    // @@Speed: avoid using parse_token_atom() because we don't care about error messages
-                    //          We just want to purely look if there are is a combination of symbols following
-                    //          which make up an '=>'.
-                    let has_arrow = self
-                        .peek_resultant_fn(|| -> Result<(), ()> {
-                            self.parse_token_atom_fast(TokenKind::Eq).ok_or(())?;
-                            self.parse_token_atom_fast(TokenKind::Gt).ok_or(())?;
-                            Ok(())
-                        })
-                        .is_some();
+                // @@Speed: avoid using parse_token_atom() because we don't care about error messages
+                //          We just want to purely look if there are is a combination of symbols following
+                //          which make up an '=>'.
+                let has_arrow = self
+                    .peek_resultant_fn(|| -> Result<(), ()> {
+                        match self.peek() {
+                            Some(token)
+                                if token.has_kind(TokenKind::Minus)
+                                    || token.has_kind(TokenKind::Eq) =>
+                            {
+                                self.skip_token();
+                                self.parse_token_atom_fast(TokenKind::Gt).ok_or(())?;
+                                Ok(())
+                            }
+                            _ => Err(()),
+                        }
+                    })
+                    .is_some();
 
-                    if has_arrow {
-                        self.offset.set(self.offset.get() - 2);
-                        is_func = true;
-                    }
+                if has_arrow {
+                    self.offset.set(self.offset.get() - 2);
+                    is_func = true;
                 }
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
@@ -2812,7 +2843,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         // If there is an arrow '=>', then this must be a function type
-        match self.peek_resultant_fn(|| self.parse_arrow()) {
+        match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
                 Ok(self.node_from_joined_location(
@@ -3347,7 +3378,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )?;
 
         // check if there is a return type
-        let return_ty = match self.peek_resultant_fn(|| self.parse_token_atom(TokenKind::Colon)) {
+        let return_ty = match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => Some(self.parse_type()?),
             _ => None,
         };
