@@ -75,12 +75,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error>;
 
-    type IntrinsicKeyRet: 'c;
-    fn visit_intrinsic_key(
+    type DirectiveExprRet: 'c;
+    fn visit_directive_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IntrinsicKey>,
-    ) -> Result<Self::IntrinsicKeyRet, Self::Error>;
+        node: ast::AstNodeRef<ast::DirectiveExpr<'c>>,
+    ) -> Result<Self::DirectiveExprRet, Self::Error>;
 
     type FunctionCallArgsRet: 'c;
     fn visit_function_call_args(
@@ -657,7 +657,7 @@ pub mod walk {
 
     pub enum Expression<'c, V: AstVisitor<'c>> {
         FunctionCall(V::FunctionCallExprRet),
-        Intrinsic(V::IntrinsicKeyRet),
+        Directive(V::DirectiveExprRet),
         Variable(V::VariableExprRet),
         PropertyAccess(V::PropertyAccessExprRet),
         Ref(V::RefExprRet),
@@ -677,8 +677,8 @@ pub mod walk {
             ast::ExpressionKind::FunctionCall(inner) => Expression::FunctionCall(
                 visitor.visit_function_call_expr(ctx, node.with_body(inner))?,
             ),
-            ast::ExpressionKind::Intrinsic(inner) => {
-                Expression::Intrinsic(visitor.visit_intrinsic_key(ctx, node.with_body(inner))?)
+            ast::ExpressionKind::Directive(inner) => {
+                Expression::Directive(visitor.visit_directive_expr(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::Variable(inner) => {
                 Expression::Variable(visitor.visit_variable_expr(ctx, node.with_body(inner))?)
@@ -716,7 +716,7 @@ pub mod walk {
         V: AstVisitor<
             'c,
             FunctionCallExprRet = Ret,
-            IntrinsicKeyRet = Ret,
+            DirectiveExprRet = Ret,
             VariableExprRet = Ret,
             PropertyAccessExprRet = Ret,
             RefExprRet = Ret,
@@ -729,7 +729,7 @@ pub mod walk {
     {
         Ok(match walk_expression(visitor, ctx, node)? {
             Expression::FunctionCall(r) => r,
-            Expression::Intrinsic(r) => r,
+            Expression::Directive(r) => r,
             Expression::Variable(r) => r,
             Expression::PropertyAccess(r) => r,
             Expression::Ref(r) => r,
@@ -759,6 +759,22 @@ pub mod walk {
                     .iter()
                     .map(|t| visitor.visit_type(ctx, t.ast_ref())),
             )?,
+        })
+    }
+
+    pub struct DirectiveExpr<'c, V: AstVisitor<'c>> {
+        pub name: V::NameRet,
+        pub subject: V::ExpressionRet,
+    }
+
+    pub fn walk_directive_expr<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::DirectiveExpr<'c>>,
+    ) -> Result<DirectiveExpr<'c, V>, V::Error> {
+        Ok(DirectiveExpr {
+            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
         })
     }
 
