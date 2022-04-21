@@ -5,7 +5,7 @@
 As in many other languages, the programmer can specify the type of a variable or
 a literal by using some special syntax. For example, in languages such as typescript,
 you can say that: 
-```ts 
+```rust
 some_value as str
 ```
 which implies that you are asserting that `some_value` is a string, this is essentially a way to avoid explicitly stating that type of a variable every
@@ -43,12 +43,15 @@ For example, if you were to specify the expression:
 The compiler will report this error as:
 
 ```
-error[0052]: Failed to typecheck: Mismatching types
---> 1:1 - 1:3
-  |
-1 | "2" as char
-  | ^^^  Cannot match type 'char' with 'str'.
-  |
+error[0001]: Types mismatch, got a `str`, but wanted a `char`.
+ --> <interactive>:1:8
+1 |   "A" as char
+  |          ^^^^ This specifies that the expression should be of type `char`
+
+ --> <interactive>:1:1
+1 |   "A" as char
+  |   ^^^ Found this to be of type `str`
+
 ```
 
 ## Usefulness

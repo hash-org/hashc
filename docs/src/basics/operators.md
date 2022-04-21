@@ -10,13 +10,11 @@ a specific group of operations or are used to convey meaning within the language
 
 | Operator             | Example              | Description                   | Overloadable trait |
 |----------------------|----------------------|-------------------------------|--------------------|
-| `->`                 | N/A                  | `Reserved`                    | N/A                |
-| `=>`                 | `(a) => a + 2`       | Function notation             | N/A                |
 | `==`, `!=`           | `a == 2`, `b != 'a'` | Equality                      | `eq`               |
 | `=`                  | `a = 2`              | Assignment                    | N/A                |
 | `!`                  | `!a`                 | Logical not                   | `not`              |
 | `&&`                 | `a && b`            | Logical and                   | `and`              |
-| <code>&#124;&#124;</code>               | <code>a  &#124;&#124; b</code>           | Logical or                    | `or`               |
+| <code>&#124;&#124;</code>               | <code>a  &#124;&#124; b</code>           | Logical or    | `or`               |
 | `+`                  | `2 + 2`, `3 + b`     | Addition                      | `add`              |
 | `-`                  | `3 - a`        | Subtraction | `sub`       |
 | `-`                  | `-2`        | Negation | `neg`       |
@@ -43,7 +41,7 @@ a specific group of operations or are used to convey meaning within the language
 | `&=`                 | `a &= b`             | Bitwise and with assignment   | `andb`             |
 | <code>&#124;=</code>                | <code>b  &#124;= SOME_CONST</code>   | Bitwise or with assignment    | `orb`              |
 | `^=`                 | `a ^= 1`             | Bitwise xor with assignment   | `xorb`             |
-| `.`  	| `a.foo`, `item.id` 	| Struct/Tuple enum property accessor 	| N/A 	|
+| `.`  	| `a.foo`   	| Struct/Tuple enum property accessor 	| N/A 	|
 | `:`  	| `{2: 'a'}`         	| Map key-value separator             	| N/A 	|
 | `::` 	| `io::open()`       	| Namespace symbol access             	| N/A 	|
 | `as` 	| `t as str`         	| Type assertion                      	| N/A 	|
@@ -51,6 +49,8 @@ a specific group of operations or are used to convey meaning within the language
 | `...` 	| N/A                	| Spread operator (Not-implemented)   	| `range`? 	|
 | `;` 	| `expression;`              	| statement terminator   	| N/A 	|
 | `?` 	| `let k<T> where s<T, ?> = ...`              	| Type argument wildcard   	| N/A 	|
+| `->`                 | `(str) -> usize`     | Function return type notation | N/A                |
+| `=>`                 | `(a) => a + 2`       | Function Body definition      | N/A                |
 
 ## Comments 🚧
 

@@ -7,6 +7,10 @@ use std::panic::PanicInfo;
 use std::process::exit;
 use std::{io::Write, sync::atomic, thread};
 
+const BUG_REPORT_MSG: &str = "This is an compiler bug, please file a bug report at";
+const BUG_REPORT_URI: &str =
+    "https://github.com/hash-org/lang/issues?labels=bug&template=bug_report";
+
 pub(crate) fn panic_handler(info: &PanicInfo) {
     // keep track to ensure that we only panic once and multiple threads can exit gracefully!
     static PANIC_ONCE: atomic::AtomicBool = atomic::AtomicBool::new(false);
@@ -49,10 +53,13 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
             let _ = writeln!(&mut stdout, "Backtrace:\n{:?}", backtrace);
         }
 
-        let msg = "This is an compiler bug, please file a bug report at";
-        let uri = "https://github.com/hash-org/lang/issues";
-
-        let _ = writeln!(&mut stdout, "{}\n\n{:^len$}\n", msg, uri, len = msg.len());
+        let _ = writeln!(
+            &mut stdout,
+            "{}\n\n{:^len$}\n",
+            BUG_REPORT_MSG,
+            BUG_REPORT_URI,
+            len = BUG_REPORT_MSG.len()
+        );
     }
 
     // Now call exit after we have printed all the relevant info

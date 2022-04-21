@@ -3,4 +3,4 @@
 
 // Directives discussion: https://github.com/hash-org/lang/discussions/149
 
-let fact = #memoised (n: bigint): bigint => if n < 2 { 1 } else { n * fact(n - 1) };
+let fact = #memoised (n: bigint) -> bigint => if n < 2 { 1 } else { n * fact(n - 1) };
