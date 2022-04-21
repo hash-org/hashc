@@ -38,6 +38,9 @@ pub enum TokenErrorKind {
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
     #[error("Malformed numerical literal")]
     MalformedNumericalLiteral,
+    /// Occurs when a float literal exponent has no proceeding digits.
+    #[error("Expected float exponent to have at least one digit")]
+    MissingExponentDigits,
     /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
     #[error("Unclosed string literal")]
     UnclosedStringLiteral,

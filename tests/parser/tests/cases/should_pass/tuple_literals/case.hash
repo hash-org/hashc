@@ -1,4 +1,8 @@
+// This should be the same
+let tup = ();
 let tup = (,);
+
+// Different sizes
 let tup = (a,);
 let tup = (a,c);
 let tup = (a,c,b);
