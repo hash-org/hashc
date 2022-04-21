@@ -58,7 +58,7 @@ let some_list: [u64] = [];
 Tuples have a familiar syntax with many other languages, but exhibit two distinct
 differences between the common syntax. These differences are:
 
-- Empty tuples: `(,)`
+- Empty tuples: `(,)` or `()`
 - Singleton tuple : `(A,)`
 - Many membered tuple: `(A, B, C)` or `(A, B, C,)` 
 
@@ -66,6 +66,7 @@ To explicitly declare a variable is of a `tuple` type, you do so:
 
 ```rs
 let empty_tuple: (,) = (,);
+let empty_tuple: () = ();
 //               ^^^
 //               type
 

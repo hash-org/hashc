@@ -14,6 +14,7 @@
     - [Pattern matching](./basics/pattern-matching.md)
     - [Loops](./basics/loops.md)
     - [Functions](./basics/functions.md)
+    - [Directives](./basics/directives.md)
     - [Prelude & Built-in functionality](./basics/prelude.md)
     - [Modules](./basics/modules.md)
 - [Standard library](./standard-library/intro.md)
