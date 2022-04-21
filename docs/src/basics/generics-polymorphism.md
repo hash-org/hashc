@@ -13,7 +13,7 @@ The following code defines a function trait `merge` which, for some type `T`, ta
 Generic type names are denoted by single capital letters.
 
 ```rust
-trait merge = <T> => (T, T) => T;
+trait merge = <T> => (T, T) -> T;
 ```
 
 Angular brackets (`<`, `>`) define a *type argument list*, containing one or more generic type names.
