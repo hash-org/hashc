@@ -353,14 +353,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type IntrinsicKeyRet = TypeId;
-    fn visit_intrinsic_key(
+    type DirectiveExprRet = TypeId;
+    fn visit_directive_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::IntrinsicKey>,
-    ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
-        // @@Todo: maybe we want to store intrinsic types somewhere
-        Ok(self.create_unknown_type())
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::DirectiveExpr<'c>>,
+    ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        // @@Future: At the moment, we're completely passing the 'directive' within the
+        //          typechecking stage. This will change when we solidify how we want
+        //          to type directives and then they become essentially indistinguishable
+        //          from normal functions that perform operations on code.
+        let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
+        Ok(subject)
     }
 
     type FunctionCallArgsRet = Row<'c, TypeId>;

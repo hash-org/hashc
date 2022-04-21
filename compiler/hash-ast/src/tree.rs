@@ -111,17 +111,18 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("variable", children))
     }
 
-    type IntrinsicKeyRet = TreeNode;
-    fn visit_intrinsic_key(
+    type DirectiveExprRet = TreeNode;
+    fn visit_directive_expr(
         &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IntrinsicKey>,
-    ) -> Result<Self::IntrinsicKeyRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled(
-            "intrinsic",
-            IDENTIFIER_MAP.get_ident(node.name),
-            "\"",
-        )))
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::DirectiveExpr>,
+    ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            labelled("directive", IDENTIFIER_MAP.get_ident(node.name.ident), "\""),
+            vec![subject],
+        ))
     }
 
     type FunctionCallArgsRet = TreeNode;
