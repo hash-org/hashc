@@ -1,0 +1,6 @@
+// Here we specify that the function `fact` should be memoised using the 
+// directive `memoised`.
+
+// Directives discussion: https://github.com/hash-org/lang/discussions/149
+
+let fact = #memoised (n: bigint): bigint => if n < 2 { 1 } else { n * fact(n - 1) };
