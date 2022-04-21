@@ -383,7 +383,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 Location::span(start, self.offset.get()),
             )),
             Ok(value) => {
-                let exp = self.eat_exponent()?;
+                let exp = self.eat_exponent(start)?;
 
                 // if an exponent was specified, as in it is non-zero, we need to apply the exponent to
                 // the float literal.
@@ -395,15 +395,13 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Consume an exponent for a float literal.
-    fn eat_exponent(&self) -> TokenResult<i32> {
+    fn eat_exponent(&self, start: usize) -> TokenResult<i32> {
         if !matches!(self.peek(), 'e' | 'E') {
             // @@Hack: we return a zero to signal that there was no exponent and therefore avoid applying it later
             return Ok(0);
         }
 
         self.skip(); // consume the exponent
-
-        let start = self.offset.get();
 
         // Check if there is a sign before the digits start in the exponent...
         let negated = if self.peek() == '-' {
@@ -413,11 +411,20 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             false
         };
 
+        // Check that there is at least on digit in the exponent
+        if self.peek() == EOF_CHAR {
+            return Err(TokenError::new(
+                None,
+                TokenErrorKind::MissingExponentDigits,
+                Location::span(start, self.offset.get()),
+            ));
+        }
+
         match self.eat_decimal_digits(10).parse::<i32>() {
             Err(_) => Err(TokenError::new(
                 Some("Invalid float exponent.".to_string()),
                 TokenErrorKind::MalformedNumericalLiteral,
-                Location::span(start, self.offset.get()),
+                Location::span(start, self.offset.get() + 1),
             )),
             Ok(num) if negated => Ok(-num),
             Ok(num) => Ok(num),

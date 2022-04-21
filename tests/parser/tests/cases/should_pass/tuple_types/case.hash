@@ -1,4 +1,8 @@
+// This should be the same
+let k: () = b;
 let k: (,) = b;
+
+// Different sizes
 let k: (int) = b;
 let k: (int, float) = b;
 let k: (int, float,) = b;
