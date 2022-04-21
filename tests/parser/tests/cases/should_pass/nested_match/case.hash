@@ -6,5 +6,5 @@ let data = match some_struct {
         name => print(name + " is 6");
     };
     Dog { name, age } => do_something_with_name();
-    _ => #unreachable();
+    _ => unreachable();
 };

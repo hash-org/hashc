@@ -225,13 +225,6 @@ impl<T> DerefMut for AstNode<'_, T> {
     }
 }
 
-/// An intrinsic identifier.
-#[derive(Hash, PartialEq, Debug)]
-pub struct IntrinsicKey {
-    /// The name of the intrinsic (without the "#").
-    pub name: Identifier,
-}
-
 /// A single name/symbol.
 #[derive(Hash, PartialEq, Debug)]
 pub struct Name {
@@ -752,6 +745,15 @@ pub struct FunctionCallExpr<'c> {
     pub args: AstNode<'c, FunctionCallArgs<'c>>,
 }
 
+/// An directive expression.
+#[derive(PartialEq, Debug)]
+pub struct DirectiveExpr<'c> {
+    /// The name of the directive (without the "#").
+    pub name: AstNode<'c, Name>,
+    /// An expression which is referenced in the directive
+    pub subject: AstNode<'c, Expression<'c>>,
+}
+
 /// A property access expression.
 #[derive(Debug, PartialEq)]
 pub struct PropertyAccessExpr<'c> {
@@ -812,7 +814,7 @@ pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
     FunctionCall(FunctionCallExpr<'c>),
-    Intrinsic(IntrinsicKey),
+    Directive(DirectiveExpr<'c>),
     Variable(VariableExpr<'c>),
     PropertyAccess(PropertyAccessExpr<'c>),
     Ref(RefExpr<'c>),

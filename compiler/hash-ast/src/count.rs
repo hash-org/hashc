@@ -89,7 +89,7 @@ impl NodeCount for Expression<'_> {
                 let fn_args: usize = e.args.entries.iter().map(|a| a.node_count()).sum();
                 e.subject.node_count() + fn_args
             }
-            ExpressionKind::Intrinsic(_) => 0,
+            ExpressionKind::Directive(_) => 0,
             ExpressionKind::Variable(e) => {
                 let ty_args: usize = e.type_args.iter().map(|t| t.node_count()).sum();
 
