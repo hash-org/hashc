@@ -1,2 +1,2 @@
-trait merge = <T> => (T, T) => T;
-trait merge = <T> where add<T>, or<T> => (T, T) => T;
+trait merge = <T> => (T, T) -> T;
+trait merge = <T> where add<T>, or<T> => (T, T) -> T;
