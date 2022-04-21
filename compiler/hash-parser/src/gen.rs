@@ -185,7 +185,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         match self.peek() {
             Some(token) => token.span,
             None => {
-                let Token { span, kind: _ } = self.current_token();
+                let span = self.current_location();
                 Location::span(span.end(), span.end() + 1)
             }
         }
@@ -3394,24 +3394,30 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let gen = self.from_stream(tree, *span);
         let start = self.current_location();
 
+        // Handle the case if it is an empty stream, this means that if it failed to
+        // parse a function in the form of `() => ...` for whatever reason, then it
+        // is trying to parse either a tuple or an expression.
         // Handle the empty tuple case
-        if gen.stream.len() == 1 {
-            match gen.peek().unwrap() {
-                token if token.has_kind(TokenKind::Comma) => {
+        if gen.stream.len() < 2 {
+            let tuple = gen.node_from_joined_location(
+                Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                    gen.node_from_joined_location(
+                        Literal::Tuple(TupleLiteral {
+                            elements: ast_nodes![&self.wall;],
+                        }),
+                        &start,
+                    ),
+                ))),
+                &start,
+            );
+
+            match gen.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
                     gen.skip_token();
 
-                    return Ok(gen.node_from_joined_location(
-                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            gen.node_from_joined_location(
-                                Literal::Tuple(TupleLiteral {
-                                    elements: ast_nodes![&self.wall;],
-                                }),
-                                &start,
-                            ),
-                        ))),
-                        &start,
-                    ));
+                    return Ok(tuple);
                 }
+                None => return Ok(tuple),
                 _ => (),
             };
         }
