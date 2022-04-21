@@ -2493,18 +2493,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 })
             }
             TokenKind::Hash => {
-                // First get the intrinsic subject, and expect a possible singular expression
-                // followed by the intrinsic.
-                let subject = self.parse_ident()?;
-                let name = subject.ident;
+                // First get the directive subject, and expect a possible singular expression
+                // followed by the directive.
+                let name = self.parse_ident()?;
+                let subject = self.parse_expression()?;
 
                 // create the subject node
-                let subject_node = self.node_from_joined_location(
-                    Expression::new(ExpressionKind::Intrinsic(IntrinsicKey { name })),
+                return Ok(self.node_from_joined_location(
+                    Expression::new(ExpressionKind::Directive(DirectiveExpr { name, subject })),
                     &start,
-                );
-
-                return self.parse_singular_expression(subject_node);
+                ));
             }
             TokenKind::Exclamation => {
                 let arg = self.parse_expression()?;
