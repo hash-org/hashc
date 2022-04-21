@@ -195,7 +195,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier ".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {
-                "Expected an arrow '=>' after type arguments denoting a function type".to_string()
+                "Expected an arrow '->' after type arguments denoting a function type".to_string()
             }
             AstGenErrorKind::ExpectedFnBody => "Expected a function body".to_string(),
             AstGenErrorKind::ExpectedType => "Expected a type annotation".to_string(),

@@ -1,1 +1,4 @@
-let str_eq: (str, str) => str = (a, b) => a == b;
+let str_eq: (str, str) -> str = (a, b) => a == b;
+let str_eq: (str, str) -> str = (a, b) -> str => a == b;
+
+let str_eq = (a, b) -> str => a == b;
