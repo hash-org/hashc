@@ -9,11 +9,14 @@ mod logger;
 
 use clap::Parser as ClapParser;
 use hash_alloc::Castle;
+use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_parser::parser::HashParser;
-use hash_pipeline::{fs::resolve_path, sources::Module, Compiler};
+use hash_pipeline::{
+    fs::resolve_path, settings::CompilerMode, settings::CompilerSettings, sources::Module, Compiler,
+};
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
 use hash_typecheck::HashTypechecker;
-use hash_utils::timed;
+use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
@@ -35,12 +38,9 @@ use crate::crash_handler::panic_handler;
 )]
 #[clap(disable_colored_help = true)]
 struct CompilerOptions {
-    //  Include a directory into runtime. The current directory is included by default
-    // #[clap(short, long, multiple_values = true)]
-    // includes: Vec<String>,
     /// Execute the passed script directly without launching interactive mode
     #[clap(short, long)]
-    execute: Option<String>,
+    filename: Option<String>,
 
     /// Run the compiler in debug mode
     #[clap(short, long)]
@@ -62,7 +62,7 @@ struct CompilerOptions {
 #[derive(ClapParser)]
 enum SubCmd {
     AstGen(AstGen),
-    IrGen(IrGen),
+    IrGen(IrGen), 
 }
 
 /// Generate AST from given input file
@@ -71,14 +71,6 @@ struct AstGen {
     /// Input file to generate AST from
     #[clap(required = true)]
     filename: String,
-
-    /// Visualise the generated AST
-    #[clap(short, long)]
-    visualise: bool,
-
-    /// Run the AST generation in debug mode
-    #[clap(short, long)]
-    debug: bool,
 }
 /// Generate IR from the given input file
 #[derive(ClapParser)]
@@ -86,14 +78,6 @@ struct IrGen {
     /// Input file to generate IR from
     #[clap(required = true)]
     filename: String,
-
-    /// Visualise the generated IR
-    #[clap(short, long)]
-    _visualise: bool,
-
-    /// Run the IR generation in debug mode
-    #[clap(short, long)]
-    debug: bool,
 }
 
 pub static CONSOLE_LOGGER: CompilerLogger = CompilerLogger;
@@ -119,6 +103,14 @@ fn main() {
         log::set_max_level(LevelFilter::Info);
     }
 
+    // We want to figure out the entry point of the compiler by checking if the
+    // compiler has been specified to run in a specific mode.
+    let entry_point = match &opts.mode {
+        Some(SubCmd::AstGen(AstGen { filename })) => Some(filename.clone()),
+        Some(SubCmd::IrGen(IrGen { filename })) => Some(filename.clone()),
+        None => opts.filename,
+    };
+
     // check that the job count is valid...
     let worker_count = NonZeroUsize::new(opts.worker_count)
         .unwrap_or_else(|| {
@@ -139,12 +131,19 @@ fn main() {
     // Create the vm
     let vm = Interpreter::new(InterpreterOptions::new(opts.stack_size));
 
-    let mut compiler = Compiler::new(parser, checker, vm);
+    let compiler_settings = match opts.mode {
+        // @@Incomplete: We also want to integrate IrGen when we begin working on this
+        Some(SubCmd::AstGen { .. }) => CompilerSettings::new(CompilerMode::AstGen),
+        _ => CompilerSettings::default(),
+    };
+
+    let mut compiler = Compiler::new(parser, checker, vm, compiler_settings);
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {
-        match opts.execute {
+        match entry_point {
             Some(path) => {
+                // First we have to work out if we need to transform the path
                 let current_dir = env::current_dir()?;
                 let filename = resolve_path(fs::canonicalize(&path)?, current_dir, None);
 
@@ -160,18 +159,48 @@ fn main() {
                 let module_id = compiler_state.sources.add_module(module);
 
                 // Wrap the compilation job in timed to time the total time taken to run the job
-                timed(
+                let compiler_result = timed(
                     || {
                         let (result, new_state) = compiler.run_module(module_id, compiler_state);
 
                         // Report the error if one occurred...
                         if let Err(err) = result {
                             println!("{}", ReportWriter::new(err, &new_state.sources));
+
+                            Err(())
+                        } else {
+                            Ok(new_state)
                         }
                     },
                     log::Level::Debug,
                     |elapsed| println!("total: {:?}", elapsed),
                 );
+
+                // @@Organisation: This should be moved out of this file into a potential 'modes' structure
+                //                 so that we can differentiate between different modes and have a sane
+                //                 structure when performing these kind of operations. We could also
+                //                 look into using some kind of 'hook' system that u can register into the
+                //                 pipeline when this runs instead of performing this operation here.
+
+                // If the mode is ast-gen, and the `--debug` flag is specified, then we should
+                // output the generated AST tree for the compiler
+                if let Ok(new_state) = compiler_result {
+                    if matches!(compiler_settings.mode, CompilerMode::AstGen) && opts.debug {
+                        // We want to loop through all of the generated modules and print
+                        // the resultant AST
+                        for (_, generated_module) in new_state.sources.iter_modules() {
+                            let tree = AstTreeGenerator
+                                .visit_module(&(), generated_module.node())
+                                .unwrap();
+
+                            println!(
+                                "Tree for `{}`:\n{}",
+                                adjust_canonicalization(generated_module.path()),
+                                TreeWriter::new(&tree)
+                            );
+                        }
+                    }
+                }
 
                 Ok(())
             }
