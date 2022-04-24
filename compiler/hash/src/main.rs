@@ -62,7 +62,7 @@ struct CompilerOptions {
 #[derive(ClapParser)]
 enum SubCmd {
     AstGen(AstGen),
-    IrGen(IrGen), 
+    IrGen(IrGen),
 }
 
 /// Generate AST from given input file
