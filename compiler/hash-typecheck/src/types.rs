@@ -1,5 +1,4 @@
 //! All rights reserved 2022 (c) The Hash Language authors
-#![allow(dead_code)] // @@Temporary until enums are implemented.
 
 use crate::{
     scope::ScopeStack,
