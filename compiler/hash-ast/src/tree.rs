@@ -70,7 +70,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(
             node.path
                 .iter()
-                .map(|p| IDENTIFIER_MAP.get_ident(*p))
+                .map(|p| IDENTIFIER_MAP.get_ident(*p.body()))
                 .intersperse("::")
                 .collect::<String>(),
         ))
