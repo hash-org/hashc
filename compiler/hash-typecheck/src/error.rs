@@ -251,7 +251,10 @@ impl TypecheckError {
                 builder.with_error_code(HashErrorCode::UnresolvedSymbol);
 
                 let ident_path = symbol.get_ident();
+                println!("{:?}", ident_path);
+
                 let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
+                println!("{formatted_symbol}");
 
                 if let Some(location) = symbol.location() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

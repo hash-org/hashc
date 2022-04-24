@@ -294,7 +294,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         self.node(AccessName {
-            path: row![&self.wall; IDENTIFIER_MAP.create_ident(name_ref)],
+            path: ast_nodes![&self.wall; self.node(IDENTIFIER_MAP.create_ident(name_ref))],
         })
     }
 
@@ -304,11 +304,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         name: T,
         location: Location,
     ) -> AstNode<'c, AccessName<'c>> {
-        let name = IDENTIFIER_MAP.create_ident(&name.into());
+        let name = self.node_with_location(IDENTIFIER_MAP.create_ident(&name.into()), location);
 
         self.node_with_location(
             AccessName {
-                path: row![&self.wall; name],
+                path: ast_nodes![&self.wall; name],
             },
             location,
         )
@@ -332,7 +332,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstNode<'c, AccessName<'c>> {
         self.node_with_location(
             AccessName {
-                path: row![&self.wall; name],
+                path: ast_nodes![&self.wall; self.node_with_location(name, location)],
             },
             location,
         )
@@ -348,7 +348,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.node_from_joined_location(
                     AccessName {
-                        path: row![&self.wall; id],
+                        path: ast_nodes![&self.wall; self.node_with_location(id, location)],
                     },
                     &location,
                 ),
@@ -1084,12 +1084,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     match self.peek() {
                         Some(Token {
                             kind: TokenKind::Ident(ident),
-                            span: _,
+                            span,
                         }) => {
                             self.skip_token();
 
                             let bound_start = self.current_location();
-                            let (name, type_args) = self.parse_trait_bound(ident)?;
+                            let (name, type_args) =
+                                self.parse_trait_bound(self.node_from_location(*ident, span))?;
 
                             trait_bounds.nodes.push(
                                 self.node_from_joined_location(
@@ -1680,7 +1681,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // name, we'll just return this as a binding pattern, otherwise it must follow that
                 // it is either a enum or struct pattern, if not we report it as an error since
                 // access names cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(ident)?;
+                let name = self.parse_access_name(self.node_from_location(*ident, span))?;
 
                 match self.peek() {
                     // Destructuring pattern for either struct or namespace
@@ -1965,7 +1966,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // record the starting span
                 let start = self.current_location();
 
-                let (name, type_args) = self.parse_name_with_type_args(ident)?;
+                let ident_node = self.node_with_location(*ident, token.span);
+                let (name, type_args) = self.parse_name_with_type_args(ident_node)?;
                 let type_args = type_args.unwrap_or_else(AstNodes::empty);
 
                 // create the lhs expr.
@@ -2132,7 +2134,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
                             // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
                             let location = name.location();
-                            let ident = name.body().path.get(0).unwrap();
+                            let ident = name.body().path.get(0).unwrap().body();
 
                             let node = self.node_with_location(Name { ident: *ident }, location);
 
@@ -2595,7 +2597,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a trait bound.
     pub fn parse_trait_bound(
         &self,
-        ident: &Identifier,
+        ident: AstNode<'c, Identifier>,
     ) -> AstGenResult<'c, (AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
         let name = self.parse_access_name(ident)?;
         let args = self.parse_type_args()?;
@@ -2606,7 +2608,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an access name followed by optional type arguments..
     pub fn parse_name_with_type_args(
         &self,
-        ident: &Identifier,
+        ident: AstNode<'c, Identifier>,
     ) -> AstGenResult<'c, (AstNode<'c, AccessName<'c>>, Option<AstNodes<'c, Type<'c>>>)> {
         let name = self.parse_access_name(ident)?;
 
@@ -2651,10 +2653,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// presumes that the current token is an identifier an that the next token is a colon.
     pub fn parse_access_name(
         &self,
-        start_id: &Identifier,
+        start_id: AstNode<'c, Identifier>,
     ) -> AstGenResult<'c, AstNode<'c, AccessName<'c>>> {
         let start = self.current_location();
-        let mut path = row![&self.wall; *start_id];
+        let mut path = row![&self.wall; start_id];
 
         loop {
             match self.peek() {
@@ -2668,10 +2670,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             match self.peek() {
                                 Some(Token {
                                     kind: TokenKind::Ident(id),
-                                    span: _,
+                                    span,
                                 }) => {
                                     self.skip_token();
-                                    path.push(*id, &self.wall);
+                                    path.push(self.node_from_location(*id, span), &self.wall);
                                 }
                                 _ => self.error(AstGenErrorKind::AccessName, None, None)?,
                             }
@@ -2687,9 +2689,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
+        let location = start.join(self.current_location());
+
         Ok(AstNode::new(
-            AccessName { path },
-            start.join(self.current_location()),
+            AccessName {
+                path: AstNodes::new(path, Some(location)),
+            },
+            location,
             &self.wall,
         ))
     }
@@ -2944,14 +2950,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Ident(id) => {
                 self.skip_token();
 
-                let (name, args) = self.parse_name_with_type_args(id)?;
+                let (name, args) =
+                    self.parse_name_with_type_args(self.node_with_location(*id, start))?;
+
                 // if the type_args are None, this means that the name could be either a
                 // infer_type, or a type_var...
                 match args {
                     Some(type_args) => Type::Named(NamedType { name, type_args }),
                     None => {
                         // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
-                        let ident = name.body().path.get(0).unwrap();
+                        let ident = name.body().path.get(0).unwrap().body();
 
                         match *ident {
                             i if i == CORE_IDENTIFIERS.underscore => Type::Infer(InferType),
