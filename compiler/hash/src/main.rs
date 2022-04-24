@@ -62,7 +62,7 @@ struct CompilerOptions {
 #[derive(ClapParser)]
 enum SubCmd {
     AstGen(AstGen),
-    IrGen(IrGen), 
+    IrGen(IrGen),
 }
 
 /// Generate AST from given input file
@@ -179,7 +179,7 @@ fn main() {
                 // @@Organisation: This should be moved out of this file into a potential 'modes' structure
                 //                 so that we can differentiate between different modes and have a sane
                 //                 structure when performing these kind of operations. We could also
-                //                 look into using some kind of 'hook' system that u can register into the
+                //                 look into using some kind of 'hook' system that you can register into the
                 //                 pipeline when this runs instead of performing this operation here.
 
                 // If the mode is ast-gen, and the `--debug` flag is specified, then we should
