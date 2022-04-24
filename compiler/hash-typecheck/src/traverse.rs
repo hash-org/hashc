@@ -384,6 +384,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
         let given_args = self.visit_function_call_args(ctx, node.args.ast_ref())?;
         let return_ty = self.create_unknown_type();
+
         let args_ty_location = self.source_location(node.body().args.location());
         let expected_fn_ty = self.create_type(
             TypeValue::Fn(FnType {
@@ -396,7 +397,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let given_ty = match node.subject.kind() {
             ast::ExpressionKind::Variable(var) => {
                 match self
-                    .resolve_compound_symbol(&var.name.path, self.source_location(node.location()))?
+                    .resolve_compound_symbol(
+                        &var.name.path,
+                        self.source_location(node.subject.location()),
+                    )?
                     .1
                 {
                     SymbolType::Trait(trait_id) => self.visit_trait_variable(
