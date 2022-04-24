@@ -593,6 +593,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         rhs: AstNode<'c, Expression<'c>>,
         op: AstNode<'c, Operator>,
     ) -> AstNode<'c, Expression<'c>> {
+        let operator_location = op.location();
         let Operator { kind, assigning } = op.body();
 
         if kind.is_compound() {
@@ -601,7 +602,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // 'Ord' enum variants. This also happens for operators such as '>=' which
             // essentially means that we have to check if the result of 'ord()' is either
             // 'Eq' or 'Gt'.
-            self.transform_compound_ord_fn(*kind, *assigning, lhs, rhs)
+            self.transform_compound_ord_fn(*kind, *assigning, lhs, rhs, operator_location)
         } else if kind.is_lazy() {
             // some functions have to exhibit a short-circuiting behaviour, namely
             // the logical 'and' and 'or' operators. To do this, we expect the 'and'
@@ -699,6 +700,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         assigning: bool,
         lhs: AstNode<'c, Expression<'c>>,
         rhs: AstNode<'c, Expression<'c>>,
+        operator_location: Location,
     ) -> AstNode<'c, Expression<'c>> {
         let location = lhs.location().join(rhs.location());
 
@@ -707,7 +709,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
             FunctionCallExpr {
-                subject: self.make_ident("ord", &location),
+                subject: self.make_ident("ord", &operator_location),
                 args: self.node(FunctionCallArgs {
                     entries: ast_nodes![&self.wall; lhs, rhs],
                 }),
@@ -743,13 +745,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             OperatorKind::Lt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.make_enum_pattern_from_str("Lt", location),
-                    expr: self.make_variable(self.make_boolean(false)),
+                    expr: self.make_variable(self.make_boolean(true)),
                 })]
             }
             OperatorKind::Gt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.make_enum_pattern_from_str("Gt", location),
-                    expr: self.make_variable(self.make_boolean(false)),
+                    expr: self.make_variable(self.make_boolean(true)),
                 })]
             }
             _ => unreachable!(),
