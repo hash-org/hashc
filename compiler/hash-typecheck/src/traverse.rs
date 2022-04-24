@@ -31,7 +31,7 @@ use core::panic;
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
 use hash_ast::ast::{self, BindingPattern};
-use hash_ast::ident::Identifier;
+use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
 use hash_pipeline::sources::{SourceRef, Sources};
@@ -1816,6 +1816,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
         let location = self.source_location(node.location());
+
+        // @@Hack: check if this is true or false. Eventually we want these to be enums.
+        if ["true", "false"].contains(&IDENTIFIER_MAP.get_ident(node.0.ident)) {
+            return Ok(self.create_type(TypeValue::Prim(PrimType::Bool), Some(location)));
+        }
 
         // we need to resolve the symbol in the current scope and firstly check if it's
         // an enum...
