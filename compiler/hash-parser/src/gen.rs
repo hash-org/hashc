@@ -314,6 +314,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
+    pub(crate) fn make_ident_from_str<T: Into<String>>(
+        &self,
+        name: T,
+        location: Location,
+    ) -> AstNode<'c, Name> {
+        let ident = IDENTIFIER_MAP.create_ident(&name.into());
+
+        self.node_with_location(Name { ident }, location)
+    }
+
     /// Create a [AccessName] node from an [Identifier].
     pub(crate) fn make_access_name_from_identifier(
         &self,
@@ -1249,17 +1259,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Block::Match(MatchBlock {
                     subject: condition,
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
-                            pattern: self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("true", body_location),
-                                fields: AstNodes::empty(),
-                            })),
+                        pattern: self.node(Pattern::Binding(BindingPattern(
+                            self.make_ident_from_str("true", body_location)
+                        ))),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         self.node(MatchCase {
-                            pattern: self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("false", body_location),
-                                fields: AstNodes::empty(),
-                            })),
+                            pattern: self.node(Pattern::Binding(BindingPattern(
+                                self.make_ident_from_str("false", body_location)
+                            ))),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
                                     statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
