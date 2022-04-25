@@ -236,7 +236,23 @@ pub struct Name {
 #[derive(Debug, PartialEq)]
 pub struct AccessName<'c> {
     /// The list of names that make up the access name.
-    pub path: Row<'c, Identifier>,
+    pub path: AstNodes<'c, Identifier>,
+}
+
+impl AccessName<'_> {
+    pub fn path(&self) -> Vec<Identifier> {
+        self.path
+            .iter()
+            .map(|part| *part.body())
+            .collect::<Vec<_>>()
+    }
+
+    pub fn path_with_locations(&self) -> Vec<(Identifier, Location)> {
+        self.path
+            .iter()
+            .map(|part| (*part.body(), part.location()))
+            .collect::<Vec<_>>()
+    }
 }
 
 /// A concrete/"named" type.

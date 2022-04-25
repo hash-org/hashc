@@ -103,9 +103,18 @@ pub enum TypecheckError {
     UsingContinueOutsideLoop(SourceLocation),
     UsingReturnOutsideFunction(SourceLocation),
     RequiresIrrefutablePattern(SourceLocation),
-    UnresolvedSymbol(Symbol),
-    TryingToNamespaceType(Symbol),
-    TryingToNamespaceVariable(Symbol),
+    UnresolvedSymbol {
+        symbol: Symbol,
+        ancestor: Option<Symbol>,
+    },
+    TryingToNamespaceType {
+        symbol: Symbol,
+        ancestor: Option<Symbol>,
+    },
+    TryingToNamespaceVariable {
+        symbol: Symbol,
+        ancestor: Option<Symbol>,
+    },
     SymbolIsNotAType(Symbol),
     SymbolIsNotAVariable(Symbol),
     SymbolIsNotATrait(Symbol),
@@ -247,38 +256,69 @@ impl TypecheckError {
                         "Destructuring patterns in `let` statements must use an irrefutable.",
                     )));
             }
-            TypecheckError::UnresolvedSymbol(symbol) => {
+            TypecheckError::UnresolvedSymbol { symbol, ancestor } => {
                 builder.with_error_code(HashErrorCode::UnresolvedSymbol);
 
                 let ident_path = symbol.get_ident();
-                let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
+                let symbol_name = IDENTIFIER_MAP.get_path(ident_path.into_iter());
 
-                if let Some(location) = symbol.location() {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        "not found in this scope",
-                    )));
+                if let Some(ancestor_symbol) = ancestor {
+                    let ancestor_name =
+                        IDENTIFIER_MAP.get_path(ancestor_symbol.get_ident().into_iter());
+
+                    if let Some(location) = symbol.location() {
+                        builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            location,
+                            format!("not found in `{}`", ancestor_name),
+                        )));
+                    }
+
+                    // At-least we can print the symbol that wasn't found...
+                    builder.with_message(format!(
+                        "Symbol `{}` is not defined in `{}`",
+                        symbol_name, ancestor_name
+                    ));
+                } else {
+                    if let Some(location) = symbol.location() {
+                        builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            location,
+                            "not found in this scope",
+                        )));
+                    }
+
+                    // At-least we can print the symbol that wasn't found...
+                    builder.with_message(format!(
+                        "Symbol `{}` is not defined in the current scope.",
+                        symbol_name
+                    ));
                 }
-
-                // At-least we can print the symbol that wasn't found...
-                builder.with_message(format!(
-                    "Symbol `{}` is not defined in the current scope.",
-                    formatted_symbol
-                ));
             }
-            TypecheckError::TryingToNamespaceType(symbol) => {
+            TypecheckError::TryingToNamespaceType { symbol, ancestor } => {
                 builder.with_error_code(HashErrorCode::TryingToNamespaceType);
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
                 if let Some(location) = symbol.location() {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        format!(
-                            "This symbol `{}` is defined as a type in the current scope.",
-                            symbol_name
-                        ),
-                    )));
+                    if let Some(ancestor_symbol) = ancestor {
+                        let ancestor_name =
+                            IDENTIFIER_MAP.get_path(ancestor_symbol.get_ident().into_iter());
+
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            ReportNoteKind::Note,
+                            format!(
+                                "Symbol `{}` is defined as a type in `{}`.",
+                                symbol_name, ancestor_name
+                            ),
+                        )));
+                    } else {
+                        builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            location,
+                            format!(
+                                "Symbol `{}` is defined as a type in the current scope.",
+                                symbol_name
+                            ),
+                        )));
+                    }
                 }
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
@@ -286,7 +326,7 @@ impl TypecheckError {
                     "You cannot namespace a symbol that's a type.",
                 )));
             }
-            TypecheckError::TryingToNamespaceVariable(symbol) => {
+            TypecheckError::TryingToNamespaceVariable { symbol, ancestor } => {
                 builder.with_error_code(HashErrorCode::TryingToNamespaceVariable);
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
@@ -298,10 +338,23 @@ impl TypecheckError {
                     )));
                 }
 
-                builder.add_element(ReportElement::Note(ReportNote::new(
-                    ReportNoteKind::Note,
-                    format!("`{}` is a variable. You cannot namespace a variable defined in the current scope.", symbol_name),
-                )));
+                if let Some(ancestor_symbol) = ancestor {
+                    let ancestor_name =
+                        IDENTIFIER_MAP.get_path(ancestor_symbol.get_ident().into_iter());
+
+                    builder.add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        format!(
+                            "`{}` is a variable. You cannot namespace a variable defined in `{}`.",
+                            symbol_name, ancestor_name
+                        ),
+                    )));
+                } else {
+                    builder.add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        format!("`{}` is a variable. You cannot namespace a variable defined in the current scope.", symbol_name),
+                    )));
+                }
             }
             TypecheckError::SymbolIsNotAType(symbol) => {
                 builder.with_error_code(HashErrorCode::SymbolIsNotAType);
