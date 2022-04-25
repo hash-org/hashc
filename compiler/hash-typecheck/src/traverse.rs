@@ -30,7 +30,7 @@ use crate::{state::TypecheckState, types::EnumVariant};
 use core::panic;
 use hash_alloc::row;
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::ast::{self, BindingPattern};
+use hash_ast::ast::{self, AccessName, BindingPattern};
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_ast::visitor::AstVisitor;
 use hash_ast::{visitor, visitor::walk};
@@ -239,14 +239,13 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
 
     fn resolve_compound_symbol(
         &mut self,
-        symbols: &[Identifier],
-        location: SourceLocation,
+        symbols: &AccessName<'_>,
     ) -> TypecheckResult<(Identifier, SymbolType)> {
         resolve_compound_symbol(
             &self.source_storage.scopes,
             &self.global_storage.types,
             symbols,
-            location,
+            self.source_id,
         )
     }
 }
@@ -328,7 +327,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let loc = self.source_location(node.location());
-        match self.resolve_compound_symbol(&node.name.path, loc)? {
+
+        match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Variable(var_ty_id)) => {
                 if !node.type_args.is_empty() {
                     Err(TypecheckError::TypeArgumentLengthMismatch {
@@ -347,7 +347,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 .query_type_of_enum_variant(ty_def_id, ident, loc)
                 .map(|(id, _)| id),
             _ => Err(TypecheckError::SymbolIsNotAVariable(Symbol::Compound {
-                path: node.name.path.to_owned(),
+                path: node.name.path(),
                 location: Some(loc),
             })),
         }
@@ -395,23 +395,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         );
 
         let given_ty = match node.subject.kind() {
-            ast::ExpressionKind::Variable(var) => {
-                match self
-                    .resolve_compound_symbol(
-                        &var.name.path,
-                        self.source_location(node.subject.location()),
-                    )?
-                    .1
-                {
-                    SymbolType::Trait(trait_id) => self.visit_trait_variable(
-                        ctx,
-                        trait_id,
-                        node.with_body(var),
-                        Some(expected_fn_ty),
-                    )?,
-                    _ => walk::walk_function_call_expr(self, ctx, node)?.subject,
-                }
-            }
+            ast::ExpressionKind::Variable(var) => match self.resolve_compound_symbol(&var.name)? {
+                (_, SymbolType::Trait(trait_id)) => self.visit_trait_variable(
+                    ctx,
+                    trait_id,
+                    node.with_body(var),
+                    Some(expected_fn_ty),
+                )?,
+                _ => walk::walk_function_call_expr(self, ctx, node)?.subject,
+            },
             _ => walk::walk_function_call_expr(self, ctx, node)?.subject,
         };
 
@@ -589,7 +581,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
         let location = self.source_location(node.location());
 
-        match self.resolve_compound_symbol(&node.name.path, location)? {
+        match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Type(ty_id)) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
             (_, SymbolType::TypeDef(def_id)) => {
                 let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
@@ -620,7 +612,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 }
             }
             _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
-                path: node.name.path.to_owned(),
+                path: node.name.path(),
                 location: Some(location),
             })),
         }
@@ -667,10 +659,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     Ok(self.create_type(TypeValue::Var(var), ty_location))
                 }
                 Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
-                None => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
-                    symbol: var.name,
-                    location: ty_location,
-                })),
+                None => Err(TypecheckError::UnresolvedSymbol {
+                    symbol: Symbol::Single {
+                        symbol: var.name,
+                        location: ty_location,
+                    },
+                    ancestor: None,
+                }),
             }
         }
     }
@@ -827,8 +822,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::StructLiteralRet, Self::Error> {
         let location = self.source_location(node.location());
 
-        let symbol_res = self
-            .resolve_compound_symbol(&node.name.path, self.source_location(node.name.location()))?;
+        let symbol_res = self.resolve_compound_symbol(&node.name)?;
 
         match symbol_res {
             (_, SymbolType::TypeDef(def_id)) => {
@@ -879,7 +873,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 }
             }
             _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
-                path: node.name.path.to_owned(),
+                path: node.name.path(),
                 location: Some(location),
             })),
         }
@@ -1467,7 +1461,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::TraitBound<'c>>,
     ) -> Result<Self::TraitBoundRet, Self::Error> {
         let name_loc = self.source_location(node.name.location());
-        match self.resolve_compound_symbol(&node.name.path, name_loc)? {
+
+        match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Trait(trait_id)) => {
                 let type_args: Vec<_> = node
                     .type_args
@@ -1477,7 +1472,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 Ok((trait_id, type_args))
             }
             _ => Err(TypecheckError::SymbolIsNotATrait(Symbol::Compound {
-                path: node.name.path.to_owned(),
+                path: node.name.path(),
                 location: Some(name_loc),
             })),
         }
@@ -1520,7 +1515,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             })
         };
 
-        match self.resolve_compound_symbol(&node.name.path, location)? {
+        match self.resolve_compound_symbol(&node.name)? {
             (ident, SymbolType::EnumVariant(ty_def_id)) => {
                 let (variant_id, variant_location) =
                     self.query_type_of_enum_variant(ty_def_id, ident, location)?;
@@ -1565,7 +1560,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 }
             }
             _ => Err(TypecheckError::SymbolIsNotAEnum(Symbol::Compound {
-                path: node.name.path.to_owned(),
+                path: node.name.path(),
                 location: Some(location),
             })),
         }
@@ -1579,8 +1574,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::StructPatternRet, Self::Error> {
         let location = self.source_location(node.location());
 
-        let symbol_res = self
-            .resolve_compound_symbol(&node.name.path, self.source_location(node.name.location()))?;
+        let symbol_res = self.resolve_compound_symbol(&node.name)?;
 
         match symbol_res {
             (_, SymbolType::TypeDef(def_id)) => {
@@ -1633,7 +1627,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 }
             }
             _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
-                path: node.name.path.to_owned(),
+                path: node.name.path(),
                 location: Some(location),
             })),
         }
@@ -1690,10 +1684,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                             }
                         },
                         None => {
-                            return Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
-                                symbol: field.name.ident,
-                                location: Some(location),
-                            }))
+                            return Err(TypecheckError::UnresolvedSymbol {
+                                symbol: Symbol::Single {
+                                    symbol: field.name.ident,
+                                    location: Some(location),
+                                },
+                                ancestor: None,
+                            })
                         }
                     }
                 }
@@ -1832,8 +1829,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         // we need to resolve the symbol in the current scope and firstly check if it's
         // an enum...
-        match self.resolve_compound_symbol(&[node.0.ident], location) {
-            Ok((ident, SymbolType::EnumVariant(ty_def_id))) => {
+        let ident = node.0.ident;
+
+        match self.scopes().resolve_symbol(ident) {
+            Some(SymbolType::EnumVariant(ty_def_id)) => {
                 let (variant_id, variant_location) =
                     self.query_type_of_enum_variant(ty_def_id, ident, location)?;
 
@@ -2142,7 +2141,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         let trt_name_location = self.some_source_location(node.name.location());
         let trt_symbol = || Symbol::Compound {
             location: trt_name_location,
-            path: node.name.path.to_owned(),
+            path: node.name.path(),
         };
         let type_args_location = node.type_args.location().map(|l| self.source_location(l));
         let MatchTraitImplResult {
