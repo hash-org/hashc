@@ -659,10 +659,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     Ok(self.create_type(TypeValue::Var(var), ty_location))
                 }
                 Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
-                None => Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
-                    symbol: var.name,
-                    location: ty_location,
-                })),
+                None => Err(TypecheckError::UnresolvedSymbol {
+                    symbol: Symbol::Single {
+                        symbol: var.name,
+                        location: ty_location,
+                    },
+                    ancestor: None,
+                }),
             }
         }
     }
@@ -1681,10 +1684,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                             }
                         },
                         None => {
-                            return Err(TypecheckError::UnresolvedSymbol(Symbol::Single {
-                                symbol: field.name.ident,
-                                location: Some(location),
-                            }))
+                            return Err(TypecheckError::UnresolvedSymbol {
+                                symbol: Symbol::Single {
+                                    symbol: field.name.ident,
+                                    location: Some(location),
+                                },
+                                ancestor: None,
+                            })
                         }
                     }
                 }
