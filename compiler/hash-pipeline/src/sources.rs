@@ -4,7 +4,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use hash_ast::ast;
 use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
-use slotmap::SlotMap;
+use slotmap::{basic::Iter, SlotMap};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -155,6 +155,12 @@ impl<'c> Sources<'c> {
 
     pub fn get_module_by_path(&self, path: &Path) -> Option<&Module<'c>> {
         Some(self.get_module(self.get_module_id_by_path(path)?))
+    }
+
+    /// Function to iterate over the modules that are currently
+    /// present within the sources.
+    pub fn iter_modules(&self) -> Iter<'_, ModuleId, Module<'c>> {
+        self.modules.iter()
     }
 
     pub fn get_source(&self, source_id: SourceId) -> SourceRef<'_, 'c> {
