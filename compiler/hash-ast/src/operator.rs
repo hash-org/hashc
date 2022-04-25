@@ -10,7 +10,42 @@ pub struct Operator {
     /// The kind of operator.
     pub kind: OperatorKind,
     /// Flag representing where the operator is re-assigning or not.
-    pub assignable: bool,
+    pub assigning: bool,
+}
+
+/// This implementation will be used for printing code from tokens.
+impl std::fmt::Display for Operator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.assigning {
+            true => write!(f, "{}=", self.kind),
+            false => write!(f, "{}", self.kind),
+        }
+    }
+}
+
+impl Operator {
+    pub fn to_str(&self) -> &'static str {
+        if self.assigning && self.kind.is_re_assignable() {
+            match self.kind {
+                OperatorKind::BitOr => "orb_eq",
+                OperatorKind::Or => "or_eq",
+                OperatorKind::BitAnd => "andb_eq",
+                OperatorKind::And => "and_eq",
+                OperatorKind::BitXor => "xorb_eq",
+                OperatorKind::Exp => "exp_eq",
+                OperatorKind::Shr => "shr_eq",
+                OperatorKind::Shl => "shl_eq",
+                OperatorKind::Add => "add_eq",
+                OperatorKind::Sub => "sub_eq",
+                OperatorKind::Mul => "mul_eq",
+                OperatorKind::Div => "div_eq",
+                OperatorKind::Mod => "mod_eq",
+                _ => unreachable!(),
+            }
+        } else {
+            self.kind.to_str()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

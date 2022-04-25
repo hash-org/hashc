@@ -314,6 +314,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
+    pub(crate) fn make_ident_from_str<T: Into<String>>(
+        &self,
+        name: T,
+        location: Location,
+    ) -> AstNode<'c, Name> {
+        let ident = IDENTIFIER_MAP.create_ident(&name.into());
+
+        self.node_with_location(Name { ident }, location)
+    }
+
     /// Create a [AccessName] node from an [Identifier].
     pub(crate) fn make_access_name_from_identifier(
         &self,
@@ -584,7 +594,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         op: AstNode<'c, Operator>,
     ) -> AstNode<'c, Expression<'c>> {
         let operator_location = op.location();
-        let Operator { kind, assignable } = op.body();
+        let Operator { kind, assigning } = op.body();
 
         if kind.is_compound() {
             // for compound functions that include ordering, we essentially transpile
@@ -592,7 +602,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // 'Ord' enum variants. This also happens for operators such as '>=' which
             // essentially means that we have to check if the result of 'ord()' is either
             // 'Eq' or 'Gt'.
-            self.transform_compound_ord_fn(*kind, *assignable, lhs, rhs, operator_location)
+            self.transform_compound_ord_fn(*kind, *assigning, lhs, rhs, operator_location)
         } else if kind.is_lazy() {
             // some functions have to exhibit a short-circuiting behaviour, namely
             // the logical 'and' and 'or' operators. To do this, we expect the 'and'
@@ -610,7 +620,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     FunctionCallExpr {
                         subject: self.node_from_location(
                             Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: self.make_access_name_from_str(kind.to_str(), op.location()),
+                                name: self.make_access_name_from_str(op.body().to_str(), op.location()),
                                 type_args: AstNodes::empty(),
                             })),
                             &op.location(),
@@ -618,7 +628,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         args: self.node_from_joined_location(
                             FunctionCallArgs {
                             entries: ast_nodes![&self.wall;
-                                self.transform_expr_into_ref(lhs, *assignable),
+                                self.transform_expr_into_ref(lhs, *assigning),
                                 self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
                                     Literal::Function(FunctionDef {
                                         args: AstNodes::empty(),
@@ -637,7 +647,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.node_from_location(
                         Expression::new(ExpressionKind::Variable(VariableExpr {
-                            name: self.make_access_name_from_str(kind.to_str(), op.location()),
+                            name: self.make_access_name_from_str(op.body().to_str(), op.location()),
                             type_args: AstNodes::empty(),
                         })),
                         &op.location(),
@@ -645,7 +655,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     args: self.node_from_joined_location(
                         FunctionCallArgs {
                             entries: ast_nodes![&self.wall;
-                                self.transform_expr_into_ref(lhs, *assignable),
+                                self.transform_expr_into_ref(lhs, *assigning),
                                 rhs,
                             ],
                         },
@@ -657,6 +667,33 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
+    /// Function that is used to transfer an operator which is of `compound` type into a
+    /// `match` statement that involves matching on the return type of the language defined
+    /// `ord` trait. The transformation involves converting the initial operator into
+    /// a function call that invokes `ord` with the `lhs` and `rhs`.
+    ///
+    /// The function result is then matched within a match on the [Ord] enumeration
+    /// which contains variants that represent the result of the comparison.
+    ///
+    /// Depending on whether the comparison operator is inclusive or not, multiple variants
+    /// within a single comparison branch might be generated. For example, if the
+    /// expression `a < 3` is transformed, then the following code is generated:
+    ///
+    /// ```rust,ignore
+    /// match ord(a, 3) {
+    ///     Lt => true,
+    ///     _ =>  false
+    /// }
+    /// ```
+    ///
+    /// However if the expression was inclusive `a <= 3` then this is generated:
+    ///
+    /// ```rust,ignore
+    /// match ord(a, 3) {
+    ///     Lt | Eq => true,
+    ///     _ =>  false
+    /// }
+    /// ```
     fn transform_compound_ord_fn(
         &self,
         fn_ty: OperatorKind,
@@ -781,7 +818,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         match operator {
             Some(Operator {
                 kind,
-                assignable: true,
+                assigning: true,
             }) => {
                 // consume the number of tokens eaten whilst getting the operator...
                 self.offset.update(|x| x + consumed_tokens as usize);
@@ -789,7 +826,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Ok(self.node_from_joined_location(
                     Operator {
                         kind,
-                        assignable: true,
+                        assigning: true,
                     },
                     &start,
                 ))
@@ -1213,28 +1250,26 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         self.disallow_struct_literals.set(true);
         let condition = self.parse_expression_with_precedence(0)?;
-        let condition_location = condition.location();
         self.disallow_struct_literals.set(false);
 
         let body = self.parse_block()?;
         let body_location = body.location();
+        let condition_location = condition.location();
 
         Ok(self.node_from_joined_location(
             Block::Loop(LoopBlock(self.node_with_location(
                 Block::Match(MatchBlock {
                     subject: condition,
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
-                            pattern: self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("true", body_location),
-                                fields: AstNodes::empty(),
-                            })),
+                        pattern: self.node(Pattern::Binding(BindingPattern(
+                            self.make_ident_from_str("true", body_location)
+                        ))),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
                         }),
                         self.node(MatchCase {
-                            pattern: self.node(Pattern::Enum(EnumPattern {
-                                name: self.make_access_name_from_str("false", body_location),
-                                fields: AstNodes::empty(),
-                            })),
+                            pattern: self.node(Pattern::Binding(BindingPattern(
+                                self.make_ident_from_str("false", body_location)
+                            ))),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
                                     statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
@@ -2698,7 +2733,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
                 // parsing onwards because this might be an assignable expression...
                 // Only perform this check if know prior that the expression is not made of compounded components.
-                Some(op) if !op.assignable => {
+                Some(op) => {
                     // consume the number of tokens eaten whilst getting the operator...
                     self.offset.update(|x| x + consumed_tokens as usize);
 
@@ -3630,7 +3665,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // If we see this one then we can parse and then just convert the operator into the
             // 'Eq' version.
             Some(kind) => {
-                let assignable = match self.peek_nth(consumed as usize) {
+                let assigning = match self.peek_nth(consumed as usize) {
                     Some(token) if kind.is_re_assignable() && token.has_kind(TokenKind::Eq) => {
                         consumed += 1;
                         true
@@ -3638,7 +3673,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     _ => false,
                 };
 
-                (Some(Operator { kind, assignable }), consumed)
+                (Some(Operator { kind, assigning }), consumed)
             }
             None => (None, 0),
         }
