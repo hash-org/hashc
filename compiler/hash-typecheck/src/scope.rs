@@ -282,11 +282,15 @@ pub fn resolve_compound_symbol(
 ) -> TypecheckResult<(Identifier, SymbolType)> {
     let mut last_scope = scopes;
     let symbol_path = symbols.path_with_locations();
-    let mut symbols_iter = symbol_path.iter().enumerate().peekable();
+    let mut symbols_iter = symbol_path.iter().peekable();
+
+    // We want to keep an ancestor of the previous symbol so we can give more specific
+    // error messages when resolving access names.
+    let mut ancestor = None;
 
     loop {
         match symbols_iter.next() {
-            Some((i, &(symbol, symbol_location))) => {
+            Some(&(symbol, symbol_location)) => {
                 let location = SourceLocation {
                     location: symbol_location,
                     source_id,
@@ -295,6 +299,10 @@ pub fn resolve_compound_symbol(
                 match last_scope.resolve_symbol(symbol) {
                     Some(symbol_ty @ SymbolType::Variable(type_id)) => match types.get(type_id) {
                         TypeValue::Namespace(namespace_ty) if symbols_iter.peek().is_some() => {
+                            ancestor = Some(Symbol::Single {
+                                symbol,
+                                location: Some(location),
+                            });
                             last_scope = &namespace_ty.members;
                             continue;
                         }
@@ -302,31 +310,38 @@ pub fn resolve_compound_symbol(
                             return Ok((symbol, symbol_ty));
                         }
                         _ if symbols_iter.peek().is_some() => {
-                            return Err(TypecheckError::TryingToNamespaceVariable(
-                                Symbol::Compound {
-                                    path: symbols.path()[..=i].to_owned(),
+                            return Err(TypecheckError::TryingToNamespaceVariable {
+                                symbol: Symbol::Single {
+                                    symbol,
                                     location: Some(location),
                                 },
-                            ));
+                                ancestor,
+                            });
                         }
                         _ => {
                             return Ok((symbol, symbol_ty));
                         }
                     },
                     Some(_) if symbols_iter.peek().is_some() => {
-                        return Err(TypecheckError::TryingToNamespaceType(Symbol::Compound {
-                            path: symbols.path()[..=i].to_owned(),
-                            location: Some(location),
-                        }));
+                        return Err(TypecheckError::TryingToNamespaceType {
+                            symbol: Symbol::Single {
+                                symbol,
+                                location: Some(location),
+                            },
+                            ancestor,
+                        });
                     }
                     Some(symbol_ty) => {
                         return Ok((symbol, symbol_ty));
                     }
                     None => {
-                        return Err(TypecheckError::UnresolvedSymbol(Symbol::Compound {
-                            path: symbols.path()[..=i].to_owned(),
-                            location: Some(location),
-                        }))
+                        return Err(TypecheckError::UnresolvedSymbol {
+                            symbol: Symbol::Single {
+                                symbol,
+                                location: Some(location),
+                            },
+                            ancestor,
+                        })
                     }
                 }
             }
