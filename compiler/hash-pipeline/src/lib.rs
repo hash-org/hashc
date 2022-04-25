@@ -8,11 +8,13 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 pub mod fs;
+pub mod settings;
 pub mod sources;
 
 use hash_reporting::reporting::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use hash_utils::timed;
+use settings::{CompilerMode, CompilerSettings};
 use sources::Sources;
 
 pub type CompilerResult<T> = Result<T, Report>;
@@ -102,6 +104,8 @@ pub struct Compiler<P, C, V> {
     checker: C,
     /// The current VM.
     vm: V,
+    /// Various settings for the compiler.
+    pub settings: CompilerSettings,
 }
 
 /// The [CompilerState] holds all the information and state of the compiler instance.
@@ -118,7 +122,7 @@ pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
     pub checker_interactive_state: C::InteractiveState,
     /// The module checker stage.
     pub checker_module_state: C::ModuleState,
-    ///
+    /// The State of the Virtual machine
     pub vm_state: V::State,
 }
 
@@ -130,11 +134,12 @@ where
 {
     /// Create a new instance of a [Compiler] with the provided parser and
     /// typechecker implementations.
-    pub fn new(parser: P, checker: C, vm: V) -> Self {
+    pub fn new(parser: P, checker: C, vm: V, settings: CompilerSettings) -> Self {
         Self {
             parser,
             checker,
             vm,
+            settings,
         }
     }
 
@@ -211,6 +216,12 @@ where
 
         if let Err(err) = result {
             return (Err(err), compiler_state);
+        }
+
+        // @@Temporary: if the mode is specified as `ast-gen` then we exit early to print the
+        //              generated AST tree
+        if matches!(self.settings.mode, CompilerMode::AstGen) {
+            return (result, compiler_state);
         }
 
         // Typechecking
