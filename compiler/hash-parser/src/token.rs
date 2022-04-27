@@ -14,9 +14,9 @@ use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
 use hash_source::location::Location;
 
-use crate::error::TokenError;
+use crate::error::LexerError;
 
-pub type TokenResult<T> = Result<T, TokenError>;
+pub type LexerResult<T> = Result<T, LexerError>;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
 /// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
