@@ -544,6 +544,12 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         )
     }
 
+    /// Utility function to create a primitive void type or equivalent to `()`
+    pub fn create_void_type(&mut self) -> TypeId {
+        let value = TypeValue::Prim(PrimType::Void);
+        self.create(value, None)
+    }
+
     pub fn create_unknown_type(&mut self) -> TypeId {
         let mut type_id = TypeId::null();
         self.unknown_data.insert_with_key(|unknown_id| {

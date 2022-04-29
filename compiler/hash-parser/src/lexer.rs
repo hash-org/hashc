@@ -261,7 +261,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let name = &self.contents[start..self.offset.get()];
 
         match name {
-            "let" => TokenKind::Keyword(Keyword::Let),
             "for" => TokenKind::Keyword(Keyword::For),
             "while" => TokenKind::Keyword(Keyword::While),
             "loop" => TokenKind::Keyword(Keyword::Loop),
