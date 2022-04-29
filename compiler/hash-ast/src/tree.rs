@@ -643,12 +643,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf("continue"))
     }
 
-    type LetStatementRet = TreeNode;
-    fn visit_let_statement(
+    type DeclarationRet = TreeNode;
+    fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LetStatement<'c>>,
-    ) -> Result<Self::LetStatementRet, Self::Error> {
+        node: ast::AstNodeRef<ast::Declaration<'c>>,
+    ) -> Result<Self::DeclarationRet, Self::Error> {
         let walk::LetStatement {
             pattern,
             ty,
@@ -656,15 +656,11 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
             value,
         } = walk::walk_let_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
-            "let",
+            "declaration",
             iter::once(TreeNode::branch("pattern", vec![pattern]))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
                 .chain(bound.into_iter())
-                .chain(
-                    value
-                        .map(|v| TreeNode::branch("value", vec![v]))
-                        .into_iter(),
-                )
+                .chain(iter::once(TreeNode::branch("value", vec![value])))
                 .collect(),
         ))
     }

@@ -92,6 +92,8 @@ impl TokenKind {
         )
     }
 
+    /// Check if the current token can begin a pattern
+
     /// Checks if the [TokenKind] must begin a block, as in the specified keywords that
     /// follow a specific syntax, and must be statements.
     pub(crate) fn begins_block(&self) -> bool {
@@ -110,8 +112,7 @@ impl TokenKind {
     pub(crate) fn begins_statement(&self) -> bool {
         matches!(
             self,
-            TokenKind::Keyword(Keyword::Let)
-                | TokenKind::Keyword(Keyword::Trait)
+            TokenKind::Keyword(Keyword::Trait)
                 | TokenKind::Keyword(Keyword::Enum)
                 | TokenKind::Keyword(Keyword::Struct)
                 | TokenKind::Keyword(Keyword::Continue)
