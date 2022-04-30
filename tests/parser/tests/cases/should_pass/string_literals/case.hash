@@ -1,4 +1,4 @@
-let my_string = "hello world!";
-let my_string = "🚧 Under construction 🚧";
-let my_string = "\u{0000}\x00\n\t\0";
-let my_string = " under construction ";
+my_string := "hello world!";
+my_string := "🚧 Under construction 🚧";
+my_string := "\u{0000}\x00\n\t\0";
+my_string := " under construction ";

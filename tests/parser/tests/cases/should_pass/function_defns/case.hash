@@ -1,11 +1,11 @@
-let fk = () => {
+fk := () => {
     print(x)
 };
 
-let ft = (k: T) -> u64 => {
+ft := (k: T) -> u64 => {
     do_something(k)
 };
 
-let ft: (T) -> u64 = (k) => {
+ft: (T) -> u64 = (k) => {
     do_something(t)
 };

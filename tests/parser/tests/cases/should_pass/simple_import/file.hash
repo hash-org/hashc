@@ -1,4 +1,5 @@
 // Export this simple adding function
-let l = (a: u32, b: u32) -> u32 => {
-    a + b
+l := (a: u32, b: u32) -> u32 => {
+   k := a + b;
+   k
 };

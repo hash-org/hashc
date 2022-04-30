@@ -1,1 +1,1 @@
-let k<t = do_something();
+k<t := do_something();

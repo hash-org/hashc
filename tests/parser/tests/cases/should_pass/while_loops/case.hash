@@ -1,10 +1,10 @@
 // empty while loop
-while a {}
+while a {};
 
 // Loop with body and operation
 while a < b {
     a = a + 1;
     // print("incrementing a by 1")
-}
+};
 
-while a < b {}
+while a < b {};
