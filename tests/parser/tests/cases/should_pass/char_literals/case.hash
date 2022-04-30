@@ -1,17 +1,17 @@
-let k = 'a';
-let unicode = '🚧';
-let q = '\n';
-let s = '\t';
+k := 'a';
+unicode := '🚧';
+q := '\n';
+s := '\t';
 
-let u = '\u{00cd}';
+u := '\u{00cd}';
 
-let eof = '\0';
-let h = '\x00';
+eof := '\0';
+h := '\x00';
 
-let a = '\a';
-let b = '\b';
-let f = '\f';
-let v = '\v';
-let slash = '\\';
-let quote = '\''; // @@Fix: Junkie bug - syntax highlighting broken for escape codes
-let double_quote = '\"';
+a := '\a';
+b := '\b';
+f := '\f';
+v := '\v';
+slash := '\\';
+quote := '\''; // @@Fix: Junkie bug - syntax highlighting broken for escape codes
+double_quote := '\"';

@@ -1,4 +1,4 @@
-let data = match some_struct {
+data := match some_struct {
     Dog { name, age = 6 } => do_something_with_name();
     Dog { name, age } => do_something_with_name();
     _ => unreachable();

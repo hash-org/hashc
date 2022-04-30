@@ -1,4 +1,4 @@
-let other_func = (t: str) => {
+other_func := (t: str) => {
     match t {
         "one" => 1;
         "two" => 2;

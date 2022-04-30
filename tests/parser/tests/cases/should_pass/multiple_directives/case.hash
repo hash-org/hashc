@@ -1,2 +1,2 @@
  // Here we apply two directives in order
- let a = #dump #memoise () => 3;
+ a := #dump #memoise () => 3;

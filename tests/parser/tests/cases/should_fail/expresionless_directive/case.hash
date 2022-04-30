@@ -1,2 +1,2 @@
 // This directive does not have an expression
-let k = #dump;
+k := #dump;
