@@ -3211,7 +3211,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // So problem here is that we don't know if it is a map literal or just a
                 // declaration assignment. We can attempt to abort this if we spot that
                 // there is a following '=' or parsing the expression doesn't work...
-                if let Some(_) = gen.parse_token_atom_fast(TokenKind::Eq) {
+                if gen.parse_token_atom_fast(TokenKind::Eq).is_some() {
                     return parse_block(initial_offset);
                 }
 
