@@ -192,6 +192,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("deref", vec![inner_expr]))
     }
 
+    type UnsafeExprRet = TreeNode;
+    fn visit_unsafe_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnsafeExpr<'c>>,
+    ) -> Result<Self::DerefExprRet, Self::Error> {
+        let walk::UnsafeExpr(inner_expr) = walk::walk_unsafe_expr(self, ctx, node)?;
+        Ok(TreeNode::branch("unsafe", vec![inner_expr]))
+    }
+
     type LiteralExprRet = TreeNode;
     fn visit_literal_expr(
         &mut self,

@@ -117,6 +117,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::DerefExpr<'c>>,
     ) -> Result<Self::DerefExprRet, Self::Error>;
 
+    type UnsafeExprRet: 'c;
+    fn visit_unsafe_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnsafeExpr<'c>>,
+    ) -> Result<Self::UnsafeExprRet, Self::Error>;
+
     type LiteralExprRet: 'c;
     fn visit_literal_expr(
         &mut self,
@@ -670,6 +677,7 @@ pub mod walk {
         PropertyAccess(V::PropertyAccessExprRet),
         Ref(V::RefExprRet),
         Deref(V::DerefExprRet),
+        Unsafe(V::UnsafeExprRet),
         LiteralExpr(V::LiteralExprRet),
         Typed(V::TypedExprRet),
         Block(V::BlockExprRet),
@@ -703,6 +711,9 @@ pub mod walk {
             ast::ExpressionKind::Deref(inner) => {
                 Expression::Deref(visitor.visit_deref_expr(ctx, node.with_body(inner))?)
             }
+            ast::ExpressionKind::Unsafe(inner) => {
+                Expression::Unsafe(visitor.visit_unsafe_expr(ctx, node.with_body(inner))?)
+            }
             ast::ExpressionKind::LiteralExpr(inner) => {
                 Expression::LiteralExpr(visitor.visit_literal_expr(ctx, node.with_body(inner))?)
             }
@@ -733,6 +744,7 @@ pub mod walk {
             PropertyAccessExprRet = Ret,
             RefExprRet = Ret,
             DerefExprRet = Ret,
+            UnsafeExprRet = Ret,
             LiteralExprRet = Ret,
             TypedExprRet = Ret,
             BlockExprRet = Ret,
@@ -747,6 +759,7 @@ pub mod walk {
             Expression::PropertyAccess(r) => r,
             Expression::Ref(r) => r,
             Expression::Deref(r) => r,
+            Expression::Unsafe(r) => r,
             Expression::LiteralExpr(r) => r,
             Expression::Typed(r) => r,
             Expression::Block(r) => r,
@@ -864,6 +877,16 @@ pub mod walk {
         node: ast::AstNodeRef<ast::DerefExpr<'c>>,
     ) -> Result<DerefExpr<'c, V>, V::Error> {
         Ok(DerefExpr(visitor.visit_expression(ctx, node.0.ast_ref())?))
+    }
+
+    pub struct UnsafeExpr<'c, V: AstVisitor<'c>>(pub V::ExpressionRet);
+
+    pub fn walk_unsafe_expr<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::UnsafeExpr<'c>>,
+    ) -> Result<UnsafeExpr<'c, V>, V::Error> {
+        Ok(UnsafeExpr(visitor.visit_expression(ctx, node.0.ast_ref())?))
     }
 
     pub struct LiteralExpr<'c, V: AstVisitor<'c>>(pub V::LiteralRet);
