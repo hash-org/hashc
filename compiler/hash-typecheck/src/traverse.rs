@@ -500,6 +500,20 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(created_inner_ty)
     }
 
+    type UnsafeExprRet = TypeId;
+    fn visit_unsafe_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnsafeExpr<'c>>,
+    ) -> Result<Self::DerefExprRet, Self::Error> {
+        let walk::UnsafeExpr(inner_ty) = walk::walk_unsafe_expr(self, ctx, node)?;
+
+        // @@Incomplete: For now this does nothing but serve as a modifier on expressions. Later
+        //               we will be able to define rules about what is and what isn't allowed in
+        //               safe/unsafe blocks.
+        Ok(inner_ty)
+    }
+
     type LiteralExprRet = TypeId;
     fn visit_literal_expr(
         &mut self,

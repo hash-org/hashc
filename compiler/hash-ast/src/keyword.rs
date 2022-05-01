@@ -27,6 +27,7 @@ pub enum Keyword {
     Raw,
     False,
     True,
+    Unsafe,
 }
 
 /// Enum Variants for keywords

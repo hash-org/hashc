@@ -100,6 +100,7 @@ impl NodeCount for Expression<'_> {
             ExpressionKind::Typed(e) => e.ty.node_count() + e.expr.node_count(),
             ExpressionKind::Block(BlockExpr(e)) => e.node_count(),
             ExpressionKind::Deref(DerefExpr(e)) => e.node_count(),
+            ExpressionKind::Unsafe(UnsafeExpr(e)) => e.node_count(),
             ExpressionKind::Ref(RefExpr {
                 inner_expr: e,
                 kind: _,

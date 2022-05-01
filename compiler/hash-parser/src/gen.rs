@@ -2476,9 +2476,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         ))
     }
 
-    /// Parses a unary operator followed by a singular expression. Once the unary operator
-    /// is picked up, the expression is transformed into a function call to the corresponding
-    /// trait that implements the unary operator operation.
+    /// Parses a unary operator or expression modifier followed by a singular expression.
+    /// Once the unary operator is picked up, the expression is parsed given the specific
+    /// rules of the operator or expression modifier.
     pub fn parse_unary_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.current_token();
         let start = self.current_location();
@@ -2560,6 +2560,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         span,
                     ),
                 })
+            }
+            TokenKind::Keyword(Keyword::Unsafe) => {
+                let arg = self.parse_expression()?;
+                ExpressionKind::Unsafe(UnsafeExpr(arg))
             }
             kind => panic!("Expected token to be a unary operator, but got '{}'", kind),
         };

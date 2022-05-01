@@ -85,10 +85,11 @@ impl TokenKind {
                     | TokenKind::Minus
                     | TokenKind::Star
                     | TokenKind::Slash
-                    | TokenKind::Hash // intrinsics
+                    | TokenKind::Hash // directives
                     | TokenKind::Amp
                     | TokenKind::Tilde
                     | TokenKind::Exclamation
+                    | TokenKind::Keyword(Keyword::Unsafe)
         )
     }
 
