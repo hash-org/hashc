@@ -25,6 +25,8 @@ pub enum Keyword {
     Return,
     Import,
     Raw,
+    False,
+    True,
 }
 
 /// Enum Variants for keywords

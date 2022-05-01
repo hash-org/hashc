@@ -125,7 +125,9 @@ impl TokenKind {
     pub(crate) fn is_literal(&self) -> bool {
         matches!(
             self,
-            TokenKind::IntLiteral(_)
+            TokenKind::Keyword(Keyword::False)
+                | TokenKind::Keyword(Keyword::True)
+                | TokenKind::IntLiteral(_)
                 | TokenKind::FloatLiteral(_)
                 | TokenKind::CharLiteral(_)
                 | TokenKind::StrLiteral(_)

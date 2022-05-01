@@ -3732,6 +3732,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 TokenKind::FloatLiteral(num) => Literal::Float(FloatLiteral(num)),
                 TokenKind::CharLiteral(ch) => Literal::Char(CharLiteral(ch)),
                 TokenKind::StrLiteral(str) => Literal::Str(StrLiteral(str)),
+                TokenKind::Keyword(Keyword::False) => Literal::Bool(BoolLiteral(false)),
+                TokenKind::Keyword(Keyword::True) => Literal::Bool(BoolLiteral(true)),
                 _ => unreachable!(),
             },
             token.span,

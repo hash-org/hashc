@@ -423,6 +423,10 @@ pub struct IntLiteral(pub u64);
 #[derive(Debug, PartialEq)]
 pub struct FloatLiteral(pub f64);
 
+/// A boolean literal.
+#[derive(Debug, PartialEq)]
+pub struct BoolLiteral(pub bool);
+
 /// A literal.
 #[derive(Debug, PartialEq)]
 pub enum Literal<'c> {
@@ -430,6 +434,7 @@ pub enum Literal<'c> {
     Char(CharLiteral),
     Int(IntLiteral),
     Float(FloatLiteral),
+    Bool(BoolLiteral),
     Set(SetLiteral<'c>),
     Map(MapLiteral<'c>),
     List(ListLiteral<'c>),
