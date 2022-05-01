@@ -192,13 +192,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
+    #[inline(always)]
     pub fn node<T>(&self, inner: T) -> AstNode<'c, T> {
         AstNode::new(inner, self.current_location(), &self.wall)
     }
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
+    #[inline(always)]
     pub fn node_with_location<T>(&self, inner: T, location: Location) -> AstNode<'c, T> {
         AstNode::new(inner, location, &self.wall)
+    }
+
+    /// Create a new [AstNode] with a span that ranges from the start [Location] to the
+    /// current location.
+    pub(crate) fn node_with_joined_location<T>(&self, body: T, start: &Location) -> AstNode<'c, T> {
+        AstNode::new(body, start.join(self.current_location()), &self.wall)
     }
 
     /// Create an error at the current location.
@@ -258,12 +266,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         name: &str,
         location: &Location,
     ) -> AstNode<'c, Expression<'c>> {
-        self.node_from_location(
+        self.node_with_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.make_access_name_from_str(name, *location),
                 type_args: AstNodes::empty(),
             })),
-            location,
+            *location,
         )
     }
 
@@ -278,24 +286,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }))
     }
 
-    /// Utility function for creating a variable from a given name.
-    fn make_variable(&self, name: AstNode<'c, AccessName<'c>>) -> AstNode<'c, Expression<'c>> {
-        self.node(Expression::new(ExpressionKind::Variable(VariableExpr {
-            name,
-            type_args: AstNodes::empty(),
-        })))
-    }
-
     /// Utility for creating a boolean in enum representation
-    fn make_boolean(&self, variant: bool) -> AstNode<'c, AccessName<'c>> {
-        let name_ref = match variant {
-            false => "false",
-            true => "true",
-        };
-
-        self.node(AccessName {
-            path: ast_nodes![&self.wall; self.node(IDENTIFIER_MAP.create_ident(name_ref))],
-        })
+    fn make_boolean(&self, value: bool) -> AstNode<'c, Expression<'c>> {
+        self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+            self.node(Literal::Bool(BoolLiteral(value))),
+        ))))
     }
 
     /// Create an [AccessName] from a passed string.
@@ -344,9 +339,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         id: Identifier,
         location: Location,
     ) -> AstNode<'c, Expression<'c>> {
-        AstNode::new(
+        self.node_with_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.node_from_joined_location(
+                name: self.node_with_joined_location(
                     AccessName {
                         path: ast_nodes![&self.wall; self.node_with_location(id, location)],
                     },
@@ -355,16 +350,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 type_args: AstNodes::empty(),
             })),
             location,
-            &self.wall,
         )
-    }
-
-    pub(crate) fn node_from_location<T>(&self, body: T, location: &Location) -> AstNode<'c, T> {
-        AstNode::new(body, *location, &self.wall)
-    }
-
-    pub(crate) fn node_from_joined_location<T>(&self, body: T, start: &Location) -> AstNode<'c, T> {
-        AstNode::new(body, start.join(self.current_location()), &self.wall)
     }
 
     /// Function to peek ahead and match some parsing function that returns a [Option<T>] wrapped
@@ -432,9 +418,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Some(token) if token.has_kind(TokenKind::Colon) => {
                     let decl = self.parse_declaration(pat)?;
 
-                    Some(Statement::Expr(ExprStatement(self.node_from_location(
+                    Some(Statement::Expr(ExprStatement(self.node_with_location(
                         Expression::new(ExpressionKind::Declaration(decl)),
-                        &start,
+                        start,
                     ))))
                 }
                 Some(token) if token.has_kind(TokenKind::Lt) => {
@@ -442,9 +428,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // type arguments might simply be a top level expression and therefore
                     // if parsing this fails, then we have to backtrack
                     match self.parse_declaration(pat) {
-                        Ok(decl) => Some(Statement::Expr(ExprStatement(self.node_from_location(
+                        Ok(decl) => Some(Statement::Expr(ExprStatement(self.node_with_location(
                             Expression::new(ExpressionKind::Declaration(decl)),
-                            &start,
+                            start,
                         )))),
                         Err(_) => {
                             self.offset.set(offset);
@@ -517,7 +503,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         Ok((
             has_semi,
-            self.node_from_location(statement, &start.join(location)),
+            self.node_with_location(statement, start.join(location)),
         ))
     }
 
@@ -561,7 +547,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 match self.next_token() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Ok(self.node_from_location(statement, &start.join(current_location)))
+                        Ok(self.node_with_location(statement, start.join(current_location)))
                     }
                     Some(token) => self.error_with_location(
                         AstGenErrorKind::Expected,
@@ -613,7 +599,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // We just need to unwrap the BodyBlock from Block since parse_block_from_gen is generic...
         match block.into_body().move_out() {
-            Block::Body(body) => Ok(self.node_from_joined_location(body, &start)),
+            Block::Body(body) => Ok(self.node_with_joined_location(body, &start)),
             _ => unreachable!(),
         }
     }
@@ -665,16 +651,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             //
             let location = lhs.location().join(rhs.location());
 
-            self.node_from_location(Expression::new(ExpressionKind::FunctionCall(
+            self.node_with_location(Expression::new(ExpressionKind::FunctionCall(
                     FunctionCallExpr {
-                        subject: self.node_from_location(
+                        subject: self.node_with_location(
                             Expression::new(ExpressionKind::Variable(VariableExpr {
                                 name: self.make_access_name_from_str(op.body().to_str(), op.location()),
                                 type_args: AstNodes::empty(),
                             })),
-                            &op.location(),
+                            op.location(),
                         ),
-                        args: self.node_from_joined_location(
+                        args: self.node_with_joined_location(
                             FunctionCallArgs {
                             entries: ast_nodes![&self.wall;
                                 self.transform_expr_into_ref(lhs, *assigning),
@@ -688,20 +674,20 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             ],
                         },  &location),
                     },
-                )), &location)
+                )), location)
         } else {
             let location = lhs.location().join(rhs.location());
 
-            self.node_from_location(
+            self.node_with_location(
                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.node_from_location(
+                    subject: self.node_with_location(
                         Expression::new(ExpressionKind::Variable(VariableExpr {
                             name: self.make_access_name_from_str(op.body().to_str(), op.location()),
                             type_args: AstNodes::empty(),
                         })),
-                        &op.location(),
+                        op.location(),
                     ),
-                    args: self.node_from_joined_location(
+                    args: self.node_with_joined_location(
                         FunctionCallArgs {
                             entries: ast_nodes![&self.wall;
                                 self.transform_expr_into_ref(lhs, *assigning),
@@ -711,7 +697,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         &location,
                     ),
                 })),
-                &op.location(),
+                op.location(),
             )
         }
     }
@@ -777,7 +763,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         self.make_enum_pattern_from_str("Eq", location),
                         ],
                     })),
-                    expr: self.make_variable(self.make_boolean(true)),
+                    expr: self.make_boolean(true)
                 })]
             }
             OperatorKind::GtEq => {
@@ -788,19 +774,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         self.make_enum_pattern_from_str("Eq", location),
                         ],
                     })),
-                    expr: self.make_variable(self.make_boolean(true)),
+                    expr: self.make_boolean(true)
                 })]
             }
             OperatorKind::Lt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.make_enum_pattern_from_str("Lt", location),
-                    expr: self.make_variable(self.make_boolean(true)),
+                    expr: self.make_boolean(true)
                 })]
             }
             OperatorKind::Gt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.make_enum_pattern_from_str("Gt", location),
-                    expr: self.make_variable(self.make_boolean(true)),
+                    expr: self.make_boolean(true)
                 })]
             }
             _ => unreachable!(),
@@ -811,7 +797,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         branches.nodes.push(
             self.node(MatchCase {
                 pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                expr: self.make_variable(self.make_boolean(false)),
+                expr: self.make_boolean(false),
             }),
             &self.wall,
         );
@@ -872,7 +858,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // consume the number of tokens eaten whilst getting the operator...
                 self.offset.update(|x| x + consumed_tokens as usize);
 
-                Ok(self.node_from_joined_location(
+                Ok(self.node_with_joined_location(
                     Operator {
                         kind,
                         assigning: true,
@@ -1060,7 +1046,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_from_joined_location(EnumDefEntry { name, args }, &name_location))
+        Ok(self.node_with_joined_location(EnumDefEntry { name, args }, &name_location))
     }
 
     /// Parse struct definition field entries.
@@ -1114,7 +1100,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_from_joined_location(StructDefEntry { name, ty, default }, &start))
+        Ok(self.node_with_joined_location(StructDefEntry { name, ty, default }, &start))
     }
 
     /// Parse a type bound. Type bounds can occur in traits, function, struct and enum
@@ -1139,10 +1125,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                             let bound_start = self.current_location();
                             let (name, type_args) =
-                                self.parse_trait_bound(self.node_from_location(*ident, span))?;
+                                self.parse_trait_bound(self.node_with_location(*ident, *span))?;
 
                             trait_bounds.nodes.push(
-                                self.node_from_joined_location(
+                                self.node_with_joined_location(
                                     TraitBound { name, type_args },
                                     &bound_start,
                                 ),
@@ -1167,7 +1153,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => ast_nodes![&self.wall;],
         };
 
-        Ok(self.node_from_joined_location(
+        Ok(self.node_with_joined_location(
             Bound {
                 type_args,
                 trait_bounds,
@@ -1220,7 +1206,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let body_location = body.location();
 
         // transpile the for loop
-        Ok(self.node_from_joined_location(Block::Loop(LoopBlock(self.node_from_location(
+        Ok(self.node_with_joined_location(Block::Loop(LoopBlock(self.node_with_location(
             Block::Match(MatchBlock {
             subject: self.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
@@ -1230,13 +1216,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             type_args: AstNodes::empty(),
                         },
                     ))),
-                    args: self.node_from_location(FunctionCallArgs {
+                    args: self.node_with_location(FunctionCallArgs {
                         entries: ast_nodes![&self.wall; iterator],
-                    }, &iterator_location),
+                    }, iterator_location),
                 },
             ))),
-            cases: ast_nodes![&self.wall; self.node_from_location(MatchCase {
-                    pattern: self.node_from_location(
+            cases: ast_nodes![&self.wall; self.node_with_location(MatchCase {
+                    pattern: self.node_with_location(
                         Pattern::Enum(
                             EnumPattern {
                                 name:
@@ -1246,10 +1232,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     ),
                                 fields: ast_nodes![&self.wall; pattern],
                             },
-                        ), &pattern_location
+                        ), pattern_location
                     ),
-                    expr: self.node_from_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), &body_location),
-                }, &start),
+                    expr: self.node_with_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_location),
+                }, start),
                 self.node(MatchCase {
                     pattern: self.node(
                         Pattern::Enum(
@@ -1272,7 +1258,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }),
             ],
             origin: MatchOrigin::For
-        }), &start))), &start))
+        }), start))), &start))
     }
 
     /// In general, a while loop transpilation process occurs by transferring the looping
@@ -1306,7 +1292,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let body_location = body.location();
         let condition_location = condition.location();
 
-        Ok(self.node_from_joined_location(
+        Ok(self.node_with_joined_location(
             Block::Loop(LoopBlock(self.node_with_location(
                 Block::Match(MatchBlock {
                     subject: condition,
@@ -1345,7 +1331,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(self.node_from_joined_location(MatchCase { pattern, expr }, &start))
+        Ok(self.node_with_joined_location(MatchCase { pattern, expr }, &start))
     }
 
     /// Parse a match block statement, which is composed of a subject and an arbitrary
@@ -1390,7 +1376,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => self.unexpected_eof()?,
         };
 
-        Ok(self.node_from_joined_location(
+        Ok(self.node_with_joined_location(
             Block::Match(MatchBlock {
                 subject,
                 cases,
@@ -1449,24 +1435,22 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             let branch_loc = branch.location();
 
             cases.nodes.push(
-                self.node_from_location(
+                self.node_with_location(
                     MatchCase {
-                        pattern: self.node_from_location(
+                        pattern: self.node_with_location(
                             Pattern::If(IfPattern {
-                                pattern: self.node_from_location(
-                                    Pattern::Ignore(IgnorePattern),
-                                    &clause_loc,
-                                ),
+                                pattern: self
+                                    .node_with_location(Pattern::Ignore(IgnorePattern), clause_loc),
                                 condition: clause,
                             }),
-                            &clause_loc,
+                            clause_loc,
                         ),
-                        expr: self.node_from_location(
+                        expr: self.node_with_location(
                             Expression::new(ExpressionKind::Block(BlockExpr(branch))),
-                            &branch_loc,
+                            branch_loc,
                         ),
                     },
-                    &clause_loc.join(branch_loc),
+                    clause_loc.join(branch_loc),
                 ),
                 &self.wall,
             );
@@ -1495,15 +1479,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     has_else_branch = true;
 
                     cases.nodes.push(
-                        self.node_from_location(
+                        self.node_with_location(
                             MatchCase {
                                 pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                                expr: self.node_from_location(
+                                expr: self.node_with_location(
                                     Expression::new(ExpressionKind::Block(BlockExpr(else_branch))),
-                                    &loc,
+                                    loc,
                                 ),
                             },
-                            &loc,
+                            loc,
                         ),
                         &self.wall,
                     );
@@ -1529,7 +1513,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             );
         }
 
-        Ok(self.node_from_joined_location(
+        Ok(self.node_with_joined_location(
             Block::Match(MatchBlock {
                 subject: self.make_ident("true", &self.current_location()),
                 cases,
@@ -1672,7 +1656,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
-        Ok(self.node_from_joined_location(DestructuringPattern { name, pattern }, &start))
+        Ok(self.node_with_joined_location(DestructuringPattern { name, pattern }, &start))
     }
 
     /// Parse a collection of destructuring patterns that are comma separated.
@@ -1723,7 +1707,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // name, we'll just return this as a binding pattern, otherwise it must follow that
                 // it is either a enum or struct pattern, if not we report it as an error since
                 // access names cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(self.node_from_location(*ident, span))?;
+                let name = self.parse_access_name(self.node_with_location(*ident, *span))?;
 
                 match self.peek() {
                     // Destructuring pattern for either struct or namespace
@@ -1762,7 +1746,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             Pattern::Ignore(IgnorePattern)
                         } else {
                             Pattern::Binding(BindingPattern(
-                                self.node_from_location(Name { ident: *ident }, span),
+                                self.node_with_location(Name { ident: *ident }, *span),
                             ))
                         }
                     }
@@ -1783,11 +1767,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // empty tuple pattern...
                 if let Some(token) = tree.get(0) {
                     if token.has_kind(TokenKind::Comma) {
-                        return Ok(self.node_from_location(
+                        return Ok(self.node_with_location(
                             Pattern::Tuple(TuplePattern {
                                 fields: AstNodes::empty(),
                             }),
-                            span,
+                            *span,
                         ));
                     }
                 }
@@ -1829,7 +1813,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )?,
         };
 
-        Ok(self.node_from_joined_location(pattern, &start))
+        Ok(self.node_with_joined_location(pattern, &start))
     }
 
     /// Parse a block.
@@ -1906,13 +1890,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Some(token.kind),
                 )?,
                 (false, None) => {
-                    let location = statement.location();
+                    let span = statement.location();
 
                     match statement.into_body().move_out() {
                         Statement::Block(BlockStatement(inner_block)) => {
-                            block.expr = Some(self.node_from_location(
+                            block.expr = Some(self.node_with_location(
                                 Expression::new(ExpressionKind::Block(BlockExpr(inner_block))),
-                                &location,
+                                span,
                             ));
                         }
                         Statement::Expr(ExprStatement(expr)) => {
@@ -1924,7 +1908,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_from_joined_location(Block::Body(block), &start))
+        Ok(self.node_with_joined_location(Block::Body(block), &start))
     }
 
     /// Parse an expression which can be compound.
@@ -1974,7 +1958,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let block = match kind {
                     TokenKind::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
-                    TokenKind::Keyword(Keyword::Loop) => self.node_from_joined_location(
+                    TokenKind::Keyword(Keyword::Loop) => self.node_with_joined_location(
                         Block::Loop(LoopBlock(self.parse_block()?)),
                         &start,
                     ),
@@ -1983,7 +1967,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     _ => unreachable!(),
                 };
 
-                self.node_from_joined_location(
+                self.node_with_joined_location(
                     Expression::new(ExpressionKind::Block(BlockExpr(block))),
                     &start,
                 )
@@ -2113,7 +2097,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             // insert lhs_expr first...
                             args.entries.nodes.insert(0, lhs_expr, &self.wall);
 
-                            lhs_expr = self.node_from_joined_location(
+                            lhs_expr = self.node_with_joined_location(
                                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                                     subject,
                                     args,
@@ -2245,9 +2229,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .parse_import(&import_path, self.source_location(span));
 
         match resolved_import_path {
-            Ok(resolved_import_path) => Ok(self.node_from_joined_location(
+            Ok(resolved_import_path) => Ok(self.node_with_joined_location(
                 Expression::new(ExpressionKind::Import(ImportExpr(
-                    self.node_from_joined_location(
+                    self.node_with_joined_location(
                         Import {
                             path: *raw,
                             resolved_path: resolved_import_path,
@@ -2275,12 +2259,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         span: Location,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, span);
-        let mut args = AstNode::new(
+        let mut args = self.node_with_location(
             FunctionCallArgs {
                 entries: AstNodes::empty(),
             },
             span,
-            &self.wall,
         );
 
         while gen.has_token() {
@@ -2443,9 +2426,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_from_joined_location(
+        Ok(self.node_with_joined_location(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                self.node_from_joined_location(
+                self.node_with_joined_location(
                     Literal::Struct(StructLiteral {
                         name,
                         type_args,
@@ -2530,11 +2513,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident(fn_name, &start),
-                    args: self.node_from_location(
+                    args: self.node_with_location(
                         FunctionCallArgs {
                             entries: ast_nodes![&self.wall; expr],
                         },
-                        &loc,
+                        loc,
                     ),
                 })
             }
@@ -2544,11 +2527,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident("notb", &start),
-                    args: self.node_from_location(
+                    args: self.node_with_location(
                         FunctionCallArgs {
                             entries: ast_nodes![&self.wall; arg],
                         },
-                        &loc,
+                        loc,
                     ),
                 })
             }
@@ -2559,29 +2542,29 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let subject = self.parse_expression()?;
 
                 // create the subject node
-                return Ok(self.node_from_joined_location(
+                return Ok(self.node_with_joined_location(
                     Expression::new(ExpressionKind::Directive(DirectiveExpr { name, subject })),
                     &start,
                 ));
             }
             TokenKind::Exclamation => {
                 let arg = self.parse_expression()?;
-                let loc = arg.location();
+                let span = arg.location();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident("not", &start),
-                    args: self.node_from_location(
+                    args: self.node_with_location(
                         FunctionCallArgs {
                             entries: ast_nodes![&self.wall; arg],
                         },
-                        &loc,
+                        span,
                     ),
                 })
             }
             kind => panic!("Expected token to be a unary operator, but got '{}'", kind),
         };
 
-        Ok(self.node_from_joined_location(Expression::new(expr_kind), &start))
+        Ok(self.node_with_joined_location(Expression::new(expr_kind), &start))
     }
 
     /// Parse a trait bound.
@@ -2626,7 +2609,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }) => {
                 self.skip_token();
 
-                Ok(AstNode::new(Name { ident: *ident }, *span, &self.wall))
+                Ok(self.node_with_location(Name { ident: *ident }, *span))
             }
             Some(token) => self.error_with_location(
                 AstGenErrorKind::ExpectedIdentifier,
@@ -2663,7 +2646,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     span,
                                 }) => {
                                     self.skip_token();
-                                    path.push(self.node_from_location(*id, span), &self.wall);
+                                    path.push(self.node_with_location(*id, *span), &self.wall);
                                 }
                                 _ => self.error(AstGenErrorKind::AccessName, None, None)?,
                             }
@@ -2681,12 +2664,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let location = start.join(self.current_location());
 
-        Ok(AstNode::new(
+        Ok(self.node_with_location(
             AccessName {
                 path: AstNodes::new(path, Some(location)),
             },
             location,
-            &self.wall,
         ))
     }
 
@@ -2695,14 +2677,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub fn generate_expression_from_interactive(
         &mut self,
     ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
-        Ok(AstNode::new(
-            BodyBlock {
-                statements: AstNodes::empty(),
-                expr: None,
-            },
-            Location::span(0, 0),
-            &self.wall,
-        ))
+        Ok(self.node(BodyBlock {
+            statements: AstNodes::empty(),
+            expr: None,
+        }))
     }
 
     /// Parse an expression whilst taking into account binary precedence operators.
@@ -2746,7 +2724,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
                     // where we transform the AstNode into a different
                     if matches!(op.kind, OperatorKind::As) {
-                        lhs = self.node_from_joined_location(
+                        lhs = self.node_with_joined_location(
                             Expression::new(ExpressionKind::Typed(TypedExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
@@ -2877,7 +2855,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(self.node_from_joined_location(
+                Ok(self.node_with_joined_location(
                     Type::Fn(FnType {
                         args,
                         return_ty: self.parse_type()?,
@@ -2891,7 +2869,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
 
                 Ok(
-                    self.node_from_joined_location(
+                    self.node_with_joined_location(
                         Type::Tuple(TupleType { entries: args }),
                         &start,
                     ),
@@ -3035,7 +3013,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => self.error(AstGenErrorKind::ExpectedType, None, None)?,
         };
 
-        Ok(self.node_from_joined_location(variant, &start))
+        Ok(self.node_with_joined_location(variant, &start))
     }
 
     /// Parse an single name or a function call that is applied on the left hand side
@@ -3127,29 +3105,29 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         if gen.stream.len() == 1 {
             match gen.peek().unwrap() {
                 token if token.has_kind(TokenKind::Colon) => {
-                    return Ok(self.node_from_location(
+                    return Ok(self.node_with_location(
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            self.node_from_location(
+                            self.node_with_location(
                                 Literal::Map(MapLiteral {
                                     elements: AstNodes::empty(),
                                 }),
-                                span,
+                                *span,
                             ),
                         ))),
-                        span,
+                        *span,
                     ))
                 }
                 token if token.has_kind(TokenKind::Comma) => {
-                    return Ok(self.node_from_location(
+                    return Ok(self.node_with_location(
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            self.node_from_location(
+                            self.node_with_location(
                                 Literal::Set(SetLiteral {
                                     elements: AstNodes::empty(),
                                 }),
-                                span,
+                                *span,
                             ),
                         ))),
-                        span,
+                        *span,
                     ))
                 }
                 _ => (),
@@ -3158,15 +3136,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // Is this an empty block?
         if !gen.has_token() {
-            return Ok(self.node_from_location(
-                Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
+            return Ok(self.node_with_location(
+                Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_location(
                     Block::Body(BodyBlock {
                         statements: AstNodes::empty(),
                         expr: None,
                     }),
-                    span,
+                    *span,
                 )))),
-                span,
+                *span,
             ));
         }
 
@@ -3177,9 +3155,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // check here if there is a 'semi', and then convert the expression into a statement.
             let block = self.parse_block_from_gen(&gen, *span, None)?;
 
-            Ok(self.node_from_location(
+            Ok(self.node_with_location(
                 Expression::new(ExpressionKind::Block(BlockExpr(block))),
-                span,
+                *span,
             ))
         };
 
@@ -3200,9 +3178,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 let literal = self.parse_set_literal(gen, expr)?;
 
-                Ok(self.node_from_location(
+                Ok(self.node_with_location(
                     Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
-                    span,
+                    *span,
                 ))
             }
             (Some(token), Ok(expr)) if token.has_kind(TokenKind::Colon) => {
@@ -3216,7 +3194,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
 
                 let start_pos = expr.location();
-                let entry = self.node_from_joined_location(
+                let entry = self.node_with_joined_location(
                     MapLiteralEntry {
                         key: expr,
                         value: gen.parse_expression_with_precedence(0)?,
@@ -3232,21 +3210,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                         let literal = self.parse_map_literal(gen, entry)?;
 
-                        Ok(self.node_from_location(
+                        Ok(self.node_with_location(
                             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
-                            span,
+                            *span,
                         ))
                     }
-                    _ => Ok(self.node_from_location(
+                    _ => Ok(self.node_with_location(
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            self.node_from_location(
+                            self.node_with_location(
                                 Literal::Map(MapLiteral {
                                     elements: ast_nodes![&self.wall; entry],
                                 }),
-                                span,
+                                *span,
                             ),
                         ))),
-                        span,
+                        *span,
                     )),
                 }
             }
@@ -3254,15 +3232,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             (None, Ok(expr)) => {
                 // This block is just a block with a single expression
 
-                Ok(self.node_from_location(
-                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
+                Ok(self.node_with_location(
+                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_location(
                         Block::Body(BodyBlock {
                             statements: AstNodes::empty(),
                             expr: Some(expr),
                         }),
-                        span,
+                        *span,
                     )))),
-                    span,
+                    *span,
                 ))
             }
             (None, Err(_)) => {
@@ -3270,15 +3248,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 gen.offset.set(initial_offset);
                 let statement = gen.parse_statement()?;
 
-                Ok(self.node_from_location(
-                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_from_location(
+                Ok(self.node_with_location(
+                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_location(
                         Block::Body(BodyBlock {
                             statements: ast_nodes![&self.wall; statement],
                             expr: None,
                         }),
-                        span,
+                        *span,
                     )))),
-                    span,
+                    *span,
                 ))
             }
         }
@@ -3292,7 +3270,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_token_atom(TokenKind::Colon)?;
         let value = self.parse_expression_with_precedence(0)?;
 
-        Ok(self.node_from_joined_location(MapLiteralEntry { key, value }, &start))
+        Ok(self.node_with_joined_location(MapLiteralEntry { key, value }, &start))
     }
 
     /// Parse a map literal which is made of braces with an arbitrary number of
@@ -3310,7 +3288,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         elements.nodes.insert(0, initial_entry, &self.wall);
 
-        Ok(self.node_from_joined_location(Literal::Map(MapLiteral { elements }), &start))
+        Ok(self.node_with_joined_location(Literal::Map(MapLiteral { elements }), &start))
     }
 
     /// Parse a set literal which is made of braces with an arbitrary number of
@@ -3330,7 +3308,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // insert the first item into elements
         elements.nodes.insert(0, initial_entry, &self.wall);
 
-        Ok(self.node_from_joined_location(Literal::Set(SetLiteral { elements }), &start))
+        Ok(self.node_with_joined_location(Literal::Set(SetLiteral { elements }), &start))
     }
 
     /// Parse a pattern with an optional if guard after the singular pattern.
@@ -3344,7 +3322,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 let condition = self.parse_expression_with_precedence(0)?;
 
-                Ok(self.node_from_joined_location(
+                Ok(self.node_with_joined_location(
                     Pattern::If(IfPattern { pattern, condition }),
                     &start,
                 ))
@@ -3374,12 +3352,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // name, we'll just return this as a binding pattern, otherwise it must follow that
                 // it is either a enum or struct pattern, if not we report it as an error since
                 // access names cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(self.node_from_location(*ident, span))?;
+                let name = self.parse_access_name(self.node_with_location(*ident, *span))?;
 
                 match self.peek() {
                     // If this is just a identifier declaration
                     Some(token) if token.has_kind(TokenKind::Colon) => Pattern::Binding(
-                        BindingPattern(self.node_from_location(Name { ident: *ident }, span)),
+                        BindingPattern(self.node_with_location(Name { ident: *ident }, *span)),
                     ),
                     // Destructuring pattern for either struct or namespace
                     Some(Token {
@@ -3417,7 +3395,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             Pattern::Ignore(IgnorePattern)
                         } else {
                             Pattern::Binding(BindingPattern(
-                                self.node_from_location(Name { ident: *ident }, span),
+                                self.node_with_location(Name { ident: *ident }, *span),
                             ))
                         }
                     }
@@ -3435,11 +3413,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // empty tuple pattern...
                 if let Some(token) = tree.get(0) {
                     if token.has_kind(TokenKind::Comma) {
-                        return Ok(self.node_from_location(
+                        return Ok(self.node_with_location(
                             Pattern::Tuple(TuplePattern {
                                 fields: AstNodes::empty(),
                             }),
-                            span,
+                            *span,
                         ));
                     }
                 }
@@ -3482,7 +3460,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )?,
         };
 
-        Ok(self.node_from_joined_location(pattern, &start))
+        Ok(self.node_with_joined_location(pattern, &start))
     }
 
     /// Parse a compound pattern.
@@ -3515,7 +3493,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Ok(pat)
         } else {
             Ok(self
-                .node_from_joined_location(Pattern::Or(OrPattern { variants: patterns }), &start))
+                .node_with_joined_location(Pattern::Or(OrPattern { variants: patterns }), &start))
         }
     }
 
@@ -3533,7 +3511,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_from_joined_location(FunctionDefArg { name, ty }, &start))
+        Ok(self.node_with_joined_location(FunctionDefArg { name, ty }, &start))
     }
 
     /// Parse a function literal. Function literals are essentially definitions of lambdas
@@ -3563,9 +3541,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             None => self.error(AstGenErrorKind::ExpectedFnBody, None, None)?,
         };
 
-        Ok(self.node_from_joined_location(
+        Ok(self.node_with_joined_location(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_from_joined_location(
+                gen.node_with_joined_location(
                     Literal::Function(FunctionDef {
                         args,
                         return_ty,
@@ -3603,9 +3581,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // is trying to parse either a tuple or an expression.
         // Handle the empty tuple case
         if gen.stream.len() < 2 {
-            let tuple = gen.node_from_joined_location(
+            let tuple = gen.node_with_joined_location(
                 Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                    gen.node_from_joined_location(
+                    gen.node_with_joined_location(
                         Literal::Tuple(TupleLiteral {
                             elements: ast_nodes![&self.wall;],
                         }),
@@ -3663,9 +3641,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(gen.node_from_joined_location(
+        Ok(gen.node_with_joined_location(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_from_joined_location(Literal::Tuple(TupleLiteral { elements }), &start),
+                gen.node_with_joined_location(Literal::Tuple(TupleLiteral { elements }), &start),
             ))),
             &start,
         ))
@@ -3703,9 +3681,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(gen.node_from_joined_location(
+        Ok(gen.node_with_joined_location(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_from_joined_location(Literal::List(ListLiteral { elements }), &start),
+                gen.node_with_joined_location(Literal::List(ListLiteral { elements }), &start),
             ))),
             &start,
         ))
@@ -3726,7 +3704,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// by simply matching on the type of the expr.
     pub fn parse_literal(&self) -> AstNode<'c, Expression<'c>> {
         let token = self.current_token();
-        let literal = AstNode::new(
+        let literal = self.node_with_location(
             match token.kind {
                 TokenKind::IntLiteral(num) => Literal::Int(IntLiteral(num)),
                 TokenKind::FloatLiteral(num) => Literal::Float(FloatLiteral(num)),
@@ -3737,12 +3715,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 _ => unreachable!(),
             },
             token.span,
-            &self.wall,
         );
 
-        self.node_from_location(
+        self.node_with_location(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
-            &token.span,
+            token.span,
         )
     }
 
