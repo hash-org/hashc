@@ -1,6 +1,6 @@
 // Well technically this pattern is 'irrefutable', even if we know that this is true, the compiler
 // cannot sensibly reason about it much further than parsing...
-let 5 = 5;
+// 5 := 5;
 
 // Even this works at parsing, but will fail at typechecking
-let 15 = 12;
+// 15 := 12;

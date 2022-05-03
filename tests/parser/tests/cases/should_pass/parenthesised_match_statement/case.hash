@@ -1,4 +1,4 @@
-let b = ((match some_struct {
+b := ((match some_struct {
     Dog { name, age = 6 } => match name {
         "Viktor" => print("Viktor is 6");
         "Constantine" => print("Kostya is 6");

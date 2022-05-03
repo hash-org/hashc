@@ -1,10 +1,10 @@
 // This should be the same
-let tup = ();
-let tup = (,);
+tup := ();
+tup := (,);
 
 // Different sizes
-let tup = (a,);
-let tup = (a,c);
-let tup = (a,c,b);
+tup := (a,);
+tup := (a,c);
+tup := (a,c,b);
 
-let some_tuple: (str, u32) = ("string", 12);
+some_tuple: (str, u32) = ("string", 12);

@@ -1,1 +1,1 @@
-let k = import("does_not_exist");
+k := import("does_not_exist");

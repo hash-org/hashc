@@ -1,8 +1,8 @@
-let strange_fib = (n: u32) => 
+strange_fib := (n: u32) => 
    if n == 1 || n == 2 {
        n
    } else {
-    let omega = (a: int) => {
+    omega := (a: int) => {
         if a % 13 == 0 {
             a -= 2;
         }

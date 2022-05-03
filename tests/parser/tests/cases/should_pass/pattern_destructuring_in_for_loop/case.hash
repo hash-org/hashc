@@ -3,8 +3,8 @@ struct Point = {
     y: int
 };
 
-let points = [Point {x=1, y=2}, Point {x=3, y=2}, Point {x=-1, y=7}];
+points := [Point {x=1, y=2}, Point {x=3, y=2}, Point {x=-1, y=7}];
 
 for Point {x, y} in points.iter() {
     print(sqrt(x*x + y*y))
-}
+};

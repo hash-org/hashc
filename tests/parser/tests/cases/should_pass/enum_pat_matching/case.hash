@@ -4,7 +4,7 @@ enum NetworkError = {
    Unexpected(str, int)
 };
 
-let handle_error = (error: NetworkError) => match error {
+handle_error := (error: NetworkError) => match error {
    NoBytesReceived => print("No bytes received, stopping");
    ConnectionTerminated => print("Connection was terminated");
    Unexpected(err, code) => print("An unexpected error occurred: " + err + " (" + conv(code) + ") ");

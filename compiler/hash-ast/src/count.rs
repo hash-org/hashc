@@ -40,12 +40,6 @@ impl NodeCount for Statement<'_> {
             Statement::Block(BlockStatement(block)) => block.node_count(),
             Statement::Break(BreakStatement) => 0,
             Statement::Continue(ContinueStatement) => 0,
-            Statement::Let(ref statement) => {
-                statement.pattern.node_count()
-                    + statement.ty.node_count()
-                    + statement.bound.node_count()
-                    + statement.value.node_count()
-            }
             Statement::Assign(assign) => assign.lhs.node_count() + assign.rhs.node_count(),
             Statement::StructDef(defn) => {
                 let entries: usize = defn.entries.iter().map(|entry| entry.node_count()).sum();
@@ -90,6 +84,12 @@ impl NodeCount for Expression<'_> {
                 e.subject.node_count() + fn_args
             }
             ExpressionKind::Directive(_) => 0,
+            ExpressionKind::Declaration(ref decl) => {
+                decl.pattern.node_count()
+                    + decl.ty.node_count()
+                    + decl.bound.node_count()
+                    + decl.value.node_count()
+            }
             ExpressionKind::Variable(e) => {
                 let ty_args: usize = e.type_args.iter().map(|t| t.node_count()).sum();
 

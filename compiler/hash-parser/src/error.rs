@@ -17,21 +17,21 @@ use hash_source::{
 use hash_utils::printing::SequenceDisplay;
 use thiserror::Error;
 
-/// A [TokenError] represents a encountered error during tokenisation, which includes an optional message
-/// with the error, the [TokenErrorKind] which classifies the error, and a [Location] that represents
+/// A [LexerError] represents a encountered error during tokenisation, which includes an optional message
+/// with the error, the [LexerErrorKind] which classifies the error, and a [Location] that represents
 /// where the tokenisation error occurred.
 #[derive(Debug, Constructor, Error)]
 #[error("{kind} {}", .message.as_ref().unwrap_or(&String::from("")))]
-pub struct TokenError {
+pub struct LexerError {
     pub(crate) message: Option<String>,
-    kind: TokenErrorKind,
+    kind: LexerErrorKind,
     location: Location,
 }
 
-/// A [TokenErrorKind] represents the kind of [TokenError] which gives additional context to the error
-/// with the provided message in [TokenError]
+/// A [LexerErrorKind] represents the kind of [LexerError] which gives additional context to the error
+/// with the provided message in [LexerError]
 #[derive(Debug, Error)]
-pub enum TokenErrorKind {
+pub enum LexerErrorKind {
     /// Occurs when a escape sequence (within a character or a string) is malformed.
     #[error("Invalid character escape sequence")]
     BadEscapeSequence,
@@ -60,10 +60,10 @@ pub enum TokenErrorKind {
 
 /// This implementation exists since we can't use tuples that are un-named
 /// with foreign module types.
-pub struct TokenErrorWrapper(pub SourceId, pub TokenError);
+pub struct LexerErrorWrapper(pub SourceId, pub LexerError);
 
-impl From<TokenErrorWrapper> for ParseError {
-    fn from(TokenErrorWrapper(source_id, err): TokenErrorWrapper) -> Self {
+impl From<LexerErrorWrapper> for ParseError {
+    fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
             src: Some(SourceLocation {
@@ -74,7 +74,7 @@ impl From<TokenErrorWrapper> for ParseError {
     }
 }
 
-/// A GeneratorError represents possible errors that occur when transforming the token
+/// A [AstGenError] represents possible errors that occur when transforming the token
 /// stream into the AST.
 #[derive(Debug, Constructor)]
 pub struct AstGenError<'a> {
