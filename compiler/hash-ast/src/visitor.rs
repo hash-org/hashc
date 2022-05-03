@@ -257,6 +257,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::FloatLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error>;
 
+    type BoolLiteralRet: 'c;
+    fn visit_bool_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BoolLiteral>,
+    ) -> Result<Self::BoolLiteralRet, Self::Error>;
+
     type IntLiteralRet: 'c;
     fn visit_int_literal(
         &mut self,
@@ -910,6 +917,7 @@ pub mod walk {
         Char(V::CharLiteralRet),
         Int(V::IntLiteralRet),
         Float(V::FloatLiteralRet),
+        Bool(V::BoolLiteralRet),
         Set(V::SetLiteralRet),
         Map(V::MapLiteralRet),
         List(V::ListLiteralRet),
@@ -935,6 +943,9 @@ pub mod walk {
             }
             ast::Literal::Float(r) => {
                 Literal::Float(visitor.visit_float_literal(ctx, node.with_body(r))?)
+            }
+            ast::Literal::Bool(r) => {
+                Literal::Bool(visitor.visit_bool_literal(ctx, node.with_body(r))?)
             }
             ast::Literal::Set(r) => {
                 Literal::Set(visitor.visit_set_literal(ctx, node.with_body(r))?)
@@ -969,6 +980,7 @@ pub mod walk {
             CharLiteralRet = Ret,
             IntLiteralRet = Ret,
             FloatLiteralRet = Ret,
+            BoolLiteralRet = Ret,
             SetLiteralRet = Ret,
             MapLiteralRet = Ret,
             ListLiteralRet = Ret,
@@ -982,6 +994,7 @@ pub mod walk {
             Literal::Char(r) => r,
             Literal::Int(r) => r,
             Literal::Float(r) => r,
+            Literal::Bool(r) => r,
             Literal::Set(r) => r,
             Literal::Map(r) => r,
             Literal::List(r) => r,
