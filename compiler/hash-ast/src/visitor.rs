@@ -581,6 +581,7 @@ pub mod walk {
     pub struct FunctionDefArg<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
+        pub default: Option<V::ExpressionRet>,
     }
 
     pub fn walk_function_def_arg<'c, V: AstVisitor<'c>>(
@@ -594,6 +595,11 @@ pub mod walk {
                 .ty
                 .as_ref()
                 .map(|t| visitor.visit_type(ctx, t.ast_ref()))
+                .transpose()?,
+            default: node
+                .default
+                .as_ref()
+                .map(|t| visitor.visit_expression(ctx, t.ast_ref()))
                 .transpose()?,
         })
     }

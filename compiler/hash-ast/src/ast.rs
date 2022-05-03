@@ -392,6 +392,12 @@ pub struct FunctionDefArg<'c> {
     ///
     /// Will be inferred if [None].
     pub ty: Option<AstNode<'c, Type<'c>>>,
+    /// Default value of the type if provided.
+    ///
+    /// If the value is provided, this makes it a named argument
+    /// which means that they can be specified by putting the name of the
+    /// argument.
+    pub default: Option<AstNode<'c, Expression<'c>>>,
 }
 
 /// A function definition.
