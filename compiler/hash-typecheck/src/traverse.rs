@@ -341,7 +341,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         location: self.some_source_location(node.type_args.location().unwrap()),
                     })
                 } else {
-                    Ok(self.types_mut().duplicate(var_ty_id, Some(loc)))
+                    Ok(var_ty_id)
                 }
             }
             (_, SymbolType::Trait(var_trait_id)) => {
@@ -444,12 +444,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                             })
                         }
                     }
-                    TypeDefValueKind::Enum(EnumDef { /*name, */ .. }) => Err(TypecheckError::TypeIsNotStruct {
-                        ty: subject,
-                        // ty_def_name: *name,
-                        ty_def_location: ty_def.location,
-                        location: self.source_location(node.location()),
-                    }),
+                    TypeDefValueKind::Enum(EnumDef { .. }) => {
+                        Err(TypecheckError::TypeIsNotStruct {
+                            ty: subject,
+                            ty_def_location: ty_def.location,
+                            location: self.source_location(node.location()),
+                        })
+                    }
                 }
             }
             _ => Err(TypecheckError::TypeIsNotStruct {
