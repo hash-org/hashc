@@ -3506,7 +3506,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let name = self.parse_ident()?;
         let start = name.location();
 
-        // @@Future: default values for argument...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
                 self.skip_token();
@@ -3515,7 +3514,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_location(FunctionDefArg { name, ty }, &start))
+        let default = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Eq) => {
+                self.skip_token();
+                Some(self.parse_expression_with_precedence(0)?)
+            }
+            _ => None,
+        };
+
+        Ok(self.node_with_joined_location(FunctionDefArg { name, ty, default }, &start))
     }
 
     /// Parse a function literal. Function literals are essentially definitions of lambdas

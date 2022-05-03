@@ -530,11 +530,13 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FunctionDefArg<'c>>,
     ) -> Result<Self::FunctionDefArgRet, Self::Error> {
-        let walk::FunctionDefArg { name, ty } = walk::walk_function_def_arg(self, ctx, node)?;
+        let walk::FunctionDefArg { name, ty, default } =
+            walk::walk_function_def_arg(self, ctx, node)?;
         Ok(TreeNode::branch(
             "arg",
             iter::once(TreeNode::branch("name", vec![name]))
-                .chain(ty.into_iter())
+                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
                 .collect(),
         ))
     }
