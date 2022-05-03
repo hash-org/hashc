@@ -818,6 +818,10 @@ pub struct RefExpr<'c> {
 #[derive(Debug, PartialEq)]
 pub struct DerefExpr<'c>(pub AstNode<'c, Expression<'c>>);
 
+/// An unsafe expression.
+#[derive(Debug, PartialEq)]
+pub struct UnsafeExpr<'c>(pub AstNode<'c, Expression<'c>>);
+
 /// A literal.
 #[derive(Debug, PartialEq)]
 pub struct LiteralExpr<'c>(pub AstNode<'c, Literal<'c>>);
@@ -840,6 +844,7 @@ pub enum ExpressionKind<'c> {
     PropertyAccess(PropertyAccessExpr<'c>),
     Ref(RefExpr<'c>),
     Deref(DerefExpr<'c>),
+    Unsafe(UnsafeExpr<'c>),
     LiteralExpr(LiteralExpr<'c>),
     Typed(TypedExpr<'c>),
     Block(BlockExpr<'c>),
