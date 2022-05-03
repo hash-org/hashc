@@ -1,7 +1,7 @@
-loop {}
+loop {};
 
 
-let x = 0;
+x := 0;
 
 loop {
     do_something(&x);
@@ -9,4 +9,4 @@ loop {
     if x == 5 {
         break;
     }
-}
+};  

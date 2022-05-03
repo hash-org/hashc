@@ -8,7 +8,6 @@ use strum_macros::AsRefStr;
 #[derive(Debug, Copy, Clone, PartialEq, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum Keyword {
-    Let,
     For,
     While,
     Loop,

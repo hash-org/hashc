@@ -9,9 +9,9 @@ loop {
         if c > 12 {
             break;
         }
-    }
+    };
 
     if c % 2 == 0 {
         break;
     }
-}
+};

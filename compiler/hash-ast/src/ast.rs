@@ -564,9 +564,9 @@ pub struct Bound<'c> {
     pub trait_bounds: AstNodes<'c, TraitBound<'c>>,
 }
 
-/// A let statement, e.g. `let x = 3;`.
+/// A declaration, e.g. `x := 3;`.
 #[derive(Debug, PartialEq)]
-pub struct LetStatement<'c> {
+pub struct Declaration<'c> {
     /// The pattern to bind the right-hand side to.
     pub pattern: AstNode<'c, Pattern<'c>>,
 
@@ -581,7 +581,7 @@ pub struct LetStatement<'c> {
     /// Any value that is assigned to the statement, simply
     /// an expression. Since it is optional, it will be set
     /// to none if there is no expression.
-    pub value: Option<AstNode<'c, Expression<'c>>>,
+    pub value: AstNode<'c, Expression<'c>>,
 }
 
 /// An assign statement, e.g. `x = 4;`.
@@ -678,11 +678,10 @@ pub struct ContinueStatement;
 #[derive(Debug, PartialEq)]
 pub enum Statement<'c> {
     Expr(ExprStatement<'c>),
-    Return(ReturnStatement<'c>),
     Block(BlockStatement<'c>),
+    Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),
-    Let(LetStatement<'c>),
     Assign(AssignStatement<'c>),
     StructDef(StructDef<'c>),
     EnumDef(EnumDef<'c>),
@@ -831,6 +830,7 @@ pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
 pub enum ExpressionKind<'c> {
     FunctionCall(FunctionCallExpr<'c>),
     Directive(DirectiveExpr<'c>),
+    Declaration(Declaration<'c>),
     Variable(VariableExpr<'c>),
     PropertyAccess(PropertyAccessExpr<'c>),
     Ref(RefExpr<'c>),

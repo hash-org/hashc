@@ -369,12 +369,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error>;
 
-    type LetStatementRet: 'c;
-    fn visit_let_statement(
+    type DeclarationRet: 'c;
+    fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LetStatement<'c>>,
-    ) -> Result<Self::LetStatementRet, Self::Error>;
+        node: ast::AstNodeRef<ast::Declaration<'c>>,
+    ) -> Result<Self::DeclarationRet, Self::Error>;
 
     type AssignStatementRet: 'c;
     fn visit_assign_statement(
@@ -658,6 +658,7 @@ pub mod walk {
     pub enum Expression<'c, V: AstVisitor<'c>> {
         FunctionCall(V::FunctionCallExprRet),
         Directive(V::DirectiveExprRet),
+        Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
         PropertyAccess(V::PropertyAccessExprRet),
         Ref(V::RefExprRet),
@@ -679,6 +680,9 @@ pub mod walk {
             ),
             ast::ExpressionKind::Directive(inner) => {
                 Expression::Directive(visitor.visit_directive_expr(ctx, node.with_body(inner))?)
+            }
+            ast::ExpressionKind::Declaration(inner) => {
+                Expression::Declaration(visitor.visit_declaration(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::Variable(inner) => {
                 Expression::Variable(visitor.visit_variable_expr(ctx, node.with_body(inner))?)
@@ -717,6 +721,7 @@ pub mod walk {
             'c,
             FunctionCallExprRet = Ret,
             DirectiveExprRet = Ret,
+            DeclarationRet = Ret,
             VariableExprRet = Ret,
             PropertyAccessExprRet = Ret,
             RefExprRet = Ret,
@@ -730,6 +735,7 @@ pub mod walk {
         Ok(match walk_expression(visitor, ctx, node)? {
             Expression::FunctionCall(r) => r,
             Expression::Directive(r) => r,
+            Expression::Declaration(r) => r,
             Expression::Variable(r) => r,
             Expression::PropertyAccess(r) => r,
             Expression::Ref(r) => r,
@@ -1638,12 +1644,12 @@ pub mod walk {
         pub pattern: V::PatternRet,
         pub ty: Option<V::TypeRet>,
         pub bound: Option<V::BoundRet>,
-        pub value: Option<V::ExpressionRet>,
+        pub value: V::ExpressionRet,
     }
     pub fn walk_let_statement<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::LetStatement<'c>>,
+        node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<LetStatement<'c, V>, V::Error> {
         Ok(LetStatement {
             pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
@@ -1657,11 +1663,7 @@ pub mod walk {
                 .as_ref()
                 .map(|t| visitor.visit_bound(ctx, t.ast_ref()))
                 .transpose()?,
-            value: node
-                .value
-                .as_ref()
-                .map(|t| visitor.visit_expression(ctx, t.ast_ref()))
-                .transpose()?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
         })
     }
 
@@ -1845,7 +1847,6 @@ pub mod walk {
         Block(V::BlockStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
-        Let(V::LetStatementRet),
         Assign(V::AssignStatementRet),
         StructDef(V::StructDefRet),
         EnumDef(V::EnumDefRet),
@@ -1872,9 +1873,6 @@ pub mod walk {
             }
             ast::Statement::Continue(r) => {
                 Statement::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Let(r) => {
-                Statement::Let(visitor.visit_let_statement(ctx, node.with_body(r))?)
             }
             ast::Statement::Assign(r) => {
                 Statement::Assign(visitor.visit_assign_statement(ctx, node.with_body(r))?)
@@ -1904,7 +1902,6 @@ pub mod walk {
             BlockStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
-            LetStatementRet = Ret,
             AssignStatementRet = Ret,
             StructDefRet = Ret,
             EnumDefRet = Ret,
@@ -1917,7 +1914,6 @@ pub mod walk {
             Statement::Block(r) => r,
             Statement::Break(r) => r,
             Statement::Continue(r) => r,
-            Statement::Let(r) => r,
             Statement::Assign(r) => r,
             Statement::StructDef(r) => r,
             Statement::EnumDef(r) => r,

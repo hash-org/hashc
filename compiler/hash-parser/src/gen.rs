@@ -417,6 +417,110 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_location(Module { contents }, span))
     }
 
+    pub fn parse_general_statement(
+        &self,
+        semi_required: bool,
+    ) -> AstGenResult<'c, (bool, AstNode<'c, Statement<'c>>)> {
+        let start = self.current_location();
+        let offset = self.offset();
+
+        let decl = if let Some(pat) = self.peek_resultant_fn(|| self.parse_declaration_pattern()) {
+            // Check if there is a colon here and if not we have to backtrack and
+            // now attempt to parse a simple expression
+
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Colon) => {
+                    let decl = self.parse_declaration(pat)?;
+
+                    Some(Statement::Expr(ExprStatement(self.node_from_location(
+                        Expression::new(ExpressionKind::Declaration(decl)),
+                        &start,
+                    ))))
+                }
+                Some(token) if token.has_kind(TokenKind::Lt) => {
+                    // Here we essentially have to pre-emptively assume that the parsing the
+                    // type arguments might simply be a top level expression and therefore
+                    // if parsing this fails, then we have to backtrack
+                    match self.parse_declaration(pat) {
+                        Ok(decl) => Some(Statement::Expr(ExprStatement(self.node_from_location(
+                            Expression::new(ExpressionKind::Declaration(decl)),
+                            &start,
+                        )))),
+                        Err(_) => {
+                            self.offset.set(offset);
+                            None
+                        }
+                    }
+                }
+                _ => {
+                    self.offset.set(offset);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let statement = match decl {
+            Some(statement) => Ok(statement),
+            None => {
+                let lhs = self.parse_expression_with_precedence(0)?;
+                let (expr, re_assigned) = self.try_parse_re_assignment_operation(lhs)?;
+
+                if re_assigned {
+                    Ok(Statement::Expr(ExprStatement(expr)))
+                } else {
+                    match self.peek() {
+                        Some(token) if token.has_kind(TokenKind::Semi) => {
+                            // We don't skip here because it is handled after the statement has been generated.
+                            Ok(Statement::Expr(ExprStatement(expr)))
+                        }
+                        Some(token) if token.has_kind(TokenKind::Eq) => {
+                            self.skip_token();
+
+                            // Parse the rhs and the semi
+                            let rhs = self.parse_expression_with_precedence(0)?;
+
+                            Ok(Statement::Assign(AssignStatement { lhs: expr, rhs }))
+                        }
+
+                        // Special case where there is a expression at the end of the stream and therefore it
+                        // is signifying that it is returning the expression value here
+                        None => Ok(Statement::Expr(ExprStatement(expr))),
+
+                        token => match (token, expr.into_body().move_out().into_kind()) {
+                            (_, ExpressionKind::Block(BlockExpr(block))) => {
+                                Ok(Statement::Block(BlockStatement(block)))
+                            }
+                            (Some(token), _) => self.error(
+                                AstGenErrorKind::Expected,
+                                Some(TokenKindVector::begin_expression(&self.wall)),
+                                Some(token.kind),
+                            ),
+                            (None, _) => unreachable!(),
+                        },
+                    }
+                }
+            }
+        }?;
+
+        let location = self.current_location();
+
+        // Depending on whether it's expected of the expression to have a semi-colon, we
+        // try and parse one anyway, if so
+        let has_semi = if semi_required {
+            self.parse_token_atom(TokenKind::Semi)?;
+            true
+        } else {
+            self.parse_token_atom_fast(TokenKind::Semi).is_some()
+        };
+
+        Ok((
+            has_semi,
+            self.node_from_location(statement, &start.join(location)),
+        ))
+    }
+
     /// Parse a statement.
     pub fn parse_statement(&self) -> AstGenResult<'c, AstNode<'c, Statement<'c>>> {
         let start = self.current_location();
@@ -426,7 +530,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
 
                 let statement = match kind {
-                    TokenKind::Keyword(Keyword::Let) => Statement::Let(self.parse_let_statement()?),
                     TokenKind::Keyword(Keyword::Trait) => {
                         Statement::TraitDef(self.parse_trait_defn()?)
                     }
@@ -456,7 +559,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 let current_location = self.current_location();
 
-                // USE PREV token location
                 match self.next_token() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
                         Ok(self.node_from_location(statement, &start.join(current_location)))
@@ -470,62 +572,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     None => self.error(AstGenErrorKind::EOF, None, Some(*kind))?,
                 }
             }
-            Some(_) => {
-                let lhs = self.parse_expression_with_precedence(0)?;
-                let (expr, re_assigned) = self.try_parse_re_assignment_operation(lhs)?;
-
-                if re_assigned {
-                    let current_location = self.current_location(); // We don't want to include the semi in the current span
-                    self.parse_token_atom(TokenKind::Semi)?;
-
-                    return Ok(self.node_from_location(
-                        Statement::Expr(ExprStatement(expr)),
-                        &start.join(current_location),
-                    ));
-                }
-
-                // Ensure that the next token is a Semi
-                match self.peek() {
-                    Some(token) if token.has_kind(TokenKind::Semi) => {
-                        let current_location = self.current_location(); // We don't want to include the semi in the current span
-                        self.skip_token();
-
-                        Ok(self.node_from_location(
-                            Statement::Expr(ExprStatement(expr)),
-                            &start.join(current_location),
-                        ))
-                    }
-                    Some(token) if token.has_kind(TokenKind::Eq) => {
-                        self.skip_token();
-
-                        // Parse the rhs and the semi
-                        let rhs = self.parse_expression_with_precedence(0)?;
-                        self.parse_token_atom(TokenKind::Semi)?;
-
-                        Ok(self.node_from_joined_location(
-                            Statement::Assign(AssignStatement { lhs: expr, rhs }),
-                            &start,
-                        ))
-                    }
-
-                    // Special case where there is a expression at the end of the stream and therefore it
-                    // is signifying that it is returning the expression value here
-                    None => {
-                        Ok(self.node_from_location(Statement::Expr(ExprStatement(expr)), &start))
-                    }
-
-                    token => match (token, expr.into_body().move_out().into_kind()) {
-                        (_, ExpressionKind::Block(BlockExpr(block))) => Ok(self
-                            .node_from_location(Statement::Block(BlockStatement(block)), &start)),
-                        (Some(token), _) => self.error(
-                            AstGenErrorKind::Expected,
-                            Some(TokenKindVector::begin_expression(&self.wall)),
-                            Some(token.kind),
-                        ),
-                        (None, _) => unreachable!(),
-                    },
-                }
-            }
+            Some(_) => self
+                .parse_general_statement(true) // This probably shouldn't be a 1?
+                .map(|statement| statement.1),
             None => self.error(AstGenErrorKind::ExpectedStatement, None, None)?,
         }
     }
@@ -1157,7 +1206,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
 
         // now we parse the singular pattern that begins at the for-loop
-        let pattern = self.parse_pattern()?;
+        let pattern = self.parse_declaration_pattern()?;
         let pattern_location = pattern.location();
 
         self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
@@ -1552,40 +1601,33 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Let keyword statement, a destructuring pattern, potential for-all statement, optional
     /// type definition and a potential definition of the right hand side. For example:
     /// ```text
-    /// let some_var...<int>: float = ...;
-    ///     ^^^^^^^^   ^^^^^  ^^^^^   ^^^─────┐
-    ///    pattern     bound   type    the right hand-side expr
+    /// some_var...<int>: float = ...;
+    /// ^^^^^^^^   ^^^^^  ^^^^^   ^^^─────┐
+    ///   pattern  bound   type    the right hand-side expr
     /// ```
-    pub fn parse_let_statement(&self) -> AstGenResult<'c, LetStatement<'c>> {
-        debug_assert!(matches!(
-            self.current_token().kind,
-            TokenKind::Keyword(Keyword::Let)
-        ));
-
-        let pattern = self.parse_pattern()?;
-
+    pub fn parse_declaration(
+        &self,
+        pattern: AstNode<'c, Pattern<'c>>,
+    ) -> AstGenResult<'c, Declaration<'c>> {
         let bound = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Lt) => Some(self.parse_type_bound()?),
             _ => None,
         };
 
+        self.parse_token_atom(TokenKind::Colon)?;
+
+        // Attempt to parse an optional type...
         let ty = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Colon) => {
-                self.skip_token();
-                Some(self.parse_type()?)
-            }
-            _ => None,
+            Some(token) if token.has_kind(TokenKind::Eq) => None,
+            _ => Some(self.parse_type()?),
         };
 
-        let value = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Eq) => {
-                self.skip_token();
-                Some(self.parse_expression_with_precedence(0)?)
-            }
-            _ => None,
-        };
+        // Now parse the value after the assignment
+        self.parse_token_atom(TokenKind::Eq)?;
 
-        Ok(LetStatement {
+        let value = self.parse_expression_with_precedence(0)?;
+
+        Ok(Declaration {
             pattern,
             ty,
             bound,
@@ -1854,82 +1896,30 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 continue;
             }
 
-            // if we can't tell if this is a statement, we parse an expression, and if there
-            // is a following semi-colon, then we make this a statement and continue...
-            let expr = gen.parse_expression_with_precedence(0)?;
-            let expr_loc = expr.location();
+            let (has_semi, statement) = gen.parse_general_statement(false)?;
 
-            // check for assigning operators here if the lhs expression is not compound
-            match gen.peek_resultant_fn(|| gen.parse_re_assignment_op()) {
-                Some(op) => {
-                    // since this is followed by an expression, we try to parse another expression, and then
-                    // ensure that after an expression there is a ending semi colon.
-                    let rhs = gen.parse_expression_with_precedence(0)?;
-                    gen.parse_token_atom(TokenKind::Semi)?;
+            match (has_semi, gen.peek()) {
+                (true, _) => block.statements.nodes.push(statement, &self.wall),
+                (false, Some(token)) => gen.error(
+                    AstGenErrorKind::Expected,
+                    Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Semi])),
+                    Some(token.kind),
+                )?,
+                (false, None) => {
+                    let location = statement.location();
 
-                    block.statements.nodes.push(
-                        gen.node_from_joined_location(
-                            Statement::Expr(ExprStatement(
-                                self.transform_binary_expression(expr, rhs, op),
-                            )),
-                            &expr_loc,
-                        ),
-                        &self.wall,
-                    );
-                }
-                None => {
-                    match gen.peek() {
-                        Some(token) if token.has_kind(TokenKind::Semi) => {
-                            gen.skip_token();
-
-                            block.statements.nodes.push(
-                                gen.node_from_joined_location(
-                                    Statement::Expr(ExprStatement(expr)),
-                                    &expr_loc,
-                                ),
-                                &self.wall,
-                            );
+                    match statement.into_body().move_out() {
+                        Statement::Block(BlockStatement(inner_block)) => {
+                            block.expr = Some(self.node_from_location(
+                                Expression::new(ExpressionKind::Block(BlockExpr(inner_block))),
+                                &location,
+                            ));
                         }
-                        Some(token) if token.has_kind(TokenKind::Eq) => {
-                            gen.skip_token();
-
-                            // Parse the rhs and the semi
-                            let rhs = gen.parse_expression_with_precedence(0)?;
-                            gen.parse_token_atom(TokenKind::Semi)?;
-
-                            block.statements.nodes.push(
-                                gen.node_from_joined_location(
-                                    Statement::Assign(AssignStatement { lhs: expr, rhs }),
-                                    &start,
-                                ),
-                                &self.wall,
-                            );
-                        }
-                        Some(token) => {
-                            match expr.into_body().move_out().into_kind() {
-                                ExpressionKind::Block(BlockExpr(inner_block)) => {
-                                    block.statements.nodes.push(
-                                        gen.node_from_joined_location(
-                                            Statement::Block(BlockStatement(inner_block)),
-                                            &expr_loc,
-                                        ),
-                                        &self.wall,
-                                    )
-                                }
-                                _ => gen.error(
-                                    AstGenErrorKind::Expected,
-                                    Some(TokenKindVector::from_row(
-                                        row![&self.wall; TokenKind::Semi],
-                                    )),
-                                    Some(token.kind),
-                                )?,
-                            };
-                        }
-                        None => {
+                        Statement::Expr(ExprStatement(expr)) => {
                             block.expr = Some(expr);
-                            break;
                         }
-                    };
+                        _ => unreachable!(),
+                    }
                 }
             }
         }
@@ -2739,7 +2729,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
                 // parsing onwards because this might be an assignable expression...
                 // Only perform this check if know prior that the expression is not made of compounded components.
-                Some(op) => {
+                Some(op) if !op.assigning => {
                     // consume the number of tokens eaten whilst getting the operator...
                     self.offset.update(|x| x + consumed_tokens as usize);
 
@@ -3180,6 +3170,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ));
         }
 
+        let parse_block = |initial_offset: usize| -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+            // reset the position and attempt to parse a statement
+            gen.offset.set(initial_offset);
+
+            // check here if there is a 'semi', and then convert the expression into a statement.
+            let block = self.parse_block_from_gen(&gen, *span, None)?;
+
+            Ok(self.node_from_location(
+                Expression::new(ExpressionKind::Block(BlockExpr(block))),
+                span,
+            ))
+        };
+
         // Here we have to parse the initial expression and then check if there is a specific
         // separator. We have to check:
         //
@@ -3204,6 +3207,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             (Some(token), Ok(expr)) if token.has_kind(TokenKind::Colon) => {
                 gen.skip_token(); // ':'
+
+                // So problem here is that we don't know if it is a map literal or just a
+                // declaration assignment. We can attempt to abort this if we spot that
+                // there is a following '=' or parsing the expression doesn't work...
+                if gen.parse_token_atom_fast(TokenKind::Eq).is_some() {
+                    return parse_block(initial_offset);
+                }
 
                 let start_pos = expr.location();
                 let entry = self.node_from_joined_location(
@@ -3240,19 +3250,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     )),
                 }
             }
-            (Some(_), _) => {
-                // reset the position and attempt to parse a statement
-                gen.offset.set(initial_offset);
-                let statement = gen.parse_statement()?;
-
-                // check here if there is a 'semi', and then convert the expression into a statement.
-                let block = self.parse_block_from_gen(&gen, *span, Some(statement))?;
-
-                Ok(self.node_from_location(
-                    Expression::new(ExpressionKind::Block(BlockExpr(block))),
-                    span,
-                ))
-            }
+            (Some(_), _) => parse_block(initial_offset),
             (None, Ok(expr)) => {
                 // This block is just a block with a single expression
 
@@ -3353,6 +3351,138 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             _ => Ok(pattern),
         }
+    }
+
+    /// Parse a pattern that can appear in declarations or for-loop destructuring locations
+    pub fn parse_declaration_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
+        let start = self.next_location();
+
+        let token = self.peek();
+        if token.is_none() {
+            self.unexpected_eof()?
+        };
+
+        let pattern = match token.unwrap() {
+            Token {
+                kind: TokenKind::Ident(ident),
+                span,
+            } => {
+                // this could be either just a binding pattern, enum, or a struct pattern
+                self.skip_token();
+
+                // So here we try to parse an access name, if it is only made of a single binding
+                // name, we'll just return this as a binding pattern, otherwise it must follow that
+                // it is either a enum or struct pattern, if not we report it as an error since
+                // access names cannot be used as binding patterns on their own...
+                let name = self.parse_access_name(self.node_from_location(*ident, span))?;
+
+                match self.peek() {
+                    // If this is just a identifier declaration
+                    Some(token) if token.has_kind(TokenKind::Colon) => Pattern::Binding(
+                        BindingPattern(self.node_from_location(Name { ident: *ident }, span)),
+                    ),
+                    // Destructuring pattern for either struct or namespace
+                    Some(Token {
+                        kind: TokenKind::Tree(Delimiter::Brace, tree_index),
+                        span,
+                    }) => {
+                        self.skip_token();
+                        let tree = self.token_trees.get(*tree_index).unwrap();
+
+                        Pattern::Struct(StructPattern {
+                            name,
+                            fields: self.parse_destructuring_patterns(tree, *span)?,
+                        })
+                    }
+                    // enum pattern
+                    Some(Token {
+                        kind: TokenKind::Tree(Delimiter::Paren, tree_index),
+                        span,
+                    }) => {
+                        self.skip_token();
+                        let tree = self.token_trees.get(*tree_index).unwrap();
+
+                        Pattern::Enum(EnumPattern {
+                            name,
+                            fields: self.parse_pattern_collection(tree, *span)?,
+                        })
+                    }
+                    Some(token) if name.path.len() > 1 => self.error(
+                        AstGenErrorKind::Expected,
+                        Some(TokenKindVector::begin_pattern_collection(&self.wall)),
+                        Some(token.kind),
+                    )?,
+                    _ => {
+                        if *ident == CORE_IDENTIFIERS.underscore {
+                            Pattern::Ignore(IgnorePattern)
+                        } else {
+                            Pattern::Binding(BindingPattern(
+                                self.node_from_location(Name { ident: *ident }, span),
+                            ))
+                        }
+                    }
+                }
+            }
+            // Tuple patterns
+            Token {
+                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
+                span,
+            } => {
+                self.skip_token();
+                let tree = self.token_trees.get(*tree_index).unwrap();
+
+                // check here if the tree length is 1, and the first token is the comma to check if it is an
+                // empty tuple pattern...
+                if let Some(token) = tree.get(0) {
+                    if token.has_kind(TokenKind::Comma) {
+                        return Ok(self.node_from_location(
+                            Pattern::Tuple(TuplePattern {
+                                fields: AstNodes::empty(),
+                            }),
+                            span,
+                        ));
+                    }
+                }
+
+                // @@Hack: here it might actually be a nested pattern in parenthesees. So we perform a slight
+                // transformation if the number of parsed patterns is only one. So essentially we handle the case
+                // where a pattern is wrapped in parentheses and so we just unwrap it.
+                let mut elements = self.parse_pattern_collection(tree, *span)?;
+
+                if elements.len() == 1 {
+                    let element = elements.nodes.pop().unwrap();
+                    return Ok(element);
+                } else {
+                    Pattern::Tuple(TuplePattern { fields: elements })
+                }
+            }
+            // Namespace patterns
+            Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
+                span,
+            } => {
+                self.skip_token();
+                let tree = self.token_trees.get(*tree_index).unwrap();
+
+                Pattern::Namespace(NamespacePattern {
+                    fields: self.parse_destructuring_patterns(tree, *span)?,
+                })
+            }
+            // @@Future: List patterns aren't supported yet.
+            // Token {kind: TokenKind::Tree(Delimiter::Bracket, tree), span} => {
+            //                 self.skip_token();
+            //     // this is a list pattern
+            //
+            // }
+            token => self.error_with_location(
+                AstGenErrorKind::Expected,
+                Some(TokenKindVector::begin_pattern(&self.wall)),
+                Some(token.kind),
+                &token.span,
+            )?,
+        };
+
+        Ok(self.node_from_joined_location(pattern, &start))
     }
 
     /// Parse a compound pattern.

@@ -167,6 +167,10 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.create_unknown_type()
     }
 
+    fn create_void_type(&mut self) -> TypeId {
+        self.global_storage.types.create_void_type()
+    }
+
     fn add_location_to_ty(&mut self, ty: TypeId, location: SourceLocation) {
         self.global_storage.types.add_location(ty, location)
     }
@@ -1127,12 +1131,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type LetStatementRet = ();
-    fn visit_let_statement(
+    type DeclarationRet = TypeId;
+    fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LetStatement<'c>>,
-    ) -> Result<Self::LetStatementRet, Self::Error> {
+        node: ast::AstNodeRef<ast::Declaration<'c>>,
+    ) -> Result<Self::DeclarationRet, Self::Error> {
         if let Some(bound) = &node.bound {
             // This is a trait implementation
             match node.pattern.body() {
@@ -1161,7 +1165,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                                 },
                             );
 
-                            Ok(())
+                            Ok(self.create_void_type())
                         }
                         Some(_) => Err(TypecheckError::SymbolIsNotATrait(name_symbol())),
                         None => Err(TypecheckError::TraitDefinitionNotFound(name_symbol())),
@@ -1185,12 +1189,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 .map(|t| self.visit_type(ctx, t.ast_ref()))
                 .transpose()?
                 .unwrap_or_else(|| self.create_unknown_type());
-            let value_ty = node
-                .value
-                .as_ref()
-                .map(|t| self.visit_expression(ctx, t.ast_ref()))
-                .transpose()?
-                .unwrap_or_else(|| self.create_unknown_type());
+            let value_ty = self.visit_expression(ctx, node.value.ast_ref())?;
 
             // add type location information on  pattern_ty and annotation_ty
             if let Some(annotation) = &node.body().ty {
@@ -1211,7 +1210,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             self.unifier()
                 .unify(value_ty, pattern_ty, UnifyStrategy::ModifyBoth)?;
 
-            Ok(())
+            Ok(self.create_void_type())
         }
     }
 

@@ -1,6 +1,6 @@
-let my_map = {:};
-let my_map = {"a": 1 };
-let my_map = {"a": 1, };
-let my_map = {"a": 1 + 2, };
-let my_map = {"a": 1, "b": 2};
-let my_map = {"a": 1, "b": 2,};
+my_map := {:};
+my_map := {"a": 1 };
+my_map := {"a": 1, };
+my_map := {"a": 1 + 2, };
+my_map := {"a": 1, "b": 2};
+my_map := {"a": 1, "b": 2,};

@@ -1,1 +1,1 @@
-let k<T> where s<T, ?> = b; // the question mark should be parsed an an existential.
+k<T> where s<T, ?> := b; // the question mark should be parsed an an existential.

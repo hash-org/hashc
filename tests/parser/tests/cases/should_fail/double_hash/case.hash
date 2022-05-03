@@ -1,1 +1,1 @@
-let k = ##naughty_intrinsic();
+k := ##naughty_intrinsic();
