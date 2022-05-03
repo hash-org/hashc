@@ -209,6 +209,23 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         AstNode::new(body, start.join(self.current_location()), &self.wall)
     }
 
+    /// Create an error without wrapping it in an [Err] variant
+    #[inline(always)]
+    fn make_error(
+        &self,
+        kind: AstGenErrorKind,
+        expected: Option<TokenKindVector<'c>>,
+        received: Option<TokenKind>,
+        location: Option<Location>,
+    ) -> AstGenError<'c> {
+        AstGenError::new(
+            kind,
+            self.source_location(&location.unwrap_or_else(|| self.current_location())),
+            expected,
+            received,
+        )
+    }
+
     /// Create an error at the current location.
     pub fn error<T>(
         &self,
@@ -216,12 +233,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         expected: Option<TokenKindVector<'c>>,
         received: Option<TokenKind>,
     ) -> AstGenResult<'c, T> {
-        Err(AstGenError::new(
-            kind,
-            self.source_location(&self.current_location()),
-            expected,
-            received,
-        ))
+        Err(self.make_error(kind, expected, received, None))
     }
 
     /// Create an error at the current location.
@@ -230,14 +242,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
         received: Option<TokenKind>,
-        location: &Location,
+        location: Location,
     ) -> AstGenResult<'c, T> {
-        Err(AstGenError::new(
-            kind,
-            self.source_location(location),
-            expected,
-            received,
-        ))
+        Err(self.make_error(kind, expected, received, Some(location)))
     }
 
     pub(crate) fn expected_eof<T>(&self) -> AstGenResult<'c, T> {
@@ -553,7 +560,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         AstGenErrorKind::Expected,
                         Some(TokenKindVector::begin_expression(&self.wall)),
                         Some(token.kind),
-                        &current_location,
+                        current_location,
                     ),
                     None => self.error(AstGenErrorKind::EOF, None, Some(*kind))?,
                 }
@@ -714,7 +721,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// within a single comparison branch might be generated. For example, if the
     /// expression `a < 3` is transformed, then the following code is generated:
     ///
-    /// ```rust,ignore
+    /// ```text
     /// match ord(a, 3) {
     ///     Lt => true,
     ///     _ =>  false
@@ -723,7 +730,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ///
     /// However if the expression was inclusive `a <= 3` then this is generated:
     ///
-    /// ```rust,ignore
+    /// ```text
     /// match ord(a, 3) {
     ///     Lt | Eq => true,
     ///     _ =>  false
@@ -1525,26 +1532,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to parse a fat arrow component '=>' in any given context.
     fn parse_arrow(&self) -> AstGenResult<'c, ()> {
-        let current_location = self.current_location();
-
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_atom(TokenKind::Eq).is_err() {
-            return self.error_with_location(
-                AstGenErrorKind::ExpectedArrow,
-                None,
-                None,
-                &current_location,
-            )?;
+            return self.error(AstGenErrorKind::ExpectedArrow, None, None)?;
         }
 
         if self.parse_token_atom(TokenKind::Gt).is_err() {
-            return self.error_with_location(
-                AstGenErrorKind::ExpectedArrow,
-                None,
-                None,
-                &current_location,
-            )?;
+            return self.error(AstGenErrorKind::ExpectedArrow, None, None)?;
         }
 
         Ok(())
@@ -1552,26 +1547,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to parse a fat arrow component '=>' in any given context.
     fn parse_thin_arrow(&self) -> AstGenResult<'c, ()> {
-        let current_location = self.current_location();
-
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_atom(TokenKind::Minus).is_err() {
-            return self.error_with_location(
-                AstGenErrorKind::ExpectedFnArrow,
-                None,
-                None,
-                &current_location,
-            )?;
+            return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
         }
 
         if self.parse_token_atom(TokenKind::Gt).is_err() {
-            return self.error_with_location(
-                AstGenErrorKind::ExpectedFnArrow,
-                None,
-                None,
-                &current_location,
-            )?;
+            return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
         }
 
         Ok(())
@@ -1686,14 +1669,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a singular pattern. Singular patterns cannot have any grouped pattern
     /// operators such as a '|', if guards or any form of compound pattern.
     pub fn parse_singular_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
-        let token = self.peek();
-
-        if token.is_none() {
-            return self.unexpected_eof()?;
-        }
-
-        let token = token.unwrap();
-        let start = token.span;
+        let token = self
+            .peek()
+            .ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
         let pattern = match token {
             Token {
@@ -1809,11 +1787,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 AstGenErrorKind::Expected,
                 Some(TokenKindVector::begin_pattern(&self.wall)),
                 Some(token.kind),
-                &token.span,
+                token.span,
             )?,
         };
 
-        Ok(self.node_with_joined_location(pattern, &start))
+        Ok(self.node_with_joined_location(pattern, &token.span))
     }
 
     /// Parse a block.
@@ -1832,7 +1810,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Some(token) => self.error(AstGenErrorKind::Block, None, Some(token.kind))?,
             // @@ErrorReporting
             None => {
-                self.error_with_location(AstGenErrorKind::Block, None, None, &self.next_location())?
+                self.error_with_location(AstGenErrorKind::Block, None, None, self.next_location())?
             }
         };
 
@@ -1922,7 +1900,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 AstGenErrorKind::ExpectedExpression,
                 None,
                 None,
-                &self.next_location(),
+                self.next_location(),
             );
         }
 
@@ -2031,7 +2009,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     AstGenErrorKind::Keyword,
                     None,
                     Some(*kind),
-                    &token.span,
+                    token.span,
                 )
             }
             kind => {
@@ -2039,7 +2017,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     AstGenErrorKind::ExpectedExpression,
                     None,
                     Some(*kind),
-                    &token.span,
+                    token.span,
                 )
             }
         };
@@ -2245,7 +2223,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 AstGenErrorKind::ErroneousImport(err),
                 None,
                 None,
-                &pre.join(self.current_location()),
+                pre.join(self.current_location()),
             ),
         }
     }
@@ -2314,7 +2292,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 AstGenErrorKind::Expected,
                 Some(TokenKindVector::singleton(&self.wall, atom)),
                 Some(token.kind),
-                &token.span,
+                token.span,
             ),
             _ => self.error(
                 AstGenErrorKind::Expected,
@@ -2376,7 +2354,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 row![&self.wall; TokenKind::Comma, TokenKind::Delimiter(Delimiter::Brace, false)],
                             )),
                             Some(token.kind),
-                            &token.span,
+                            token.span,
                         )?,
                         None => break,
                     };
@@ -2421,7 +2399,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         row![&self.wall; TokenKind::Eq, TokenKind::Comma, TokenKind::Delimiter(Delimiter::Brace, false)],
                     )),
                     Some(token.kind),
-                    &token.span,
+                    token.span,
                 )?,
             }
         }
@@ -2619,7 +2597,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 AstGenErrorKind::ExpectedIdentifier,
                 None,
                 Some(token.kind),
-                &token.span,
+                token.span,
             ),
             None => self.unexpected_eof(),
         }
@@ -2884,9 +2862,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to parse a type
     pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
-        let token = self
-            .peek()
-            .ok_or_else(|| self.unexpected_eof::<()>().err().unwrap())?;
+        let token = self.peek().ok_or_else(|| {
+            self.make_error(
+                AstGenErrorKind::ExpectedType,
+                None,
+                None,
+                Some(self.next_location()),
+            )
+        })?;
 
         let start = token.span;
         let variant = match &token.kind {
@@ -3338,13 +3321,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a pattern that can appear in declarations or for-loop destructuring locations
     pub fn parse_declaration_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let start = self.next_location();
+        let token = self
+            .peek()
+            .ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
-        let token = self.peek();
-        if token.is_none() {
-            self.unexpected_eof()?
-        };
-
-        let pattern = match token.unwrap() {
+        let pattern = match token {
             Token {
                 kind: TokenKind::Ident(ident),
                 span,
@@ -3460,7 +3441,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 AstGenErrorKind::Expected,
                 Some(TokenKindVector::begin_pattern(&self.wall)),
                 Some(token.kind),
-                &token.span,
+                token.span,
             )?,
         };
 
@@ -3506,7 +3487,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let name = self.parse_ident()?;
         let start = name.location();
 
-        // @@Future: default values for argument...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
                 self.skip_token();
@@ -3515,7 +3495,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_location(FunctionDefArg { name, ty }, &start))
+        let default = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Eq) => {
+                self.skip_token();
+                Some(self.parse_expression_with_precedence(0)?)
+            }
+            _ => None,
+        };
+
+        Ok(self.node_with_joined_location(FunctionDefArg { name, ty, default }, &start))
     }
 
     /// Parse a function literal. Function literals are essentially definitions of lambdas

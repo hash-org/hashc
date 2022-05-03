@@ -992,8 +992,17 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::FunctionDefArg<'c>>,
     ) -> Result<Self::FunctionDefArgRet, Self::Error> {
         let ast::Name { ident } = node.name.body();
-        let walk::FunctionDefArg { ty, .. } = walk::walk_function_def_arg(self, ctx, node)?;
+        let walk::FunctionDefArg { ty, default, .. } =
+            walk::walk_function_def_arg(self, ctx, node)?;
         let arg_ty = ty.unwrap_or_else(|| self.create_unknown_type());
+
+        // If a default value for the argument is defined, then we try to unify
+        // with the type of the expression for the default argument with the
+        // specified argument type (if any)
+        if let Some(default_ty) = default {
+            self.unifier()
+                .unify(arg_ty, default_ty, UnifyStrategy::ModifyBoth)?;
+        }
 
         self.scopes()
             .add_symbol(*ident, SymbolType::Variable(arg_ty));
