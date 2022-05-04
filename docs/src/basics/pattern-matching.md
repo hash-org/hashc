@@ -12,7 +12,7 @@ Literal patterns are can be used within `match` statements to compare a subject 
 consider the following snippet of code:
 
 ```rust
-let x = conv<int>(input());
+x := conv<int>(input());
 
 match x {
     Some(1) => print("That's a one!");
@@ -29,13 +29,12 @@ to the literal.
 
 ## Destructuring patterns
 
-Destructuring patterns are used to assign parts of an object to separate variables within `let`, `for`, and
-`match`statements. A very simple example of a destructuring pattern in a `let` statement would be:
+Destructuring patterns are used to assign parts of an object to separate variables within declarations, `for`, and
+`match`statements. A very simple example of a destructuring pattern in a declaration statement would be:
 
 ```rust
-let tup = (1, 2); // 2D point
-
-let (x, y) = tup; // x=1, y=2
+tup := (1, 2); // 2D point
+(x, y) = tup; // x=1, y=2
 ```
 
 In this example, the `x` and `y` variables are binding to the components of the tuple `tup`.
@@ -48,7 +47,7 @@ from the whole structure.
 > copied but represented as referenced, pattern binds can be thought of as just shorthand for 
 > assigning named fields to individual symbols with the same names.
 
-Similarly to `let` statements, `for` statements can also utilise destructuring patterns:
+Similarly to declaration statements, `for` statements can also utilise destructuring patterns:
 
 ```rust
 
@@ -57,7 +56,7 @@ struct Point = {
     y: int
 }
 
-let points = [Point {x=1, y=2}, Point {x=3, y=2}, Point {x=-1, y=7}, ...];
+points := [Point {x=1, y=2}, Point {x=3, y=2}, Point {x=-1, y=7}, ...];
 
 for Point {x, y} in points.iter() {
     print(sqrt(x*x + y*y))
@@ -75,11 +74,11 @@ by an optional right-hand side pattern to either rename the field or use a liter
 ### Basic
 
 Struct patterns can be used in both literals and destructuring contexts. To destructure a struct
-within a `let` statement, you specify the name of the struct (it can be namespaced as well), and then
+within a declaration statement, you specify the name of the struct (it can be namespaced as well), and then
 specify the binding fields:
 
 ```rust
-let Point {x, y} = my_point;
+Point {x, y} := my_point;
 ```
 
 You can also use struct literal patterns within a `match` statement:
@@ -94,7 +93,7 @@ struct Person = {
     sex: char;
 };
 
-let p = Person {
+p := Person {
     name = "John";
     age = 23;
     height = 1.89;
@@ -125,9 +124,9 @@ struct Car = {
     ...
 }
 
-let compare_id = (car: Car, id: int) => {
+compare_id := (car: Car, id: int) => {
     // destruct the 'id' out of car and rename it
-    let Car {id = car_id} = car;
+    Car {id = car_id} := car;
 
     id == car_id
 }
@@ -138,20 +137,20 @@ So, in the above example (which is admittedly unrealistic) we rename the cars `i
 
 ## Namespace patterns
 
-Namespace patterns are very similar to struct patterns, but they can only be used within `let`
+Namespace patterns are very similar to struct patterns, but they can only be used within declarations
 statements and when importing symbols from other modules. They follow a simple syntax:
 
 ```rust
 // imports only a and b from the module
-let {a, b} = import("./my_lib");
+{a, b} = import("./my_lib");
 
 // imports 'c' as my_c, and 'd' from the module.
-let {c: my_c, d} = import("./other_lib"); 
+{c: my_c, d} = import("./other_lib"); 
 ```
 
 To read more about modules, you can click [here](./modules.md).
 
-## Tuple patterns
+## Tuple patterns 🚧
 
 Tuple patterns are straight forward, they follow the same syntax as declaring a tuple literal.
 
@@ -161,7 +160,7 @@ you can do:
 
 ```rust
 // tri_group: (int, float, str)
-let (_, n, _) = tri_group;
+(_, n, _) := tri_group;
 ```
 
 Pattern matching on tuples is also currently the only way to work with tuples that are sized 9 elements
@@ -170,7 +169,7 @@ support accessing each element via the property access. So, for example:
 
 ```rust
 excessive_tup.tenth; // error
-let (_, _, _, _, _, _, _, _, _, tenth) =  excessive_tup;
+(_, _, _, _, _, _, _, _, _, tenth) :=  excessive_tup;
 ```
 > **Note**: You shouldn't use tuples this large, this leads to code that is difficult to read and interpret,
 > you should use a struct in that case which would solve the complexities of your data structures.
@@ -182,7 +181,7 @@ Array patterns are currently not implemented within the language, but are planne
 An array pattern can bind elements at certain positions of the array by using the following syntax:
 
 ```rust
-let [a, b] = arr;
+[a, b] := arr;
 ```
 
 Now in this example, the compiler will assume that the size of `arr` is of length 2, and if not it will error since
@@ -191,21 +190,21 @@ used as a capturing group for some elements. With the example above, you can ign
 the first two by writing:
 
 ```rust
-let [a, b, ...] = arr;
+[a, b, ...] := arr;
 ```
 
 If you want to assign the remaining elements to some bind, you can specify an identifier after the `spread` operator like
 so:
 
 ```rust
-let [a, b, ...rest] = arr;
+[a, b, ...rest] := arr;
 ```
 
 If you want to bind elements at the end of the array, you can use the `spread` operator at the start of the pattern
 to ignore or capture the elements like so:
 
 ```rust
-let [..., a, b] = arr;
+[..., a, b] := arr;
 ```
 
 Assign the last two elements of the array to `a` and `b` respectively.
@@ -214,14 +213,14 @@ One obvious limitation of the `spread` operator is that you can only use it once
 For example, the following pattern will be reported as an error by the compiler:
 
 ```rust
-let [..., a, ...] = arr;
+[..., a, ...] := arr;
 ```
 
 ```
 error: Failed to Typecheck:
  --> 1:6 - 1:9, 1:15 - 1:18
   |
-1 | let [..., a, ...] = arr;
+1 | [..., a, ...] := arr;
   |      ^^^     ^^^
   |
   = You cannot use multiple spread operators within a single array pattern.

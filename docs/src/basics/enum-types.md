@@ -16,13 +16,13 @@ Enum contents consist of a semicolon-separated list of variant names.
 Each variant can be paired with some data, in the form of a comma-separated list of types.
 
 ```rust
-let err = NetworkError.Unexpected("something went terribly wrong", 32);
+err := NetworkError.Unexpected("something went terribly wrong", 32);
 ```
 
 They can be `match`ed to discover what they contain:
 
 ```rust
-let handle_error = (error: NetworkError) => match error {
+handle_error := (error: NetworkError) => match error {
    NoBytesReceived => print("No bytes received, stopping");
    ConnectionTerminated => print("Connection was terminated");
    Unexpected(err, code) => print("An unexpected error occurred: " + err + " (" + conv(code) + ") ");

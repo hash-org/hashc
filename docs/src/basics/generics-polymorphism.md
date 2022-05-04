@@ -22,22 +22,22 @@ These can be used anywhere in the following type expression.
 Traits can be implemented for specific types:
 
 ```rust
-let merge<str> = (a, b) => str_concat(a, b);
+merge<str> := (a, b) => str_concat(a, b);
 ```
 
 They can also be implemented for a generic type bound.
 The following code implements `merge` for any type that implements `add`.
 
 ```rust
-let merge<T> where add<T> = (a, b) => a + b;
+merge<T> where add<T> := (a, b) => a + b;
 ```
 
 This is called *blanket implementation* and it can be done using the `where` keyword.
 Note that the code might contain multiple overlapping implementations of the same function trait:
 
 ```rust
-let merge<T> where add<T> = (a, b) => a + b;
-let merge<u32> = (a, b) => a + b + 42; // But u32 also implements add!
+merge<T> where add<T> := (a, b) => a + b;
+merge<u32> := (a, b) => a + b + 42; // But u32 also implements add!
 ```
 
 In that case, for each function trait resolution, the *last-declared implementation* of the trait has precedence:
@@ -54,7 +54,7 @@ This is the case for all operators in Hash, which are defined in the `op` standa
 Traits can benefit from type inference:
 
 ```rust
-let simon_says = (what: str) => merge("Simon says ", what); // inferred to merge<str>
+simon_says := (what: str) => merge("Simon says ", what); // inferred to merge<str>
 ```
 
 This is done by looking at:
@@ -66,7 +66,7 @@ Trait implementation bounds can make use of the special `?` type quantifier, whi
 For example,
 
 ```rust
-let skip<I> for next<I, ?> = ...;
+skip<I> where next<I, ?> := ...;
 ```
 
 says "implement `skip<I>` for any `I` that has an implementation `next<I, T>`, where `T` is any type".
@@ -92,9 +92,9 @@ It takes two types `T` and `E`, and returns a type `Result<T, E>` representing a
 Each instantiation of a generic type is unique and is treated as a completely separate type.
 
 ```rust
-let print_result = (r: Result<u32, str>) => print(conv(r));
+print_result := (r: Result<u32, str>) => print(conv(r));
 
-let my_res: Result<u16, str> = Ok("Hello there!");
+my_res: Result<u16, str> = Ok("Hello there!");
 print_result(my_res); // Type mis // Error: Type mismatch: was expecting `Result<u32, str>`, got `Result<u16, str>`.
 ```
 
@@ -112,14 +112,14 @@ Type inference works both for enums and structs.
 It can be inferred by the types of the contents, or the expected return value, or both.
 
 ```rust
-let abc = Vector3 { x = 'a'; y = 'b'; z = 'c' }; // Vector3<char>
-let maybe_foo = Some("foo"); // Option<str>
+abc := Vector3 { x = 'a'; y = 'b'; z = 'c' }; // Vector3<char>
+maybe_foo := Some("foo"); // Option<str>
 ```
 
 If you want a generic type argument to be inferred, but want to specify another one, you can use the `_` syntax:
 
 ```rust
-let char_list = "Hello world".iter().collect<_, [char]>();
+char_list := "Hello world".iter().collect<_, [char]>();
 ```
 
 ## Generic parameters
@@ -129,7 +129,7 @@ Generic parameters in Hash work slightly differently than they do in other langu
 For example, one can write:
 
 ```rs
-let next<Enumerate<I>, (usize, T)> where next<I, T>;
+next<Enumerate<I>, (usize, T)> where next<I, T>;
 ```
 
 This implements the `next` trait from the standard library for the `Enumerate` struct.
@@ -138,7 +138,7 @@ Type variables in type argument lists can appear nested within other generic typ
 When a type variable appears anywhere within a type argument list, it is implicitly "declared".
 
 ```rs
-let next<WeirdIterator<I>, I> where next<I, ?>;
+next<WeirdIterator<I>, I> where next<I, ?>;
 ```
 
 The above snippet implements `next` for a `WeirdIterator` struct, generic over some type `I`.

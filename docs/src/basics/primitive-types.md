@@ -11,7 +11,8 @@ There are the following primitive types:
 - `[A]`: a list containing type A
 - `{A:B}`: a map between type A and type B
 - `(A, B, C)`: a tuple containing types A, B and C. Elements can be accessed by dot notation (`my_tuple.first`)
-- `void`: the empty type. Has a corresponding `void` value.
+- `(a: A, b: B, c: C)` a tuple which contains named members a, b, c with types A, B, C respectively.
+- `void` or `()`: the empty type. Has a corresponding `void` value.
 - `never`: a type which can never be instantiated. Used, for example, for functions that never return, like `panic`.
 
 ## Numbers
@@ -39,17 +40,17 @@ Lists are denoted using the the common square bracket syntax where the values ar
 separated by commas, like so:
 
 ```rs
-let x = [1,2,3,4,5,6]; // multiple elements
-let y = [];
-let z = [1,]; // optional trailing comma
+x := [1,2,3,4,5,6]; // multiple elements
+y := [];
+z := [1,]; // optional trailing comma
 ```
 
 To explicitly declare a variable is of a `list` type, you do so:
 
 ```rs
-let some_list: [u64] = [];
-//             ^^^^^
-//              type
+some_list: [u64] = [];
+//         ^^^^^
+//          type
 ```
 
 
@@ -65,14 +66,17 @@ differences between the common syntax. These differences are:
 To explicitly declare a variable is of a `tuple` type, you do so:
 
 ```rs
-let empty_tuple: (,) = (,);
-let empty_tuple: () = ();
-//               ^^^
-//               type
+empty_tuple: (,) = (,);
+//           ^^^
+//           type
 
-let some_tuple: (str, u32) = ("string", 12);
-//              ^^^^^^^^^^
-//                 type
+empty_tuple: () = ();
+//           ^^
+//          type
+
+some_tuple: (str, u32) = ("string", 12);
+//          ^^^^^^^^^^
+//             type
 ```
 **Note**: Trailing commas are not allowed within type definitions.
 
@@ -83,6 +87,43 @@ each member explicitly. Although, they are intended to be used mostly for patter
 matching, you can access members of tuples like so. However, you will not be able to access members of tuples that are larger than 10 elements in size. 
 If this is the case, you should consider using a structural data type which will
 allow you to do the same thing, and name the fields. Read more about patterns [here](pattern-matching.md).
+
+### Named tuples
+
+Named tuples are a variant of tuples that specifies field names for each field within the field. This can 
+be done for various purposes which might make some definitions of types convenient and not requiring 
+creating a `struct` for each sub-type. For example:
+
+```rust
+struct Comment {
+    contents: str,
+    anchor: (
+        start: u32,
+        end: u32
+    ),
+    edited: bool,
+    author_id: str,
+    ...
+};
+
+// Which then means that u can create the `Comment` type and then access fields like so:
+
+comment := Comment { .. };
+
+print(abs(comment.anchor.start - comment.anchor.end));
+```
+
+To initialise a struct that has named fields, this can be done like so:
+```rust
+anchor := (start := 1, end := 2 ); // :t anchor -> (start: u32, end: u32)
+
+// This can also be done like so (but shouldn't be used):
+anchor: (start: u32, end: u32) = (1, 2);
+```
+
+Named tuples can be coerced into *unnamed* tuples if the type layout of both tuples matches. 
+However, this is not recommended because specifically naming tuples implies that the type
+cares about the names of the fields rather than simply being a structural type.
 
 ### Set
 
@@ -95,9 +136,9 @@ Like tuples, sets have the same syntactic differences:
 To explicitly declare a variable is of a `set` type, you do so:
 
 ```rs
-let some_map: {str} = {,};
-//            ^^^^^
-//            set type
+some_map: {str} = {,};
+//        ^^^^^
+//       set type
 ```
 
 ### Map
@@ -111,9 +152,9 @@ Like tuples, sets have the same syntactic differences:
 To explicitly declare a variable is of a `map` type, you do so:
 
 ```rs
-let some_map: {str: u8} = {:};
-//            ^^^^^^^^^
-//            map type
+some_map: {str: u8} = {:};
+//        ^^^^^^^^^
+//        map type
 ```
 
 ## Special types

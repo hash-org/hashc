@@ -45,7 +45,7 @@ body
 An Example of a directive in use is the `#dump` directive.
 
 ```rust
-let fib = #dump (n: u32) -> u32 => 
+fib := #dump (n: u32) -> u32 => 
    if n == 1 || n == 2 {
        n
    } else {
