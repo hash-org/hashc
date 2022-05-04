@@ -22,7 +22,7 @@ struct Dog = {
    name: str;
 }
 
-let d = Dog { name = "Bob" };
+d := Dog { name = "Bob" };
 
 print(d); // Dog { name = "Bob"; age = 42; }
 ```
@@ -31,7 +31,7 @@ Structs are nominal types.
 An argument of type `Dog` can only be fulfilled by an instance of `Dog`, and you can't pass in a struct that has the same fields but is of a different logical type.
 
 ```rust
-let dog_name = (dog: Dog) => dog.name;
+dog_name := (dog: Dog) => dog.name;
 
 struct FakeDog = {
    age: u32 = 42;

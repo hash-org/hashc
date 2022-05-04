@@ -36,7 +36,7 @@ As mentioned in the introduction, a conditional statement must evaluate an expli
 
 An example of an invalid program is:
 ```rust
-let a: u8 = 12;
+a: u8 = 12;
 
 if a { print("a") }
 ```
@@ -59,18 +59,18 @@ Additionally, since the `if` statement body's are also equivalent to functional 
 can also specifically return a type as you would normally do within a function body:
 
 ```rust
-let abs: (i64: x) => i64 = if x < 0 { -x } else { x }
+abs: (i64: x) => i64 = if x < 0 { -x } else { x }
 ```
 
 You can also assign values since `if` statements are just blocks
 ```rust
-let my_value: i32 = if some_condition == x { 3 } else { 5 };
+my_value: i32 = if some_condition == x { 3 } else { 5 };
 ```
 
 However, you cannot do something like this:
 
 ```rust
-let abs: (i64: x) => i64 = if x < 0 { -x }
+abs: (i64: x) => i64 = if x < 0 { -x }
 ```
 
 **Note**: here that you will not get a syntax error if you run this, but you will encounter an error during the interpretation stage of the program because the function may not have any return type since this has no definition
@@ -86,7 +86,7 @@ enum Result = <T, E> => {
 };
 
 // mission critical, program should exit if it failed
-let result: Result<u16, str> = Ok(12);
+result: Result<u16, str> = Ok(12);
 
 if let Ok(value) = result  { 
   print("Got '" + conv(value) + "' from operation") 
@@ -99,14 +99,14 @@ Furthermore, for more complicated conditional statements, you can include an exp
 block which is essentially treated as if it was a functional body, like so:
 
 ```rust
-let f: str = "file.txt";
+f: str = "file.txt";
 
-if { let a = open(f); is_ok(a) } {
+if { a = open(f); is_ok(a) } {
     // run if is_ok(a) returns true
 }
 
 // the above statement can also be written as
-let a = open(f);
+a = open(f);
 
 if is_ok(a) {
     // run if is_ok(a) returns true
@@ -127,9 +127,9 @@ Match cases are one step above the simple `if-else` syntax.  Using a matching ca
 
 ```rust
 
-let a = input<u8>();
+a := input<u8>();
 
-let m2 = match a {
+m2 := match a {
   1 => "one";
   2 => "two";
   _ => "not one or two";
@@ -137,13 +137,13 @@ let m2 = match a {
 
 // Or as a function
 
-let convert: (x: u8) => str = (x) => match x {
+convert: (x: u8) => str = (x) => match x {
   1 => "one";
   2 => "two";
   _ => "not one or two";
 }
 
-let m = convert(input<u8>());
+m := convert(input<u8>());
 ```
 
 The `_` case is a special wildcard case that captures any case. This is essentially synonymous with the `else` clause in many other languages like Python or JavaScript. For conventional purposes, it should be included when creating a `match` statement where the type value is not reasonably bounded (like an integer). One subtle difference with the `match` syntax is you must always explicitly define a `_` case. This language behaviour is designed to enforce that `explicit` is better than `implicit`. So, if you know that a program should never hit
@@ -162,7 +162,7 @@ match x {
 Additionally, because cases are matched incrementally, by doing the following:
 
 ```rust
-let convert: (x: u8) => str = (x) => match x {
+convert: (x: u8) => str = (x) => match x {
   _ => "not one or two";
   1 => "one";
   2 => "two";
@@ -184,7 +184,7 @@ enum Result = <T, E> => {
 ...
 
 // mission critical, program should exit if it failed
-let result: Result<u16, str> = Ok(12);
+result: Result<u16, str> = Ok(12);
 
 match result {
   Ok(value) => print("Got '" + conv(value) + "' from operation");
@@ -197,7 +197,7 @@ To specify multiple conditions for a single case within a `match` statement, you
 writing the following syntax:
 
 ```rust
-let x: u32 = input<u32>();
+x: u32 = input<u32>();
 
 match x {
   1 | 2 | 3       => print("x is 1, 2, or 3");
@@ -211,8 +211,8 @@ can do so using the `match-if` syntax, like so:
 
 
 ```rust
-let x: u32 = input<u32>();
-let y: bool = true;
+x: u32 = input<u32>();
+y: bool = true;
 
 match x {
   1 | 2 | 3 if y => print("x is 1, 2, or 3 when y is true");

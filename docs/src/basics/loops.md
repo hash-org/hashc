@@ -35,7 +35,7 @@ Iterating over lists is also quite simple using the `iter` function to
 convert the list into an iterator:
 
 ```rust
-let nums: [u32] = [1,2,3,4,5,6,7,8,9,10]; 
+nums: [u32] = [1,2,3,4,5,6,7,8,9,10]; 
 
 // infix functional notation
 for num in nums.iter() {
@@ -72,7 +72,7 @@ While loops can be defined as:
 
 ```rust
 
-let c: u32 = 0;
+c: u32 = 0;
 
 while c < 10 {
     print(i);
@@ -125,7 +125,7 @@ It is worth noting that the looping expression whether block or not must explici
 `boolean` return type. For example, the code below will fail typechecking:
 
 ```rust
-let c: u32 = 100;
+c: u32 = 100;
 
 while c -= 1 {
     ...
@@ -135,7 +135,7 @@ Running the following code snippet produces the following error:
 ```
 error[0052]: Failed to Typecheck: Mismatching types.
  --> 3:7 - 3:12
-1 | let c: u32 = 100;
+1 | c: u32 = 100;
 2 |
 3 | while c -= 1 {
   |       ^^^^^^  Expression does not have a 'boolean' type 
@@ -150,7 +150,7 @@ The loop construct is the simplest of the three. The basic syntax for a loop is 
 
 ```rust
 
-let c: u64 = 1;
+c: u64 = 1;
 
 loop {
     print("I looped " + c + " times!");
@@ -162,7 +162,7 @@ You can also use conditional statements within the loop body (which is equivalen
 
 ```rust
 
-let c: u64 = 1;
+c: u64 = 1;
 
 loop {
     if c == 10 { break }
@@ -173,7 +173,7 @@ loop {
 ```
 
 ```rust
-let c: u64 = 1;
+c: u64 = 1;
 
 loop {
     c += 1;

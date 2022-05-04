@@ -48,7 +48,7 @@ a specific group of operations or are used to convey meaning within the language
 | `@` 	| N/A              	| Pattern value binding   	| N/A 	|
 | `...` 	| N/A                	| Spread operator (Not-implemented)   	| `range`? 	|
 | `;` 	| `expression;`              	| statement terminator   	| N/A 	|
-| `?` 	| `let k<T> where s<T, ?> = ...`              	| Type argument wildcard   	| N/A 	|
+| `?` 	| `k<T> where s<T, ?> := ...`              	| Type argument wildcard   	| N/A 	|
 | `->`                 | `(str) -> usize`     | Function return type notation | N/A                |
 | `=>`                 | `(a) => a + 2`       | Function Body definition      | N/A                |
 
