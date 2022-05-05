@@ -429,6 +429,25 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("set", children.elements))
     }
 
+    type TupleLiteralEntryRet = TreeNode;
+    fn visit_tuple_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<Self::TupleLiteralRet, Self::Error> {
+        let walk::TupleLiteralEntry { name, ty, value } =
+            walk::walk_tuple_literal_entry(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "entry",
+            name.map(|t| TreeNode::branch("name", vec![t]))
+                .into_iter()
+                .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
+                .chain(iter::once(TreeNode::branch("value", vec![value])))
+                .collect(),
+        ))
+    }
+
     type TupleLiteralRet = TreeNode;
     fn visit_tuple_literal(
         &mut self,
@@ -906,6 +925,25 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "namespace",
             vec![TreeNode::branch("members", patterns)],
+        ))
+    }
+
+    type TuplePatternEntryRet = TreeNode;
+
+    fn visit_tuple_pattern_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TuplePatternEntry<'c>>,
+    ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
+        let walk::TuplePatternEntry { name, pattern } =
+            walk::walk_tuple_pattern_entry(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "entry",
+            name.map(|t| TreeNode::branch("name", vec![t]))
+                .into_iter()
+                .chain(iter::once(TreeNode::branch("pattern", vec![pattern])))
+                .collect(),
         ))
     }
 
