@@ -53,7 +53,22 @@ impl<'g, 'c, 'w> TypeWithStorage<'g, 'c, 'w> {
                     TreeNode::branch(
                         "arguments",
                         args.iter()
-                            .map(|a| self.for_type(*a).to_tree_node())
+                            .map(|(name, arg)| {
+                                if let Some(name) = name {
+                                    TreeNode::branch(
+                                        "field",
+                                        vec![
+                                            TreeNode::leaf(format!(
+                                                "name `{}`",
+                                                IDENTIFIER_MAP.get_ident(*name)
+                                            )),
+                                            self.for_type(*arg).to_tree_node(),
+                                        ],
+                                    )
+                                } else {
+                                    self.for_type(*arg).to_tree_node()
+                                }
+                            })
                             .collect(),
                     ),
                     TreeNode::branch("return", vec![self.for_type(*return_ty).to_tree_node()]),
@@ -112,7 +127,22 @@ impl<'g, 'c, 'w> TypeWithStorage<'g, 'c, 'w> {
                 "tuple",
                 types
                     .iter()
-                    .map(|&ty| self.for_type(ty).to_tree_node())
+                    .map(|(name, arg)| {
+                        if let Some(name) = name {
+                            TreeNode::branch(
+                                "field",
+                                vec![
+                                    TreeNode::leaf(format!(
+                                        "name `{}`",
+                                        IDENTIFIER_MAP.get_ident(*name)
+                                    )),
+                                    self.for_type(*arg).to_tree_node(),
+                                ],
+                            )
+                        } else {
+                            self.for_type(*arg).to_tree_node()
+                        }
+                    })
                     .collect(),
             ),
         }
@@ -130,7 +160,11 @@ impl<'g, 'c, 'w> fmt::Display for TypeWithStorage<'g, 'c, 'w> {
             }
             crate::types::TypeValue::Fn(FnType { args, return_ty }) => {
                 write!(f, "(")?;
-                for (i, arg) in args.iter().enumerate() {
+                for (i, (name, arg)) in args.iter().enumerate() {
+                    if let Some(name) = name {
+                        write!(f, "{}: ", IDENTIFIER_MAP.get_ident(*name))?;
+                    };
+
                     write!(f, "{}", self.for_type(*arg))?;
                     if i != args.len() - 1 {
                         write!(f, ", ")?;
@@ -191,7 +225,11 @@ impl<'g, 'c, 'w> fmt::Display for TypeWithStorage<'g, 'c, 'w> {
                 // @@Todo: this is not exactly the right syntax, we need trailing commas in some
                 // cases.
                 write!(f, "(")?;
-                for (i, ty) in types.iter().enumerate() {
+                for (i, (name, ty)) in types.iter().enumerate() {
+                    if let Some(name) = name {
+                        write!(f, "{}: ", IDENTIFIER_MAP.get_ident(*name))?;
+                    };
+
                     write!(f, "{}", self.for_type(*ty))?;
                     if i != types.len() - 1 {
                         write!(f, ", ")?;

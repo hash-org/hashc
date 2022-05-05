@@ -2603,6 +2603,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
+    /// Parse a singular [Name] from the current token stream.
+    pub fn parse_name(&self) -> AstGenResult<'c, AstNode<'c, Name>> {
+        match self.next_token() {
+            Some(Token {
+                kind: TokenKind::Ident(ident),
+                span,
+            }) => Ok(self.node_with_location(Name { ident: *ident }, *span)),
+            _ => self.error(AstGenErrorKind::ExpectedIdentifier, None, None),
+        }
+    }
+
     /// Parse an [AccessName] from the current token stream. An [AccessName] is defined as
     /// a number of identifiers that are separated by the namespace operator '::'. The function
     /// presumes that the current token is an identifier an that the next token is a colon.
@@ -2817,7 +2828,26 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }
                     _ => {
                         args = gen.parse_separated_fn(
-                            || gen.parse_type(),
+                            || {
+                                let start = gen.current_location();
+
+                                // Here we have to essentially try and parse a identifier. If this is the case and
+                                // then there is a colon present then we have a named field.
+                                let (name, ty) = match gen.peek_second() {
+                                    Some(token) if token.has_kind(TokenKind::Colon) => {
+                                        let ident = gen.parse_name()?;
+                                        gen.skip_token(); // :
+
+                                        (Some(ident), gen.parse_type()?)
+                                    }
+                                    _ => (None, gen.parse_type()?),
+                                };
+
+                                Ok(gen.node_with_joined_location(
+                                    NamedFieldTypeEntry { name, ty },
+                                    &start,
+                                ))
+                            },
                             || gen.parse_token_atom(TokenKind::Comma),
                         )?;
                     }

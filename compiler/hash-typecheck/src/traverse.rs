@@ -176,9 +176,11 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     }
 
     fn create_tuple_type(&mut self, types: Row<'c, TypeId>) -> TypeId {
+        let converted = Row::from_iter(types.into_iter().map(|ty| (None, *ty)), self.wall());
+
         self.global_storage
             .types
-            .create(TypeValue::Tuple(TupleType { types }), None)
+            .create(TypeValue::Tuple(TupleType { types: converted }), None)
     }
 
     fn create_str_type(&mut self, location: Option<SourceLocation>) -> TypeId {
@@ -371,7 +373,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(subject)
     }
 
-    type FunctionCallArgsRet = Row<'c, TypeId>;
+    type FunctionCallArgsRet = Row<'c, (Option<Identifier>, TypeId)>;
     fn visit_function_call_args(
         &mut self,
         ctx: &Self::Ctx,
@@ -578,6 +580,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             TypeValue::Fn(FnType { args, return_ty }),
             self.some_source_location(node.location()),
         ))
+    }
+
+    type NamedFieldTypeRet = (Option<Identifier>, TypeId);
+
+    fn visit_named_field_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+        let walk::NamedFieldTypeEntry { ty, .. } = walk::walk_named_field_type(self, ctx, node)?;
+
+        Ok((node.name.as_ref().map(|t| t.ident), ty))
     }
 
     type TypeRet = TypeId;
@@ -984,7 +998,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(fn_ty)
     }
 
-    type FunctionDefArgRet = TypeId;
+    type FunctionDefArgRet = (Option<Identifier>, TypeId);
     fn visit_function_def_arg(
         &mut self,
         ctx: &Self::Ctx,
@@ -1005,7 +1019,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         self.scopes()
             .add_symbol(*ident, SymbolType::Variable(arg_ty));
-        Ok(arg_ty)
+        Ok((Some(*ident), arg_ty))
     }
 
     type BlockRet = TypeId;
@@ -1563,7 +1577,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         return_ty,
                     }) => {
                         self.unifier().unify_pairs(
-                            args.iter().zip(expected.iter()),
+                            args.iter().zip(expected.iter().map(|(_, ty)| ty)),
                             UnifyStrategy::CheckOnly,
                         )?;
 
@@ -2091,9 +2105,15 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     return Ok((enum_ty_id, variant.location));
                 };
 
-                let args = self
-                    .unifier()
-                    .apply_sub_to_list_make_row(&sub, &variant.data)?;
+                let args = self.unifier().apply_sub_to_arg_list_make_row(
+                    &sub,
+                    variant
+                        .data
+                        .iter()
+                        .map(|ty| (None, *ty))
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                )?;
 
                 let enum_variant_fn_ty = self.types_mut().create(
                     TypeValue::Fn(FnType {

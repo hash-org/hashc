@@ -302,16 +302,23 @@ pub struct ExistentialType;
 #[derive(Debug, PartialEq)]
 pub struct InferType;
 
+/// An entry within a tuple type.
+#[derive(Debug, PartialEq)]
+pub struct NamedFieldTypeEntry<'c> {
+    pub name: Option<AstNode<'c, Name>>,
+    pub ty: AstNode<'c, Type<'c>>,
+}
+
 /// The tuple type.
 #[derive(Debug, PartialEq)]
 pub struct TupleType<'c> {
-    pub entries: AstNodes<'c, Type<'c>>,
+    pub entries: AstNodes<'c, NamedFieldTypeEntry<'c>>,
 }
 
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType<'c> {
-    pub args: AstNodes<'c, Type<'c>>,
+    pub args: AstNodes<'c, NamedFieldTypeEntry<'c>>,
     pub return_ty: AstNode<'c, Type<'c>>,
 }
 

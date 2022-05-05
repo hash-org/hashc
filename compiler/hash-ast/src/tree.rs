@@ -133,7 +133,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
         Ok(TreeNode::branch(
             "args",
-            walk::walk_function_call_args(self, ctx, node)?.entries,
+            // @@Incomplete: We need to deal with this when function call named arguments become a thing!
+            walk::walk_function_call_args(self, ctx, node)?
+                .entries
+                .into_iter()
+                .map(|(_, ty)| ty)
+                .collect(),
         ))
     }
 
@@ -244,6 +249,27 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::ImportExpr<'c>>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
         Ok(walk::walk_import_expr(self, ctx, node)?.0)
+    }
+
+    type NamedFieldTypeRet = TreeNode;
+    fn visit_named_field_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+        let walk::NamedFieldTypeEntry { name, ty } = walk::walk_named_field_type(self, ctx, node)?;
+
+        if let Some(name) = name {
+            Ok(TreeNode::branch(
+                "field",
+                vec![
+                    TreeNode::branch("name", vec![name]),
+                    TreeNode::branch("type", vec![ty]),
+                ],
+            ))
+        } else {
+            Ok(ty)
+        }
     }
 
     type TypeRet = TreeNode;
