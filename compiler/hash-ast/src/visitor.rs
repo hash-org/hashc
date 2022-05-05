@@ -159,6 +159,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error>;
 
+    type NamedFieldTypeRet: 'c;
+    fn visit_named_field_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<Self::NamedFieldTypeRet, Self::Error>;
+
     type FnTypeRet: 'c;
     fn visit_function_type(
         &mut self,
@@ -575,6 +582,8 @@ pub trait AstVisitor<'c>: Sized {
 /// each variant and returns the inner type, given that all variants have the same declared type
 /// within the visitor.
 pub mod walk {
+    use crate::ident::Identifier;
+
     use super::ast;
     use super::AstVisitor;
 
@@ -811,7 +820,7 @@ pub mod walk {
     }
 
     pub struct FunctionCallArgs<'c, V: AstVisitor<'c>> {
-        pub entries: V::CollectionContainer<V::ExpressionRet>,
+        pub entries: V::CollectionContainer<(Option<Identifier>, V::ExpressionRet)>,
     }
 
     pub fn walk_function_call_args<'c, V: AstVisitor<'c>>(
@@ -824,7 +833,10 @@ pub mod walk {
                 ctx,
                 node.entries
                     .iter()
-                    .map(|e| visitor.visit_expression(ctx, e.ast_ref())),
+                    // @@Incomplete: Support named arguments within function calls!
+                    .map(|e| -> Result<(Option<Identifier>, _), _> {
+                        Ok((None, visitor.visit_expression(ctx, e.ast_ref())?))
+                    }),
             )?,
         })
     }
@@ -1232,8 +1244,28 @@ pub mod walk {
         })
     }
 
+    pub struct NamedFieldTypeEntry<'c, V: AstVisitor<'c>> {
+        pub ty: V::TypeRet,
+        pub name: Option<V::NameRet>,
+    }
+
+    pub fn walk_named_field_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<NamedFieldTypeEntry<'c, V>, V::Error> {
+        Ok(NamedFieldTypeEntry {
+            ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
+            name: node
+                .name
+                .as_ref()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
+                .transpose()?,
+        })
+    }
+
     pub struct FnType<'c, V: AstVisitor<'c>> {
-        pub args: V::CollectionContainer<V::TypeRet>,
+        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
         pub return_ty: V::TypeRet,
     }
 
@@ -1247,14 +1279,14 @@ pub mod walk {
                 ctx,
                 node.args
                     .iter()
-                    .map(|e| visitor.visit_type(ctx, e.ast_ref())),
+                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
         })
     }
 
     pub struct TupleType<'c, V: AstVisitor<'c>> {
-        pub entries: V::CollectionContainer<V::TypeRet>,
+        pub entries: V::CollectionContainer<V::NamedFieldTypeRet>,
     }
 
     pub fn walk_tuple_type<'c, V: AstVisitor<'c>>(
@@ -1267,7 +1299,7 @@ pub mod walk {
                 ctx,
                 node.entries
                     .iter()
-                    .map(|e| visitor.visit_type(ctx, e.ast_ref())),
+                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
             )?,
         })
     }

@@ -7,6 +7,7 @@ use crate::{
 };
 use core::fmt;
 use hash_alloc::collections::row::Row;
+use hash_ast::ident::Identifier;
 use std::{borrow::Borrow, collections::HashSet, iter};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -190,6 +191,19 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
         Row::try_from_iter(tys.iter().map(|&ty| self.apply_sub(sub, ty)), wall)
     }
 
+    pub fn apply_sub_to_arg_list_make_row(
+        &mut self,
+        sub: &Substitution,
+        tys: &[(Option<Identifier>, TypeId)],
+    ) -> TypecheckResult<Row<'c, (Option<Identifier>, TypeId)>> {
+        let wall = self.global_storage.wall();
+        Row::try_from_iter(
+            tys.iter()
+                .map(|&(name, ty)| Ok((name, self.apply_sub(sub, ty)?))),
+            wall,
+        )
+    }
+
     pub fn apply_sub_to_list_make_vec(
         &mut self,
         sub: &Substitution,
@@ -262,7 +276,14 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
                     });
                 }
 
-                self.unify_pairs(fn_target.args.iter().zip(fn_source.args.iter()), strategy)?;
+                self.unify_pairs(
+                    fn_target
+                        .args
+                        .iter()
+                        .map(|(_, ty)| ty)
+                        .zip(fn_source.args.iter().map(|(_, ty)| ty)),
+                    strategy,
+                )?;
                 // Maybe this should be flipped (see variance comment above)
                 self.unify(fn_target.return_ty, fn_source.return_ty, strategy)?;
                 Ok(())
@@ -271,7 +292,11 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
                 if tuple_target.types.len() == tuple_source.types.len() =>
             {
                 self.unify_pairs(
-                    tuple_target.types.iter().zip(tuple_source.types.iter()),
+                    tuple_target
+                        .types
+                        .iter()
+                        .map(|(_, ty)| ty)
+                        .zip(tuple_source.types.iter().map(|(_, ty)| ty)),
                     strategy,
                 )
             }
