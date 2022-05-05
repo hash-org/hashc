@@ -243,6 +243,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::SetLiteral<'c>>,
     ) -> Result<Self::SetLiteralRet, Self::Error>;
 
+    type TupleLiteralEntryRet: 'c;
+    fn visit_tuple_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<Self::TupleLiteralEntryRet, Self::Error>;
+
     type TupleLiteralRet: 'c;
     fn visit_tuple_literal(
         &mut self,
@@ -480,6 +487,13 @@ pub trait AstVisitor<'c>: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
     ) -> Result<Self::NamespacePatternRet, Self::Error>;
+
+    type TuplePatternEntryRet: 'c;
+    fn visit_tuple_pattern_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TuplePatternEntry<'c>>,
+    ) -> Result<Self::TuplePatternEntryRet, Self::Error>;
 
     type TuplePatternRet: 'c;
     fn visit_tuple_pattern(
@@ -1225,8 +1239,34 @@ pub mod walk {
         })
     }
 
+    pub struct TupleLiteralEntry<'c, V: AstVisitor<'c>> {
+        pub name: Option<V::NameRet>,
+        pub ty: Option<V::TypeRet>,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_tuple_literal_entry<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<TupleLiteralEntry<'c, V>, V::Error> {
+        Ok(TupleLiteralEntry {
+            name: node
+                .name
+                .as_ref()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
+                .transpose()?,
+            ty: node
+                .ty
+                .as_ref()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
+                .transpose()?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
+        })
+    }
+
     pub struct TupleLiteral<'c, V: AstVisitor<'c>> {
-        pub elements: V::CollectionContainer<V::ExpressionRet>,
+        pub elements: V::CollectionContainer<V::TupleLiteralEntryRet>,
     }
 
     pub fn walk_tuple_literal<'c, V: AstVisitor<'c>>(
@@ -1239,7 +1279,7 @@ pub mod walk {
                 ctx,
                 node.elements
                     .iter()
-                    .map(|e| visitor.visit_expression(ctx, e.ast_ref())),
+                    .map(|e| visitor.visit_tuple_literal_entry(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -1573,8 +1613,28 @@ pub mod walk {
         })
     }
 
+    pub struct TuplePatternEntry<'c, V: AstVisitor<'c>> {
+        pub name: Option<V::NameRet>,
+        pub pattern: V::PatternRet,
+    }
+
+    pub fn walk_tuple_pattern_entry<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TuplePatternEntry<'c>>,
+    ) -> Result<TuplePatternEntry<'c, V>, V::Error> {
+        Ok(TuplePatternEntry {
+            name: node
+                .name
+                .as_ref()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
+                .transpose()?,
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
+        })
+    }
+
     pub struct TuplePattern<'c, V: AstVisitor<'c>> {
-        pub elements: V::CollectionContainer<V::PatternRet>,
+        pub elements: V::CollectionContainer<V::TuplePatternEntryRet>,
     }
     pub fn walk_tuple_pattern<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -1586,7 +1646,7 @@ pub mod walk {
                 ctx,
                 node.fields
                     .iter()
-                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
+                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
             )?,
         })
     }

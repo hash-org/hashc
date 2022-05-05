@@ -175,12 +175,10 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.add_location(ty, location)
     }
 
-    fn create_tuple_type(&mut self, types: Row<'c, TypeId>) -> TypeId {
-        let converted = Row::from_iter(types.into_iter().map(|ty| (None, *ty)), self.wall());
-
+    fn create_tuple_type(&mut self, types: Row<'c, (Option<Identifier>, TypeId)>) -> TypeId {
         self.global_storage
             .types
-            .create(TypeValue::Tuple(TupleType { types: converted }), None)
+            .create(TypeValue::Tuple(TupleType { types }), None)
     }
 
     fn create_str_type(&mut self, location: Option<SourceLocation>) -> TypeId {
@@ -790,6 +788,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .unify_many(entries.iter().copied(), UnifyStrategy::ModifyBoth)?;
 
         Ok(self.create_set_type(el_ty))
+    }
+
+    type TupleLiteralEntryRet = (Option<Identifier>, TypeId);
+
+    fn visit_tuple_literal_entry(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
+        todo!()
     }
 
     type TupleLiteralRet = TypeId;
@@ -1759,6 +1767,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 })
             }
         }
+    }
+
+    type TuplePatternEntryRet = (Option<Identifier>, TypeId);
+
+    fn visit_tuple_pattern_entry(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TuplePatternEntry<'c>>,
+    ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
+        todo!()
     }
 
     type TuplePatternRet = TypeId;
