@@ -125,6 +125,33 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
+    type FunctionCallArgRet = TreeNode;
+
+    fn visit_function_call_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FunctionCallArg<'c>>,
+    ) -> Result<Self::FunctionCallArgRet, Self::Error> {
+        if let Some(name) = &node.name {
+            Ok(TreeNode::branch(
+                "arg",
+                vec![
+                    TreeNode::leaf(labelled(
+                        "named",
+                        IDENTIFIER_MAP.get_ident(name.ident),
+                        "\"",
+                    )),
+                    TreeNode::branch(
+                        "value",
+                        vec![self.visit_expression(ctx, node.value.ast_ref())?],
+                    ),
+                ],
+            ))
+        } else {
+            self.visit_expression(ctx, node.value.ast_ref())
+        }
+    }
+
     type FunctionCallArgsRet = TreeNode;
     fn visit_function_call_args(
         &mut self,
@@ -133,11 +160,9 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
         Ok(TreeNode::branch(
             "args",
-            // @@Incomplete: We need to deal with this when function call named arguments become a thing!
             walk::walk_function_call_args(self, ctx, node)?
                 .entries
                 .into_iter()
-                .map(|(_, ty)| ty)
                 .collect(),
         ))
     }

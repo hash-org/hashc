@@ -82,6 +82,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::DirectiveExpr<'c>>,
     ) -> Result<Self::DirectiveExprRet, Self::Error>;
 
+    type FunctionCallArgRet: 'c;
+    fn visit_function_call_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::FunctionCallArg<'c>>,
+    ) -> Result<Self::FunctionCallArgRet, Self::Error>;
+
     type FunctionCallArgsRet: 'c;
     fn visit_function_call_args(
         &mut self,
@@ -596,8 +603,6 @@ pub trait AstVisitor<'c>: Sized {
 /// each variant and returns the inner type, given that all variants have the same declared type
 /// within the visitor.
 pub mod walk {
-    use crate::ident::Identifier;
-
     use super::ast;
     use super::AstVisitor;
 
@@ -833,8 +838,28 @@ pub mod walk {
         })
     }
 
+    pub struct FunctionCallArg<'c, V: AstVisitor<'c>> {
+        pub name: Option<V::NameRet>,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_function_call_arg<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::FunctionCallArg<'c>>,
+    ) -> Result<FunctionCallArg<'c, V>, V::Error> {
+        Ok(FunctionCallArg {
+            name: node
+                .name
+                .as_ref()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
+                .transpose()?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
+        })
+    }
+
     pub struct FunctionCallArgs<'c, V: AstVisitor<'c>> {
-        pub entries: V::CollectionContainer<(Option<Identifier>, V::ExpressionRet)>,
+        pub entries: V::CollectionContainer<V::FunctionCallArgRet>,
     }
 
     pub fn walk_function_call_args<'c, V: AstVisitor<'c>>(
@@ -847,10 +872,7 @@ pub mod walk {
                 ctx,
                 node.entries
                     .iter()
-                    // @@Incomplete: Support named arguments within function calls!
-                    .map(|e| -> Result<(Option<Identifier>, _), _> {
-                        Ok((None, visitor.visit_expression(ctx, e.ast_ref())?))
-                    }),
+                    .map(|e| visitor.visit_function_call_arg(ctx, e.ast_ref())),
             )?,
         })
     }

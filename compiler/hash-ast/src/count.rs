@@ -110,6 +110,12 @@ impl NodeCount for Expression<'_> {
     }
 }
 
+impl NodeCount for FunctionCallArg<'_> {
+    fn children_count(&self) -> usize {
+        self.name.node_count() + self.value.node_count()
+    }
+}
+
 impl NodeCount for Literal<'_> {
     fn children_count(&self) -> usize {
         match &self {
@@ -246,6 +252,12 @@ impl NodeCount for Type<'_> {
 }
 
 impl NodeCount for AccessName<'_> {
+    fn children_count(&self) -> usize {
+        1
+    }
+}
+
+impl NodeCount for Name {
     fn children_count(&self) -> usize {
         1
     }
