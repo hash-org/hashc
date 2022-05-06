@@ -784,11 +784,19 @@ pub enum Block<'c> {
     Body(BodyBlock<'c>),
 }
 
+/// Function call argument.
+#[derive(Debug, PartialEq)]
+pub struct FunctionCallArg<'c> {
+    /// Optional name for the function argument, e.g `f(x = 3);`.
+    pub name: Option<AstNode<'c, Name>>,
+    /// Each argument of the function call, as an expression.
+    pub value: AstNode<'c, Expression<'c>>,
+}
+
 /// Function call arguments.
 #[derive(Debug, PartialEq)]
 pub struct FunctionCallArgs<'c> {
-    /// Each argument of the function call, as an expression.
-    pub entries: AstNodes<'c, Expression<'c>>,
+    pub entries: AstNodes<'c, FunctionCallArg<'c>>,
 }
 
 /// A function call expression.

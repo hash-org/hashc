@@ -44,7 +44,7 @@ impl<'s, 'c, 'w, 'gs> fmt::Display for SubstitutionWithStorage<'s, 'c, 'w, 'gs> 
     }
 }
 
-impl<'c> Substitution {
+impl Substitution {
     pub fn empty() -> Self {
         Self { subs: Vec::new() }
     }
