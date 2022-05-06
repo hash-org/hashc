@@ -10,7 +10,7 @@ use hash_pipeline::fs::ImportError;
 use hash_reporting::reporting::{
     Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };
-use hash_source::{location::SourceLocation, SourceId};
+use hash_source::location::SourceLocation;
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
@@ -83,10 +83,6 @@ pub enum AstGenErrorKind {
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
 }
-
-/// This implementation exists since we can't use tuples that are un-named
-/// with foreign module types.
-pub struct GeneratorErrorWrapper<'a>(pub SourceId, pub AstGenError<'a>);
 
 impl std::fmt::Display for TyArgumentKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
