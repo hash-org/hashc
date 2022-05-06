@@ -1,4 +1,4 @@
-//! Hash Compiler language keyword definitions
+//! Hash Compiler token keyword definitions
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 

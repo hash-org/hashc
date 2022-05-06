@@ -3,20 +3,18 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use std::fmt;
+pub mod delimiter;
+pub mod keyword;
 
+use delimiter::Delimiter;
 use hash_alloc::collections::row::Row;
 use hash_alloc::row;
 use hash_alloc::Wall;
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
-use hash_ast::keyword::Keyword;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
 use hash_source::location::Location;
-
-use crate::error::LexerError;
-
-pub type LexerResult<T> = Result<T, LexerError>;
+use keyword::Keyword;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
 /// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
@@ -54,8 +52,8 @@ impl Token {
     }
 }
 
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             TokenKind::Ident(ident) => {
                 write!(f, "Ident ({})", IDENTIFIER_MAP.get_ident(*ident))
@@ -78,7 +76,7 @@ impl fmt::Display for Token {
 
 impl TokenKind {
     /// Check if a [TokenKind] can be considered in a situation as a unary operator.
-    pub(crate) fn is_unary_op(&self) -> bool {
+    pub fn is_unary_op(&self) -> bool {
         matches!(
             self,
             TokenKind::Plus
@@ -97,7 +95,7 @@ impl TokenKind {
 
     /// Checks if the [TokenKind] must begin a block, as in the specified keywords that
     /// follow a specific syntax, and must be statements.
-    pub(crate) fn begins_block(&self) -> bool {
+    pub fn begins_block(&self) -> bool {
         matches!(
             self,
             TokenKind::Keyword(Keyword::For)
@@ -110,7 +108,7 @@ impl TokenKind {
 
     /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
     /// follow a specific syntax, and must be statements.
-    pub(crate) fn begins_statement(&self) -> bool {
+    pub fn begins_statement(&self) -> bool {
         matches!(
             self,
             TokenKind::Keyword(Keyword::Trait)
@@ -123,7 +121,7 @@ impl TokenKind {
     }
 
     /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
-    pub(crate) fn is_literal(&self) -> bool {
+    pub fn is_literal(&self) -> bool {
         matches!(
             self,
             TokenKind::Keyword(Keyword::False)
@@ -133,62 +131,6 @@ impl TokenKind {
                 | TokenKind::CharLiteral(_)
                 | TokenKind::StrLiteral(_)
         )
-    }
-}
-
-#[derive(Debug, Copy, Clone, Hash, PartialEq)]
-pub enum Delimiter {
-    /// '(' or ')'
-    Paren,
-    /// '{' or '}'
-    Brace,
-    /// '[' or ']'
-    Bracket,
-}
-
-impl Delimiter {
-    pub fn from_left(ch: char) -> Option<Delimiter> {
-        match ch {
-            '(' => Some(Delimiter::Paren),
-            '[' => Some(Delimiter::Bracket),
-            '{' => Some(Delimiter::Brace),
-            _ => None,
-        }
-    }
-
-    pub fn from_right(ch: char) -> Option<Delimiter> {
-        match ch {
-            ')' => Some(Delimiter::Paren),
-            ']' => Some(Delimiter::Bracket),
-            '}' => Some(Delimiter::Brace),
-            _ => None,
-        }
-    }
-
-    /// Get the left-hand side variant of a corresponding delimiter
-    pub fn left(&self) -> char {
-        match self {
-            Delimiter::Paren => '(',
-            Delimiter::Bracket => '[',
-            Delimiter::Brace => '{',
-        }
-    }
-
-    /// Get the right-hand side variant of a corresponding delimiter
-    pub fn right(&self) -> char {
-        match self {
-            Delimiter::Paren => ')',
-            Delimiter::Bracket => ']',
-            Delimiter::Brace => '}',
-        }
-    }
-}
-
-/// Display implementation for [Delimiter], it's always assumed that it's asking for
-/// the right hand-side variant of the delimiter.
-impl fmt::Display for Delimiter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.right())
     }
 }
 
@@ -288,8 +230,8 @@ impl TokenKind {
     }
 }
 
-impl fmt::Display for TokenKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TokenKind::Eq => write!(f, "="),
             TokenKind::Lt => write!(f, "<"),

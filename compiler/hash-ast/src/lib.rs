@@ -12,13 +12,9 @@ lazy_static! {
     pub static ref STATIC_CASTLE: Castle = Castle::new();
 }
 
-extern crate strum;
-extern crate strum_macros;
-
 pub mod ast;
 pub mod count;
 pub mod ident;
-pub mod keyword;
 pub mod literal;
 pub mod operator;
 pub mod tree;

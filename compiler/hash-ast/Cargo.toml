@@ -5,14 +5,9 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_debug"] }
 lazy_static = "1.4.0"
-thiserror = "1.0"
 dashmap = "4.0"
 fnv = "1.0.7"
-strum = "0.21"
-strum_macros = "0.21"
-derive_more = "0.99"
 hash-utils = { path = "../hash-utils" } 
 hash-alloc = { path = "../hash-alloc" }
 hash-source = { path = "../hash-source" }
