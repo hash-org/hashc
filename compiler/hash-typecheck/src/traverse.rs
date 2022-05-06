@@ -1971,6 +1971,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         Ok(namespace_ty)
     }
+
+    type FunctionCallArgRet = (Option<Identifier>, TypeId);
+
+    fn visit_function_call_arg(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::FunctionCallArg<'c>>,
+    ) -> Result<Self::FunctionCallArgRet, Self::Error> {
+        todo!()
+    }
 }
 
 impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {

@@ -656,7 +656,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // vvv (transpiles to...)
             // >>> and(lhs, () => rhs)
             //
-            let location = lhs.location().join(rhs.location());
+
+            let (lhs_span, rhs_span) = (lhs.location(), rhs.location());
+            let span = lhs_span.join(rhs_span);
 
             self.node_with_location(Expression::new(ExpressionKind::FunctionCall(
                     FunctionCallExpr {
@@ -670,20 +672,28 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         args: self.node_with_joined_location(
                             FunctionCallArgs {
                             entries: ast_nodes![&self.wall;
-                                self.transform_expr_into_ref(lhs, *assigning),
-                                self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
-                                    Literal::Function(FunctionDef {
-                                        args: AstNodes::empty(),
-                                        return_ty: None,
-                                        fn_body: rhs,
-                                    }),
-                                )))))
+                                self.node_with_location(FunctionCallArg {
+                                    name: None,
+                                    value: self.transform_expr_into_ref(lhs, *assigning),
+                                }, lhs_span),
+                                self.node(
+                                FunctionCallArg {
+                                    name: None,
+                                    value: self.node_with_location(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
+                                        Literal::Function(FunctionDef {
+                                            args: AstNodes::empty(),
+                                            return_ty: None,
+                                            fn_body: rhs,
+                                        }),
+                                    )))), rhs_span)
+                                })
                             ],
-                        },  &location),
+                        },  &span),
                     },
-                )), location)
+                )), span)
         } else {
-            let location = lhs.location().join(rhs.location());
+            let (lhs_span, rhs_span) = (lhs.location(), rhs.location());
+            let location = lhs_span.join(rhs_span);
 
             self.node_with_location(
                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
@@ -697,8 +707,18 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     args: self.node_with_joined_location(
                         FunctionCallArgs {
                             entries: ast_nodes![&self.wall;
-                                self.transform_expr_into_ref(lhs, *assigning),
-                                rhs,
+                                self.node_with_location( {
+                                    FunctionCallArg {
+                                        name: None,
+                                        value: self.transform_expr_into_ref(lhs, *assigning),
+                                    }
+                                }, lhs_span),
+                                self.node_with_location( {
+                                    FunctionCallArg {
+                                        name: None,
+                                        value: rhs,
+                                    }
+                                }, rhs_span)
                             ],
                         },
                         &location,
@@ -748,12 +768,27 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // we need to transform the lhs into a reference if the type of function is 'assigning'
         let lhs = self.transform_expr_into_ref(lhs, assigning);
+        let (lhs_span, rhs_span) = (lhs.location(), rhs.location());
 
         let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
             FunctionCallExpr {
                 subject: self.make_ident("ord", &operator_location),
                 args: self.node(FunctionCallArgs {
-                    entries: ast_nodes![&self.wall; lhs, rhs],
+                    entries: ast_nodes![&self.wall;
+                    self.node_with_location(
+                        FunctionCallArg {
+                            name: None,
+                            value: lhs,
+                        },
+                        lhs_span
+                    ),
+                    self.node_with_location(
+                        FunctionCallArg {
+                            name: None,
+                            value: rhs,
+                        },
+                        rhs_span
+                    )],
                 }),
             },
         )));
@@ -1224,7 +1259,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         },
                     ))),
                     args: self.node_with_location(FunctionCallArgs {
-                        entries: ast_nodes![&self.wall; iterator],
+                        entries: ast_nodes![&self.wall; self.node_with_location(
+                            FunctionCallArg {
+                                name: None,
+                                value: iterator,
+                            },
+                            iterator_location
+                        )],
                     }, iterator_location),
                 },
             ))),
@@ -1795,7 +1836,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 // If there is no associated name with the entry and there is only one entry
                 // then we can be sure that it is only a nested entry.
-                if elements.len() == 1 && elements.get(0).unwrap().name.is_none() {
+                if elements.len() == 1 && elements[0].name.is_none() {
                     let element = elements.nodes.pop().unwrap();
                     return Ok(element.into_body().move_out().pattern);
                 } else {
@@ -2092,24 +2133,32 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     let kind = name_or_fn_call.into_body().move_out().into_kind();
 
                     match kind {
+                        // The current behaviour is that the lhs is inserted as the first argument, but that might change:
+                        //
+                        // >>> foo.bar()
+                        // vvv Is transpiled to..
+                        // >>> bar(foo)
+                        //
+                        // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
+                        //
+                        // >>> foo.bar(baz)
+                        // vvv Is transpiled to..
+                        // >>> bar(foo, baz)
                         ExpressionKind::FunctionCall(FunctionCallExpr { subject, mut args }) => {
-                            // @@Future: ##FunctionArguments:
-                            // In the future when we consider function named arguments and optional arguments and variadic arguments,
-                            // is it correct to apply the same behaviour of placing the argument first if it is an infix call ?
-                            // The current behaviour is that the lhs is inserted as the first argument, but that might change:
-                            //
-                            // >>> foo.bar()
-                            // vvv Is transpiled to..
-                            // >>> bar(foo)
-                            //
-                            // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
-                            //
-                            // >>> foo.bar(baz)
-                            // vvv Is transpiled to..
-                            // >>> bar(foo, baz)
+                            let span = lhs_expr.location();
 
                             // insert lhs_expr first...
-                            args.entries.nodes.insert(0, lhs_expr, &self.wall);
+                            args.entries.nodes.insert(
+                                0,
+                                self.node_with_location(
+                                    FunctionCallArg {
+                                        name: None,
+                                        value: lhs_expr,
+                                    },
+                                    span,
+                                ),
+                                &self.wall,
+                            );
 
                             lhs_expr = self.node_with_joined_location(
                                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
@@ -2268,7 +2317,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// into the function which deals with the call arguments.
     pub fn parse_function_call(
         &self,
-        ident: AstNode<'c, Expression<'c>>,
+        subject: AstNode<'c, Expression<'c>>,
         tree: &'stream Row<'stream, Token>,
         span: Location,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
@@ -2281,8 +2330,36 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         );
 
         while gen.has_token() {
-            let arg = gen.parse_expression_with_precedence(0);
-            args.entries.nodes.push(arg?, &self.wall);
+            let start = gen.current_location();
+
+            // here we trying to check if this argument is in form of just an expression or if there is a
+            // name being assigned here...
+            let name = match (gen.peek(), gen.peek_second()) {
+                (
+                    Some(Token {
+                        kind: TokenKind::Ident(_),
+                        ..
+                    }),
+                    Some(Token {
+                        kind: TokenKind::Eq,
+                        ..
+                    }),
+                ) => {
+                    let name = gen.parse_name()?;
+                    gen.skip_token(); // '='
+
+                    Some(name)
+                }
+                _ => None,
+            };
+
+            // Now here we expect an expression...
+            let value = gen.parse_expression_with_precedence(0)?;
+
+            args.entries.nodes.push(
+                gen.node_with_location(FunctionCallArg { name, value }, start),
+                &self.wall,
+            );
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
@@ -2291,15 +2368,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             };
         }
 
-        // form the span from the beginning variable expression to the end of the arguments...
-        let span = &ident.location().join(self.current_location());
+        let span = subject.location();
 
-        Ok(self.node_with_location(
+        Ok(gen.node_with_joined_location(
             Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                subject: ident,
+                subject,
                 args,
             })),
-            *span,
+            &span,
         ))
     }
 
@@ -2459,7 +2535,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// wrapping a singular expression.
     pub fn parse_array_index(
         &self,
-        ident: AstNode<'c, Expression<'c>>,
+        subject: AstNode<'c, Expression<'c>>,
         tree: &'stream Row<'stream, Token>,
         span: Location,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
@@ -2468,7 +2544,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // parse the indexing expression between the square brackets...
         let index_expr = gen.parse_expression_with_precedence(0)?;
-        let index_loc = index_expr.location();
+        let (index_span, subject_span) = (index_expr.location(), subject.location());
+        let span = subject_span.join(index_span);
 
         // since nothing should be after the expression, we can check that no tokens
         // are left and the generator is empty, otherwise report this as an unexpected_token
@@ -2481,12 +2558,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 subject: self.make_ident("index", &start),
                 args: self.node_with_location(
                     FunctionCallArgs {
-                        entries: ast_nodes![&self.wall; ident, index_expr],
+                        entries: ast_nodes![&self.wall; self.node_with_location(
+                            FunctionCallArg {
+                                name: None,
+                                value: subject
+                            }, subject_span),
+                            self.node_with_location(
+                            FunctionCallArg {
+                            name: None,
+                            value: index_expr
+                        }, index_span)],
                     },
-                    index_loc,
+                    span,
                 ),
             })),
-            gen.current_location(),
+            span,
         ))
     }
 
@@ -2516,8 +2602,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
             }
             kind @ (TokenKind::Plus | TokenKind::Minus) => {
-                let expr = self.parse_expression()?;
-                let loc = expr.location();
+                let value = self.parse_expression()?;
+                let span = value.location();
 
                 let fn_name = match kind {
                     TokenKind::Plus => "pos",
@@ -2529,23 +2615,29 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     subject: self.make_ident(fn_name, &start),
                     args: self.node_with_location(
                         FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; expr],
+                            entries: ast_nodes![&self.wall; self.node_with_location(FunctionCallArg {
+                                name: None,
+                                value
+                            }, span)],
                         },
-                        loc,
+                        span,
                     ),
                 })
             }
             TokenKind::Tilde => {
-                let arg = self.parse_expression()?;
-                let loc = arg.location();
+                let value = self.parse_expression()?;
+                let span = value.location();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident("notb", &start),
                     args: self.node_with_location(
                         FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; arg],
+                            entries: ast_nodes![&self.wall; self.node_with_location(FunctionCallArg {
+                                name: None,
+                                value
+                            }, span)],
                         },
-                        loc,
+                        span,
                     ),
                 })
             }
@@ -2562,14 +2654,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ));
             }
             TokenKind::Exclamation => {
-                let arg = self.parse_expression()?;
-                let span = arg.location();
+                let value = self.parse_expression()?;
+                let span = value.location();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident("not", &start),
                     args: self.node_with_location(
                         FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; arg],
+                            entries: ast_nodes![&self.wall; self.node_with_location(FunctionCallArg {
+                                name: None,
+                                value
+                            }, span)],
                         },
                         span,
                     ),
@@ -3084,8 +3179,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 kind: TokenKind::Ident(id),
                 span: id_span,
             }) => {
-                let type_args = self.peek_resultant_fn(|| self.parse_type_args());
-                let type_args = type_args.unwrap_or_else(AstNodes::empty);
+                let type_args = self
+                    .peek_resultant_fn(|| self.parse_type_args())
+                    .unwrap_or_else(AstNodes::empty);
 
                 // create the subject of the call
                 let subject = self.node_with_location(
@@ -3104,38 +3200,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         // Eat the generator now...
                         self.skip_token();
 
-                        // @@Parallelisable: Since this is a vector of tokens, we should be able to give the resolver, create a new
-                        //                   generator and form function call arguments from the stream...
-                        let mut args = self.node_with_location(
-                            FunctionCallArgs {
-                                entries: AstNodes::empty(),
-                            },
-                            *span,
-                        );
-
                         // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
                         // of expressions separated by commas as arguments to the call.
                         let tree = self.token_trees.get(*tree_index).unwrap();
-                        let gen = self.from_stream(tree, *span);
-
-                        while gen.has_token() {
-                            let arg = gen.parse_expression_with_precedence(0);
-                            args.entries.nodes.push(arg?, &self.wall);
-
-                            // now we eat the next token, checking that it is a comma
-                            match gen.peek() {
-                                Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
-                                _ => break,
-                            };
-                        }
-
-                        Ok(self.node_with_location(
-                            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                                subject,
-                                args,
-                            })),
-                            start.join(self.current_location()),
-                        ))
+                        self.parse_function_call(subject, tree, *span)
                     }
                     _ => Ok(subject),
                 }
@@ -3487,7 +3555,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 // If there is no associated name with the entry and there is only one entry
                 // then we can be sure that it is only a nested entry.
-                if elements.len() == 1 && elements.get(0).unwrap().name.is_none() {
+                if elements.len() == 1 && elements[0].name.is_none() {
                     let element = elements.nodes.pop().unwrap();
                     return Ok(element.into_body().move_out().pattern);
                 } else {
