@@ -27,13 +27,13 @@ Dog ~= Printable {
 Now a `Dog` is assignable to any type that has bound `Printable`.
 
 The `~=` operator is the combination of `~` and `=` operators, and it is equivalent to 
-```
+```rs
 Dog = Dog ~ Printable { ... };
 ```
 The `~` operator means "attach", and it is used to attach implementations of traits to structs and enums.
 
 Trait implementations can be created without having to attach them to a specific type:
-```
+```rs
 DogPrintable := Printable {
   Self = Dog, // Self can no longer be inferred, it needs to be explicitly specified.
   print = (self) => io.printf(f"Doge with name {self.name} and age {self.age}");
@@ -49,7 +49,7 @@ doge.print();
 ```
 
 Traits can also be generic over other types:
-```
+```rs
 Sequence := <T> => {
   at: (self, index: usize) -> Option<T>;
   slice: (self, start: usize, end: usize) -> Self;
@@ -63,7 +63,7 @@ List ~= Sequence;
 ```
 Notice that in addition to traits, type functions returning traits can also be implemented for other type functions returning types.
 This is possible as long as both functions on the left hand side and right hand side match:
-```
+```rs
 SomeTrait := trait {
   Self: type; // Restrict what `Self` can be
   ...
@@ -81,7 +81,7 @@ SomeType ~= (<T> => SomeTrait<T> {...});
 ```
 
 Furthermore, traits do not need to have a self type:
-```
+```rs
 Convert := <I, O> => trait {
   convert: (I) -> O;
 };
@@ -95,7 +95,7 @@ kitty := ConvertDogeToGatos::convert(doggo);
 ```
 
 Traits can also be used as bounds on type parameters:
-```
+```rs
 print_things_if_eq := <Thing: Printable ~ Eq> => (thing1: Thing, Thing2: thing) => {
   if thing1 == thing2 {
     print(thing1);
