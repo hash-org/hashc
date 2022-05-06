@@ -55,8 +55,9 @@ Convert := <I, O> => trait {
 
 // ...implementations of convert
 
-x = 3.convert<_, str>(); // `I = i32` inferred, `O = str` given.
-x = 3.convert<I = _, O = str>(); // same thing.
+x := 3.convert<_, str>(); // `I = i32` inferred, `O = str` given.
+x := 3.convert<I = _, O = str>(); // same thing.
+x: str = 3.convert(); // same thing.
 ```
 
 Type functions can only return types or functions; they cannot return values (though this is planned eventually).
