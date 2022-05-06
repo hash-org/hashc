@@ -130,7 +130,15 @@ impl NodeCount for Literal<'_> {
                 })
                 .sum(),
             Literal::List(l) => l.elements.iter().map(|e| e.node_count()).sum(),
-            Literal::Tuple(l) => l.elements.iter().map(|e| e.node_count()).sum(),
+            Literal::Tuple(l) => l
+                .elements
+                .iter()
+                .map(|entry| {
+                    let TupleLiteralEntry { ty, value, .. } = entry.body();
+
+                    1 + ty.as_ref().map_or(0, |n| n.node_count()) + value.node_count()
+                })
+                .sum(),
             Literal::Struct(l) => {
                 let type_args: usize = l.type_args.iter().map(|e| e.node_count()).sum();
 
@@ -181,6 +189,12 @@ impl NodeCount for Pattern<'_> {
 }
 
 impl NodeCount for DestructuringPattern<'_> {
+    fn children_count(&self) -> usize {
+        1 + self.pattern.node_count()
+    }
+}
+
+impl NodeCount for TuplePatternEntry<'_> {
     fn children_count(&self) -> usize {
         1 + self.pattern.node_count()
     }

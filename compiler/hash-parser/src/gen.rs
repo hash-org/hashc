@@ -457,8 +457,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let statement = match decl {
             Some(statement) => Ok(statement),
             None => {
-                let lhs = self.parse_expression_with_precedence(0)?;
-                let (expr, re_assigned) = self.try_parse_re_assignment_operation(lhs)?;
+                let (expr, re_assigned) = self.try_parse_expression_with_re_assignment()?;
 
                 if re_assigned {
                     Ok(Statement::Expr(ExprStatement(expr)))
@@ -486,8 +485,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 Ok(Statement::Block(BlockStatement(block)))
                             }
                             (Some(token), _) => self.error(
-                                AstGenErrorKind::Expected,
-                                Some(TokenKindVector::begin_expression(&self.wall)),
+                                AstGenErrorKind::ExpectedExpression,
+                                None,
                                 Some(token.kind),
                             ),
                             (None, _) => unreachable!(),
@@ -557,8 +556,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Ok(self.node_with_location(statement, start.join(current_location)))
                     }
                     Some(token) => self.error_with_location(
-                        AstGenErrorKind::Expected,
-                        Some(TokenKindVector::begin_expression(&self.wall)),
+                        AstGenErrorKind::ExpectedExpression,
+                        None,
                         Some(token.kind),
                         current_location,
                     ),
@@ -576,10 +575,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// then right hand-side. If a re-assignment operator is successfully parsed, then a right
     /// hand-side is expected and will hard fail. If no re-assignment operator is found, then it
     /// should just return the left-hand side.
-    fn try_parse_re_assignment_operation(
+    fn try_parse_expression_with_re_assignment(
         &self,
-        lhs: AstNode<'c, Expression<'c>>,
     ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
+        let lhs = self.parse_expression_with_precedence(0)?;
+
         if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
             // Parse the rhs and the semi
             let rhs = self.parse_expression_with_precedence(0)?;
@@ -1666,6 +1666,35 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(patterns)
     }
 
+    /// Parse an entry within a tuple pattern which might contain an optional [Name] node.
+    pub fn parse_tuple_pattern_entry(
+        &self,
+    ) -> AstGenResult<'c, AstNode<'c, TuplePatternEntry<'c>>> {
+        let start = self.current_location();
+
+        let (name, pattern) = match self.peek() {
+            Some(Token {
+                kind: TokenKind::Ident(_),
+                ..
+            }) => {
+                // Here if there is a '=', this means that there is a name attached to the entry within the
+                // tuple pattern...
+                match self.peek_second() {
+                    Some(token) if token.has_kind(TokenKind::Eq) => {
+                        let name = self.parse_name()?;
+                        self.skip_token(); // '='
+
+                        (Some(name), self.parse_pattern()?)
+                    }
+                    _ => (None, self.parse_pattern()?),
+                }
+            }
+            _ => (None, self.parse_pattern()?),
+        };
+
+        Ok(self.node_with_joined_location(TuplePatternEntry { name, pattern }, &start))
+    }
+
     /// Parse a singular pattern. Singular patterns cannot have any grouped pattern
     /// operators such as a '|', if guards or any form of compound pattern.
     pub fn parse_singular_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
@@ -1757,11 +1786,18 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // @@Hack: here it might actually be a nested pattern in parenthesees. So we perform a slight
                 // transformation if the number of parsed patterns is only one. So essentially we handle the case
                 // where a pattern is wrapped in parentheses and so we just unwrap it.
-                let mut elements = self.parse_pattern_collection(tree, *span)?;
+                let gen = self.from_stream(tree, *span);
 
-                if elements.len() == 1 {
+                let mut elements = gen.parse_separated_fn(
+                    || gen.parse_tuple_pattern_entry(),
+                    || gen.parse_token_atom(TokenKind::Comma),
+                )?;
+
+                // If there is no associated name with the entry and there is only one entry
+                // then we can be sure that it is only a nested entry.
+                if elements.len() == 1 && elements.get(0).unwrap().name.is_none() {
                     let element = elements.nodes.pop().unwrap();
-                    return Ok(element);
+                    return Ok(element.into_body().move_out().pattern);
                 } else {
                     Pattern::Tuple(TuplePattern { fields: elements })
                 }
@@ -2603,6 +2639,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
+    /// Parse a singular [Name] from the current token stream.
+    pub fn parse_name(&self) -> AstGenResult<'c, AstNode<'c, Name>> {
+        match self.next_token() {
+            Some(Token {
+                kind: TokenKind::Ident(ident),
+                span,
+            }) => Ok(self.node_with_location(Name { ident: *ident }, *span)),
+            _ => self.error(AstGenErrorKind::ExpectedIdentifier, None, None),
+        }
+    }
+
     /// Parse an [AccessName] from the current token stream. An [AccessName] is defined as
     /// a number of identifiers that are separated by the namespace operator '::'. The function
     /// presumes that the current token is an identifier an that the next token is a colon.
@@ -2817,7 +2864,26 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }
                     _ => {
                         args = gen.parse_separated_fn(
-                            || gen.parse_type(),
+                            || {
+                                let start = gen.current_location();
+
+                                // Here we have to essentially try and parse a identifier. If this is the case and
+                                // then there is a colon present then we have a named field.
+                                let (name, ty) = match gen.peek_second() {
+                                    Some(token) if token.has_kind(TokenKind::Colon) => {
+                                        let ident = gen.parse_name()?;
+                                        gen.skip_token(); // :
+
+                                        (Some(ident), gen.parse_type()?)
+                                    }
+                                    _ => (None, gen.parse_type()?),
+                                };
+
+                                Ok(gen.node_with_joined_location(
+                                    NamedFieldTypeEntry { name, ty },
+                                    &start,
+                                ))
+                            },
                             || gen.parse_token_atom(TokenKind::Comma),
                         )?;
                     }
@@ -2997,7 +3063,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 .parse_function_or_tuple_type(false)?
                 .into_body()
                 .move_out(),
-            _ => self.error(AstGenErrorKind::ExpectedType, None, None)?,
+            kind => {
+                self.error_with_location(AstGenErrorKind::ExpectedType, None, Some(*kind), start)?
+            }
         };
 
         Ok(self.node_with_joined_location(variant, &start))
@@ -3410,11 +3478,18 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // @@Hack: here it might actually be a nested pattern in parenthesees. So we perform a slight
                 // transformation if the number of parsed patterns is only one. So essentially we handle the case
                 // where a pattern is wrapped in parentheses and so we just unwrap it.
-                let mut elements = self.parse_pattern_collection(tree, *span)?;
+                let gen = self.from_stream(tree, *span);
 
-                if elements.len() == 1 {
+                let mut elements = gen.parse_separated_fn(
+                    || gen.parse_tuple_pattern_entry(),
+                    || gen.parse_token_atom(TokenKind::Comma),
+                )?;
+
+                // If there is no associated name with the entry and there is only one entry
+                // then we can be sure that it is only a nested entry.
+                if elements.len() == 1 && elements.get(0).unwrap().name.is_none() {
                     let element = elements.nodes.pop().unwrap();
-                    return Ok(element);
+                    return Ok(element.into_body().move_out().pattern);
                 } else {
                     Pattern::Tuple(TuplePattern { fields: elements })
                 }
@@ -3548,6 +3623,68 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         ))
     }
 
+    /// Function to parse a tuple literal entry with a name.
+    pub fn parse_tuple_literal_entry(
+        &self,
+    ) -> AstGenResult<'c, AstNode<'c, TupleLiteralEntry<'c>>> {
+        let start = self.current_location();
+        let offset = self.offset();
+
+        // Determine if this might have a tuple field name and optional type
+        let entry = if let Some(name) = self.peek_resultant_fn(|| self.parse_name()) {
+            // Here we can identify if we need to backtrack and just parse an expression...
+            if !matches!(
+                self.peek(),
+                Some(Token {
+                    kind: TokenKind::Colon | TokenKind::Eq,
+                    ..
+                })
+            ) {
+                self.offset.set(offset);
+                None
+            } else {
+                // Try and parse an optional type...
+                let ty = match self.peek() {
+                    Some(token) if token.has_kind(TokenKind::Colon) => {
+                        self.skip_token();
+
+                        match self.peek() {
+                            Some(token) if token.has_kind(TokenKind::Eq) => None,
+                            _ => Some(self.parse_type()?),
+                        }
+                    }
+                    _ => None,
+                };
+
+                self.parse_token_atom(TokenKind::Eq)?;
+
+                // Now we try and parse an expression that allows re-assignment operators...
+                Some(self.node_with_joined_location(
+                    TupleLiteralEntry {
+                        name: Some(name),
+                        ty,
+                        value: self.try_parse_expression_with_re_assignment()?.0,
+                    },
+                    &start,
+                ))
+            }
+        } else {
+            None
+        };
+
+        match entry {
+            Some(entry) => Ok(entry),
+            None => Ok(self.node_with_joined_location(
+                TupleLiteralEntry {
+                    name: None,
+                    ty: None,
+                    value: self.try_parse_expression_with_re_assignment()?.0,
+                },
+                &start,
+            )),
+        }
+    }
+
     /// Function to either parse an expression that is wrapped in parentheses or a tuple literal. If this
     /// is a tuple literal, the first expression must be followed by a comma separator, after that the comma
     /// after the expression is optional.
@@ -3573,6 +3710,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // is trying to parse either a tuple or an expression.
         // Handle the empty tuple case
         if gen.stream.len() < 2 {
+            // @@Cleanup
             let tuple = gen.node_with_joined_location(
                 Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                     gen.node_with_joined_location(
@@ -3596,19 +3734,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             };
         }
 
-        let lhs = gen.parse_expression_with_precedence(0)?;
-        let (expr, re_assigned) = gen.try_parse_re_assignment_operation(lhs)?;
+        let entry = gen.parse_tuple_literal_entry()?;
 
-        if re_assigned && gen.peek().is_some() {
-            return gen.error(AstGenErrorKind::EOF, None, Some(gen.peek().unwrap().kind));
+        // In the special case where this is just an expression that is wrapped within parenthesees, we can
+        // check that the 'name' and 'ty' parameters are set to `None` and that there are no extra tokens
+        // that are left within the token tree...
+        if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
+            return Ok(entry.into_body().move_out().value);
         }
 
-        // Check if this is just a singularly wrapped expression
-        if gen.peek().is_none() {
-            return Ok(expr);
-        }
-
-        let mut elements = ast_nodes![&self.wall; expr];
+        let mut elements = ast_nodes![&self.wall; entry];
 
         loop {
             match gen.peek() {
@@ -3622,13 +3757,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                     elements
                         .nodes
-                        .push(gen.parse_expression_with_precedence(0)?, &self.wall)
+                        .push(gen.parse_tuple_literal_entry()?, &self.wall)
                 }
-                Some(token) => gen.error(
-                    AstGenErrorKind::ExpectedExpression,
-                    Some(TokenKindVector::begin_expression(&self.wall)),
-                    Some(token.kind),
-                )?,
+                Some(token) => {
+                    gen.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))?
+                }
                 None => break,
             }
         }
