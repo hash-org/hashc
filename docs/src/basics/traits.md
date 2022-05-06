@@ -1,0 +1,111 @@
+# Traits
+
+Hash supports compile-time polymorphism through traits.
+Traits are a core mechanism in Hash; they allow for different implementations of the same set of operations, for different types.
+They are similar to traits in Rust, type-classes in Haskell, and protocols in Swift.
+For example:
+```rs
+Printable := trait {
+  print: (Self) -> void;
+};
+```
+The above declares a trait called `Printable` which has a single associated function `print`.
+The special type `Self` denotes the type for which the trait is implemented.
+
+Traits can be implemented for types in the following way:
+```rs
+Dog := struct(
+  name: str,
+  age: i32,
+);
+
+Dog ~= Printable {
+  // `Self = Dog` inferred
+  print = (self) => io.printf(f"Doge with name {self.name} and age {self.age}");
+};
+```
+Now a `Dog` is assignable to any type that has bound `Printable`.
+
+The `~=` operator is the combination of `~` and `=` operators, and it is equivalent to 
+```
+Dog = Dog ~ Printable { ... };
+```
+The `~` operator means "attach", and it is used to attach implementations of traits to structs and enums.
+
+Trait implementations can be created without having to attach them to a specific type:
+```
+DogPrintable := Printable {
+  Self = Dog, // Self can no longer be inferred, it needs to be explicitly specified.
+  print = (self) => io.printf(f"Doge with name {self.name} and age {self.age}");
+};
+
+doge := Dog(..);
+DogPrintable::print(doge); // Trait implementations can be called explicitly like this
+
+Dog ~= DogPrintable; // `DogPrintable` can be attached to `Dog` as long as `DogPrintable::Self = Dog`.
+
+// Then you can also do this, and it will be resolved to `DogPrintable::print(doge)`:
+doge.print();
+```
+
+Traits can also be generic over other types:
+```
+Sequence := <T> => {
+  at: (self, index: usize) -> Option<T>;
+  slice: (self, start: usize, end: usize) -> Self;
+};
+
+List := <T> => struct(...);
+
+// For List (of type `<T: type> -> type`) implement Sequence (of type `<T: type> -> trait`):
+// This will be implemented for all `T`.
+List ~= Sequence; 
+```
+Notice that in addition to traits, type functions returning traits can also be implemented for other type functions returning types.
+This is possible as long as both functions on the left hand side and right hand side match:
+```
+SomeTrait := trait {
+  Self: type; // Restrict what `Self` can be
+  ...
+};
+
+// Allowed: `<T: type> -> trait` attachable to `<T: type> -> type`.
+(<T> => SomeType) ~= (<T> => SomeTrait<T> {...});
+
+// Not allowed: `<T: type> -> trait` is not attachable to `type`
+SomeType ~= (<T> => SomeTrait<T> {...});
+
+// Not allowed: `trait` is not attachable to `<T: type> -> type` because
+// `SomeTraitImpl::Self` has type `type` and not `<T: type> -> type`.
+SomeType ~= (<T> => SomeTrait<T> {...});
+```
+
+Furthermore, traits do not need to have a self type:
+```
+Convert := <I, O> => trait {
+  convert: (I) -> O;
+};
+
+ConvertDogeToGatos := Convert<Doge, Gatos> {
+  convert = (doge) => perform_transformation_from_doge_to_gatos(doge);
+};
+
+doggo := Doge(...);
+kitty := ConvertDogeToGatos::convert(doggo);
+```
+
+Traits can also be used as bounds on type parameters:
+```
+print_things_if_eq := <Thing: Printable ~ Eq> => (thing1: Thing, Thing2: thing) => {
+  if thing1 == thing2 {
+    print(thing1);
+    print(thing2);
+  }
+};
+```
+Here, `Thing` must implement `Printable` and `Eq`.
+Notice the same attachment syntax (`~`) for multiple trait bounds, just as for attaching trait implementations to types.
+
+Traits are monomorphised at runtime, and thus are completely erased.
+Therefore, there is no additional runtime overhead to structuring your code using lots of traits/generics and polymorphism, vs using plain old functions without any generics.
+There is, however, additional compile-time cost to very complicated trait hierarchies and trait bounds.
