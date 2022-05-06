@@ -48,7 +48,7 @@ make_ref_counted := <Inner: Sized> => (value: Inner) -> RefCounted<Inner> => {
 my_ref_counted_string = make_ref_counted("Bilbo bing bong"); // `Inner = str` inferred
 ```
 In order to explicitly infer specific arguments, you can use the `_` sigil:
-```
+```rs
 Convert := <I, O> => trait {
   convert: (input: I) -> O;
 };
@@ -62,19 +62,19 @@ x: str = 3.convert(); // same thing.
 
 Type functions can only return types or functions; they cannot return values (though this is planned eventually).
 This means that you cannot write
-```
+```rs
 land_with := <T> => land_on_moon_with<T>();
 signal := land<Rover>;
 ```
 but you can write
-```
+```rs
 land_with := <T> => () => land_on_moon_with<T>();
 signal := land<Rover>();
 ```
 
 Just like with value-level functions, type-level functions can be provided with named arguments rather than positional arguments.
 These are subject to the same rules as value-level functions:
-```
+```rs
 make_repository := <
   Create, Read,
   Update, Delete
@@ -91,7 +91,7 @@ repo := make_repository<
 ```
 
 Finally, type-level function parameters can be given default arguments, which will be used if the arguments cannot be inferred from context and aren't specified explicitly:
-```
+```rs
 Vec := <T, Allocator: Alloc = GlobalAllocator> => struct(
   data: RawRefInAllocator<T, Allocator>,
   length: usize,
