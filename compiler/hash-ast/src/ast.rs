@@ -302,16 +302,23 @@ pub struct ExistentialType;
 #[derive(Debug, PartialEq)]
 pub struct InferType;
 
+/// An entry within a tuple type.
+#[derive(Debug, PartialEq)]
+pub struct NamedFieldTypeEntry<'c> {
+    pub name: Option<AstNode<'c, Name>>,
+    pub ty: AstNode<'c, Type<'c>>,
+}
+
 /// The tuple type.
 #[derive(Debug, PartialEq)]
 pub struct TupleType<'c> {
-    pub entries: AstNodes<'c, Type<'c>>,
+    pub entries: AstNodes<'c, NamedFieldTypeEntry<'c>>,
 }
 
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType<'c> {
-    pub args: AstNodes<'c, Type<'c>>,
+    pub args: AstNodes<'c, NamedFieldTypeEntry<'c>>,
     pub return_ty: AstNode<'c, Type<'c>>,
 }
 
@@ -342,11 +349,26 @@ pub struct ListLiteral<'c> {
     pub elements: AstNodes<'c, Expression<'c>>,
 }
 
+/// An entry within a tuple type, which may contain an optional name
+/// annotation and or a type annotation, for example:
+///
+/// ```text
+/// (foo : u32 = 2, ..., k = 2)
+///  ^^^   ^^^   ^
+/// name   type  value
+/// ```
+#[derive(Debug, PartialEq)]
+pub struct TupleLiteralEntry<'c> {
+    pub name: Option<AstNode<'c, Name>>,
+    pub ty: Option<AstNode<'c, Type<'c>>>,
+    pub value: AstNode<'c, Expression<'c>>,
+}
+
 /// A tuple literal, e.g. `(1, 'A', "foo")`.
 #[derive(Debug, PartialEq)]
 pub struct TupleLiteral<'c> {
     /// The elements of the tuple literal.
-    pub elements: AstNodes<'c, Expression<'c>>,
+    pub elements: AstNodes<'c, TupleLiteralEntry<'c>>,
 }
 
 /// A map literal entry, e.g. `"foo": 1`.
@@ -501,11 +523,18 @@ pub struct NamespacePattern<'c> {
     pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
+/// A tuple pattern entry
+#[derive(Debug, PartialEq)]
+pub struct TuplePatternEntry<'c> {
+    pub name: Option<AstNode<'c, Name>>,
+    pub pattern: AstNode<'c, Pattern<'c>>,
+}
+
 /// A tuple pattern, e.g. `(1, 2, x)`
 #[derive(Debug, PartialEq)]
 pub struct TuplePattern<'c> {
     /// The element of the tuple, as patterns.
-    pub fields: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, TuplePatternEntry<'c>>,
 }
 
 /// A string literal pattern.

@@ -378,16 +378,6 @@ impl<'c> TokenKindVector<'c> {
         Self(row![wall; atom])
     }
 
-    /// Tokens that can act as a expression connective
-    pub fn begin_expression(wall: &Wall<'c>) -> Self {
-        Self(row![wall;
-            TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Dot, // @@TODO: custom token label support (for: OR an operator)
-            TokenKind::Semi,
-            TokenKind::Colon,
-        ])
-    }
-
     /// Tokens expected when the parser expects a collection of patterns to be present.
     pub fn begin_pattern_collection(wall: &Wall<'c>) -> Self {
         Self(row![wall;

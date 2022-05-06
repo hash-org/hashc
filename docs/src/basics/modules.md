@@ -23,9 +23,9 @@ For example, if you wanted to include the modules `a`, `b`, and or `c` within yo
 
 ```rust
 // main.hash
-let a = import("lib/a");
-let b = import("lib/b");
-let c = import("lib/sub/c");
+a := import("lib/a");
+b := import("lib/b");
+c := import("lib/sub/c");
 ```
 
 By doing so, you are placing everything that is defined within each of those modules under
@@ -49,9 +49,9 @@ Within main, you can create a new `point` by doing the following
 
 ```rust
 // main.hash
-let a = import("lib/a");
+a := import("lib/a");
 
-let p1 = a::Point { x=2; y=3 };
+p1 := a::Point { x=2; y=3 };
 
 print(p1.x); // 2
 print(p1.y); // 3
@@ -65,17 +65,17 @@ You can do so by destructuring the definitions into using the syntax as
 follows:
 
 ```rust
-let {Point} = import("lib/a");
+{Point} := import("lib/a");
 
-let p1 = Point { x=2; y=3 };
+p1 := Point { x=2; y=3 };
 ```
 
 In case you have a member of your current module already reserving a name, you
 can rename the exported members to your liking:
 ```rust
-let {Point: LibPoint} = import("lib/a");
+{Point: LibPoint} = import("lib/a");
 
-let p1 = LibPoint { x=2; y=3 };
+p1 := LibPoint { x=2; y=3 };
 ```
 
 > **Note**: Naming is entirely up to the developer, there are no restrictions on naming

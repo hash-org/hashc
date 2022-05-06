@@ -174,7 +174,7 @@ pub struct UserType<'c> {
 
 #[derive(Debug)]
 pub struct FnType<'c> {
-    pub args: TypeList<'c>,
+    pub args: Row<'c, (Option<Identifier>, TypeId)>,
     pub return_ty: TypeId,
 }
 
@@ -195,7 +195,7 @@ pub struct UnknownType {
 
 #[derive(Debug)]
 pub struct TupleType<'c> {
-    pub types: Row<'c, TypeId>,
+    pub types: Row<'c, (Option<Identifier>, TypeId)>,
 }
 
 #[derive(Debug)]
@@ -220,14 +220,14 @@ impl<'c> TypeValue<'c> {
             TypeValue::Ref(RefType { inner }) => f(initial, *inner),
             TypeValue::RawRef(RawRefType { inner }) => f(initial, *inner),
             TypeValue::Fn(FnType { args, return_ty }) => {
-                let args_res = args.iter().fold(initial, |acc, x| f(acc, *x));
+                let args_res = args.iter().fold(initial, |acc, x| f(acc, (*x).1));
                 f(args_res, *return_ty)
             }
             TypeValue::User(UserType { args, def_id: _ }) => {
                 args.iter().fold(initial, |acc, x| f(acc, *x))
             }
             TypeValue::Tuple(TupleType { types: args }) => {
-                args.iter().fold(initial, |acc, x| f(acc, *x))
+                args.iter().fold(initial, |acc, x| f(acc, (*x).1))
             }
             TypeValue::Var(_) => initial,
             TypeValue::Prim(_) => initial,
@@ -246,15 +246,21 @@ impl<'c> TypeValue<'c> {
                 TypeValue::RawRef(RawRefType { inner: f(*inner)? })
             }
             TypeValue::Fn(FnType { args, return_ty }) => TypeValue::Fn(FnType {
-                args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+                args: Row::try_from_iter(
+                    args.iter().map(|&(name, arg)| Ok((name, f(arg)?))),
+                    wall,
+                )?,
                 return_ty: f(*return_ty)?,
+            }),
+            TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
+                types: Row::try_from_iter(
+                    args.iter().map(|&(name, arg)| Ok((name, f(arg)?))),
+                    wall,
+                )?,
             }),
             TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
                 args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
                 def_id: *def_id,
-            }),
-            TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
-                types: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
@@ -277,7 +283,7 @@ impl<'c> TypeValue<'c> {
                 TypeValue::RawRef(RawRefType { inner: f(*inner) })
             }
             TypeValue::Fn(FnType { args, return_ty }) => TypeValue::Fn(FnType {
-                args: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
+                args: Row::from_iter(args.iter().map(|&arg| (arg.0, f(arg.1))), wall),
                 return_ty: f(*return_ty),
             }),
             TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
@@ -285,7 +291,7 @@ impl<'c> TypeValue<'c> {
                 def_id: *def_id,
             }),
             TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
-                types: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
+                types: Row::from_iter(args.iter().map(|&arg| (arg.0, f(arg.1))), wall),
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),

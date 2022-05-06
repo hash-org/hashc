@@ -175,7 +175,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.add_location(ty, location)
     }
 
-    fn create_tuple_type(&mut self, types: Row<'c, TypeId>) -> TypeId {
+    fn create_tuple_type(&mut self, types: Row<'c, (Option<Identifier>, TypeId)>) -> TypeId {
         self.global_storage
             .types
             .create(TypeValue::Tuple(TupleType { types }), None)
@@ -371,7 +371,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(subject)
     }
 
-    type FunctionCallArgsRet = Row<'c, TypeId>;
+    type FunctionCallArgsRet = Row<'c, (Option<Identifier>, TypeId)>;
     fn visit_function_call_args(
         &mut self,
         ctx: &Self::Ctx,
@@ -581,6 +581,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ))
     }
 
+    type NamedFieldTypeRet = (Option<Identifier>, TypeId);
+
+    fn visit_named_field_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+        let walk::NamedFieldTypeEntry { ty, .. } = walk::walk_named_field_type(self, ctx, node)?;
+
+        Ok((node.name.as_ref().map(|t| t.ident), ty))
+    }
+
     type TypeRet = TypeId;
     fn visit_type(
         &mut self,
@@ -777,6 +789,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .unify_many(entries.iter().copied(), UnifyStrategy::ModifyBoth)?;
 
         Ok(self.create_set_type(el_ty))
+    }
+
+    type TupleLiteralEntryRet = (Option<Identifier>, TypeId);
+
+    fn visit_tuple_literal_entry(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
+        todo!()
     }
 
     type TupleLiteralRet = TypeId;
@@ -985,7 +1007,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(fn_ty)
     }
 
-    type FunctionDefArgRet = TypeId;
+    type FunctionDefArgRet = (Option<Identifier>, TypeId);
     fn visit_function_def_arg(
         &mut self,
         ctx: &Self::Ctx,
@@ -1006,7 +1028,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         self.scopes()
             .add_symbol(*ident, SymbolType::Variable(arg_ty));
-        Ok(arg_ty)
+        Ok((Some(*ident), arg_ty))
     }
 
     type BlockRet = TypeId;
@@ -1564,7 +1586,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         return_ty,
                     }) => {
                         self.unifier().unify_pairs(
-                            args.iter().zip(expected.iter()),
+                            args.iter().zip(expected.iter().map(|(_, ty)| ty)),
                             UnifyStrategy::CheckOnly,
                         )?;
 
@@ -1746,6 +1768,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 })
             }
         }
+    }
+
+    type TuplePatternEntryRet = (Option<Identifier>, TypeId);
+
+    fn visit_tuple_pattern_entry(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TuplePatternEntry<'c>>,
+    ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
+        todo!()
     }
 
     type TuplePatternRet = TypeId;
@@ -2092,9 +2124,15 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     return Ok((enum_ty_id, variant.location));
                 };
 
-                let args = self
-                    .unifier()
-                    .apply_sub_to_list_make_row(&sub, &variant.data)?;
+                let args = self.unifier().apply_sub_to_arg_list_make_row(
+                    &sub,
+                    variant
+                        .data
+                        .iter()
+                        .map(|ty| (None, *ty))
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                )?;
 
                 let enum_variant_fn_ty = self.types_mut().create(
                     TypeValue::Fn(FnType {

@@ -32,7 +32,7 @@ For example, the `for` loop can be expressed using `loop` as:
 An example of the transpilation process:
 
 ```rust
-let i = [1,2,3,5].into_iter();
+i := [1,2,3,5].into_iter();
 
 for x in i {
     print("x is " + x);
@@ -40,7 +40,7 @@ for x in i {
 
 
 // the same as...
-let i = [1,2,3,5].into_iter();
+i := [1,2,3,5].into_iter();
 
 loop {
   match next(i) {
@@ -79,7 +79,7 @@ And the `while` loop can be written using the `loop` directive
 like so:
 
 ```rust
-let c = 0;
+c := 0;
 
 loop {
     match c < 5 { // where 'x' is the condition for the while loop
@@ -89,7 +89,7 @@ loop {
 }
 
 // same as...
-let c = 0;
+c := 0;
 
 while c < 5 {
     c+=1;
