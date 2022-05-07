@@ -1,20 +1,23 @@
-//! Hash compiler low level implementation for the language lexer. Convert
-//! an arbitrary string into a sequence of Lexemes.
+//! Hash Compiler Lexer crate.
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
-use hash_alloc::{collections::row::Row, row, Wall};
-use hash_ast::ident::IDENTIFIER_MAP;
-use hash_ast::literal::STRING_LITERAL_MAP;
-use hash_ast::{ident::CORE_IDENTIFIERS, keyword::Keyword};
-use hash_source::{location::Location, SourceId};
+#![feature(cell_update)]
 
-use crate::error::ParseResult;
-use crate::{
-    error::{LexerError, LexerErrorKind, LexerErrorWrapper},
-    token::{Delimiter, LexerResult, Token, TokenKind},
-    utils::*,
+use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
+use hash_alloc::{collections::row::Row, row, Wall};
+use hash_ast::{
+    ident::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
+    literal::STRING_LITERAL_MAP,
 };
+use hash_source::{location::Location, SourceId};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use std::{cell::Cell, iter};
+use utils::is_id_start;
+
+use crate::utils::is_id_continue;
+
+pub mod error;
+mod utils;
 
 /// Representing the end of stream, or the initial character that is set as 'prev' in
 /// a [Lexer] since there is no character before the start.
@@ -64,7 +67,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Returns a reference to the stored token trees for the current job
-    pub(crate) fn into_token_trees(self) -> Row<'w, Row<'w, Token>> {
+    pub fn into_token_trees(self) -> Row<'w, Row<'w, Token>> {
         self.token_trees
     }
 
@@ -713,10 +716,10 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Tokenise the given input stream
-    pub fn tokenise(&mut self) -> ParseResult<Row<'c, Token>> {
+    pub fn tokenise(&mut self) -> Result<Row<'c, Token>, LexerErrorWrapper> {
         let wall = self.wall;
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        Ok(Row::try_from_iter(iter, wall).map_err(|err| LexerErrorWrapper(self.source_id, err))?)
+        Row::try_from_iter(iter, wall).map_err(|err| LexerErrorWrapper(self.source_id, err))
     }
 }

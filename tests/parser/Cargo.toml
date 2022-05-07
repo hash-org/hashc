@@ -13,4 +13,5 @@ hash-alloc = {path = "../../compiler/hash-alloc" }
 hash-utils = {path = "../../compiler/hash-utils" }
 hash-pipeline = {path = "../../compiler/hash-pipeline" }
 hash-parser = {path = "../../compiler/hash-parser" }
+hash-lexer = {path = "../../compiler/hash-lexer" }
 hash-utils-testing-macros = { path = "../../compiler/hash-utils/testing-macros" }

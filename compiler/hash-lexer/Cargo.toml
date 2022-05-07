@@ -1,5 +1,5 @@
 [package]
-name = "hash-parser"
+name = "hash-lexer"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
@@ -7,14 +7,11 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0"
 derive_more = "0.99"
-crossbeam-channel = "0.5.1"
-rayon = "1.5.0"
 
 hash-ast = {path = "../hash-ast" }
-hash-utils = {path = "../hash-utils" }
 hash-alloc = {path = "../hash-alloc" }
 hash-source = {path = "../hash-source" }
 hash-token = {path = "../hash-token" }
-hash-lexer = {path = "../hash-lexer" }
-hash-pipeline = {path = "../hash-pipeline"}
-hash-reporting = {path = "../hash-reporting"}
+
+# We will use this when we unify errors from `lexer` and `parse` crates
+# hash-reporting = {path = "../hash-reporting" }
