@@ -115,7 +115,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
 
         // now we parse the singular pattern that begins at the for-loop
-        let pattern = self.parse_declaration_pattern()?;
+        let pattern = self.parse_singular_pattern()?;
 
         self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
 

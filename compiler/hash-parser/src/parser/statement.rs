@@ -83,7 +83,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
         let offset = self.offset();
 
-        let decl = if let Some(pat) = self.peek_resultant_fn(|| self.parse_declaration_pattern()) {
+        let decl = if let Some(pat) = self.peek_resultant_fn(|| self.parse_singular_pattern()) {
             // Check if there is a colon here and if not we have to backtrack and
             // now attempt to parse a simple expression
 

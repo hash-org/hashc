@@ -69,8 +69,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse a [Pattern] that can appear in declarations or for-loop destructuring locations
-    pub fn parse_declaration_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
+    /// Parse a singular [Pattern]. Singular [Pattern]s cannot have any grouped pattern
+    /// operators such as a `|`, if guards or any form of compound pattern.
+    pub(crate) fn parse_singular_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let start = self.next_location();
         let token = self
             .peek()
@@ -91,10 +92,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let name = self.parse_access_name(self.node_with_location(*ident, *span))?;
 
                 match self.peek() {
-                    // If this is just a identifier declaration
-                    Some(token) if token.has_kind(TokenKind::Colon) => Pattern::Binding(
-                        BindingPattern(self.node_with_location(Name { ident: *ident }, *span)),
-                    ),
                     // Destructuring pattern for either struct or namespace
                     Some(Token {
                         kind: TokenKind::Tree(Delimiter::Brace, tree_index),
@@ -137,6 +134,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }
                 }
             }
+            // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it o?
+            token if token.kind.is_literal() => {
+                self.skip_token();
+                Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
+            }
             // Tuple patterns
             Token {
                 kind: TokenKind::Tree(Delimiter::Paren, tree_index),
@@ -172,109 +174,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_location(pattern, &start))
-    }
-
-    /// Parse a singular [Pattern]. Singular [Pattern]s cannot have any grouped pattern
-    /// operators such as a `|`, if guards or any form of compound pattern.
-    pub(crate) fn parse_singular_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
-        let token = self
-            .peek()
-            .ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
-
-        let pattern = match token {
-            Token {
-                kind: TokenKind::Ident(ident),
-                span,
-            } => {
-                // this could be either just a binding pattern, enum, or a struct pattern
-                self.skip_token();
-
-                // So here we try to parse an access name, if it is only made of a single binding
-                // name, we'll just return this as a binding pattern, otherwise it must follow that
-                // it is either a enum or struct pattern, if not we report it as an error since
-                // access names cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(self.node_with_location(*ident, *span))?;
-
-                match self.peek() {
-                    // Destructuring pattern for either struct or namespace
-                    Some(Token {
-                        kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                        span,
-                    }) => {
-                        self.skip_token();
-                        let tree = self.token_trees.get(*tree_index).unwrap();
-
-                        Pattern::Struct(StructPattern {
-                            name,
-                            fields: self.parse_destructuring_patterns(tree, *span)?,
-                        })
-                    }
-                    // enum_pattern
-                    Some(Token {
-                        kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-                        span,
-                    }) => {
-                        self.skip_token();
-                        let tree = self.token_trees.get(*tree_index).unwrap();
-
-                        Pattern::Enum(EnumPattern {
-                            name,
-                            fields: self.parse_pattern_collection(tree, *span)?,
-                        })
-                    }
-                    Some(token) if name.path.len() > 1 => self.error(
-                        AstGenErrorKind::Expected,
-                        Some(TokenKindVector::begin_pattern_collection(&self.wall)),
-                        Some(token.kind),
-                    )?,
-                    _ => {
-                        if *ident == CORE_IDENTIFIERS.underscore {
-                            Pattern::Ignore(IgnorePattern)
-                        } else {
-                            Pattern::Binding(BindingPattern(
-                                self.node_with_location(Name { ident: *ident }, *span),
-                            ))
-                        }
-                    }
-                }
-            }
-            token if token.kind.is_literal() => {
-                self.skip_token();
-                Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
-            }
-            Token {
-                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-                span,
-            } => {
-                self.skip_token();
-                return self.parse_tuple_pattern(*tree_index, *span);
-            }
-            Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                span,
-            } => {
-                self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
-
-                Pattern::Namespace(NamespacePattern {
-                    fields: self.parse_destructuring_patterns(tree, *span)?,
-                })
-            }
-            // @@Future: List patterns aren't supported yet.
-            // Token {kind: TokenKind::Tree(Delimiter::Bracket, tree), span} => {
-            //                 self.skip_token();
-            //     // this is a list pattern
-            //
-            // }
-            token => self.error_with_location(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_pattern(&self.wall)),
-                Some(token.kind),
-                token.span,
-            )?,
-        };
-
-        Ok(self.node_with_joined_location(pattern, &token.span))
     }
 
     /// Parse a pattern collect which can involve an arbitrary number of patterns which
