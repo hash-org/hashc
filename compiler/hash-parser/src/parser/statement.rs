@@ -12,6 +12,70 @@ use crate::parser::error::TyArgumentKind;
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+    /// Parse a [Statement] which includes all variants of any statement
+    /// within the language. This function is eager and does not assume that
+    /// the result might produce an [Expression] that is not terminated by a
+    /// semi-colon.
+    pub fn parse_statement(&self) -> AstGenResult<'c, AstNode<'c, Statement<'c>>> {
+        let start = self.current_location();
+
+        match self.peek() {
+            Some(Token { kind, span: _ }) if kind.begins_statement() => {
+                self.skip_token();
+
+                let statement = match kind {
+                    TokenKind::Keyword(Keyword::Trait) => {
+                        Statement::TraitDef(self.parse_trait_defn()?)
+                    }
+                    TokenKind::Keyword(Keyword::Enum) => {
+                        Statement::EnumDef(self.parse_enum_defn()?)
+                    }
+                    TokenKind::Keyword(Keyword::Struct) => {
+                        Statement::StructDef(self.parse_struct_defn()?)
+                    }
+                    TokenKind::Keyword(Keyword::Continue) => Statement::Continue(ContinueStatement),
+                    TokenKind::Keyword(Keyword::Break) => Statement::Break(BreakStatement),
+                    TokenKind::Keyword(Keyword::Return) => {
+                        // @@Hack: check if the next token is a semi-colon, if so the return statement
+                        // has no returned expression...
+                        match self.peek() {
+                            Some(token) if token.has_kind(TokenKind::Semi) => {
+                                Statement::Return(ReturnStatement(None))
+                            }
+                            Some(_) => Statement::Return(ReturnStatement(Some(
+                                self.parse_expression_with_precedence(0)?,
+                            ))),
+                            None => Statement::Return(ReturnStatement(None)),
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+
+                let current_location = self.current_location();
+
+                match self.next_token() {
+                    Some(token) if token.has_kind(TokenKind::Semi) => {
+                        Ok(self.node_with_location(statement, start.join(current_location)))
+                    }
+                    Some(token) => self.error_with_location(
+                        AstGenErrorKind::ExpectedExpression,
+                        None,
+                        Some(token.kind),
+                        current_location,
+                    ),
+                    None => self.error(AstGenErrorKind::EOF, None, Some(*kind))?,
+                }
+            }
+            Some(_) => self
+                .parse_general_statement(true) // This probably shouldn't be a 1?
+                .map(|statement| statement.1),
+            None => self.error(AstGenErrorKind::ExpectedStatement, None, None)?,
+        }
+    }
+
+    /// Parse a subset of the [Statement] variants which don't include definitions of
+    /// structs, enums, or traits. This function deals with attempting to parse declarations
+    /// or expressions that are terminated with a semi-colon.
     pub fn parse_general_statement(
         &self,
         semi_required: bool,
@@ -115,64 +179,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         ))
     }
 
-    /// Parse a statement.
-    pub fn parse_statement(&self) -> AstGenResult<'c, AstNode<'c, Statement<'c>>> {
-        let start = self.current_location();
-
-        match self.peek() {
-            Some(Token { kind, span: _ }) if kind.begins_statement() => {
-                self.skip_token();
-
-                let statement = match kind {
-                    TokenKind::Keyword(Keyword::Trait) => {
-                        Statement::TraitDef(self.parse_trait_defn()?)
-                    }
-                    TokenKind::Keyword(Keyword::Enum) => {
-                        Statement::EnumDef(self.parse_enum_defn()?)
-                    }
-                    TokenKind::Keyword(Keyword::Struct) => {
-                        Statement::StructDef(self.parse_struct_defn()?)
-                    }
-                    TokenKind::Keyword(Keyword::Continue) => Statement::Continue(ContinueStatement),
-                    TokenKind::Keyword(Keyword::Break) => Statement::Break(BreakStatement),
-                    TokenKind::Keyword(Keyword::Return) => {
-                        // @@Hack: check if the next token is a semi-colon, if so the return statement
-                        // has no returned expression...
-                        match self.peek() {
-                            Some(token) if token.has_kind(TokenKind::Semi) => {
-                                Statement::Return(ReturnStatement(None))
-                            }
-                            Some(_) => Statement::Return(ReturnStatement(Some(
-                                self.parse_expression_with_precedence(0)?,
-                            ))),
-                            None => Statement::Return(ReturnStatement(None)),
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-
-                let current_location = self.current_location();
-
-                match self.next_token() {
-                    Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Ok(self.node_with_location(statement, start.join(current_location)))
-                    }
-                    Some(token) => self.error_with_location(
-                        AstGenErrorKind::ExpectedExpression,
-                        None,
-                        Some(token.kind),
-                        current_location,
-                    ),
-                    None => self.error(AstGenErrorKind::EOF, None, Some(*kind))?,
-                }
-            }
-            Some(_) => self
-                .parse_general_statement(true) // This probably shouldn't be a 1?
-                .map(|statement| statement.1),
-            None => self.error(AstGenErrorKind::ExpectedStatement, None, None)?,
-        }
-    }
-
     /// Parse a trait definition. AST representation of a trait statement.
     /// A trait statement is essentially a function with no body, with a
     /// for-all node and some genetic type arguments. For example,
@@ -208,7 +214,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// struct Name <T,Q> where eq<T> { ... };
     ///        ^^^^    ^──────^^─┬──^   ^^^
     /// Name of struct        For all  fields
-    ///
     pub fn parse_struct_defn(&self) -> AstGenResult<'c, StructDef<'c>> {
         debug_assert!(self
             .current_token()
@@ -295,6 +300,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         })
     }
 
+    /// Function used to pass a comma separated [EnumDefEntry] which is proceeded
+    /// within the beginning of an [EnumDef].
     pub fn parse_enum_def_entries(&self) -> AstGenResult<'c, AstNodes<'c, EnumDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
@@ -322,7 +329,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse an Enum definition entry.
+    /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
         let name = self.parse_name()?;
         let name_location = name.location();
@@ -352,7 +359,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_location(EnumDefEntry { name, args }, &name_location))
     }
 
-    /// Parse struct definition field entries.
+    /// Function used to pass a comma separated [StructDefEntry] which is proceeded
+    /// within the beginning of an [StructDef].
     pub fn parse_struct_def_entries(&self) -> AstGenResult<'c, AstNodes<'c, StructDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
@@ -381,7 +389,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse struct definition field.
+    /// Parse a [StructDefEntry].
     pub fn parse_struct_def_entry(&self) -> AstGenResult<'c, AstNode<'c, StructDefEntry<'c>>> {
         let start = self.current_location();
         let name = self.parse_name()?;

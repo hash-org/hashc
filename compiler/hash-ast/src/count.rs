@@ -125,7 +125,7 @@ impl NodeCount for Literal<'_> {
             Literal::Char(CharLiteral(_)) => 0,
             Literal::Int(IntLiteral(_)) => 0,
             Literal::Float(FloatLiteral(_)) => 0,
-            Literal::Bool(BoolLiteral(_)) => 0,
+            Literal::Bool(BooleanLiteral(_)) => 0,
             Literal::Set(l) => l.elements.iter().map(|e| e.node_count()).sum(),
             Literal::Map(l) => l
                 .elements

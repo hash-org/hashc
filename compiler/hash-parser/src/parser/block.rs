@@ -8,6 +8,8 @@ use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Location;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
+use crate::disallow_struct_literals;
+
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
@@ -24,8 +26,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 (self.from_stream(tree, self.current_location()), *span)
             }
+            // @@ErrorReporting: we can combine these two variants into one and then
+            //                   default to none or use the token location (or the next_location)
             Some(token) => self.error(AstGenErrorKind::Block, None, Some(token.kind))?,
-            // @@ErrorReporting
             None => {
                 self.error_with_location(AstGenErrorKind::Block, None, None, self.next_location())?
             }
@@ -41,9 +44,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         start: Location,
         initial_statement: Option<AstNode<'c, Statement<'c>>>,
     ) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
-        // Edge case where the statement is parsed and the 'last_statement_is_expr' is set, here
-        // we take the expression and return a block that has the expression left here.
-
         // Append the initial statement if there is one.
         let mut block = if initial_statement.is_some() {
             BodyBlock {
@@ -116,17 +116,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // now we parse the singular pattern that begins at the for-loop
         let pattern = self.parse_declaration_pattern()?;
-        let pattern_location = pattern.location();
 
         self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
 
-        self.disallow_struct_literals.set(true);
-        let iterator = self.parse_expression_with_precedence(0)?;
-        let iterator_location = iterator.location();
-        self.disallow_struct_literals.set(false);
+        disallow_struct_literals!(self;
+            let iterator = self.parse_expression_with_precedence(0)?
+        );
 
         let body = self.parse_block()?;
-        let body_location = body.location();
+        let (pat_span, iter_span, body_span) =
+            (pattern.location(), iterator.location(), body.location());
 
         // transpile the for-loop into a simpler loop as described by the documentation.
         // Since for loops are used for iterators in hash, we transpile the construct into a primitive loop.
@@ -151,13 +150,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // >>>     }
         // >>> }
         //
-        Ok(self.node_with_joined_location(Block::Loop(LoopBlock(self.node_with_location(
+        Ok(self.node_with_joined_location(Block::Loop(LoopBlock(self.node_with_joined_location(
             Block::Match(MatchBlock {
             subject: self.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
                     subject: self.node(Expression::new(ExpressionKind::Variable(
                         VariableExpr {
-                            name: self.make_access_name_from_str("next", iterator.location()),
+                            name: self.make_access_name_from_str("next", iter_span),
                             type_args: AstNodes::empty(),
                         },
                     ))),
@@ -167,9 +166,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 name: None,
                                 value: iterator,
                             },
-                            iterator_location
+                            iter_span
                         )],
-                    }, iterator_location),
+                    }, iter_span),
                 },
             ))),
             cases: ast_nodes![&self.wall; self.node_with_location(MatchCase {
@@ -183,9 +182,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     ),
                                 fields: ast_nodes![&self.wall; pattern],
                             },
-                        ), pattern_location
+                        ), pat_span
                     ),
-                    expr: self.node_with_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_location),
+                    expr: self.node_with_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
                 }, start),
                 self.node(MatchCase {
                     pattern: self.node(
@@ -209,7 +208,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }),
             ],
             origin: MatchOrigin::For
-        }), start))), &start))
+        }), &start))), &start))
     }
 
     /// In general, a while loop transpilation process occurs by transferring the looping
@@ -235,28 +234,24 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let start = self.current_location();
 
-        self.disallow_struct_literals.set(true);
-        let condition = self.parse_expression_with_precedence(0)?;
-        self.disallow_struct_literals.set(false);
+        disallow_struct_literals!(self;
+            let condition = self.parse_expression_with_precedence(0)?
+        );
 
         let body = self.parse_block()?;
-        let body_location = body.location();
-        let condition_location = condition.location();
+
+        let (condition_span, body_span) = (condition.location(), body.location());
 
         Ok(self.node_with_joined_location(
             Block::Loop(LoopBlock(self.node_with_location(
                 Block::Match(MatchBlock {
                     subject: condition,
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
-                        pattern: self.node(Pattern::Binding(BindingPattern(
-                            self.make_ident_from_str("true", body_location)
-                        ))),
-                            expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(body)))),
+                        pattern: self.node(Pattern::Literal(LiteralPattern::Boolean(BooleanLiteralPattern(false)))),
+                            expr: self.node_with_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
                         }),
                         self.node(MatchCase {
-                            pattern: self.node(Pattern::Binding(BindingPattern(
-                                self.make_ident_from_str("false", body_location)
-                            ))),
+                            pattern: self.node(Pattern::Literal(LiteralPattern::Boolean(BooleanLiteralPattern(false)))),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
                                     statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
@@ -267,7 +262,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     ],
                     origin: MatchOrigin::While
                 }),
-                condition_location,
+                condition_span,
             ))),
             &start,
         ))
@@ -294,11 +289,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let start = self.current_location();
 
-        self.disallow_struct_literals.set(true);
-        let subject = self.parse_expression_with_precedence(0)?;
-        self.disallow_struct_literals.set(false);
+        disallow_struct_literals!(self;
+            let subject = self.parse_expression_with_precedence(0)?
+        );
 
         let mut cases = AstNodes::empty();
+
         // cases are wrapped in a brace tree
         match self.peek() {
             Some(Token {
@@ -374,34 +370,32 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
             //    only one token tree, we prevent it from being parsed as a struct literal
             //    by updating the global state...
-            self.disallow_struct_literals.set(true);
-
-            let clause = self.parse_expression_with_precedence(0)?;
-            let clause_loc = clause.location();
-
-            // We can re-enable struct literals
-            self.disallow_struct_literals.set(false);
+            disallow_struct_literals!(self;
+                let clause = self.parse_expression_with_precedence(0)?
+            );
 
             let branch = self.parse_block()?;
-            let branch_loc = branch.location();
+            let (clause_span, branch_span) = (clause.location(), branch.location());
 
             cases.nodes.push(
                 self.node_with_location(
                     MatchCase {
                         pattern: self.node_with_location(
                             Pattern::If(IfPattern {
-                                pattern: self
-                                    .node_with_location(Pattern::Ignore(IgnorePattern), clause_loc),
+                                pattern: self.node_with_location(
+                                    Pattern::Ignore(IgnorePattern),
+                                    clause_span,
+                                ),
                                 condition: clause,
                             }),
-                            clause_loc,
+                            clause_span,
                         ),
                         expr: self.node_with_location(
                             Expression::new(ExpressionKind::Block(BlockExpr(branch))),
-                            branch_loc,
+                            branch_span,
                         ),
                     },
-                    clause_loc.join(branch_loc),
+                    clause_span.join(branch_span),
                 ),
                 &self.wall,
             );
@@ -425,7 +419,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     let start = self.current_location();
 
                     let else_branch = self.parse_block()?;
-                    let loc = start.join(else_branch.location());
+                    let else_span = start.join(else_branch.location());
 
                     has_else_branch = true;
 
@@ -435,10 +429,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 pattern: self.node(Pattern::Ignore(IgnorePattern)),
                                 expr: self.node_with_location(
                                     Expression::new(ExpressionKind::Block(BlockExpr(else_branch))),
-                                    loc,
+                                    else_span,
                                 ),
                             },
-                            loc,
+                            else_span,
                         ),
                         &self.wall,
                     );
@@ -466,7 +460,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         Ok(self.node_with_joined_location(
             Block::Match(MatchBlock {
-                subject: self.make_ident("true", &self.current_location()),
+                subject: self.make_boolean(true),
                 cases,
                 origin: MatchOrigin::If,
             }),

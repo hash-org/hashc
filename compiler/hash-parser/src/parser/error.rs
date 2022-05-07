@@ -234,14 +234,18 @@ impl ParseError {
             }
         };
 
-        // @@ErrorReporting: we might want to properly handle incomplete reports?
         builder.build().unwrap()
     }
 }
 
-pub type ParseResult<T> = Result<T, ParseError>;
-
 impl From<LexerErrorWrapper> for ParseError {
+    /// Implementation to convert a [`hash_lexer::LexerError`] with the combination of a
+    /// [SourceId] into a [ParseError]. This is used in order to interface with the lexer
+    /// within the parsing stage.
+    ///
+    /// @@Future: In the future, there is a hope that we don't
+    /// need to convert between various error kinds in crates and they can just be passed
+    /// around as reports which are pipeline stage agnostic.
     fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),

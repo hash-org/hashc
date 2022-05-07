@@ -20,21 +20,16 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an expression which can be compound.
     pub fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
-        let token = self.next_token();
-
-        // Rather than just reporting that we reached 'EOF' which isn't necessarily true if we're in a
-        // block, we will simply specify that we expected an expression...
-        if token.is_none() {
-            return self.error_with_location(
+        let token = self.next_token().ok_or_else(|| {
+            self.make_error(
                 AstGenErrorKind::ExpectedExpression,
                 None,
                 None,
-                self.next_location(),
-            );
-        }
+                Some(self.next_location()),
+            )
+        })?;
 
         let prev_allowance = self.disallow_struct_literals.get();
-        let token = token.unwrap();
 
         // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
         // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
@@ -256,17 +251,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     let kind = name_or_fn_call.into_body().move_out().into_kind();
 
                     match kind {
-                        // The current behaviour is that the lhs is inserted as the first argument, but that might change:
+                        // The current behaviour is that the lhs is inserted as the first argument:
                         //
-                        // >>> foo.bar()
-                        // vvv Is transpiled to..
-                        // >>> bar(foo)
+                        // `foo.bar()` transpiles to `bar(foo)`
                         //
                         // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
                         //
-                        // >>> foo.bar(baz)
-                        // vvv Is transpiled to..
-                        // >>> bar(foo, baz)
+                        // `foo.bar(baz)` transpiles to `bar(foo, baz)`
+                        //
                         ExpressionKind::FunctionCall(FunctionCallExpr { subject, mut args }) => {
                             let span = lhs_expr.location();
 
@@ -293,10 +285,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         }
                         ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
                             // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
-                            let location = name.location();
-                            let ident = name.body().path.get(0).unwrap().body();
+                            let ident = name.body().path[0].body();
+                            let span = name.location();
 
-                            let node = self.node_with_location(Name { ident: *ident }, location);
+                            let node = self.node_with_location(Name { ident: *ident }, span);
 
                             lhs_expr = self.node_with_location(
                                 Expression::new(ExpressionKind::PropertyAccess(
@@ -305,7 +297,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                         property: node,
                                     },
                                 )),
-                                location,
+                                span,
                             );
                         }
                         _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
@@ -522,13 +514,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // the same name as a variable in scope. For example, if you were to create a
             // struct like so:
             //
-            // >>> let name = "Viktor";
-            // >>> let dog = Dog { name };
-            //
+            // ```text
+            // name := "Viktor";
+            // dog  := Dog { name };
+            // ```
             // This should be de-sugared into:
             //
             // ...
-            // >>> let dog = Dog { name = name };
+            // >>> dog := Dog { name = name };
             //
             // So, here we handle for this case...
             match gen.peek() {
@@ -768,12 +761,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_location(Expression::new(expr_kind), &start))
     }
 
-    /// Parse a let declaration statement.
+    /// Parse a declaration.
     ///
-    /// Let statement parser which parses three possible variations. The let keyword
-    /// is parsed and then either a variable declaration, function declaration, or both.
+    /// A declaration is either a variable declaration, function declaration, or both.
     /// As such a name is returned before parsing a type, function, or both.
-    /// Let keyword statement, a destructuring pattern, potential for-all statement, optional
+    /// A destructuring pattern, potential for-all statement, optional
     /// type definition and a potential definition of the right hand side. For example:
     /// ```text
     /// some_var...<int>: float = ...;
@@ -847,7 +839,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Create an [Expression] from two provided expressions and an [OperatorFn].
+    /// Create an [Expression] from two provided expressions and an [Operator].
     fn transform_binary_expression(
         &self,
         lhs: AstNode<'c, Expression<'c>>,
@@ -1012,6 +1004,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             },
         )));
 
+        let make_enum_pattern = |symbol: &str, location: Location| {
+            self.node(Pattern::Enum(EnumPattern {
+                name: self.make_access_name_from_str(symbol, location),
+                fields: AstNodes::empty(),
+            }))
+        };
+
         // each tuple bool variant represents a branch the match statement
         // should return 'true' on, and all the rest will return false...
         // the order is (Lt, Eq, Gt)
@@ -1020,8 +1019,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: ast_nodes![&self.wall;
-                        self.make_enum_pattern_from_str("Lt", location),
-                        self.make_enum_pattern_from_str("Eq", location),
+                        make_enum_pattern("Lt", location),
+                        make_enum_pattern("Eq", location),
                         ],
                     })),
                     expr: self.make_boolean(true)
@@ -1031,8 +1030,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: ast_nodes![&self.wall;
-                        self.make_enum_pattern_from_str("Gt", location),
-                        self.make_enum_pattern_from_str("Eq", location),
+                        make_enum_pattern("Gt", location),
+                        make_enum_pattern("Eq", location),
                         ],
                     })),
                     expr: self.make_boolean(true)
@@ -1040,13 +1039,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             OperatorKind::Lt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: self.make_enum_pattern_from_str("Lt", location),
+                    pattern: make_enum_pattern("Lt", location),
                     expr: self.make_boolean(true)
                 })]
             }
             OperatorKind::Gt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: self.make_enum_pattern_from_str("Gt", location),
+                    pattern: make_enum_pattern("Gt", location),
                     expr: self.make_boolean(true)
                 })]
             }
@@ -1316,7 +1315,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // is trying to parse either a tuple or an expression.
         // Handle the empty tuple case
         if gen.stream.len() < 2 {
-            // @@Cleanup
             let tuple = gen.node_with_joined_location(
                 Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                     gen.node_with_joined_location(
@@ -1375,6 +1373,72 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(gen.node_with_joined_location(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                 gen.node_with_joined_location(Literal::Tuple(TupleLiteral { elements }), &start),
+            ))),
+            &start,
+        ))
+    }
+
+    /// Parse a function definition argument, which is made of an identifier and a function type.
+    pub fn parse_function_def_arg(&self) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
+        let name = self.parse_name()?;
+        let start = name.location();
+
+        let ty = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Colon) => {
+                self.skip_token();
+                Some(self.parse_type()?)
+            }
+            _ => None,
+        };
+
+        let default = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Eq) => {
+                self.skip_token();
+                Some(self.parse_expression_with_precedence(0)?)
+            }
+            _ => None,
+        };
+
+        Ok(self.node_with_joined_location(FunctionDefArg { name, ty, default }, &start))
+    }
+
+    /// Parse a function literal. Function literals are essentially definitions of lambdas
+    /// that can be assigned to variables or passed as arguments into other functions.
+    pub fn parse_function_literal(
+        &self,
+        gen: &Self,
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        let start = self.current_location();
+
+        // parse function definition arguments.
+        let args = gen.parse_separated_fn(
+            || gen.parse_function_def_arg(),
+            || gen.parse_token_atom(TokenKind::Comma),
+        )?;
+
+        // check if there is a return type
+        let return_ty = match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
+            Some(_) => Some(self.parse_type()?),
+            _ => None,
+        };
+
+        self.parse_arrow()?;
+
+        let fn_body = match self.peek() {
+            Some(_) => self.parse_expression_with_precedence(0)?,
+            None => self.error(AstGenErrorKind::ExpectedFnBody, None, None)?,
+        };
+
+        Ok(self.node_with_joined_location(
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                gen.node_with_joined_location(
+                    Literal::Function(FunctionDef {
+                        args,
+                        return_ty,
+                        fn_body,
+                    }),
+                    &start,
+                ),
             ))),
             &start,
         ))

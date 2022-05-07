@@ -11,7 +11,11 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, Token
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
-    /// Parse a compound pattern.
+    /// Parse a compound [Pattern]. A compound [Pattern] means that this could be a 
+    /// pattern that might be a combination of multiple patterns. Additionally, compound 
+    /// patterns are allowed to have `if-guard` syntax which permits for conditional matching 
+    /// of a pattern. There are only a few contexts where the full range of patterns is allowed 
+    /// (such as the `match` cases).
     pub fn parse_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         // attempt to get the next token location as we're starting a pattern here, if there is no token
         // we should exit and return an error
@@ -45,73 +49,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse a function definition argument, which is made of an identifier and a function type.
-    pub fn parse_function_def_arg(&self) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
-        let name = self.parse_name()?;
-        let start = name.location();
-
-        let ty = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Colon) => {
-                self.skip_token();
-                Some(self.parse_type()?)
-            }
-            _ => None,
-        };
-
-        let default = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Eq) => {
-                self.skip_token();
-                Some(self.parse_expression_with_precedence(0)?)
-            }
-            _ => None,
-        };
-
-        Ok(self.node_with_joined_location(FunctionDefArg { name, ty, default }, &start))
-    }
-
-    /// Parse a function literal. Function literals are essentially definitions of lambdas
-    /// that can be assigned to variables or passed as arguments into other functions.
-    pub fn parse_function_literal(
-        &self,
-        gen: &Self,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
-        let start = self.current_location();
-
-        // parse function definition arguments.
-        let args = gen.parse_separated_fn(
-            || gen.parse_function_def_arg(),
-            || gen.parse_token_atom(TokenKind::Comma),
-        )?;
-
-        // check if there is a return type
-        let return_ty = match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
-            Some(_) => Some(self.parse_type()?),
-            _ => None,
-        };
-
-        self.parse_arrow()?;
-
-        let fn_body = match self.peek() {
-            Some(_) => self.parse_expression_with_precedence(0)?,
-            None => self.error(AstGenErrorKind::ExpectedFnBody, None, None)?,
-        };
-
-        Ok(self.node_with_joined_location(
-            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_with_joined_location(
-                    Literal::Function(FunctionDef {
-                        args,
-                        return_ty,
-                        fn_body,
-                    }),
-                    &start,
-                ),
-            ))),
-            &start,
-        ))
-    }
-
-    /// Parse a pattern with an optional if guard after the singular pattern.
+    /// Parse a [Pattern] with an optional `if-guard` after the singular pattern.
     pub fn parse_pattern_with_if(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let start = self.next_location();
         let pattern = self.parse_singular_pattern()?;
@@ -131,7 +69,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse a pattern that can appear in declarations or for-loop destructuring locations
+    /// Parse a [Pattern] that can appear in declarations or for-loop destructuring locations
     pub fn parse_declaration_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let start = self.next_location();
         let token = self
@@ -299,9 +237,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(TokenKind::Eq)) {
             Some(_) => self.parse_pattern()?,
             None => {
+                let span = name.location();
                 let copy = self.node(Name { ..*name.body() });
-                let loc = copy.location();
-                self.node_with_location(Pattern::Binding(BindingPattern(copy)), loc)
+
+                self.node_with_location(Pattern::Binding(BindingPattern(copy)), span)
             }
         };
 
@@ -503,6 +442,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::CharLiteral(s) => LiteralPattern::Char(CharLiteralPattern(*s)),
             TokenKind::IntLiteral(s) => LiteralPattern::Int(IntLiteralPattern(*s)),
             TokenKind::FloatLiteral(s) => LiteralPattern::Float(FloatLiteralPattern(*s)),
+            TokenKind::Keyword(Keyword::False) => {
+                LiteralPattern::Boolean(BooleanLiteralPattern(false))
+            }
+            TokenKind::Keyword(Keyword::True) => {
+                LiteralPattern::Boolean(BooleanLiteralPattern(true))
+            }
             _ => unreachable!(),
         }
     }

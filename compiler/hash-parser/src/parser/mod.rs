@@ -26,6 +26,15 @@ use hash_token::{Token, TokenKind, TokenKindVector};
 use self::error::{AstGenError, AstGenErrorKind};
 use crate::import_resolver::ImportResolver;
 
+#[macro_export]
+macro_rules! disallow_struct_literals {
+    ($gen: ident; $statement: stmt) => {
+        $gen.disallow_struct_literals.set(true);
+        $statement
+        $gen.disallow_struct_literals.set(false);
+    };
+}
+
 pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
 
 pub struct AstGen<'c, 'stream, 'resolver> {
@@ -114,6 +123,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to peek at the nth token ahead of the current offset.
+    #[inline(always)]
     pub(crate) fn peek_nth(&self, at: usize) -> Option<&Token> {
         self.stream.get(self.offset.get() + at)
     }
@@ -151,7 +161,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let value = self.stream.get(self.offset.get());
 
         if value.is_some() {
-            // @@UnsafeLibUsage
             self.offset.update::<_>(|x| x + 1);
         }
 
@@ -207,6 +216,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Create a new [AstNode] with a span that ranges from the start [Location] to the
     /// current location.
+    #[inline(always)]
     pub(crate) fn node_with_joined_location<T>(&self, body: T, start: &Location) -> AstNode<'c, T> {
         AstNode::new(body, start.join(self.current_location()), &self.wall)
     }
@@ -249,6 +259,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Err(self.make_error(kind, expected, received, Some(location)))
     }
 
+    /// Generate an error that represents that within the current [AstGen] the 
+    /// `end of file` state should be reached. This means that either in the root
+    /// generator there are no more tokens or within a nested generator (such as 
+    /// if the generator is within a brackets) that it should now read no more
+    /// tokens.
     pub(crate) fn expected_eof<T>(&self) -> AstGenResult<'c, T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
@@ -263,7 +278,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
-    /// Create a generalised "Reached end of file..." error.
+    /// Generate an error representing that the current generator unexpectedly reached the 
+    /// end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<'c, T> {
         self.error(AstGenErrorKind::EOF, None, None)
     }
@@ -284,21 +300,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
-    fn make_enum_pattern_from_str<T: Into<String>>(
-        &self,
-        symbol: T,
-        location: Location,
-    ) -> AstNode<'c, Pattern<'c>> {
-        self.node(Pattern::Enum(EnumPattern {
-            name: self.make_access_name_from_str(symbol, location),
-            fields: AstNodes::empty(),
-        }))
-    }
-
     /// Utility for creating a boolean in enum representation
+    #[inline(always)]
     fn make_boolean(&self, value: bool) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-            self.node(Literal::Bool(BoolLiteral(value))),
+            self.node(Literal::Bool(BooleanLiteral(value))),
         ))))
     }
 
@@ -318,16 +324,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
-    pub(crate) fn make_ident_from_str<T: Into<String>>(
-        &self,
-        name: T,
-        location: Location,
-    ) -> AstNode<'c, Name> {
-        let ident = IDENTIFIER_MAP.create_ident(&name.into());
-
-        self.node_with_location(Name { ident }, location)
-    }
-
     /// Create a [AccessName] node from an [Identifier].
     pub(crate) fn make_access_name_from_identifier(
         &self,
@@ -345,17 +341,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Make an [Expression] with kind [ExpressionKind::Variable] from a provided [Identifier] with a provided span.
     pub(crate) fn make_variable_from_identifier(
         &self,
-        id: Identifier,
+        name: Identifier,
         location: Location,
     ) -> AstNode<'c, Expression<'c>> {
         self.node_with_location(
             Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.node_with_joined_location(
-                    AccessName {
-                        path: ast_nodes![&self.wall; self.node_with_location(id, location)],
-                    },
-                    &location,
-                ),
+                name: self.make_access_name_from_identifier(name, location),
                 type_args: AstNodes::empty(),
             })),
             location,

@@ -7,7 +7,7 @@ use std::{borrow::Cow, fs, path::PathBuf};
 use hash_pipeline::{fs::ImportError, sources::Sources};
 use hash_source::{InteractiveId, ModuleId, SourceId};
 
-use crate::parser::error::{ParseError, ParseResult};
+use crate::parser::error::ParseError;
 
 pub enum ParseSource {
     Module {
@@ -51,7 +51,7 @@ impl<'c> ParseSource {
         }
     }
 
-    pub fn contents(&self) -> ParseResult<Cow<str>> {
+    pub fn contents(&self) -> Result<Cow<str>, ParseError> {
         match self {
             ParseSource::Module { resolved_path, .. } => Ok(Cow::Owned(
                 fs::read_to_string(&resolved_path).map_err(|_| {
