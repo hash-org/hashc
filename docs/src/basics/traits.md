@@ -50,7 +50,7 @@ doge.print();
 
 Traits can also be generic over other types:
 ```rs
-Sequence := <T> => {
+Sequence := <T> => trait {
   at: (self, index: usize) -> Option<T>;
   slice: (self, start: usize, end: usize) -> Self;
 };
@@ -64,7 +64,7 @@ List ~= Sequence;
 Notice that in addition to traits, type functions returning traits can also be implemented for other type functions returning types.
 This is possible as long as both functions on the left hand side and right hand side match:
 ```rs
-SomeTrait := trait {
+SomeTrait := <T> => trait {
   Self: type; // Restrict what `Self` can be
   ...
 };
