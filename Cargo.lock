@@ -314,17 +314,12 @@ name = "hash-ast"
 version = "0.1.0"
 dependencies = [
  "dashmap",
- "derive_more",
  "fnv",
  "hash-alloc",
  "hash-reporting",
  "hash-source",
  "hash-utils",
  "lazy_static",
- "log",
- "strum",
- "strum_macros",
- "thiserror",
 ]
 
 [[package]]
@@ -356,6 +351,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-lexer"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "hash-alloc",
+ "hash-ast",
+ "hash-source",
+ "hash-token",
+ "thiserror",
+]
+
+[[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
@@ -363,9 +370,11 @@ dependencies = [
  "derive_more",
  "hash-alloc",
  "hash-ast",
+ "hash-lexer",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "hash-token",
  "hash-utils",
  "rayon",
  "thiserror",
@@ -377,6 +386,7 @@ version = "0.1.0"
 dependencies = [
  "hash-alloc",
  "hash-ast",
+ "hash-lexer",
  "hash-parser",
  "hash-pipeline",
  "hash-source",
@@ -415,6 +425,19 @@ dependencies = [
  "derive_more",
  "hash-utils",
  "slotmap",
+]
+
+[[package]]
+name = "hash-token"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "hash-alloc",
+ "hash-ast",
+ "hash-source",
+ "strum",
+ "strum_macros",
+ "thiserror",
 ]
 
 [[package]]

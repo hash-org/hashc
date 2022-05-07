@@ -4,10 +4,10 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::error::{ParseError, ParseResult};
 use crate::gen::AstGen;
-use crate::lexer::Lexer;
 use crossbeam_channel::{unbounded, Sender};
 use hash_alloc::Castle;
 use hash_ast::ast;
+use hash_lexer::Lexer;
 use hash_pipeline::{
     fs::{resolve_path, ImportError},
     sources::{Module, Sources},
@@ -185,7 +185,7 @@ fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castl
     let tokens = match lexer.tokenise() {
         Ok(source) => source,
         Err(err) => {
-            return sender.send(ParserAction::Error(err)).unwrap();
+            return sender.send(ParserAction::Error(err.into())).unwrap();
         }
     };
     let trees = lexer.into_token_trees();

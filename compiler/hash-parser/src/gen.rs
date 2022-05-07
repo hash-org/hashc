@@ -8,22 +8,18 @@ use hash_alloc::{row, Wall};
 use hash_ast::{
     ast::*,
     ident::{Identifier, IDENTIFIER_MAP},
-    keyword::Keyword,
     literal::STRING_LITERAL_MAP,
 };
 use hash_ast::{ast_nodes, operator::Operator};
 use hash_ast::{ident::CORE_IDENTIFIERS, operator::OperatorKind};
 use hash_source::location::{Location, SourceLocation};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use crate::error::{AstGenError, AstGenErrorKind, TyArgumentKind};
 use crate::parser::ImportResolver;
-use crate::token::{Delimiter, Token, TokenKindVector};
-use crate::{
-    error::{AstGenError, AstGenErrorKind, TyArgumentKind},
-    token::TokenKind,
-};
 
 pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
 

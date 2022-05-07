@@ -4,75 +4,15 @@
 
 use std::io;
 
-use crate::token::{Delimiter, TokenKind, TokenKindVector};
 use derive_more::Constructor;
+use hash_lexer::error::LexerErrorWrapper;
 use hash_pipeline::fs::ImportError;
 use hash_reporting::reporting::{
     Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };
-use hash_source::{
-    location::{Location, SourceLocation},
-    SourceId,
-};
+use hash_source::{location::SourceLocation, SourceId};
+use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
-use thiserror::Error;
-
-/// A [LexerError] represents a encountered error during tokenisation, which includes an optional message
-/// with the error, the [LexerErrorKind] which classifies the error, and a [Location] that represents
-/// where the tokenisation error occurred.
-#[derive(Debug, Constructor, Error)]
-#[error("{kind} {}", .message.as_ref().unwrap_or(&String::from("")))]
-pub struct LexerError {
-    pub(crate) message: Option<String>,
-    kind: LexerErrorKind,
-    location: Location,
-}
-
-/// A [LexerErrorKind] represents the kind of [LexerError] which gives additional context to the error
-/// with the provided message in [LexerError]
-#[derive(Debug, Error)]
-pub enum LexerErrorKind {
-    /// Occurs when a escape sequence (within a character or a string) is malformed.
-    #[error("Invalid character escape sequence")]
-    BadEscapeSequence,
-    /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
-    #[error("Malformed numerical literal")]
-    MalformedNumericalLiteral,
-    /// Occurs when a float literal exponent has no proceeding digits.
-    #[error("Expected float exponent to have at least one digit")]
-    MissingExponentDigits,
-    /// Occurs when a numerical literal doesn't follow the language specification, or is too large.
-    #[error("Unclosed string literal")]
-    UnclosedStringLiteral,
-    /// Occurs when a character literal is comprised of more than one character
-    #[error("Invalid character literal `{0}`, character literals may only contain one codepoint")]
-    InvalidCharacterLiteral(String),
-    /// Occurs when a char is unexpected in the current context
-    #[error("Encountered unexpected character `{0}`")]
-    Unexpected(char),
-    /// Occurs when the tokeniser expects a particular token next, but could not derive one.
-    #[error("Expected token `{0}` here")]
-    Expected(TokenKind),
-    /// Unclosed tree block
-    #[error("Encountered unclosed delimiter `{}`, consider adding a `{0}` after inner expression", .0.left())]
-    Unclosed(Delimiter),
-}
-
-/// This implementation exists since we can't use tuples that are un-named
-/// with foreign module types.
-pub struct LexerErrorWrapper(pub SourceId, pub LexerError);
-
-impl From<LexerErrorWrapper> for ParseError {
-    fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
-        ParseError::Parsing {
-            message: err.to_string(),
-            src: Some(SourceLocation {
-                location: err.location,
-                source_id,
-            }),
-        }
-    }
-}
 
 /// A [AstGenError] represents possible errors that occur when transforming the token
 /// stream into the AST.
@@ -254,10 +194,6 @@ pub enum ParseError {
         message: String,
         src: Option<SourceLocation>,
     },
-    Token {
-        message: String,
-        src: SourceLocation,
-    },
 }
 
 impl From<io::Error> for ParseError {
@@ -284,8 +220,7 @@ impl ParseError {
             ParseError::Parsing {
                 message,
                 src: Some(src),
-            }
-            | ParseError::Token { message, src } => {
+            } => {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -309,3 +244,15 @@ impl ParseError {
 }
 
 pub type ParseResult<T> = Result<T, ParseError>;
+
+impl From<LexerErrorWrapper> for ParseError {
+    fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
+        ParseError::Parsing {
+            message: err.to_string(),
+            src: Some(SourceLocation {
+                location: err.location,
+                source_id,
+            }),
+        }
+    }
+}
