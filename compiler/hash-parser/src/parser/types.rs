@@ -292,12 +292,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
                 }
 
-                Ok(
-                    self.node_with_joined_span(
-                        Type::Tuple(TupleType { entries: args }),
-                        &start,
-                    ),
-                )
+                Ok(self.node_with_joined_span(Type::Tuple(TupleType { entries: args }), &start))
             }
         }
     }

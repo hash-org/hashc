@@ -108,10 +108,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }) => {
                         self.skip_token();
                         let tree = self.token_trees.get(*tree_index).unwrap();
+                        let gen = self.from_stream(tree, *span);
 
                         Pattern::Enum(EnumPattern {
                             name,
-                            fields: self.parse_pattern_collection(tree, *span)?,
+                            fields: gen.parse_pattern_collection()?,
                         })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
@@ -155,12 +156,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     fields: self.parse_destructuring_patterns(tree, *span)?,
                 })
             }
-            // @@Future: List patterns aren't supported yet.
-            // Token {kind: TokenKind::Tree(Delimiter::Bracket, tree), span} => {
-            //                 self.skip_token();
-            //     // this is a list pattern
-            //
-            // }
+            // List pattern
+            Token {
+                kind: TokenKind::Tree(Delimiter::Bracket, tree_index),
+                span,
+            } => {
+                self.skip_token();
+                return self.parse_list_pattern(*tree_index, *span);
+            }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
                 Some(TokenKindVector::begin_pattern(&self.wall)),
@@ -172,18 +175,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_span(pattern, &start))
     }
 
-    /// Parse a pattern collect which can involve an arbitrary number of patterns which
-    /// are comma separated.
-    pub fn parse_pattern_collection(
-        &self,
-        tree: &'stream Row<'stream, Token>,
-        span: Location,
-    ) -> AstGenResult<'c, AstNodes<'c, Pattern<'c>>> {
-        let gen = self.from_stream(tree, span);
-
-        gen.parse_separated_fn(
-            || gen.parse_pattern(),
-            || gen.parse_token_atom(TokenKind::Comma),
+    /// Parse an arbitrary number of [Pattern]s which are comma separated.
+    pub fn parse_pattern_collection(&self) -> AstGenResult<'c, AstNodes<'c, Pattern<'c>>> {
+        self.parse_separated_fn(
+            || self.parse_pattern(),
+            || self.parse_token_atom(TokenKind::Comma),
         )
     }
 
@@ -235,6 +231,24 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
 
         Ok(patterns)
+    }
+
+    /// Parse a [Pattern::List] pattern from the token vector. A list [Pattern] consists
+    /// of a list of comma separated within a square brackets .e.g `[x, 1, ..]`
+    pub(crate) fn parse_list_pattern(
+        &self,
+        tree_index: usize,
+        parent_span: Location,
+    ) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
+        let tree = self.token_trees.get(tree_index).unwrap();
+        let gen = self.from_stream(tree, parent_span);
+
+        Ok(self.node_with_span(
+            Pattern::List(ListPattern {
+                fields: gen.parse_pattern_collection()?,
+            }),
+            parent_span,
+        ))
     }
 
     /// Parse a [Pattern::Tuple] from the token vector. A tuple pattern consists of

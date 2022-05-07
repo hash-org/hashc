@@ -133,7 +133,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Parses a token from the input string.
-    fn advance_token(&mut self) -> LexerResult<Option<Token>> {
+    pub fn advance_token(&mut self) -> LexerResult<Option<Token>> {
         // Eat any comments or whitespace before processing the token...
         loop {
             match self.peek() {

@@ -382,10 +382,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     MatchCase {
                         pattern: self.node_with_span(
                             Pattern::If(IfPattern {
-                                pattern: self.node_with_span(
-                                    Pattern::Ignore(IgnorePattern),
-                                    clause_span,
-                                ),
+                                pattern: self
+                                    .node_with_span(Pattern::Ignore(IgnorePattern), clause_span),
                                 condition: clause,
                             }),
                             clause_span,
