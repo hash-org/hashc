@@ -210,14 +210,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
-    pub fn node_with_location<T>(&self, inner: T, location: Location) -> AstNode<'c, T> {
+    pub fn node_with_span<T>(&self, inner: T, location: Location) -> AstNode<'c, T> {
         AstNode::new(inner, location, &self.wall)
     }
 
     /// Create a new [AstNode] with a span that ranges from the start [Location] to the
     /// current location.
     #[inline(always)]
-    pub(crate) fn node_with_joined_location<T>(&self, body: T, start: &Location) -> AstNode<'c, T> {
+    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Location) -> AstNode<'c, T> {
         AstNode::new(body, start.join(self.current_location()), &self.wall)
     }
 
@@ -291,7 +291,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         name: &str,
         location: &Location,
     ) -> AstNode<'c, Expression<'c>> {
-        self.node_with_location(
+        self.node_with_span(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.make_access_name_from_str(name, *location),
                 type_args: AstNodes::empty(),
@@ -314,9 +314,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         name: T,
         location: Location,
     ) -> AstNode<'c, AccessName<'c>> {
-        let name = self.node_with_location(IDENTIFIER_MAP.create_ident(&name.into()), location);
+        let name = self.node_with_span(IDENTIFIER_MAP.create_ident(&name.into()), location);
 
-        self.node_with_location(
+        self.node_with_span(
             AccessName {
                 path: ast_nodes![&self.wall; name],
             },
@@ -330,9 +330,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         name: Identifier,
         location: Location,
     ) -> AstNode<'c, AccessName<'c>> {
-        self.node_with_location(
+        self.node_with_span(
             AccessName {
-                path: ast_nodes![&self.wall; self.node_with_location(name, location)],
+                path: ast_nodes![&self.wall; self.node_with_span(name, location)],
             },
             location,
         )
@@ -344,7 +344,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         name: Identifier,
         location: Location,
     ) -> AstNode<'c, Expression<'c>> {
-        self.node_with_location(
+        self.node_with_span(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.make_access_name_from_identifier(name, location),
                 type_args: AstNodes::empty(),
@@ -449,7 +449,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let span = start.join(self.current_location());
         contents.span = Some(span);
 
-        Ok(self.node_with_location(Module { contents }, span))
+        Ok(self.node_with_span(Module { contents }, span))
     }
 
     /// This function is used to exclusively parse a interactive block which follows
@@ -467,7 +467,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // We just need to unwrap the BodyBlock from Block since parse_block_from_gen is generic...
         match block.into_body().move_out() {
-            Block::Body(body) => Ok(self.node_with_joined_location(body, &start)),
+            Block::Body(body) => Ok(self.node_with_joined_span(body, &start)),
             _ => unreachable!(),
         }
     }

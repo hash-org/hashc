@@ -41,11 +41,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // if the length of patterns is greater than one, we return an 'OR' pattern,
         // otherwise just the first pattern.
         if patterns.len() == 1 {
-            let pat = patterns.nodes.pop().unwrap();
-            Ok(pat)
+            Ok(patterns.nodes.pop().unwrap())
         } else {
-            Ok(self
-                .node_with_joined_location(Pattern::Or(OrPattern { variants: patterns }), &start))
+            Ok(self.node_with_joined_span(Pattern::Or(OrPattern { variants: patterns }), &start))
         }
     }
 
@@ -60,10 +58,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 let condition = self.parse_expression_with_precedence(0)?;
 
-                Ok(self.node_with_joined_location(
-                    Pattern::If(IfPattern { pattern, condition }),
-                    &start,
-                ))
+                Ok(self
+                    .node_with_joined_span(Pattern::If(IfPattern { pattern, condition }), &start))
             }
             _ => Ok(pattern),
         }
@@ -89,7 +85,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // name, we'll just return this as a binding pattern, otherwise it must follow that
                 // it is either a enum or struct pattern, if not we report it as an error since
                 // access names cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(self.node_with_location(*ident, *span))?;
+                let name = self.parse_access_name(self.node_with_span(*ident, *span))?;
 
                 match self.peek() {
                     // Destructuring pattern for either struct or namespace
@@ -128,7 +124,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             Pattern::Ignore(IgnorePattern)
                         } else {
                             Pattern::Binding(BindingPattern(
-                                self.node_with_location(Name { ident: *ident }, *span),
+                                self.node_with_span(Name { ident: *ident }, *span),
                             ))
                         }
                     }
@@ -173,7 +169,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )?,
         };
 
-        Ok(self.node_with_joined_location(pattern, &start))
+        Ok(self.node_with_joined_span(pattern, &start))
     }
 
     /// Parse a pattern collect which can involve an arbitrary number of patterns which
@@ -210,11 +206,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let span = name.location();
                 let copy = self.node(Name { ..*name.body() });
 
-                self.node_with_location(Pattern::Binding(BindingPattern(copy)), span)
+                self.node_with_span(Pattern::Binding(BindingPattern(copy)), span)
             }
         };
 
-        Ok(self.node_with_joined_location(DestructuringPattern { name, pattern }, &start))
+        Ok(self.node_with_joined_span(DestructuringPattern { name, pattern }, &start))
     }
 
     /// Parse a collection of [DestructuringPattern]s that are comma separated.
@@ -259,7 +255,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // empty tuple pattern...
         if let Some(token) = tree.get(0) {
             if token.has_kind(TokenKind::Comma) {
-                return Ok(self.node_with_location(
+                return Ok(self.node_with_span(
                     Pattern::Tuple(TuplePattern {
                         fields: AstNodes::empty(),
                     }),
@@ -288,7 +284,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
             Ok(element.into_body().move_out().pattern)
         } else {
-            Ok(self.node_with_location(
+            Ok(self.node_with_span(
                 Pattern::Tuple(TuplePattern { fields: elements }),
                 parent_span,
             ))
@@ -321,7 +317,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => (None, self.parse_pattern()?),
         };
 
-        Ok(self.node_with_joined_location(TuplePatternEntry { name, pattern }, &start))
+        Ok(self.node_with_joined_span(TuplePatternEntry { name, pattern }, &start))
     }
 
     /// Convert a [Literal] into a [LiteralPattern].

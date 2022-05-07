@@ -59,7 +59,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // Just return an empty block if we don't get anything
         if !gen.has_token() {
-            return Ok(self.node_with_location(Block::Body(block), start));
+            return Ok(self.node_with_span(Block::Body(block), start));
         }
 
         // firstly check if the first token signals a beginning of a statement, we can tell
@@ -89,7 +89,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                     match statement.into_body().move_out() {
                         Statement::Block(BlockStatement(inner_block)) => {
-                            block.expr = Some(self.node_with_location(
+                            block.expr = Some(self.node_with_span(
                                 Expression::new(ExpressionKind::Block(BlockExpr(inner_block))),
                                 span,
                             ));
@@ -103,7 +103,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_location(Block::Body(block), &start))
+        Ok(self.node_with_joined_span(Block::Body(block), &start))
     }
 
     /// Parse a for-loop block
@@ -150,7 +150,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // >>>     }
         // >>> }
         //
-        Ok(self.node_with_joined_location(Block::Loop(LoopBlock(self.node_with_joined_location(
+        Ok(self.node_with_joined_span(Block::Loop(LoopBlock(self.node_with_joined_span(
             Block::Match(MatchBlock {
             subject: self.node(Expression::new(ExpressionKind::FunctionCall(
                 FunctionCallExpr {
@@ -160,8 +160,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             type_args: AstNodes::empty(),
                         },
                     ))),
-                    args: self.node_with_location(FunctionCallArgs {
-                        entries: ast_nodes![&self.wall; self.node_with_location(
+                    args: self.node_with_span(FunctionCallArgs {
+                        entries: ast_nodes![&self.wall; self.node_with_span(
                             FunctionCallArg {
                                 name: None,
                                 value: iterator,
@@ -171,8 +171,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }, iter_span),
                 },
             ))),
-            cases: ast_nodes![&self.wall; self.node_with_location(MatchCase {
-                    pattern: self.node_with_location(
+            cases: ast_nodes![&self.wall; self.node_with_span(MatchCase {
+                    pattern: self.node_with_span(
                         Pattern::Enum(
                             EnumPattern {
                                 name:
@@ -184,7 +184,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             },
                         ), pat_span
                     ),
-                    expr: self.node_with_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
+                    expr: self.node_with_span(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
                 }, start),
                 self.node(MatchCase {
                     pattern: self.node(
@@ -242,13 +242,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let (condition_span, body_span) = (condition.location(), body.location());
 
-        Ok(self.node_with_joined_location(
-            Block::Loop(LoopBlock(self.node_with_location(
+        Ok(self.node_with_joined_span(
+            Block::Loop(LoopBlock(self.node_with_span(
                 Block::Match(MatchBlock {
                     subject: condition,
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
                         pattern: self.node(Pattern::Literal(LiteralPattern::Boolean(BooleanLiteralPattern(false)))),
-                            expr: self.node_with_location(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
+                            expr: self.node_with_span(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Literal(LiteralPattern::Boolean(BooleanLiteralPattern(false)))),
@@ -277,7 +277,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(self.node_with_joined_location(MatchCase { pattern, expr }, &start))
+        Ok(self.node_with_joined_span(MatchCase { pattern, expr }, &start))
     }
 
     /// Parse a match block statement, which is composed of a subject and an arbitrary
@@ -323,7 +323,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => self.unexpected_eof()?,
         };
 
-        Ok(self.node_with_joined_location(
+        Ok(self.node_with_joined_span(
             Block::Match(MatchBlock {
                 subject,
                 cases,
@@ -378,11 +378,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             let (clause_span, branch_span) = (clause.location(), branch.location());
 
             cases.nodes.push(
-                self.node_with_location(
+                self.node_with_span(
                     MatchCase {
-                        pattern: self.node_with_location(
+                        pattern: self.node_with_span(
                             Pattern::If(IfPattern {
-                                pattern: self.node_with_location(
+                                pattern: self.node_with_span(
                                     Pattern::Ignore(IgnorePattern),
                                     clause_span,
                                 ),
@@ -390,7 +390,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             }),
                             clause_span,
                         ),
-                        expr: self.node_with_location(
+                        expr: self.node_with_span(
                             Expression::new(ExpressionKind::Block(BlockExpr(branch))),
                             branch_span,
                         ),
@@ -424,10 +424,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     has_else_branch = true;
 
                     cases.nodes.push(
-                        self.node_with_location(
+                        self.node_with_span(
                             MatchCase {
                                 pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                                expr: self.node_with_location(
+                                expr: self.node_with_span(
                                     Expression::new(ExpressionKind::Block(BlockExpr(else_branch))),
                                     else_span,
                                 ),
@@ -458,7 +458,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             );
         }
 
-        Ok(self.node_with_joined_location(
+        Ok(self.node_with_joined_span(
             Block::Match(MatchBlock {
                 subject: self.make_boolean(true),
                 cases,
