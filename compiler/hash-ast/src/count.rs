@@ -182,6 +182,7 @@ impl NodeCount for Pattern<'_> {
             }
             Pattern::Namespace(pat) => pat.fields.iter().map(|p| p.node_count()).sum(),
             Pattern::Tuple(pat) => pat.fields.iter().map(|e| e.node_count()).sum(),
+            Pattern::List(pat) => pat.fields.iter().map(|e| e.node_count()).sum(),
             Pattern::Literal(_) => 0,
             Pattern::Or(pat) => pat.variants.iter().map(|e| e.node_count()).sum(),
             Pattern::If(pat) => {

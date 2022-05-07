@@ -1791,6 +1791,21 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_tuple_type(elements))
     }
 
+    type ListPatternRet = TypeId;
+    fn visit_list_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListPattern<'c>>,
+    ) -> Result<Self::ListPatternRet, Self::Error> {
+        let walk::ListPattern { elements } = walk::walk_list_pattern(self, ctx, node)?;
+
+        let el_ty = self
+            .unifier()
+            .unify_many(elements.iter().copied(), UnifyStrategy::ModifyBoth)?;
+
+        Ok(self.create_list_type(el_ty))
+    }
+
     type StrLiteralPatternRet = TypeId;
     fn visit_str_literal_pattern(
         &mut self,

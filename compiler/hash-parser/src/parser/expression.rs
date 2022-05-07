@@ -60,10 +60,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let block = match kind {
                     TokenKind::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
-                    TokenKind::Keyword(Keyword::Loop) => self.node_with_joined_span(
-                        Block::Loop(LoopBlock(self.parse_block()?)),
-                        &start,
-                    ),
+                    TokenKind::Keyword(Keyword::Loop) => self
+                        .node_with_joined_span(Block::Loop(LoopBlock(self.parse_block()?)), &start),
                     TokenKind::Keyword(Keyword::If) => self.parse_if_statement()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
                     _ => unreachable!(),
@@ -696,34 +694,34 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 };
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
-                        subject: self.make_ident(fn_name, &start),
-                        args: self.node_with_span(
-                            FunctionCallArgs {
-                                entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
+                    subject: self.make_ident(fn_name, &start),
+                    args: self.node_with_span(
+                        FunctionCallArgs {
+                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
                                     name: None,
                                     value
                                 }, span)],
-                            },
-                            span,
-                        ),
-                    })
+                        },
+                        span,
+                    ),
+                })
             }
             TokenKind::Tilde => {
                 let value = self.parse_expression()?;
                 let span = value.location();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
-                        subject: self.make_ident("notb", &start),
-                        args: self.node_with_span(
-                            FunctionCallArgs {
-                                entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
+                    subject: self.make_ident("notb", &start),
+                    args: self.node_with_span(
+                        FunctionCallArgs {
+                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
                                     name: None,
                                     value
                                 }, span)],
-                            },
-                            span,
-                        ),
-                    })
+                        },
+                        span,
+                    ),
+                })
             }
             TokenKind::Hash => {
                 // First get the directive subject, and expect a possible singular expression
@@ -742,17 +740,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let span = value.location();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
-                        subject: self.make_ident("not", &start),
-                        args: self.node_with_span(
-                            FunctionCallArgs {
-                                entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
+                    subject: self.make_ident("not", &start),
+                    args: self.node_with_span(
+                        FunctionCallArgs {
+                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
                                     name: None,
                                     value
                                 }, span)],
-                            },
-                            span,
-                        ),
-                    })
+                        },
+                        span,
+                    ),
+                })
             }
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expression()?;
