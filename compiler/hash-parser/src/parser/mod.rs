@@ -259,9 +259,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Err(self.make_error(kind, expected, received, Some(location)))
     }
 
-    /// Generate an error that represents that within the current [AstGen] the 
+    /// Generate an error that represents that within the current [AstGen] the
     /// `end of file` state should be reached. This means that either in the root
-    /// generator there are no more tokens or within a nested generator (such as 
+    /// generator there are no more tokens or within a nested generator (such as
     /// if the generator is within a brackets) that it should now read no more
     /// tokens.
     pub(crate) fn expected_eof<T>(&self) -> AstGenResult<'c, T> {
@@ -278,7 +278,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
-    /// Generate an error representing that the current generator unexpectedly reached the 
+    /// Generate an error representing that the current generator unexpectedly reached the
     /// end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<'c, T> {
         self.error(AstGenErrorKind::EOF, None, None)

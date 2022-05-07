@@ -128,7 +128,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
         }
 
-        if self.parse_token_atom_fast(TokenKind::Gt).is_none () {
+        if self.parse_token_atom_fast(TokenKind::Gt).is_none() {
             return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
         }
 
