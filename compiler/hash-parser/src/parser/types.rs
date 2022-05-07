@@ -349,7 +349,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                                 let name = self.parse_access_name(ident)?;
                                 let args = self.parse_type_args()?;
-                        
+
                                 (name, args)
                             };
 
