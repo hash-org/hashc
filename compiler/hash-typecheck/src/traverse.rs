@@ -844,11 +844,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
     }
 
-    type BoolLiteralRet = TypeId;
-    fn visit_bool_literal(
+    type BooleanLiteralRet = TypeId;
+    fn visit_boolean_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BoolLiteral>,
+        node: ast::AstNodeRef<ast::BooleanLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error> {
         let ty_location = self.source_location(node.location());
 
@@ -1832,6 +1832,17 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let ty_location = self.source_location(node.location());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
+    }
+
+    type BooleanLiteralPatternRet = TypeId;
+    fn visit_boolean_literal_pattern(
+        &mut self,
+        _ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BooleanLiteralPattern>,
+    ) -> Result<Self::BooleanLiteralRet, Self::Error> {
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::Bool), Some(ty_location)))
     }
 
     type LiteralPatternRet = TypeId;

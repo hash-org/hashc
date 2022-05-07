@@ -14,7 +14,8 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, Token
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
-    /// Function to parse a type
+    /// Parse a [Type]. This includes all forms of a [Type]. This function
+    /// does not deal with any kind of [Type] annotation or [Bound] syntax.
     pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(
@@ -45,7 +46,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     err => return err,
                 }
             }
-            // This is a type var
+            // This is a type variable
             TokenKind::Dollar => {
                 self.skip_token();
                 let name = self.parse_name()?;
@@ -159,12 +160,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_location(variant, &start))
     }
 
-    /// This parses some type args after an [AccessName], however due to the nature of the
-    /// language grammar, since the [TokenKind] could be a `TokenKind::Lt` or `<`, it could
+    /// This parses some type arguments after an [AccessName], however due to the nature of the
+    /// language grammar, since the [TokenKind] could be a [`TokenKind::Lt`] or `<`, it could
     /// also be a comparison rather than the beginning of a type argument. Therefore, we have to
     /// lookahead to see if there is another type followed by either a comma (which locks the
-    /// type_args) or a closing `TokenKind::Gt`. Otherwise, we back track and let the expression
-    /// be parsed as an order comparison.
+    /// `type_args`) or a closing [`TokenKind::Gt`].
     pub fn parse_type_args(&self) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
         self.parse_token_atom(TokenKind::Lt)?;
         let start = self.current_location();
@@ -204,11 +204,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(type_args)
     }
 
-    /// Parses a function type which involves a parenthesis token tree with some arbitrary
-    /// number of comma separated types followed by a return type that is preceded by an
-    /// arrow after the parentheses.
+    /// Parses a [Type::Fn] which involves a parenthesis token tree with some arbitrary
+    /// number of comma separated types followed by a return [Type] that is preceded by an
+    /// `thin-arrow` (->) after the parentheses.
     ///
-    ///  (e.g. (i32) => str)
+    ///  (e.g. (i32) -> str)
     ///
     pub fn parse_function_or_tuple_type(
         &self,
@@ -302,18 +302,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse a trait bound.
-    pub fn parse_trait_bound(
-        &self,
-        ident: AstNode<'c, Identifier>,
-    ) -> AstGenResult<'c, (AstNode<'c, AccessName<'c>>, AstNodes<'c, Type<'c>>)> {
-        let name = self.parse_access_name(ident)?;
-        let args = self.parse_type_args()?;
-
-        Ok((name, args))
-    }
-
-    /// Parse an access name followed by optional type arguments..
+    /// Parse an [AccessName] followed by optional [Type] arguments..
     pub fn parse_name_with_type_args(
         &self,
         ident: AstNode<'c, Identifier>,
@@ -334,7 +323,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok((name, args))
     }
 
-    /// Parse a type bound. Type bounds can occur in traits, function, struct and enum
+    /// Parse a type [Bound]. Type bounds can occur in traits, function, struct and enum
     /// definitions.
     pub fn parse_type_bound(&self) -> AstGenResult<'c, AstNode<'c, Bound<'c>>> {
         let type_args = self.parse_type_args()?;
@@ -355,8 +344,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             self.skip_token();
 
                             let bound_start = self.current_location();
-                            let (name, type_args) =
-                                self.parse_trait_bound(self.node_with_location(*ident, *span))?;
+                            let (name, type_args) = {
+                                let ident = self.node_with_location(*ident, *span);
+
+                                let name = self.parse_access_name(ident)?;
+                                let args = self.parse_type_args()?;
+                        
+                                (name, args)
+                            };
 
                             trait_bounds.nodes.push(
                                 self.node_with_joined_location(
