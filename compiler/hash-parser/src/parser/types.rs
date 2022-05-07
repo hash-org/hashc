@@ -61,7 +61,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
 
                 let (name, args) =
-                    self.parse_name_with_type_args(self.node_with_location(*id, start))?;
+                    self.parse_name_with_type_args(self.node_with_span(*id, start))?;
 
                 // if the type_args are None, this means that the name could be either a
                 // infer_type, or a type_var...
@@ -157,7 +157,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
-        Ok(self.node_with_joined_location(variant, &start))
+        Ok(self.node_with_joined_span(variant, &start))
     }
 
     /// This parses some type arguments after an [AccessName], however due to the nature of the
@@ -255,7 +255,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     _ => (None, gen.parse_type()?),
                                 };
 
-                                Ok(gen.node_with_joined_location(
+                                Ok(gen.node_with_joined_span(
                                     NamedFieldTypeEntry { name, ty },
                                     &start,
                                 ))
@@ -279,7 +279,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(self.node_with_joined_location(
+                Ok(self.node_with_joined_span(
                     Type::Fn(FnType {
                         args,
                         return_ty: self.parse_type()?,
@@ -293,7 +293,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
 
                 Ok(
-                    self.node_with_joined_location(
+                    self.node_with_joined_span(
                         Type::Tuple(TupleType { entries: args }),
                         &start,
                     ),
@@ -345,7 +345,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                             let bound_start = self.current_location();
                             let (name, type_args) = {
-                                let ident = self.node_with_location(*ident, *span);
+                                let ident = self.node_with_span(*ident, *span);
 
                                 let name = self.parse_access_name(ident)?;
                                 let args = self.parse_type_args()?;
@@ -354,7 +354,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             };
 
                             trait_bounds.nodes.push(
-                                self.node_with_joined_location(
+                                self.node_with_joined_span(
                                     TraitBound { name, type_args },
                                     &bound_start,
                                 ),
@@ -379,7 +379,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => ast_nodes![&self.wall;],
         };
 
-        Ok(self.node_with_joined_location(
+        Ok(self.node_with_joined_span(
             Bound {
                 type_args,
                 trait_bounds,

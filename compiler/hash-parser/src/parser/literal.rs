@@ -15,7 +15,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// by simply matching on the type of the expr.
     pub fn parse_literal(&self) -> AstNode<'c, Expression<'c>> {
         let token = self.current_token();
-        let literal = self.node_with_location(
+        let literal = self.node_with_span(
             match token.kind {
                 TokenKind::IntLiteral(num) => Literal::Int(IntLiteral(num)),
                 TokenKind::FloatLiteral(num) => Literal::Float(FloatLiteral(num)),
@@ -28,7 +28,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             token.span,
         );
 
-        self.node_with_location(
+        self.node_with_span(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
             token.span,
         )
@@ -42,7 +42,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_token_atom(TokenKind::Colon)?;
         let value = self.parse_expression_with_precedence(0)?;
 
-        Ok(self.node_with_joined_location(MapLiteralEntry { key, value }, &start))
+        Ok(self.node_with_joined_span(MapLiteralEntry { key, value }, &start))
     }
 
     /// Parse a map literal which is made of braces with an arbitrary number of
@@ -60,7 +60,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         elements.nodes.insert(0, initial_entry, &self.wall);
 
-        Ok(self.node_with_joined_location(Literal::Map(MapLiteral { elements }), &start))
+        Ok(self.node_with_joined_span(Literal::Map(MapLiteral { elements }), &start))
     }
 
     /// Parse a set literal which is made of braces with an arbitrary number of
@@ -80,7 +80,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // insert the first item into elements
         elements.nodes.insert(0, initial_entry, &self.wall);
 
-        Ok(self.node_with_joined_location(Literal::Set(SetLiteral { elements }), &start))
+        Ok(self.node_with_joined_span(Literal::Set(SetLiteral { elements }), &start))
     }
 
     /// Function to parse a tuple literal entry with a name.
@@ -119,7 +119,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.parse_token_atom(TokenKind::Eq)?;
 
                 // Now we try and parse an expression that allows re-assignment operators...
-                Some(self.node_with_joined_location(
+                Some(self.node_with_joined_span(
                     TupleLiteralEntry {
                         name: Some(name),
                         ty,
@@ -134,7 +134,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         match entry {
             Some(entry) => Ok(entry),
-            None => Ok(self.node_with_joined_location(
+            None => Ok(self.node_with_joined_span(
                 TupleLiteralEntry {
                     name: None,
                     ty: None,
@@ -177,9 +177,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(gen.node_with_joined_location(
+        Ok(gen.node_with_joined_span(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_with_joined_location(Literal::List(ListLiteral { elements }), &start),
+                gen.node_with_joined_span(Literal::List(ListLiteral { elements }), &start),
             ))),
             &start,
         ))
