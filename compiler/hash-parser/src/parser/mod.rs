@@ -109,7 +109,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to create a [SourceLocation] from a [Location] by using the provided resolver
-    fn source_location(&self, location: &Location) -> SourceLocation {
+    pub(crate) fn source_location(&self, location: &Location) -> SourceLocation {
         SourceLocation {
             location: *location,
             source_id: self.resolver.current_source_id(),
@@ -239,7 +239,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Create an error at the current location.
-    pub fn error<T>(
+    pub(crate) fn error<T>(
         &self,
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
@@ -249,7 +249,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Create an error at the current location.
-    pub fn error_with_location<T>(
+    pub(crate) fn error_with_location<T>(
         &self,
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
@@ -302,9 +302,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Utility for creating a boolean in enum representation
     #[inline(always)]
-    fn make_boolean(&self, value: bool) -> AstNode<'c, Expression<'c>> {
+    fn make_bool(&self, value: bool) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-            self.node(Literal::Bool(BooleanLiteral(value))),
+            self.node(Literal::Bool(BoolLiteral(value))),
         ))))
     }
 
@@ -358,7 +358,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// to where it was the function was peeked. This is essentially a convertor from a [AstGenResult<T>]
     /// into an [Option<T>] with the side effect of resetting the parser state back to it's original
     /// settings.
-    pub fn peek_resultant_fn<T, E>(&self, parse_fn: impl Fn() -> Result<T, E>) -> Option<T> {
+    pub(crate) fn peek_resultant_fn<T, E>(&self, parse_fn: impl Fn() -> Result<T, E>) -> Option<T> {
         let start = self.offset();
 
         match parse_fn() {
@@ -374,7 +374,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// 'separator' closure. The function has a behaviour of allowing trailing separator. This
     /// will also parse the function until the end of the current generator, and therefore it
     /// is intended to be used with a nested generator.
-    pub fn parse_separated_fn<T>(
+    pub(crate) fn parse_separated_fn<T>(
         &self,
         parse_fn: impl Fn() -> AstGenResult<'c, AstNode<'c, T>>,
         separator_fn: impl Fn() -> AstGenResult<'c, ()>,
@@ -405,7 +405,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Function to parse the next token with the same kind as the specified kind, this
     /// is a useful utility function for parsing singular tokens in the place of more complex
     /// compound statements and expressions.
-    pub fn parse_token_atom(&self, atom: TokenKind) -> AstGenResult<'c, ()> {
+    pub(crate) fn parse_token_atom(&self, atom: TokenKind) -> AstGenResult<'c, ()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
@@ -427,7 +427,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to parse a token atom optionally. If the appropriate token atom is
     /// present we advance the token count, if not then just return None
-    pub fn parse_token_atom_fast(&self, atom: TokenKind) -> Option<()> {
+    pub(crate) fn parse_token_atom_fast(&self, atom: TokenKind) -> Option<()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
@@ -438,7 +438,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a [Module] which is simply made of a list of statements
-    pub fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
+    pub(crate) fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
         let start = self.current_location();
         let mut contents = AstNodes::empty();
 
@@ -457,7 +457,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// without the actual braces to begin with. It follows that there are an arbitrary
     /// number of statements, followed by an optional final expression which doesn't
     /// need to be completed by a comma...
-    pub fn parse_expression_from_interactive(
+    pub(crate) fn parse_expression_from_interactive(
         &self,
     ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
         // get the starting position

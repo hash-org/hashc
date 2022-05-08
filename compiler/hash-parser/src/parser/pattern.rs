@@ -341,12 +341,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::CharLiteral(s) => LiteralPattern::Char(CharLiteralPattern(*s)),
             TokenKind::IntLiteral(s) => LiteralPattern::Int(IntLiteralPattern(*s)),
             TokenKind::FloatLiteral(s) => LiteralPattern::Float(FloatLiteralPattern(*s)),
-            TokenKind::Keyword(Keyword::False) => {
-                LiteralPattern::Boolean(BooleanLiteralPattern(false))
-            }
-            TokenKind::Keyword(Keyword::True) => {
-                LiteralPattern::Boolean(BooleanLiteralPattern(true))
-            }
+            TokenKind::Keyword(Keyword::False) => LiteralPattern::Bool(BoolLiteralPattern(false)),
+            TokenKind::Keyword(Keyword::True) => LiteralPattern::Bool(BoolLiteralPattern(true)),
             _ => unreachable!(),
         }
     }
