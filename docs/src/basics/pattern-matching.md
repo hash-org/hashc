@@ -150,7 +150,7 @@ statements and when importing symbols from other modules. They follow a simple s
 
 To read more about modules, you can click [here](./modules.md).
 
-## Tuple patterns 🚧
+## Tuple patterns
 
 Tuple patterns are straight forward, they follow the same syntax as declaring a tuple literal.
 
@@ -174,11 +174,9 @@ excessive_tup.tenth; // error
 > **Note**: You shouldn't use tuples this large, this leads to code that is difficult to read and interpret,
 > you should use a struct in that case which would solve the complexities of your data structures.
 
-## Array patterns 🚧 
+## List patterns
 
-Array patterns are currently not implemented within the language, but are planned to be added.
-
-An array pattern can bind elements at certain positions of the array by using the following syntax:
+A list pattern can bind elements at certain positions of the array by using the following syntax:
 
 ```rust
 [a, b] := arr;
@@ -221,7 +219,7 @@ error: Failed to Typecheck:
  --> 1:6 - 1:9, 1:15 - 1:18
   |
 1 | [..., a, ...] := arr;
-  |      ^^^     ^^^
+  |  ^^^     ^^^
   |
   = You cannot use multiple spread operators within a single array pattern.
 ```
