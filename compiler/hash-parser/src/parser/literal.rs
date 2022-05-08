@@ -13,7 +13,7 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a [ExpressionKind::LiteralExpr]
     /// by simply matching on the type of the expr.
-    pub fn parse_literal(&self) -> AstNode<'c, Expression<'c>> {
+    pub(crate) fn parse_literal(&self) -> AstNode<'c, Expression<'c>> {
         let token = self.current_token();
         let literal = self.node_with_span(
             match token.kind {
@@ -21,8 +21,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 TokenKind::FloatLiteral(num) => Literal::Float(FloatLiteral(num)),
                 TokenKind::CharLiteral(ch) => Literal::Char(CharLiteral(ch)),
                 TokenKind::StrLiteral(str) => Literal::Str(StrLiteral(str)),
-                TokenKind::Keyword(Keyword::False) => Literal::Bool(BooleanLiteral(false)),
-                TokenKind::Keyword(Keyword::True) => Literal::Bool(BooleanLiteral(true)),
+                TokenKind::Keyword(Keyword::False) => Literal::Bool(BoolLiteral(false)),
+                TokenKind::Keyword(Keyword::True) => Literal::Bool(BoolLiteral(true)),
                 _ => unreachable!(),
             },
             token.span,
@@ -35,7 +35,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a single map entry in a literal.
-    pub fn parse_map_entry(&self) -> AstGenResult<'c, AstNode<'c, MapLiteralEntry<'c>>> {
+    pub(crate) fn parse_map_entry(&self) -> AstGenResult<'c, AstNode<'c, MapLiteralEntry<'c>>> {
         let start = self.current_location();
 
         let key = self.parse_expression_with_precedence(0)?;
@@ -47,7 +47,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a map literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub fn parse_map_literal(
+    pub(crate) fn parse_map_literal(
         &self,
         gen: Self,
         initial_entry: AstNode<'c, MapLiteralEntry<'c>>,
@@ -65,7 +65,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a set literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub fn parse_set_literal(
+    pub(crate) fn parse_set_literal(
         &self,
         gen: Self,
         initial_entry: AstNode<'c, Expression<'c>>,
@@ -84,7 +84,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to parse a tuple literal entry with a name.
-    pub fn parse_tuple_literal_entry(
+    pub(crate) fn parse_tuple_literal_entry(
         &self,
     ) -> AstGenResult<'c, AstNode<'c, TupleLiteralEntry<'c>>> {
         let start = self.current_location();
@@ -146,7 +146,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse an array literal.
-    pub fn parse_array_literal(
+    pub(crate) fn parse_array_literal(
         &self,
         tree: &'stream Row<'stream, Token>,
         span: &Location,

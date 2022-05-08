@@ -14,7 +14,7 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a block.
-    pub fn parse_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         let (gen, start) = match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree_index),
@@ -38,7 +38,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to parse a block body
-    pub fn parse_block_from_gen(
+    pub(crate) fn parse_block_from_gen(
         &self,
         gen: &Self,
         start: Location,
@@ -107,7 +107,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a for-loop block
-    pub fn parse_for_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_for_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::For)));
@@ -227,7 +227,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// >>>         false => break;
     /// >>>     }
     /// >>> }
-    pub fn parse_while_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_while_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::While)));
@@ -247,11 +247,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Block::Match(MatchBlock {
                     subject: condition,
                     cases: ast_nodes![&self.wall; self.node(MatchCase {
-                        pattern: self.node(Pattern::Literal(LiteralPattern::Boolean(BooleanLiteralPattern(false)))),
+                        pattern: self.node(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false)))),
                             expr: self.node_with_span(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
                         }),
                         self.node(MatchCase {
-                            pattern: self.node(Pattern::Literal(LiteralPattern::Boolean(BooleanLiteralPattern(false)))),
+                            pattern: self.node(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false)))),
                             expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
                                 self.node(Block::Body(BodyBlock {
                                     statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
@@ -270,7 +270,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
-    pub fn parse_match_case(&self) -> AstGenResult<'c, AstNode<'c, MatchCase<'c>>> {
+    pub(crate) fn parse_match_case(&self) -> AstGenResult<'c, AstNode<'c, MatchCase<'c>>> {
         let start = self.current_location();
         let pattern = self.parse_pattern()?;
 
@@ -282,7 +282,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a match block statement, which is composed of a subject and an arbitrary
     /// number of match cases that are surrounded in braces.
-    pub fn parse_match_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_match_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Match)));
@@ -352,7 +352,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Additionally, if no 'else' clause is specified, we fill it with an
     /// empty block since an if-block could be assigned to any variable and therefore
     /// we need to know the outcome of all branches for typechecking.
-    pub fn parse_if_statement(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_if_statement(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(matches!(
             self.current_token().kind,
             TokenKind::Keyword(Keyword::If)
@@ -458,7 +458,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         Ok(self.node_with_joined_span(
             Block::Match(MatchBlock {
-                subject: self.make_boolean(true),
+                subject: self.make_bool(true),
                 cases,
                 origin: MatchOrigin::If,
             }),
