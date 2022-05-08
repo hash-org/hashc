@@ -10,7 +10,7 @@ mod logger;
 use clap::Parser as ClapParser;
 use hash_alloc::Castle;
 use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
-use hash_parser::parser::HashParser;
+use hash_parser::HashParser;
 use hash_pipeline::{
     fs::resolve_path, settings::CompilerMode, settings::CompilerSettings, sources::Module, Compiler,
 };

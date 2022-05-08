@@ -1834,6 +1834,17 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
     }
 
+    type BoolLiteralPatternRet = TypeId;
+    fn visit_bool_literal_pattern(
+        &mut self,
+        _ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BoolLiteralPattern>,
+    ) -> Result<Self::BoolLiteralRet, Self::Error> {
+        let ty_location = self.source_location(node.location());
+
+        Ok(self.create_type(TypeValue::Prim(PrimType::Bool), Some(ty_location)))
+    }
+
     type LiteralPatternRet = TypeId;
     fn visit_literal_pattern(
         &mut self,

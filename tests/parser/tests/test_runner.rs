@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use hash_alloc::Castle;
-use hash_parser::parser::HashParser;
+use hash_parser::HashParser;
 use hash_pipeline::{
     sources::{Module, Sources},
     Parser,

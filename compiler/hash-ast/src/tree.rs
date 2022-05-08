@@ -1022,6 +1022,15 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
+    type BoolLiteralPatternRet = TreeNode;
+    fn visit_bool_literal_pattern(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BoolLiteralPattern>,
+    ) -> Result<Self::BoolLiteralPatternRet, Self::Error> {
+        Ok(TreeNode::leaf(labelled("bool", node.0, "")))
+    }
+
     type LiteralPatternRet = TreeNode;
     fn visit_literal_pattern(
         &mut self,
