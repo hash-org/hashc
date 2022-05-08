@@ -61,26 +61,36 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         }
     }
 
-    /// Returns amount of already consumed symbols.
-    pub(crate) fn len_consumed(&self) -> usize {
-        self.offset.get()
-    }
-
     /// Returns a reference to the stored token trees for the current job
     pub fn into_token_trees(self) -> Row<'w, Row<'w, Token>> {
         self.token_trees
     }
 
+    /// Tokenise the given input stream
+    pub fn tokenise(&mut self) -> Result<Row<'c, Token>, LexerErrorWrapper> {
+        let wall = self.wall;
+        let iter = std::iter::from_fn(|| self.advance_token().transpose());
+
+        Row::try_from_iter(iter, wall).map_err(|err| LexerErrorWrapper(self.source_id, err))
+    }
+
+    /// Returns amount of already consumed symbols.
+    #[inline(always)]
+    fn len_consumed(&self) -> usize {
+        self.offset.get()
+    }
+
     /// Peeks the next symbol from the input stream without consuming it.
-    pub(crate) fn peek(&self) -> char {
+    fn peek(&self) -> char {
         self.nth_char(0)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
-    pub(crate) fn peek_second(&self) -> char {
+    fn peek_second(&self) -> char {
         self.nth_char(1)
     }
 
+    /// Get the remaining un-lexed contents as a raw string.
     unsafe fn as_slice(&self) -> &str {
         let offset = self.offset.get();
 
@@ -100,7 +110,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Moves to the next character.
-    pub(crate) fn next(&self) -> Option<char> {
+    fn next(&self) -> Option<char> {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next()?;
 
@@ -109,7 +119,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Move to the next character and skip it essentially.
-    pub(crate) fn skip(&self) {
+    fn skip(&self) {
         let slice = unsafe { self.as_slice() };
         let ch = slice.chars().next().unwrap();
 
@@ -118,7 +128,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     }
 
     /// Checks if there is nothing more to consume.
-    pub(crate) fn is_eof(&self) -> bool {
+    fn is_eof(&self) -> bool {
         self.contents.len() == self.len_consumed()
     }
 
@@ -221,7 +231,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// of the provided delimiter. If no delimiter is reached, but the stream has reached EOF, this is reported
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
     /// performing complex delimiter depth analysis later on.
-    pub(crate) fn eat_token_tree(&mut self, delimiter: Delimiter) -> LexerResult<TokenKind> {
+    fn eat_token_tree(&mut self, delimiter: Delimiter) -> LexerResult<TokenKind> {
         let mut children_tokens = row![self.wall];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
@@ -253,7 +263,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Consume an identifier, at this stage keywords are also considered to be identifiers. The function
     /// expects that the first character of the identifier is consumed when the function is called.
-    pub(crate) fn ident(&self, first: char) -> TokenKind {
+    fn ident(&self, first: char) -> TokenKind {
         debug_assert!(is_id_start(first));
 
         let start = self.offset.get() - first.len_utf8();
@@ -297,7 +307,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
     /// Consume a number literal, either float or integer. The function expects that the first character of
     /// the numeric literal is consumed when the function is called.
-    pub(crate) fn number(&self, prev: char) -> LexerResult<TokenKind> {
+    fn number(&self, prev: char) -> LexerResult<TokenKind> {
         // record the start location of the literal
         let start = self.offset.get() - 1;
 
@@ -439,7 +449,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Consume only decimal digits up to encountering a non-decimal digit
     /// whilst taking into account that the language supports '_' as digit
     /// separators which should just be skipped over...
-    pub(crate) fn eat_decimal_digits(&self, radix: u32) -> &str {
+    fn eat_decimal_digits(&self, radix: u32) -> &str {
         self.eat_while_and_slice(move |c| c.is_digit(radix) || c == '_')
     }
 
@@ -553,7 +563,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// quote, this will produce a [TokenAtom::CharLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached. This function expects
     /// the the callee has previously eaten the starting single quote.
-    pub(crate) fn char(&self) -> LexerResult<TokenKind> {
+    fn char(&self) -> LexerResult<TokenKind> {
         // Subtract one to capture the previous quote, since we know it's one byte in size
         let start = self.offset.get() - 1;
 
@@ -610,7 +620,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// Consume a string literal provided that the current previous token is a double
     /// quote, this will produce a [TokenAtom::StrLiteral] provided that the literal is
     /// correctly formed and is ended before the end of file is reached.
-    pub(crate) fn string(&self) -> LexerResult<TokenKind> {
+    fn string(&self) -> LexerResult<TokenKind> {
         let mut value = String::from("");
         let mut closed = false;
 
@@ -649,7 +659,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// characters up to the next '\n' encountered. If we reach EOF before a newline, then
     /// we stop eating there.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
-    pub(crate) fn line_comment(&self) {
+    fn line_comment(&self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '/');
         self.skip();
         self.eat_while_and_discard(|c| c != '\n');
@@ -659,7 +669,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// iterator encounters the start of another block comment, we increment a nested comment
     /// counter to ensure that nested block comments are accounted for and handled gracefully.
     //@@DocSupport: These could return a TokenKind so that we can feed it into some kind of documentation generator tool
-    pub(crate) fn block_comment(&self) {
+    fn block_comment(&self) {
         debug_assert!(self.peek() == '/' && self.peek_second() == '*');
         self.skip();
 
@@ -713,13 +723,5 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let end = self.offset.get();
 
         &self.contents[start..end]
-    }
-
-    /// Tokenise the given input stream
-    pub fn tokenise(&mut self) -> Result<Row<'c, Token>, LexerErrorWrapper> {
-        let wall = self.wall;
-        let iter = std::iter::from_fn(|| self.advance_token().transpose());
-
-        Row::try_from_iter(iter, wall).map_err(|err| LexerErrorWrapper(self.source_id, err))
     }
 }

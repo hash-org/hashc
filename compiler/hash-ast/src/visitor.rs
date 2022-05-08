@@ -544,6 +544,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error>;
 
+    type BoolLiteralPatternRet: 'c;
+    fn visit_bool_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BoolLiteralPattern>,
+    ) -> Result<Self::BoolLiteralPatternRet, Self::Error>;
+
     type LiteralPatternRet: 'c;
     fn visit_literal_pattern(
         &mut self,
@@ -1702,6 +1709,7 @@ pub mod walk {
         Char(V::CharLiteralPatternRet),
         Int(V::IntLiteralPatternRet),
         Float(V::FloatLiteralPatternRet),
+        Bool(V::BoolLiteralPatternRet),
     }
 
     pub fn walk_literal_pattern<'c, V: AstVisitor<'c>>(
@@ -1722,6 +1730,9 @@ pub mod walk {
             ast::LiteralPattern::Float(r) => {
                 LiteralPattern::Float(visitor.visit_float_literal_pattern(ctx, node.with_body(r))?)
             }
+            ast::LiteralPattern::Bool(r) => {
+                LiteralPattern::Bool(visitor.visit_bool_literal_pattern(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -1737,6 +1748,7 @@ pub mod walk {
             CharLiteralPatternRet = Ret,
             IntLiteralPatternRet = Ret,
             FloatLiteralPatternRet = Ret,
+            BoolLiteralPatternRet = Ret,
         >,
     {
         Ok(match walk_literal_pattern(visitor, ctx, node)? {
@@ -1744,6 +1756,7 @@ pub mod walk {
             LiteralPattern::Char(r) => r,
             LiteralPattern::Int(r) => r,
             LiteralPattern::Float(r) => r,
+            LiteralPattern::Bool(r) => r,
         })
     }
 

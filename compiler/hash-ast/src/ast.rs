@@ -553,13 +553,18 @@ pub struct IntLiteralPattern(pub u64);
 #[derive(Debug, PartialEq)]
 pub struct FloatLiteralPattern(pub f64);
 
-/// A literal pattern, e.g. `1`, `3.4`, `"foo"`.
+/// A boolean literal pattern.
+#[derive(Debug, PartialEq)]
+pub struct BoolLiteralPattern(pub bool);
+
+/// A literal pattern, e.g. `1`, `3.4`, `"foo"`, `false`.
 #[derive(Debug, PartialEq)]
 pub enum LiteralPattern {
     Str(StrLiteralPattern),
     Char(CharLiteralPattern),
     Int(IntLiteralPattern),
     Float(FloatLiteralPattern),
+    Bool(BoolLiteralPattern),
 }
 
 /// A pattern name binding.
