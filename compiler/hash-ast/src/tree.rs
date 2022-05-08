@@ -514,12 +514,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
-    type BooleanLiteralRet = TreeNode;
-    fn visit_boolean_literal(
+    type BoolLiteralRet = TreeNode;
+    fn visit_bool_literal(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BooleanLiteral>,
-    ) -> Result<Self::BooleanLiteralRet, Self::Error> {
+        node: ast::AstNodeRef<ast::BoolLiteral>,
+    ) -> Result<Self::BoolLiteralRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("bool", node.0, "")))
     }
 
@@ -1022,12 +1022,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
-    type BooleanLiteralPatternRet = TreeNode;
-    fn visit_boolean_literal_pattern(
+    type BoolLiteralPatternRet = TreeNode;
+    fn visit_bool_literal_pattern(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BooleanLiteralPattern>,
-    ) -> Result<Self::BooleanLiteralPatternRet, Self::Error> {
+        node: ast::AstNodeRef<ast::BoolLiteralPattern>,
+    ) -> Result<Self::BoolLiteralPatternRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("bool", node.0, "")))
     }
 

@@ -453,7 +453,7 @@ pub struct FloatLiteral(pub f64);
 
 /// A boolean literal.
 #[derive(Debug, PartialEq)]
-pub struct BooleanLiteral(pub bool);
+pub struct BoolLiteral(pub bool);
 
 /// A literal.
 #[derive(Debug, PartialEq)]
@@ -462,7 +462,7 @@ pub enum Literal<'c> {
     Char(CharLiteral),
     Int(IntLiteral),
     Float(FloatLiteral),
-    Bool(BooleanLiteral),
+    Bool(BoolLiteral),
     Set(SetLiteral<'c>),
     Map(MapLiteral<'c>),
     List(ListLiteral<'c>),
@@ -555,7 +555,7 @@ pub struct FloatLiteralPattern(pub f64);
 
 /// A boolean literal pattern.
 #[derive(Debug, PartialEq)]
-pub struct BooleanLiteralPattern(pub bool);
+pub struct BoolLiteralPattern(pub bool);
 
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`, `false`.
 #[derive(Debug, PartialEq)]
@@ -564,7 +564,7 @@ pub enum LiteralPattern {
     Char(CharLiteralPattern),
     Int(IntLiteralPattern),
     Float(FloatLiteralPattern),
-    Boolean(BooleanLiteralPattern),
+    Bool(BoolLiteralPattern),
 }
 
 /// A pattern name binding.
