@@ -11,10 +11,10 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, Token
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
-    /// Parse a compound [Pattern]. A compound [Pattern] means that this could be a 
-    /// pattern that might be a combination of multiple patterns. Additionally, compound 
-    /// patterns are allowed to have `if-guard` syntax which permits for conditional matching 
-    /// of a pattern. There are only a few contexts where the full range of patterns is allowed 
+    /// Parse a compound [Pattern]. A compound [Pattern] means that this could be a
+    /// pattern that might be a combination of multiple patterns. Additionally, compound
+    /// patterns are allowed to have `if-guard` syntax which permits for conditional matching
+    /// of a pattern. There are only a few contexts where the full range of patterns is allowed
     /// (such as the `match` cases).
     pub fn parse_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         // attempt to get the next token location as we're starting a pattern here, if there is no token
@@ -442,12 +442,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::CharLiteral(s) => LiteralPattern::Char(CharLiteralPattern(*s)),
             TokenKind::IntLiteral(s) => LiteralPattern::Int(IntLiteralPattern(*s)),
             TokenKind::FloatLiteral(s) => LiteralPattern::Float(FloatLiteralPattern(*s)),
-            TokenKind::Keyword(Keyword::False) => {
-                LiteralPattern::Boolean(BooleanLiteralPattern(false))
-            }
-            TokenKind::Keyword(Keyword::True) => {
-                LiteralPattern::Boolean(BooleanLiteralPattern(true))
-            }
+            TokenKind::Keyword(Keyword::False) => LiteralPattern::Bool(BoolLiteralPattern(false)),
+            TokenKind::Keyword(Keyword::True) => LiteralPattern::Bool(BoolLiteralPattern(true)),
             _ => unreachable!(),
         }
     }
