@@ -16,7 +16,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Some(Token {
                 kind: TokenKind::Ident(ident),
                 span,
-            }) => Ok(self.node_with_location(Name { ident: *ident }, *span)),
+            }) => Ok(self.node_with_span(Name { ident: *ident }, *span)),
             _ => self.error(AstGenErrorKind::ExpectedIdentifier, None, None),
         }
     }
@@ -46,7 +46,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     span,
                                 }) => {
                                     self.skip_token();
-                                    path.push(self.node_with_location(*id, *span), &self.wall);
+                                    path.push(self.node_with_span(*id, *span), &self.wall);
                                 }
                                 _ => self.error(AstGenErrorKind::AccessName, None, None)?,
                             }
@@ -64,7 +64,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let location = start.join(self.current_location());
 
-        Ok(self.node_with_location(
+        Ok(self.node_with_span(
             AccessName {
                 path: AstNodes::new(path, Some(location)),
             },

@@ -509,6 +509,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TuplePattern<'c>>,
     ) -> Result<Self::TuplePatternRet, Self::Error>;
 
+    type ListPatternRet: 'c;
+    fn visit_list_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListPattern<'c>>,
+    ) -> Result<Self::ListPatternRet, Self::Error>;
+
     type TupleTypeRet: 'c;
     fn visit_tuple_type(
         &mut self,
@@ -1495,6 +1502,7 @@ pub mod walk {
         Struct(V::StructPatternRet),
         Namespace(V::NamespacePatternRet),
         Tuple(V::TuplePatternRet),
+        List(V::ListPatternRet),
         Literal(V::LiteralPatternRet),
         Or(V::OrPatternRet),
         If(V::IfPatternRet),
@@ -1519,6 +1527,9 @@ pub mod walk {
             }
             ast::Pattern::Tuple(r) => {
                 Pattern::Tuple(visitor.visit_tuple_pattern(ctx, node.with_body(r))?)
+            }
+            ast::Pattern::List(r) => {
+                Pattern::List(visitor.visit_list_pattern(ctx, node.with_body(r))?)
             }
             ast::Pattern::Literal(r) => {
                 Pattern::Literal(visitor.visit_literal_pattern(ctx, node.with_body(r))?)
@@ -1546,6 +1557,7 @@ pub mod walk {
             StructPatternRet = Ret,
             NamespacePatternRet = Ret,
             TuplePatternRet = Ret,
+            ListPatternRet = Ret,
             LiteralPatternRet = Ret,
             OrPatternRet = Ret,
             IfPatternRet = Ret,
@@ -1558,6 +1570,7 @@ pub mod walk {
             Pattern::Struct(r) => r,
             Pattern::Namespace(r) => r,
             Pattern::Tuple(r) => r,
+            Pattern::List(r) => r,
             Pattern::Literal(r) => r,
             Pattern::Or(r) => r,
             Pattern::If(r) => r,
@@ -1665,6 +1678,7 @@ pub mod walk {
     pub struct TuplePattern<'c, V: AstVisitor<'c>> {
         pub elements: V::CollectionContainer<V::TuplePatternEntryRet>,
     }
+
     pub fn walk_tuple_pattern<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
@@ -1676,6 +1690,25 @@ pub mod walk {
                 node.fields
                     .iter()
                     .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
+            )?,
+        })
+    }
+
+    pub struct ListPattern<'c, V: AstVisitor<'c>> {
+        pub elements: V::CollectionContainer<V::PatternRet>,
+    }
+
+    pub fn walk_list_pattern<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ListPattern<'c>>,
+    ) -> Result<ListPattern<'c, V>, V::Error> {
+        Ok(ListPattern {
+            elements: V::try_collect_items(
+                ctx,
+                node.fields
+                    .iter()
+                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
             )?,
         })
     }

@@ -93,7 +93,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // consume the number of tokens eaten whilst getting the operator...
                 self.offset.update(|x| x + consumed_tokens as usize);
 
-                Ok(self.node_with_joined_location(
+                Ok(self.node_with_joined_span(
                     Operator {
                         kind,
                         assigning: true,

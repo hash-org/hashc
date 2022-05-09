@@ -537,6 +537,13 @@ pub struct TuplePattern<'c> {
     pub fields: AstNodes<'c, TuplePatternEntry<'c>>,
 }
 
+/// A list pattern, e.g. `[x, 1, ..]`
+#[derive(Debug, PartialEq)]
+pub struct ListPattern<'c> {
+    /// The element of the tuple, as patterns.
+    pub fields: AstNodes<'c, Pattern<'c>>,
+}
+
 /// A string literal pattern.
 #[derive(Debug, PartialEq)]
 pub struct StrLiteralPattern(pub StringLiteral);
@@ -582,6 +589,7 @@ pub enum Pattern<'c> {
     Struct(StructPattern<'c>),
     Namespace(NamespacePattern<'c>),
     Tuple(TuplePattern<'c>),
+    List(ListPattern<'c>),
     Literal(LiteralPattern),
     Or(OrPattern<'c>),
     If(IfPattern<'c>),
