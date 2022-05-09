@@ -55,7 +55,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 match self.next_token() {
                     Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Ok(self.node_with_location(statement, start.join(current_location)))
+                        Ok(self.node_with_span(statement, start.join(current_location)))
                     }
                     Some(token) => self.error_with_location(
                         AstGenErrorKind::ExpectedExpression,
@@ -83,7 +83,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
         let offset = self.offset();
 
-        let decl = if let Some(pat) = self.peek_resultant_fn(|| self.parse_declaration_pattern()) {
+        let decl = if let Some(pat) = self.peek_resultant_fn(|| self.parse_singular_pattern()) {
             // Check if there is a colon here and if not we have to backtrack and
             // now attempt to parse a simple expression
 
@@ -91,7 +91,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Some(token) if token.has_kind(TokenKind::Colon) => {
                     let decl = self.parse_declaration(pat)?;
 
-                    Some(Statement::Expr(ExprStatement(self.node_with_location(
+                    Some(Statement::Expr(ExprStatement(self.node_with_span(
                         Expression::new(ExpressionKind::Declaration(decl)),
                         start,
                     ))))
@@ -101,7 +101,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // type arguments might simply be a top level expression and therefore
                     // if parsing this fails, then we have to backtrack
                     match self.parse_declaration(pat) {
-                        Ok(decl) => Some(Statement::Expr(ExprStatement(self.node_with_location(
+                        Ok(decl) => Some(Statement::Expr(ExprStatement(self.node_with_span(
                             Expression::new(ExpressionKind::Declaration(decl)),
                             start,
                         )))),
@@ -175,7 +175,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         Ok((
             has_semi,
-            self.node_with_location(statement, start.join(location)),
+            self.node_with_span(statement, start.join(location)),
         ))
     }
 
@@ -356,7 +356,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_location(EnumDefEntry { name, args }, &name_location))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_location))
     }
 
     /// Function used to pass a comma separated [StructDefEntry] which is proceeded
@@ -411,6 +411,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_location(StructDefEntry { name, ty, default }, &start))
+        Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &start))
     }
 }

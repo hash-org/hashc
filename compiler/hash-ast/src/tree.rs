@@ -982,6 +982,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("tuple", elements))
     }
 
+    type ListPatternRet = TreeNode;
+    fn visit_list_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListPattern<'c>>,
+    ) -> Result<Self::TuplePatternRet, Self::Error> {
+        let walk::ListPattern { elements } = walk::walk_list_pattern(self, ctx, node)?;
+        Ok(TreeNode::branch("list", elements))
+    }
+
     type StrLiteralPatternRet = TreeNode;
     fn visit_str_literal_pattern(
         &mut self,
