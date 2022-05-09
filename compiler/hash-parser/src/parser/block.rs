@@ -8,7 +8,7 @@ use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Location;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
-use crate::disallow_struct_literals;
+use crate::enable_flag;
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -119,7 +119,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
 
-        disallow_struct_literals!(self;
+        enable_flag!(self; disallow_struct_literals;
             let iterator = self.parse_expression_with_precedence(0)?
         );
 
@@ -216,17 +216,22 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// evaluates to false, the loop will immediately break. Otherwise the body expression is expected.
     /// A rough outline of what the transpilation process for a while loop looks like:
     ///
-    /// >>> while <condition> {
-    /// >>>     <block>
-    /// >>> }
-    /// >>>
-    /// >>> // converted to
-    /// >>> loop {
-    /// >>>     match <condition> {
-    /// >>>         true  => <block>;
-    /// >>>         false => break;
-    /// >>>     }
-    /// >>> }
+    /// ```text
+    /// while <condition> {
+    ///      <block>
+    /// }
+    /// ```
+    ///
+    /// Is converted to
+    ///
+    /// ```text
+    /// loop {
+    ///     match <condition> {
+    ///         true  => <block>;
+    ///         false => break;
+    ///     }
+    /// }
+    /// ```
     pub(crate) fn parse_while_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
@@ -234,7 +239,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let start = self.current_location();
 
-        disallow_struct_literals!(self;
+        enable_flag!(self; disallow_struct_literals;
             let condition = self.parse_expression_with_precedence(0)?
         );
 
@@ -289,7 +294,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let start = self.current_location();
 
-        disallow_struct_literals!(self;
+        enable_flag!(self; disallow_struct_literals;
             let subject = self.parse_expression_with_precedence(0)?
         );
 
@@ -370,7 +375,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
             //    only one token tree, we prevent it from being parsed as a struct literal
             //    by updating the global state...
-            disallow_struct_literals!(self;
+            enable_flag!(self; disallow_struct_literals;
                 let clause = self.parse_expression_with_precedence(0)?
             );
 
