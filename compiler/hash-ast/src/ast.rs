@@ -578,6 +578,12 @@ pub enum LiteralPattern {
 #[derive(Debug, PartialEq)]
 pub struct BindingPattern<'c>(pub AstNode<'c, Name>);
 
+/// A pattern spread
+#[derive(Debug, PartialEq)]
+pub struct SpreadPattern<'c> {
+    pub name: Option<AstNode<'c, Name>>,
+}
+
 /// The catch-all, i.e "ignore" pattern.
 #[derive(Debug, PartialEq)]
 pub struct IgnorePattern;
@@ -595,6 +601,7 @@ pub enum Pattern<'c> {
     If(IfPattern<'c>),
     Binding(BindingPattern<'c>),
     Ignore(IgnorePattern),
+    Spread(SpreadPattern<'c>),
 }
 
 /// A trait bound, e.g. "where eq<T>"

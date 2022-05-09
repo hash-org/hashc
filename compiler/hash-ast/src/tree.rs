@@ -1086,6 +1086,21 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("binding", name.label, "\"")))
     }
 
+    type SpreadPatternRet = TreeNode;
+    fn visit_spread_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SpreadPattern<'c>>,
+    ) -> Result<Self::SpreadPatternRet, Self::Error> {
+        let walk::SpreadPattern { name } = walk::walk_spread_pattern(self, ctx, node)?;
+
+        if let Some(name) = name {
+            Ok(TreeNode::leaf(labelled("spread", name.label, "\"")))
+        } else {
+            Ok(TreeNode::leaf("spread"))
+        }
+    }
+
     type IgnorePatternRet = TreeNode;
     fn visit_ignore_pattern(
         &mut self,
