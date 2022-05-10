@@ -244,8 +244,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
 
         // @@ErrorReporting: So here, there is a problem because we do actually want to report
-        //                   that this should of been the end of the pattern but because in some
-        //                   contexts the function is being peaked and the error is being ignored,
+        //                   that this should have been the end of the pattern but because in some
+        //                   contexts the function is being peeked and the error is being ignored,
         //                   maybe there should be some mechanism to cause the function to hard error?
         if gen.has_token() {
             gen.expected_eof()?;
@@ -303,7 +303,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // where a pattern is wrapped in parentheses and so we just unwrap it.
         let gen = self.from_stream(tree, parent_span);
 
-        enable_flag!(self; spread_patterns_allowed;
+        enable_flag!(gen; spread_patterns_allowed;
             // @@Cleanup: In the case that there is a single pattern and the user writes a `,` does this
             //            mean that this is still a singular pattern or if it is now treated as a tuple pattern?
             let mut elements = gen.parse_separated_fn(
