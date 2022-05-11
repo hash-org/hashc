@@ -24,15 +24,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
 
                 let statement = match kind {
-                    TokenKind::Keyword(Keyword::Trait) => {
-                        Statement::TraitDef(self.parse_trait_defn()?)
-                    }
-                    TokenKind::Keyword(Keyword::Enum) => {
-                        Statement::EnumDef(self.parse_enum_defn()?)
-                    }
-                    TokenKind::Keyword(Keyword::Struct) => {
-                        Statement::StructDef(self.parse_struct_defn()?)
-                    }
+                    // TokenKind::Keyword(Keyword::Trait) => {
+                    //     Statement::TraitDef(self.parse_trait_defn()?)
+                    // }
                     TokenKind::Keyword(Keyword::Continue) => Statement::Continue(ContinueStatement),
                     TokenKind::Keyword(Keyword::Break) => Statement::Break(BreakStatement),
                     TokenKind::Keyword(Keyword::Return) => {
@@ -214,28 +208,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// struct Name <T,Q> where eq<T> { ... };
     ///        ^^^^    ^──────^^─┬──^   ^^^
     /// Name of struct        For all  fields
-    pub fn parse_struct_defn(&self) -> AstGenResult<'c, StructDef<'c>> {
+    pub fn parse_struct_defn(
+        &self,
+        name: AstNode<'c, Name>,
+        bound: Option<AstNode<'c, Bound<'c>>>,
+    ) -> AstGenResult<'c, StructDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Struct)));
 
-        let name = self.parse_name()?;
-        self.parse_token_atom(TokenKind::Eq)?;
-
-        let (bound, entries) = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Lt) => {
-                let bound = Some(self.parse_type_bound()?);
-                self.parse_arrow()?;
-                let entries = self.parse_struct_def_entries()?;
-
-                (bound, entries)
-            }
-
-            Some(token) if token.is_brace_tree() => {
-                let entries = self.parse_struct_def_entries()?;
-
-                (None, entries)
-            }
+        let entries = match self.peek() {
+            Some(token) if token.is_paren_tree() => self.parse_struct_def_entries()?,
             token => self.error(
                 AstGenErrorKind::TyArgument(TyArgumentKind::Struct),
                 None,
@@ -255,37 +238,24 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// followed by some enum fields. An enumeration can be made of zero or more enum fields.
     /// For example, a declaration of an enum would be:
     ///
-    /// enum Name<T,Q> where eq<T> => { ... };
-    ///      ^^^^  ^──────^^─┬──^       ^^^
-    /// Name of enum      For all      fields
+    /// Name := <T, Q> where Eq<T> => enum(...);
+    /// ^^^^       ^──────^^─┬──^          ^^^
+    /// Name of enum      For all         fields
     ///
-    pub fn parse_enum_defn(&self) -> AstGenResult<'c, EnumDef<'c>> {
+    pub fn parse_enum_defn(
+        &self,
+        name: AstNode<'c, Name>,
+        bound: Option<AstNode<'c, Bound<'c>>>,
+    ) -> AstGenResult<'c, EnumDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Enum)));
 
-        let name = self.parse_name()?;
-
-        self.parse_token_atom(TokenKind::Eq)?;
-
         // now parse the optional type bound and the enum definition entries,
         // if a type bound is specified, then the definition of the struct should
         // be followed by an arrow ('=>')...
-        let (bound, entries) = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Lt) => {
-                let bound = Some(self.parse_type_bound()?);
-                self.parse_arrow()?;
-
-                let entries = self.parse_enum_def_entries()?;
-
-                (bound, entries)
-            }
-
-            Some(token) if token.is_brace_tree() => {
-                let entries = self.parse_enum_def_entries()?;
-
-                (None, entries)
-            }
+        let entries = match self.peek() {
+            Some(token) if token.is_paren_tree() => self.parse_enum_def_entries()?,
             token => self.error(
                 AstGenErrorKind::TyArgument(TyArgumentKind::Enum),
                 None,
@@ -305,7 +275,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub fn parse_enum_def_entries(&self) -> AstGenResult<'c, AstNodes<'c, EnumDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
+                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                 span,
             }) => {
                 self.skip_token();
@@ -364,7 +334,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub fn parse_struct_def_entries(&self) -> AstGenResult<'c, AstNodes<'c, StructDefEntry<'c>>> {
         match self.peek() {
             Some(Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
+                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                 span,
             }) => {
                 self.skip_token();
