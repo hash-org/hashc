@@ -586,6 +586,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error>;
 
+    type SpreadPatternRet: 'c;
+    fn visit_spread_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SpreadPattern<'c>>,
+    ) -> Result<Self::SpreadPatternRet, Self::Error>;
+
     type IgnorePatternRet: 'c;
     fn visit_ignore_pattern(
         &mut self,
@@ -1507,6 +1514,7 @@ pub mod walk {
         Or(V::OrPatternRet),
         If(V::IfPatternRet),
         Binding(V::BindingPatternRet),
+        Spread(V::SpreadPatternRet),
         Ignore(V::IgnorePatternRet),
     }
 
@@ -1539,6 +1547,9 @@ pub mod walk {
             ast::Pattern::Binding(r) => {
                 Pattern::Binding(visitor.visit_binding_pattern(ctx, node.with_body(r))?)
             }
+            ast::Pattern::Spread(r) => {
+                Pattern::Spread(visitor.visit_spread_pattern(ctx, node.with_body(r))?)
+            }
             ast::Pattern::Ignore(r) => {
                 Pattern::Ignore(visitor.visit_ignore_pattern(ctx, node.with_body(r))?)
             }
@@ -1562,6 +1573,7 @@ pub mod walk {
             OrPatternRet = Ret,
             IfPatternRet = Ret,
             BindingPatternRet = Ret,
+            SpreadPatternRet = Ret,
             IgnorePatternRet = Ret,
         >,
     {
@@ -1575,6 +1587,7 @@ pub mod walk {
             Pattern::Or(r) => r,
             Pattern::If(r) => r,
             Pattern::Binding(r) => r,
+            Pattern::Spread(r) => r,
             Pattern::Ignore(r) => r,
         })
     }
@@ -1735,6 +1748,24 @@ pub mod walk {
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<BindingPattern<'c, V>, V::Error> {
         Ok(BindingPattern(visitor.visit_name(ctx, node.0.ast_ref())?))
+    }
+
+    pub struct SpreadPattern<'c, V: AstVisitor<'c>> {
+        pub name: Option<V::NameRet>,
+    }
+
+    pub fn walk_spread_pattern<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::SpreadPattern<'c>>,
+    ) -> Result<SpreadPattern<'c, V>, V::Error> {
+        Ok(SpreadPattern {
+            name: node
+                .name
+                .as_ref()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
+                .transpose()?,
+        })
     }
 
     pub enum LiteralPattern<'c, V: AstVisitor<'c>> {

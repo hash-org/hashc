@@ -8,6 +8,8 @@ use hash_ast::{ast::*, ast_nodes, ident::CORE_IDENTIFIERS};
 use hash_source::location::Location;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
+use crate::{disable_flag, enable_flag};
+
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
@@ -68,6 +70,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a singular [Pattern]. Singular [Pattern]s cannot have any grouped pattern
     /// operators such as a `|`, if guards or any form of compound pattern.
     pub(crate) fn parse_singular_pattern(&self) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
+        let spread_patterns_allowed = self.spread_patterns_allowed.get();
+
         let start = self.next_location();
         let token = self
             .peek()
@@ -96,10 +100,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         self.skip_token();
                         let tree = self.token_trees.get(*tree_index).unwrap();
 
-                        Pattern::Struct(StructPattern {
-                            name,
-                            fields: self.parse_destructuring_patterns(tree, *span)?,
-                        })
+                        disable_flag!(self; spread_patterns_allowed;
+                            let fields = self.parse_destructuring_patterns(tree, *span)?
+                        );
+
+                        Pattern::Struct(StructPattern { name, fields })
                     }
                     // enum pattern
                     Some(Token {
@@ -110,10 +115,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         let tree = self.token_trees.get(*tree_index).unwrap();
                         let gen = self.from_stream(tree, *span);
 
-                        Pattern::Enum(EnumPattern {
-                            name,
-                            fields: gen.parse_pattern_collection()?,
-                        })
+                        disable_flag!(gen; spread_patterns_allowed;
+                            let fields = gen.parse_pattern_collection()?
+                        );
+
+                        Pattern::Enum(EnumPattern { name, fields })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
                         AstGenErrorKind::Expected,
@@ -131,6 +137,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }
                 }
             }
+            // Spread pattern
+            token if spread_patterns_allowed && token.has_kind(TokenKind::Dot) => {
+                Pattern::Spread(self.parse_spread_pattern()?)
+            }
+
             // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it o?
             token if token.kind.is_literal() => {
                 self.skip_token();
@@ -152,9 +163,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                Pattern::Namespace(NamespacePattern {
-                    fields: self.parse_destructuring_patterns(tree, *span)?,
-                })
+                disable_flag!(self; spread_patterns_allowed;
+                    let fields = self.parse_destructuring_patterns(tree, *span)?
+                );
+
+                Pattern::Namespace(NamespacePattern { fields })
             }
             // List pattern
             Token {
@@ -230,6 +243,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
+        // @@ErrorReporting: So here, there is a problem because we do actually want to report
+        //                   that this should have been the end of the pattern but because in some
+        //                   contexts the function is being peeked and the error is being ignored,
+        //                   maybe there should be some mechanism to cause the function to hard error?
+        if gen.has_token() {
+            gen.expected_eof()?;
+        }
+
         Ok(patterns)
     }
 
@@ -243,12 +264,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let tree = self.token_trees.get(tree_index).unwrap();
         let gen = self.from_stream(tree, parent_span);
 
-        Ok(self.node_with_span(
-            Pattern::List(ListPattern {
-                fields: gen.parse_pattern_collection()?,
-            }),
-            parent_span,
-        ))
+        enable_flag!(gen; spread_patterns_allowed;
+            let fields = gen.parse_pattern_collection()?
+        );
+
+        Ok(self.node_with_span(Pattern::List(ListPattern { fields }), parent_span))
     }
 
     /// Parse a [Pattern::Tuple] from the token vector. A tuple pattern consists of
@@ -283,13 +303,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // where a pattern is wrapped in parentheses and so we just unwrap it.
         let gen = self.from_stream(tree, parent_span);
 
-        // @@Cleanup: In the case that there is a single pattern and the user writes a `,` does this
-        //            mean that this is still a singular pattern or if it is now treated as a tuple pattern?
-
-        let mut elements = gen.parse_separated_fn(
-            || gen.parse_tuple_pattern_entry(),
-            || gen.parse_token_atom(TokenKind::Comma),
-        )?;
+        enable_flag!(gen; spread_patterns_allowed;
+            // @@Cleanup: In the case that there is a single pattern and the user writes a `,` does this
+            //            mean that this is still a singular pattern or if it is now treated as a tuple pattern?
+            let mut elements = gen.parse_separated_fn(
+                || gen.parse_tuple_pattern_entry(),
+                || gen.parse_token_atom(TokenKind::Comma),
+            )?
+        );
 
         // If there is no associated name with the entry and there is only one entry
         // then we can be sure that it is only a nested entry.
@@ -345,5 +366,24 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Keyword(Keyword::True) => LiteralPattern::Bool(BoolLiteralPattern(true)),
             _ => unreachable!(),
         }
+    }
+
+    /// Parse a spread operator from the current token tree. A spread operator can have an
+    /// optional name attached to the spread operator on the right hand-side.
+    ///
+    /// ## Allowed locations
+    /// So the spread operator can only appear within either `list`, `tuple` patterns at the moment
+    /// which means that any other location will mark it as `invalid` in the current implementation.
+    ///
+    pub(crate) fn parse_spread_pattern(&self) -> AstGenResult<'c, SpreadPattern<'c>> {
+        for _ in 0..3 {
+            self.parse_token_atom(TokenKind::Dot)?;
+        }
+
+        // Try and see if there is a identifier that is followed by the spread to try and
+        // bind the capture to a variable
+        let name = self.peek_resultant_fn(|| self.parse_name());
+
+        Ok(SpreadPattern { name })
     }
 }

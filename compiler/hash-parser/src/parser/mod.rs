@@ -26,12 +26,43 @@ use hash_token::{Token, TokenKind, TokenKindVector};
 use self::error::{AstGenError, AstGenErrorKind};
 use crate::import_resolver::ImportResolver;
 
+/// Macro that allow for a flag within the [AstGen] logic to
+/// be enabled in the current scope and then disabled after the
+/// statement has finished executing.
+///
+/// Warning: If the inner `statement` has a exit-early language
+/// constructor such as the `?` operator, then the flag will then
+/// not be disabled. It is clear to see that in some situations this
+/// might not be desirable and therefore some custom logic should be
+/// implemented to revert the flag value even on failure.
 #[macro_export]
-macro_rules! disallow_struct_literals {
-    ($gen: ident; $statement: stmt) => {
-        $gen.disallow_struct_literals.set(true);
+macro_rules! enable_flag {
+    ($gen: ident; $flag: ident; $statement: stmt) => {
+        let value = $gen.$flag.get();
+
+        $gen.$flag.set(true);
         $statement
-        $gen.disallow_struct_literals.set(false);
+        $gen.$flag.set(value);
+    };
+}
+
+/// Macro that allow for a flag within the [AstGen] logic to
+/// be disabled in the current scope and then reverted after the
+/// statement finishes executing.
+///
+/// Warning: If the inner `statement` has a exit-early language
+/// constructor such as the `?` operator, then the flag will then
+/// not be reverted. It is clear to see that in some situations this
+/// might not be desirable and therefore some custom logic should be
+/// implemented to revert the flag value even on failure.
+#[macro_export]
+macro_rules! disable_flag {
+    ($gen: ident; $flag: ident; $statement: stmt) => {
+        let value = $gen.$flag.get();
+
+        $gen.$flag.set(false);
+        $statement
+        $gen.$flag.set(value);
     };
 }
 
@@ -63,6 +94,10 @@ pub struct AstGen<'c, 'stream, 'resolver> {
     /// the parent has specifically checked ahead to ensure it isn't a struct literal.
     disallow_struct_literals: Cell<bool>,
 
+    /// Flag denoting whether spread patterns are allowed in the current context. This
+    /// is only true if the parser is parsing either `tuple` or `list` patterns
+    spread_patterns_allowed: Cell<bool>,
+
     /// Instance of an [ImportResolver] to notify the parser of encountered imports.
     resolver: &'resolver ImportResolver<'c>,
 
@@ -85,6 +120,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             token_trees,
             parent_span: None,
             is_compound_expr: Cell::new(false),
+            spread_patterns_allowed: Cell::new(false),
             disallow_struct_literals: Cell::new(false),
             offset: Cell::new(0),
             resolver,
@@ -100,8 +136,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             stream,
             token_trees: self.token_trees,
             offset: Cell::new(0),
-            is_compound_expr: Cell::new(false),
-            disallow_struct_literals: Cell::new(false),
+            is_compound_expr: self.is_compound_expr.clone(),
+            spread_patterns_allowed: self.spread_patterns_allowed.clone(),
+            disallow_struct_literals: self.disallow_struct_literals.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
             wall: self.wall.owning_castle().wall(),

@@ -1,0 +1,2 @@
+// Spread patterns are disallowed within struct patterns
+Struct { x,  ...d} := foo();

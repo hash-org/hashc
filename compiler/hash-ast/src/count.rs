@@ -190,6 +190,8 @@ impl NodeCount for Pattern<'_> {
                 count + pat.condition.node_count()
             }
             Pattern::Binding(BindingPattern(_)) => 0,
+            Pattern::Spread(SpreadPattern { name }) if name.is_some() => 1,
+            Pattern::Spread(SpreadPattern { .. }) => 0,
             Pattern::Ignore(IgnorePattern) => 0,
         }
     }

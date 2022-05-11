@@ -1947,6 +1947,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
+    type SpreadPatternRet = TypeId;
+    fn visit_spread_pattern(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::SpreadPattern<'c>>,
+    ) -> Result<Self::SpreadPatternRet, Self::Error> {
+        todo!()
+    }
+
     type IgnorePatternRet = TypeId;
     fn visit_ignore_pattern(
         &mut self,

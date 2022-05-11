@@ -32,6 +32,35 @@ pub fn is_pattern_irrefutable(pattern: &Pattern<'_>) -> bool {
             .iter()
             .all(|x| is_pattern_irrefutable(x.body().pattern.body())),
         Pattern::Binding(_) | Pattern::Ignore(_) => true,
+        // Pattern::Tuple(TuplePattern { fields }) => check_if_pattern_list_is_irrefutable(
+        //     fields.iter().map(|node| node.body().pattern.body()),
+        // ),
+        // Pattern::List(ListPattern { fields }) => {
+        //     check_if_pattern_list_is_irrefutable(fields.iter().map(|node| node.body()))
+        // }
+        Pattern::Spread(_) => true,
         _ => false,
     }
 }
+
+// Function to verify that the children of pattern are irrefutable if spread
+// patterns are permitted within this pattern construct and therefore they will
+// cover all cases in the pattern
+// fn check_if_pattern_list_is_irrefutable<'c: 'p, 'p>(
+//     mut patterns: impl Iterator<Item = &'p Pattern<'c>>,
+// ) -> bool {
+//     let mut has_spread = false;
+
+//     // So check that all of the children are irrefutable and if the
+//     // pattern contains a spread operator, we can be sure that it covers
+//     // all cases of this pattern
+//     let all_children_irrefutable = patterns.all(|pattern| {
+//         if matches!(pattern, &Pattern::Spread(_)) {
+//             has_spread = true;
+//         }
+
+//         is_pattern_irrefutable(pattern)
+//     });
+
+//     all_children_irrefutable && has_spread
+// }
