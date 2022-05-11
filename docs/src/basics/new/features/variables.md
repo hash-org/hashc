@@ -1,9 +1,9 @@
-# Variables
+# Name bindings
 
 ## Basics
 
-Variables are made of three distinct components. The variable name, the variable type and the 
-literal expression that is assigned to the name.
+Name bindings are made of three distinct components. The name, the type and the 
+value that is assigned to the name.
 
 Declaration of variables happens using the `:` and `=` symbols:
 ```rs
@@ -38,3 +38,8 @@ Hash is statically typed, which means that variables cannot change types:
 x := "Ha!";
 x = Some("Baaa"); // Compile error: `Option<str>` is not assignable to `str`.
 ```
+
+## Mutability
+
+By default, all bindings in Hash are constant.
+In order to declare a mutable variable, use the `mut` keyword in front of the 
