@@ -16,6 +16,8 @@ func := (...args) => { ...body... };
 func := (...args) -> return_ty => { ...body... };
 ```
 
+The return type of a function is inferred from its body by default, but the `->` syntax can be used to explicitly declare it.
+
 Function arguments are comma separated:
 
 ```rust
