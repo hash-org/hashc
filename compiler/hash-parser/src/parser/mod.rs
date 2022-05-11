@@ -3,6 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 mod block;
+mod definitions;
 pub mod error;
 mod expression;
 mod literal;
