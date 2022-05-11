@@ -1339,6 +1339,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             };
         }
 
+        let previous_allowance = gen.disallow_struct_literals.get();
+        gen.disallow_struct_literals.set(false);
+
         let entry = gen.parse_tuple_literal_entry()?;
 
         // In the special case where this is just an expression that is wrapped within parenthesees, we can
@@ -1370,6 +1373,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 None => break,
             }
         }
+
+        gen.disallow_struct_literals.set(previous_allowance);
 
         Ok(gen.node_with_joined_span(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
