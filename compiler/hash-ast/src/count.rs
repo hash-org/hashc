@@ -41,16 +41,6 @@ impl NodeCount for Statement<'_> {
             Statement::Break(BreakStatement) => 0,
             Statement::Continue(ContinueStatement) => 0,
             Statement::Assign(assign) => assign.lhs.node_count() + assign.rhs.node_count(),
-            Statement::StructDef(defn) => {
-                let entries: usize = defn.entries.iter().map(|entry| entry.node_count()).sum();
-
-                1 + defn.bound.node_count() + entries
-            }
-            Statement::EnumDef(defn) => {
-                let entries: usize = defn.entries.iter().map(|entry| entry.node_count()).sum();
-
-                1 + defn.bound.node_count() + entries
-            }
             Statement::TraitDef(defn) => 1 + defn.bound.node_count() + defn.trait_type.node_count(),
         }
     }
@@ -106,6 +96,16 @@ impl NodeCount for Expression<'_> {
                 kind: _,
             }) => e.node_count(),
             ExpressionKind::Import(ImportExpr(_)) => 0,
+            ExpressionKind::StructDef(defn) => {
+                let entries: usize = defn.entries.iter().map(|entry| entry.node_count()).sum();
+
+                1 + defn.bound.node_count() + entries
+            }
+            ExpressionKind::EnumDef(defn) => {
+                let entries: usize = defn.entries.iter().map(|entry| entry.node_count()).sum();
+
+                1 + defn.bound.node_count() + entries
+            }
         }
     }
 }

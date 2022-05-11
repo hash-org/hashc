@@ -737,6 +737,8 @@ pub mod walk {
         Typed(V::TypedExprRet),
         Block(V::BlockExprRet),
         Import(V::ImportExprRet),
+        StructDef(V::StructDefRet),
+        EnumDef(V::EnumDefRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -781,6 +783,12 @@ pub mod walk {
             ast::ExpressionKind::Import(inner) => {
                 Expression::Import(visitor.visit_import_expr(ctx, node.with_body(inner))?)
             }
+            ast::ExpressionKind::StructDef(r) => {
+                Expression::StructDef(visitor.visit_struct_def(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::EnumDef(r) => {
+                Expression::EnumDef(visitor.visit_enum_def(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -804,6 +812,8 @@ pub mod walk {
             TypedExprRet = Ret,
             BlockExprRet = Ret,
             ImportExprRet = Ret,
+            StructDefRet = Ret,
+            EnumDefRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -819,6 +829,8 @@ pub mod walk {
             Expression::Typed(r) => r,
             Expression::Block(r) => r,
             Expression::Import(r) => r,
+            Expression::StructDef(r) => r,
+            Expression::EnumDef(r) => r,
         })
     }
 
@@ -2081,8 +2093,6 @@ pub mod walk {
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignStatementRet),
-        StructDef(V::StructDefRet),
-        EnumDef(V::EnumDefRet),
         TraitDef(V::TraitDefRet),
     }
 
@@ -2110,12 +2120,6 @@ pub mod walk {
             ast::Statement::Assign(r) => {
                 Statement::Assign(visitor.visit_assign_statement(ctx, node.with_body(r))?)
             }
-            ast::Statement::StructDef(r) => {
-                Statement::StructDef(visitor.visit_struct_def(ctx, node.with_body(r))?)
-            }
-            ast::Statement::EnumDef(r) => {
-                Statement::EnumDef(visitor.visit_enum_def(ctx, node.with_body(r))?)
-            }
             ast::Statement::TraitDef(r) => {
                 Statement::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
             }
@@ -2136,8 +2140,6 @@ pub mod walk {
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
             AssignStatementRet = Ret,
-            StructDefRet = Ret,
-            EnumDefRet = Ret,
             TraitDefRet = Ret,
         >,
     {
@@ -2148,8 +2150,6 @@ pub mod walk {
             Statement::Break(r) => r,
             Statement::Continue(r) => r,
             Statement::Assign(r) => r,
-            Statement::StructDef(r) => r,
-            Statement::EnumDef(r) => r,
             Statement::TraitDef(r) => r,
         })
     }

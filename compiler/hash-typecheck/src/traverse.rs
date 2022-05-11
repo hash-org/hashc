@@ -1305,7 +1305,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok((node.name.ident, field_ty))
     }
 
-    type StructDefRet = ();
+    type StructDefRet = TypeId;
     fn visit_struct_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1377,7 +1377,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             self.type_vars_mut().exit_type_var_scope(type_var_key);
         }
 
-        Ok(())
+        todo!()
     }
 
     type EnumDefEntryRet = EnumVariant<'c>;
@@ -1395,7 +1395,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         })
     }
 
-    type EnumDefRet = ();
+    type EnumDefRet = TypeId;
     fn visit_enum_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1473,7 +1473,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             self.type_vars_mut().exit_type_var_scope(type_var_key);
         }
 
-        Ok(())
+        todo!()
     }
 
     type TraitDefRet = ();

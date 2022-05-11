@@ -743,8 +743,6 @@ pub enum Statement<'c> {
     Break(BreakStatement),
     Continue(ContinueStatement),
     Assign(AssignStatement<'c>),
-    StructDef(StructDef<'c>),
-    EnumDef(EnumDef<'c>),
     TraitDef(TraitDef<'c>),
 }
 
@@ -912,6 +910,8 @@ pub enum ExpressionKind<'c> {
     Typed(TypedExpr<'c>),
     Block(BlockExpr<'c>),
     Import(ImportExpr<'c>),
+    StructDef(StructDef<'c>),
+    EnumDef(EnumDef<'c>),
 }
 
 /// An expression.
