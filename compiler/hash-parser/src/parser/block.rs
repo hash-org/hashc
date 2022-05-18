@@ -78,7 +78,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Statement::Expr(ExprStatement(expr)) => {
                         block.expr = Some(expr);
                     }
-                    _ => unreachable!(),
                 },
             }
         }

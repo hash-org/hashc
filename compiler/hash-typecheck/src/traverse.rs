@@ -1204,7 +1204,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
-    type TraitDefRet = ();
+    type TraitDefRet = TypeId;
     fn visit_trait_def(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1226,7 +1226,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // self.scopes()
         //     .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
 
-        Ok(())
+        Ok(self.types_mut().create_void_type())
     }
 
     type PatternRet = TypeId;
