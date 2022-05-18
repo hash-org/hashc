@@ -39,20 +39,28 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // Handle primitive literals
             kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(ident) => {
-                // record the starting span
-                let start = self.current_location();
-
                 let ident_node = self.node_with_span(*ident, token.span);
                 let (name, type_args) = self.parse_name_with_type_args(ident_node)?;
                 let type_args = type_args.unwrap_or_else(AstNodes::empty);
 
                 // create the lhs expr.
-                self.node_with_span(
+                self.node_with_joined_span(
                     Expression::new(ExpressionKind::Variable(VariableExpr { name, type_args })),
-                    start.join(self.current_location()),
+                    &token.span,
                 )
             }
-
+            TokenKind::Lt => self.node_with_joined_span(
+                Expression::new(ExpressionKind::Bound(self.parse_type_bound()?)),
+                &token.span,
+            ),
+            TokenKind::Keyword(Keyword::Struct) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::StructDef(self.parse_struct_defn()?)),
+                &token.span,
+            ),
+            TokenKind::Keyword(Keyword::Enum) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::EnumDef(self.parse_enum_defn()?)),
+                &token.span,
+            ),
             // @@Note: This doesn't cover '{' case.
             kind if kind.begins_block() => {
                 let start = self.current_location();
@@ -315,33 +323,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     let tree = self.token_trees.get(*tree_index).unwrap();
                     lhs_expr = self.parse_function_call(lhs_expr, tree, self.current_location())?;
                 }
-                // Struct literal
-                TokenKind::Tree(Delimiter::Brace, tree_index)
-                    if !self.disallow_struct_literals.get() =>
-                {
-                    // Ensure that the LHS of the brace is a variable, since struct literals can only
-                    // be begun with variable names and type arguments, any other expression cannot be
-                    // the beginning of a struct literal.
-                    let location = lhs_expr.location();
-                    let mut break_now = false;
-
-                    lhs_expr = match lhs_expr.into_body().move_out().into_kind() {
-                        ExpressionKind::Variable(VariableExpr { name, type_args }) => {
-                            self.skip_token();
-
-                            let tree = self.token_trees.get(*tree_index).unwrap();
-                            self.parse_struct_literal(name, type_args, tree)?
-                        }
-                        expr => {
-                            break_now = true;
-                            self.node_with_span(Expression::new(expr), location)
-                        }
-                    };
-
-                    if break_now {
-                        break;
-                    }
-                }
                 _ => break,
             }
         }
@@ -489,127 +470,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 args,
             })),
             &span,
-        ))
-    }
-
-    /// Parse a [StructLiteral] and turn it into an [Expression].
-    ///
-    ///
-    /// ### De-sugaring process for [StructLiteral] entries
-    ///
-    /// we want to support the syntax where we can just assign a struct field that has
-    /// the same name as a variable in scope. For example, if you were to create a
-    /// struct like so:
-    ///
-    /// ```text
-    /// name := "Viktor";
-    /// dog  := Dog { name };
-    /// ```
-    /// This should be de-sugared into:
-    /// ```text
-    /// dog := Dog { name = name };
-    /// ```
-    ///
-    pub fn parse_struct_literal(
-        &self,
-        name: AstNode<'c, AccessName<'c>>,
-        type_args: AstNodes<'c, Type<'c>>,
-        tree: &'stream Row<'stream, Token>,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
-        let start = self.current_location();
-        let gen = self.from_stream(tree, start);
-
-        let mut entries = AstNodes::empty();
-
-        while gen.has_token() {
-            let name = gen.parse_name()?;
-            let location = name.location();
-
-            match gen.peek() {
-                Some(token) if token.has_kind(TokenKind::Eq) => {
-                    gen.skip_token();
-
-                    let value = gen.parse_expression_with_precedence(0)?;
-
-                    entries.nodes.push(
-                        gen.node_with_span(
-                            StructLiteralEntry { name, value },
-                            location.join(gen.current_location()),
-                        ),
-                        &self.wall,
-                    );
-
-                    // now we eat the next token, checking that it is a comma
-                    match gen.peek() {
-                            Some(token) if token.has_kind(TokenKind::Comma) => gen.skip_token(),
-                            Some(token) => gen.error_with_location(
-                                AstGenErrorKind::Expected,
-                                Some(TokenKindVector::from_row(
-                                    row![&self.wall; TokenKind::Comma, TokenKind::Delimiter(Delimiter::Brace, false)],
-                                )),
-                                Some(token.kind),
-                                token.span,
-                            )?,
-                            None => break,
-                        };
-                }
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    gen.skip_token();
-
-                    // we need to copy the name node and make it into a new expression with the same span
-                    let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
-
-                    entries.nodes.push(
-                        gen.node_with_span(
-                            StructLiteralEntry {
-                                name,
-                                value: name_copy,
-                            },
-                            location.join(gen.current_location()),
-                        ),
-                        &self.wall,
-                    );
-                }
-                None => {
-                    // we need to copy the name node and make it into a new expression with the same span
-                    let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
-
-                    entries.nodes.push(
-                        gen.node_with_span(
-                            StructLiteralEntry {
-                                name,
-                                value: name_copy,
-                            },
-                            location.join(gen.current_location()),
-                        ),
-                        &self.wall,
-                    );
-
-                    break;
-                }
-                Some(token) => gen.error_with_location(
-                    AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Eq,
-                            TokenKind::Comma,
-                            TokenKind::Delimiter(Delimiter::Brace, false)])),
-                    Some(token.kind),
-                    token.span,
-                )?,
-            }
-        }
-
-        Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                self.node_with_joined_span(
-                    Literal::Struct(StructLiteral {
-                        name,
-                        type_args,
-                        entries,
-                    }),
-                    &start,
-                ),
-            ))),
-            &start,
         ))
     }
 
@@ -777,11 +637,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         pattern: AstNode<'c, Pattern<'c>>,
     ) -> AstGenResult<'c, Declaration<'c>> {
-        let bound = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Lt) => Some(self.parse_type_bound()?),
-            _ => None,
-        };
-
         self.parse_token_atom(TokenKind::Colon)?;
 
         // Attempt to parse an optional type...
@@ -795,12 +650,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let value = self.parse_expression_with_precedence(0)?;
 
-        Ok(Declaration {
-            pattern,
-            ty,
-            bound,
-            value,
-        })
+        Ok(Declaration { pattern, ty, value })
     }
 
     /// Given a initial left-hand side expression, attempt to parse a re-assignment operator and
@@ -1086,7 +936,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 span: id_span,
             }) => {
                 let type_args = self
-                    .peek_resultant_fn(|| self.parse_type_args())
+                    .peek_resultant_fn(|| self.parse_type_args(false))
                     .unwrap_or_else(AstNodes::empty);
 
                 // create the subject of the call
@@ -1450,5 +1300,73 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ))),
             &start,
         ))
+    }
+
+    /// Parse a [Bound]. Type bounds can occur in traits, function, struct and enum
+    /// definitions.
+    pub fn parse_type_bound(&self) -> AstGenResult<'c, Bound<'c>> {
+        // @@Hack: Since we already parsed the `<`, we need to notify the
+        //         type_args parser function that it doesn't need to parse this
+        let type_args = self.parse_type_args(true)?;
+
+        let trait_bounds = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
+                self.skip_token();
+
+                let mut trait_bounds = ast_nodes![&self.wall;];
+
+                loop {
+                    match self.peek() {
+                        Some(Token {
+                            kind: TokenKind::Ident(ident),
+                            span,
+                        }) => {
+                            self.skip_token();
+
+                            let bound_start = self.current_location();
+                            let (name, type_args) = {
+                                let ident = self.node_with_span(*ident, *span);
+
+                                let name = self.parse_access_name(ident)?;
+                                let args = self.parse_type_args(false)?;
+
+                                (name, args)
+                            };
+
+                            trait_bounds.nodes.push(
+                                self.node_with_joined_span(
+                                    TraitBound { name, type_args },
+                                    &bound_start,
+                                ),
+                                &self.wall,
+                            );
+
+                            // ensure that the bound is followed by a comma, if not then break...
+                            match self.peek() {
+                                Some(token) if token.has_kind(TokenKind::Comma) => {
+                                    self.skip_token();
+                                }
+                                _ => break,
+                            }
+                        }
+                        None => self.unexpected_eof()?,
+                        _ => break,
+                    }
+                }
+
+                trait_bounds
+            }
+            _ => ast_nodes![&self.wall;],
+        };
+
+        // Now that we parse the bound, we're expecting a fat-arrow and then some expression
+        self.parse_arrow()?;
+        let expr = self.parse_expression_with_precedence(0)?;
+
+        Ok(Bound {
+            type_args,
+            trait_bounds,
+            expr,
+        })
     }
 }

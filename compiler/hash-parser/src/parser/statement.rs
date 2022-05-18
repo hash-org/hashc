@@ -58,8 +58,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
             }
             Some(_) => self
-                .parse_general_statement(true) // This probably shouldn't be a 1?
-                .map(|statement| statement.1),
+                .parse_general_statement(true)
+                .map(|(_, statement)| statement),
             None => self.error(AstGenErrorKind::ExpectedStatement, None, None)?,
         }
     }
@@ -86,21 +86,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Expression::new(ExpressionKind::Declaration(decl)),
                         start,
                     ))))
-                }
-                Some(token) if token.has_kind(TokenKind::Lt) => {
-                    // Here we essentially have to pre-emptively assume that the parsing the
-                    // type arguments might simply be a top level expression and therefore
-                    // if parsing this fails, then we have to backtrack
-                    match self.parse_declaration(pat) {
-                        Ok(decl) => Some(Statement::Expr(ExprStatement(self.node_with_span(
-                            Expression::new(ExpressionKind::Declaration(decl)),
-                            start,
-                        )))),
-                        Err(_) => {
-                            self.offset.set(offset);
-                            None
-                        }
-                    }
                 }
                 _ => {
                     self.offset.set(offset);
@@ -178,23 +163,24 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ///     ┌─^^ ^─┐   ^─ ─ ─ ─ ─ ─ ─ ┐
     ///   name   Generic type args    Function type definition
     pub fn parse_trait_defn(&self) -> AstGenResult<'c, TraitDef<'c>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Trait)));
+        // debug_assert!(self
+        //     .current_token()
+        //     .has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        let name = self.parse_name()?;
+        // let name = self.parse_name()?;
 
-        self.parse_token_atom(TokenKind::Eq)?;
-        let bound = self.parse_type_bound()?;
+        // self.parse_token_atom(TokenKind::Eq)?;
+        // let bound = self.parse_type_bound()?;
 
-        self.parse_arrow()?; // the next token should be a TokenTree delimited with an arrow.
+        // self.parse_arrow()?; // the next token should be a TokenTree delimited with an arrow.
 
-        let trait_type = self.parse_function_or_tuple_type(true)?;
+        // let trait_type = self.parse_function_or_tuple_type(true)?;
 
-        Ok(TraitDef {
-            name,
-            bound,
-            trait_type,
-        })
+        // Ok(TraitDef {
+        //     name,
+        //     bound,
+        //     trait_type,
+        // })
+        todo!()
     }
 }

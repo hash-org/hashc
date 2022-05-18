@@ -18,11 +18,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Name := <T,Q> where eq<T> => struct( ... );
     /// ^^^^       ^──────^^─┬──^            ^^^
     /// Name of struct     For all          fields
-    pub fn parse_struct_defn(
-        &self,
-        name: AstNode<'c, Name>,
-        bound: Option<AstNode<'c, Bound<'c>>>,
-    ) -> AstGenResult<'c, StructDef<'c>> {
+    pub fn parse_struct_defn(&self) -> AstGenResult<'c, StructDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Struct)));
@@ -51,11 +47,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )?,
         };
 
-        Ok(StructDef {
-            name,
-            bound,
-            entries,
-        })
+        Ok(StructDef { entries })
     }
 
     /// Parse a [StructDefEntry].
@@ -92,11 +84,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// ^^^^       ^──────^^─┬──^          ^^^
     /// Name of enum      For all         fields
     ///
-    pub fn parse_enum_defn(
-        &self,
-        name: AstNode<'c, Name>,
-        bound: Option<AstNode<'c, Bound<'c>>>,
-    ) -> AstGenResult<'c, EnumDef<'c>> {
+    pub fn parse_enum_defn(&self) -> AstGenResult<'c, EnumDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Enum)));
@@ -128,11 +116,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )?,
         };
 
-        Ok(EnumDef {
-            name,
-            bound,
-            entries,
-        })
+        Ok(EnumDef { entries })
     }
 
     /// Parse an [EnumDefEntry].
