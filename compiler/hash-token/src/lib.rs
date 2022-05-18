@@ -109,13 +109,10 @@ impl TokenKind {
     /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
     /// follow a specific syntax, and must be statements.
     pub fn begins_statement(&self) -> bool {
+        // @@TODO(alex): remove this after all statements are converted into expr!
         matches!(
             self,
-            TokenKind::Keyword(Keyword::Trait)
-                | TokenKind::Keyword(Keyword::Enum)
-                | TokenKind::Keyword(Keyword::Struct)
-                | TokenKind::Keyword(Keyword::Continue)
-                | TokenKind::Keyword(Keyword::Break)
+            |TokenKind::Keyword(Keyword::Continue)| TokenKind::Keyword(Keyword::Break)
                 | TokenKind::Keyword(Keyword::Return)
         )
     }
