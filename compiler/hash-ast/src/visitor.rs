@@ -299,20 +299,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::IntLiteral>,
     ) -> Result<Self::IntLiteralRet, Self::Error>;
 
-    type StructLiteralRet: 'c;
-    fn visit_struct_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-    ) -> Result<Self::StructLiteralRet, Self::Error>;
-
-    type StructLiteralEntryRet: 'c;
-    fn visit_struct_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
-    ) -> Result<Self::StructLiteralEntryRet, Self::Error>;
-
     type FunctionDefRet: 'c;
     fn visit_function_def(
         &mut self,
@@ -680,50 +666,6 @@ pub mod walk {
         })
     }
 
-    pub struct StructLiteral<'c, V: AstVisitor<'c>> {
-        pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::TypeRet>,
-        pub entries: V::CollectionContainer<V::StructLiteralEntryRet>,
-    }
-
-    pub fn walk_struct_literal<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-    ) -> Result<StructLiteral<'c, V>, V::Error> {
-        Ok(StructLiteral {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args
-                    .iter()
-                    .map(|a| visitor.visit_type(ctx, a.ast_ref())),
-            )?,
-            entries: V::try_collect_items(
-                ctx,
-                node.entries
-                    .iter()
-                    .map(|e| visitor.visit_struct_literal_entry(ctx, e.ast_ref())),
-            )?,
-        })
-    }
-
-    pub struct StructLiteralEntry<'c, V: AstVisitor<'c>> {
-        pub name: V::NameRet,
-        pub value: V::ExpressionRet,
-    }
-
-    pub fn walk_struct_literal_entry<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
-    ) -> Result<StructLiteralEntry<'c, V>, V::Error> {
-        Ok(StructLiteralEntry {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
-        })
-    }
-
     pub enum Expression<'c, V: AstVisitor<'c>> {
         FunctionCall(V::FunctionCallExprRet),
         Directive(V::DirectiveExprRet),
@@ -1038,7 +980,6 @@ pub mod walk {
         Map(V::MapLiteralRet),
         List(V::ListLiteralRet),
         Tuple(V::TupleLiteralRet),
-        Struct(V::StructLiteralRet),
         Function(V::FunctionDefRet),
     }
 
@@ -1075,9 +1016,6 @@ pub mod walk {
             ast::Literal::Tuple(r) => {
                 Literal::Tuple(visitor.visit_tuple_literal(ctx, node.with_body(r))?)
             }
-            ast::Literal::Struct(r) => {
-                Literal::Struct(visitor.visit_struct_literal(ctx, node.with_body(r))?)
-            }
             ast::Literal::Function(r) => {
                 Literal::Function(visitor.visit_function_def(ctx, node.with_body(r))?)
             }
@@ -1101,7 +1039,6 @@ pub mod walk {
             MapLiteralRet = Ret,
             ListLiteralRet = Ret,
             TupleLiteralRet = Ret,
-            StructLiteralRet = Ret,
             FunctionDefRet = Ret,
         >,
     {
@@ -1115,7 +1052,6 @@ pub mod walk {
             Literal::Map(r) => r,
             Literal::List(r) => r,
             Literal::Tuple(r) => r,
-            Literal::Struct(r) => r,
             Literal::Function(r) => r,
         })
     }

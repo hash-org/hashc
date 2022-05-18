@@ -385,26 +385,6 @@ pub struct MapLiteral<'c> {
     pub elements: AstNodes<'c, MapLiteralEntry<'c>>,
 }
 
-/// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
-#[derive(Debug, PartialEq)]
-pub struct StructLiteralEntry<'c> {
-    /// The name of the struct field.
-    pub name: AstNode<'c, Name>,
-    /// The value given to the struct field.
-    pub value: AstNode<'c, Expression<'c>>,
-}
-
-/// A struct literal, e.g. `Dog { name = "Adam", age = 12 }`
-#[derive(Debug, PartialEq)]
-pub struct StructLiteral<'c> {
-    /// The name of the struct literal.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// Type arguments to the struct literal, if any.
-    pub type_args: AstNodes<'c, Type<'c>>,
-    /// The fields (entries) of the struct literal.
-    pub entries: AstNodes<'c, StructLiteralEntry<'c>>,
-}
-
 /// A function definition argument.
 #[derive(Debug, PartialEq)]
 pub struct FunctionDefArg<'c> {
@@ -467,7 +447,6 @@ pub enum Literal<'c> {
     Map(MapLiteral<'c>),
     List(ListLiteral<'c>),
     Tuple(TupleLiteral<'c>),
-    Struct(StructLiteral<'c>),
     Function(FunctionDef<'c>),
 }
 

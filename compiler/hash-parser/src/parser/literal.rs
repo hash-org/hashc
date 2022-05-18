@@ -3,10 +3,10 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::{collections::row::Row, row};
+use hash_alloc::collections::row::Row;
 use hash_ast::ast::*;
 use hash_source::location::Location;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -181,122 +181,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                 gen.node_with_joined_span(Literal::List(ListLiteral { elements }), &start),
             ))),
-            &start,
-        ))
-    }
-
-    /// Parse a [StructLiteral] and turn it into an [Expression].
-    ///
-    ///
-    /// ### De-sugaring process for [StructLiteral] entries
-    ///
-    /// we want to support the syntax where we can just assign a struct field that has
-    /// the same name as a variable in scope. For example, if you were to create a
-    /// struct like so:
-    ///
-    /// ```text
-    /// name := "Viktor";
-    /// dog  := Dog { name };
-    /// ```
-    /// This should be de-sugared into:
-    /// ```text
-    /// dog := Dog { name = name };
-    /// ```
-    ///
-    pub fn parse_struct_literal(
-        &self,
-        name: AstNode<'c, AccessName<'c>>,
-        type_args: AstNodes<'c, Type<'c>>,
-        tree: &'stream Row<'stream, Token>,
-    ) -> AstGenResult<'c, AstNode<'c, Literal<'c>>> {
-        let start = self.current_location();
-        let gen = self.from_stream(tree, start);
-
-        let mut entries = AstNodes::empty();
-
-        while gen.has_token() {
-            let name = gen.parse_name()?;
-            let location = name.location();
-
-            match gen.peek() {
-                Some(token) if token.has_kind(TokenKind::Eq) => {
-                    gen.skip_token();
-
-                    let value = gen.parse_expression_with_precedence(0)?;
-
-                    entries.nodes.push(
-                        gen.node_with_span(
-                            StructLiteralEntry { name, value },
-                            location.join(gen.current_location()),
-                        ),
-                        &self.wall,
-                    );
-
-                    // now we eat the next token, checking that it is a comma
-                    match gen.peek() {
-                            Some(token) if token.has_kind(TokenKind::Comma) => gen.skip_token(),
-                            Some(token) => gen.error_with_location(
-                                AstGenErrorKind::Expected,
-                                Some(TokenKindVector::from_row(
-                                    row![&self.wall; TokenKind::Comma, TokenKind::Delimiter(Delimiter::Brace, false)],
-                                )),
-                                Some(token.kind),
-                                token.span,
-                            )?,
-                            None => break,
-                        };
-                }
-                Some(token) if token.has_kind(TokenKind::Comma) => {
-                    gen.skip_token();
-
-                    // we need to copy the name node and make it into a new expression with the same span
-                    let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
-
-                    entries.nodes.push(
-                        gen.node_with_span(
-                            StructLiteralEntry {
-                                name,
-                                value: name_copy,
-                            },
-                            location.join(gen.current_location()),
-                        ),
-                        &self.wall,
-                    );
-                }
-                None => {
-                    // we need to copy the name node and make it into a new expression with the same span
-                    let name_copy = gen.make_variable_from_identifier(name.ident, name.location());
-
-                    entries.nodes.push(
-                        gen.node_with_span(
-                            StructLiteralEntry {
-                                name,
-                                value: name_copy,
-                            },
-                            location.join(gen.current_location()),
-                        ),
-                        &self.wall,
-                    );
-
-                    break;
-                }
-                Some(token) => gen.error_with_location(
-                    AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Eq,
-                            TokenKind::Comma,
-                            TokenKind::Delimiter(Delimiter::Brace, false)])),
-                    Some(token.kind),
-                    token.span,
-                )?,
-            }
-        }
-
-        Ok(self.node_with_joined_span(
-            Literal::Struct(StructLiteral {
-                name,
-                type_args,
-                entries,
-            }),
             &start,
         ))
     }
