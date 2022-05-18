@@ -702,7 +702,6 @@ pub struct ContinueStatement;
 #[derive(Debug, PartialEq)]
 pub enum Statement<'c> {
     Expr(ExprStatement<'c>),
-    TraitDef(TraitDef<'c>),
 }
 
 /// A branch/"case" of a `match` block.
@@ -872,6 +871,7 @@ pub enum ExpressionKind<'c> {
     StructDef(StructDef<'c>),
     EnumDef(EnumDef<'c>),
     Bound(Bound<'c>),
+    TraitDef(TraitDef<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),

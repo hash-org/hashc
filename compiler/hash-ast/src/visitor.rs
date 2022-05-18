@@ -675,6 +675,7 @@ pub mod walk {
         StructDef(V::StructDefRet),
         EnumDef(V::EnumDefRet),
         Bound(V::BoundRet),
+        TraitDef(V::TraitDefRet),
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
@@ -732,6 +733,9 @@ pub mod walk {
             ast::ExpressionKind::Bound(r) => {
                 Expression::Bound(visitor.visit_bound(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::TraitDef(r) => {
+                Expression::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
+            }
             ast::ExpressionKind::Return(r) => {
                 Expression::Return(visitor.visit_return_statement(ctx, node.with_body(r))?)
             }
@@ -770,6 +774,7 @@ pub mod walk {
             StructDefRet = Ret,
             EnumDefRet = Ret,
             BoundRet = Ret,
+            TraitDefRet = Ret,
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
@@ -792,6 +797,7 @@ pub mod walk {
             Expression::StructDef(r) => r,
             Expression::EnumDef(r) => r,
             Expression::Bound(r) => r,
+            Expression::TraitDef(r) => r,
             Expression::Return(r) => r,
             Expression::Break(r) => r,
             Expression::Continue(r) => r,
@@ -2018,7 +2024,6 @@ pub mod walk {
 
     pub enum Statement<'c, V: AstVisitor<'c>> {
         Expr(V::ExprStatementRet),
-        TraitDef(V::TraitDefRet),
     }
 
     pub fn walk_statement<'c, V: AstVisitor<'c>>(
@@ -2030,9 +2035,6 @@ pub mod walk {
             ast::Statement::Expr(r) => {
                 Statement::Expr(visitor.visit_expr_statement(ctx, node.with_body(r))?)
             }
-            ast::Statement::TraitDef(r) => {
-                Statement::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
-            }
         })
     }
 
@@ -2042,11 +2044,10 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Statement<'c>>,
     ) -> Result<Ret, V::Error>
     where
-        V: AstVisitor<'c, ExprStatementRet = Ret, TraitDefRet = Ret>,
+        V: AstVisitor<'c, ExprStatementRet = Ret>,
     {
         Ok(match walk_statement(visitor, ctx, node)? {
             Statement::Expr(r) => r,
-            Statement::TraitDef(r) => r,
         })
     }
 
