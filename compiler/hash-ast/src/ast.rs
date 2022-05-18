@@ -690,10 +690,6 @@ pub struct ExprStatement<'c>(pub AstNode<'c, Expression<'c>>);
 #[derive(Debug, PartialEq)]
 pub struct ReturnStatement<'c>(pub Option<AstNode<'c, Expression<'c>>>);
 
-/// A block statement.
-#[derive(Debug, PartialEq)]
-pub struct BlockStatement<'c>(pub AstNode<'c, Block<'c>>);
-
 /// Break statement (only in loop context).
 #[derive(Debug, PartialEq)]
 pub struct BreakStatement;
@@ -706,7 +702,6 @@ pub struct ContinueStatement;
 #[derive(Debug, PartialEq)]
 pub enum Statement<'c> {
     Expr(ExprStatement<'c>),
-    Block(BlockStatement<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),

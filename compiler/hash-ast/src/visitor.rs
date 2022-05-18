@@ -369,13 +369,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::ReturnStatement<'c>>,
     ) -> Result<Self::ReturnStatementRet, Self::Error>;
 
-    type BlockStatementRet: 'c;
-    fn visit_block_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<Self::BlockStatementRet, Self::Error>;
-
     type BreakStatementRet: 'c;
     fn visit_break_statement(
         &mut self,
@@ -1818,15 +1811,6 @@ pub mod walk {
         ))
     }
 
-    pub struct BlockStatement<'c, V: AstVisitor<'c>>(pub V::BlockRet);
-    pub fn walk_block_statement<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<BlockStatement<'c, V>, V::Error> {
-        Ok(BlockStatement(visitor.visit_block(ctx, node.0.ast_ref())?))
-    }
-
     pub struct Declaration<'c, V: AstVisitor<'c>> {
         pub pattern: V::PatternRet,
         pub ty: Option<V::TypeRet>,
@@ -2011,7 +1995,6 @@ pub mod walk {
     pub enum Statement<'c, V: AstVisitor<'c>> {
         Expr(V::ExprStatementRet),
         Return(V::ReturnStatementRet),
-        Block(V::BlockStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignStatementRet),
@@ -2029,9 +2012,6 @@ pub mod walk {
             }
             ast::Statement::Return(r) => {
                 Statement::Return(visitor.visit_return_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Block(r) => {
-                Statement::Block(visitor.visit_block_statement(ctx, node.with_body(r))?)
             }
             ast::Statement::Break(r) => {
                 Statement::Break(visitor.visit_break_statement(ctx, node.with_body(r))?)
@@ -2058,7 +2038,6 @@ pub mod walk {
             'c,
             ExprStatementRet = Ret,
             ReturnStatementRet = Ret,
-            BlockStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
             AssignStatementRet = Ret,
@@ -2068,7 +2047,6 @@ pub mod walk {
         Ok(match walk_statement(visitor, ctx, node)? {
             Statement::Expr(r) => r,
             Statement::Return(r) => r,
-            Statement::Block(r) => r,
             Statement::Break(r) => r,
             Statement::Continue(r) => r,
             Statement::Assign(r) => r,

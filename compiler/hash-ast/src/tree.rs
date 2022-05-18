@@ -670,15 +670,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("return", inner.into_iter().collect()))
     }
 
-    type BlockStatementRet = TreeNode;
-    fn visit_block_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<Self::BlockStatementRet, Self::Error> {
-        Ok(walk::walk_block_statement(self, ctx, node)?.0)
-    }
-
     type BreakStatementRet = TreeNode;
     fn visit_break_statement(
         &mut self,
