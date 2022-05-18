@@ -376,21 +376,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )
     }
 
-    /// Make an [Expression] with kind [ExpressionKind::Variable] from a provided [Identifier] with a provided span.
-    pub(crate) fn make_variable_from_identifier(
-        &self,
-        name: Identifier,
-        location: Location,
-    ) -> AstNode<'c, Expression<'c>> {
-        self.node_with_span(
-            Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.make_access_name_from_identifier(name, location),
-                type_args: AstNodes::empty(),
-            })),
-            location,
-        )
-    }
-
     /// Function to peek ahead and match some parsing function that returns a [Option<T>].
     /// If The result is an error, the function wil reset the current offset of the token stream
     /// to where it was the function was peeked. This is essentially a convertor from a [AstGenResult<T>]

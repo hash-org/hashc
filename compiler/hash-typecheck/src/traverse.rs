@@ -34,7 +34,6 @@ use hash_source::{
     SourceId,
 };
 use slotmap::Key;
-use std::collections::HashSet;
 use std::iter;
 use std::mem;
 
@@ -857,82 +856,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let ty_location = self.source_location(node.location());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::I32), Some(ty_location)))
-    }
-
-    type StructLiteralRet = TypeId;
-    fn visit_struct_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-    ) -> Result<Self::StructLiteralRet, Self::Error> {
-        let location = self.source_location(node.location());
-
-        let symbol_res = self.resolve_compound_symbol(&node.name)?;
-
-        match symbol_res {
-            (_, SymbolType::TypeDef(def_id)) => {
-                let type_def = self.type_defs().get(def_id);
-                let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
-                match &type_def.kind {
-                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_literal(
-                        ctx,
-                        node,
-                        ty_id,
-                        struct_def,
-                        type_def.location,
-                    ),
-                    _ => Err(TypecheckError::TypeIsNotStruct {
-                        ty: ty_id,
-                        location,
-                        ty_def_location: type_def.location,
-                    }),
-                }
-            }
-            (_, SymbolType::Type(ty_id)) => {
-                let ty = self.types().get(ty_id);
-                match ty {
-                    TypeValue::User(UserType { def_id, .. }) => {
-                        let type_def = self.type_defs().get(*def_id);
-
-                        match &type_def.kind {
-                            TypeDefValueKind::Struct(struct_def) => self
-                                .typecheck_known_struct_literal(
-                                    ctx,
-                                    node,
-                                    ty_id,
-                                    struct_def,
-                                    type_def.location,
-                                ),
-                            _ => Err(TypecheckError::TypeIsNotStruct {
-                                ty: ty_id,
-                                location,
-                                ty_def_location: type_def.location,
-                            }),
-                        }
-                    }
-                    _ => Err(TypecheckError::TypeIsNotStruct {
-                        ty: ty_id,
-                        location,
-                        ty_def_location: None,
-                    }),
-                }
-            }
-            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
-                path: node.name.path(),
-                location: Some(location),
-            })),
-        }
-    }
-
-    type StructLiteralEntryRet = (Identifier, TypeId);
-    fn visit_struct_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
-    ) -> Result<Self::StructLiteralEntryRet, Self::Error> {
-        let walk::StructLiteralEntry { value, .. } =
-            walk::walk_struct_literal_entry(self, ctx, node)?;
-        Ok((node.name.ident, value))
     }
 
     type FunctionDefRet = TypeId;
@@ -1836,68 +1759,68 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 }
 
 impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
-    fn typecheck_known_struct_literal(
-        &mut self,
-        ctx: &<Self as AstVisitor<'c>>::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-        ty_id: TypeId,
-        StructDef {
-            name,
-            fields,
-            generics: _,
-        }: &StructDef,
-        ty_def_location: Option<SourceLocation>,
-    ) -> TypecheckResult<TypeId> {
-        let walk::StructLiteral {
-            name: _,
-            entries,
-            type_args: _,
-        } = walk::walk_struct_literal(self, ctx, node)?;
+    // fn typecheck_known_struct_literal(
+    //     &mut self,
+    //     ctx: &<Self as AstVisitor<'c>>::Ctx,
+    //     node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+    //     ty_id: TypeId,
+    //     StructDef {
+    //         name,
+    //         fields,
+    //         generics: _,
+    //     }: &StructDef,
+    //     ty_def_location: Option<SourceLocation>,
+    // ) -> TypecheckResult<TypeId> {
+    //     let walk::StructLiteral {
+    //         name: _,
+    //         entries,
+    //         type_args: _,
+    //     } = walk::walk_struct_literal(self, ctx, node)?;
 
-        // Make sure all fields are present
-        let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+    //     // Make sure all fields are present
+    //     let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
 
-        // @@Reporting: we could report multiple missing fields here...
-        for (expected, _) in fields.iter() {
-            if !entries_given.contains(&expected) {
-                let name_node = &node.body().name;
-                let location = self.source_location(name_node.location());
+    //     // @@Reporting: we could report multiple missing fields here...
+    //     for (expected, _) in fields.iter() {
+    //         if !entries_given.contains(&expected) {
+    //             let name_node = &node.body().name;
+    //             let location = self.source_location(name_node.location());
 
-                return Err(TypecheckError::MissingStructField {
-                    ty_def_location,
-                    ty_def_name: *name,
-                    field_name: expected,
-                    location,
-                });
-            }
-        }
+    //             return Err(TypecheckError::MissingStructField {
+    //                 ty_def_location,
+    //                 ty_def_name: *name,
+    //                 field_name: expected,
+    //                 location,
+    //             });
+    //         }
+    //     }
 
-        // Unify args
-        for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
-            match fields.get_field(entry_name) {
-                Some(field_ty) => {
-                    self.unifier()
-                        .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
-                }
-                None => {
-                    let entry = node.entries.get(index).unwrap();
+    //     // Unify args
+    //     for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
+    //         match fields.get_field(entry_name) {
+    //             Some(field_ty) => {
+    //                 self.unifier()
+    //                     .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
+    //             }
+    //             None => {
+    //                 let entry = node.entries.get(index).unwrap();
 
-                    return Err(TypecheckError::UnresolvedStructField {
-                        ty_def: Symbol::Single {
-                            symbol: *name,
-                            location: ty_def_location,
-                        },
-                        field: Symbol::Single {
-                            symbol: entry_name,
-                            location: self.some_source_location(entry.location()),
-                        },
-                    });
-                }
-            }
-        }
+    //                 return Err(TypecheckError::UnresolvedStructField {
+    //                     ty_def: Symbol::Single {
+    //                         symbol: *name,
+    //                         location: ty_def_location,
+    //                     },
+    //                     field: Symbol::Single {
+    //                         symbol: entry_name,
+    //                         location: self.some_source_location(entry.location()),
+    //                     },
+    //                 });
+    //             }
+    //         }
+    //     }
 
-        Ok(ty_id)
-    }
+    //     Ok(ty_id)
+    // }
 
     fn typecheck_known_struct_pattern(
         &mut self,

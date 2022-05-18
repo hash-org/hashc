@@ -532,43 +532,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
-    type StructLiteralRet = TreeNode;
-    fn visit_struct_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-    ) -> Result<Self::StructLiteralRet, Self::Error> {
-        let walk::StructLiteral {
-            name: _,
-            type_args,
-            entries,
-        } = walk::walk_struct_literal(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "struct",
-            vec![
-                TreeNode::branch("type_args", type_args),
-                TreeNode::branch("entries", entries),
-            ],
-        ))
-    }
-
-    type StructLiteralEntryRet = TreeNode;
-    fn visit_struct_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
-    ) -> Result<Self::StructLiteralEntryRet, Self::Error> {
-        let walk::StructLiteralEntry { name, value } =
-            walk::walk_struct_literal_entry(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "entry",
-            vec![
-                TreeNode::branch("name", vec![name]),
-                TreeNode::branch("value", vec![value]),
-            ],
-        ))
-    }
-
     type FunctionDefRet = TreeNode;
     fn visit_function_def(
         &mut self,
