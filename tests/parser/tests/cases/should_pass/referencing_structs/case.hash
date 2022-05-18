@@ -1,1 +1,1 @@
-my_ref := &Dog { name = "Viktor" };
+my_ref := &Dog ( name = "Viktor" );
