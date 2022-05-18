@@ -106,17 +106,6 @@ impl TokenKind {
         )
     }
 
-    /// Checks if the [TokenKind] must begin a statement, as in the specified keywords that
-    /// follow a specific syntax, and must be statements.
-    pub fn begins_statement(&self) -> bool {
-        // @@TODO(alex): remove this after all statements are converted into expr!
-        matches!(
-            self,
-            |TokenKind::Keyword(Keyword::Continue)| TokenKind::Keyword(Keyword::Break)
-                | TokenKind::Keyword(Keyword::Return)
-        )
-    }
-
     /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
     pub fn is_literal(&self) -> bool {
         matches!(

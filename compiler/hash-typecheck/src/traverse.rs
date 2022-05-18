@@ -1039,7 +1039,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(())
     }
 
-    type ReturnStatementRet = ();
+    type ReturnStatementRet = TypeId;
     fn visit_return_statement(
         &mut self,
         ctx: &Self::Ctx,
@@ -1055,7 +1055,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     .unify(ret, given_ret, UnifyStrategy::ModifyBoth)?;
                 self.tc_state().ret_once = true;
 
-                Ok(())
+                Ok(ret)
             }
             None => Err(TypecheckError::UsingReturnOutsideFunction(
                 self.source_location(node.location()),
@@ -1063,7 +1063,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type BreakStatementRet = ();
+    type BreakStatementRet = TypeId;
     fn visit_break_statement(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1074,11 +1074,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.source_location(node.location()),
             ))
         } else {
-            Ok(())
+            Ok(TypeId::default())
         }
     }
 
-    type ContinueStatementRet = ();
+    type ContinueStatementRet = TypeId;
     fn visit_continue_statement(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1089,7 +1089,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.source_location(node.location()),
             ))
         } else {
-            Ok(())
+            Ok(TypeId::default())
         }
     }
 

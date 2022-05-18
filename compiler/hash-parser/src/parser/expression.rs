@@ -50,7 +50,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 )
             }
             TokenKind::Lt => self.node_with_joined_span(
-                Expression::new(ExpressionKind::Bound(self.parse_type_bound()?)),
+                Expression::new(ExpressionKind::Bound(self.parse_bound()?)),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Struct) => self.node_with_joined_span(
@@ -133,7 +133,29 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     false => self.parse_expression_or_tuple(tree, &self.current_location())?,
                 }
             }
+            TokenKind::Keyword(Keyword::Continue) => self.node_with_span(
+                Expression::new(ExpressionKind::Continue(ContinueStatement)),
+                token.span,
+            ),
+            TokenKind::Keyword(Keyword::Break) => self.node_with_span(
+                Expression::new(ExpressionKind::Break(BreakStatement)),
+                token.span,
+            ),
+            TokenKind::Keyword(Keyword::Return) => {
+                // @@Hack: check if the next token is a semi-colon, if so the return statement
+                // has no returned expression...
+                let return_expr = match self.peek() {
+                    Some(token) if token.has_kind(TokenKind::Semi) => {
+                        ExpressionKind::Return(ReturnStatement(None))
+                    }
+                    Some(_) => ExpressionKind::Return(ReturnStatement(Some(
+                        self.parse_expression_with_precedence(0)?,
+                    ))),
+                    None => ExpressionKind::Return(ReturnStatement(None)),
+                };
 
+                self.node_with_joined_span(Expression::new(return_expr), &token.span)
+            }
             kind @ TokenKind::Keyword(_) => {
                 return self.error_with_location(
                     AstGenErrorKind::Keyword,
@@ -152,8 +174,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
-        // If this is an import, we need to return here...
-        if let ExpressionKind::Import(_) = &subject.kind() {
+        // If this is an expression that can't have a continuation, we need to return here...
+        if subject.no_continuation() {
             return Ok(subject);
         }
 
@@ -1125,7 +1147,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             (None, Err(_)) => {
                 // reset the position and attempt to parse a statement
                 gen.offset.set(initial_offset);
-                let statement = gen.parse_statement()?;
+                let (_, statement) = gen.parse_statement(false)?;
 
                 Ok(self.node_with_span(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(
@@ -1304,7 +1326,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a [Bound]. Type bounds can occur in traits, function, struct and enum
     /// definitions.
-    pub fn parse_type_bound(&self) -> AstGenResult<'c, Bound<'c>> {
+    pub fn parse_bound(&self) -> AstGenResult<'c, Bound<'c>> {
         // @@Hack: Since we already parsed the `<`, we need to notify the
         //         type_args parser function that it doesn't need to parse this
         let type_args = self.parse_type_args(true)?;

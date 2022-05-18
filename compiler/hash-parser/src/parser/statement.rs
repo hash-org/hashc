@@ -4,70 +4,15 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_ast::ast::*;
-use hash_token::{keyword::Keyword, Token, TokenKind};
+use hash_token::TokenKind;
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
-    /// Parse a [Statement] which includes all variants of any statement
-    /// within the language. This function is eager and does not assume that
-    /// the result might produce an [Expression] that is not terminated by a
-    /// semi-colon.
-    pub fn parse_statement(&self) -> AstGenResult<'c, AstNode<'c, Statement<'c>>> {
-        let start = self.current_location();
-
-        match self.peek() {
-            Some(Token { kind, span: _ }) if kind.begins_statement() => {
-                self.skip_token();
-
-                let statement = match kind {
-                    // TokenKind::Keyword(Keyword::Trait) => {
-                    //     Statement::TraitDef(self.parse_trait_defn()?)
-                    // }
-                    TokenKind::Keyword(Keyword::Continue) => Statement::Continue(ContinueStatement),
-                    TokenKind::Keyword(Keyword::Break) => Statement::Break(BreakStatement),
-                    TokenKind::Keyword(Keyword::Return) => {
-                        // @@Hack: check if the next token is a semi-colon, if so the return statement
-                        // has no returned expression...
-                        match self.peek() {
-                            Some(token) if token.has_kind(TokenKind::Semi) => {
-                                Statement::Return(ReturnStatement(None))
-                            }
-                            Some(_) => Statement::Return(ReturnStatement(Some(
-                                self.parse_expression_with_precedence(0)?,
-                            ))),
-                            None => Statement::Return(ReturnStatement(None)),
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-
-                let current_location = self.current_location();
-
-                match self.next_token() {
-                    Some(token) if token.has_kind(TokenKind::Semi) => {
-                        Ok(self.node_with_span(statement, start.join(current_location)))
-                    }
-                    Some(token) => self.error_with_location(
-                        AstGenErrorKind::ExpectedExpression,
-                        None,
-                        Some(token.kind),
-                        current_location,
-                    ),
-                    None => self.error(AstGenErrorKind::EOF, None, Some(*kind))?,
-                }
-            }
-            Some(_) => self
-                .parse_general_statement(true)
-                .map(|(_, statement)| statement),
-            None => self.error(AstGenErrorKind::ExpectedStatement, None, None)?,
-        }
-    }
-
     /// Parse a subset of the [Statement] variants which don't include definitions of
     /// structs, enums, or traits. This function deals with attempting to parse declarations
     /// or expressions that are terminated with a semi-colon.
-    pub fn parse_general_statement(
+    pub fn parse_statement(
         &self,
         semi_required: bool,
     ) -> AstGenResult<'c, (bool, AstNode<'c, Statement<'c>>)> {
