@@ -85,15 +85,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Some(token.kind),
                 )?,
                 (false, None) => {
-                    let span = statement.location();
-
                     match statement.into_body().move_out() {
-                        Statement::Block(BlockStatement(inner_block)) => {
-                            block.expr = Some(self.node_with_span(
-                                Expression::new(ExpressionKind::Block(BlockExpr(inner_block))),
-                                span,
-                            ));
-                        }
                         Statement::Expr(ExprStatement(expr)) => {
                             block.expr = Some(expr);
                         }

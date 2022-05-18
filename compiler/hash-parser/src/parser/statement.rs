@@ -117,22 +117,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                             Ok(Statement::Assign(AssignStatement { lhs: expr, rhs }))
                         }
-
+                        Some(token) => {
+                            self.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))
+                        }
                         // Special case where there is a expression at the end of the stream and therefore it
                         // is signifying that it is returning the expression value here
                         None => Ok(Statement::Expr(ExprStatement(expr))),
-
-                        token => match (token, expr.into_body().move_out().into_kind()) {
-                            (_, ExpressionKind::Block(BlockExpr(block))) => {
-                                Ok(Statement::Block(BlockStatement(block)))
-                            }
-                            (Some(token), _) => self.error(
-                                AstGenErrorKind::ExpectedExpression,
-                                None,
-                                Some(token.kind),
-                            ),
-                            (None, _) => unreachable!(),
-                        },
                     }
                 }
             }

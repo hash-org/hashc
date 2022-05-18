@@ -1063,16 +1063,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type BlockStatementRet = ();
-    fn visit_block_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<Self::BlockStatementRet, Self::Error> {
-        let walk::BlockStatement(_) = walk::walk_block_statement(self, ctx, node)?;
-        Ok(())
-    }
-
     type BreakStatementRet = ();
     fn visit_break_statement(
         &mut self,
