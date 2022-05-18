@@ -165,8 +165,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// also be a comparison rather than the beginning of a type argument. Therefore, we have to
     /// lookahead to see if there is another type followed by either a comma (which locks the
     /// `type_args`) or a closing [`TokenKind::Gt`].
-    pub fn parse_type_args(&self) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
-        self.parse_token_atom(TokenKind::Lt)?;
+    pub fn parse_type_args(&self, lt_eaten: bool) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
+        // Only parse is if the caller specifies that they haven't eaten an `lt`
+        if !lt_eaten {
+            self.parse_token_atom(TokenKind::Lt)?;
+        }
+
         let start = self.current_location();
 
         let mut type_args = AstNodes::empty();
@@ -310,76 +314,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // of strings which at the end of the day aren't even used...
         let args = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Lt) => {
-                self.peek_resultant_fn(|| self.parse_type_args())
+                self.peek_resultant_fn(|| self.parse_type_args(false))
             }
             _ => None,
         };
 
         Ok((name, args))
-    }
-
-    /// Parse a type [Bound]. Type bounds can occur in traits, function, struct and enum
-    /// definitions.
-    pub fn parse_type_bound(&self) -> AstGenResult<'c, AstNode<'c, Bound<'c>>> {
-        let type_args = self.parse_type_args()?;
-        let type_args_location = type_args.location().unwrap();
-
-        let trait_bounds = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
-                self.skip_token();
-
-                let mut trait_bounds = ast_nodes![&self.wall;];
-
-                loop {
-                    match self.peek() {
-                        Some(Token {
-                            kind: TokenKind::Ident(ident),
-                            span,
-                        }) => {
-                            self.skip_token();
-
-                            let bound_start = self.current_location();
-                            let (name, type_args) = {
-                                let ident = self.node_with_span(*ident, *span);
-
-                                let name = self.parse_access_name(ident)?;
-                                let args = self.parse_type_args()?;
-
-                                (name, args)
-                            };
-
-                            trait_bounds.nodes.push(
-                                self.node_with_joined_span(
-                                    TraitBound { name, type_args },
-                                    &bound_start,
-                                ),
-                                &self.wall,
-                            );
-
-                            // ensure that the bound is followed by a comma, if not then break...
-                            match self.peek() {
-                                Some(token) if token.has_kind(TokenKind::Comma) => {
-                                    self.skip_token();
-                                }
-                                _ => break,
-                            }
-                        }
-                        None => self.unexpected_eof()?,
-                        _ => break,
-                    }
-                }
-
-                trait_bounds
-            }
-            _ => ast_nodes![&self.wall;],
-        };
-
-        Ok(self.node_with_joined_span(
-            Bound {
-                type_args,
-                trait_bounds,
-            },
-            &type_args_location,
-        ))
     }
 }

@@ -739,6 +739,7 @@ pub mod walk {
         Import(V::ImportExprRet),
         StructDef(V::StructDefRet),
         EnumDef(V::EnumDefRet),
+        Bound(V::BoundRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -789,6 +790,9 @@ pub mod walk {
             ast::ExpressionKind::EnumDef(r) => {
                 Expression::EnumDef(visitor.visit_enum_def(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::Bound(r) => {
+                Expression::Bound(visitor.visit_bound(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -814,6 +818,7 @@ pub mod walk {
             ImportExprRet = Ret,
             StructDefRet = Ret,
             EnumDefRet = Ret,
+            BoundRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -831,6 +836,7 @@ pub mod walk {
             Expression::Import(r) => r,
             Expression::StructDef(r) => r,
             Expression::EnumDef(r) => r,
+            Expression::Bound(r) => r,
         })
     }
 
@@ -1885,28 +1891,22 @@ pub mod walk {
         Ok(BlockStatement(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
-    pub struct LetStatement<'c, V: AstVisitor<'c>> {
+    pub struct Declaration<'c, V: AstVisitor<'c>> {
         pub pattern: V::PatternRet,
         pub ty: Option<V::TypeRet>,
-        pub bound: Option<V::BoundRet>,
         pub value: V::ExpressionRet,
     }
-    pub fn walk_let_statement<'c, V: AstVisitor<'c>>(
+    pub fn walk_declaration<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::Declaration<'c>>,
-    ) -> Result<LetStatement<'c, V>, V::Error> {
-        Ok(LetStatement {
+    ) -> Result<Declaration<'c, V>, V::Error> {
+        Ok(Declaration {
             pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
             ty: node
                 .ty
                 .as_ref()
                 .map(|t| visitor.visit_type(ctx, t.ast_ref()))
-                .transpose()?,
-            bound: node
-                .bound
-                .as_ref()
-                .map(|t| visitor.visit_bound(ctx, t.ast_ref()))
                 .transpose()?,
             value: visitor.visit_expression(ctx, node.value.ast_ref())?,
         })
@@ -1953,8 +1953,6 @@ pub mod walk {
     }
 
     pub struct StructDef<'c, V: AstVisitor<'c>> {
-        pub name: V::NameRet,
-        pub bound: Option<V::BoundRet>,
         pub entries: V::CollectionContainer<V::StructDefEntryRet>,
     }
     pub fn walk_struct_def<'c, V: AstVisitor<'c>>(
@@ -1963,12 +1961,6 @@ pub mod walk {
         node: ast::AstNodeRef<ast::StructDef<'c>>,
     ) -> Result<StructDef<'c, V>, V::Error> {
         Ok(StructDef {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bound: node
-                .bound
-                .as_ref()
-                .map(|b| visitor.visit_bound(ctx, b.ast_ref()))
-                .transpose()?,
             entries: V::try_collect_items(
                 ctx,
                 node.entries
@@ -1999,8 +1991,6 @@ pub mod walk {
     }
 
     pub struct EnumDef<'c, V: AstVisitor<'c>> {
-        pub name: V::NameRet,
-        pub bound: Option<V::BoundRet>,
         pub entries: V::CollectionContainer<V::EnumDefEntryRet>,
     }
     pub fn walk_enum_def<'c, V: AstVisitor<'c>>(
@@ -2009,12 +1999,6 @@ pub mod walk {
         node: ast::AstNodeRef<ast::EnumDef<'c>>,
     ) -> Result<EnumDef<'c, V>, V::Error> {
         Ok(EnumDef {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bound: node
-                .bound
-                .as_ref()
-                .map(|b| visitor.visit_bound(ctx, b.ast_ref()))
-                .transpose()?,
             entries: V::try_collect_items(
                 ctx,
                 node.entries
@@ -2047,6 +2031,7 @@ pub mod walk {
     pub struct Bound<'c, V: AstVisitor<'c>> {
         pub type_args: V::CollectionContainer<V::TypeRet>,
         pub trait_bounds: V::CollectionContainer<V::TraitBoundRet>,
+        pub expression: V::ExpressionRet,
     }
     pub fn walk_bound<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -2066,6 +2051,7 @@ pub mod walk {
                     .iter()
                     .map(|t| visitor.visit_trait_bound(ctx, t.ast_ref())),
             )?,
+            expression: visitor.visit_expression(ctx, node.expr.ast_ref())?,
         })
     }
 
