@@ -1,6 +1,6 @@
 #intrinsic_open(file);
 
-MyPoint := Point<float32> {
+MyPoint := Point<float32> (
     x = #instrinsic_sin(pi),
     x = #instrinsic_cos(-pi)
-};
+);
