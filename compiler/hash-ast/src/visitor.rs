@@ -390,12 +390,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error>;
 
-    type AssignStatementRet: 'c;
-    fn visit_assign_statement(
+    type AssignExpressionRet: 'c;
+    fn visit_assign_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
-    ) -> Result<Self::AssignStatementRet, Self::Error>;
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error>;
 
     type StructDefEntryRet: 'c;
     fn visit_struct_def_entry(
@@ -678,6 +678,7 @@ pub mod walk {
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
+        Assign(V::AssignExpressionRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -740,6 +741,9 @@ pub mod walk {
             ast::ExpressionKind::Continue(r) => {
                 Expression::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::Assign(r) => {
+                Expression::Assign(visitor.visit_assign_expression(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -769,6 +773,7 @@ pub mod walk {
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
+            AssignExpressionRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -790,6 +795,7 @@ pub mod walk {
             Expression::Return(r) => r,
             Expression::Break(r) => r,
             Expression::Continue(r) => r,
+            Expression::Assign(r) => r,
         })
     }
 
@@ -1857,7 +1863,7 @@ pub mod walk {
     pub fn walk_assign_statement<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
     ) -> Result<AssignStatement<'c, V>, V::Error> {
         Ok(AssignStatement {
             lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
@@ -2012,7 +2018,6 @@ pub mod walk {
 
     pub enum Statement<'c, V: AstVisitor<'c>> {
         Expr(V::ExprStatementRet),
-        Assign(V::AssignStatementRet),
         TraitDef(V::TraitDefRet),
     }
 
@@ -2024,9 +2029,6 @@ pub mod walk {
         Ok(match &*node {
             ast::Statement::Expr(r) => {
                 Statement::Expr(visitor.visit_expr_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Assign(r) => {
-                Statement::Assign(visitor.visit_assign_statement(ctx, node.with_body(r))?)
             }
             ast::Statement::TraitDef(r) => {
                 Statement::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
@@ -2040,11 +2042,10 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Statement<'c>>,
     ) -> Result<Ret, V::Error>
     where
-        V: AstVisitor<'c, ExprStatementRet = Ret, AssignStatementRet = Ret, TraitDefRet = Ret>,
+        V: AstVisitor<'c, ExprStatementRet = Ret, TraitDefRet = Ret>,
     {
         Ok(match walk_statement(visitor, ctx, node)? {
             Statement::Expr(r) => r,
-            Statement::Assign(r) => r,
             Statement::TraitDef(r) => r,
         })
     }

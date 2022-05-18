@@ -1074,7 +1074,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.source_location(node.location()),
             ))
         } else {
-            Ok(TypeId::default())
+            Ok(self.types_mut().create_void_type())
         }
     }
 
@@ -1089,7 +1089,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.source_location(node.location()),
             ))
         } else {
-            Ok(TypeId::default())
+            Ok(self.types_mut().create_void_type())
         }
     }
 
@@ -1136,13 +1136,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_void_type())
     }
 
-    type AssignStatementRet = ();
+    type AssignExpressionRet = TypeId;
 
-    fn visit_assign_statement(
+    fn visit_assign_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
-    ) -> Result<Self::AssignStatementRet, Self::Error> {
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
 
         // @@Correctness: we should use the location of the definition instead of the most
@@ -1151,7 +1151,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // Ensure the the expression on the right hand side matches the type
         // that was found found for the left hand side
         self.unifier().unify(rhs, lhs, UnifyStrategy::CheckOnly)?;
-        Ok(())
+        Ok(self.types_mut().create_void_type())
     }
 
     type StructDefEntryRet = (Identifier, TypeId);
