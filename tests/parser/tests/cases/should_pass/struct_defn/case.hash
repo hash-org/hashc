@@ -1,12 +1,17 @@
+Point := struct(
+    x: i32,
+    y: i32
+);
+
 // Test that structs can be initialised with default field value and types.
-struct Triangle = {
-    x: Point = Point { x = 0, y = 0},
+Triangle := struct(
+    x: Point = Point (x = 0, y = 0),
     y: Point,
-    z = Point { x = 0, y = 0}, // Type should be inferred from default value?
-};
+    z = Point( x = 0, y = 0), // Type should be inferred from default value?
+);
 
 
-struct Rectangle = {
-    x: Point = Point { x = 0, y = 0},
+Rectangle := struct(
+    x: Point = Point( x = 0, y = 0),
     y = x + t_delta,
-};
+);

@@ -1,2 +1,3 @@
-trait merge = <T> => (T, T) -> T;
-trait merge = <T> where add<T>, or<T> => (T, T) -> T;
+// @@TODO(alex): add more definitions of traits and correct ones, once when the trait syntax is finalised.
+merge := <T> => (T, T) -> T => () => {};
+merge := <T> where add<T>, or<T> => (T, T) -> T => () => {};
