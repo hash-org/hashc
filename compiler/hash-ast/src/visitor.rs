@@ -675,6 +675,9 @@ pub mod walk {
         StructDef(V::StructDefRet),
         EnumDef(V::EnumDefRet),
         Bound(V::BoundRet),
+        Return(V::ReturnStatementRet),
+        Break(V::BreakStatementRet),
+        Continue(V::ContinueStatementRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -728,6 +731,15 @@ pub mod walk {
             ast::ExpressionKind::Bound(r) => {
                 Expression::Bound(visitor.visit_bound(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::Return(r) => {
+                Expression::Return(visitor.visit_return_statement(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::Break(r) => {
+                Expression::Break(visitor.visit_break_statement(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::Continue(r) => {
+                Expression::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -754,6 +766,9 @@ pub mod walk {
             StructDefRet = Ret,
             EnumDefRet = Ret,
             BoundRet = Ret,
+            ReturnStatementRet = Ret,
+            BreakStatementRet = Ret,
+            ContinueStatementRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -772,6 +787,9 @@ pub mod walk {
             Expression::StructDef(r) => r,
             Expression::EnumDef(r) => r,
             Expression::Bound(r) => r,
+            Expression::Return(r) => r,
+            Expression::Break(r) => r,
+            Expression::Continue(r) => r,
         })
     }
 
@@ -1994,9 +2012,6 @@ pub mod walk {
 
     pub enum Statement<'c, V: AstVisitor<'c>> {
         Expr(V::ExprStatementRet),
-        Return(V::ReturnStatementRet),
-        Break(V::BreakStatementRet),
-        Continue(V::ContinueStatementRet),
         Assign(V::AssignStatementRet),
         TraitDef(V::TraitDefRet),
     }
@@ -2009,15 +2024,6 @@ pub mod walk {
         Ok(match &*node {
             ast::Statement::Expr(r) => {
                 Statement::Expr(visitor.visit_expr_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Return(r) => {
-                Statement::Return(visitor.visit_return_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Break(r) => {
-                Statement::Break(visitor.visit_break_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Continue(r) => {
-                Statement::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
             }
             ast::Statement::Assign(r) => {
                 Statement::Assign(visitor.visit_assign_statement(ctx, node.with_body(r))?)
@@ -2034,21 +2040,10 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Statement<'c>>,
     ) -> Result<Ret, V::Error>
     where
-        V: AstVisitor<
-            'c,
-            ExprStatementRet = Ret,
-            ReturnStatementRet = Ret,
-            BreakStatementRet = Ret,
-            ContinueStatementRet = Ret,
-            AssignStatementRet = Ret,
-            TraitDefRet = Ret,
-        >,
+        V: AstVisitor<'c, ExprStatementRet = Ret, AssignStatementRet = Ret, TraitDefRet = Ret>,
     {
         Ok(match walk_statement(visitor, ctx, node)? {
             Statement::Expr(r) => r,
-            Statement::Return(r) => r,
-            Statement::Break(r) => r,
-            Statement::Continue(r) => r,
             Statement::Assign(r) => r,
             Statement::TraitDef(r) => r,
         })

@@ -466,7 +466,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let mut contents = AstNodes::empty();
 
         while self.has_token() {
-            contents.nodes.push(self.parse_statement()?, &self.wall);
+            contents.nodes.push(
+                self.parse_statement(true).map(|(_, statement)| statement)?,
+                &self.wall,
+            );
         }
 
         let span = start.join(self.current_location());

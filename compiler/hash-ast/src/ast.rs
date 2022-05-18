@@ -702,9 +702,6 @@ pub struct ContinueStatement;
 #[derive(Debug, PartialEq)]
 pub enum Statement<'c> {
     Expr(ExprStatement<'c>),
-    Return(ReturnStatement<'c>),
-    Break(BreakStatement),
-    Continue(ContinueStatement),
     Assign(AssignStatement<'c>),
     TraitDef(TraitDef<'c>),
 }
@@ -876,6 +873,9 @@ pub enum ExpressionKind<'c> {
     StructDef(StructDef<'c>),
     EnumDef(EnumDef<'c>),
     Bound(Bound<'c>),
+    Return(ReturnStatement<'c>),
+    Break(BreakStatement),
+    Continue(ContinueStatement),
 }
 
 /// An expression.
@@ -900,6 +900,13 @@ impl<'c> Expression<'c> {
     /// Get the [ExpressionKind] of the expression
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
+    }
+
+    pub fn no_continuation(&self) -> bool {
+        matches!(
+            self.kind(),
+            ExpressionKind::Import(_) | ExpressionKind::Break(_) | ExpressionKind::Continue(_)
+        )
     }
 }
 

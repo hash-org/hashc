@@ -65,17 +65,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can tell
         // this by checking for keywords that must begin a statement...
         while gen.has_token() {
-            let token = gen.peek().unwrap();
-
-            if token.kind.begins_statement() {
-                block
-                    .statements
-                    .nodes
-                    .push(gen.parse_statement()?, &self.wall);
-                continue;
-            }
-
-            let (has_semi, statement) = gen.parse_general_statement(false)?;
+            let (has_semi, statement) = gen.parse_statement(false)?;
 
             match (has_semi, gen.peek()) {
                 (true, _) => block.statements.nodes.push(statement, &self.wall),
@@ -84,14 +74,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Semi])),
                     Some(token.kind),
                 )?,
-                (false, None) => {
-                    match statement.into_body().move_out() {
-                        Statement::Expr(ExprStatement(expr)) => {
-                            block.expr = Some(expr);
-                        }
-                        _ => unreachable!(),
+                (false, None) => match statement.into_body().move_out() {
+                    Statement::Expr(ExprStatement(expr)) => {
+                        block.expr = Some(expr);
                     }
-                }
+                    _ => unreachable!(),
+                },
             }
         }
 
@@ -191,12 +179,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             },
                         ),
                     ),
-                    expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-                        self.node(Block::Body(BodyBlock {
-                            statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
-                            expr: None,
-                        })),
-                    )))),
+                    expr: self.node(Expression::new(ExpressionKind::Break(BreakStatement))),
                 }),
             ],
             origin: MatchOrigin::For
@@ -249,12 +232,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false)))),
-                            expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-                                self.node(Block::Body(BodyBlock {
-                                    statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
-                                    expr: None,
-                                })),
-                            )))),
+                            expr: self.node(Expression::new(ExpressionKind::Break(BreakStatement)))
                         }),
                     ],
                     origin: MatchOrigin::While
