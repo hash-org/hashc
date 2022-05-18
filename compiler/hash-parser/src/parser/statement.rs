@@ -57,10 +57,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Some(token) if token.has_kind(TokenKind::Eq) => {
                             self.skip_token();
 
-                            // Parse the rhs and the semi
+                            // Parse the right hand-side of the assignment
                             let rhs = self.parse_expression_with_precedence(0)?;
 
-                            Ok(Statement::Assign(AssignStatement { lhs: expr, rhs }))
+                            Ok(Statement::Expr(ExprStatement(self.node_with_joined_span(
+                                Expression::new(ExpressionKind::Assign(AssignExpression {
+                                    lhs: expr,
+                                    rhs,
+                                })),
+                                &start,
+                            ))))
                         }
                         Some(token) => {
                             self.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))

@@ -704,12 +704,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type AssignStatementRet = TreeNode;
-    fn visit_assign_statement(
+    type AssignExpressionRet = TreeNode;
+    fn visit_assign_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
-    ) -> Result<Self::AssignStatementRet, Self::Error> {
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
             "assign",

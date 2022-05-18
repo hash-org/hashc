@@ -620,9 +620,9 @@ pub struct Declaration<'c> {
     pub value: AstNode<'c, Expression<'c>>,
 }
 
-/// An assign statement, e.g. `x = 4;`.
+/// An assign expression, e.g. `x = 4;`.
 #[derive(Debug, PartialEq)]
-pub struct AssignStatement<'c> {
+pub struct AssignExpression<'c> {
     /// The left-hand side of the assignment.
     ///
     /// This should resolve to either a variable or a struct field.
@@ -702,7 +702,6 @@ pub struct ContinueStatement;
 #[derive(Debug, PartialEq)]
 pub enum Statement<'c> {
     Expr(ExprStatement<'c>),
-    Assign(AssignStatement<'c>),
     TraitDef(TraitDef<'c>),
 }
 
@@ -876,6 +875,7 @@ pub enum ExpressionKind<'c> {
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),
+    Assign(AssignExpression<'c>),
 }
 
 /// An expression.
