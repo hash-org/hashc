@@ -680,10 +680,6 @@ pub struct TraitDef<'c> {
     pub trait_type: AstNode<'c, Type<'c>>,
 }
 
-/// An expression statement, e.g. `my_func();`
-#[derive(Debug, PartialEq)]
-pub struct ExprStatement<'c>(pub AstNode<'c, Expression<'c>>);
-
 /// An return statement.
 ///
 /// Has an optional return expression, which becomes `void` if [None] is given.
@@ -697,12 +693,6 @@ pub struct BreakStatement;
 /// Continue statement (only in loop context).
 #[derive(Debug, PartialEq)]
 pub struct ContinueStatement;
-
-/// A statement.
-#[derive(Debug, PartialEq)]
-pub enum Statement<'c> {
-    Expr(ExprStatement<'c>),
-}
 
 /// A branch/"case" of a `match` block.
 #[derive(Debug, PartialEq)]
@@ -739,7 +729,7 @@ pub struct MatchBlock<'c> {
 #[derive(Debug, PartialEq)]
 pub struct BodyBlock<'c> {
     /// Zero or more statements.
-    pub statements: AstNodes<'c, Statement<'c>>,
+    pub statements: AstNodes<'c, Expression<'c>>,
     /// Zero or one expression.
     pub expr: Option<AstNode<'c, Expression<'c>>>,
 }
@@ -915,6 +905,6 @@ impl<'c> Expression<'c> {
 /// Represents a parsed `.hash` file.
 #[derive(Debug, PartialEq)]
 pub struct Module<'c> {
-    /// The contents of the module, as a list of statements.
-    pub contents: AstNodes<'c, Statement<'c>>,
+    /// The contents of the module, as a list of expressions terminated with a semi-colon.
+    pub contents: AstNodes<'c, Expression<'c>>,
 }

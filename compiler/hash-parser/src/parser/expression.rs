@@ -18,6 +18,85 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, Token
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+    /// Parse a top level [Expression] that are terminated with a semi-colon.
+    pub fn parse_top_level_expression(
+        &self,
+        semi_required: bool,
+    ) -> AstGenResult<'c, (bool, AstNode<'c, Expression<'c>>)> {
+        let start = self.current_location();
+        let offset = self.offset();
+
+        let decl =
+            if let Some(pat) = self.peek_resultant_fn(|| self.parse_singular_pattern()) {
+                // Check if there is a colon here and if not we have to backtrack and
+                // now attempt to parse a simple expression
+
+                match self.peek() {
+                    Some(token) if token.has_kind(TokenKind::Colon) => {
+                        let decl = self.parse_declaration(pat)?;
+
+                        Some(self.node_with_span(
+                            Expression::new(ExpressionKind::Declaration(decl)),
+                            start,
+                        ))
+                    }
+                    _ => {
+                        self.offset.set(offset);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+        let expr = match decl {
+            Some(statement) => Ok(statement),
+            None => {
+                let (expr, re_assigned) = self.try_parse_expression_with_re_assignment()?;
+
+                if re_assigned {
+                    Ok(expr)
+                } else {
+                    match self.peek() {
+                        // We don't skip here because it is handled after the statement has been generated.
+                        Some(token) if token.has_kind(TokenKind::Semi) => Ok(expr),
+                        Some(token) if token.has_kind(TokenKind::Eq) => {
+                            self.skip_token();
+
+                            // Parse the right hand-side of the assignment
+                            let rhs = self.parse_expression_with_precedence(0)?;
+
+                            Ok(self.node_with_joined_span(
+                                Expression::new(ExpressionKind::Assign(AssignExpression {
+                                    lhs: expr,
+                                    rhs,
+                                })),
+                                &start,
+                            ))
+                        }
+                        Some(token) => {
+                            self.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))
+                        }
+                        // Special case where there is a expression at the end of the stream and therefore it
+                        // is signifying that it is returning the expression value here
+                        None => Ok(expr),
+                    }
+                }
+            }
+        }?;
+
+        // Depending on whether it's expected of the expression to have a semi-colon, we
+        // try and parse one anyway, if so
+        let has_semi = if semi_required {
+            self.parse_token_atom(TokenKind::Semi)?;
+            true
+        } else {
+            self.parse_token_atom_fast(TokenKind::Semi).is_some()
+        };
+
+        Ok((has_semi, expr))
+    }
+
     /// Parse an expression which can be compound.
     pub(crate) fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token().ok_or_else(|| {
@@ -1147,7 +1226,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             (None, Err(_)) => {
                 // reset the position and attempt to parse a statement
                 gen.offset.set(initial_offset);
-                let (_, statement) = gen.parse_statement(false)?;
+                let (_, statement) = gen.parse_top_level_expression(false)?;
 
                 Ok(self.node_with_span(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(

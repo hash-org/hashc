@@ -348,20 +348,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::BodyBlock<'c>>,
     ) -> Result<Self::BodyBlockRet, Self::Error>;
 
-    type StatementRet: 'c;
-    fn visit_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Self::StatementRet, Self::Error>;
-
-    type ExprStatementRet: 'c;
-    fn visit_expr_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<Self::ExprStatementRet, Self::Error>;
-
     type ReturnStatementRet: 'c;
     fn visit_return_statement(
         &mut self,
@@ -1127,7 +1113,7 @@ pub mod walk {
     }
 
     pub struct BodyBlock<'c, V: AstVisitor<'c>> {
-        pub statements: V::CollectionContainer<V::StatementRet>,
+        pub statements: V::CollectionContainer<V::ExpressionRet>,
         pub expr: Option<V::ExpressionRet>,
     }
 
@@ -1141,7 +1127,7 @@ pub mod walk {
                 ctx,
                 node.statements
                     .iter()
-                    .map(|s| visitor.visit_statement(ctx, s.ast_ref())),
+                    .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
             )?,
             expr: node
                 .expr
@@ -1816,17 +1802,6 @@ pub mod walk {
         })
     }
 
-    pub struct ExprStatement<'c, V: AstVisitor<'c>>(pub V::ExpressionRet);
-    pub fn walk_expr_statement<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<ExprStatement<'c, V>, V::Error> {
-        Ok(ExprStatement(
-            visitor.visit_expression(ctx, node.0.ast_ref())?,
-        ))
-    }
-
     pub struct ReturnStatement<'c, V: AstVisitor<'c>>(pub Option<V::ExpressionRet>);
     pub fn walk_return_statement<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -2022,37 +1997,8 @@ pub mod walk {
         })
     }
 
-    pub enum Statement<'c, V: AstVisitor<'c>> {
-        Expr(V::ExprStatementRet),
-    }
-
-    pub fn walk_statement<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Statement<'c, V>, V::Error> {
-        Ok(match &*node {
-            ast::Statement::Expr(r) => {
-                Statement::Expr(visitor.visit_expr_statement(ctx, node.with_body(r))?)
-            }
-        })
-    }
-
-    pub fn walk_statement_same_children<'c, V, Ret>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Ret, V::Error>
-    where
-        V: AstVisitor<'c, ExprStatementRet = Ret>,
-    {
-        Ok(match walk_statement(visitor, ctx, node)? {
-            Statement::Expr(r) => r,
-        })
-    }
-
     pub struct Module<'c, V: AstVisitor<'c>> {
-        pub contents: V::CollectionContainer<V::StatementRet>,
+        pub contents: V::CollectionContainer<V::ExpressionRet>,
     }
 
     pub fn walk_module<'c, V: AstVisitor<'c>>(
@@ -2065,7 +2011,7 @@ pub mod walk {
                 ctx,
                 node.contents
                     .iter()
-                    .map(|s| visitor.visit_statement(ctx, s.ast_ref())),
+                    .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
             )?,
         })
     }

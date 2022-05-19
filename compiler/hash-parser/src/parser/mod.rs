@@ -10,7 +10,6 @@ mod literal;
 mod name;
 mod operator;
 mod pattern;
-mod statement;
 mod types;
 
 use std::cell::Cell;
@@ -467,7 +466,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         while self.has_token() {
             contents.nodes.push(
-                self.parse_statement(true).map(|(_, statement)| statement)?,
+                self.parse_top_level_expression(true)
+                    .map(|(_, statement)| statement)?,
                 &self.wall,
             );
         }

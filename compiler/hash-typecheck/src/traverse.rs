@@ -1020,25 +1020,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // @@TODO: use location of the last statement in the block
     }
 
-    type StatementRet = ();
-    fn visit_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Self::StatementRet, Self::Error> {
-        walk::walk_statement_same_children(self, ctx, node)
-    }
-
-    type ExprStatementRet = ();
-    fn visit_expr_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<Self::ExprStatementRet, Self::Error> {
-        let walk::ExprStatement(_) = walk::walk_expr_statement(self, ctx, node)?;
-        Ok(())
-    }
-
     type ReturnStatementRet = TypeId;
     fn visit_return_statement(
         &mut self,
