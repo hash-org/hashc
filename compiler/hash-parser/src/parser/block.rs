@@ -42,7 +42,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         gen: &Self,
         start: Location,
-        initial_statement: Option<AstNode<'c, Statement<'c>>>,
+        initial_statement: Option<AstNode<'c, Expression<'c>>>,
     ) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         // Append the initial statement if there is one.
         let mut block = if initial_statement.is_some() {
@@ -65,7 +65,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can tell
         // this by checking for keywords that must begin a statement...
         while gen.has_token() {
-            let (has_semi, statement) = gen.parse_statement(false)?;
+            let (has_semi, statement) = gen.parse_top_level_expression(false)?;
 
             match (has_semi, gen.peek()) {
                 (true, _) => block.statements.nodes.push(statement, &self.wall),
@@ -74,11 +74,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Semi])),
                     Some(token.kind),
                 )?,
-                (false, None) => match statement.into_body().move_out() {
-                    Statement::Expr(ExprStatement(expr)) => {
-                        block.expr = Some(expr);
-                    }
-                },
+                (false, None) => block.expr = Some(statement),
             }
         }
 

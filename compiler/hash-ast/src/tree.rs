@@ -642,24 +642,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("body", children))
     }
 
-    type StatementRet = TreeNode;
-    fn visit_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Self::StatementRet, Self::Error> {
-        walk::walk_statement_same_children(self, ctx, node)
-    }
-
-    type ExprStatementRet = TreeNode;
-    fn visit_expr_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<Self::ExprStatementRet, Self::Error> {
-        Ok(walk::walk_expr_statement(self, ctx, node)?.0)
-    }
-
     type ReturnStatementRet = TreeNode;
     fn visit_return_statement(
         &mut self,
