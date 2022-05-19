@@ -1080,7 +1080,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        // Ensure that the given pattern for let statements is irrefutable
+        // Ensure that the given pattern for the declaration is irrefutable
         if !is_pattern_irrefutable(node.pattern.body()) {
             let location = self.source_location(node.pattern.location());
             return Err(TypecheckError::RequiresIrrefutablePattern(location));

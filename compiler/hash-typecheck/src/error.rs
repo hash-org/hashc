@@ -615,7 +615,7 @@ impl TypecheckError {
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Note,
-                    "Only name bindings are allowed for let statements which are trait implementations.",
+                    "Only name bindings are allowed for declarations which are trait implementations.",
                 )));
             }
             TypecheckError::TraitDefinitionNotFound(symbol) => {
@@ -647,7 +647,7 @@ impl TypecheckError {
 
                 builder.add_element(ReportElement::Note(ReportNote::new(
                     ReportNoteKind::Note,
-                    "Type annotations are not allowed for let statements which are trait implementations.",
+                    "Type annotations are not allowed for declarations which are trait implementations.",
                 )));
             }
             TypecheckError::TypeArgumentLengthMismatch { mismatch, location } => {
