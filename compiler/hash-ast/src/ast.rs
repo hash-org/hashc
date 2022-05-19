@@ -614,9 +614,8 @@ pub struct Declaration<'c> {
     /// Any associated type with the expression
     pub ty: Option<AstNode<'c, Type<'c>>>,
 
-    /// Any value that is assigned to the statement, simply
-    /// an expression. Since it is optional, it will be set
-    /// to none if there is no expression.
+    /// Any value that is assigned to the binding, simply
+    /// an expression.
     pub value: AstNode<'c, Expression<'c>>,
 }
 
@@ -680,7 +679,7 @@ pub struct TraitDef<'c> {
     pub trait_type: AstNode<'c, Type<'c>>,
 }
 
-/// An return statement.
+/// A return statement.
 ///
 /// Has an optional return expression, which becomes `void` if [None] is given.
 #[derive(Debug, PartialEq)]
