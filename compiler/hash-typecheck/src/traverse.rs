@@ -1261,14 +1261,14 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(expression)
     }
 
-    type EnumPatternRet = TypeId;
-    fn visit_enum_pattern(
+    type ConstructorPatternRet = TypeId;
+    fn visit_constructor_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructPattern<'c>>,
-    ) -> Result<Self::EnumPatternRet, Self::Error> {
-        let walk::ConstructPattern { name: _, args } =
-            walk::walk_construct_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ConstructorPattern<'c>>,
+    ) -> Result<Self::ConstructorPatternRet, Self::Error> {
+        let walk::ConstructorPattern { name: _, args } =
+            walk::walk_constructor_pattern(self, ctx, node)?;
 
         let location = self.source_location(node.location());
 

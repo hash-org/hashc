@@ -92,7 +92,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let name = self.parse_access_name(self.node_with_span(*ident, *span))?;
 
                 match self.peek() {
-                    // a `construct` pattern
+                    // a `constructor` pattern
                     Some(Token {
                         kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                         span,
@@ -108,7 +108,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             )?
                         );
 
-                        Pattern::Construct(ConstructPattern { name, fields })
+                        Pattern::Constructor(ConstructorPattern { name, fields })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
                         AstGenErrorKind::Expected,
