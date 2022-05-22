@@ -92,21 +92,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let name = self.parse_access_name(self.node_with_span(*ident, *span))?;
 
                 match self.peek() {
-                    // Destructuring pattern for either struct or namespace
-                    Some(Token {
-                        kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                        span,
-                    }) => {
-                        self.skip_token();
-                        let tree = self.token_trees.get(*tree_index).unwrap();
-
-                        disable_flag!(self; spread_patterns_allowed;
-                            let fields = self.parse_destructuring_patterns(tree, *span)?
-                        );
-
-                        Pattern::Struct(StructPattern { name, fields })
-                    }
-                    // enum pattern
+                    // enum or struct pattern
                     Some(Token {
                         kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                         span,

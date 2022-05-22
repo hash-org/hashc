@@ -1332,72 +1332,72 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type StructPatternRet = TypeId;
-    fn visit_struct_pattern(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructPattern<'c>>,
-    ) -> Result<Self::StructPatternRet, Self::Error> {
-        let location = self.source_location(node.location());
+    // type StructPatternRet = TypeId;
+    // fn visit_struct_pattern(
+    //     &mut self,
+    //     ctx: &Self::Ctx,
+    //     node: ast::AstNodeRef<ast::StructPattern<'c>>,
+    // ) -> Result<Self::StructPatternRet, Self::Error> {
+    //     let location = self.source_location(node.location());
 
-        let symbol_res = self.resolve_compound_symbol(&node.name)?;
+    //     let symbol_res = self.resolve_compound_symbol(&node.name)?;
 
-        match symbol_res {
-            (_, SymbolType::TypeDef(def_id)) => {
-                let type_def = self.type_defs().get(def_id);
-                let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
+    //     match symbol_res {
+    //         (_, SymbolType::TypeDef(def_id)) => {
+    //             let type_def = self.type_defs().get(def_id);
+    //             let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
 
-                match &type_def.kind {
-                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_pattern(
-                        ctx,
-                        node,
-                        ty_id,
-                        struct_def,
-                        type_def.location,
-                    ),
-                    _ => Err(TypecheckError::TypeIsNotStruct {
-                        ty: ty_id,
-                        location,
-                        ty_def_location: type_def.location,
-                    }),
-                }
-            }
-            (_, SymbolType::Type(ty_id)) => {
-                let ty = self.types().get(ty_id);
+    //             match &type_def.kind {
+    //                 TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_pattern(
+    //                     ctx,
+    //                     node,
+    //                     ty_id,
+    //                     struct_def,
+    //                     type_def.location,
+    //                 ),
+    //                 _ => Err(TypecheckError::TypeIsNotStruct {
+    //                     ty: ty_id,
+    //                     location,
+    //                     ty_def_location: type_def.location,
+    //                 }),
+    //             }
+    //         }
+    //         (_, SymbolType::Type(ty_id)) => {
+    //             let ty = self.types().get(ty_id);
 
-                match ty {
-                    TypeValue::User(UserType { def_id, .. }) => {
-                        let type_def = self.type_defs().get(*def_id);
+    //             match ty {
+    //                 TypeValue::User(UserType { def_id, .. }) => {
+    //                     let type_def = self.type_defs().get(*def_id);
 
-                        match &type_def.kind {
-                            TypeDefValueKind::Struct(struct_def) => self
-                                .typecheck_known_struct_pattern(
-                                    ctx,
-                                    node,
-                                    ty_id,
-                                    struct_def,
-                                    type_def.location,
-                                ),
-                            _ => Err(TypecheckError::TypeIsNotStruct {
-                                ty: ty_id,
-                                location,
-                                ty_def_location: type_def.location,
-                            }),
-                        }
-                    }
-                    _ => Err(TypecheckError::TypeIsNotStruct {
-                        ty: ty_id,
-                        location,
-                        ty_def_location: None,
-                    }),
-                }
-            }
-            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
-                path: node.name.path(),
-                location: Some(location),
-            })),
-        }
-    }
+    //                     match &type_def.kind {
+    //                         TypeDefValueKind::Struct(struct_def) => self
+    //                             .typecheck_known_struct_pattern(
+    //                                 ctx,
+    //                                 node,
+    //                                 ty_id,
+    //                                 struct_def,
+    //                                 type_def.location,
+    //                             ),
+    //                         _ => Err(TypecheckError::TypeIsNotStruct {
+    //                             ty: ty_id,
+    //                             location,
+    //                             ty_def_location: type_def.location,
+    //                         }),
+    //                     }
+    //                 }
+    //                 _ => Err(TypecheckError::TypeIsNotStruct {
+    //                     ty: ty_id,
+    //                     location,
+    //                     ty_def_location: None,
+    //                 }),
+    //             }
+    //         }
+    //         _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
+    //             path: node.name.path(),
+    //             location: Some(location),
+    //         })),
+    //     }
+    // }
 
     type NamespacePatternRet = TypeId;
     fn visit_namespace_pattern(
@@ -1793,59 +1793,59 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     //     Ok(ty_id)
     // }
 
-    fn typecheck_known_struct_pattern(
-        &mut self,
-        ctx: &<Self as AstVisitor<'c>>::Ctx,
-        node: ast::AstNodeRef<ast::StructPattern<'c>>,
-        ty_id: TypeId,
-        StructDef {
-            name,
-            fields,
-            generics: _,
-        }: &StructDef,
-        ty_def_location: Option<SourceLocation>,
-    ) -> TypecheckResult<TypeId> {
-        let walk::StructPattern { name: _, entries } = walk::walk_struct_pattern(self, ctx, node)?;
+    // fn typecheck_known_struct_pattern(
+    //     &mut self,
+    //     ctx: &<Self as AstVisitor<'c>>::Ctx,
+    //     node: ast::AstNodeRef<ast::StructPattern<'c>>,
+    //     ty_id: TypeId,
+    //     StructDef {
+    //         name,
+    //         fields,
+    //         generics: _,
+    //     }: &StructDef,
+    //     ty_def_location: Option<SourceLocation>,
+    // ) -> TypecheckResult<TypeId> {
+    //     let walk::StructPattern { name: _, entries } = walk::walk_struct_pattern(self, ctx, node)?;
 
-        // @@Cleanup: until we don't introduce a some kind of ignore spread operator
-        //            that can be used for structs, we essentially implicitly treat as fields
-        //            that aren't specified in the pattern as being ignored.
-        //
-        //            This can be done by de-sugaring the ast into assigning all missing fields of a
-        //            a struct assigned to an ignore pattern. This current implementation doesn't do
-        //            that at the moment.
-        // let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+    //     // @@Cleanup: until we don't introduce a some kind of ignore spread operator
+    //     //            that can be used for structs, we essentially implicitly treat as fields
+    //     //            that aren't specified in the pattern as being ignored.
+    //     //
+    //     //            This can be done by de-sugaring the ast into assigning all missing fields of a
+    //     //            a struct assigned to an ignore pattern. This current implementation doesn't do
+    //     //            that at the moment.
+    //     // let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
 
-        // Unify args
-        for &(entry_name, entry_ty, location) in entries.iter() {
-            match fields.get_field(entry_name) {
-                Some(field_ty) => {
-                    self.unifier()
-                        .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
-                }
-                None => {
-                    return Err(TypecheckError::UnresolvedStructField {
-                        ty_def: Symbol::Single {
-                            symbol: *name,
-                            location: ty_def_location,
-                        },
-                        field: Symbol::Single {
-                            symbol: entry_name,
-                            location: Some(location),
-                        },
-                    });
-                }
-            }
-        }
+    //     // Unify args
+    //     for &(entry_name, entry_ty, location) in entries.iter() {
+    //         match fields.get_field(entry_name) {
+    //             Some(field_ty) => {
+    //                 self.unifier()
+    //                     .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
+    //             }
+    //             None => {
+    //                 return Err(TypecheckError::UnresolvedStructField {
+    //                     ty_def: Symbol::Single {
+    //                         symbol: *name,
+    //                         location: ty_def_location,
+    //                     },
+    //                     field: Symbol::Single {
+    //                         symbol: entry_name,
+    //                         location: Some(location),
+    //                     },
+    //                 });
+    //             }
+    //         }
+    //     }
 
-        // Add all entries to scope
-        for (ident, type_id, _) in &entries {
-            self.scopes()
-                .add_symbol(*ident, SymbolType::Variable(*type_id));
-        }
+    //     // Add all entries to scope
+    //     for (ident, type_id, _) in &entries {
+    //         self.scopes()
+    //             .add_symbol(*ident, SymbolType::Variable(*type_id));
+    //     }
 
-        Ok(ty_id)
-    }
+    //     Ok(ty_id)
+    // }
 
     fn query_type_of_enum_variant(
         &mut self,
@@ -1904,7 +1904,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     }
 
     /// Returns a substitution for the type arguments as well.
-    fn instantiate_type_def_unknown_args(
+    fn _instantiate_type_def_unknown_args(
         &mut self,
         def_id: TypeDefId,
     ) -> TypecheckResult<(TypeId, Substitution)> {

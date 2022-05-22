@@ -485,15 +485,6 @@ pub struct DestructuringPattern<'c> {
     pub pattern: AstNode<'c, Pattern<'c>>,
 }
 
-/// A struct pattern, e.g. `Dog { name = "Frank", age, }`
-#[derive(Debug, PartialEq)]
-pub struct StructPattern<'c> {
-    /// The name of the struct.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// The entries of the struct, as [DestructuringPattern] entries.
-    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
-}
-
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq)]
 pub struct NamespacePattern<'c> {
@@ -570,7 +561,6 @@ pub struct IgnorePattern;
 #[derive(Debug, PartialEq)]
 pub enum Pattern<'c> {
     Enum(EnumPattern<'c>),
-    Struct(StructPattern<'c>),
     Namespace(NamespacePattern<'c>),
     Tuple(TuplePattern<'c>),
     List(ListPattern<'c>),
