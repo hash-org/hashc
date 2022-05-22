@@ -11,14 +11,9 @@ use crate::parser::error::TyArgumentKind;
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
-    /// Parse a [StructDefinition] which includes the name of the struct with a
-    /// ForAll to specify any bounds or and generic arguments to the struct, with
-    /// zero or more struct fields. An example for a struct would be:
-    ///
-    /// Name := <T,Q> where eq<T> => struct( ... );
-    /// ^^^^       ^──────^^─┬──^            ^^^
-    /// Name of struct     For all          fields
-    pub fn parse_struct_defn(&self) -> AstGenResult<'c, StructDef<'c>> {
+    /// Parse a [StructDef]. The keyword `struct` begins the construct and is followed
+    /// by parenthesees with inner struct fields defined.
+    pub fn parse_struct_def(&self) -> AstGenResult<'c, StructDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Struct)));
@@ -33,7 +28,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let gen = self.from_stream(tree, *span);
 
                 gen.parse_separated_fn(
-                    || gen.parse_struct_defn_entry(),
+                    || gen.parse_struct_def_entry(),
                     || gen.parse_token_atom(TokenKind::Comma),
                 )?
             }
@@ -50,8 +45,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(StructDef { entries })
     }
 
-    /// Parse a [StructDefEntry].
-    pub fn parse_struct_defn_entry(&self) -> AstGenResult<'c, AstNode<'c, StructDefEntry<'c>>> {
+    /// Parse a [StructDefEntry]. The keyword `enum` begins the construct and is followed
+    /// by parenthesees with inner enum fields defined.
+    pub fn parse_struct_def_entry(&self) -> AstGenResult<'c, AstNode<'c, StructDefEntry<'c>>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
@@ -75,23 +71,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &start))
     }
 
-    /// Parse an enum definition. AST representation for an enum, An enum is constructed by
-    /// a the keyword 'enum' followed by an identifier name, a for-all declaration,
-    /// followed by some enum fields. An enumeration can be made of zero or more enum fields.
-    /// For example, a declaration of an enum would be:
-    ///
-    /// Name := <T, Q> where Eq<T> => enum(...);
-    /// ^^^^       ^──────^^─┬──^          ^^^
-    /// Name of enum      For all         fields
-    ///
-    pub fn parse_enum_defn(&self) -> AstGenResult<'c, EnumDef<'c>> {
+    /// Parse an [EnumDef].
+    pub fn parse_enum_def(&self) -> AstGenResult<'c, EnumDef<'c>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Enum)));
 
-        // now parse the optional type bound and the enum definition entries,
-        // if a type bound is specified, then the definition of the struct should
-        // be followed by an arrow ('=>')...
         let entries = match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Paren, tree_index),

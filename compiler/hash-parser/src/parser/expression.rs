@@ -127,15 +127,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 )
             }
             TokenKind::Lt => self.node_with_joined_span(
-                Expression::new(ExpressionKind::Bound(self.parse_bound()?)),
+                Expression::new(ExpressionKind::TypeFunctionDef(
+                    self.parse_type_function_def()?,
+                )),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Struct) => self.node_with_joined_span(
-                Expression::new(ExpressionKind::StructDef(self.parse_struct_defn()?)),
+                Expression::new(ExpressionKind::StructDef(self.parse_struct_def()?)),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Enum) => self.node_with_joined_span(
-                Expression::new(ExpressionKind::EnumDef(self.parse_enum_defn()?)),
+                Expression::new(ExpressionKind::EnumDef(self.parse_enum_def()?)),
                 &token.span,
             ),
             // @@Note: This doesn't cover '{' case.
@@ -1386,13 +1388,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         ))
     }
 
-    /// Parse a [Bound]. Type bounds can occur in traits, function, struct and enum
+    /// Parse a [TypeFunctionDef]. Type function definitions can occur in traits, function, struct and enum
     /// definitions.
-    pub fn parse_bound(&self) -> AstGenResult<'c, Bound<'c>> {
+    pub fn parse_type_function_def(&self) -> AstGenResult<'c, TypeFunctionDef<'c>> {
         // @@Hack: Since we already parsed the `<`, we need to notify the
         //         type_args parser function that it doesn't need to parse this
         let type_args = self.parse_type_args(true)?;
 
+        // @@TODO: remove this!
         let trait_bounds = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
                 self.skip_token();
@@ -1447,7 +1450,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(Bound {
+        Ok(TypeFunctionDef {
             type_args,
             trait_bounds,
             expr,
