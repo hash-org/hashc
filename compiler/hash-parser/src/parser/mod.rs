@@ -3,6 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 mod block;
+mod definitions;
 pub mod error;
 mod expression;
 mod literal;
@@ -371,21 +372,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             AccessName {
                 path: ast_nodes![&self.wall; self.node_with_span(name, location)],
             },
-            location,
-        )
-    }
-
-    /// Make an [Expression] with kind [ExpressionKind::Variable] from a provided [Identifier] with a provided span.
-    pub(crate) fn make_variable_from_identifier(
-        &self,
-        name: Identifier,
-        location: Location,
-    ) -> AstNode<'c, Expression<'c>> {
-        self.node_with_span(
-            Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.make_access_name_from_identifier(name, location),
-                type_args: AstNodes::empty(),
-            })),
             location,
         )
     }

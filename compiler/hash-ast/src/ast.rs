@@ -385,26 +385,6 @@ pub struct MapLiteral<'c> {
     pub elements: AstNodes<'c, MapLiteralEntry<'c>>,
 }
 
-/// A struct literal entry (struct field in struct literal), e.g. `name = "Nani"`.
-#[derive(Debug, PartialEq)]
-pub struct StructLiteralEntry<'c> {
-    /// The name of the struct field.
-    pub name: AstNode<'c, Name>,
-    /// The value given to the struct field.
-    pub value: AstNode<'c, Expression<'c>>,
-}
-
-/// A struct literal, e.g. `Dog { name = "Adam", age = 12 }`
-#[derive(Debug, PartialEq)]
-pub struct StructLiteral<'c> {
-    /// The name of the struct literal.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// Type arguments to the struct literal, if any.
-    pub type_args: AstNodes<'c, Type<'c>>,
-    /// The fields (entries) of the struct literal.
-    pub entries: AstNodes<'c, StructLiteralEntry<'c>>,
-}
-
 /// A function definition argument.
 #[derive(Debug, PartialEq)]
 pub struct FunctionDefArg<'c> {
@@ -467,7 +447,6 @@ pub enum Literal<'c> {
     Map(MapLiteral<'c>),
     List(ListLiteral<'c>),
     Tuple(TupleLiteral<'c>),
-    Struct(StructLiteral<'c>),
     Function(FunctionDef<'c>),
 }
 
@@ -622,6 +601,8 @@ pub struct Bound<'c> {
     pub type_args: AstNodes<'c, Type<'c>>,
     /// The traits that constrain the bound, if any.
     pub trait_bounds: AstNodes<'c, TraitBound<'c>>,
+    /// The expression that the bound applies to
+    pub expr: AstNode<'c, Expression<'c>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -632,11 +613,6 @@ pub struct Declaration<'c> {
 
     /// Any associated type with the expression
     pub ty: Option<AstNode<'c, Type<'c>>>,
-
-    /// The bound of the let, if any.
-    ///
-    /// Used for trait implementations.
-    pub bound: Option<AstNode<'c, Bound<'c>>>,
 
     /// Any value that is assigned to the statement, simply
     /// an expression. Since it is optional, it will be set
@@ -673,10 +649,6 @@ pub struct StructDefEntry<'c> {
 /// A struct definition, e.g. `struct Foo = { bar: int; };`.
 #[derive(Debug, PartialEq)]
 pub struct StructDef<'c> {
-    /// The name of the struct.
-    pub name: AstNode<'c, Name>,
-    /// The bound of the struct.
-    pub bound: Option<AstNode<'c, Bound<'c>>>,
     /// The fields of the struct, in the form of [StructDefEntry].
     pub entries: AstNodes<'c, StructDefEntry<'c>>,
 }
@@ -693,10 +665,6 @@ pub struct EnumDefEntry<'c> {
 /// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
 #[derive(Debug, PartialEq)]
 pub struct EnumDef<'c> {
-    /// The name of the enum.
-    pub name: AstNode<'c, Name>,
-    /// The bounds of the enum.
-    pub bound: Option<AstNode<'c, Bound<'c>>>,
     /// The variants of the enum, in the form of [EnumDefEntry].
     pub entries: AstNodes<'c, EnumDefEntry<'c>>,
 }
@@ -743,8 +711,6 @@ pub enum Statement<'c> {
     Break(BreakStatement),
     Continue(ContinueStatement),
     Assign(AssignStatement<'c>),
-    StructDef(StructDef<'c>),
-    EnumDef(EnumDef<'c>),
     TraitDef(TraitDef<'c>),
 }
 
@@ -912,23 +878,31 @@ pub enum ExpressionKind<'c> {
     Typed(TypedExpr<'c>),
     Block(BlockExpr<'c>),
     Import(ImportExpr<'c>),
+    StructDef(StructDef<'c>),
+    EnumDef(EnumDef<'c>),
+    Bound(Bound<'c>),
 }
 
 /// An expression.
 #[derive(Debug, PartialEq)]
 pub struct Expression<'c> {
+    /// The kind of the expression
     kind: ExpressionKind<'c>,
 }
 
 impl<'c> Expression<'c> {
+    /// Create a new [Expression] with a specific [ExpressionKind] and with
+    /// no bound
     pub fn new(kind: ExpressionKind<'c>) -> Self {
         Self { kind }
     }
 
+    /// Convert the [Expression] into an [ExpressionKind]
     pub fn into_kind(self) -> ExpressionKind<'c> {
         self.kind
     }
 
+    /// Get the [ExpressionKind] of the expression
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
     }
