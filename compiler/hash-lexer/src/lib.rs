@@ -284,7 +284,6 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             "match" => TokenKind::Keyword(Keyword::Match),
             "as" => TokenKind::Keyword(Keyword::As),
             "in" => TokenKind::Keyword(Keyword::In),
-            "where" => TokenKind::Keyword(Keyword::Where),
             "trait" => TokenKind::Keyword(Keyword::Trait),
             "enum" => TokenKind::Keyword(Keyword::Enum),
             "struct" => TokenKind::Keyword(Keyword::Struct),
