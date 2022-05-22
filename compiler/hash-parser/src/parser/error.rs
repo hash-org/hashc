@@ -59,8 +59,6 @@ pub enum AstGenErrorKind {
     TyArgument(TyArgumentKind),
     /// Expected an identifier here.
     ExpectedIdentifier,
-    /// Expected statement.
-    ExpectedStatement,
     /// Expected an expression.
     ExpectedExpression,
     /// Expected a '=>' at the current location. This error can occur in a number of places; including
@@ -129,7 +127,6 @@ impl<'a> From<AstGenError<'a>> for ParseError {
                     ty, ty
                 )
             }
-            AstGenErrorKind::ExpectedStatement => "Expected an statement".to_string(),
             AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),

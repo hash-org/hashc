@@ -136,7 +136,7 @@ mod tests {
         let castle = Castle::new();
         let wall = castle.wall();
 
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, Eq)]
         struct Foo(i32);
 
         let b = Brick::new(Foo(12), &wall);
@@ -150,7 +150,7 @@ mod tests {
         let castle = Castle::new();
         let wall = castle.wall();
 
-        #[derive(Debug, PartialEq, Clone)]
+        #[derive(Debug, PartialEq, Eq, Clone)]
         struct Bar(char);
 
         let b = Brick::new(Bar('a'), &wall);

@@ -348,33 +348,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::BodyBlock<'c>>,
     ) -> Result<Self::BodyBlockRet, Self::Error>;
 
-    type StatementRet: 'c;
-    fn visit_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Self::StatementRet, Self::Error>;
-
-    type ExprStatementRet: 'c;
-    fn visit_expr_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<Self::ExprStatementRet, Self::Error>;
-
     type ReturnStatementRet: 'c;
     fn visit_return_statement(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ReturnStatement<'c>>,
     ) -> Result<Self::ReturnStatementRet, Self::Error>;
-
-    type BlockStatementRet: 'c;
-    fn visit_block_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<Self::BlockStatementRet, Self::Error>;
 
     type BreakStatementRet: 'c;
     fn visit_break_statement(
@@ -397,12 +376,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error>;
 
-    type AssignStatementRet: 'c;
-    fn visit_assign_statement(
+    type AssignExpressionRet: 'c;
+    fn visit_assign_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
-    ) -> Result<Self::AssignStatementRet, Self::Error>;
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error>;
 
     type StructDefEntryRet: 'c;
     fn visit_struct_def_entry(
@@ -453,12 +432,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TraitBound<'c>>,
     ) -> Result<Self::TraitBoundRet, Self::Error>;
 
-    type BoundRet: 'c;
-    fn visit_bound(
+    type TypeFunctionDefRet: 'c;
+    fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
-    ) -> Result<Self::BoundRet, Self::Error>;
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
 
     type EnumPatternRet: 'c;
     fn visit_enum_pattern(
@@ -681,7 +660,13 @@ pub mod walk {
         Import(V::ImportExprRet),
         StructDef(V::StructDefRet),
         EnumDef(V::EnumDefRet),
-        Bound(V::BoundRet),
+        TypeFunctionDef(V::TypeFunctionDefRet),
+        TraitDef(V::TraitDefRet),
+        FunctionDef(V::FunctionDefRet),
+        Return(V::ReturnStatementRet),
+        Break(V::BreakStatementRet),
+        Continue(V::ContinueStatementRet),
+        Assign(V::AssignExpressionRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -732,8 +717,26 @@ pub mod walk {
             ast::ExpressionKind::EnumDef(r) => {
                 Expression::EnumDef(visitor.visit_enum_def(ctx, node.with_body(r))?)
             }
-            ast::ExpressionKind::Bound(r) => {
-                Expression::Bound(visitor.visit_bound(ctx, node.with_body(r))?)
+            ast::ExpressionKind::TypeFunctionDef(r) => Expression::TypeFunctionDef(
+                visitor.visit_type_function_def(ctx, node.with_body(r))?,
+            ),
+            ast::ExpressionKind::TraitDef(r) => {
+                Expression::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::FunctionDef(r) => {
+                Expression::FunctionDef(visitor.visit_function_def(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::Return(r) => {
+                Expression::Return(visitor.visit_return_statement(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::Break(r) => {
+                Expression::Break(visitor.visit_break_statement(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::Continue(r) => {
+                Expression::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::Assign(r) => {
+                Expression::Assign(visitor.visit_assign_expression(ctx, node.with_body(r))?)
             }
         })
     }
@@ -760,7 +763,13 @@ pub mod walk {
             ImportExprRet = Ret,
             StructDefRet = Ret,
             EnumDefRet = Ret,
-            BoundRet = Ret,
+            TypeFunctionDefRet = Ret,
+            TraitDefRet = Ret,
+            FunctionDefRet = Ret,
+            ReturnStatementRet = Ret,
+            BreakStatementRet = Ret,
+            ContinueStatementRet = Ret,
+            AssignExpressionRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -778,7 +787,13 @@ pub mod walk {
             Expression::Import(r) => r,
             Expression::StructDef(r) => r,
             Expression::EnumDef(r) => r,
-            Expression::Bound(r) => r,
+            Expression::TypeFunctionDef(r) => r,
+            Expression::TraitDef(r) => r,
+            Expression::FunctionDef(r) => r,
+            Expression::Return(r) => r,
+            Expression::Break(r) => r,
+            Expression::Continue(r) => r,
+            Expression::Assign(r) => r,
         })
     }
 
@@ -980,7 +995,6 @@ pub mod walk {
         Map(V::MapLiteralRet),
         List(V::ListLiteralRet),
         Tuple(V::TupleLiteralRet),
-        Function(V::FunctionDefRet),
     }
 
     pub fn walk_literal<'c, V: AstVisitor<'c>>(
@@ -1016,9 +1030,6 @@ pub mod walk {
             ast::Literal::Tuple(r) => {
                 Literal::Tuple(visitor.visit_tuple_literal(ctx, node.with_body(r))?)
             }
-            ast::Literal::Function(r) => {
-                Literal::Function(visitor.visit_function_def(ctx, node.with_body(r))?)
-            }
         })
     }
 
@@ -1039,7 +1050,6 @@ pub mod walk {
             MapLiteralRet = Ret,
             ListLiteralRet = Ret,
             TupleLiteralRet = Ret,
-            FunctionDefRet = Ret,
         >,
     {
         Ok(match walk_literal(visitor, ctx, node)? {
@@ -1052,7 +1062,6 @@ pub mod walk {
             Literal::Map(r) => r,
             Literal::List(r) => r,
             Literal::Tuple(r) => r,
-            Literal::Function(r) => r,
         })
     }
 
@@ -1104,7 +1113,7 @@ pub mod walk {
     }
 
     pub struct BodyBlock<'c, V: AstVisitor<'c>> {
-        pub statements: V::CollectionContainer<V::StatementRet>,
+        pub statements: V::CollectionContainer<V::ExpressionRet>,
         pub expr: Option<V::ExpressionRet>,
     }
 
@@ -1118,7 +1127,7 @@ pub mod walk {
                 ctx,
                 node.statements
                     .iter()
-                    .map(|s| visitor.visit_statement(ctx, s.ast_ref())),
+                    .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
             )?,
             expr: node
                 .expr
@@ -1793,17 +1802,6 @@ pub mod walk {
         })
     }
 
-    pub struct ExprStatement<'c, V: AstVisitor<'c>>(pub V::ExpressionRet);
-    pub fn walk_expr_statement<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<ExprStatement<'c, V>, V::Error> {
-        Ok(ExprStatement(
-            visitor.visit_expression(ctx, node.0.ast_ref())?,
-        ))
-    }
-
     pub struct ReturnStatement<'c, V: AstVisitor<'c>>(pub Option<V::ExpressionRet>);
     pub fn walk_return_statement<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -1816,15 +1814,6 @@ pub mod walk {
                 .map(|n| visitor.visit_expression(ctx, n.ast_ref()))
                 .transpose()?,
         ))
-    }
-
-    pub struct BlockStatement<'c, V: AstVisitor<'c>>(pub V::BlockRet);
-    pub fn walk_block_statement<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<BlockStatement<'c, V>, V::Error> {
-        Ok(BlockStatement(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
     pub struct Declaration<'c, V: AstVisitor<'c>> {
@@ -1855,7 +1844,7 @@ pub mod walk {
     pub fn walk_assign_statement<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
     ) -> Result<AssignStatement<'c, V>, V::Error> {
         Ok(AssignStatement {
             lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
@@ -1972,7 +1961,7 @@ pub mod walk {
     pub fn walk_bound<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Bound<'c, V>, V::Error> {
         Ok(Bound {
             type_args: V::try_collect_items(
@@ -1993,7 +1982,7 @@ pub mod walk {
 
     pub struct TraitDef<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
-        pub bound: V::BoundRet,
+        pub bound: V::TypeFunctionDefRet,
         pub trait_type: V::TypeRet,
     }
     pub fn walk_trait_def<'c, V: AstVisitor<'c>>(
@@ -2003,81 +1992,13 @@ pub mod walk {
     ) -> Result<TraitDef<'c, V>, V::Error> {
         Ok(TraitDef {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bound: visitor.visit_bound(ctx, node.bound.ast_ref())?,
+            bound: visitor.visit_type_function_def(ctx, node.bound.ast_ref())?,
             trait_type: visitor.visit_type(ctx, node.trait_type.ast_ref())?,
         })
     }
 
-    pub enum Statement<'c, V: AstVisitor<'c>> {
-        Expr(V::ExprStatementRet),
-        Return(V::ReturnStatementRet),
-        Block(V::BlockStatementRet),
-        Break(V::BreakStatementRet),
-        Continue(V::ContinueStatementRet),
-        Assign(V::AssignStatementRet),
-        TraitDef(V::TraitDefRet),
-    }
-
-    pub fn walk_statement<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Statement<'c, V>, V::Error> {
-        Ok(match &*node {
-            ast::Statement::Expr(r) => {
-                Statement::Expr(visitor.visit_expr_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Return(r) => {
-                Statement::Return(visitor.visit_return_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Block(r) => {
-                Statement::Block(visitor.visit_block_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Break(r) => {
-                Statement::Break(visitor.visit_break_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Continue(r) => {
-                Statement::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::Assign(r) => {
-                Statement::Assign(visitor.visit_assign_statement(ctx, node.with_body(r))?)
-            }
-            ast::Statement::TraitDef(r) => {
-                Statement::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
-            }
-        })
-    }
-
-    pub fn walk_statement_same_children<'c, V, Ret>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Ret, V::Error>
-    where
-        V: AstVisitor<
-            'c,
-            ExprStatementRet = Ret,
-            ReturnStatementRet = Ret,
-            BlockStatementRet = Ret,
-            BreakStatementRet = Ret,
-            ContinueStatementRet = Ret,
-            AssignStatementRet = Ret,
-            TraitDefRet = Ret,
-        >,
-    {
-        Ok(match walk_statement(visitor, ctx, node)? {
-            Statement::Expr(r) => r,
-            Statement::Return(r) => r,
-            Statement::Block(r) => r,
-            Statement::Break(r) => r,
-            Statement::Continue(r) => r,
-            Statement::Assign(r) => r,
-            Statement::TraitDef(r) => r,
-        })
-    }
-
     pub struct Module<'c, V: AstVisitor<'c>> {
-        pub contents: V::CollectionContainer<V::StatementRet>,
+        pub contents: V::CollectionContainer<V::ExpressionRet>,
     }
 
     pub fn walk_module<'c, V: AstVisitor<'c>>(
@@ -2090,7 +2011,7 @@ pub mod walk {
                 ctx,
                 node.contents
                     .iter()
-                    .map(|s| visitor.visit_statement(ctx, s.ast_ref())),
+                    .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
             )?,
         })
     }

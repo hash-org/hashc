@@ -1020,26 +1020,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // @@TODO: use location of the last statement in the block
     }
 
-    type StatementRet = ();
-    fn visit_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Self::StatementRet, Self::Error> {
-        walk::walk_statement_same_children(self, ctx, node)
-    }
-
-    type ExprStatementRet = ();
-    fn visit_expr_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<Self::ExprStatementRet, Self::Error> {
-        let walk::ExprStatement(_) = walk::walk_expr_statement(self, ctx, node)?;
-        Ok(())
-    }
-
-    type ReturnStatementRet = ();
+    type ReturnStatementRet = TypeId;
     fn visit_return_statement(
         &mut self,
         ctx: &Self::Ctx,
@@ -1055,7 +1036,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     .unify(ret, given_ret, UnifyStrategy::ModifyBoth)?;
                 self.tc_state().ret_once = true;
 
-                Ok(())
+                Ok(ret)
             }
             None => Err(TypecheckError::UsingReturnOutsideFunction(
                 self.source_location(node.location()),
@@ -1063,17 +1044,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type BlockStatementRet = ();
-    fn visit_block_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<Self::BlockStatementRet, Self::Error> {
-        let walk::BlockStatement(_) = walk::walk_block_statement(self, ctx, node)?;
-        Ok(())
-    }
-
-    type BreakStatementRet = ();
+    type BreakStatementRet = TypeId;
     fn visit_break_statement(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1084,11 +1055,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.source_location(node.location()),
             ))
         } else {
-            Ok(())
+            Ok(self.types_mut().create_void_type())
         }
     }
 
-    type ContinueStatementRet = ();
+    type ContinueStatementRet = TypeId;
     fn visit_continue_statement(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1099,7 +1070,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 self.source_location(node.location()),
             ))
         } else {
-            Ok(())
+            Ok(self.types_mut().create_void_type())
         }
     }
 
@@ -1109,7 +1080,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        // Ensure that the given pattern for let statements is irrefutable
+        // Ensure that the given pattern for the declaration is irrefutable
         if !is_pattern_irrefutable(node.pattern.body()) {
             let location = self.source_location(node.pattern.location());
             return Err(TypecheckError::RequiresIrrefutablePattern(location));
@@ -1146,13 +1117,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_void_type())
     }
 
-    type AssignStatementRet = ();
+    type AssignExpressionRet = TypeId;
 
-    fn visit_assign_statement(
+    fn visit_assign_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
-    ) -> Result<Self::AssignStatementRet, Self::Error> {
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
 
         // @@Correctness: we should use the location of the definition instead of the most
@@ -1161,7 +1132,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // Ensure the the expression on the right hand side matches the type
         // that was found found for the left hand side
         self.unifier().unify(rhs, lhs, UnifyStrategy::CheckOnly)?;
-        Ok(())
+        Ok(self.types_mut().create_void_type())
     }
 
     type StructDefEntryRet = (Identifier, TypeId);
@@ -1214,7 +1185,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
-    type TraitDefRet = ();
+    type TraitDefRet = TypeId;
     fn visit_trait_def(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1236,7 +1207,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // self.scopes()
         //     .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
 
-        Ok(())
+        Ok(self.types_mut().create_void_type())
     }
 
     type PatternRet = TypeId;
@@ -1272,12 +1243,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type BoundRet = TypeId;
-    fn visit_bound(
+    type TypeFunctionDefRet = TypeId;
+    fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
-    ) -> Result<Self::BoundRet, Self::Error> {
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         self.tc_state().in_bound_def = true;
         let walk::Bound {
             type_args: _,
