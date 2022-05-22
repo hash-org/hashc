@@ -140,6 +140,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::EnumDef(self.parse_enum_def()?)),
                 &token.span,
             ),
+            TokenKind::Keyword(Keyword::Trait) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::TraitDef(self.parse_trait_def()?)),
+                &token.span,
+            ),
             // @@Note: This doesn't cover '{' case.
             kind if kind.begins_block() => {
                 let start = self.current_location();
@@ -1392,74 +1396,5 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             })),
             &start,
         ))
-    }
-
-    /// Parse a [TypeFunctionDef]. Type function definitions can occur in traits, function, struct and enum
-    /// definitions.
-    pub fn parse_type_function_def(&self) -> AstGenResult<'c, TypeFunctionDef<'c>> {
-        // @@Hack: Since we already parsed the `<`, we need to notify the
-        //         type_args parser function that it doesn't need to parse this
-        let type_args = self.parse_type_args(true)?;
-
-        // @@TODO: remove this!
-        let trait_bounds = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
-                self.skip_token();
-
-                let mut trait_bounds = ast_nodes![&self.wall;];
-
-                loop {
-                    match self.peek() {
-                        Some(Token {
-                            kind: TokenKind::Ident(ident),
-                            span,
-                        }) => {
-                            self.skip_token();
-
-                            let bound_start = self.current_location();
-                            let (name, type_args) = {
-                                let ident = self.node_with_span(*ident, *span);
-
-                                let name = self.parse_access_name(ident)?;
-                                let args = self.parse_type_args(false)?;
-
-                                (name, args)
-                            };
-
-                            trait_bounds.nodes.push(
-                                self.node_with_joined_span(
-                                    TraitBound { name, type_args },
-                                    &bound_start,
-                                ),
-                                &self.wall,
-                            );
-
-                            // ensure that the bound is followed by a comma, if not then break...
-                            match self.peek() {
-                                Some(token) if token.has_kind(TokenKind::Comma) => {
-                                    self.skip_token();
-                                }
-                                _ => break,
-                            }
-                        }
-                        None => self.unexpected_eof()?,
-                        _ => break,
-                    }
-                }
-
-                trait_bounds
-            }
-            _ => ast_nodes![&self.wall;],
-        };
-
-        // Now that we parse the bound, we're expecting a fat-arrow and then some expression
-        self.parse_arrow()?;
-        let expr = self.parse_expression_with_precedence(0)?;
-
-        Ok(TypeFunctionDef {
-            type_args,
-            trait_bounds,
-            expr,
-        })
     }
 }

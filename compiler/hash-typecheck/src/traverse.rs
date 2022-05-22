@@ -1256,9 +1256,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         self.tc_state().in_bound_def = true;
-        let walk::Bound {
-            type_args: _,
-            trait_bounds: _,
+        let walk::TypeFunctionDef {
+            args: _,
             expression,
         } = walk::walk_bound(self, ctx, node)?;
         self.tc_state().in_bound_def = false;

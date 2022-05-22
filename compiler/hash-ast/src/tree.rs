@@ -764,14 +764,11 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitDef<'c>>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        let walk::TraitDef {
-            name: _,
-            bound,
-            trait_type,
-        } = walk::walk_trait_def(self, ctx, node)?;
+        let walk::TraitDef { members } = walk::walk_trait_def(self, ctx, node)?;
+
         Ok(TreeNode::branch(
             "trait_def",
-            vec![bound, TreeNode::branch("type", vec![trait_type])],
+            vec![TreeNode::branch("members", members)],
         ))
     }
 
@@ -803,18 +800,11 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::Bound {
-            type_args,
-            trait_bounds,
-            expression,
-        } = walk::walk_bound(self, ctx, node)?;
+        let walk::TypeFunctionDef { args, expression } = walk::walk_bound(self, ctx, node)?;
+
         Ok(TreeNode::branch(
-            "bound",
-            vec![
-                TreeNode::branch("vars", type_args),
-                TreeNode::branch("traits", trait_bounds),
-                expression,
-            ],
+            "type_function",
+            vec![TreeNode::branch("args", args), expression],
         ))
     }
 
