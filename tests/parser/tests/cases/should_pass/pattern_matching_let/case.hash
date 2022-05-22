@@ -1,6 +1,6 @@
 // struct desturcturing
-Dog { name } := dog;
-Dog { name = better_name } := dog;
+Dog(name) := dog;
+Dog(name = better_name) := dog;
 
 // namespace destructuring
 { name } := dog;

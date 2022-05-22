@@ -5,7 +5,7 @@
 use std::fmt;
 use strum_macros::AsRefStr;
 
-#[derive(Debug, Copy, Clone, PartialEq, AsRefStr)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum Keyword {
     For,
