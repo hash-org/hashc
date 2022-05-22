@@ -108,8 +108,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )
         })?;
 
-        let prev_allowance = self.disallow_struct_literals.get();
-
         // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
         // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
         let subject = match &token.kind {
@@ -173,8 +171,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.parse_array_literal(tree, &self.current_location())?
             }
             TokenKind::Tree(Delimiter::Paren, tree_index) => {
-                self.disallow_struct_literals.set(true); // @@Cleanup
-
                 let mut is_func = false;
 
                 // Now here we have to look ahead after the token_tree to see if there is an arrow
@@ -252,9 +248,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 )
             }
         };
-
-        // reset the struct literal state in any case
-        self.disallow_struct_literals.set(prev_allowance);
 
         self.parse_singular_expression(subject)
     }
@@ -1285,9 +1278,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             };
         }
 
-        let previous_allowance = gen.disallow_struct_literals.get();
-        gen.disallow_struct_literals.set(false);
-
         let entry = gen.parse_tuple_literal_entry()?;
 
         // In the special case where this is just an expression that is wrapped within parenthesees, we can
@@ -1319,8 +1309,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 None => break,
             }
         }
-
-        gen.disallow_struct_literals.set(previous_allowance);
 
         Ok(gen.node_with_joined_span(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
