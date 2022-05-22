@@ -118,7 +118,7 @@ Implementations can be attached to types without having to implement a specific 
 These are equivalent to trait implementation blocks, but do not correspond to any trait, and just attach the given items to the type as associated items.
 Example:
 
-```
+```rs
 Vector3 := <T> => struct(x: T, y: T, z: T);
 
 Vector3 ~= <T: Mul ~ Sub> => impl {
