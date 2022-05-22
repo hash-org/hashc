@@ -154,5 +154,5 @@ trait_impl = ident "{" ( expr ";" )* "}"
 The grammar for standalone `impl` blocks is as follows:
 
 ```
-trait_impl = "impl" "{" ( expr ";" )* "}"
+impl_block = "impl" "{" ( expr ";" )* "}"
 ```
