@@ -1265,9 +1265,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_enum_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
+        node: ast::AstNodeRef<ast::ConstructPattern<'c>>,
     ) -> Result<Self::EnumPatternRet, Self::Error> {
-        let walk::EnumPattern { name: _, args } = walk::walk_enum_pattern(self, ctx, node)?;
+        let walk::ConstructPattern { name: _, args } =
+            walk::walk_construct_pattern(self, ctx, node)?;
 
         let location = self.source_location(node.location());
 
@@ -1296,7 +1297,9 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         return_ty,
                     }) => {
                         self.unifier().unify_pairs(
-                            args.iter().zip(expected.iter().map(|(_, ty)| ty)),
+                            args.iter()
+                                .map(|(_, ty)| ty)
+                                .zip(expected.iter().map(|(_, ty)| ty)),
                             UnifyStrategy::CheckOnly,
                         )?;
 

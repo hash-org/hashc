@@ -443,7 +443,7 @@ pub trait AstVisitor<'c>: Sized {
     fn visit_enum_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
+        node: ast::AstNodeRef<ast::ConstructPattern<'c>>,
     ) -> Result<Self::EnumPatternRet, Self::Error>;
 
     type NamespacePatternRet: 'c;
@@ -1479,7 +1479,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Pattern<'c, V>, V::Error> {
         Ok(match &*node {
-            ast::Pattern::Enum(r) => {
+            ast::Pattern::Construct(r) => {
                 Pattern::Enum(visitor.visit_enum_pattern(ctx, node.with_body(r))?)
             }
             ast::Pattern::Namespace(r) => {
@@ -1560,22 +1560,22 @@ pub mod walk {
         })
     }
 
-    pub struct EnumPattern<'c, V: AstVisitor<'c>> {
+    pub struct ConstructPattern<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
-        pub args: V::CollectionContainer<V::PatternRet>,
+        pub args: V::CollectionContainer<V::TuplePatternEntryRet>,
     }
-    pub fn walk_enum_pattern<'c, V: AstVisitor<'c>>(
+    pub fn walk_construct_pattern<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
-    ) -> Result<EnumPattern<'c, V>, V::Error> {
-        Ok(EnumPattern {
+        node: ast::AstNodeRef<ast::ConstructPattern<'c>>,
+    ) -> Result<ConstructPattern<'c, V>, V::Error> {
+        Ok(ConstructPattern {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
                 node.fields
                     .iter()
-                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
+                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
             )?,
         })
     }

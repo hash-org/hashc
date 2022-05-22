@@ -946,7 +946,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )));
 
         let make_enum_pattern = |symbol: &str, location: Location| {
-            self.node(Pattern::Enum(EnumPattern {
+            self.node(Pattern::Construct(ConstructPattern {
                 name: self.make_access_name_from_str(symbol, location),
                 fields: AstNodes::empty(),
             }))

@@ -92,7 +92,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let name = self.parse_access_name(self.node_with_span(*ident, *span))?;
 
                 match self.peek() {
-                    // enum or struct pattern
+                    // a `construct` pattern
                     Some(Token {
                         kind: TokenKind::Tree(Delimiter::Paren, tree_index),
                         span,
@@ -102,10 +102,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         let gen = self.from_stream(tree, *span);
 
                         disable_flag!(gen; spread_patterns_allowed;
-                            let fields = gen.parse_pattern_collection()?
+                            let fields = gen.parse_separated_fn(
+                                || gen.parse_tuple_pattern_entry(),
+                                || gen.parse_token_atom(TokenKind::Comma),
+                            )?
                         );
 
-                        Pattern::Enum(EnumPattern { name, fields })
+                        Pattern::Construct(ConstructPattern { name, fields })
                     }
                     Some(token) if name.path.len() > 1 => self.error(
                         AstGenErrorKind::Expected,
@@ -128,7 +131,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Pattern::Spread(self.parse_spread_pattern()?)
             }
 
-            // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it o?
+            // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it?
             token if token.kind.is_literal() => {
                 self.skip_token();
                 Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
