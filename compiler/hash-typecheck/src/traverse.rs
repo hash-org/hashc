@@ -1243,12 +1243,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type BoundRet = TypeId;
+    type TypeFunctionDefRet = TypeId;
     fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
-    ) -> Result<Self::BoundRet, Self::Error> {
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         self.tc_state().in_bound_def = true;
         let walk::Bound {
             type_args: _,

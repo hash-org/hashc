@@ -832,13 +832,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 self.node(
                                 FunctionCallArg {
                                     name: None,
-                                    value: self.node_with_span(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
-                                        Literal::Function(FunctionDef {
+                                    value: self.node_with_span(Expression::new(ExpressionKind::FunctionDef(
+                                        FunctionDef {
                                             args: AstNodes::empty(),
                                             return_ty: None,
                                             fn_body: rhs,
-                                        }),
-                                    )))), rhs_span)
+                                        })), rhs_span),
                                 })
                             ],
                         },  &span),
@@ -1374,16 +1373,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_with_joined_span(
-                    Literal::Function(FunctionDef {
-                        args,
-                        return_ty,
-                        fn_body,
-                    }),
-                    &start,
-                ),
-            ))),
+            Expression::new(ExpressionKind::FunctionDef(FunctionDef {
+                args,
+                return_ty,
+                fn_body,
+            })),
             &start,
         ))
     }

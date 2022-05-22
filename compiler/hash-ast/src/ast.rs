@@ -447,7 +447,6 @@ pub enum Literal<'c> {
     Map(MapLiteral<'c>),
     List(ListLiteral<'c>),
     Tuple(TupleLiteral<'c>),
-    Function(FunctionDef<'c>),
 }
 
 /// An alternative pattern, e.g. `Red | Blue`.
@@ -861,6 +860,7 @@ pub enum ExpressionKind<'c> {
     EnumDef(EnumDef<'c>),
     TypeFunctionDef(TypeFunctionDef<'c>),
     TraitDef(TraitDef<'c>),
+    FunctionDef(FunctionDef<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),
