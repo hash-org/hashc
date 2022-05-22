@@ -42,4 +42,49 @@ x = Some("Baaa"); // Compile error: `Option<str>` is not assignable to `str`.
 ## Mutability
 
 By default, all bindings in Hash are constant.
-In order to declare a mutable variable, use the `mut` keyword in front of the 
+In order to declare a mutable variable, use the `mut` keyword in front of a name binding.
+
+```
+(mut a, mut b) := (1, 2);
+mut test := get_test();
+
+modify_test(&mut test);
+a += 2;
+b += 3;
+```
+
+## Visibility
+
+Visibility modifiers can be added to declarations inside modules or traits.
+By default, all declarations in a module scope or `impl` block are private, while all declarations in a `trait` block are public.
+To declare that a member is private, use `priv`, while to declare that a member is public, use `pub`.
+
+```
+// Visible from outside:
+pub foo := 3;
+
+// Not visible from outside:
+bar := 4;
+
+
+Foo := trait {
+    // Visible from outside
+    foo: (Self) -> str;
+
+    // Not visible from outside
+    priv bar: (Self) -> str;
+};
+```
+
+## Grammar
+
+The grammar for name bindings (and partial name bindings/reassignments) is as follows:
+```
+pattern = pattern_binding | ...(other patterns)
+pattern_binding = ( "pub" | "priv" )? "mut"? identifier
+
+name_binding =
+  | ( pattern ":=" expr )  // Declaration and assignment, infer type
+  | ( pattern ( ":" type )? "=" expr  ) // Assignment
+  | ( pattern ( ":" type )  ) // Declaration
+```
