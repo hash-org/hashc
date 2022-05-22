@@ -467,7 +467,7 @@ pub struct IfPattern<'c> {
 
 /// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
 #[derive(Debug, PartialEq)]
-pub struct ConstructPattern<'c> {
+pub struct ConstructorPattern<'c> {
     /// The name of the enum variant.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
@@ -560,7 +560,7 @@ pub struct IgnorePattern;
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq)]
 pub enum Pattern<'c> {
-    Construct(ConstructPattern<'c>),
+    Constructor(ConstructorPattern<'c>),
     Namespace(NamespacePattern<'c>),
     Tuple(TuplePattern<'c>),
     List(ListPattern<'c>),

@@ -818,13 +818,14 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type EnumPatternRet = TreeNode;
-    fn visit_enum_pattern(
+    type ConstructorPatternRet = TreeNode;
+    fn visit_constructor_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructPattern<'c>>,
-    ) -> Result<Self::EnumPatternRet, Self::Error> {
-        let walk::ConstructPattern { args, name } = walk::walk_construct_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ConstructorPattern<'c>>,
+    ) -> Result<Self::ConstructorPatternRet, Self::Error> {
+        let walk::ConstructorPattern { args, name } =
+            walk::walk_constructor_pattern(self, ctx, node)?;
         Ok(TreeNode::branch(
             "enum",
             iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
