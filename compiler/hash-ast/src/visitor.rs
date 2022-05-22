@@ -433,10 +433,10 @@ pub trait AstVisitor<'c>: Sized {
     ) -> Result<Self::TraitBoundRet, Self::Error>;
 
     type BoundRet: 'c;
-    fn visit_bound(
+    fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::BoundRet, Self::Error>;
 
     type EnumPatternRet: 'c;
@@ -716,8 +716,8 @@ pub mod walk {
             ast::ExpressionKind::EnumDef(r) => {
                 Expression::EnumDef(visitor.visit_enum_def(ctx, node.with_body(r))?)
             }
-            ast::ExpressionKind::Bound(r) => {
-                Expression::Bound(visitor.visit_bound(ctx, node.with_body(r))?)
+            ast::ExpressionKind::TypeFunctionDef(r) => {
+                Expression::Bound(visitor.visit_type_function_def(ctx, node.with_body(r))?)
             }
             ast::ExpressionKind::TraitDef(r) => {
                 Expression::TraitDef(visitor.visit_trait_def(ctx, node.with_body(r))?)
@@ -1961,7 +1961,7 @@ pub mod walk {
     pub fn walk_bound<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Bound<'c, V>, V::Error> {
         Ok(Bound {
             type_args: V::try_collect_items(
@@ -1992,7 +1992,7 @@ pub mod walk {
     ) -> Result<TraitDef<'c, V>, V::Error> {
         Ok(TraitDef {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bound: visitor.visit_bound(ctx, node.bound.ast_ref())?,
+            bound: visitor.visit_type_function_def(ctx, node.bound.ast_ref())?,
             trait_type: visitor.visit_type(ctx, node.trait_type.ast_ref())?,
         })
     }

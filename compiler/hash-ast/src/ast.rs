@@ -596,7 +596,7 @@ pub struct TraitBound<'c> {
 ///
 /// Used in struct, enum, trait definitions.
 #[derive(Debug, PartialEq)]
-pub struct Bound<'c> {
+pub struct TypeFunctionDef<'c> {
     /// The type arguments of the bound.
     pub type_args: AstNodes<'c, Type<'c>>,
     /// The traits that constrain the bound, if any.
@@ -674,7 +674,7 @@ pub struct TraitDef<'c> {
     /// The name of the trait.
     pub name: AstNode<'c, Name>,
     /// The bound of the trait.
-    pub bound: AstNode<'c, Bound<'c>>,
+    pub bound: AstNode<'c, TypeFunctionDef<'c>>,
     /// The inner type of the trait. Expected to be a `Function` type.
     pub trait_type: AstNode<'c, Type<'c>>,
 }
@@ -859,7 +859,7 @@ pub enum ExpressionKind<'c> {
     Import(ImportExpr<'c>),
     StructDef(StructDef<'c>),
     EnumDef(EnumDef<'c>),
-    Bound(Bound<'c>),
+    TypeFunctionDef(TypeFunctionDef<'c>),
     TraitDef(TraitDef<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
@@ -875,8 +875,7 @@ pub struct Expression<'c> {
 }
 
 impl<'c> Expression<'c> {
-    /// Create a new [Expression] with a specific [ExpressionKind] and with
-    /// no bound
+    /// Create a new [Expression] with a specific [ExpressionKind].
     pub fn new(kind: ExpressionKind<'c>) -> Self {
         Self { kind }
     }

@@ -798,10 +798,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     }
 
     type BoundRet = TreeNode;
-    fn visit_bound(
+    fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::BoundRet, Self::Error> {
         let walk::Bound {
             type_args,
