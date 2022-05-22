@@ -1,4 +1,4 @@
-# Generics
+# Type functions
 
 Hash supports functions both at the value level and at the type level.
 Type-level functions correspond to generics in other languages.
@@ -102,4 +102,27 @@ make_vec_with_alloc := <T, Allocator: Alloc> => (allocator: Allocator) -> Vec<T,
 
 x := make_vec<str>(); // `Allocator = GlobalAllocator` inferred
 y := make_vec_with_alloc<str, _>(slab_allocator); // `Allocator = SlabAllocator` inferred
+```
+
+
+## Grammar
+
+The grammar for type function definitions and type function types is as follows:
+
+```
+type_function_param =
+  | ( ident ":=" type )  // Declaration and assignment, infer type
+  | ( ident ( ":" type )? "=" type  ) // Assignment
+  | ( ident ( ":" type )  ) // Declaration
+
+type_function_def = "<" type_function_param+ ">" ( "->" type )? ( "=>" type )?
+
+type_function_type = "<" type_function_param+ ">" "->" type
+```
+
+The grammar for type function calls is as follows:
+
+```
+type_function_call_arg = type | ( ident "=" type )
+type_function_call = ident "(" type_function_call_arg* ")"
 ```

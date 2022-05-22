@@ -71,7 +71,7 @@ foo("a", "b", c="c", "d") // Not allowed -- argument d must be named.
 
 ## Grammar
 
-The grammar for function definitions is as follows:
+The grammar for function definitions and function types is as follows:
 
 ```
 function_param =
@@ -79,7 +79,8 @@ function_param =
   | ( ident ( ":" type )? "=" expr  ) // Assignment
   | ( ident ( ":" type )  ) // Declaration
 
-function_def = "(" function_param* ")" ( "->" type )? ( "=>" expr )?
+function_def = "(" function_param* ")" ( "->" type )? ("=>" expr)
+function_type = "(" function_param* ")" "->" type
 ```
 
 The grammar for function calls is as follows:
