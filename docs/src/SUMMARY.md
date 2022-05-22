@@ -2,7 +2,7 @@
 
 - [Introduction](./intro.md)
 - [Language features](./features/intro.md)
-    - [Variables](./features/variables.md)
+    - [Name bindings](./features/name-bindings.md)
     - [Functions](./features/functions.md)
     - [Primitives](./features/primitives.md)
     - [🚧 Control flow](./features/control-flow.md)
