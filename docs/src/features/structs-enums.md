@@ -113,7 +113,7 @@ The grammar for enum definitions is as follows:
 ```
 enum_member =
   | ident // No fields
-  | ident ( struct_member*  ) // With fields
+  | ident "(" struct_member* ")" // With fields
 
 enum_def := "enum" "(" enum_member* ")"
 ```
