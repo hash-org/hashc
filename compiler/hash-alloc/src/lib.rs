@@ -134,14 +134,14 @@ mod test {
 
     #[test]
     fn alloc_complex_test() {
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, Eq)]
         enum Color {
             Red,
             Blue,
             Green,
         }
 
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, Eq)]
         struct MyComplexStruct {
             a: i32,
             b: char,
