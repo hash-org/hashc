@@ -8,8 +8,6 @@ use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Location;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
-use crate::enable_flag;
-
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
@@ -94,9 +92,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
 
-        enable_flag!(self; disallow_struct_literals;
-            let iterator = self.parse_expression_with_precedence(0)?
-        );
+        let iterator = self.parse_expression_with_precedence(0)?;
 
         let body = self.parse_block()?;
         let (pat_span, iter_span, body_span) =
@@ -148,14 +144,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ))),
             cases: ast_nodes![&self.wall; self.node_with_span(MatchCase {
                     pattern: self.node_with_span(
-                        Pattern::Enum(
-                            EnumPattern {
+                        Pattern::Constructor(
+                            ConstructorPattern {
                                 name:
                                     self.make_access_name_from_str(
                                         "Some",
                                         self.current_location()
                                     ),
-                                fields: ast_nodes![&self.wall; pattern],
+                                fields: ast_nodes![&self.wall; self.node_with_joined_span(TuplePatternEntry { name: None, pattern }, &pat_span)],
                             },
                         ), pat_span
                     ),
@@ -163,8 +159,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }, start),
                 self.node(MatchCase {
                     pattern: self.node(
-                        Pattern::Enum(
-                            EnumPattern {
+                        Pattern::Constructor(
+                            ConstructorPattern {
                                 name:
                                     self.make_access_name_from_str(
                                         "None",
@@ -208,10 +204,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .has_kind(TokenKind::Keyword(Keyword::While)));
 
         let start = self.current_location();
-
-        enable_flag!(self; disallow_struct_literals;
-            let condition = self.parse_expression_with_precedence(0)?
-        );
+        let condition = self.parse_expression_with_precedence(0)?;
 
         let body = self.parse_block()?;
 
@@ -258,10 +251,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .has_kind(TokenKind::Keyword(Keyword::Match)));
 
         let start = self.current_location();
-
-        enable_flag!(self; disallow_struct_literals;
-            let subject = self.parse_expression_with_precedence(0)?
-        );
+        let subject = self.parse_expression_with_precedence(0)?;
 
         let mut cases = AstNodes::empty();
 
@@ -334,15 +324,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let mut has_else_branch = false;
 
         while self.has_token() {
-            // @@Cleanup: @@Hack: essentially because struct literals begin with an ident and then a block
-            //    this creates an ambiguity for the parser because it could also just be an ident
-            //    and then a block, therefore, we have to peek ahead to see if we can see two following
-            //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
-            //    only one token tree, we prevent it from being parsed as a struct literal
-            //    by updating the global state...
-            enable_flag!(self; disallow_struct_literals;
-                let clause = self.parse_expression_with_precedence(0)?
-            );
+            let clause = self.parse_expression_with_precedence(0)?;
 
             let branch = self.parse_block()?;
             let (clause_span, branch_span) = (clause.location(), branch.location());

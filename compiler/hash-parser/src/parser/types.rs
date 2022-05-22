@@ -15,7 +15,7 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a [Type]. This includes all forms of a [Type]. This function
-    /// does not deal with any kind of [Type] annotation or [Bound] syntax.
+    /// does not deal with any kind of [Type] annotation or [TypeFunctionDef] syntax.
     pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(

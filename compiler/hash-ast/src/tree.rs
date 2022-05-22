@@ -797,12 +797,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type BoundRet = TreeNode;
-    fn visit_bound(
+    type TypeFunctionDefRet = TreeNode;
+    fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
-    ) -> Result<Self::BoundRet, Self::Error> {
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         let walk::Bound {
             type_args,
             trait_bounds,
@@ -818,41 +818,20 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type EnumPatternRet = TreeNode;
-    fn visit_enum_pattern(
+    type ConstructorPatternRet = TreeNode;
+    fn visit_constructor_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
-    ) -> Result<Self::EnumPatternRet, Self::Error> {
-        let walk::EnumPattern { args, name } = walk::walk_enum_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ConstructorPattern<'c>>,
+    ) -> Result<Self::ConstructorPatternRet, Self::Error> {
+        let walk::ConstructorPattern { args, name } =
+            walk::walk_constructor_pattern(self, ctx, node)?;
         Ok(TreeNode::branch(
             "enum",
             iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
                 .chain(
                     (if args.is_empty() { None } else { Some(TreeNode::branch("args", args)) })
                         .into_iter(),
-                )
-                .collect(),
-        ))
-    }
-
-    type StructPatternRet = TreeNode;
-    fn visit_struct_pattern(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructPattern<'c>>,
-    ) -> Result<Self::StructPatternRet, Self::Error> {
-        let walk::StructPattern { name, entries } = walk::walk_struct_pattern(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "struct",
-            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
-                .chain(
-                    (if entries.is_empty() {
-                        None
-                    } else {
-                        Some(TreeNode::branch("fields", entries))
-                    })
-                    .into_iter(),
                 )
                 .collect(),
         ))

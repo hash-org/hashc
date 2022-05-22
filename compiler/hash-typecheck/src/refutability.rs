@@ -14,7 +14,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_ast::ast::{NamespacePattern, Pattern, StructPattern};
+use hash_ast::ast::{NamespacePattern, Pattern};
 
 /// This algorithm is used to perform a very basic irrefutability check on the provided pattern.
 /// Essentially, there are two kinds of patterns that this algorithm views: patterns that are singular
@@ -27,8 +27,7 @@ use hash_ast::ast::{NamespacePattern, Pattern, StructPattern};
 /// namespace patterns and binds are definitely irrefutable.
 pub fn is_pattern_irrefutable(pattern: &Pattern<'_>) -> bool {
     match pattern {
-        Pattern::Namespace(NamespacePattern { fields })
-        | Pattern::Struct(StructPattern { fields, .. }) => fields
+        Pattern::Namespace(NamespacePattern { fields }) => fields
             .iter()
             .all(|x| is_pattern_irrefutable(x.body().pattern.body())),
         Pattern::Binding(_) | Pattern::Ignore(_) => true,

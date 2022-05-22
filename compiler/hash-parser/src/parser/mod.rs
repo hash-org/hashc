@@ -90,10 +90,6 @@ pub struct AstGen<'c, 'stream, 'resolver> {
     /// was made up of multiple expressions with precedence operators.
     is_compound_expr: Cell<bool>,
 
-    /// State to prevent from struct literals being parsed in the current expression, because
-    /// the parent has specifically checked ahead to ensure it isn't a struct literal.
-    disallow_struct_literals: Cell<bool>,
-
     /// Flag denoting whether spread patterns are allowed in the current context. This
     /// is only true if the parser is parsing either `tuple` or `list` patterns
     spread_patterns_allowed: Cell<bool>,
@@ -121,7 +117,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             parent_span: None,
             is_compound_expr: Cell::new(false),
             spread_patterns_allowed: Cell::new(false),
-            disallow_struct_literals: Cell::new(false),
             offset: Cell::new(0),
             resolver,
             wall,
@@ -138,7 +133,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             offset: Cell::new(0),
             is_compound_expr: self.is_compound_expr.clone(),
             spread_patterns_allowed: self.spread_patterns_allowed.clone(),
-            disallow_struct_literals: self.disallow_struct_literals.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
             wall: self.wall.owning_castle().wall(),

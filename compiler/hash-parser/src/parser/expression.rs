@@ -108,8 +108,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             )
         })?;
 
-        let prev_allowance = self.disallow_struct_literals.get();
-
         // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
         // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
         let subject = match &token.kind {
@@ -129,15 +127,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 )
             }
             TokenKind::Lt => self.node_with_joined_span(
-                Expression::new(ExpressionKind::Bound(self.parse_bound()?)),
+                Expression::new(ExpressionKind::TypeFunctionDef(
+                    self.parse_type_function_def()?,
+                )),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Struct) => self.node_with_joined_span(
-                Expression::new(ExpressionKind::StructDef(self.parse_struct_defn()?)),
+                Expression::new(ExpressionKind::StructDef(self.parse_struct_def()?)),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Enum) => self.node_with_joined_span(
-                Expression::new(ExpressionKind::EnumDef(self.parse_enum_defn()?)),
+                Expression::new(ExpressionKind::EnumDef(self.parse_enum_def()?)),
                 &token.span,
             ),
             // @@Note: This doesn't cover '{' case.
@@ -173,8 +173,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.parse_array_literal(tree, &self.current_location())?
             }
             TokenKind::Tree(Delimiter::Paren, tree_index) => {
-                self.disallow_struct_literals.set(true); // @@Cleanup
-
                 let mut is_func = false;
 
                 // Now here we have to look ahead after the token_tree to see if there is an arrow
@@ -252,14 +250,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 )
             }
         };
-
-        // If this is an expression that can't have a continuation, we need to return here...
-        if subject.no_continuation() {
-            return Ok(subject);
-        }
-
-        // reset the struct literal state in any case
-        self.disallow_struct_literals.set(prev_allowance);
 
         self.parse_singular_expression(subject)
     }
@@ -854,13 +844,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 self.node(
                                 FunctionCallArg {
                                     name: None,
-                                    value: self.node_with_span(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(self.node(
-                                        Literal::Function(FunctionDef {
+                                    value: self.node_with_span(Expression::new(ExpressionKind::FunctionDef(
+                                        FunctionDef {
                                             args: AstNodes::empty(),
                                             return_ty: None,
                                             fn_body: rhs,
-                                        }),
-                                    )))), rhs_span)
+                                        })), rhs_span),
                                 })
                             ],
                         },  &span),
@@ -968,8 +957,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             },
         )));
 
-        let make_enum_pattern = |symbol: &str, location: Location| {
-            self.node(Pattern::Enum(EnumPattern {
+        let make_constructor_pattern = |symbol: &str, location: Location| {
+            self.node(Pattern::Constructor(ConstructorPattern {
                 name: self.make_access_name_from_str(symbol, location),
                 fields: AstNodes::empty(),
             }))
@@ -983,8 +972,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: ast_nodes![&self.wall;
-                        make_enum_pattern("Lt", location),
-                        make_enum_pattern("Eq", location),
+                        make_constructor_pattern("Lt", location),
+                        make_constructor_pattern("Eq", location),
                         ],
                     })),
                     expr: self.make_bool(true)
@@ -994,8 +983,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: ast_nodes![&self.wall;
-                        make_enum_pattern("Gt", location),
-                        make_enum_pattern("Eq", location),
+                        make_constructor_pattern("Gt", location),
+                        make_constructor_pattern("Eq", location),
                         ],
                     })),
                     expr: self.make_bool(true)
@@ -1003,13 +992,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             OperatorKind::Lt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_enum_pattern("Lt", location),
+                    pattern: make_constructor_pattern("Lt", location),
                     expr: self.make_bool(true)
                 })]
             }
             OperatorKind::Gt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_enum_pattern("Gt", location),
+                    pattern: make_constructor_pattern("Gt", location),
                     expr: self.make_bool(true)
                 })]
             }
@@ -1302,9 +1291,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             };
         }
 
-        let previous_allowance = gen.disallow_struct_literals.get();
-        gen.disallow_struct_literals.set(false);
-
         let entry = gen.parse_tuple_literal_entry()?;
 
         // In the special case where this is just an expression that is wrapped within parenthesees, we can
@@ -1336,8 +1322,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 None => break,
             }
         }
-
-        gen.disallow_struct_literals.set(previous_allowance);
 
         Ok(gen.node_with_joined_span(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
@@ -1401,27 +1385,23 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_with_joined_span(
-                    Literal::Function(FunctionDef {
-                        args,
-                        return_ty,
-                        fn_body,
-                    }),
-                    &start,
-                ),
-            ))),
+            Expression::new(ExpressionKind::FunctionDef(FunctionDef {
+                args,
+                return_ty,
+                fn_body,
+            })),
             &start,
         ))
     }
 
-    /// Parse a [Bound]. Type bounds can occur in traits, function, struct and enum
+    /// Parse a [TypeFunctionDef]. Type function definitions can occur in traits, function, struct and enum
     /// definitions.
-    pub fn parse_bound(&self) -> AstGenResult<'c, Bound<'c>> {
+    pub fn parse_type_function_def(&self) -> AstGenResult<'c, TypeFunctionDef<'c>> {
         // @@Hack: Since we already parsed the `<`, we need to notify the
         //         type_args parser function that it doesn't need to parse this
         let type_args = self.parse_type_args(true)?;
 
+        // @@TODO: remove this!
         let trait_bounds = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Where)) => {
                 self.skip_token();
@@ -1476,7 +1456,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(Bound {
+        Ok(TypeFunctionDef {
             type_args,
             trait_bounds,
             expr,

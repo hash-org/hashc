@@ -226,7 +226,7 @@ impl<T> DerefMut for AstNode<'_, T> {
 }
 
 /// A single name/symbol.
-#[derive(Hash, PartialEq, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct Name {
     // The name of the symbol.
     pub ident: Identifier,
@@ -278,7 +278,7 @@ pub const SET_TYPE_NAME: &str = "Set";
 pub const MAP_TYPE_NAME: &str = "Map";
 
 /// Reference kind representing either a raw reference or a normal reference.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum RefKind {
     /// Raw reference type
     Raw,
@@ -295,11 +295,11 @@ pub struct RefType<'c>(pub AstNode<'c, Type<'c>>);
 pub struct RawRefType<'c>(pub AstNode<'c, Type<'c>>);
 
 /// The existential type (`?`).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExistentialType;
 
 /// The type infer operator.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct InferType;
 
 /// An entry within a tuple type.
@@ -416,15 +416,15 @@ pub struct FunctionDef<'c> {
 }
 
 /// A string literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct StrLiteral(pub StringLiteral);
 
 /// A character literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CharLiteral(pub char);
 
 /// An integer literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IntLiteral(pub u64);
 
 /// A float literal.
@@ -432,7 +432,7 @@ pub struct IntLiteral(pub u64);
 pub struct FloatLiteral(pub f64);
 
 /// A boolean literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BoolLiteral(pub bool);
 
 /// A literal.
@@ -447,7 +447,6 @@ pub enum Literal<'c> {
     Map(MapLiteral<'c>),
     List(ListLiteral<'c>),
     Tuple(TupleLiteral<'c>),
-    Function(FunctionDef<'c>),
 }
 
 /// An alternative pattern, e.g. `Red | Blue`.
@@ -466,13 +465,13 @@ pub struct IfPattern<'c> {
     pub condition: AstNode<'c, Expression<'c>>,
 }
 
-/// An enum pattern, e.g. `Some((x, y))`.
+/// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
 #[derive(Debug, PartialEq)]
-pub struct EnumPattern<'c> {
+pub struct ConstructorPattern<'c> {
     /// The name of the enum variant.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
-    pub fields: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, TuplePatternEntry<'c>>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
@@ -484,15 +483,6 @@ pub struct DestructuringPattern<'c> {
     pub name: AstNode<'c, Name>,
     /// The pattern to match the field's value with.
     pub pattern: AstNode<'c, Pattern<'c>>,
-}
-
-/// A struct pattern, e.g. `Dog { name = "Frank", age, }`
-#[derive(Debug, PartialEq)]
-pub struct StructPattern<'c> {
-    /// The name of the struct.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// The entries of the struct, as [DestructuringPattern] entries.
-    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
@@ -524,15 +514,15 @@ pub struct ListPattern<'c> {
 }
 
 /// A string literal pattern.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct StrLiteralPattern(pub StringLiteral);
 
 /// A character literal pattern.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CharLiteralPattern(pub char);
 
 /// An integer literal pattern.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IntLiteralPattern(pub u64);
 
 /// A float literal pattern.
@@ -540,7 +530,7 @@ pub struct IntLiteralPattern(pub u64);
 pub struct FloatLiteralPattern(pub f64);
 
 /// A boolean literal pattern.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BoolLiteralPattern(pub bool);
 
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`, `false`.
@@ -564,14 +554,13 @@ pub struct SpreadPattern<'c> {
 }
 
 /// The catch-all, i.e "ignore" pattern.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IgnorePattern;
 
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq)]
 pub enum Pattern<'c> {
-    Enum(EnumPattern<'c>),
-    Struct(StructPattern<'c>),
+    Constructor(ConstructorPattern<'c>),
     Namespace(NamespacePattern<'c>),
     Tuple(TuplePattern<'c>),
     List(ListPattern<'c>),
@@ -596,7 +585,7 @@ pub struct TraitBound<'c> {
 ///
 /// Used in struct, enum, trait definitions.
 #[derive(Debug, PartialEq)]
-pub struct Bound<'c> {
+pub struct TypeFunctionDef<'c> {
     /// The type arguments of the bound.
     pub type_args: AstNodes<'c, Type<'c>>,
     /// The traits that constrain the bound, if any.
@@ -674,7 +663,7 @@ pub struct TraitDef<'c> {
     /// The name of the trait.
     pub name: AstNode<'c, Name>,
     /// The bound of the trait.
-    pub bound: AstNode<'c, Bound<'c>>,
+    pub bound: AstNode<'c, TypeFunctionDef<'c>>,
     /// The inner type of the trait. Expected to be a `Function` type.
     pub trait_type: AstNode<'c, Type<'c>>,
 }
@@ -686,11 +675,11 @@ pub struct TraitDef<'c> {
 pub struct ReturnStatement<'c>(pub Option<AstNode<'c, Expression<'c>>>);
 
 /// Break statement (only in loop context).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BreakStatement;
 
 /// Continue statement (only in loop context).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ContinueStatement;
 
 /// A branch/"case" of a `match` block.
@@ -705,7 +694,7 @@ pub struct MatchCase<'c> {
 }
 
 /// The origin of a match block
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MatchOrigin {
     If,
     Match,
@@ -801,7 +790,7 @@ pub struct TypedExpr<'c> {
 }
 
 /// Represents a path to a module, given as a string literal to an `import` call.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Import {
     pub path: StringLiteral,
     pub resolved_path: PathBuf,
@@ -859,8 +848,9 @@ pub enum ExpressionKind<'c> {
     Import(ImportExpr<'c>),
     StructDef(StructDef<'c>),
     EnumDef(EnumDef<'c>),
-    Bound(Bound<'c>),
+    TypeFunctionDef(TypeFunctionDef<'c>),
     TraitDef(TraitDef<'c>),
+    FunctionDef(FunctionDef<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),
@@ -875,8 +865,7 @@ pub struct Expression<'c> {
 }
 
 impl<'c> Expression<'c> {
-    /// Create a new [Expression] with a specific [ExpressionKind] and with
-    /// no bound
+    /// Create a new [Expression] with a specific [ExpressionKind].
     pub fn new(kind: ExpressionKind<'c>) -> Self {
         Self { kind }
     }
@@ -889,13 +878,6 @@ impl<'c> Expression<'c> {
     /// Get the [ExpressionKind] of the expression
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
-    }
-
-    pub fn no_continuation(&self) -> bool {
-        matches!(
-            self.kind(),
-            ExpressionKind::Import(_) | ExpressionKind::Break(_) | ExpressionKind::Continue(_)
-        )
     }
 }
 
