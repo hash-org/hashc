@@ -1,4 +1,6 @@
-# Traits
+# Traits and implementations
+
+## Traits
 
 Hash supports compile-time polymorphism through traits.
 Traits are a core mechanism in Hash; they allow for different implementations of the same set of operations, for different types.
@@ -21,7 +23,7 @@ Dog := struct(
 
 Dog ~= Printable {
   // `Self = Dog` inferred
-  print = (self) => io.printf(f"Doge with name {self.name} and age {self.age}");
+  print = (self) => io::printf(f"Doge with name {self.name} and age {self.age}");
 };
 ```
 Now a `Dog` is assignable to any type that has bound `Printable`.
@@ -109,3 +111,48 @@ Notice the same attachment syntax (`~`) for multiple trait bounds, just as for a
 Traits are monomorphised at runtime, and thus are completely erased.
 Therefore, there is no additional runtime overhead to structuring your code using lots of traits/generics and polymorphism, vs using plain old functions without any generics.
 There is, however, additional compile-time cost to very complicated trait hierarchies and trait bounds.
+
+## Implementations
+
+Implementations can be attached to types without having to implement a specific trait, using `impl` blocks.
+These are equivalent to trait implementation blocks, but do not correspond to any trait, and just attach the given items to the type as associated items.
+Example:
+
+```rs
+Vector3 := <T> => struct(x: T, y: T, z: T);
+
+Vector3 ~= <T: Mul ~ Sub> => impl {
+  // Cross is an associated function on `Vector3<T>` for any `T: Mul ~ Sub`.
+  cross := (self, other: Self) -> Self => {
+      Vector3(
+        self.y * other.z - self.z * other.y,
+        self.z * other.x - self.x * other.z,
+        self.x * other.y - self.y * other.x,
+      )
+  };
+};
+
+print(Vector3(1, 2, 3).cross(Vector3(4, 5, 6)));
+```
+
+By default, members of `impl` blocks are public, but `priv` can be written to make them private.
+
+## Grammar
+
+The grammar for trait definitions is as follows:
+
+```
+trait_def = "trait" "{" ( expr ";" )* "}"
+```
+
+The grammar for trait implementations is as follows:
+
+```
+trait_impl = ident "{" ( expr ";" )* "}"
+```
+
+The grammar for standalone `impl` blocks is as follows:
+
+```
+impl_block = "impl" "{" ( expr ";" )* "}"
+```
