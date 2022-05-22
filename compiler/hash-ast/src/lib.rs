@@ -13,7 +13,6 @@ lazy_static! {
 }
 
 pub mod ast;
-pub mod count;
 pub mod ident;
 pub mod literal;
 pub mod operator;

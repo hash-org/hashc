@@ -1,8 +1,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::types::{
-    CoreTypeDefs, EnumDef, FnType, Generics, NamespaceType, PrimType, RawRefType, RefType,
-    StructDef, StructFields, TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue,
-    TypeVarMode, TypeVars,
+    CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef,
+    TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVarMode, TypeVars,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -12,19 +11,13 @@ use crate::{
 };
 use crate::{
     refutability::is_pattern_irrefutable,
-    traits::{
-        MatchTraitImplResult, TraitBounds, TraitHelper, TraitId, TraitImpl, TraitImplStorage,
-        TraitStorage,
-    },
+    traits::{MatchTraitImplResult, TraitHelper, TraitId, TraitImplStorage, TraitStorage},
 };
 
+use crate::scope::{resolve_compound_symbol, ScopeStack, SymbolType};
 use crate::{
     error::{Symbol, TypecheckError, TypecheckResult},
     types::TypeDefValueKind,
-};
-use crate::{
-    scope::{resolve_compound_symbol, ScopeStack, SymbolType},
-    types::EnumVariants,
 };
 use crate::{state::TypecheckState, types::EnumVariant};
 use core::panic;
@@ -41,7 +34,6 @@ use hash_source::{
     SourceId,
 };
 use slotmap::Key;
-use std::collections::HashSet;
 use std::iter;
 use std::mem;
 
@@ -127,11 +119,11 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &self.global_storage.traits
     }
 
-    fn traits_mut(&mut self) -> &mut TraitStorage<'c, 'w> {
+    fn _traits_mut(&mut self) -> &mut TraitStorage<'c, 'w> {
         &mut self.global_storage.traits
     }
 
-    fn trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
+    fn _trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
         &mut self.global_storage.trait_impls
     }
 
@@ -151,7 +143,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &self.global_storage.type_defs
     }
 
-    fn type_defs_mut(&mut self) -> &mut TypeDefStorage<'c, 'w> {
+    fn _type_defs_mut(&mut self) -> &mut TypeDefStorage<'c, 'w> {
         &mut self.global_storage.type_defs
     }
 
@@ -159,7 +151,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &self.source_storage.type_vars
     }
 
-    fn type_vars_mut(&mut self) -> &mut TypeVars {
+    fn _type_vars_mut(&mut self) -> &mut TypeVars {
         &mut self.source_storage.type_vars
     }
 
@@ -866,82 +858,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::Prim(PrimType::I32), Some(ty_location)))
     }
 
-    type StructLiteralRet = TypeId;
-    fn visit_struct_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-    ) -> Result<Self::StructLiteralRet, Self::Error> {
-        let location = self.source_location(node.location());
-
-        let symbol_res = self.resolve_compound_symbol(&node.name)?;
-
-        match symbol_res {
-            (_, SymbolType::TypeDef(def_id)) => {
-                let type_def = self.type_defs().get(def_id);
-                let (ty_id, _) = self.instantiate_type_def_unknown_args(def_id)?;
-                match &type_def.kind {
-                    TypeDefValueKind::Struct(struct_def) => self.typecheck_known_struct_literal(
-                        ctx,
-                        node,
-                        ty_id,
-                        struct_def,
-                        type_def.location,
-                    ),
-                    _ => Err(TypecheckError::TypeIsNotStruct {
-                        ty: ty_id,
-                        location,
-                        ty_def_location: type_def.location,
-                    }),
-                }
-            }
-            (_, SymbolType::Type(ty_id)) => {
-                let ty = self.types().get(ty_id);
-                match ty {
-                    TypeValue::User(UserType { def_id, .. }) => {
-                        let type_def = self.type_defs().get(*def_id);
-
-                        match &type_def.kind {
-                            TypeDefValueKind::Struct(struct_def) => self
-                                .typecheck_known_struct_literal(
-                                    ctx,
-                                    node,
-                                    ty_id,
-                                    struct_def,
-                                    type_def.location,
-                                ),
-                            _ => Err(TypecheckError::TypeIsNotStruct {
-                                ty: ty_id,
-                                location,
-                                ty_def_location: type_def.location,
-                            }),
-                        }
-                    }
-                    _ => Err(TypecheckError::TypeIsNotStruct {
-                        ty: ty_id,
-                        location,
-                        ty_def_location: None,
-                    }),
-                }
-            }
-            _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
-                path: node.name.path(),
-                location: Some(location),
-            })),
-        }
-    }
-
-    type StructLiteralEntryRet = (Identifier, TypeId);
-    fn visit_struct_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
-    ) -> Result<Self::StructLiteralEntryRet, Self::Error> {
-        let walk::StructLiteralEntry { value, .. } =
-            walk::walk_struct_literal_entry(self, ctx, node)?;
-        Ok((node.name.ident, value))
-    }
-
     type FunctionDefRet = TypeId;
     fn visit_function_def(
         &mut self,
@@ -1193,81 +1109,41 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        if let Some(bound) = &node.bound {
-            // This is a trait implementation
-            match node.pattern.body() {
-                ast::Pattern::Binding(ast::BindingPattern(name)) => {
-                    let name_location = self.some_source_location(name.location());
-                    let name_symbol = || Symbol::Single {
-                        symbol: name.ident,
-                        location: name_location,
-                    };
-                    match self.scopes().resolve_symbol(name.ident) {
-                        Some(SymbolType::Trait(trait_id)) => {
-                            if let Some(ref node_ty) = node.ty {
-                                return Err(TypecheckError::TypeAnnotationNotAllowedInTraitImpl(
-                                    self.source_location(node_ty.location()),
-                                ));
-                            }
-
-                            let type_args = self.visit_bound(ctx, bound.ast_ref())?;
-                            // @@Todo bounds
-                            self.trait_impls_mut().add_impl(
-                                trait_id,
-                                TraitImpl {
-                                    trait_id,
-                                    bounds: TraitBounds::empty(),
-                                    args: type_args,
-                                },
-                            );
-
-                            Ok(self.create_void_type())
-                        }
-                        Some(_) => Err(TypecheckError::SymbolIsNotATrait(name_symbol())),
-                        None => Err(TypecheckError::TraitDefinitionNotFound(name_symbol())),
-                    }
-                }
-                _ => Err(TypecheckError::ExpectingBindingForTraitImpl(
-                    self.source_location(node.pattern.location()),
-                )),
-            }
-        } else {
-            // Ensure that the given pattern for let statements is irrefutable
-            if !is_pattern_irrefutable(node.pattern.body()) {
-                let location = self.source_location(node.pattern.location());
-                return Err(TypecheckError::RequiresIrrefutablePattern(location));
-            }
-
-            // @@Todo: bounds
-            let annotation_ty = node
-                .ty
-                .as_ref()
-                .map(|t| self.visit_type(ctx, t.ast_ref()))
-                .transpose()?
-                .unwrap_or_else(|| self.create_unknown_type());
-            let value_ty = self.visit_expression(ctx, node.value.ast_ref())?;
-
-            // add type location information on  pattern_ty and annotation_ty
-            if let Some(annotation) = &node.body().ty {
-                let location = self.source_location(annotation.location());
-                self.add_location_to_ty(annotation_ty, location);
-            }
-
-            self.unifier()
-                .unify(annotation_ty, value_ty, UnifyStrategy::ModifyBoth)?;
-
-            self.tc_state().pattern_hint = Some(value_ty);
-            let pattern_ty = self.visit_pattern(ctx, node.pattern.ast_ref())?;
-            self.tc_state().pattern_hint = None;
-
-            let pattern_location = self.source_location(node.body().pattern.location());
-            self.add_location_to_ty(pattern_ty, pattern_location);
-
-            self.unifier()
-                .unify(value_ty, pattern_ty, UnifyStrategy::ModifyBoth)?;
-
-            Ok(self.create_void_type())
+        // Ensure that the given pattern for let statements is irrefutable
+        if !is_pattern_irrefutable(node.pattern.body()) {
+            let location = self.source_location(node.pattern.location());
+            return Err(TypecheckError::RequiresIrrefutablePattern(location));
         }
+
+        // @@Todo: bounds
+        let annotation_ty = node
+            .ty
+            .as_ref()
+            .map(|t| self.visit_type(ctx, t.ast_ref()))
+            .transpose()?
+            .unwrap_or_else(|| self.create_unknown_type());
+        let value_ty = self.visit_expression(ctx, node.value.ast_ref())?;
+
+        // add type location information on  pattern_ty and annotation_ty
+        if let Some(annotation) = &node.body().ty {
+            let location = self.source_location(annotation.location());
+            self.add_location_to_ty(annotation_ty, location);
+        }
+
+        self.unifier()
+            .unify(annotation_ty, value_ty, UnifyStrategy::ModifyBoth)?;
+
+        self.tc_state().pattern_hint = Some(value_ty);
+        let pattern_ty = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+        self.tc_state().pattern_hint = None;
+
+        let pattern_location = self.source_location(node.body().pattern.location());
+        self.add_location_to_ty(pattern_ty, pattern_location);
+
+        self.unifier()
+            .unify(value_ty, pattern_ty, UnifyStrategy::ModifyBoth)?;
+
+        Ok(self.create_void_type())
     }
 
     type AssignStatementRet = ();
@@ -1305,79 +1181,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok((node.name.ident, field_ty))
     }
 
-    type StructDefRet = ();
+    type StructDefRet = TypeId;
     fn visit_struct_def(
         &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructDef<'c>>,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::StructDef<'c>>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        // @@Todo: the bound scope needs to be created for each type variable successively, not at
-        // the end. Otherwise trait bounds will not resolve the type variables correctly.
-        let bound = node
-            .bound
-            .as_ref()
-            .map(|b| self.visit_bound(ctx, b.ast_ref()))
-            .transpose()?;
-
-        // Enter the bound if one exists, returning a key
-        let maybe_type_var_key = bound
-            .as_ref()
-            .map(|bound| {
-                // @@Todo: trait bounds
-                let bound_vars: Vec<_> = bound
-                    .iter()
-                    .map(|&ty| match self.types().get(ty) {
-                        TypeValue::Var(var) => Ok(*var),
-                        _ => {
-                            // We need to get the location of the bound for error reporting
-                            let bound_location = node.bound.as_ref().unwrap().location();
-
-                            Err(TypecheckError::BoundRequiresStrictlyTypeVars(
-                                self.source_location(bound_location),
-                            ))
-                        }
-                    })
-                    .collect::<Result<_, _>>()?;
-
-                Ok(self
-                    .type_vars_mut()
-                    .enter_bounded_type_var_scope(bound_vars.into_iter()))
-            })
-            .transpose()?;
-
-        // Traverse the fields
-        let fields = node
-            .entries
-            .iter()
-            .map(|entry| self.visit_struct_def_entry(ctx, entry.ast_ref()))
-            .collect::<Result<StructFields, _>>()?;
-
-        // @@Todo: trait bounds
-
-        // Create the type
-        let def_location = self.some_source_location(node.name.location());
-        let def_id = self.type_defs_mut().create(
-            TypeDefValueKind::Struct(StructDef {
-                name: node.name.ident,
-                generics: Generics {
-                    params: bound.unwrap_or_else(|| row![ctx; ]),
-                    bounds: TraitBounds::empty(),
-                },
-                fields,
-            }),
-            def_location,
-        );
-
-        // Add the name to scope
-        self.scopes()
-            .add_symbol(node.name.ident, SymbolType::TypeDef(def_id));
-
-        // Exit the bound if we entered one
-        if let Some(type_var_key) = maybe_type_var_key {
-            self.type_vars_mut().exit_type_var_scope(type_var_key);
-        }
-
-        Ok(())
+        todo!()
     }
 
     type EnumDefEntryRet = EnumVariant<'c>;
@@ -1395,108 +1205,36 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         })
     }
 
-    type EnumDefRet = ();
+    type EnumDefRet = TypeId;
     fn visit_enum_def(
         &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumDef<'c>>,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::EnumDef<'c>>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        // @@Todo: the bound scope needs to be created for each type variable successively, not at
-        // the end. Otherwise trait bounds will not resolve the type variables correctly.
-        let bound = node
-            .bound
-            .as_ref()
-            .map(|b| self.visit_bound(ctx, b.ast_ref()))
-            .transpose()?;
-
-        // Enter the bound if one exists, returning a key
-        let maybe_type_var_key = bound
-            .as_ref()
-            .map(|bound| {
-                // @@Todo: trait bounds
-                let bound_vars: Vec<_> = bound
-                    .iter()
-                    .map(|&ty| match self.types().get(ty) {
-                        TypeValue::Var(var) => Ok(*var),
-                        _ => {
-                            // We need to get the location of the bound for error reporting
-                            let bound_location = node.bound.as_ref().unwrap().location();
-
-                            Err(TypecheckError::BoundRequiresStrictlyTypeVars(
-                                self.source_location(bound_location),
-                            ))
-                        }
-                    })
-                    .collect::<Result<_, _>>()?;
-
-                Ok(self
-                    .type_vars_mut()
-                    .enter_bounded_type_var_scope(bound_vars.into_iter()))
-            })
-            .transpose()?;
-
-        let variants = node
-            .entries
-            .iter()
-            .map(|entry| self.visit_enum_def_entry(ctx, entry.ast_ref()))
-            .collect::<Result<EnumVariants, _>>()?;
-
-        // create the type
-        let def_location = self.some_source_location(node.name.location());
-        let def_id = self.type_defs_mut().create(
-            TypeDefValueKind::Enum(EnumDef {
-                name: node.name.ident,
-                generics: Generics {
-                    params: bound.unwrap_or_else(|| row![ctx; ]),
-                    bounds: TraitBounds::empty(),
-                },
-                variants,
-            }),
-            def_location,
-        );
-
-        // Iterate each variant in the definition and add it to this scope...
-        if let TypeDefValueKind::Enum(EnumDef { variants, .. }) = &self.type_defs().get(def_id).kind
-        {
-            for (symbol, _) in variants.iter() {
-                self.scopes()
-                    .add_symbol(symbol, SymbolType::EnumVariant(def_id))
-            }
-        }
-
-        // Add the name to scope
-        self.scopes()
-            .add_symbol(node.name.ident, SymbolType::TypeDef(def_id));
-
-        // Exit the bound if we entered one
-        if let Some(type_var_key) = maybe_type_var_key {
-            self.type_vars_mut().exit_type_var_scope(type_var_key);
-        }
-
-        Ok(())
+        todo!()
     }
 
     type TraitDefRet = ();
     fn visit_trait_def(
         &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitDef<'c>>,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TraitDef<'c>>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
-        let type_var_bound =
-            self.type_var_only_bound(&bound, self.source_location(node.bound.location()))?;
-        let scope_key = self
-            .type_vars_mut()
-            .enter_bounded_type_var_scope(type_var_bound.iter().copied());
-        let fn_type = self.visit_type(ctx, node.trait_type.ast_ref())?;
-        self.type_vars_mut().exit_type_var_scope(scope_key);
+        // let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
+        // let type_var_bound =
+        //     self.type_var_only_bound(&bound, self.source_location(node.bound.location()))?;
+        // let scope_key = self
+        //     .type_vars_mut()
+        //     .enter_bounded_type_var_scope(type_var_bound.iter().copied());
+        // let fn_type = self.visit_type(ctx, node.trait_type.ast_ref())?;
+        // self.type_vars_mut().exit_type_var_scope(scope_key);
 
-        // @@Todo trait bounds
-        let trait_id = self
-            .traits_mut()
-            .create(bound, TraitBounds::empty(), fn_type);
-        self.scopes()
-            .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
+        // // @@Todo trait bounds
+        // let trait_id = self
+        //     .traits_mut()
+        //     .create(bound, TraitBounds::empty(), fn_type);
+        // self.scopes()
+        //     .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
 
         Ok(())
     }
@@ -1534,7 +1272,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type BoundRet = Row<'c, TypeId>;
+    type BoundRet = TypeId;
     fn visit_bound(
         &mut self,
         ctx: &Self::Ctx,
@@ -1542,13 +1280,14 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::BoundRet, Self::Error> {
         self.tc_state().in_bound_def = true;
         let walk::Bound {
-            type_args,
+            type_args: _,
             trait_bounds: _,
+            expression,
         } = walk::walk_bound(self, ctx, node)?;
         self.tc_state().in_bound_def = false;
 
         // @@Todo: bounds
-        Ok(type_args)
+        Ok(expression)
     }
 
     type EnumPatternRet = TypeId;
@@ -2020,68 +1759,68 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 }
 
 impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
-    fn typecheck_known_struct_literal(
-        &mut self,
-        ctx: &<Self as AstVisitor<'c>>::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-        ty_id: TypeId,
-        StructDef {
-            name,
-            fields,
-            generics: _,
-        }: &StructDef,
-        ty_def_location: Option<SourceLocation>,
-    ) -> TypecheckResult<TypeId> {
-        let walk::StructLiteral {
-            name: _,
-            entries,
-            type_args: _,
-        } = walk::walk_struct_literal(self, ctx, node)?;
+    // fn typecheck_known_struct_literal(
+    //     &mut self,
+    //     ctx: &<Self as AstVisitor<'c>>::Ctx,
+    //     node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+    //     ty_id: TypeId,
+    //     StructDef {
+    //         name,
+    //         fields,
+    //         generics: _,
+    //     }: &StructDef,
+    //     ty_def_location: Option<SourceLocation>,
+    // ) -> TypecheckResult<TypeId> {
+    //     let walk::StructLiteral {
+    //         name: _,
+    //         entries,
+    //         type_args: _,
+    //     } = walk::walk_struct_literal(self, ctx, node)?;
 
-        // Make sure all fields are present
-        let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
+    //     // Make sure all fields are present
+    //     let entries_given: HashSet<_> = entries.iter().map(|&(entry_name, _)| entry_name).collect();
 
-        // @@Reporting: we could report multiple missing fields here...
-        for (expected, _) in fields.iter() {
-            if !entries_given.contains(&expected) {
-                let name_node = &node.body().name;
-                let location = self.source_location(name_node.location());
+    //     // @@Reporting: we could report multiple missing fields here...
+    //     for (expected, _) in fields.iter() {
+    //         if !entries_given.contains(&expected) {
+    //             let name_node = &node.body().name;
+    //             let location = self.source_location(name_node.location());
 
-                return Err(TypecheckError::MissingStructField {
-                    ty_def_location,
-                    ty_def_name: *name,
-                    field_name: expected,
-                    location,
-                });
-            }
-        }
+    //             return Err(TypecheckError::MissingStructField {
+    //                 ty_def_location,
+    //                 ty_def_name: *name,
+    //                 field_name: expected,
+    //                 location,
+    //             });
+    //         }
+    //     }
 
-        // Unify args
-        for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
-            match fields.get_field(entry_name) {
-                Some(field_ty) => {
-                    self.unifier()
-                        .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
-                }
-                None => {
-                    let entry = node.entries.get(index).unwrap();
+    //     // Unify args
+    //     for (index, &(entry_name, entry_ty)) in (&entries).iter().enumerate() {
+    //         match fields.get_field(entry_name) {
+    //             Some(field_ty) => {
+    //                 self.unifier()
+    //                     .unify(entry_ty, field_ty, UnifyStrategy::ModifyTarget)?
+    //             }
+    //             None => {
+    //                 let entry = node.entries.get(index).unwrap();
 
-                    return Err(TypecheckError::UnresolvedStructField {
-                        ty_def: Symbol::Single {
-                            symbol: *name,
-                            location: ty_def_location,
-                        },
-                        field: Symbol::Single {
-                            symbol: entry_name,
-                            location: self.some_source_location(entry.location()),
-                        },
-                    });
-                }
-            }
-        }
+    //                 return Err(TypecheckError::UnresolvedStructField {
+    //                     ty_def: Symbol::Single {
+    //                         symbol: *name,
+    //                         location: ty_def_location,
+    //                     },
+    //                     field: Symbol::Single {
+    //                         symbol: entry_name,
+    //                         location: self.some_source_location(entry.location()),
+    //                     },
+    //                 });
+    //             }
+    //         }
+    //     }
 
-        Ok(ty_id)
-    }
+    //     Ok(ty_id)
+    // }
 
     fn typecheck_known_struct_pattern(
         &mut self,
@@ -2221,7 +1960,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         Ok((ty_id, vars_sub))
     }
 
-    fn type_var_only_bound(
+    fn _type_var_only_bound(
         &self,
         bound: &[TypeId],
         bound_location: SourceLocation,

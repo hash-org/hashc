@@ -532,43 +532,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
-    type StructLiteralRet = TreeNode;
-    fn visit_struct_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteral<'c>>,
-    ) -> Result<Self::StructLiteralRet, Self::Error> {
-        let walk::StructLiteral {
-            name: _,
-            type_args,
-            entries,
-        } = walk::walk_struct_literal(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "struct",
-            vec![
-                TreeNode::branch("type_args", type_args),
-                TreeNode::branch("entries", entries),
-            ],
-        ))
-    }
-
-    type StructLiteralEntryRet = TreeNode;
-    fn visit_struct_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructLiteralEntry<'c>>,
-    ) -> Result<Self::StructLiteralEntryRet, Self::Error> {
-        let walk::StructLiteralEntry { name, value } =
-            walk::walk_struct_literal_entry(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "entry",
-            vec![
-                TreeNode::branch("name", vec![name]),
-                TreeNode::branch("value", vec![value]),
-            ],
-        ))
-    }
-
     type FunctionDefRet = TreeNode;
     fn visit_function_def(
         &mut self,
@@ -740,17 +703,11 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let walk::LetStatement {
-            pattern,
-            ty,
-            bound,
-            value,
-        } = walk::walk_let_statement(self, ctx, node)?;
+        let walk::Declaration { pattern, ty, value } = walk::walk_declaration(self, ctx, node)?;
         Ok(TreeNode::branch(
             "declaration",
             iter::once(TreeNode::branch("pattern", vec![pattern]))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
-                .chain(bound.into_iter())
                 .chain(iter::once(TreeNode::branch("value", vec![value])))
                 .collect(),
         ))
@@ -795,17 +752,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StructDef<'c>>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        let walk::StructDef {
-            name: _,
-            entries,
-            bound,
-        } = walk::walk_struct_def(self, ctx, node)?;
+        let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
         Ok(TreeNode::branch(
             "struct_def",
-            bound
-                .into_iter()
-                .chain(iter::once(TreeNode::branch("fields", entries)))
-                .collect(),
+            iter::once(TreeNode::branch("fields", entries)).collect(),
         ))
     }
 
@@ -828,17 +778,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::EnumDef<'c>>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        let walk::EnumDef {
-            name,
-            entries,
-            bound,
-        } = walk::walk_enum_def(self, ctx, node)?;
+        let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
         Ok(TreeNode::branch(
             "enum_def",
-            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
-                .chain(bound.into_iter())
-                .chain(iter::once(TreeNode::branch("variants", entries)))
-                .collect(),
+            iter::once(TreeNode::branch("variants", entries)).collect(),
         ))
     }
 
@@ -890,12 +833,14 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::Bound {
             type_args,
             trait_bounds,
+            expression,
         } = walk::walk_bound(self, ctx, node)?;
         Ok(TreeNode::branch(
             "bound",
             vec![
                 TreeNode::branch("vars", type_args),
                 TreeNode::branch("traits", trait_bounds),
+                expression,
             ],
         ))
     }
