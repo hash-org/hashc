@@ -836,28 +836,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type StructPatternRet = TreeNode;
-    fn visit_struct_pattern(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructPattern<'c>>,
-    ) -> Result<Self::StructPatternRet, Self::Error> {
-        let walk::StructPattern { name, entries } = walk::walk_struct_pattern(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "struct",
-            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
-                .chain(
-                    (if entries.is_empty() {
-                        None
-                    } else {
-                        Some(TreeNode::branch("fields", entries))
-                    })
-                    .into_iter(),
-                )
-                .collect(),
-        ))
-    }
-
     type NamespacePatternRet = TreeNode;
     fn visit_namespace_pattern(
         &mut self,
