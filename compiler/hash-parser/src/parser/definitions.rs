@@ -4,7 +4,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_ast::ast::*;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 
 use crate::parser::error::TyArgumentKind;
 
@@ -37,13 +37,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     || gen.parse_token_atom(TokenKind::Comma),
                 )?
             }
-            token => self.error(
-                AstGenErrorKind::TyArgument(TyArgumentKind::Struct),
-                Some(TokenKindVector::singleton(
-                    &self.wall,
-                    TokenKind::Delimiter(Delimiter::Paren, false),
-                )),
-                token.map(|tok| tok.kind),
+            token => self.error_with_location(
+                AstGenErrorKind::TypeDefinition(TyArgumentKind::Struct),
+                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
             )?,
         };
 
@@ -106,13 +104,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     || gen.parse_token_atom(TokenKind::Comma),
                 )?
             }
-            token => self.error(
-                AstGenErrorKind::TyArgument(TyArgumentKind::Enum),
-                Some(TokenKindVector::singleton(
-                    &self.wall,
-                    TokenKind::Delimiter(Delimiter::Paren, false),
-                )),
-                token.map(|tok| tok.kind),
+            token => self.error_with_location(
+                AstGenErrorKind::TypeDefinition(TyArgumentKind::Enum),
+                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
             )?,
         };
 
@@ -122,7 +118,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
         let name = self.parse_name()?;
-        let name_location = name.location();
+        let name_span = name.location();
 
         let mut args = AstNodes::empty();
 
@@ -146,6 +142,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_location))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_span))
     }
 }
