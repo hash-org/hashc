@@ -465,13 +465,13 @@ pub struct IfPattern<'c> {
     pub condition: AstNode<'c, Expression<'c>>,
 }
 
-/// An enum pattern, e.g. `Some((x, y))`.
+/// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
 #[derive(Debug, PartialEq)]
-pub struct EnumPattern<'c> {
+pub struct ConstructorPattern<'c> {
     /// The name of the enum variant.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
-    pub fields: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, TuplePatternEntry<'c>>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
@@ -483,15 +483,6 @@ pub struct DestructuringPattern<'c> {
     pub name: AstNode<'c, Name>,
     /// The pattern to match the field's value with.
     pub pattern: AstNode<'c, Pattern<'c>>,
-}
-
-/// A struct pattern, e.g. `Dog { name = "Frank", age, }`
-#[derive(Debug, PartialEq)]
-pub struct StructPattern<'c> {
-    /// The name of the struct.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// The entries of the struct, as [DestructuringPattern] entries.
-    pub fields: AstNodes<'c, DestructuringPattern<'c>>,
 }
 
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
@@ -569,8 +560,7 @@ pub struct IgnorePattern;
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq)]
 pub enum Pattern<'c> {
-    Enum(EnumPattern<'c>),
-    Struct(StructPattern<'c>),
+    Constructor(ConstructorPattern<'c>),
     Namespace(NamespacePattern<'c>),
     Tuple(TuplePattern<'c>),
     List(ListPattern<'c>),

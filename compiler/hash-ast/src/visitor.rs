@@ -439,19 +439,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
 
-    type EnumPatternRet: 'c;
-    fn visit_enum_pattern(
+    type ConstructorPatternRet: 'c;
+    fn visit_constructor_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
-    ) -> Result<Self::EnumPatternRet, Self::Error>;
-
-    type StructPatternRet: 'c;
-    fn visit_struct_pattern(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructPattern<'c>>,
-    ) -> Result<Self::StructPatternRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ConstructorPattern<'c>>,
+    ) -> Result<Self::ConstructorPatternRet, Self::Error>;
 
     type NamespacePatternRet: 'c;
     fn visit_namespace_pattern(
@@ -1468,8 +1461,7 @@ pub mod walk {
     }
 
     pub enum Pattern<'c, V: AstVisitor<'c>> {
-        Enum(V::EnumPatternRet),
-        Struct(V::StructPatternRet),
+        Constructor(V::ConstructorPatternRet),
         Namespace(V::NamespacePatternRet),
         Tuple(V::TuplePatternRet),
         List(V::ListPatternRet),
@@ -1487,11 +1479,8 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Pattern<'c, V>, V::Error> {
         Ok(match &*node {
-            ast::Pattern::Enum(r) => {
-                Pattern::Enum(visitor.visit_enum_pattern(ctx, node.with_body(r))?)
-            }
-            ast::Pattern::Struct(r) => {
-                Pattern::Struct(visitor.visit_struct_pattern(ctx, node.with_body(r))?)
+            ast::Pattern::Constructor(r) => {
+                Pattern::Constructor(visitor.visit_constructor_pattern(ctx, node.with_body(r))?)
             }
             ast::Pattern::Namespace(r) => {
                 Pattern::Namespace(visitor.visit_namespace_pattern(ctx, node.with_body(r))?)
@@ -1527,8 +1516,7 @@ pub mod walk {
     where
         V: AstVisitor<
             'c,
-            EnumPatternRet = Ret,
-            StructPatternRet = Ret,
+            ConstructorPatternRet = Ret,
             NamespacePatternRet = Ret,
             TuplePatternRet = Ret,
             ListPatternRet = Ret,
@@ -1541,8 +1529,7 @@ pub mod walk {
         >,
     {
         Ok(match walk_pattern(visitor, ctx, node)? {
-            Pattern::Enum(r) => r,
-            Pattern::Struct(r) => r,
+            Pattern::Constructor(r) => r,
             Pattern::Namespace(r) => r,
             Pattern::Tuple(r) => r,
             Pattern::List(r) => r,
@@ -1573,42 +1560,22 @@ pub mod walk {
         })
     }
 
-    pub struct EnumPattern<'c, V: AstVisitor<'c>> {
+    pub struct ConstructorPattern<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
-        pub args: V::CollectionContainer<V::PatternRet>,
+        pub args: V::CollectionContainer<V::TuplePatternEntryRet>,
     }
-    pub fn walk_enum_pattern<'c, V: AstVisitor<'c>>(
+    pub fn walk_constructor_pattern<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::EnumPattern<'c>>,
-    ) -> Result<EnumPattern<'c, V>, V::Error> {
-        Ok(EnumPattern {
+        node: ast::AstNodeRef<ast::ConstructorPattern<'c>>,
+    ) -> Result<ConstructorPattern<'c, V>, V::Error> {
+        Ok(ConstructorPattern {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
                 node.fields
                     .iter()
-                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
-            )?,
-        })
-    }
-
-    pub struct StructPattern<'c, V: AstVisitor<'c>> {
-        pub name: V::AccessNameRet,
-        pub entries: V::CollectionContainer<V::DestructuringPatternRet>,
-    }
-    pub fn walk_struct_pattern<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::StructPattern<'c>>,
-    ) -> Result<StructPattern<'c, V>, V::Error> {
-        Ok(StructPattern {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            entries: V::try_collect_items(
-                ctx,
-                node.fields
-                    .iter()
-                    .map(|a| visitor.visit_destructuring_pattern(ctx, a.ast_ref())),
+                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
             )?,
         })
     }

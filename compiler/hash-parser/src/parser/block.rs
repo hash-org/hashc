@@ -144,14 +144,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ))),
             cases: ast_nodes![&self.wall; self.node_with_span(MatchCase {
                     pattern: self.node_with_span(
-                        Pattern::Enum(
-                            EnumPattern {
+                        Pattern::Constructor(
+                            ConstructorPattern {
                                 name:
                                     self.make_access_name_from_str(
                                         "Some",
                                         self.current_location()
                                     ),
-                                fields: ast_nodes![&self.wall; pattern],
+                                fields: ast_nodes![&self.wall; self.node_with_joined_span(TuplePatternEntry { name: None, pattern }, &pat_span)],
                             },
                         ), pat_span
                     ),
@@ -159,8 +159,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }, start),
                 self.node(MatchCase {
                     pattern: self.node(
-                        Pattern::Enum(
-                            EnumPattern {
+                        Pattern::Constructor(
+                            ConstructorPattern {
                                 name:
                                     self.make_access_name_from_str(
                                         "None",
