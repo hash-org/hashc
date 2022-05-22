@@ -465,13 +465,13 @@ pub struct IfPattern<'c> {
     pub condition: AstNode<'c, Expression<'c>>,
 }
 
-/// An enum pattern, e.g. `Some((x, y))`.
+/// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
 #[derive(Debug, PartialEq)]
-pub struct EnumPattern<'c> {
+pub struct ConstructPattern<'c> {
     /// The name of the enum variant.
     pub name: AstNode<'c, AccessName<'c>>,
     /// The arguments of the enum variant as patterns.
-    pub fields: AstNodes<'c, Pattern<'c>>,
+    pub fields: AstNodes<'c, TuplePatternEntry<'c>>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
@@ -560,7 +560,7 @@ pub struct IgnorePattern;
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq)]
 pub enum Pattern<'c> {
-    Enum(EnumPattern<'c>),
+    Construct(ConstructPattern<'c>),
     Namespace(NamespacePattern<'c>),
     Tuple(TuplePattern<'c>),
     List(ListPattern<'c>),
