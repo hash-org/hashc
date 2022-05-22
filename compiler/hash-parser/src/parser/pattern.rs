@@ -142,7 +142,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Pattern::Spread(self.parse_spread_pattern()?)
             }
 
-            // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it o?
+            // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it?
             token if token.kind.is_literal() => {
                 self.skip_token();
                 Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))

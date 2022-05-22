@@ -1819,7 +1819,7 @@ pub mod walk {
     pub struct Declaration<'c, V: AstVisitor<'c>> {
         pub pattern: V::PatternRet,
         pub ty: Option<V::TypeRet>,
-        pub value: V::ExpressionRet,
+        pub value: Option<V::ExpressionRet>,
     }
     pub fn walk_declaration<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -1833,7 +1833,11 @@ pub mod walk {
                 .as_ref()
                 .map(|t| visitor.visit_type(ctx, t.ast_ref()))
                 .transpose()?,
-            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
+            value: node
+                .value
+                .as_ref()
+                .map(|t| visitor.visit_expression(ctx, t.ast_ref()))
+                .transpose()?,
         })
     }
 

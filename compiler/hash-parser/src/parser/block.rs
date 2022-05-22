@@ -26,12 +26,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 (self.from_stream(tree, self.current_location()), *span)
             }
-            // @@ErrorReporting: we can combine these two variants into one and then
-            //                   default to none or use the token location (or the next_location)
-            Some(token) => self.error(AstGenErrorKind::Block, None, Some(token.kind))?,
-            None => {
-                self.error_with_location(AstGenErrorKind::Block, None, None, self.next_location())?
-            }
+            token => self.error_with_location(
+                AstGenErrorKind::Block,
+                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
+            )?,
         };
 
         self.parse_block_from_gen(&gen, start, None)

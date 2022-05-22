@@ -1093,7 +1093,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .map(|t| self.visit_type(ctx, t.ast_ref()))
             .transpose()?
             .unwrap_or_else(|| self.create_unknown_type());
-        let value_ty = self.visit_expression(ctx, node.value.ast_ref())?;
+
+        let value_ty = node
+            .value
+            .as_ref()
+            .map(|t| self.visit_expression(ctx, t.ast_ref()))
+            .transpose()?
+            .unwrap_or_else(|| self.create_unknown_type());
 
         // add type location information on  pattern_ty and annotation_ty
         if let Some(annotation) = &node.body().ty {

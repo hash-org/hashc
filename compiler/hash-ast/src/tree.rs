@@ -680,8 +680,8 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "declaration",
             iter::once(TreeNode::branch("pattern", vec![pattern]))
-                .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
-                .chain(iter::once(TreeNode::branch("value", vec![value])))
+                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+                .chain(value.map(|t| TreeNode::branch("value", vec![t])))
                 .collect(),
         ))
     }

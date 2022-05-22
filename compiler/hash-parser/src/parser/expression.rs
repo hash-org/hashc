@@ -747,11 +747,23 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         // Now parse the value after the assignment
-        self.parse_token_atom(TokenKind::Eq)?;
+        match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Eq) => {
+                self.skip_token();
 
-        let value = self.parse_expression_with_precedence(0)?;
-
-        Ok(Declaration { pattern, ty, value })
+                let value = self.parse_expression_with_precedence(0)?;
+                Ok(Declaration {
+                    pattern,
+                    ty,
+                    value: Some(value),
+                })
+            }
+            _ => Ok(Declaration {
+                pattern,
+                ty,
+                value: None,
+            }),
+        }
     }
 
     /// Given a initial left-hand side expression, attempt to parse a re-assignment operator and

@@ -616,7 +616,7 @@ pub struct Declaration<'c> {
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
-    pub value: AstNode<'c, Expression<'c>>,
+    pub value: Option<AstNode<'c, Expression<'c>>>,
 }
 
 /// An assign expression, e.g. `x = 4;`.
@@ -668,7 +668,7 @@ pub struct EnumDef<'c> {
     pub entries: AstNodes<'c, EnumDefEntry<'c>>,
 }
 
-/// A trait definition, e.g. `trait add = <T> => (T, T) => T;`.
+/// A trait definition, e.g. `add := <T> => trait { add: (T, T) => T; }`.
 #[derive(Debug, PartialEq)]
 pub struct TraitDef<'c> {
     /// The name of the trait.
