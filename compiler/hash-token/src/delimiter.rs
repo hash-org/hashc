@@ -5,7 +5,7 @@
 /// A [Delimiter] is a [Token] kind that is used to denote a separation or a nested token
 /// tree. The [Delimiter] does not contain the `<...>` because this conflicts with the
 /// binary operators '<' and '>'.
-#[derive(Debug, Copy, Clone, Hash, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Delimiter {
     /// '(' or ')'
     Paren,

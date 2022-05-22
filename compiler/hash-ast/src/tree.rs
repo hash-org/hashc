@@ -642,24 +642,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("body", children))
     }
 
-    type StatementRet = TreeNode;
-    fn visit_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Statement<'c>>,
-    ) -> Result<Self::StatementRet, Self::Error> {
-        walk::walk_statement_same_children(self, ctx, node)
-    }
-
-    type ExprStatementRet = TreeNode;
-    fn visit_expr_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExprStatement<'c>>,
-    ) -> Result<Self::ExprStatementRet, Self::Error> {
-        Ok(walk::walk_expr_statement(self, ctx, node)?.0)
-    }
-
     type ReturnStatementRet = TreeNode;
     fn visit_return_statement(
         &mut self,
@@ -668,15 +650,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         let walk::ReturnStatement(inner) = walk::walk_return_statement(self, ctx, node)?;
         Ok(TreeNode::branch("return", inner.into_iter().collect()))
-    }
-
-    type BlockStatementRet = TreeNode;
-    fn visit_block_statement(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockStatement<'c>>,
-    ) -> Result<Self::BlockStatementRet, Self::Error> {
-        Ok(walk::walk_block_statement(self, ctx, node)?.0)
     }
 
     type BreakStatementRet = TreeNode;
@@ -713,12 +686,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type AssignStatementRet = TreeNode;
-    fn visit_assign_statement(
+    type AssignExpressionRet = TreeNode;
+    fn visit_assign_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignStatement<'c>>,
-    ) -> Result<Self::AssignStatementRet, Self::Error> {
+        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
             "assign",
@@ -824,12 +797,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
-    type BoundRet = TreeNode;
-    fn visit_bound(
+    type TypeFunctionDefRet = TreeNode;
+    fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Bound<'c>>,
-    ) -> Result<Self::BoundRet, Self::Error> {
+        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         let walk::Bound {
             type_args,
             trait_bounds,

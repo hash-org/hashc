@@ -1,8 +1,8 @@
-enum NetworkError = {
+NetworkError = enum(
    NoBytesReceived,
    ConnectionTerminated,
    Unexpected(str, int)
-};
+);
 
 handle_error := (error: NetworkError) => match error {
    NoBytesReceived => print("No bytes received, stopping");

@@ -28,7 +28,7 @@ impl TreeNode {
 }
 
 /// Configuration for [TreeWriter].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeWriterConfig {
     /// What to left-pad the tree with.
     pub pad: char,

@@ -8,8 +8,6 @@ use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Location;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
-use crate::enable_flag;
-
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
@@ -42,7 +40,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         gen: &Self,
         start: Location,
-        initial_statement: Option<AstNode<'c, Statement<'c>>>,
+        initial_statement: Option<AstNode<'c, Expression<'c>>>,
     ) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         // Append the initial statement if there is one.
         let mut block = if initial_statement.is_some() {
@@ -65,17 +63,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can tell
         // this by checking for keywords that must begin a statement...
         while gen.has_token() {
-            let token = gen.peek().unwrap();
-
-            if token.kind.begins_statement() {
-                block
-                    .statements
-                    .nodes
-                    .push(gen.parse_statement()?, &self.wall);
-                continue;
-            }
-
-            let (has_semi, statement) = gen.parse_general_statement(false)?;
+            let (has_semi, statement) = gen.parse_top_level_expression(false)?;
 
             match (has_semi, gen.peek()) {
                 (true, _) => block.statements.nodes.push(statement, &self.wall),
@@ -84,22 +72,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Semi])),
                     Some(token.kind),
                 )?,
-                (false, None) => {
-                    let span = statement.location();
-
-                    match statement.into_body().move_out() {
-                        Statement::Block(BlockStatement(inner_block)) => {
-                            block.expr = Some(self.node_with_span(
-                                Expression::new(ExpressionKind::Block(BlockExpr(inner_block))),
-                                span,
-                            ));
-                        }
-                        Statement::Expr(ExprStatement(expr)) => {
-                            block.expr = Some(expr);
-                        }
-                        _ => unreachable!(),
-                    }
-                }
+                (false, None) => block.expr = Some(statement),
             }
         }
 
@@ -119,9 +92,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
 
-        enable_flag!(self; disallow_struct_literals;
-            let iterator = self.parse_expression_with_precedence(0)?
-        );
+        let iterator = self.parse_expression_with_precedence(0)?;
 
         let body = self.parse_block()?;
         let (pat_span, iter_span, body_span) =
@@ -199,12 +170,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             },
                         ),
                     ),
-                    expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-                        self.node(Block::Body(BodyBlock {
-                            statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
-                            expr: None,
-                        })),
-                    )))),
+                    expr: self.node(Expression::new(ExpressionKind::Break(BreakStatement))),
                 }),
             ],
             origin: MatchOrigin::For
@@ -238,10 +204,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .has_kind(TokenKind::Keyword(Keyword::While)));
 
         let start = self.current_location();
-
-        enable_flag!(self; disallow_struct_literals;
-            let condition = self.parse_expression_with_precedence(0)?
-        );
+        let condition = self.parse_expression_with_precedence(0)?;
 
         let body = self.parse_block()?;
 
@@ -257,12 +220,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         }),
                         self.node(MatchCase {
                             pattern: self.node(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false)))),
-                            expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-                                self.node(Block::Body(BodyBlock {
-                                    statements: ast_nodes![&self.wall; self.node(Statement::Break(BreakStatement))],
-                                    expr: None,
-                                })),
-                            )))),
+                            expr: self.node(Expression::new(ExpressionKind::Break(BreakStatement)))
                         }),
                     ],
                     origin: MatchOrigin::While
@@ -293,10 +251,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .has_kind(TokenKind::Keyword(Keyword::Match)));
 
         let start = self.current_location();
-
-        enable_flag!(self; disallow_struct_literals;
-            let subject = self.parse_expression_with_precedence(0)?
-        );
+        let subject = self.parse_expression_with_precedence(0)?;
 
         let mut cases = AstNodes::empty();
 
@@ -369,15 +324,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let mut has_else_branch = false;
 
         while self.has_token() {
-            // @@Cleanup: @@Hack: essentially because struct literals begin with an ident and then a block
-            //    this creates an ambiguity for the parser because it could also just be an ident
-            //    and then a block, therefore, we have to peek ahead to see if we can see two following
-            //    trees ('{...}') and if so, then we don't disallow parsing a struct literal, if it's
-            //    only one token tree, we prevent it from being parsed as a struct literal
-            //    by updating the global state...
-            enable_flag!(self; disallow_struct_literals;
-                let clause = self.parse_expression_with_precedence(0)?
-            );
+            let clause = self.parse_expression_with_precedence(0)?;
 
             let branch = self.parse_block()?;
             let (clause_span, branch_span) = (clause.location(), branch.location());
