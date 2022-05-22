@@ -945,8 +945,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             },
         )));
 
-        let make_enum_pattern = |symbol: &str, location: Location| {
-            self.node(Pattern::Enum(EnumPattern {
+        let make_constructor_pattern = |symbol: &str, location: Location| {
+            self.node(Pattern::Constructor(ConstructorPattern {
                 name: self.make_access_name_from_str(symbol, location),
                 fields: AstNodes::empty(),
             }))
@@ -960,8 +960,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: ast_nodes![&self.wall;
-                        make_enum_pattern("Lt", location),
-                        make_enum_pattern("Eq", location),
+                        make_constructor_pattern("Lt", location),
+                        make_constructor_pattern("Eq", location),
                         ],
                     })),
                     expr: self.make_bool(true)
@@ -971,8 +971,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ast_nodes![&self.wall; self.node(MatchCase {
                     pattern: self.node(Pattern::Or(OrPattern {
                         variants: ast_nodes![&self.wall;
-                        make_enum_pattern("Gt", location),
-                        make_enum_pattern("Eq", location),
+                        make_constructor_pattern("Gt", location),
+                        make_constructor_pattern("Eq", location),
                         ],
                     })),
                     expr: self.make_bool(true)
@@ -980,13 +980,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             OperatorKind::Lt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_enum_pattern("Lt", location),
+                    pattern: make_constructor_pattern("Lt", location),
                     expr: self.make_bool(true)
                 })]
             }
             OperatorKind::Gt => {
                 ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_enum_pattern("Gt", location),
+                    pattern: make_constructor_pattern("Gt", location),
                     expr: self.make_bool(true)
                 })]
             }
