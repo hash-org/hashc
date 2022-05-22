@@ -890,13 +890,6 @@ impl<'c> Expression<'c> {
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
     }
-
-    pub fn no_continuation(&self) -> bool {
-        matches!(
-            self.kind(),
-            ExpressionKind::Import(_) | ExpressionKind::Break(_) | ExpressionKind::Continue(_)
-        )
-    }
 }
 
 /// A module.
