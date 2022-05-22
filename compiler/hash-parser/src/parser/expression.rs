@@ -253,11 +253,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
-        // If this is an expression that can't have a continuation, we need to return here...
-        if subject.no_continuation() {
-            return Ok(subject);
-        }
-
         // reset the struct literal state in any case
         self.disallow_struct_literals.set(prev_allowance);
 
