@@ -68,3 +68,23 @@ foo("a", "b", c="c", d="d") // Allowed -- first two arguments are named.
 foo(a="a", "b", c="c", d="d") // Not allowed -- argument b must be named if a is named.
 foo("a", "b", c="c", "d") // Not allowed -- argument d must be named.
 ```
+
+## Grammar
+
+The grammar for function definitions is as follows:
+
+```
+function_param =
+  | ( ident ":=" expr )  // Declaration and assignment, infer type
+  | ( ident ( ":" type )? "=" expr  ) // Assignment
+  | ( ident ( ":" type )  ) // Declaration
+
+function_def = "(" function_param* ")" ( "->" type )? ( "=>" expr )?
+```
+
+The grammar for function calls is as follows:
+
+```
+function_call_arg = expr | ( ident "=" expr )
+function_call = expr "(" function_call_arg* ")"
+```
