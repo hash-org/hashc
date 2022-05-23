@@ -7,6 +7,7 @@
     - [Primitives](./features/primitives.md)
     - [🚧 Control flow](./features/control-flow.md)
     - [🚧 Operators](./features/operators.md)
+    - [🚧 Types](./features/types.md)
     - [Structs and enums](./features/structs-enums.md)
     - [Modules and visibility](./features/modules.md)
     - [🚧 Patterns](./features/patterns.md)
