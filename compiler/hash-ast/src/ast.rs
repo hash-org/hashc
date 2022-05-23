@@ -588,6 +588,8 @@ pub struct TraitBound<'c> {
 pub struct TypeFunctionDef<'c> {
     /// The type arguments of the function.
     pub args: AstNodes<'c, TypeFunctionDefArg<'c>>,
+    /// Optional return type of the type function
+    pub return_ty: Option<AstNode<'c, Type<'c>>>,
     /// The body of the type function,
     pub expr: AstNode<'c, Expression<'c>>,
 }
@@ -665,7 +667,7 @@ pub struct EnumDef<'c> {
     pub entries: AstNodes<'c, EnumDefEntry<'c>>,
 }
 
-/// A trait definition, e.g. `add := <T> => trait { add: (T, T) => T; }`.
+/// A trait definition, e.g. `add := <T> => trait { add: (T, T) -> T; }`.
 #[derive(Debug, PartialEq)]
 pub struct TraitDef<'c> {
     pub members: AstNodes<'c, Expression<'c>>,

@@ -1258,6 +1258,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         self.tc_state().in_bound_def = true;
         let walk::TypeFunctionDef {
             args: _,
+            return_ty: _,
             expression,
         } = walk::walk_type_function_def(self, ctx, node)?;
         self.tc_state().in_bound_def = false;

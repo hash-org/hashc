@@ -136,6 +136,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub fn parse_type_function_def(&self) -> AstGenResult<'c, TypeFunctionDef<'c>> {
         let mut args = AstNodes::empty();
 
+        // We can't do this because the parse_separated_fn() function expects a token tree and
+        // not the while tree:
+        //
+        // let args = self.parse_separated_fn(
+        //     || self.parse_type_function_def_arg(),
+        //     || self.parse_token_atom(TokenKind::Comma),
+        // )?;
+        //
+        // And so instead we do this:
+        //
         while let Some(arg) = self.peek_resultant_fn(|| self.parse_type_function_def_arg()) {
             args.nodes.push(arg, &self.wall);
 
@@ -160,19 +170,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        // We can't do this because the parse_separated_fn() function expects a token tree and
-        // not the while tree:
-        //
-        // let args = self.parse_separated_fn(
-        //     || self.parse_type_function_def_arg(),
-        //     || self.parse_token_atom(TokenKind::Comma),
-        // )?;
+        // see if we need to add a return ty...
+        let return_ty = match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
+            Some(_) => Some(self.parse_type()?),
+            None => None,
+        };
 
         // Now that we parse the bound, we're expecting a fat-arrow and then some expression
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(TypeFunctionDef { args, expr })
+        Ok(TypeFunctionDef {
+            args,
+            return_ty,
+            expr,
+        })
     }
 
     // Parse a [TypeFunctionDefArg] which consists the name of the argument and then any specified bounds

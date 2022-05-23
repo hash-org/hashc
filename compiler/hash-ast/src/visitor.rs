@@ -1933,6 +1933,7 @@ pub mod walk {
 
     pub struct TypeFunctionDef<'c, V: AstVisitor<'c>> {
         pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
+        pub return_ty: Option<V::TypeRet>,
         pub expression: V::ExpressionRet,
     }
 
@@ -1948,6 +1949,11 @@ pub mod walk {
                     .iter()
                     .map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref())),
             )?,
+            return_ty: node
+                .return_ty
+                .as_ref()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
+                .transpose()?,
             expression: visitor.visit_expression(ctx, node.expr.ast_ref())?,
         })
     }
