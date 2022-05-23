@@ -27,13 +27,13 @@ grouped_type = "(" type ")"
 named_type = access_name
 
 type_function_call_arg = type | ( ident "=" type )
-type_function_call = ( grouped_type | named_type ) "<" ( type_function_call_arg "," )* ">"
+type_function_call = ( grouped_type | named_type ) "<" ( type_function_call_arg "," )* type_function_call_arg? ">"
 
 type_function_param =
   | ( ident ":=" type )  // Declaration and assignment, infer type
   | ( ident ( ":" type )? ( "=" type )?  ) // Declaration or assignment
 
-type_function = "<" ( type_function_param "," )+ ">" "->" type
+type_function = "<" ( type_function_param "," )* type_function_param? ">" "->" type
 
 merged_types = ( type "~" )+ type
 ```
