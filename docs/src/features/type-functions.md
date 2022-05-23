@@ -112,8 +112,7 @@ The grammar for type function definitions and type function types is as follows:
 ```
 type_function_param =
   | ( ident ":=" type )  // Declaration and assignment, infer type
-  | ( ident ( ":" type )? "=" type  ) // Assignment
-  | ( ident ( ":" type )  ) // Declaration
+  | ( ident ( ":" type )? ( "=" type )?  ) // Declaration or assignment
 
 // The below is an expression:
 type_function_def = "<" type_function_param+ ">" ( "->" type )? "=>" expr
