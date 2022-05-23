@@ -56,7 +56,7 @@ pub enum AstGenErrorKind {
     /// Error representing expected type arguments. This error has two variants, it can
     /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
     /// is to add additional information in the error message.
-    TyArgument(TyArgumentKind),
+    TypeDefinition(TyArgumentKind),
     /// Expected an identifier here.
     ExpectedIdentifier,
     /// Expected an expression.
@@ -121,10 +121,10 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             }
             AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
             AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator".to_string(),
-            AstGenErrorKind::TyArgument(ty) => {
+            AstGenErrorKind::TypeDefinition(ty) => {
                 format!(
-                    "Expected {} type arguments, or {} definition entries here which begin with a '{{'",
-                    ty, ty
+                    "Expected {} definition entries here which begin with a '('",
+                    ty
                 )
             }
             AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),

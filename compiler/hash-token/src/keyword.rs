@@ -16,7 +16,6 @@ pub enum Keyword {
     Match,
     As,
     In,
-    Where,
     Trait,
     Enum,
     Struct,
