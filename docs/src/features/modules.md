@@ -32,6 +32,29 @@ c := import("lib/sub/c");
 By doing so, you are placing everything that is defined within each of those modules under
 the namespace. 
 
+## Exporting
+
+In order to export items from a module, use the `pub` keyword.
+For example:
+
+```rust
+/// a.hash
+
+// Visible from outside:
+pub a := 1;
+
+// Not visible from outside (priv by default):
+b := 1;
+
+// Not visible from outside:
+priv c := 1;
+
+/// b.hash
+{ a } := import("a.hash"); // Ok
+{ b } := import("a.hash"); // Error: b is private
+{ c } := import("a.hash"); // Error: c is private.
+```
+
 ## Referencing exports 🚧
 
 Furthermore, if the `a` module contained a public structure definition like `Point`:
