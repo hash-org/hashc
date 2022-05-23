@@ -547,11 +547,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "function_def",
             iter::once(TreeNode::branch("args", args))
-                .chain(
-                    return_ty
-                        .map(|r| TreeNode::branch("return_type", vec![r]))
-                        .into_iter(),
-                )
+                .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
                 .chain(iter::once(TreeNode::branch("body", vec![fn_body])))
                 .collect(),
         ))
@@ -800,12 +796,18 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::TypeFunctionDef { args, expression } =
-            walk::walk_type_function_def(self, ctx, node)?;
+        let walk::TypeFunctionDef {
+            args,
+            return_ty,
+            expression,
+        } = walk::walk_type_function_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
-            vec![TreeNode::branch("args", args), expression],
+            iter::once(TreeNode::branch("args", args))
+                .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
+                .chain(iter::once(TreeNode::branch("body", vec![expression])))
+                .collect(),
         ))
     }
 
