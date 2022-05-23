@@ -79,13 +79,13 @@ function_param =
   | ( ident ( ":" type )? "=" expr  ) // Assignment
   | ( ident ( ":" type )  ) // Declaration
 
-function_def = "(" function_param* ")" ( "->" type )? ("=>" expr)
-function_type = "(" function_param* ")" "->" type
+function_def = "(" ( function_param "," )* function_param? ")" ( "->" type )? ("=>" expr)
+function_type = "(" ( function_param "," )* function_param? ")" "->" type
 ```
 
 The grammar for function calls is as follows:
 
 ```
 function_call_arg = expr | ( ident "=" expr )
-function_call = expr "(" function_call_arg* ")"
+function_call = expr "(" ( function_call_arg "," )* function_call_arg? ")"
 ```
