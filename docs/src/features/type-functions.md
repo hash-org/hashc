@@ -115,14 +115,17 @@ type_function_param =
   | ( ident ( ":" type )? "=" type  ) // Assignment
   | ( ident ( ":" type )  ) // Declaration
 
-type_function_def = "<" type_function_param+ ">" ( "->" type )? ( "=>" type )?
+// The below is an expression:
+type_function_def = "<" type_function_param+ ">" ( "->" type )? "=>" expr
 
+// The below is a type:
 type_function_type = "<" type_function_param+ ">" "->" type
 ```
 
 The grammar for type function calls is as follows:
 
 ```
+// These should be supported both at the type level and the expression level
 type_function_call_arg = type | ( ident "=" type )
 type_function_call = ident "(" type_function_call_arg* ")"
 ```
