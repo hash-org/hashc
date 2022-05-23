@@ -55,7 +55,7 @@ priv c := 1;
 { c } := import("a.hash"); // Error: c is private.
 ```
 
-## Referencing exports 🚧
+## Referencing exports
 
 Furthermore, if the `a` module contained a public structure definition like `Point`:
 
