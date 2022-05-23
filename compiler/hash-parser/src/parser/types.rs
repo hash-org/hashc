@@ -97,11 +97,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         gen.skip_token();
 
                         let rhs_type = gen.parse_type()?;
-
-                        // @@CopyPasta
-                        if gen.has_token() {
-                            gen.expected_eof()?;
-                        }
+                        gen.verify_is_empty()?;
 
                         // @@Incomplete: inline type names into ident map...
                         let name = IDENTIFIER_MAP.create_ident(MAP_TYPE_NAME);
@@ -132,11 +128,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let gen = self.from_stream(tree, token.span);
 
                 let inner_type = gen.parse_type()?;
-
-                // @@CopyPasta
-                if gen.has_token() {
-                    gen.expected_eof()?;
-                }
+                gen.verify_is_empty()?;
 
                 // @@Incomplete: inline type names into ident map...
                 let name = IDENTIFIER_MAP.create_ident(LIST_TYPE_NAME);

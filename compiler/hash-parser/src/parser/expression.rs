@@ -469,10 +469,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         gen.skip_token(); // eat the string argument
-
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
+        gen.verify_is_empty()?;
 
         // Attempt to add the module via the resolver
         let import_path = PathBuf::from_str(path).unwrap_or_else(|err| match err {});
@@ -586,9 +583,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // since nothing should be after the expression, we can check that no tokens
         // are left and the generator is empty, otherwise report this as an unexpected_token
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
+        gen.verify_is_empty()?;
 
         Ok(self.node_with_span(
             Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
