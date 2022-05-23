@@ -98,7 +98,6 @@ Grammar for tuples:
 
 ```
 tuple_literal = ( "(" ( expr "," )* ")" ) | ( "(" ( expr "," )* expr ")" )
-tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )* type ")" )
 ```
 
 ### Named tuples
@@ -158,7 +157,6 @@ The syntax for sets is as follows:
 
 ```
 set_literal = ( "{" "," "}" ) | ( "{" ( expr "," )+ "}" ) | ( "{" ( expr "," )* expr "}" )
-set_type = "{" type "}"
 ```
 
 ### Map
@@ -174,5 +172,6 @@ The syntax for maps is as follows:
 
 ```
 map_literal = ( "{" ":" "}" ) | ( "{" ( expr ":" expr "," )* ( expr ":" expr )? "}" )
-map_type = "{" type ":" type "}"
 ```
+
+**Note**: the grammar for literal types can be found in the [Types](./types.md) section.
