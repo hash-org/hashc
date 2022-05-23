@@ -488,6 +488,27 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TupleType<'c>>,
     ) -> Result<Self::TupleTypeRet, Self::Error>;
 
+    type ListTypeRet: 'c;
+    fn visit_list_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<Self::ListTypeRet, Self::Error>;
+
+    type SetTypeRet: 'c;
+    fn visit_set_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<Self::SetTypeRet, Self::Error>;
+
+    type MapTypeRet: 'c;
+    fn visit_map_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<Self::MapTypeRet, Self::Error>;
+
     type StrLiteralPatternRet: 'c;
     fn visit_str_literal_pattern(
         &mut self,
@@ -1350,6 +1371,50 @@ pub mod walk {
         })
     }
 
+    pub struct ListType<'c, V: AstVisitor<'c>> {
+        pub inner: V::TypeRet,
+    }
+
+    pub fn walk_list_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<ListType<'c, V>, V::Error> {
+        Ok(ListType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
+        })
+    }
+
+    pub struct SetType<'c, V: AstVisitor<'c>> {
+        pub key: V::TypeRet,
+    }
+
+    pub fn walk_set_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<SetType<'c, V>, V::Error> {
+        Ok(SetType {
+            key: visitor.visit_type(ctx, node.key.ast_ref())?,
+        })
+    }
+
+    pub struct MapType<'c, V: AstVisitor<'c>> {
+        pub key: V::TypeRet,
+        pub value: V::TypeRet,
+    }
+
+    pub fn walk_map_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<MapType<'c, V>, V::Error> {
+        Ok(MapType {
+            key: visitor.visit_type(ctx, node.key.ast_ref())?,
+            value: visitor.visit_type(ctx, node.value.ast_ref())?,
+        })
+    }
+
     pub struct NamedType<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
         pub type_args: V::CollectionContainer<V::TypeRet>,
@@ -1408,6 +1473,9 @@ pub mod walk {
     pub enum Type<'c, V: AstVisitor<'c>> {
         Fn(V::FnTypeRet),
         Tuple(V::TupleTypeRet),
+        List(V::ListTypeRet),
+        Set(V::SetTypeRet),
+        Map(V::MapTypeRet),
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
         RawRef(V::RawRefTypeRet),
@@ -1421,6 +1489,9 @@ pub mod walk {
         Ok(match &*node {
             ast::Type::Fn(r) => Type::Fn(visitor.visit_function_type(ctx, node.with_body(r))?),
             ast::Type::Tuple(r) => Type::Tuple(visitor.visit_tuple_type(ctx, node.with_body(r))?),
+            ast::Type::List(r) => Type::List(visitor.visit_list_type(ctx, node.with_body(r))?),
+            ast::Type::Set(r) => Type::Set(visitor.visit_set_type(ctx, node.with_body(r))?),
+            ast::Type::Map(r) => Type::Map(visitor.visit_map_type(ctx, node.with_body(r))?),
             ast::Type::Named(r) => Type::Named(visitor.visit_named_type(ctx, node.with_body(r))?),
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
             ast::Type::RawRef(r) => {
@@ -1439,6 +1510,9 @@ pub mod walk {
             'c,
             FnTypeRet = Ret,
             TupleTypeRet = Ret,
+            ListTypeRet = Ret,
+            SetTypeRet = Ret,
+            MapTypeRet = Ret,
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
             RawRefTypeRet = Ret,
@@ -1447,6 +1521,9 @@ pub mod walk {
         Ok(match walk_type(visitor, ctx, node)? {
             Type::Fn(r) => r,
             Type::Tuple(r) => r,
+            Type::List(r) => r,
+            Type::Set(r) => r,
+            Type::Map(r) => r,
             Type::Named(r) => r,
             Type::Ref(r) => r,
             Type::RawRef(r) => r,
