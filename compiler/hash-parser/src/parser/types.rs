@@ -172,7 +172,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
 
         let start = self.current_location();
-
         let mut type_args = AstNodes::empty();
 
         loop {
@@ -301,7 +300,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Parse an [AccessName] followed by optional [Type] arguments..
+    /// Parse an [AccessName] followed by optional [Type] arguments.
     pub fn parse_name_with_type_args(
         &self,
         ident: AstNode<'c, Identifier>,

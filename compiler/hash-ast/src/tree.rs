@@ -800,11 +800,27 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::TypeFunctionDef { args, expression } = walk::walk_bound(self, ctx, node)?;
+        let walk::TypeFunctionDef { args, expression } =
+            walk::walk_type_function_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
             vec![TreeNode::branch("args", args), expression],
+        ))
+    }
+
+    type TypeFunctionDefArgRet = TreeNode;
+    fn visit_type_function_def_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        let walk::TypeFunctionDefArg { name, bounds } =
+            walk::walk_type_function_def_arg(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "arg",
+            vec![name, TreeNode::branch("bounds", bounds)],
         ))
     }
 

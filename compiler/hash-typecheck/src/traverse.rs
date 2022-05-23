@@ -1259,11 +1259,20 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let walk::TypeFunctionDef {
             args: _,
             expression,
-        } = walk::walk_bound(self, ctx, node)?;
+        } = walk::walk_type_function_def(self, ctx, node)?;
         self.tc_state().in_bound_def = false;
 
         // @@Todo: bounds
         Ok(expression)
+    }
+
+    type TypeFunctionDefArgRet = TypeId;
+    fn visit_type_function_def_arg(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        todo!()
     }
 
     type ConstructorPatternRet = TypeId;

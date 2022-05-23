@@ -439,6 +439,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
 
+    type TypeFunctionDefArgRet: 'c;
+    fn visit_type_function_def_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error>;
+
     type ConstructorPatternRet: 'c;
     fn visit_constructor_pattern(
         &mut self,
@@ -1925,10 +1932,11 @@ pub mod walk {
     }
 
     pub struct TypeFunctionDef<'c, V: AstVisitor<'c>> {
-        pub args: V::CollectionContainer<V::TypeRet>,
+        pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
         pub expression: V::ExpressionRet,
     }
-    pub fn walk_bound<'c, V: AstVisitor<'c>>(
+
+    pub fn walk_type_function_def<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
@@ -1938,9 +1946,30 @@ pub mod walk {
                 ctx,
                 node.args
                     .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
+                    .map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref())),
             )?,
             expression: visitor.visit_expression(ctx, node.expr.ast_ref())?,
+        })
+    }
+
+    pub struct TypeFunctionDefArg<'c, V: AstVisitor<'c>> {
+        pub name: V::NameRet,
+        pub bounds: V::CollectionContainer<V::TypeRet>,
+    }
+
+    pub fn walk_type_function_def_arg<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
+        Ok(TypeFunctionDefArg {
+            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            bounds: V::try_collect_items(
+                ctx,
+                node.bounds
+                    .iter()
+                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
+            )?,
         })
     }
 

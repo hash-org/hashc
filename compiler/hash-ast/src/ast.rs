@@ -581,15 +581,25 @@ pub struct TraitBound<'c> {
     pub type_args: AstNodes<'c, Type<'c>>,
 }
 
-/// A bound, e.g. "<T, U: Conv<U>>".
+/// A type function, e.g. `<T, U: Conv<U>> => ...`.
 ///
-/// Used in struct, enum, trait definitions.
+/// Used in struct, enum, trait, and function definitions.
 #[derive(Debug, PartialEq)]
 pub struct TypeFunctionDef<'c> {
     /// The type arguments of the function.
-    pub args: AstNodes<'c, Type<'c>>,
+    pub args: AstNodes<'c, TypeFunctionDefArg<'c>>,
     /// The body of the type function,
     pub expr: AstNode<'c, Expression<'c>>,
+}
+
+/// An argument within a type function
+#[derive(Debug, PartialEq)]
+pub struct TypeFunctionDefArg<'c> {
+    /// The name of the argument
+    pub name: AstNode<'c, Name>,
+
+    /// The argument bounds.
+    pub bounds: AstNodes<'c, Type<'c>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
