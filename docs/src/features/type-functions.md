@@ -126,5 +126,5 @@ The grammar for type function calls is as follows:
 ```
 // These should be supported both at the type level and the expression level
 type_function_call_arg = type | ( ident "=" type )
-type_function_call = ident "(" type_function_call_arg* ")"
+type_function_call = ident "<" type_function_call_arg* ">"
 ```
