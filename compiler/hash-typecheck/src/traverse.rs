@@ -559,6 +559,33 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .create(TypeValue::Tuple(TupleType { types: entries }), ty_location))
     }
 
+    type ListTypeRet = TypeId;
+    fn visit_list_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<Self::ListTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type SetTypeRet = TypeId;
+    fn visit_set_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<Self::SetTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type MapTypeRet = TypeId;
+    fn visit_map_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<Self::MapTypeRet, Self::Error> {
+        todo!()
+    }
+
     type FnTypeRet = TypeId;
     fn visit_function_type(
         &mut self,

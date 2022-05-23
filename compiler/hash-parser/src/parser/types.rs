@@ -65,34 +65,23 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let tree = self.token_trees.get(*tree_index).unwrap();
                 let gen = self.from_stream(tree, token.span);
 
-                let lhs_type = gen.parse_type()?;
+                let key_ty = gen.parse_type()?;
 
                 match gen.peek() {
                     // This must be a map
                     Some(token) if token.has_kind(TokenKind::Colon) => {
                         gen.skip_token();
 
-                        let rhs_type = gen.parse_type()?;
+                        let value_ty = gen.parse_type()?;
                         gen.verify_is_empty()?;
 
-                        // @@Incomplete: inline type names into ident map...
-                        let name = IDENTIFIER_MAP.create_ident(MAP_TYPE_NAME);
-
-                        Type::Named(NamedType {
-                            name: self.make_access_name_from_identifier(name, token.span),
-                            type_args: ast_nodes![&self.wall; lhs_type, rhs_type],
+                        Type::Map(MapType {
+                            key: key_ty,
+                            value: value_ty,
                         })
                     }
+                    None => Type::Set(SetType { key: key_ty }),
                     Some(_) => gen.expected_eof()?,
-                    None => {
-                        // @@Incomplete: inline type names into ident map...
-                        let name = IDENTIFIER_MAP.create_ident(SET_TYPE_NAME);
-
-                        Type::Named(NamedType {
-                            name: self.make_access_name_from_identifier(name, token.span),
-                            type_args: ast_nodes![&self.wall; lhs_type],
-                        })
-                    }
                 }
             }
 

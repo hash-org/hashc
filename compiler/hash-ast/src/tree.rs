@@ -317,6 +317,45 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("tuple", entries))
     }
 
+    type ListTypeRet = TreeNode;
+    fn visit_list_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::ListType { inner } = walk::walk_list_type(self, ctx, node)?;
+
+        Ok(TreeNode::branch("list", vec![inner]))
+    }
+
+    type SetTypeRet = TreeNode;
+    fn visit_set_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::SetType { key } = walk::walk_set_type(self, ctx, node)?;
+
+        Ok(TreeNode::branch("set", vec![key]))
+    }
+
+    type MapTypeRet = TreeNode;
+    fn visit_map_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::MapType { key, value } = walk::walk_map_type(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "map",
+            vec![
+                TreeNode::branch("key", vec![key]),
+                TreeNode::branch("key", vec![value]),
+            ],
+        ))
+    }
+
     type FnTypeRet = TreeNode;
     fn visit_function_type(
         &mut self,

@@ -315,6 +315,25 @@ pub struct TupleType<'c> {
     pub entries: AstNodes<'c, NamedFieldTypeEntry<'c>>,
 }
 
+/// The list type, , e.g. `{str}`.
+#[derive(Debug, PartialEq)]
+pub struct ListType<'c> {
+    pub inner: AstNode<'c, Type<'c>>,
+}
+
+/// The set type, , e.g. `{str}`.
+#[derive(Debug, PartialEq)]
+pub struct SetType<'c> {
+    pub key: AstNode<'c, Type<'c>>,
+}
+
+/// The map type, e.g. `{str: u32}`.
+#[derive(Debug, PartialEq)]
+pub struct MapType<'c> {
+    pub key: AstNode<'c, Type<'c>>,
+    pub value: AstNode<'c, Type<'c>>,
+}
+
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType<'c> {
@@ -326,6 +345,9 @@ pub struct FnType<'c> {
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
     Tuple(TupleType<'c>),
+    List(ListType<'c>),
+    Set(SetType<'c>),
+    Map(MapType<'c>),
     Fn(FnType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
