@@ -1,31 +1,43 @@
 # Pattern matching
 
-Pattern matching is a very big part of `Hash` and the productivity of the language. Pattern
-matching can come in two main forms: literal patterns and destructuring patterns.
+Pattern matching is a very big part of `Hash` and the productivity of the language.
+Patterns are a declarative form of equality checking, similar to patterns in Rust or Haskell.
 
 Pattern matching within `match` statements is more detailed within the [Conditional statements](./conditionals.md#match-cases) section
-of the book. This chapter is dedicated to documenting the various ways to use patterns.
+of the book.
+This chapter is dedicated to documenting the various kinds of patterns that there are in Hash.
 
 ## Literal patterns
 
-Literal patterns are can be used within `match` statements to compare a subject expression to a literal. For example,
-consider the following snippet of code:
+Literal patterns are patterns that match a specific value of a primitive type, like a number or a string.
+For example, consider the following snippet of code:
 
 ```rust
-x := conv<int>(input());
+foo := get_foo(); // foo: i32
 
-match x {
-    Some(1) => print("That's a one!");
-    Some(2) => print("You entered 2");
-    Some(n) => print(n + " is greater than 1 and 2"); // <- binding literal pattern
-    _ => print("You didn't enter a number");
+match foo {
+    1 => print("Got one"),
+    2 => print("Got two"),
+    3 => print("Got three"),
+    _ => print("Got something else"),
 }
 ```
 
-On the left-hand side there are literal patterns that include literal values, which `x` will be compared
-to. Literal patterns follow the same syntax to binding patterns. Additionally, literal patterns can include
-binding elements such as the third condition in the `match` statement: `Some(n) => ...` where `n` is the bind
-to the literal.
+On the left-hand side of the match cases there are the literal patterns `1`, `2` and `3`.
+These perform `foo == 1`, `foo == 2` and `foo == 3` in sequence, and the code follows the branch which succeeds first.
+If no branch succeeds, the `_` branch is followed, which means "match anything".
+Literals can be integer literals for integer types (signed or unsigned), string literals for the `str` type, or character literals for the `char` type:
+
+```rust
+match my_char {
+    'A' => print("First letter"),
+    'B' => print("Second letter"),
+    x => print("Letter is: " + conv(x)),
+}
+```
+
+## Binding patterns
+
 
 ## Destructuring patterns
 
