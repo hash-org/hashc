@@ -260,8 +260,6 @@ impl AccessName<'_> {
 pub struct NamedType<'c> {
     /// The name of the type.
     pub name: AstNode<'c, AccessName<'c>>,
-    /// The type arguments of the type, if any.
-    pub type_args: AstNodes<'c, Type<'c>>,
 }
 
 /// A type variable.

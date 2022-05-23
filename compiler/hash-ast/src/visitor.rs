@@ -1417,7 +1417,6 @@ pub mod walk {
 
     pub struct NamedType<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::TypeRet>,
     }
 
     pub fn walk_named_type<'c, V: AstVisitor<'c>>(
@@ -1427,12 +1426,6 @@ pub mod walk {
     ) -> Result<NamedType<'c, V>, V::Error> {
         Ok(NamedType {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args
-                    .iter()
-                    .map(|e| visitor.visit_type(ctx, e.ast_ref())),
-            )?,
         })
     }
 

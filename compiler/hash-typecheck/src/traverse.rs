@@ -633,33 +633,34 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Type(ty_id)) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
-            (_, SymbolType::TypeDef(def_id)) => {
-                let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
-                let def = self.type_defs().get(def_id);
+            (_, SymbolType::TypeDef(_)) => {
+                let walk::NamedType { .. } = walk::walk_named_type(self, ctx, node)?;
+                // let def = self.type_defs().get(def_id);
 
-                // @@Todo bounds
-                match &def.kind {
-                    TypeDefValueKind::Enum(EnumDef { generics, .. })
-                    | TypeDefValueKind::Struct(StructDef { generics, .. }) => {
-                        let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
-                        let instantiated_args = self
-                            .unifier()
-                            .apply_sub_to_list_make_vec(&args_sub, &generics.params)?;
+                todo!()
+                // // @@Todo bounds
+                // match &def.kind {
+                //     TypeDefValueKind::Enum(EnumDef { generics, .. })
+                //     | TypeDefValueKind::Struct(StructDef { generics, .. }) => {
+                //         let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
+                //         let instantiated_args = self
+                //             .unifier()
+                //             .apply_sub_to_list_make_vec(&args_sub, &generics.params)?;
 
-                        self.unifier().unify_pairs(
-                            type_args.iter().zip(instantiated_args.iter()),
-                            UnifyStrategy::ModifyTarget,
-                        )?;
-                        let ty = self.create_type(
-                            TypeValue::User(UserType {
-                                def_id,
-                                args: type_args,
-                            }),
-                            Some(location),
-                        );
-                        Ok(ty)
-                    }
-                }
+                //         self.unifier().unify_pairs(
+                //             type_args.iter().zip(instantiated_args.iter()),
+                //             UnifyStrategy::ModifyTarget,
+                //         )?;
+                //         let ty = self.create_type(
+                //             TypeValue::User(UserType {
+                //                 def_id,
+                //                 args: type_args,
+                //             }),
+                //             Some(location),
+                //         );
+                //         Ok(ty)
+                //     }
+                // }
             }
             _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
                 path: node.name.path(),

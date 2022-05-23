@@ -383,18 +383,8 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        let walk::NamedType { name, type_args } = walk::walk_named_type(self, ctx, node)?;
-        let children = {
-            if type_args.is_empty() {
-                vec![]
-            } else {
-                vec![TreeNode::branch("type_args", type_args)]
-            }
-        };
-        Ok(TreeNode::branch(
-            labelled("named", name.label, "\""),
-            children,
-        ))
+        let walk::NamedType { name } = walk::walk_named_type(self, ctx, node)?;
+        Ok(TreeNode::leaf(labelled("named", name.label, "\"")))
     }
 
     type RefTypeRet = TreeNode;
