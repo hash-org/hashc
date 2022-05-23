@@ -173,6 +173,6 @@ The syntax for maps is as follows:
 - Map type: `{K:V}`, for example `names: {str:str} = {"thom":"yorke", "jonny":"greenwood"}`.
 
 ```
-set_literal = ( "{" ":" "}" ) | ( "{" ( expr ":" expr "," )* ( expr ":" expr )? "}" )
-set_type = "{" type ":" type "}"
+map_literal = ( "{" ":" "}" ) | ( "{" ( expr ":" expr "," )* ( expr ":" expr )? "}" )
+map_type = "{" type ":" type "}"
 ```
