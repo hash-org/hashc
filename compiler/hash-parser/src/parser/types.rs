@@ -4,11 +4,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_alloc::row;
-use hash_ast::{
-    ast::*,
-    ast_nodes,
-    ident::{Identifier, IDENTIFIER_MAP},
-};
+use hash_ast::{ast::*, ident::Identifier};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -49,13 +45,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Ident(id) => {
                 self.skip_token();
 
-                let (name, args) =
+                let (name, _args) =
                     self.parse_name_with_type_args(self.node_with_span(*id, start))?;
 
-                Type::Named(NamedType {
-                    name,
-                    type_args: args.unwrap_or_else(AstNodes::empty),
-                })
+                // @@TODO: return a type function call here... if it has arguments
+
+                Type::Named(NamedType { name })
             }
 
             // Map or set type
@@ -95,13 +90,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let inner_type = gen.parse_type()?;
                 gen.verify_is_empty()?;
 
-                // @@Incomplete: inline type names into ident map...
-                let name = IDENTIFIER_MAP.create_ident(LIST_TYPE_NAME);
-
-                Type::Named(NamedType {
-                    name: self.make_access_name_from_identifier(name, token.span),
-                    type_args: ast_nodes![&self.wall; inner_type],
-                })
+                Type::List(ListType { inner: inner_type })
             }
 
             // Tuple or function type
