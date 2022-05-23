@@ -330,9 +330,6 @@ pub enum Type<'c> {
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
-    TypeVar(TypeVar<'c>),
-    Existential(ExistentialType),
-    Infer(InferType),
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
