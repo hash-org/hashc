@@ -1093,7 +1093,13 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .map(|t| self.visit_type(ctx, t.ast_ref()))
             .transpose()?
             .unwrap_or_else(|| self.create_unknown_type());
-        let value_ty = self.visit_expression(ctx, node.value.ast_ref())?;
+
+        let value_ty = node
+            .value
+            .as_ref()
+            .map(|t| self.visit_expression(ctx, t.ast_ref()))
+            .transpose()?
+            .unwrap_or_else(|| self.create_unknown_type());
 
         // add type location information on  pattern_ty and annotation_ty
         if let Some(annotation) = &node.body().ty {
@@ -1250,15 +1256,24 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         self.tc_state().in_bound_def = true;
-        let walk::Bound {
-            type_args: _,
-            trait_bounds: _,
+        let walk::TypeFunctionDef {
+            args: _,
+            return_ty: _,
             expression,
-        } = walk::walk_bound(self, ctx, node)?;
+        } = walk::walk_type_function_def(self, ctx, node)?;
         self.tc_state().in_bound_def = false;
 
         // @@Todo: bounds
         Ok(expression)
+    }
+
+    type TypeFunctionDefArgRet = TypeId;
+    fn visit_type_function_def_arg(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        todo!()
     }
 
     type ConstructorPatternRet = TypeId;

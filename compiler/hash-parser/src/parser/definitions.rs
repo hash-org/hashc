@@ -3,6 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
+use hash_alloc::row;
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
@@ -32,21 +33,18 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     || gen.parse_token_atom(TokenKind::Comma),
                 )?
             }
-            token => self.error(
-                AstGenErrorKind::TyArgument(TyArgumentKind::Struct),
-                Some(TokenKindVector::singleton(
-                    &self.wall,
-                    TokenKind::Delimiter(Delimiter::Paren, false),
-                )),
-                token.map(|tok| tok.kind),
+            token => self.error_with_location(
+                AstGenErrorKind::TypeDefinition(TyArgumentKind::Struct),
+                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
             )?,
         };
 
         Ok(StructDef { entries })
     }
 
-    /// Parse a [StructDefEntry]. The keyword `enum` begins the construct and is followed
-    /// by parenthesees with inner enum fields defined.
+    /// Parse a [StructDefEntry].
     pub fn parse_struct_def_entry(&self) -> AstGenResult<'c, AstNode<'c, StructDefEntry<'c>>> {
         let start = self.current_location();
         let name = self.parse_name()?;
@@ -71,7 +69,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &start))
     }
 
-    /// Parse an [EnumDef].
+    /// Parse an [EnumDef]. The keyword `enum` begins the construct and is followed
+    /// by parenthesees with inner enum fields defined.
     pub fn parse_enum_def(&self) -> AstGenResult<'c, EnumDef<'c>> {
         debug_assert!(self
             .current_token()
@@ -91,13 +90,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     || gen.parse_token_atom(TokenKind::Comma),
                 )?
             }
-            token => self.error(
-                AstGenErrorKind::TyArgument(TyArgumentKind::Enum),
-                Some(TokenKindVector::singleton(
-                    &self.wall,
-                    TokenKind::Delimiter(Delimiter::Paren, false),
-                )),
-                token.map(|tok| tok.kind),
+            token => self.error_with_location(
+                AstGenErrorKind::TypeDefinition(TyArgumentKind::Enum),
+                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
             )?,
         };
 
@@ -107,7 +104,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
         let name = self.parse_name()?;
-        let name_location = name.location();
+        let name_span = name.location();
 
         let mut args = AstNodes::empty();
 
@@ -131,6 +128,142 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_location))
+        Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_span))
+    }
+
+    /// Parse a [TypeFunctionDef]. Type functions specify logic at the type level on expressions such as
+    /// struct, enum, function, and trait definitions.
+    pub fn parse_type_function_def(&self) -> AstGenResult<'c, TypeFunctionDef<'c>> {
+        let mut args = AstNodes::empty();
+
+        // We can't do this because the parse_separated_fn() function expects a token tree and
+        // not the while tree:
+        //
+        // let args = self.parse_separated_fn(
+        //     || self.parse_type_function_def_arg(),
+        //     || self.parse_token_atom(TokenKind::Comma),
+        // )?;
+        //
+        // And so instead we do this:
+        //
+        while let Some(arg) = self.peek_resultant_fn(|| self.parse_type_function_def_arg()) {
+            args.nodes.push(arg, &self.wall);
+
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
+                    self.skip_token();
+                }
+                Some(token) if token.has_kind(TokenKind::Gt) => {
+                    self.skip_token();
+                    break;
+                }
+                token => self.error_with_location(
+                    AstGenErrorKind::Expected,
+                    Some(TokenKindVector::from_row(row![
+                        &self.wall;
+                        TokenKind::Comma,
+                        TokenKind::Gt
+                    ])),
+                    token.map(|t| t.kind),
+                    token.map_or_else(|| self.next_location(), |t| t.span),
+                )?,
+            }
+        }
+
+        // see if we need to add a return ty...
+        let return_ty = match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
+            Some(_) => Some(self.parse_type()?),
+            None => None,
+        };
+
+        // Now that we parse the bound, we're expecting a fat-arrow and then some expression
+        self.parse_arrow()?;
+        let expr = self.parse_expression_with_precedence(0)?;
+
+        Ok(TypeFunctionDef {
+            args,
+            return_ty,
+            expr,
+        })
+    }
+
+    // Parse a [TypeFunctionDefArg] which consists the name of the argument and then any specified bounds
+    // on the argument which are essentially types that are separated by a `~`
+    fn parse_type_function_def_arg(&self) -> AstGenResult<'c, AstNode<'c, TypeFunctionDefArg<'c>>> {
+        let start = self.current_location();
+        let name = self.parse_name()?;
+
+        // Now it's followed by a colon
+        self.parse_token_atom(TokenKind::Colon)?;
+
+        // Parse any bounds present
+        let mut bounds = AstNodes::empty();
+
+        loop {
+            match self.peek_resultant_fn(|| self.parse_type()) {
+                Some(ty) => {
+                    bounds.nodes.push(ty, &self.wall);
+
+                    match self.peek() {
+                        Some(token) if token.has_kind(TokenKind::Tilde) => {
+                            self.skip_token();
+                        }
+                        _ => break,
+                    }
+                }
+                None => self.error_with_location(
+                    AstGenErrorKind::ExpectedType,
+                    None,
+                    None,
+                    self.next_location(),
+                )?,
+            }
+        }
+
+        Ok(self.node_with_joined_span(TypeFunctionDefArg { name, bounds }, &start))
+    }
+
+    /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with `trait` that contains
+    /// definitions or attach expressions to a trait.
+    pub fn parse_trait_def(&self) -> AstGenResult<'c, TraitDef<'c>> {
+        debug_assert!(self
+            .current_token()
+            .has_kind(TokenKind::Keyword(Keyword::Trait)));
+
+        let members = match self.peek() {
+            Some(Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
+                span,
+            }) => {
+                self.skip_token();
+                let tree = self.token_trees.get(*tree_index).unwrap();
+                let gen = self.from_stream(tree, *span);
+
+                let mut expressions = AstNodes::empty();
+
+                while gen.has_token() {
+                    let (_, expr) = gen.parse_top_level_expression(true)?;
+                    expressions.nodes.push(expr, &self.wall);
+                }
+
+                // Verify that generator is empty
+                if gen.has_token() {
+                    gen.error(AstGenErrorKind::EOF, None, None)?
+                }
+
+                expressions
+            }
+            token => self.error_with_location(
+                AstGenErrorKind::Expected,
+                Some(TokenKindVector::singleton(
+                    &self.wall,
+                    TokenKind::Delimiter(Delimiter::Brace, true),
+                )),
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
+            )?,
+        };
+
+        Ok(TraitDef { members })
     }
 }

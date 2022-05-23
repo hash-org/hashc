@@ -547,11 +547,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "function_def",
             iter::once(TreeNode::branch("args", args))
-                .chain(
-                    return_ty
-                        .map(|r| TreeNode::branch("return_type", vec![r]))
-                        .into_iter(),
-                )
+                .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
                 .chain(iter::once(TreeNode::branch("body", vec![fn_body])))
                 .collect(),
         ))
@@ -680,8 +676,8 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "declaration",
             iter::once(TreeNode::branch("pattern", vec![pattern]))
-                .chain(ty.map(|t| TreeNode::branch("type", vec![t])).into_iter())
-                .chain(iter::once(TreeNode::branch("value", vec![value])))
+                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+                .chain(value.map(|t| TreeNode::branch("value", vec![t])))
                 .collect(),
         ))
     }
@@ -764,14 +760,11 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitDef<'c>>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        let walk::TraitDef {
-            name: _,
-            bound,
-            trait_type,
-        } = walk::walk_trait_def(self, ctx, node)?;
+        let walk::TraitDef { members } = walk::walk_trait_def(self, ctx, node)?;
+
         Ok(TreeNode::branch(
             "trait_def",
-            vec![bound, TreeNode::branch("type", vec![trait_type])],
+            vec![TreeNode::branch("members", members)],
         ))
     }
 
@@ -803,18 +796,33 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::Bound {
-            type_args,
-            trait_bounds,
+        let walk::TypeFunctionDef {
+            args,
+            return_ty,
             expression,
-        } = walk::walk_bound(self, ctx, node)?;
+        } = walk::walk_type_function_def(self, ctx, node)?;
+
         Ok(TreeNode::branch(
-            "bound",
-            vec![
-                TreeNode::branch("vars", type_args),
-                TreeNode::branch("traits", trait_bounds),
-                expression,
-            ],
+            "type_function",
+            iter::once(TreeNode::branch("args", args))
+                .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
+                .chain(iter::once(TreeNode::branch("body", vec![expression])))
+                .collect(),
+        ))
+    }
+
+    type TypeFunctionDefArgRet = TreeNode;
+    fn visit_type_function_def_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        let walk::TypeFunctionDefArg { name, bounds } =
+            walk::walk_type_function_def_arg(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "arg",
+            vec![name, TreeNode::branch("bounds", bounds)],
         ))
     }
 

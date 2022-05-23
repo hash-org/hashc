@@ -439,6 +439,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
 
+    type TypeFunctionDefArgRet: 'c;
+    fn visit_type_function_def_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error>;
+
     type ConstructorPatternRet: 'c;
     fn visit_constructor_pattern(
         &mut self,
@@ -1786,7 +1793,7 @@ pub mod walk {
     pub struct Declaration<'c, V: AstVisitor<'c>> {
         pub pattern: V::PatternRet,
         pub ty: Option<V::TypeRet>,
-        pub value: V::ExpressionRet,
+        pub value: Option<V::ExpressionRet>,
     }
     pub fn walk_declaration<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -1800,7 +1807,11 @@ pub mod walk {
                 .as_ref()
                 .map(|t| visitor.visit_type(ctx, t.ast_ref()))
                 .transpose()?,
-            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
+            value: node
+                .value
+                .as_ref()
+                .map(|t| visitor.visit_expression(ctx, t.ast_ref()))
+                .transpose()?,
         })
     }
 
@@ -1920,37 +1931,56 @@ pub mod walk {
         })
     }
 
-    pub struct Bound<'c, V: AstVisitor<'c>> {
-        pub type_args: V::CollectionContainer<V::TypeRet>,
-        pub trait_bounds: V::CollectionContainer<V::TraitBoundRet>,
+    pub struct TypeFunctionDef<'c, V: AstVisitor<'c>> {
+        pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
+        pub return_ty: Option<V::TypeRet>,
         pub expression: V::ExpressionRet,
     }
-    pub fn walk_bound<'c, V: AstVisitor<'c>>(
+
+    pub fn walk_type_function_def<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
-    ) -> Result<Bound<'c, V>, V::Error> {
-        Ok(Bound {
-            type_args: V::try_collect_items(
+    ) -> Result<TypeFunctionDef<'c, V>, V::Error> {
+        Ok(TypeFunctionDef {
+            args: V::try_collect_items(
                 ctx,
-                node.type_args
+                node.args
                     .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
+                    .map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref())),
             )?,
-            trait_bounds: V::try_collect_items(
-                ctx,
-                node.trait_bounds
-                    .iter()
-                    .map(|t| visitor.visit_trait_bound(ctx, t.ast_ref())),
-            )?,
+            return_ty: node
+                .return_ty
+                .as_ref()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
+                .transpose()?,
             expression: visitor.visit_expression(ctx, node.expr.ast_ref())?,
         })
     }
 
-    pub struct TraitDef<'c, V: AstVisitor<'c>> {
+    pub struct TypeFunctionDefArg<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
-        pub bound: V::TypeFunctionDefRet,
-        pub trait_type: V::TypeRet,
+        pub bounds: V::CollectionContainer<V::TypeRet>,
+    }
+
+    pub fn walk_type_function_def_arg<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
+        Ok(TypeFunctionDefArg {
+            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            bounds: V::try_collect_items(
+                ctx,
+                node.bounds
+                    .iter()
+                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
+            )?,
+        })
+    }
+
+    pub struct TraitDef<'c, V: AstVisitor<'c>> {
+        pub members: V::CollectionContainer<V::ExpressionRet>,
     }
     pub fn walk_trait_def<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
@@ -1958,9 +1988,12 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TraitDef<'c>>,
     ) -> Result<TraitDef<'c, V>, V::Error> {
         Ok(TraitDef {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bound: visitor.visit_type_function_def(ctx, node.bound.ast_ref())?,
-            trait_type: visitor.visit_type(ctx, node.trait_type.ast_ref())?,
+            members: V::try_collect_items(
+                ctx,
+                node.members
+                    .iter()
+                    .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
+            )?,
         })
     }
 

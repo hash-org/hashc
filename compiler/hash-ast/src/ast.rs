@@ -581,17 +581,27 @@ pub struct TraitBound<'c> {
     pub type_args: AstNodes<'c, Type<'c>>,
 }
 
-/// A bound, e.g. "<T, U> where conv<U, T>".
+/// A type function, e.g. `<T, U: Conv<U>> => ...`.
 ///
-/// Used in struct, enum, trait definitions.
+/// Used in struct, enum, trait, and function definitions.
 #[derive(Debug, PartialEq)]
 pub struct TypeFunctionDef<'c> {
-    /// The type arguments of the bound.
-    pub type_args: AstNodes<'c, Type<'c>>,
-    /// The traits that constrain the bound, if any.
-    pub trait_bounds: AstNodes<'c, TraitBound<'c>>,
-    /// The expression that the bound applies to
+    /// The type arguments of the function.
+    pub args: AstNodes<'c, TypeFunctionDefArg<'c>>,
+    /// Optional return type of the type function
+    pub return_ty: Option<AstNode<'c, Type<'c>>>,
+    /// The body of the type function,
     pub expr: AstNode<'c, Expression<'c>>,
+}
+
+/// An argument within a type function
+#[derive(Debug, PartialEq)]
+pub struct TypeFunctionDefArg<'c> {
+    /// The name of the argument
+    pub name: AstNode<'c, Name>,
+
+    /// The argument bounds.
+    pub bounds: AstNodes<'c, Type<'c>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -605,7 +615,7 @@ pub struct Declaration<'c> {
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
-    pub value: AstNode<'c, Expression<'c>>,
+    pub value: Option<AstNode<'c, Expression<'c>>>,
 }
 
 /// An assign expression, e.g. `x = 4;`.
@@ -657,15 +667,10 @@ pub struct EnumDef<'c> {
     pub entries: AstNodes<'c, EnumDefEntry<'c>>,
 }
 
-/// A trait definition, e.g. `trait add = <T> => (T, T) => T;`.
+/// A trait definition, e.g. `add := <T> => trait { add: (T, T) -> T; }`.
 #[derive(Debug, PartialEq)]
 pub struct TraitDef<'c> {
-    /// The name of the trait.
-    pub name: AstNode<'c, Name>,
-    /// The bound of the trait.
-    pub bound: AstNode<'c, TypeFunctionDef<'c>>,
-    /// The inner type of the trait. Expected to be a `Function` type.
-    pub trait_type: AstNode<'c, Type<'c>>,
+    pub members: AstNodes<'c, Expression<'c>>,
 }
 
 /// A return statement.
