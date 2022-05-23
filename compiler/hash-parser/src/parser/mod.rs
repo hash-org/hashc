@@ -298,15 +298,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn expected_eof<T>(&self) -> AstGenResult<'c, T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
+        self.error(AstGenErrorKind::EOF, None, Some(self.current_token().kind))
+    }
 
-        self.error(
-            AstGenErrorKind::EOF,
-            Some(TokenKindVector::singleton(
-                &self.wall,
-                self.current_token().kind,
-            )),
-            None,
-        )
+    /// Verify that the current [AstGen] has no more tokens.
+    #[inline(always)]
+    pub(crate) fn verify_is_empty(&self) -> AstGenResult<'c, ()> {
+        if self.has_token() {
+            return self.expected_eof();
+        }
+
+        Ok(())
     }
 
     /// Generate an error representing that the current generator unexpectedly reached the
@@ -408,10 +410,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             if self.has_token() {
                 separator_fn()?;
             }
-        }
-
-        if self.has_token() {
-            self.expected_eof()?;
         }
 
         args.span = Some(start.join(self.current_location()));

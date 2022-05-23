@@ -236,10 +236,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         //                   that this should have been the end of the pattern but because in some
         //                   contexts the function is being peeked and the error is being ignored,
         //                   maybe there should be some mechanism to cause the function to hard error?
-        if gen.has_token() {
-            gen.expected_eof()?;
-        }
-
+        gen.verify_is_empty()?;
         Ok(patterns)
     }
 
