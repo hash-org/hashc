@@ -7,7 +7,7 @@ use hash_alloc::row;
 use hash_ast::{
     ast::*,
     ast_nodes,
-    ident::{Identifier, CORE_IDENTIFIERS, IDENTIFIER_MAP},
+    ident::{Identifier, IDENTIFIER_MAP},
 };
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
@@ -46,40 +46,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     err => return err,
                 }
             }
-            // This is a type variable
-            TokenKind::Dollar => {
-                self.skip_token();
-                let name = self.parse_name()?;
-
-                Type::TypeVar(TypeVar { name })
-            }
-            TokenKind::Question => {
-                self.skip_token();
-                Type::Existential(ExistentialType)
-            }
             TokenKind::Ident(id) => {
                 self.skip_token();
 
                 let (name, args) =
                     self.parse_name_with_type_args(self.node_with_span(*id, start))?;
 
-                // if the type_args are None, this means that the name could be either a
-                // infer_type, or a type_var...
-                match args {
-                    Some(type_args) => Type::Named(NamedType { name, type_args }),
-                    None => {
-                        // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
-                        let ident = name.body().path.get(0).unwrap().body();
-
-                        match *ident {
-                            i if i == CORE_IDENTIFIERS.underscore => Type::Infer(InferType),
-                            _ => Type::Named(NamedType {
-                                name,
-                                type_args: AstNodes::empty(),
-                            }),
-                        }
-                    }
-                }
+                Type::Named(NamedType {
+                    name,
+                    type_args: args.unwrap_or_else(AstNodes::empty),
+                })
             }
 
             // Map or set type

@@ -1411,9 +1411,6 @@ pub mod walk {
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
         RawRef(V::RawRefTypeRet),
-        TypeVar(V::TypeVarRet),
-        Existential(V::ExistentialTypeRet),
-        Infer(V::InferTypeRet),
     }
 
     pub fn walk_type<'c, V: AstVisitor<'c>>(
@@ -1429,11 +1426,6 @@ pub mod walk {
             ast::Type::RawRef(r) => {
                 Type::RawRef(visitor.visit_raw_ref_type(ctx, node.with_body(r))?)
             }
-            ast::Type::TypeVar(r) => Type::TypeVar(visitor.visit_type_var(ctx, node.with_body(r))?),
-            ast::Type::Existential(r) => {
-                Type::Existential(visitor.visit_existential_type(ctx, node.with_body(r))?)
-            }
-            ast::Type::Infer(r) => Type::Infer(visitor.visit_infer_type(ctx, node.with_body(r))?),
         })
     }
 
@@ -1450,9 +1442,6 @@ pub mod walk {
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
             RawRefTypeRet = Ret,
-            TypeVarRet = Ret,
-            ExistentialTypeRet = Ret,
-            InferTypeRet = Ret,
         >,
     {
         Ok(match walk_type(visitor, ctx, node)? {
@@ -1461,9 +1450,6 @@ pub mod walk {
             Type::Named(r) => r,
             Type::Ref(r) => r,
             Type::RawRef(r) => r,
-            Type::TypeVar(r) => r,
-            Type::Existential(r) => r,
-            Type::Infer(r) => r,
         })
     }
 
