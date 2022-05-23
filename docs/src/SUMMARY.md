@@ -8,7 +8,7 @@
     - [🚧 Control flow](./features/control-flow.md)
     - [🚧 Operators](./features/operators.md)
     - [Structs and enums](./features/structs-enums.md)
-    - [🚧 Modules and visibility](./features/modules.md)
+    - [Modules and visibility](./features/modules.md)
     - [🚧 Patterns](./features/patterns.md)
     - [Traits and implementations](./features/traits-impls.md)
     - [Type functions](./features/type-functions.md)
