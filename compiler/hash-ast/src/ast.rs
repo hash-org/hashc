@@ -339,6 +339,11 @@ pub struct FnType<'c> {
     pub return_ty: AstNode<'c, Type<'c>>,
 }
 
+/// A merged type meaning that multiple types are considered to be
+/// specified in place of one, e.g. `Conv ~ Eq ~ Print`
+#[derive(Debug, PartialEq)]
+pub struct MergedType<'c>(pub AstNodes<'c, Type<'c>>);
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
@@ -350,6 +355,7 @@ pub enum Type<'c> {
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
+    Merged(MergedType<'c>),
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
@@ -618,7 +624,7 @@ pub struct TypeFunctionDefArg<'c> {
     pub name: AstNode<'c, Name>,
 
     /// The argument bounds.
-    pub bounds: AstNodes<'c, Type<'c>>,
+    pub ty: AstNode<'c, Type<'c>>,
 }
 
 /// A declaration, e.g. `x := 3;`.

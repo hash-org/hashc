@@ -4,7 +4,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_alloc::row;
-use hash_ast::{ast::*, ident::Identifier};
+use hash_ast::{ast::*, ast_nodes, ident::Identifier};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -13,6 +13,33 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a [Type]. This includes all forms of a [Type]. This function
     /// does not deal with any kind of [Type] annotation or [TypeFunctionDef] syntax.
     pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
+        let start = self.current_location();
+        let initial_ty = self.parse_singular_type()?;
+
+        if let Some(_) = self.parse_token_atom_fast(TokenKind::Tilde) {
+            let mut inner_tys = ast_nodes!(&self.wall; initial_ty);
+
+            loop {
+                inner_tys
+                    .nodes
+                    .push(self.parse_singular_type()?, &self.wall);
+
+                match self.parse_token_atom_fast(TokenKind::Tilde) {
+                    Some(_) => continue,
+                    None => break,
+                }
+            }
+
+            return Ok(self.node_with_joined_span(Type::Merged(MergedType(inner_tys)), &start));
+        }
+
+        Ok(initial_ty)
+    }
+
+    /// Parse a [Type]. This includes only singular forms of a type. This means that [Type::Merged]
+    /// variant is not handled because it makes the `parse_type` function carry context from one call to
+    /// the other.
+    fn parse_singular_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(
                 AstGenErrorKind::ExpectedType,

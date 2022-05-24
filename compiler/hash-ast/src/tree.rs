@@ -407,6 +407,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("raw_ref", vec![inner]))
     }
 
+    type MergedTypeRet = TreeNode;
+    fn visit_merged_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+        let walk::MergedType(tys) = walk::walk_merged_type(self, ctx, node)?;
+        Ok(TreeNode::branch("merged", tys))
+    }
+
     type TypeVarRet = TreeNode;
     fn visit_type_var(
         &mut self,
@@ -846,13 +856,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        let walk::TypeFunctionDefArg { name, bounds } =
+        let walk::TypeFunctionDefArg { name, ty } =
             walk::walk_type_function_def_arg(self, ctx, node)?;
 
-        Ok(TreeNode::branch(
-            "arg",
-            vec![name, TreeNode::branch("bounds", bounds)],
-        ))
+        Ok(TreeNode::branch("arg", vec![name, ty]))
     }
 
     type ConstructorPatternRet = TreeNode;

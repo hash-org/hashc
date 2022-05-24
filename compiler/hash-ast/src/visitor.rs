@@ -201,6 +201,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::RawRefType<'c>>,
     ) -> Result<Self::RawRefTypeRet, Self::Error>;
 
+    type MergedTypeRet: 'c;
+    fn visit_merged_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<Self::MergedTypeRet, Self::Error>;
+
     type TypeVarRet: 'c;
     fn visit_type_var(
         &mut self,
@@ -1449,6 +1456,19 @@ pub mod walk {
         Ok(RawRefType(visitor.visit_type(ctx, node.0.ast_ref())?))
     }
 
+    pub struct MergedType<'c, V: AstVisitor<'c>>(pub V::CollectionContainer<V::TypeRet>);
+
+    pub fn walk_merged_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<MergedType<'c, V>, V::Error> {
+        Ok(MergedType(V::try_collect_items(
+            ctx,
+            node.0.iter().map(|a| visitor.visit_type(ctx, a.ast_ref())),
+        )?))
+    }
+
     pub struct TypeVar<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
     }
@@ -1472,6 +1492,7 @@ pub mod walk {
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
         RawRef(V::RawRefTypeRet),
+        Merged(V::MergedTypeRet),
     }
 
     pub fn walk_type<'c, V: AstVisitor<'c>>(
@@ -1489,6 +1510,9 @@ pub mod walk {
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
             ast::Type::RawRef(r) => {
                 Type::RawRef(visitor.visit_raw_ref_type(ctx, node.with_body(r))?)
+            }
+            ast::Type::Merged(r) => {
+                Type::Merged(visitor.visit_merged_type(ctx, node.with_body(r))?)
             }
         })
     }
@@ -1509,6 +1533,7 @@ pub mod walk {
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
             RawRefTypeRet = Ret,
+            MergedTypeRet = Ret,
         >,
     {
         Ok(match walk_type(visitor, ctx, node)? {
@@ -1520,6 +1545,7 @@ pub mod walk {
             Type::Named(r) => r,
             Type::Ref(r) => r,
             Type::RawRef(r) => r,
+            Type::Merged(r) => r,
         })
     }
 
@@ -2016,7 +2042,7 @@ pub mod walk {
 
     pub struct TypeFunctionDefArg<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
-        pub bounds: V::CollectionContainer<V::TypeRet>,
+        pub ty: V::TypeRet,
     }
 
     pub fn walk_type_function_def_arg<'c, V: AstVisitor<'c>>(
@@ -2026,12 +2052,7 @@ pub mod walk {
     ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
         Ok(TypeFunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bounds: V::try_collect_items(
-                ctx,
-                node.bounds
-                    .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
-            )?,
+            ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
         })
     }
 

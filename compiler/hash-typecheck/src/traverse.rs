@@ -692,6 +692,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::RawRef(RawRefType { inner }), Some(ty_location)))
     }
 
+    type MergedTypeRet = TypeId;
+    fn visit_merged_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+        todo!()
+    }
+
     type TypeVarRet = TypeId;
     fn visit_type_var(
         &mut self,
