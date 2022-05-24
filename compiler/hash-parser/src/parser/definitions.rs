@@ -196,31 +196,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // Now it's followed by a colon
         self.parse_token_atom(TokenKind::Colon)?;
 
-        // Parse any bounds present
-        let mut bounds = AstNodes::empty();
-
-        loop {
-            match self.peek_resultant_fn(|| self.parse_type()) {
-                Some(ty) => {
-                    bounds.nodes.push(ty, &self.wall);
-
-                    match self.peek() {
-                        Some(token) if token.has_kind(TokenKind::Tilde) => {
-                            self.skip_token();
-                        }
-                        _ => break,
-                    }
-                }
-                None => self.error_with_location(
-                    AstGenErrorKind::ExpectedType,
-                    None,
-                    None,
-                    self.next_location(),
-                )?,
-            }
-        }
-
-        Ok(self.node_with_joined_span(TypeFunctionDefArg { name, bounds }, &start))
+        Ok(self.node_with_joined_span(
+            TypeFunctionDefArg {
+                name,
+                ty: self.parse_type()?,
+            },
+            &start,
+        ))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with `trait` that contains
