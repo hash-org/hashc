@@ -262,13 +262,6 @@ pub struct NamedType<'c> {
     pub name: AstNode<'c, AccessName<'c>>,
 }
 
-/// A type variable.
-#[derive(Debug, PartialEq)]
-pub struct TypeVar<'c> {
-    /// The name of the type variable.
-    pub name: AstNode<'c, Name>,
-}
-
 /// Reference kind representing either a raw reference or a normal reference.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RefKind {

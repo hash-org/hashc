@@ -1,7 +1,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef,
-    TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVarMode, TypeVars,
+    TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVars,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -737,34 +737,34 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
-    type TypeVarRet = TypeId;
-    fn visit_type_var(
-        &mut self,
-        _ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<Self::TypeVarRet, Self::Error> {
-        let ty_location = self.some_source_location(node.location());
-        let var = TypeVar {
-            name: node.name.ident,
-        };
-        if self.tc_state().in_bound_def {
-            Ok(self.create_type(TypeValue::Var(var), ty_location))
-        } else {
-            match self.source_storage.type_vars.find_type_var(var) {
-                Some((_, TypeVarMode::Bound)) => {
-                    Ok(self.create_type(TypeValue::Var(var), ty_location))
-                }
-                Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
-                None => Err(TypecheckError::UnresolvedSymbol {
-                    symbol: Symbol::Single {
-                        symbol: var.name,
-                        location: ty_location,
-                    },
-                    ancestor: None,
-                }),
-            }
-        }
-    }
+    // type TypeVarRet = TypeId;
+    // fn visit_type_var(
+    //     &mut self,
+    //     _ctx: &Self::Ctx,
+    //     node: ast::AstNodeRef<ast::TypeVar<'c>>,
+    // ) -> Result<Self::TypeVarRet, Self::Error> {
+    //     let ty_location = self.some_source_location(node.location());
+    //     let var = TypeVar {
+    //         name: node.name.ident,
+    //     };
+    //     if self.tc_state().in_bound_def {
+    //         Ok(self.create_type(TypeValue::Var(var), ty_location))
+    //     } else {
+    //         match self.source_storage.type_vars.find_type_var(var) {
+    //             Some((_, TypeVarMode::Bound)) => {
+    //                 Ok(self.create_type(TypeValue::Var(var), ty_location))
+    //             }
+    //             Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
+    //             None => Err(TypecheckError::UnresolvedSymbol {
+    //                 symbol: Symbol::Single {
+    //                     symbol: var.name,
+    //                     location: ty_location,
+    //                 },
+    //                 ancestor: None,
+    //             }),
+    //         }
+    //     }
+    // }
 
     type ExistentialTypeRet = TypeId;
     fn visit_existential_type(
