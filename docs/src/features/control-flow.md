@@ -78,23 +78,24 @@ my_value := if some_condition() { 3 };
 // Compile error: `else` branch of `if` block returns `void`, but `if` branch returns `i32`.
 ```
 
-## Match cases
+## Match blocks
 
-Match cases are one step above the simple `if-else` syntax.  Using a matching case, you can construct more complicated cases in a more readable format than u can with an `if-else` statement. Additionally, you can destruct Enums into their corresponding values. To use a matching case, you do the following:
+Match blocks are a more advanced form of control flow within Hash.
+A match block consists of a sequence of patterns, each matching some given value.
+Each pattern contains a branch of code that is to be executed if the value matches the pattern.
+Match cases are executed top to bottom, and the first match case branch whose pattern succeeds in matching the value, is followed.
 
 ```rust
 
 a := input<u8>();
-
-m2 := match a {
+b := match a {
   1 => "one";
   2 => "two";
   _ => "not one or two";
-}
+};
 
-// Or as a function
-
-convert: (x: u8) => str = (x) => match x {
+// In the return of a function
+convert := (x: u8) => match x {
   1 => "one";
   2 => "two";
   _ => "not one or two";
@@ -103,82 +104,44 @@ convert: (x: u8) => str = (x) => match x {
 m := convert(input<u8>());
 ```
 
-The `_` case is a special wildcard case that captures any case. This is essentially synonymous with the `else` clause in many other languages like Python or JavaScript. For conventional purposes, it should be included when creating a `match` statement where the type value is not reasonably bounded (like an integer). One subtle difference with the `match` syntax is you must always explicitly define a `_` case. This language behaviour is designed to enforce that `explicit` is better than `implicit`. So, if you know that a program should never hit
-the default case:
+Similarly to if-else blocks, each branch in the match block should have the same return type.
+Furthermore, the set of patterns provided in the match needs to be irrefutable, otherwise a compile error is generated:
 
 ```rust
-match x {
-  1 => "one";
-  2 => "two";
-  _ => unreachable(); // we know that 'x' should never be 1 or 2.
+convert := (x: u8) => match x {
+    1 => "one";
+    2 => "two";
 }
+// Compile error: cases not handled: 3, 4, ..., 255
 ```
-**Note**: You do not have to provide a default case if you have defined all the cases for a type (this mainly applies to enums).
 
+You can always add a `_` ignore pattern at the end of a match block to make it irrefutable.
+The `_` pattern at the end of a match block is equivalent to an `else` ending block in an if-else block chain.
+In other words, it matches all other values.
 
 Additionally, because cases are matched incrementally, by doing the following:
 
 ```rust
-convert: (x: u8) => str = (x) => match x {
+convert := (x: u8) => match x {
   _ => "not one or two";
   1 => "one";
   2 => "two";
 }
 ```
 
-The value of `m` will always evaluate as `"not one or two"` since the wildcard matches any condition.
-
-
-Match statements are also really good for destructing enum types in Hash. 
-For example,
+The value of `convert(..)` will always evaluate as `"not one or two"` since the `_` pattern matches any value, and it runs first.
+A compile warning will be generated however, warning that the rest of the match cases (`1 => ..`, `2 => ..`) are unnecessary and will never run.
+Match statements are also really good for destructing constructors, for example enum variants:
+For example:
 
 ```rust
-enum Result = <T, E> => {
-   Ok(T);
-   Err(E);
-};
-
-...
-
-// mission critical, program should exit if it failed
-result: Result<u16, str> = Ok(12);
-
 match result {
   Ok(value) => print("Got '" + conv(value) + "' from operation");
-  Err(e)    => panic("Failed to get result: " + e);
+  Err(e)    => panic("Failed to get result: " + conv(e));
 }
 ```
 
-
-To specify multiple conditions for a single case within a `match` statement, you can do so by
-writing the following syntax:
-
-```rust
-x: u32 = input<u32>();
-
-match x {
-  1 | 2 | 3       => print("x is 1, 2, or 3");
-  4 | 5 | {2 | 4} => print("x is either 4, 5 or 6"); // using bitwise or operator
-  _               => print("x is something else");
-}
-```
-
-To specify more complex conditional statements like and within the match case, you
-can do so using the `match-if` syntax, like so:
-
-
-```rust
-x: u32 = input<u32>();
-y: bool = true;
-
-match x {
-  1 | 2 | 3 if y => print("x is 1, 2, or 3 when y is true");
-  {4 if y} | y   => print("x is 4 and y is true, or  x is equal to y"); // using bitwise or operator
-  {2 | 4 if y}   => print("x is 6 and y is true");
-  _              => print("x is something else");
-}
-```
-# Loop constructs
+# Loops
 
 Hash contains 3 distinct loop control constructs: `for`, `while` and `loop`. Each construct has
 a distinct usage case, but they can often be used interchangeably without hassle and are merely

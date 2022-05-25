@@ -238,6 +238,21 @@ true | false := get_value(); // Error: bitwise-or not implemented between `bool`
 (true | false) := get_value(); // Ok
 ```
 
+## Ignore pattern
+
+The ignore pattern, represented by a single underscore `_`, matches any value, same as a binding pattern.
+However, it does not bind the value to any name, and instead ignores it.
+This is useful if a value or part of a value is unimportant in the matching process:
+
+```rust
+match animal {
+    Dog(name = _) => { // We don't care about the name of the dog, just that it is a dog
+        ...
+    };
+    ...
+}
+```
+
 ## Grammar
 
 The grammar for patterns is as follows:
@@ -277,3 +292,5 @@ list_pattern_member = pattern | ( "..." identifier? )
 
 list_pattern = "[" ( list_pattern_member "," )* list_pattern_member? "]"
 ```
+
+Note: ignore patterns are encapsulated within `binding_pattern` (underscore is a valid identifier).
