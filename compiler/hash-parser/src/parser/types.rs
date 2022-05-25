@@ -281,7 +281,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 // Here we check that the token tree has a comma at the end to later determine if
                 // this is a `GroupedType` or a `TupleType`...
-                gen_has_comma = gen.current_token().has_kind(TokenKind::Comma);
+                gen_has_comma = !gen.stream.is_empty()
+                    && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
