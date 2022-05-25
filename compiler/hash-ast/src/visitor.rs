@@ -236,13 +236,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::MergedType<'c>>,
     ) -> Result<Self::MergedTypeRet, Self::Error>;
 
-    type TypeVarRet: 'c;
-    fn visit_type_var(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<Self::TypeVarRet, Self::Error>;
-
     type ExistentialTypeRet: 'c;
     fn visit_existential_type(
         &mut self,
@@ -1565,20 +1558,6 @@ pub mod walk {
                     .map(|a| visitor.visit_type_function_param(ctx, a.ast_ref())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
-        })
-    }
-
-    pub struct TypeVar<'c, V: AstVisitor<'c>> {
-        pub name: V::NameRet,
-    }
-
-    pub fn walk_type_var<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<TypeVar<'c, V>, V::Error> {
-        Ok(TypeVar {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
         })
     }
 

@@ -487,16 +487,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("type_function", children))
     }
 
-    type TypeVarRet = TreeNode;
-    fn visit_type_var(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<Self::TypeVarRet, Self::Error> {
-        let walk::TypeVar { name } = walk::walk_type_var(self, ctx, node)?;
-        Ok(TreeNode::leaf(labelled("var", name.label, "\"")))
-    }
-
     type ExistentialTypeRet = TreeNode;
     fn visit_existential_type(
         &mut self,
