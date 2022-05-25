@@ -600,15 +600,6 @@ pub enum Pattern<'c> {
     Spread(SpreadPattern<'c>),
 }
 
-/// A trait bound, e.g. "where eq<T>"
-#[derive(Debug, PartialEq)]
-pub struct TraitBound<'c> {
-    /// The name of the trait.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// The type arguments of the trait.
-    pub type_args: AstNodes<'c, Type<'c>>,
-}
-
 /// A type function, e.g. `<T, U: Conv<U>> => ...`.
 ///
 /// Used in struct, enum, trait, and function definitions.

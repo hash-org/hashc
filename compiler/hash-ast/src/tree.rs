@@ -826,19 +826,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TraitBoundRet = TreeNode;
-    fn visit_trait_bound(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<Self::TraitBoundRet, Self::Error> {
-        let walk::TraitBound { name, type_args } = walk::walk_trait_bound(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            labelled("requires", name.label, "\""),
-            vec![TreeNode::branch("args", type_args)],
-        ))
-    }
-
     type TypeFunctionDefRet = TreeNode;
     fn visit_type_function_def(
         &mut self,
