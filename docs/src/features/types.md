@@ -15,7 +15,7 @@ type =
   | type_function
   | merged_types
 
-tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )* type ")" )
+tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )+ type ")" )
 
 list_type = "[" type "]"
 
