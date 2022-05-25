@@ -6,7 +6,7 @@ One key difference is that control flow can always be used in expression positio
 ## If-else blocks
 
 If-else blocks are very basic constructs in Hash.
-An example of a basic `if-else` block is as follows:
+An example of a basic if-else block is as follows:
 
 ```rust
 // checking if the value 'a' evaluates to 'true'
@@ -27,105 +27,56 @@ if b == 2 {
 This checks if the evaluation of `a` returns a boolean value. If it does not
 evaluate to `true`, then the code in `else` is executed.
 
-If you want multiple clauses, you can utilise the `else-if` syntax to define multiple
-conditional statements. To use the `else-if` syntax, you do so like this:
+If you want multiple clauses, you can utilise the else-if syntax to define multiple
+conditional statements:
 
 ```rust
 if b == 2 {
-     print("b is 2")
+    print("b is 2")
 } else if b == 3 {
-     print("b is 3")
+    print("b is 3")
 } else {
     print("b isn't 2 or 3 ")
 }
 ```
 
-As mentioned in the introduction, a conditional statement must evaluate an explicit boolean value. The `if` statement syntax will not infer a boolean value from a statement within `Hash`. This design feature is motivated by the fact that in many languages, common bugs and mistakes occur with the automatic inference of conditional statements. 
+As mentioned in the introduction, the subject of an `if` statement must evaluate to a `bool` value.
+If the type of the subject is something other than `bool`, an error will be generated at compile-time.
 
 An example of an invalid program is:
 ```rust
-a: u8 = 12;
-
-if a { print("a") }
+a := 12;
+if a { print("a"); }
+// Compile error: The type of `a` is `i32`, but was expecting `bool`.
 ```
 
 ### Additional syntax
 
-Furthermore, if you do not want an else statement you can do:
+The `else` clause can be omitted, in which case it is equivalent to `else {}`.
+However, in this case the return type of the contents of the `if` block must be `void`.
 
 ```rust
-if a { print("a") }  // if a is true, then execute
-```
-
-which is syntactic sugar for:
-
-```rust
-if a { print("a") } else {}
-```
-
-Additionally, since the `if` statement body's are also equivalent to functional bodies, you
-can also specifically return a type as you would normally do within a function body:
-
-```rust
-abs: (i64: x) => i64 = if x < 0 { -x } else { x }
-```
-
-You can also assign values since `if` statements are just blocks
-```rust
-my_value: i32 = if some_condition == x { 3 } else { 5 };
-```
-
-However, you cannot do something like this:
-
-```rust
-abs: (i64: x) => i64 = if x < 0 { -x }
-```
-
-**Note**: here that you will not get a syntax error if you run this, but you will encounter an error during the interpretation stage of the program because the function may not have any return type since this has no definition
-of what should happen for the `else` case.
-
-## If statements and Enums 🚧
-You can destruct enum values within if statements using the `if-let` syntax, like so:
-
-```rust
-enum Result = <T, E> => {
-   Ok(T);
-   Err(E);
-};
-
-// mission critical, program should exit if it failed
-result: Result<u16, str> = Ok(12);
-
-if let Ok(value) = result  { 
-  print("Got '" + conv(value) + "' from operation") 
-} else let Err(e) = result {
-  panic("Failed to get result: " + e);
-}
-```
-
-Furthermore, for more complicated conditional statements, you can include an expression
-block which is essentially treated as if it was a functional body, like so:
-
-```rust
-f: str = "file.txt";
-
-if { a = open(f); is_ok(a) } {
-    // run if is_ok(a) returns true
+if a {
+    print("a");
 }
 
-// the above statement can also be written as
-a = open(f);
-
-if is_ok(a) {
-    // run if is_ok(a) returns true
-}
-
+// same as:
+if a {
+    print("a");
+} else { }
 ```
-The only difference between those two examples is that within the first, a is contained within
-the if statement condition body expression, i.e; the `a` variable will not be visible to any further
-scope. This has some advantages, specifically when you don't wish to store that particular result
-from the operation. But if you do, you can always use the second version to utilise the result
-of `a` within the `if` statement body or later on in the program.
+
+In general, each branch of an if-else block chain must have the same return type.
+You can also assign values to if-else blocks, since they are expressions:
+```rust
+my_value := if some_condition() { 3 } else { 5 };
+```
+
+However, this will not work, because the two branches (including the implicit `else {}`) do not have the same return type:
+```rust
+my_value := if some_condition() { 3 };
+// Compile error: `else` branch of `if` block returns `void`, but `if` branch returns `i32`.
+```
 
 ## Match cases
 
