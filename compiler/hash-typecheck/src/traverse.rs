@@ -1271,29 +1271,29 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TraitBoundRet = (TraitId, Vec<TypeId>);
-    fn visit_trait_bound(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<Self::TraitBoundRet, Self::Error> {
-        let name_loc = self.source_location(node.name.location());
+    // type TraitBoundRet = (TraitId, Vec<TypeId>);
+    // fn visit_trait_bound(
+    //     &mut self,
+    //     ctx: &Self::Ctx,
+    //     node: ast::AstNodeRef<ast::TraitBound<'c>>,
+    // ) -> Result<Self::TraitBoundRet, Self::Error> {
+    // let name_loc = self.source_location(node.name.location());
 
-        match self.resolve_compound_symbol(&node.name)? {
-            (_, SymbolType::Trait(trait_id)) => {
-                let type_args: Vec<_> = node
-                    .type_args
-                    .iter()
-                    .map(|arg| self.visit_type(ctx, arg.ast_ref()))
-                    .collect::<Result<_, _>>()?;
-                Ok((trait_id, type_args))
-            }
-            _ => Err(TypecheckError::SymbolIsNotATrait(Symbol::Compound {
-                path: node.name.path(),
-                location: Some(name_loc),
-            })),
-        }
-    }
+    // match self.resolve_compound_symbol(&node.name)? {
+    //     (_, SymbolType::Trait(trait_id)) => {
+    //         let type_args: Vec<_> = node
+    //             .type_args
+    //             .iter()
+    //             .map(|arg| self.visit_type(ctx, arg.ast_ref()))
+    //             .collect::<Result<_, _>>()?;
+    //         Ok((trait_id, type_args))
+    //     }
+    //     _ => Err(TypecheckError::SymbolIsNotATrait(Symbol::Compound {
+    //         path: node.name.path(),
+    //         location: Some(name_loc),
+    //     })),
+    // }
+    // }
 
     type TypeFunctionDefRet = TypeId;
     fn visit_type_function_def(

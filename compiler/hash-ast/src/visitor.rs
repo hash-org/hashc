@@ -439,13 +439,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Self::PatternRet, Self::Error>;
 
-    type TraitBoundRet: 'c;
-    fn visit_trait_bound(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<Self::TraitBoundRet, Self::Error>;
-
     type TypeFunctionDefRet: 'c;
     fn visit_type_function_def(
         &mut self,
@@ -2012,26 +2005,6 @@ pub mod walk {
                 node.entries
                     .iter()
                     .map(|b| visitor.visit_enum_def_entry(ctx, b.ast_ref())),
-            )?,
-        })
-    }
-
-    pub struct TraitBound<'c, V: AstVisitor<'c>> {
-        pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::TypeRet>,
-    }
-    pub fn walk_trait_bound<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<TraitBound<'c, V>, V::Error> {
-        Ok(TraitBound {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args
-                    .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
             )?,
         })
     }
