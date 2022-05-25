@@ -4,7 +4,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_alloc::row;
-use hash_ast::{ast::*, ast_nodes, ident::Identifier};
+use hash_ast::{ast::*, ast_nodes};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -16,7 +16,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
         let initial_ty = self.parse_singular_type()?;
 
-        if self.parse_token_atom_fast(TokenKind::Tilde).is_some() {
+        if self.parse_token_fast(TokenKind::Tilde).is_some() {
             let mut inner_tys = ast_nodes!(&self.wall; initial_ty);
 
             loop {
@@ -24,7 +24,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     .nodes
                     .push(self.parse_singular_type()?, &self.wall);
 
-                match self.parse_token_atom_fast(TokenKind::Tilde) {
+                match self.parse_token_fast(TokenKind::Tilde) {
                     Some(_) => continue,
                     None => break,
                 }
@@ -50,7 +50,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         })?;
 
         let start = token.span;
-        let variant = match &token.kind {
+        let ty = match &token.kind {
             TokenKind::Amp => {
                 self.skip_token();
 
@@ -72,11 +72,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Ident(id) => {
                 self.skip_token();
 
-                let (name, _args) =
-                    self.parse_name_with_type_args(self.node_with_span(*id, start))?;
-
-                // @@TODO: return a type function call here... if it has arguments
-
+                let name = self.parse_access_name(self.node_with_span(*id, start))?;
                 Type::Named(NamedType { name })
             }
 
@@ -129,7 +125,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         };
 
-        Ok(self.node_with_joined_span(variant, &start))
+        // We allow for a `TypeFunctionCall` definition to occur if the function is preceded with either
+        // a `Named` or `Grouped` type. If either of these variants is followed by a `<`, this means that
+        // this has to be a type function call and therefore we no longer allow for any other variants to be
+        // present
+        if matches!(ty, Type::Named(_) | Type::Grouped(_))
+            && self.parse_token_fast(TokenKind::Lt).is_some()
+        {
+            todo!()
+        }
+
+        Ok(self.node_with_joined_span(ty, &start))
     }
 
     /// This parses some type arguments after an [AccessName], however due to the nature of the
@@ -276,26 +282,5 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Ok(self.node_with_joined_span(Type::Tuple(TupleType { entries: args }), &start))
             }
         }
-    }
-
-    /// Parse an [AccessName] followed by optional [Type] arguments.
-    pub fn parse_name_with_type_args(
-        &self,
-        ident: AstNode<'c, Identifier>,
-    ) -> AstGenResult<'c, (AstNode<'c, AccessName<'c>>, Option<AstNodes<'c, Type<'c>>>)> {
-        let name = self.parse_access_name(ident)?;
-
-        // @@Speed: so here we want to be efficient about type_args, we'll just try to
-        // see if the next token atom is a 'Lt' rather than using parse_token_atom
-        // because it throws an error essentially and thus allocates a stupid amount
-        // of strings which at the end of the day aren't even used...
-        let args = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Lt) => {
-                self.peek_resultant_fn(|| self.parse_type_args(false))
-            }
-            _ => None,
-        };
-
-        Ok((name, args))
     }
 }

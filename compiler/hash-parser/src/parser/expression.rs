@@ -91,7 +91,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             self.parse_token_atom(TokenKind::Semi)?;
             true
         } else {
-            self.parse_token_atom_fast(TokenKind::Semi).is_some()
+            self.parse_token_fast(TokenKind::Semi).is_some()
         };
 
         Ok((has_semi, expr))
@@ -116,9 +116,18 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // Handle primitive literals
             kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(ident) => {
-                let ident_node = self.node_with_span(*ident, token.span);
-                let (name, type_args) = self.parse_name_with_type_args(ident_node)?;
-                let type_args = type_args.unwrap_or_else(AstNodes::empty);
+                let name = self.parse_access_name(self.node_with_span(*ident, token.span))?;
+
+                // @@Speed: so here we want to be efficient about type_args, we'll just try to
+                // see if the next token atom is a 'Lt' rather than using parse_token_atom
+                // because it throws an error essentially and thus allocates a stupid amount
+                // of strings which at the end of the day aren't even used...
+                let type_args = match self.peek() {
+                    Some(token) if token.has_kind(TokenKind::Lt) => self
+                        .peek_resultant_fn(|| self.parse_type_args(false))
+                        .unwrap_or_else(AstNodes::empty),
+                    _ => AstNodes::empty(),
+                };
 
                 // create the lhs expr.
                 self.node_with_joined_span(
@@ -191,7 +200,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     || token.has_kind(TokenKind::Eq) =>
                             {
                                 self.skip_token();
-                                self.parse_token_atom_fast(TokenKind::Gt).ok_or(())?;
+                                self.parse_token_fast(TokenKind::Gt).ok_or(())?;
                                 Ok(())
                             }
                             _ => Err(()),
@@ -1169,7 +1178,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // So problem here is that we don't know if it is a map literal or just a
                 // declaration assignment. We can attempt to abort this if we spot that
                 // there is a following '=' or parsing the expression doesn't work...
-                if gen.parse_token_atom_fast(TokenKind::Eq).is_some() {
+                if gen.parse_token_fast(TokenKind::Eq).is_some() {
                     return parse_block(initial_offset);
                 }
 
