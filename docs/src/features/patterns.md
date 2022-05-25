@@ -1,4 +1,4 @@
-# Pattern matching
+# Patterns
 
 Pattern matching is a very big part of `Hash` and the productivity of the language.
 Patterns are a declarative form of equality checking, similar to patterns in Rust or Haskell.
@@ -163,13 +163,80 @@ They follow a simple syntax:
 
 ```rust
 // imports only a and b from the module
-{a, b} = import("./my_lib");
+{a, b} := import("./my_lib");
 
-// imports 'c' as my_c, and 'd' from the module.
-{c as my_c, d} = import("./other_lib"); 
+// imports c as my_c, and d from the module.
+{c as my_c, d} := import("./other_lib"); 
+
+// imports Cat from the nested module as NestedCat
+{Cat as NestedCat} := mod {
+    pub Cat := struct(name: str, age: i32);
+};
 ```
 
+You do not need to list all the members of a module in the pattern; the members which are not listed will be ignored.
 To read more about modules, you can click [here](./modules.md).
+
+## Or-patterns
+
+Or-patterns are specified using the `|` pattern operator, and allow one to match multiple different patterns, and use the one which succeeds.
+For example:
+
+```rust
+symmetric_result: Result<str, str> := Ok("bilbobaggins");
+
+(Ok(inner) | Err(inner)) := symmetric_result; // inner: str
+```
+
+The pattern above is irrefutable because it matches all variants of the `Result` enum.
+Furthermore, each branch has the binding `inner`, which always has the type `str`, and so is a valid pattern.
+The same name binding can appear in multiple branches of an or-pattern, given that it is bound in every branch, and always to the same type.
+Another use-case of or-patterns is to collapse match cases:
+
+```rust
+match color {
+    Red | Blue | Green => print("Primary additive");
+    Cyan | Magenta | Yellow => print("Primary subtractive");
+    _ => print("Unimportant color");
+}
+```
+
+## Conditional patterns
+
+Conditional patterns allow one to specify further arbitrary boolean conditions to a pattern for it to match:
+
+```rust
+match my_result {
+    Ok(inner) if inner > threshold * 2.0 => {
+        print("Phew, above twice the threshold");
+    };
+    Ok(inner) if inner > threshold => {
+        print("Phew, above the threshold but cutting it close!");
+    };
+    Ok(inner) => {
+        print("The result was successful but the value was below the threshold");
+    };
+    Err(_) => {
+        print("The result was unsuccessful... Commencing auto-destruct sequence.");
+        auto_destruct();
+    };
+}
+```
+
+They are specified using the `if` keyword after a pattern.
+Conditional patterns are always refutable, at least as far as the current version of the language is concerned.
+With more advanced type refinement and literal types, this restriction can be lifted sometimes.
+
+## Pattern grouping
+
+Patterns can be grouped using parentheses `()`.
+This is necessary in declarations for example, if one wants to specify a conditional pattern:
+
+```rust
+// get_value: () -> bool;
+true | false := get_value(); // Error: bitwise-or not implemented between `bool` and `void`
+(true | false) := get_value(); // Ok
+```
 
 ## Grammar
 
@@ -177,5 +244,36 @@ The grammar for patterns is as follows:
 
 ```
 pattern = 
-    |
+    | single_pattern
+    | or_pattern
+
+single_pattern =
+    | binding_pattern
+    | constructor_pattern
+    | tuple_pattern
+    | module_pattern
+    | literal_pattern
+    | list_pattern
+
+or_pattern = ( single_pattern "|" )+ single_pattern
+
+binding_pattern = identifier
+
+tuple_pattern_member = identifier | ( identifier "=" single_pattern )
+
+constructor_pattern = access_name ( "(" ( tuple_pattern_member "," )* tuple_pattern_member? ")" )?
+
+tuple_pattern = 
+    | ( "(" ( tuple_pattern_member "," )+ tuple_pattern_member? ")" ) 
+    | ( "(" tuple_pattern_member "," ")" )
+
+module_pattern_member = identifier ( "as" single_pattern )?
+
+module_pattern = "{" ( module_pattern_member "," )* module_pattern_member? "}"
+
+literal_pattern = integer_literal | string_literal | character_literal
+
+list_pattern_member = pattern | ( "..." single_pattern? )
+
+list_pattern = "[" ( list_pattern_member "," )* list_pattern_member? "]"
 ```

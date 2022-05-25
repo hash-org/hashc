@@ -10,7 +10,7 @@
     - [🚧 Types](./features/types.md)
     - [Structs and enums](./features/structs-enums.md)
     - [Modules and visibility](./features/modules.md)
-    - [🚧 Patterns](./features/patterns.md)
+    - [Patterns](./features/patterns.md)
     - [Traits and implementations](./features/traits-impls.md)
     - [Type functions](./features/type-functions.md)
     - [🚧 Memory management](./features/memory.md)
