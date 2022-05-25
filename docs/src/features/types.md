@@ -15,7 +15,7 @@ type =
   | type_function
   | merged_types
 
-tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )* type ")" )
+tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )+ type ")" )
 
 list_type = "[" type "]"
 
@@ -34,9 +34,7 @@ function_type = "(" ( function_type_param "," )* function_type_param? ")" "->" t
 type_function_call_arg = type | ( ident "=" type )
 type_function_call = ( grouped_type | named_type ) "<" ( type_function_call_arg "," )* type_function_call_arg? ">"
 
-type_function_param =
-  | ( ident ":=" type )  // Declaration and assignment, infer type
-  | ( ident ( ":" type )? ( "=" type )?  ) // Declaration or assignment
+type_function_param = ident ( ":" type )? ( "=" type )?
 
 type_function = "<" ( type_function_param "," )* type_function_param? ">" "->" type
 
