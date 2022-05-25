@@ -387,6 +387,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("named", name.label, "\"")))
     }
 
+    type GroupedTypeRet = TreeNode;
+    fn visit_grouped_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::GroupedType<'c>>,
+    ) -> Result<Self::GroupedTypeRet, Self::Error> {
+        let walk::GroupedType(inner) = walk::walk_grouped_type(self, ctx, node)?;
+        Ok(TreeNode::branch("grouped", vec![inner]))
+    }
+
     type RefTypeRet = TreeNode;
     fn visit_ref_type(
         &mut self,

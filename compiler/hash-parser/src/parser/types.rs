@@ -16,7 +16,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
         let initial_ty = self.parse_singular_type()?;
 
-        if let Some(_) = self.parse_token_atom_fast(TokenKind::Tilde) {
+        if self.parse_token_atom_fast(TokenKind::Tilde).is_some() {
             let mut inner_tys = ast_nodes!(&self.wall; initial_ty);
 
             loop {
@@ -102,7 +102,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             value: value_ty,
                         })
                     }
-                    None => Type::Set(SetType { key: key_ty }),
+                    None => Type::Set(SetType(key_ty)),
                     Some(_) => gen.expected_eof()?,
                 }
             }
@@ -121,10 +121,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
 
             // Tuple or function type
-            TokenKind::Tree(Delimiter::Paren, _) => self
-                .parse_function_or_tuple_type(false)?
-                .into_body()
-                .move_out(),
+            TokenKind::Tree(Delimiter::Paren, _) => {
+                self.parse_function_or_tuple_type()?.into_body().move_out()
+            }
             kind => {
                 self.error_with_location(AstGenErrorKind::ExpectedType, None, Some(*kind), start)?
             }
@@ -182,17 +181,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parses a [Type::Fn] which involves a parenthesis token tree with some arbitrary
     /// number of comma separated types followed by a return [Type] that is preceded by an
-    /// `thin-arrow` (->) after the parentheses.
-    ///
-    ///  (e.g. (i32) -> str)
-    ///
-    pub fn parse_function_or_tuple_type(
-        &self,
-        must_be_function: bool,
-    ) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
+    /// `thin-arrow` (->) after the parentheses. e.g. `(i32) -> str`
+    pub fn parse_function_or_tuple_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
 
         let mut args = AstNodes::empty();
+        let mut gen_has_comma = false;
 
         // handle the function arguments first by checking for parentheses
         match self.peek() {
@@ -240,6 +234,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         )?;
                     }
                 };
+
+                // Here we check that the token tree has a comma at the end to later determine if
+                // this is a `GroupedType` or a `TupleType`...
+                gen_has_comma = gen.current_token().has_kind(TokenKind::Comma);
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
@@ -264,8 +262,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 ))
             }
             None => {
-                if must_be_function {
-                    self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
+                // If there is only one entry in the args, and the last token in the entry is not a comma
+                // then we can be sure that this a `GroupedType`.
+                if gen_has_comma && args.len() == 1 && args[0].name.is_none() {
+                    return Ok(self.node_with_joined_span(
+                        Type::Grouped(GroupedType(
+                            args.nodes.pop().unwrap().into_body().move_out().ty,
+                        )),
+                        &start,
+                    ));
                 }
 
                 Ok(self.node_with_joined_span(Type::Tuple(TupleType { entries: args }), &start))

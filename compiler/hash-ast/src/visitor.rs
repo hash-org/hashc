@@ -187,6 +187,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error>;
 
+    type GroupedTypeRet: 'c;
+    fn visit_grouped_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::GroupedType<'c>>,
+    ) -> Result<Self::GroupedTypeRet, Self::Error>;
+
     type RefTypeRet: 'c;
     fn visit_ref_type(
         &mut self,
@@ -1402,7 +1409,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::SetType<'c>>,
     ) -> Result<SetType<'c, V>, V::Error> {
         Ok(SetType {
-            key: visitor.visit_type(ctx, node.key.ast_ref())?,
+            key: visitor.visit_type(ctx, node.0.ast_ref())?,
         })
     }
 
@@ -1434,6 +1441,16 @@ pub mod walk {
         Ok(NamedType {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
         })
+    }
+
+    pub struct GroupedType<'c, V: AstVisitor<'c>>(pub V::TypeRet);
+
+    pub fn walk_grouped_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::GroupedType<'c>>,
+    ) -> Result<GroupedType<'c, V>, V::Error> {
+        Ok(GroupedType(visitor.visit_type(ctx, node.0.ast_ref())?))
     }
 
     pub struct RefType<'c, V: AstVisitor<'c>>(pub V::TypeRet);
@@ -1490,6 +1507,7 @@ pub mod walk {
         Set(V::SetTypeRet),
         Map(V::MapTypeRet),
         Named(V::NamedTypeRet),
+        Grouped(V::GroupedTypeRet),
         Ref(V::RefTypeRet),
         RawRef(V::RawRefTypeRet),
         Merged(V::MergedTypeRet),
@@ -1507,6 +1525,9 @@ pub mod walk {
             ast::Type::Set(r) => Type::Set(visitor.visit_set_type(ctx, node.with_body(r))?),
             ast::Type::Map(r) => Type::Map(visitor.visit_map_type(ctx, node.with_body(r))?),
             ast::Type::Named(r) => Type::Named(visitor.visit_named_type(ctx, node.with_body(r))?),
+            ast::Type::Grouped(r) => {
+                Type::Grouped(visitor.visit_grouped_type(ctx, node.with_body(r))?)
+            }
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
             ast::Type::RawRef(r) => {
                 Type::RawRef(visitor.visit_raw_ref_type(ctx, node.with_body(r))?)
@@ -1531,6 +1552,7 @@ pub mod walk {
             SetTypeRet = Ret,
             MapTypeRet = Ret,
             NamedTypeRet = Ret,
+            GroupedTypeRet = Ret,
             RefTypeRet = Ret,
             RawRefTypeRet = Ret,
             MergedTypeRet = Ret,
@@ -1543,6 +1565,7 @@ pub mod walk {
             Type::Set(r) => r,
             Type::Map(r) => r,
             Type::Named(r) => r,
+            Type::Grouped(r) => r,
             Type::Ref(r) => r,
             Type::RawRef(r) => r,
             Type::Merged(r) => r,
