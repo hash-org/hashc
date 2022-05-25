@@ -39,7 +39,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = self.current_location();
 
         let key = self.parse_expression_with_precedence(0)?;
-        self.parse_token_atom(TokenKind::Colon)?;
+        self.parse_token(TokenKind::Colon)?;
         let value = self.parse_expression_with_precedence(0)?;
 
         Ok(self.node_with_joined_span(MapLiteralEntry { key, value }, &start))
@@ -55,7 +55,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let start = gen.current_location();
         let mut elements = gen.parse_separated_fn(
             || gen.parse_map_entry(),
-            || gen.parse_token_atom(TokenKind::Comma),
+            || gen.parse_token(TokenKind::Comma),
         )?;
 
         elements.nodes.insert(0, initial_entry, &self.wall);
@@ -74,7 +74,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let mut elements = gen.parse_separated_fn(
             || gen.parse_expression_with_precedence(0),
-            || gen.parse_token_atom(TokenKind::Comma),
+            || gen.parse_token(TokenKind::Comma),
         )?;
 
         // insert the first item into elements
@@ -116,7 +116,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     _ => None,
                 };
 
-                self.parse_token_atom(TokenKind::Eq)?;
+                self.parse_token(TokenKind::Eq)?;
 
                 // Now we try and parse an expression that allows re-assignment operators...
                 Some(self.node_with_joined_span(

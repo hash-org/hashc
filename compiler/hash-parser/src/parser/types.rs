@@ -3,7 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::row;
+use hash_alloc::{collections::row::Row, row};
 use hash_ast::{ast::*, ast_nodes};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
@@ -12,7 +12,7 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a [Type]. This includes all forms of a [Type]. This function
     /// does not deal with any kind of [Type] annotation or [TypeFunctionDef] syntax.
-    pub fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
+    pub(crate) fn parse_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
         let start = self.current_location();
         let initial_ty = self.parse_singular_type()?;
 
@@ -117,9 +117,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
 
             // Tuple or function type
-            TokenKind::Tree(Delimiter::Paren, _) => {
-                self.parse_function_or_tuple_type()?.into_body().move_out()
-            }
+            TokenKind::Tree(Delimiter::Paren, _) => self.parse_function_or_tuple_type()?,
+
+            // Type function, which is a collection of arguments enclosed in `<...>` and then
+            // followed by a return type
+            TokenKind::Lt => self.parse_type_function()?,
+
             kind => {
                 self.error_with_location(AstGenErrorKind::ExpectedType, None, Some(*kind), start)?
             }
@@ -129,11 +132,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // a `Named` or `Grouped` type. If either of these variants is followed by a `<`, this means that
         // this has to be a type function call and therefore we no longer allow for any other variants to be
         // present
-        if matches!(ty, Type::Named(_) | Type::Grouped(_))
+        let ty = if matches!(ty, Type::Named(_) | Type::Grouped(_))
             && self.parse_token_fast(TokenKind::Lt).is_some()
         {
-            todo!()
-        }
+            Type::TypeFunctionCall(TypeFunctionCall {
+                subject: self.node_with_joined_span(ty, &start),
+                args: self.parse_type_args(true)?,
+            })
+        } else {
+            ty
+        };
 
         Ok(self.node_with_joined_span(ty, &start))
     }
@@ -143,22 +151,51 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// also be a comparison rather than the beginning of a type argument. Therefore, we have to
     /// lookahead to see if there is another type followed by either a comma (which locks the
     /// `type_args`) or a closing [`TokenKind::Gt`].
-    pub fn parse_type_args(&self, lt_eaten: bool) -> AstGenResult<'c, AstNodes<'c, Type<'c>>> {
+    pub(crate) fn parse_type_args(
+        &self,
+        lt_eaten: bool,
+    ) -> AstGenResult<'c, AstNodes<'c, NamedFieldTypeEntry<'c>>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {
-            self.parse_token_atom(TokenKind::Lt)?;
+            self.parse_token(TokenKind::Lt)?;
         }
 
         let start = self.current_location();
-        let mut type_args = AstNodes::empty();
+        let mut type_args = vec![];
 
         loop {
-            // Check if the type argument is parsed, if we have already encountered a comma, we
-            // return a hard error because it has already started on a comma.
-            match self.parse_type() {
-                Ok(ty) => type_args.nodes.push(ty, &self.wall),
-                Err(err) => return Err(err),
+            // The name part of the `NamedFieldTypeEntry` is an identifier followed by an `=`, which
+            // will then should contain a type setting.
+            let name = match (self.peek(), self.peek_second()) {
+                (
+                    Some(Token {
+                        kind: TokenKind::Ident(_),
+                        ..
+                    }),
+                    Some(Token {
+                        kind: TokenKind::Eq,
+                        ..
+                    }),
+                ) => {
+                    let name = self.parse_name()?;
+                    self.skip_token(); // '='
+
+                    Some(name)
+                }
+                _ => None,
             };
+
+            // Either way, even if the name is not specified, we still want to parse a name here
+            // and hard-error if we don't encounter a type.
+            let ty = self.parse_type()?;
+
+            // Here, we want to use either a joined span between the name or just the span of the
+            // parsed type
+            let arg_span = name
+                .as_ref()
+                .map_or_else(|| ty.location(), |node| node.location().join(ty.location()));
+
+            type_args.push(self.node_with_span(NamedFieldTypeEntry { name, ty }, arg_span));
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
@@ -181,16 +218,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
 
         // Update the location of the type bound to reflect the '<' and '>' tokens...
-        type_args.set_span(start.join(self.current_location()));
-        Ok(type_args)
+        // type_args.set_span(start.join(self.current_location()));
+        Ok(AstNodes::new(
+            Row::from_vec(type_args, &self.wall),
+            Some(start.join(self.current_location())),
+        ))
     }
 
     /// Parses a [Type::Fn] which involves a parenthesis token tree with some arbitrary
     /// number of comma separated types followed by a return [Type] that is preceded by an
     /// `thin-arrow` (->) after the parentheses. e.g. `(i32) -> str`
-    pub fn parse_function_or_tuple_type(&self) -> AstGenResult<'c, AstNode<'c, Type<'c>>> {
-        let start = self.current_location();
-
+    fn parse_function_or_tuple_type(&self) -> AstGenResult<'c, Type<'c>> {
         let mut args = AstNodes::empty();
         let mut gen_has_comma = false;
 
@@ -236,7 +274,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     &start,
                                 ))
                             },
-                            || gen.parse_token_atom(TokenKind::Comma),
+                            || gen.parse_token(TokenKind::Comma),
                         )?;
                     }
                 };
@@ -259,28 +297,95 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(self.node_with_joined_span(
-                    Type::Fn(FnType {
-                        args,
-                        return_ty: self.parse_type()?,
-                    }),
-                    &start,
-                ))
+                Ok(Type::Fn(FnType {
+                    args,
+                    return_ty: self.parse_type()?,
+                }))
             }
             None => {
                 // If there is only one entry in the args, and the last token in the entry is not a comma
                 // then we can be sure that this a `GroupedType`.
                 if gen_has_comma && args.len() == 1 && args[0].name.is_none() {
-                    return Ok(self.node_with_joined_span(
-                        Type::Grouped(GroupedType(
-                            args.nodes.pop().unwrap().into_body().move_out().ty,
-                        )),
-                        &start,
-                    ));
+                    return Ok(Type::Grouped(GroupedType(
+                        args.nodes.pop().unwrap().into_body().move_out().ty,
+                    )));
                 }
 
-                Ok(self.node_with_joined_span(Type::Tuple(TupleType { entries: args }), &start))
+                Ok(Type::Tuple(TupleType { entries: args }))
             }
         }
+    }
+
+    /// Parses a [Type::TypeFunction] with the pre-condition that the initial subject type is parsed
+    /// and passed into the function. This function only deals with the argument part of the function.
+    fn parse_type_function(&self) -> AstGenResult<'c, Type<'c>> {
+        // Since this is only called from `parse_singular_type` we know that this should only
+        // be fired when the next token is a an `<`
+        debug_assert!(matches!(
+            self.next_token(),
+            Some(Token {
+                kind: TokenKind::Lt,
+                ..
+            })
+        ));
+
+        self.skip_token();
+        let mut arg_span = self.current_location();
+
+        let mut args = vec![];
+
+        loop {
+            let span = self.current_location();
+            let name = self.parse_name()?;
+
+            let bound = match self.parse_token_fast(TokenKind::Colon) {
+                Some(_) => Some(self.parse_type()?),
+                None => None,
+            };
+
+            let default = match self.parse_token_fast(TokenKind::Eq) {
+                Some(_) => Some(self.parse_type()?),
+                None => None,
+            };
+
+            args.push(self.node_with_span(
+                TypeFunctionParam {
+                    name,
+                    bound,
+                    default,
+                },
+                span,
+            ));
+
+            // Now consider if the bound is closing or continuing with a comma...
+            match self.peek() {
+                Some(token) if token.has_kind(TokenKind::Comma) => {
+                    self.skip_token();
+                }
+                Some(token) if token.has_kind(TokenKind::Gt) => {
+                    self.skip_token();
+                    arg_span = arg_span.join(self.current_location());
+
+                    break;
+                }
+                Some(token) => self.error(
+                    AstGenErrorKind::Expected,
+                    Some(TokenKindVector::from_row(
+                        row![&self.wall; TokenKind::Comma, TokenKind::Gt],
+                    )),
+                    Some(token.kind),
+                )?,
+                None => self.unexpected_eof()?,
+            }
+        }
+
+        // Now pass the return type
+        self.parse_thin_arrow()?;
+        let return_ty = self.parse_type()?;
+
+        Ok(Type::TypeFunction(TypeFunction {
+            args: AstNodes::new(Row::from_vec(args, &self.wall), Some(arg_span)),
+            return_ty,
+        }))
     }
 }

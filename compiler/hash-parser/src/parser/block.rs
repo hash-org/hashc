@@ -90,7 +90,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // now we parse the singular pattern that begins at the for-loop
         let pattern = self.parse_singular_pattern()?;
 
-        self.parse_token_atom(TokenKind::Keyword(Keyword::In))?;
+        self.parse_token(TokenKind::Keyword(Keyword::In))?;
 
         let iterator = self.parse_expression_with_precedence(0)?;
 
@@ -269,7 +269,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 while gen.has_token() {
                     cases.nodes.push(gen.parse_match_case()?, &self.wall);
 
-                    gen.parse_token_atom(TokenKind::Semi)?;
+                    gen.parse_token(TokenKind::Semi)?;
                 }
             }
             Some(token) => {

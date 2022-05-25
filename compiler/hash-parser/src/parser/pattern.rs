@@ -104,7 +104,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         disable_flag!(gen; spread_patterns_allowed;
                             let fields = gen.parse_separated_fn(
                                 || gen.parse_tuple_pattern_entry(),
-                                || gen.parse_token_atom(TokenKind::Comma),
+                                || gen.parse_token(TokenKind::Comma),
                             )?
                         );
 
@@ -181,7 +181,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub fn parse_pattern_collection(&self) -> AstGenResult<'c, AstNodes<'c, Pattern<'c>>> {
         self.parse_separated_fn(
             || self.parse_pattern(),
-            || self.parse_token_atom(TokenKind::Comma),
+            || self.parse_token(TokenKind::Comma),
         )
     }
 
@@ -198,7 +198,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
         // pattern.
-        let pattern = match self.peek_resultant_fn(|| self.parse_token_atom(TokenKind::Eq)) {
+        let pattern = match self.peek_resultant_fn(|| self.parse_token(TokenKind::Eq)) {
             Some(_) => self.parse_pattern()?,
             None => {
                 let span = name.location();
@@ -228,7 +228,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
 
             if gen.has_token() {
-                gen.parse_token_atom(TokenKind::Comma)?;
+                gen.parse_token(TokenKind::Comma)?;
             }
         }
 
@@ -294,7 +294,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             //            mean that this is still a singular pattern or if it is now treated as a tuple pattern?
             let mut elements = gen.parse_separated_fn(
                 || gen.parse_tuple_pattern_entry(),
-                || gen.parse_token_atom(TokenKind::Comma),
+                || gen.parse_token(TokenKind::Comma),
             )?
         );
 
@@ -363,7 +363,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ///
     pub(crate) fn parse_spread_pattern(&self) -> AstGenResult<'c, SpreadPattern<'c>> {
         for _ in 0..3 {
-            self.parse_token_atom(TokenKind::Dot)?;
+            self.parse_token(TokenKind::Dot)?;
         }
 
         // Try and see if there is a identifier that is followed by the spread to try and

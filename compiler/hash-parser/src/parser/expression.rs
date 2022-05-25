@@ -88,7 +88,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // Depending on whether it's expected of the expression to have a semi-colon, we
         // try and parse one anyway, if so
         let has_semi = if semi_required {
-            self.parse_token_atom(TokenKind::Semi)?;
+            self.parse_token(TokenKind::Semi)?;
             true
         } else {
             self.parse_token_fast(TokenKind::Semi).is_some()
@@ -736,7 +736,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         pattern: AstNode<'c, Pattern<'c>>,
     ) -> AstGenResult<'c, Declaration<'c>> {
-        self.parse_token_atom(TokenKind::Colon)?;
+        self.parse_token(TokenKind::Colon)?;
 
         // Attempt to parse an optional type...
         let ty = match self.peek() {
@@ -1344,7 +1344,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
     ) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
         let name = self.parse_name()?;
-        let start = name.location();
+        let name_span = name.location();
 
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
@@ -1362,7 +1362,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(FunctionDefArg { name, ty, default }, &start))
+        Ok(self.node_with_joined_span(FunctionDefArg { name, ty, default }, &name_span))
     }
 
     /// Parse a function literal. Function literals are essentially definitions of lambdas
@@ -1376,7 +1376,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // parse function definition arguments.
         let args = gen.parse_separated_fn(
             || gen.parse_function_def_arg(),
-            || gen.parse_token_atom(TokenKind::Comma),
+            || gen.parse_token(TokenKind::Comma),
         )?;
 
         // check if there is a return type
