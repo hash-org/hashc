@@ -269,12 +269,6 @@ pub struct TypeVar<'c> {
     pub name: AstNode<'c, Name>,
 }
 
-/// Names for compound types that represent data structures or functions are
-/// translated into string form, and thus are represented by these names.
-pub const LIST_TYPE_NAME: &str = "List";
-pub const SET_TYPE_NAME: &str = "Set";
-pub const MAP_TYPE_NAME: &str = "Map";
-
 /// Reference kind representing either a raw reference or a normal reference.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RefKind {
