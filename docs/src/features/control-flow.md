@@ -1,23 +1,31 @@
-## Conditional statements
+## Control flow
 
-Conditional statements in the `Hash` programming language are very similar to other languages such as Python, Javascript, C and Rust. However, there is one subtle **difference**, which is that the statement provided to a conditional statement must always evaluate to an explicit boolean value. 
+Control flow statements in the `Hash` programming language are very similar to other languages such as Python, JavaScript, C and Rust.
+One key difference is that control flow can always be used in expression position in addition to statement position.
 
+## If-else blocks
 
-## If-else statements
-
-If statements are very basic constructs in Hash. An example of a basic `if-else` statement is as follows:
+If-else blocks are very basic constructs in Hash.
+An example of a basic `if-else` block is as follows:
 
 ```rust
-// checking if the value 'a' evaluates to being 'true'
-if a { print("a"); } else { print("b"); }
+// checking if the value 'a' evaluates to 'true'
+if a { 
+    print("a");
+} else { 
+    print("b");
+}
 
 // using a comparison operator
-if b == 2 { print("b is " + b); } else { print ("b is not " + conv(b)); }
+if b == 2 { 
+    print("b is " + b);
+} else { 
+    print ("b is not " + conv(b));
+}
 ```
 
-Obviously, this checks if the evaluation of `a` returns a boolean value. If it does not
-evaluate to something to be considered as true, then the block expression defined
-at `else` is executed.
+This checks if the evaluation of `a` returns a boolean value. If it does not
+evaluate to `true`, then the code in `else` is executed.
 
 If you want multiple clauses, you can utilise the `else-if` syntax to define multiple
 conditional statements. To use the `else-if` syntax, you do so like this:
@@ -118,8 +126,6 @@ the if statement condition body expression, i.e; the `a` variable will not be vi
 scope. This has some advantages, specifically when you don't wish to store that particular result
 from the operation. But if you do, you can always use the second version to utilise the result
 of `a` within the `if` statement body or later on in the program.
-
-<br />
 
 ## Match cases
 

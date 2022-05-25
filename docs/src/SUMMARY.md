@@ -5,7 +5,7 @@
     - [Name bindings](./features/name-bindings.md)
     - [Functions](./features/functions.md)
     - [Primitives](./features/primitives.md)
-    - [🚧 Control flow](./features/control-flow.md)
+    - [Control flow](./features/control-flow.md)
     - [🚧 Operators](./features/operators.md)
     - [🚧 Types](./features/types.md)
     - [Structs and enums](./features/structs-enums.md)
