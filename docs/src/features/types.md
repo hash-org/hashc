@@ -10,6 +10,7 @@ type =
   | map_type
   | grouped_type
   | named_type
+  | function_type
   | type_function_call
   | type_function
   | merged_types
@@ -25,6 +26,10 @@ set_type = "{" type "}"
 grouped_type = "(" type ")"
 
 named_type = access_name
+
+function_type_param = type | ( ident ":" type )
+
+function_type = "(" ( function_type_param "," )* function_type_param? ")" "->" type
 
 type_function_call_arg = type | ( ident "=" type )
 type_function_call = ( grouped_type | named_type ) "<" ( type_function_call_arg "," )* type_function_call_arg? ">"
