@@ -669,6 +669,33 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
+    type TypeFunctionParamRet = TypeId;
+    fn visit_type_function_param(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunctionParam<'c>>,
+    ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
+        todo!()
+    }
+
+    type TypeFunctionRet = TypeId;
+    fn visit_type_function(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunction<'c>>,
+    ) -> Result<Self::TypeFunctionRet, Self::Error> {
+        todo!()
+    }
+
+    type TypeFunctionCallRet = TypeId;
+    fn visit_type_function_call(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunctionCall<'c>>,
+    ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
+        todo!()
+    }
+
     type GroupedTypeRet = TypeId;
     fn visit_grouped_type(
         &mut self,
@@ -2022,7 +2049,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         let args: Vec<_> = node
             .type_args
             .iter()
-            .map(|a| self.visit_type(ctx, a.ast_ref()))
+            .map(|a| self.visit_named_field_type(ctx, a.ast_ref()))
             .collect::<Result<_, _>>()?;
         let trt_name_location = self.some_source_location(node.name.location());
         let trt_symbol = || Symbol::Compound {
@@ -2034,7 +2061,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
             sub_from_trait_def, ..
         } = self.trait_helper().find_trait_impl(
             trt,
-            &args,
+            &args.iter().map(|ty| ty.1).collect::<Vec<_>>(),
             fn_type,
             trt_symbol,
             type_args_location,

@@ -427,6 +427,66 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("merged", tys))
     }
 
+    type TypeFunctionCallRet = TreeNode;
+    fn visit_type_function_call(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionCall<'c>>,
+    ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
+        let walk::TypeFunctionCall { subject, args } =
+            walk::walk_type_function_call(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "function_call",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::branch("arguments", args),
+            ],
+        ))
+    }
+
+    type TypeFunctionParamRet = TreeNode;
+    fn visit_type_function_param(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionParam<'c>>,
+    ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
+        let walk::TypeFunctionParam {
+            name,
+            bound,
+            default,
+        } = walk::walk_type_function_param(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "arg",
+            iter::once(TreeNode::branch("name", vec![name]))
+                .chain(bound.map(|t| TreeNode::branch("type", vec![t])))
+                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
+                .collect(),
+        ))
+    }
+
+    type TypeFunctionRet = TreeNode;
+    fn visit_type_function(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunction<'c>>,
+    ) -> Result<Self::TypeFunctionRet, Self::Error> {
+        let walk::TypeFunction { args, return_ty } = walk::walk_type_function(self, ctx, node)?;
+
+        let return_child = TreeNode::branch("return", vec![return_ty]);
+
+        let children = {
+            if args.is_empty() {
+                vec![return_child]
+            } else {
+                vec![TreeNode::branch("arguments", args), return_child]
+            }
+        };
+
+        Ok(TreeNode::branch("type_function", children))
+    }
+
     type TypeVarRet = TreeNode;
     fn visit_type_var(
         &mut self,
