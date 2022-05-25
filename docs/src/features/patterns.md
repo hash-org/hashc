@@ -3,7 +3,7 @@
 Pattern matching is a very big part of `Hash` and the productivity of the language.
 Patterns are a declarative form of equality checking, similar to patterns in Rust or Haskell.
 
-Pattern matching within `match` statements is more detailed within the [Conditional statements](./conditionals.md#match-cases) section
+Pattern matching with `match` statements is more detailed within the [Control flow](./control-flow.md) section
 of the book.
 This chapter is dedicated to documenting the various kinds of patterns that there are in Hash.
 
