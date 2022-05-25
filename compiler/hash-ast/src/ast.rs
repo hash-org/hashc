@@ -321,9 +321,13 @@ pub struct ListType<'c> {
 
 /// The set type, , e.g. `{str}`.
 #[derive(Debug, PartialEq)]
-pub struct SetType<'c> {
-    pub key: AstNode<'c, Type<'c>>,
-}
+pub struct SetType<'c>(pub AstNode<'c, Type<'c>>);
+
+/// The grouped type (essentially a type within parenthesees), e.g. `(str)`. It
+/// differs from a tuple that it does not contain a trailing comma which signifies that
+/// this is a single element tuple.
+#[derive(Debug, PartialEq)]
+pub struct GroupedType<'c>(pub AstNode<'c, Type<'c>>);
 
 /// The map type, e.g. `{str: u32}`.
 #[derive(Debug, PartialEq)]
@@ -353,6 +357,7 @@ pub enum Type<'c> {
     Map(MapType<'c>),
     Fn(FnType<'c>),
     Named(NamedType<'c>),
+    Grouped(GroupedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
     Merged(MergedType<'c>),
