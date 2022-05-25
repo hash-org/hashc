@@ -441,7 +441,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to parse a token atom optionally. If the appropriate token atom is
     /// present we advance the token count, if not then just return None
-    pub(crate) fn parse_token_atom_fast(&self, atom: TokenKind) -> Option<()> {
+    pub(crate) fn parse_token_fast(&self, atom: TokenKind) -> Option<()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
