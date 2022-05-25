@@ -198,10 +198,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         value
     }
 
-    /// Get the current token in the stream.
+    /// Get the current [Token] in the stream. Panics if the current offset has passed the
+    /// size of the stream, e.g tring to get the current token after reaching the end of the
+    /// stream.
     pub(crate) fn current_token(&self) -> &Token {
         let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
 
+        self.stream.get(offset).unwrap()
+    }
+
+    /// Get a [Token] at a specified location in the stream. Panics if the given
+    /// stream  position is out of bounds.
+    #[inline(always)]
+    pub(crate) fn token_at(&self, offset: usize) -> &Token {
         self.stream.get(offset).unwrap()
     }
 
