@@ -696,15 +696,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
-    type GroupedTypeRet = TypeId;
-    fn visit_grouped_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::GroupedType<'c>>,
-    ) -> Result<Self::GroupedTypeRet, Self::Error> {
-        todo!()
-    }
-
     type RefTypeRet = TypeId;
     fn visit_ref_type(
         &mut self,
