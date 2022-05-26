@@ -132,9 +132,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // a `Named` or `Grouped` type. If either of these variants is followed by a `<`, this means that
         // this has to be a type function call and therefore we no longer allow for any other variants to be
         // present
-        let ty = if matches!(ty, Type::Named(_) | Type::Grouped(_))
-            && self.parse_token_fast(TokenKind::Lt).is_some()
-        {
+        let ty = if matches!(ty, Type::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
             Type::TypeFunctionCall(TypeFunctionCall {
                 subject: self.node_with_joined_span(ty, &start),
                 args: self.parse_type_args(true)?,
@@ -305,11 +303,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             None => {
                 // If there is only one entry in the args, and the last token in the entry is not a comma
-                // then we can be sure that this a `GroupedType`.
+                // then we can just return the inner type
                 if gen_has_comma && args.len() == 1 && args[0].name.is_none() {
-                    return Ok(Type::Grouped(GroupedType(
-                        args.nodes.pop().unwrap().into_body().move_out().ty,
-                    )));
+                    return Ok(args
+                        .nodes
+                        .pop()
+                        .unwrap()
+                        .into_body()
+                        .move_out()
+                        .ty
+                        .into_body()
+                        .move_out());
                 }
 
                 Ok(Type::Tuple(TupleType { entries: args }))

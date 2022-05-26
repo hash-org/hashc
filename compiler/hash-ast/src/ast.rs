@@ -372,7 +372,6 @@ pub enum Type<'c> {
     Map(MapType<'c>),
     Fn(FnType<'c>),
     Named(NamedType<'c>),
-    Grouped(GroupedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
     Merged(MergedType<'c>),
