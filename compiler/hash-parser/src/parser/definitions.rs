@@ -30,7 +30,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 gen.parse_separated_fn(
                     || gen.parse_struct_def_entry(),
-                    || gen.parse_token_atom(TokenKind::Comma),
+                    || gen.parse_token(TokenKind::Comma),
                 )?
             }
             token => self.error_with_location(
@@ -87,7 +87,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 gen.parse_separated_fn(
                     || gen.parse_enum_def_entry(),
-                    || gen.parse_token_atom(TokenKind::Comma),
+                    || gen.parse_token(TokenKind::Comma),
                 )?
             }
             token => self.error_with_location(
@@ -123,7 +123,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 args.nodes.push(ty, &self.wall);
 
                 if gen.has_token() {
-                    gen.parse_token_atom(TokenKind::Comma)?;
+                    gen.parse_token(TokenKind::Comma)?;
                 }
             }
         }
@@ -194,33 +194,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
-        self.parse_token_atom(TokenKind::Colon)?;
+        self.parse_token(TokenKind::Colon)?;
 
-        // Parse any bounds present
-        let mut bounds = AstNodes::empty();
-
-        loop {
-            match self.peek_resultant_fn(|| self.parse_type()) {
-                Some(ty) => {
-                    bounds.nodes.push(ty, &self.wall);
-
-                    match self.peek() {
-                        Some(token) if token.has_kind(TokenKind::Tilde) => {
-                            self.skip_token();
-                        }
-                        _ => break,
-                    }
-                }
-                None => self.error_with_location(
-                    AstGenErrorKind::ExpectedType,
-                    None,
-                    None,
-                    self.next_location(),
-                )?,
-            }
-        }
-
-        Ok(self.node_with_joined_span(TypeFunctionDefArg { name, bounds }, &start))
+        Ok(self.node_with_joined_span(
+            TypeFunctionDefArg {
+                name,
+                ty: self.parse_type()?,
+            },
+            &start,
+        ))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with `trait` that contains

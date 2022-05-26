@@ -180,6 +180,27 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::FnType<'c>>,
     ) -> Result<Self::FnTypeRet, Self::Error>;
 
+    type TypeFunctionParamRet: 'c;
+    fn visit_type_function_param(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionParam<'c>>,
+    ) -> Result<Self::TypeFunctionParamRet, Self::Error>;
+
+    type TypeFunctionRet: 'c;
+    fn visit_type_function(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunction<'c>>,
+    ) -> Result<Self::TypeFunctionRet, Self::Error>;
+
+    type TypeFunctionCallRet: 'c;
+    fn visit_type_function_call(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionCall<'c>>,
+    ) -> Result<Self::TypeFunctionCallRet, Self::Error>;
+
     type NamedTypeRet: 'c;
     fn visit_named_type(
         &mut self,
@@ -201,12 +222,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::RawRefType<'c>>,
     ) -> Result<Self::RawRefTypeRet, Self::Error>;
 
-    type TypeVarRet: 'c;
-    fn visit_type_var(
+    type MergedTypeRet: 'c;
+    fn visit_merged_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<Self::TypeVarRet, Self::Error>;
+        node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<Self::MergedTypeRet, Self::Error>;
 
     type ExistentialTypeRet: 'c;
     fn visit_existential_type(
@@ -425,13 +446,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Self::PatternRet, Self::Error>;
 
-    type TraitBoundRet: 'c;
-    fn visit_trait_bound(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<Self::TraitBoundRet, Self::Error>;
-
     type TypeFunctionDefRet: 'c;
     fn visit_type_function_def(
         &mut self,
@@ -487,6 +501,27 @@ pub trait AstVisitor<'c>: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TupleType<'c>>,
     ) -> Result<Self::TupleTypeRet, Self::Error>;
+
+    type ListTypeRet: 'c;
+    fn visit_list_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<Self::ListTypeRet, Self::Error>;
+
+    type SetTypeRet: 'c;
+    fn visit_set_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<Self::SetTypeRet, Self::Error>;
+
+    type MapTypeRet: 'c;
+    fn visit_map_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<Self::MapTypeRet, Self::Error>;
 
     type StrLiteralPatternRet: 'c;
     fn visit_str_literal_pattern(
@@ -799,7 +834,7 @@ pub mod walk {
 
     pub struct VariableExpr<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::TypeRet>,
+        pub type_args: V::CollectionContainer<V::NamedFieldTypeRet>,
     }
 
     pub fn walk_variable_expr<'c, V: AstVisitor<'c>>(
@@ -813,7 +848,7 @@ pub mod walk {
                 ctx,
                 node.type_args
                     .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
+                    .map(|t| visitor.visit_named_field_type(ctx, t.ast_ref())),
             )?,
         })
     }
@@ -1350,9 +1385,52 @@ pub mod walk {
         })
     }
 
+    pub struct ListType<'c, V: AstVisitor<'c>> {
+        pub inner: V::TypeRet,
+    }
+
+    pub fn walk_list_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<ListType<'c, V>, V::Error> {
+        Ok(ListType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
+        })
+    }
+
+    pub struct SetType<'c, V: AstVisitor<'c>> {
+        pub inner: V::TypeRet,
+    }
+
+    pub fn walk_set_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<SetType<'c, V>, V::Error> {
+        Ok(SetType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
+        })
+    }
+
+    pub struct MapType<'c, V: AstVisitor<'c>> {
+        pub key: V::TypeRet,
+        pub value: V::TypeRet,
+    }
+
+    pub fn walk_map_type<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<MapType<'c, V>, V::Error> {
+        Ok(MapType {
+            key: visitor.visit_type(ctx, node.key.ast_ref())?,
+            value: visitor.visit_type(ctx, node.value.ast_ref())?,
+        })
+    }
+
     pub struct NamedType<'c, V: AstVisitor<'c>> {
         pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::TypeRet>,
     }
 
     pub fn walk_named_type<'c, V: AstVisitor<'c>>(
@@ -1362,12 +1440,6 @@ pub mod walk {
     ) -> Result<NamedType<'c, V>, V::Error> {
         Ok(NamedType {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args
-                    .iter()
-                    .map(|e| visitor.visit_type(ctx, e.ast_ref())),
-            )?,
         })
     }
 
@@ -1391,29 +1463,99 @@ pub mod walk {
         Ok(RawRefType(visitor.visit_type(ctx, node.0.ast_ref())?))
     }
 
-    pub struct TypeVar<'c, V: AstVisitor<'c>> {
-        pub name: V::NameRet,
-    }
+    pub struct MergedType<'c, V: AstVisitor<'c>>(pub V::CollectionContainer<V::TypeRet>);
 
-    pub fn walk_type_var<'c, V: AstVisitor<'c>>(
+    pub fn walk_merged_type<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<TypeVar<'c, V>, V::Error> {
-        Ok(TypeVar {
+        node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<MergedType<'c, V>, V::Error> {
+        Ok(MergedType(V::try_collect_items(
+            ctx,
+            node.0.iter().map(|a| visitor.visit_type(ctx, a.ast_ref())),
+        )?))
+    }
+
+    pub struct TypeFunctionCall<'c, V: AstVisitor<'c>> {
+        pub subject: V::TypeRet,
+        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+    }
+
+    pub fn walk_type_function_call<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionCall<'c>>,
+    ) -> Result<TypeFunctionCall<'c, V>, V::Error> {
+        Ok(TypeFunctionCall {
+            subject: visitor.visit_type(ctx, node.subject.ast_ref())?,
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter()
+                    .map(|a| visitor.visit_named_field_type(ctx, a.ast_ref())),
+            )?,
+        })
+    }
+
+    pub struct TypeFunctionParam<'c, V: AstVisitor<'c>> {
+        pub name: V::NameRet,
+        pub bound: Option<V::TypeRet>,
+        pub default: Option<V::TypeRet>,
+    }
+
+    pub fn walk_type_function_param<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunctionParam<'c>>,
+    ) -> Result<TypeFunctionParam<'c, V>, V::Error> {
+        Ok(TypeFunctionParam {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            bound: node
+                .bound
+                .as_ref()
+                .map(|bound| visitor.visit_type(ctx, bound.ast_ref()))
+                .transpose()?,
+            default: node
+                .default
+                .as_ref()
+                .map(|default| visitor.visit_type(ctx, default.ast_ref()))
+                .transpose()?,
+        })
+    }
+
+    pub struct TypeFunction<'c, V: AstVisitor<'c>> {
+        pub args: V::CollectionContainer<V::TypeFunctionParamRet>,
+        pub return_ty: V::TypeRet,
+    }
+
+    pub fn walk_type_function<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TypeFunction<'c>>,
+    ) -> Result<TypeFunction<'c, V>, V::Error> {
+        Ok(TypeFunction {
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter()
+                    .map(|a| visitor.visit_type_function_param(ctx, a.ast_ref())),
+            )?,
+            return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
         })
     }
 
     pub enum Type<'c, V: AstVisitor<'c>> {
         Fn(V::FnTypeRet),
         Tuple(V::TupleTypeRet),
+        List(V::ListTypeRet),
+        Set(V::SetTypeRet),
+        Map(V::MapTypeRet),
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
         RawRef(V::RawRefTypeRet),
-        TypeVar(V::TypeVarRet),
-        Existential(V::ExistentialTypeRet),
-        Infer(V::InferTypeRet),
+        Merged(V::MergedTypeRet),
+        TypeFunction(V::TypeFunctionRet),
+        TypeFunctionCall(V::TypeFunctionCallRet),
     }
 
     pub fn walk_type<'c, V: AstVisitor<'c>>(
@@ -1424,16 +1566,23 @@ pub mod walk {
         Ok(match &*node {
             ast::Type::Fn(r) => Type::Fn(visitor.visit_function_type(ctx, node.with_body(r))?),
             ast::Type::Tuple(r) => Type::Tuple(visitor.visit_tuple_type(ctx, node.with_body(r))?),
+            ast::Type::List(r) => Type::List(visitor.visit_list_type(ctx, node.with_body(r))?),
+            ast::Type::Set(r) => Type::Set(visitor.visit_set_type(ctx, node.with_body(r))?),
+            ast::Type::Map(r) => Type::Map(visitor.visit_map_type(ctx, node.with_body(r))?),
             ast::Type::Named(r) => Type::Named(visitor.visit_named_type(ctx, node.with_body(r))?),
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
             ast::Type::RawRef(r) => {
                 Type::RawRef(visitor.visit_raw_ref_type(ctx, node.with_body(r))?)
             }
-            ast::Type::TypeVar(r) => Type::TypeVar(visitor.visit_type_var(ctx, node.with_body(r))?),
-            ast::Type::Existential(r) => {
-                Type::Existential(visitor.visit_existential_type(ctx, node.with_body(r))?)
+            ast::Type::Merged(r) => {
+                Type::Merged(visitor.visit_merged_type(ctx, node.with_body(r))?)
             }
-            ast::Type::Infer(r) => Type::Infer(visitor.visit_infer_type(ctx, node.with_body(r))?),
+            ast::Type::TypeFunction(r) => {
+                Type::TypeFunction(visitor.visit_type_function(ctx, node.with_body(r))?)
+            }
+            ast::Type::TypeFunctionCall(r) => {
+                Type::TypeFunctionCall(visitor.visit_type_function_call(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -1447,23 +1596,29 @@ pub mod walk {
             'c,
             FnTypeRet = Ret,
             TupleTypeRet = Ret,
+            ListTypeRet = Ret,
+            SetTypeRet = Ret,
+            MapTypeRet = Ret,
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
             RawRefTypeRet = Ret,
-            TypeVarRet = Ret,
-            ExistentialTypeRet = Ret,
-            InferTypeRet = Ret,
+            MergedTypeRet = Ret,
+            TypeFunctionRet = Ret,
+            TypeFunctionCallRet = Ret,
         >,
     {
         Ok(match walk_type(visitor, ctx, node)? {
             Type::Fn(r) => r,
             Type::Tuple(r) => r,
+            Type::List(r) => r,
+            Type::Set(r) => r,
+            Type::Map(r) => r,
             Type::Named(r) => r,
             Type::Ref(r) => r,
             Type::RawRef(r) => r,
-            Type::TypeVar(r) => r,
-            Type::Existential(r) => r,
-            Type::Infer(r) => r,
+            Type::Merged(r) => r,
+            Type::TypeFunction(r) => r,
+            Type::TypeFunctionCall(r) => r,
         })
     }
 
@@ -1911,26 +2066,6 @@ pub mod walk {
         })
     }
 
-    pub struct TraitBound<'c, V: AstVisitor<'c>> {
-        pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::TypeRet>,
-    }
-    pub fn walk_trait_bound<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<TraitBound<'c, V>, V::Error> {
-        Ok(TraitBound {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args
-                    .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
-            )?,
-        })
-    }
-
     pub struct TypeFunctionDef<'c, V: AstVisitor<'c>> {
         pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
         pub return_ty: Option<V::TypeRet>,
@@ -1960,7 +2095,7 @@ pub mod walk {
 
     pub struct TypeFunctionDefArg<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
-        pub bounds: V::CollectionContainer<V::TypeRet>,
+        pub ty: V::TypeRet,
     }
 
     pub fn walk_type_function_def_arg<'c, V: AstVisitor<'c>>(
@@ -1970,12 +2105,7 @@ pub mod walk {
     ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
         Ok(TypeFunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bounds: V::try_collect_items(
-                ctx,
-                node.bounds
-                    .iter()
-                    .map(|t| visitor.visit_type(ctx, t.ast_ref())),
-            )?,
+            ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
         })
     }
 

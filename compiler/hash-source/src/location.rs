@@ -36,9 +36,11 @@ impl Location {
     /// lhs span is returned.
     ///
     /// In essence, if this was the source stream:
-    /// > --------------------------------------------------------------
-    /// >  ( <- lhs-start    lhs-end -> )   ( <- rhs-start rhs-end -> )
-    /// > --------------------------------------------------------------
+    /// ```text
+    /// --------------------------------------------------------------
+    ///  ( <- lhs-start    lhs-end -> )   ( <- rhs-start rhs-end -> )
+    /// --------------------------------------------------------------
+    /// ```
     ///
     /// Then the two locations are joined into one, otherwise the lhs is returned
     #[must_use]

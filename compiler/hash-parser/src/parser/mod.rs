@@ -198,10 +198,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         value
     }
 
-    /// Get the current token in the stream.
+    /// Get the current [Token] in the stream. Panics if the current offset has passed the
+    /// size of the stream, e.g tring to get the current token after reaching the end of the
+    /// stream.
     pub(crate) fn current_token(&self) -> &Token {
         let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
 
+        self.stream.get(offset).unwrap()
+    }
+
+    /// Get a [Token] at a specified location in the stream. Panics if the given
+    /// stream  position is out of bounds.
+    #[inline(always)]
+    pub(crate) fn token_at(&self, offset: usize) -> &Token {
         self.stream.get(offset).unwrap()
     }
 
@@ -397,13 +406,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         parse_fn: impl Fn() -> AstGenResult<'c, AstNode<'c, T>>,
         separator_fn: impl Fn() -> AstGenResult<'c, ()>,
     ) -> AstGenResult<'c, AstNodes<'c, T>> {
-        let mut args = AstNodes::empty();
         let start = self.current_location();
+        let mut args = vec![];
 
         // so parse the arguments to the function here... with potential type annotations
         while self.has_token() {
             match parse_fn() {
-                Ok(el) => args.nodes.push(el, &self.wall),
+                Ok(el) => args.push(el),
                 Err(err) => return Err(err),
             }
 
@@ -412,14 +421,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
         }
 
-        args.span = Some(start.join(self.current_location()));
-        Ok(args)
+        Ok(AstNodes::new(
+            Row::from_vec(args, &self.wall),
+            Some(start.join(self.current_location())),
+        ))
     }
 
-    /// Function to parse the next token with the same kind as the specified kind, this
-    /// is a useful utility function for parsing singular tokens in the place of more complex
-    /// compound statements and expressions.
-    pub(crate) fn parse_token_atom(&self, atom: TokenKind) -> AstGenResult<'c, ()> {
+    /// Function to parse the next [Token] with the specified [TokenKind].
+    pub(crate) fn parse_token(&self, atom: TokenKind) -> AstGenResult<'c, ()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
@@ -441,7 +450,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to parse a token atom optionally. If the appropriate token atom is
     /// present we advance the token count, if not then just return None
-    pub(crate) fn parse_token_atom_fast(&self, atom: TokenKind) -> Option<()> {
+    pub(crate) fn parse_token_fast(&self, atom: TokenKind) -> Option<()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
@@ -454,20 +463,22 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a [Module] which is simply made of a list of statements
     pub(crate) fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
         let start = self.current_location();
-        let mut contents = AstNodes::empty();
+        let mut contents = vec![];
 
         while self.has_token() {
-            contents.nodes.push(
+            contents.push(
                 self.parse_top_level_expression(true)
                     .map(|(_, statement)| statement)?,
-                &self.wall,
             );
         }
 
         let span = start.join(self.current_location());
-        contents.span = Some(span);
-
-        Ok(self.node_with_span(Module { contents }, span))
+        Ok(self.node_with_span(
+            Module {
+                contents: AstNodes::new(Row::from_vec(contents, &self.wall), Some(span)),
+            },
+            span,
+        ))
     }
 
     /// This function is used to exclusively parse a interactive block which follows

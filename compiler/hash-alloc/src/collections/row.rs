@@ -37,7 +37,7 @@ const ROW_INITIAL_REALLOC_SIZE: usize = 4;
 const ROW_REALLOC_MULT_DIV: (usize, usize) = (2, 1);
 
 impl<'c, T> Row<'c, T> {
-    /// Create a new `Row` with zero length and capacity.
+    /// Create a new [`Row`] with zero length and capacity.
     pub fn new() -> Self {
         Self {
             data: &mut [],
@@ -181,7 +181,7 @@ impl<'c, T> Row<'c, T> {
         self.length += 1;
     }
 
-    /// Construct a `Row` from an iterator, allocating inside the given [`Wall`].
+    /// Construct a [Row] from an iterator, allocating inside the given [`Wall`].
     ///
     /// This uses `Iterator::size_hint` to predict how many elements are inside the iterator, and
     /// avoid extraneous reallocations.
@@ -199,6 +199,11 @@ impl<'c, T> Row<'c, T> {
         }
 
         row
+    }
+
+    /// Create a new [Row] from a [Vec<T>].
+    pub fn from_vec(vec: Vec<T>, wall: &Wall<'c>) -> Self {
+        Self::from_iter(vec.into_iter(), wall)
     }
 
     /// Construct a `Row` from an iterator of [`Result`]s, allocating inside the given [`Wall`].
