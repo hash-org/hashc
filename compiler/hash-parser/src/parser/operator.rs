@@ -109,11 +109,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_arrow(&self) -> AstGenResult<'c, ()> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
-        if self.parse_token_atom_fast(TokenKind::Eq).is_none() {
+        if self.parse_token_fast(TokenKind::Eq).is_none() {
             return self.error(AstGenErrorKind::ExpectedArrow, None, None)?;
         }
 
-        if self.parse_token_atom_fast(TokenKind::Gt).is_none() {
+        if self.parse_token_fast(TokenKind::Gt).is_none() {
             return self.error(AstGenErrorKind::ExpectedArrow, None, None)?;
         }
 
@@ -124,11 +124,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_thin_arrow(&self) -> AstGenResult<'c, ()> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
-        if self.parse_token_atom_fast(TokenKind::Minus).is_none() {
+        if self.parse_token_fast(TokenKind::Minus).is_none() {
             return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
         }
 
-        if self.parse_token_atom_fast(TokenKind::Gt).is_none() {
+        if self.parse_token_fast(TokenKind::Gt).is_none() {
             return self.error(AstGenErrorKind::ExpectedFnArrow, None, None)?;
         }
 

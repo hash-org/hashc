@@ -1,7 +1,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::types::{
     CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef,
-    TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVarMode, TypeVars,
+    TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVars,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -559,6 +559,33 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             .create(TypeValue::Tuple(TupleType { types: entries }), ty_location))
     }
 
+    type ListTypeRet = TypeId;
+    fn visit_list_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::ListType<'c>>,
+    ) -> Result<Self::ListTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type SetTypeRet = TypeId;
+    fn visit_set_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::SetType<'c>>,
+    ) -> Result<Self::SetTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type MapTypeRet = TypeId;
+    fn visit_map_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::MapType<'c>>,
+    ) -> Result<Self::MapTypeRet, Self::Error> {
+        todo!()
+    }
+
     type FnTypeRet = TypeId;
     fn visit_function_type(
         &mut self,
@@ -606,39 +633,76 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Type(ty_id)) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
-            (_, SymbolType::TypeDef(def_id)) => {
-                let walk::NamedType { type_args, .. } = walk::walk_named_type(self, ctx, node)?;
-                let def = self.type_defs().get(def_id);
+            (_, SymbolType::TypeDef(_)) => {
+                let walk::NamedType { .. } = walk::walk_named_type(self, ctx, node)?;
+                // let def = self.type_defs().get(def_id);
 
-                // @@Todo bounds
-                match &def.kind {
-                    TypeDefValueKind::Enum(EnumDef { generics, .. })
-                    | TypeDefValueKind::Struct(StructDef { generics, .. }) => {
-                        let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
-                        let instantiated_args = self
-                            .unifier()
-                            .apply_sub_to_list_make_vec(&args_sub, &generics.params)?;
+                todo!()
+                // // @@Todo bounds
+                // match &def.kind {
+                //     TypeDefValueKind::Enum(EnumDef { generics, .. })
+                //     | TypeDefValueKind::Struct(StructDef { generics, .. }) => {
+                //         let args_sub = self.unifier().instantiate_vars_list(&generics.params)?;
+                //         let instantiated_args = self
+                //             .unifier()
+                //             .apply_sub_to_list_make_vec(&args_sub, &generics.params)?;
 
-                        self.unifier().unify_pairs(
-                            type_args.iter().zip(instantiated_args.iter()),
-                            UnifyStrategy::ModifyTarget,
-                        )?;
-                        let ty = self.create_type(
-                            TypeValue::User(UserType {
-                                def_id,
-                                args: type_args,
-                            }),
-                            Some(location),
-                        );
-                        Ok(ty)
-                    }
-                }
+                //         self.unifier().unify_pairs(
+                //             type_args.iter().zip(instantiated_args.iter()),
+                //             UnifyStrategy::ModifyTarget,
+                //         )?;
+                //         let ty = self.create_type(
+                //             TypeValue::User(UserType {
+                //                 def_id,
+                //                 args: type_args,
+                //             }),
+                //             Some(location),
+                //         );
+                //         Ok(ty)
+                //     }
+                // }
             }
             _ => Err(TypecheckError::SymbolIsNotAType(Symbol::Compound {
                 path: node.name.path(),
                 location: Some(location),
             })),
         }
+    }
+
+    type TypeFunctionParamRet = TypeId;
+    fn visit_type_function_param(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunctionParam<'c>>,
+    ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
+        todo!()
+    }
+
+    type TypeFunctionRet = TypeId;
+    fn visit_type_function(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunction<'c>>,
+    ) -> Result<Self::TypeFunctionRet, Self::Error> {
+        todo!()
+    }
+
+    type TypeFunctionCallRet = TypeId;
+    fn visit_type_function_call(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TypeFunctionCall<'c>>,
+    ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
+        todo!()
+    }
+
+    type GroupedTypeRet = TypeId;
+    fn visit_grouped_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::GroupedType<'c>>,
+    ) -> Result<Self::GroupedTypeRet, Self::Error> {
+        todo!()
     }
 
     type RefTypeRet = TypeId;
@@ -664,34 +728,43 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::RawRef(RawRefType { inner }), Some(ty_location)))
     }
 
-    type TypeVarRet = TypeId;
-    fn visit_type_var(
+    type MergedTypeRet = TypeId;
+    fn visit_merged_type(
         &mut self,
         _ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeVar<'c>>,
-    ) -> Result<Self::TypeVarRet, Self::Error> {
-        let ty_location = self.some_source_location(node.location());
-        let var = TypeVar {
-            name: node.name.ident,
-        };
-        if self.tc_state().in_bound_def {
-            Ok(self.create_type(TypeValue::Var(var), ty_location))
-        } else {
-            match self.source_storage.type_vars.find_type_var(var) {
-                Some((_, TypeVarMode::Bound)) => {
-                    Ok(self.create_type(TypeValue::Var(var), ty_location))
-                }
-                Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
-                None => Err(TypecheckError::UnresolvedSymbol {
-                    symbol: Symbol::Single {
-                        symbol: var.name,
-                        location: ty_location,
-                    },
-                    ancestor: None,
-                }),
-            }
-        }
+        _node: ast::AstNodeRef<ast::MergedType<'c>>,
+    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+        todo!()
     }
+
+    // type TypeVarRet = TypeId;
+    // fn visit_type_var(
+    //     &mut self,
+    //     _ctx: &Self::Ctx,
+    //     node: ast::AstNodeRef<ast::TypeVar<'c>>,
+    // ) -> Result<Self::TypeVarRet, Self::Error> {
+    //     let ty_location = self.some_source_location(node.location());
+    //     let var = TypeVar {
+    //         name: node.name.ident,
+    //     };
+    //     if self.tc_state().in_bound_def {
+    //         Ok(self.create_type(TypeValue::Var(var), ty_location))
+    //     } else {
+    //         match self.source_storage.type_vars.find_type_var(var) {
+    //             Some((_, TypeVarMode::Bound)) => {
+    //                 Ok(self.create_type(TypeValue::Var(var), ty_location))
+    //             }
+    //             Some((_, TypeVarMode::Substitution(other_id))) => Ok(other_id),
+    //             None => Err(TypecheckError::UnresolvedSymbol {
+    //                 symbol: Symbol::Single {
+    //                     symbol: var.name,
+    //                     location: ty_location,
+    //                 },
+    //                 ancestor: None,
+    //             }),
+    //         }
+    //     }
+    // }
 
     type ExistentialTypeRet = TypeId;
     fn visit_existential_type(
@@ -1225,29 +1298,29 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TraitBoundRet = (TraitId, Vec<TypeId>);
-    fn visit_trait_bound(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TraitBound<'c>>,
-    ) -> Result<Self::TraitBoundRet, Self::Error> {
-        let name_loc = self.source_location(node.name.location());
+    // type TraitBoundRet = (TraitId, Vec<TypeId>);
+    // fn visit_trait_bound(
+    //     &mut self,
+    //     ctx: &Self::Ctx,
+    //     node: ast::AstNodeRef<ast::TraitBound<'c>>,
+    // ) -> Result<Self::TraitBoundRet, Self::Error> {
+    // let name_loc = self.source_location(node.name.location());
 
-        match self.resolve_compound_symbol(&node.name)? {
-            (_, SymbolType::Trait(trait_id)) => {
-                let type_args: Vec<_> = node
-                    .type_args
-                    .iter()
-                    .map(|arg| self.visit_type(ctx, arg.ast_ref()))
-                    .collect::<Result<_, _>>()?;
-                Ok((trait_id, type_args))
-            }
-            _ => Err(TypecheckError::SymbolIsNotATrait(Symbol::Compound {
-                path: node.name.path(),
-                location: Some(name_loc),
-            })),
-        }
-    }
+    // match self.resolve_compound_symbol(&node.name)? {
+    //     (_, SymbolType::Trait(trait_id)) => {
+    //         let type_args: Vec<_> = node
+    //             .type_args
+    //             .iter()
+    //             .map(|arg| self.visit_type(ctx, arg.ast_ref()))
+    //             .collect::<Result<_, _>>()?;
+    //         Ok((trait_id, type_args))
+    //     }
+    //     _ => Err(TypecheckError::SymbolIsNotATrait(Symbol::Compound {
+    //         path: node.name.path(),
+    //         location: Some(name_loc),
+    //     })),
+    // }
+    // }
 
     type TypeFunctionDefRet = TypeId;
     fn visit_type_function_def(
@@ -1976,7 +2049,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         let args: Vec<_> = node
             .type_args
             .iter()
-            .map(|a| self.visit_type(ctx, a.ast_ref()))
+            .map(|a| self.visit_named_field_type(ctx, a.ast_ref()))
             .collect::<Result<_, _>>()?;
         let trt_name_location = self.some_source_location(node.name.location());
         let trt_symbol = || Symbol::Compound {
@@ -1988,7 +2061,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
             sub_from_trait_def, ..
         } = self.trait_helper().find_trait_impl(
             trt,
-            &args,
+            &args.iter().map(|ty| ty.1).collect::<Vec<_>>(),
             fn_type,
             trt_symbol,
             type_args_location,

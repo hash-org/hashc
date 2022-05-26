@@ -260,22 +260,7 @@ impl AccessName<'_> {
 pub struct NamedType<'c> {
     /// The name of the type.
     pub name: AstNode<'c, AccessName<'c>>,
-    /// The type arguments of the type, if any.
-    pub type_args: AstNodes<'c, Type<'c>>,
 }
-
-/// A type variable.
-#[derive(Debug, PartialEq)]
-pub struct TypeVar<'c> {
-    /// The name of the type variable.
-    pub name: AstNode<'c, Name>,
-}
-
-/// Names for compound types that represent data structures or functions are
-/// translated into string form, and thus are represented by these names.
-pub const LIST_TYPE_NAME: &str = "List";
-pub const SET_TYPE_NAME: &str = "Set";
-pub const MAP_TYPE_NAME: &str = "Map";
 
 /// Reference kind representing either a raw reference or a normal reference.
 #[derive(Debug, PartialEq, Eq)]
@@ -315,6 +300,31 @@ pub struct TupleType<'c> {
     pub entries: AstNodes<'c, NamedFieldTypeEntry<'c>>,
 }
 
+/// The list type, , e.g. `{str}`.
+#[derive(Debug, PartialEq)]
+pub struct ListType<'c> {
+    pub inner: AstNode<'c, Type<'c>>,
+}
+
+/// The set type, , e.g. `{str}`.
+#[derive(Debug, PartialEq)]
+pub struct SetType<'c> {
+    pub inner: AstNode<'c, Type<'c>>,
+}
+
+/// The grouped type (essentially a type within parenthesees), e.g. `(str)`. It
+/// differs from a tuple that it does not contain a trailing comma which signifies that
+/// this is a single element tuple.
+#[derive(Debug, PartialEq)]
+pub struct GroupedType<'c>(pub AstNode<'c, Type<'c>>);
+
+/// The map type, e.g. `{str: u32}`.
+#[derive(Debug, PartialEq)]
+pub struct MapType<'c> {
+    pub key: AstNode<'c, Type<'c>>,
+    pub value: AstNode<'c, Type<'c>>,
+}
+
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType<'c> {
@@ -322,17 +332,51 @@ pub struct FnType<'c> {
     pub return_ty: AstNode<'c, Type<'c>>,
 }
 
+/// A [TypeFunctionParameter] is a parameter that appears within a [TypeFunction]. This specifies
+/// that the type function takes a particular parameter with a specific name, a bound and a default
+/// value.
+#[derive(Debug, PartialEq)]
+pub struct TypeFunctionParam<'c> {
+    pub name: AstNode<'c, Name>,
+    pub bound: Option<AstNode<'c, Type<'c>>>,
+    pub default: Option<AstNode<'c, Type<'c>>>,
+}
+
+/// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
+#[derive(Debug, PartialEq)]
+pub struct TypeFunction<'c> {
+    pub args: AstNodes<'c, TypeFunctionParam<'c>>,
+    pub return_ty: AstNode<'c, Type<'c>>,
+}
+
+/// A type function call specifies a call to a type function with the specified
+/// function name in the form of a [Type] (which can only be a [NamedType] or a [GroupedType])
+/// and then followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
+#[derive(Debug, PartialEq)]
+pub struct TypeFunctionCall<'c> {
+    pub subject: AstNode<'c, Type<'c>>,
+    pub args: AstNodes<'c, NamedFieldTypeEntry<'c>>,
+}
+
+/// A merged type meaning that multiple types are considered to be
+/// specified in place of one, e.g. `Conv ~ Eq ~ Print`
+#[derive(Debug, PartialEq)]
+pub struct MergedType<'c>(pub AstNodes<'c, Type<'c>>);
+
 /// A type.
 #[derive(Debug, PartialEq)]
 pub enum Type<'c> {
     Tuple(TupleType<'c>),
+    List(ListType<'c>),
+    Set(SetType<'c>),
+    Map(MapType<'c>),
     Fn(FnType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
     RawRef(RawRefType<'c>),
-    TypeVar(TypeVar<'c>),
-    Existential(ExistentialType),
-    Infer(InferType),
+    Merged(MergedType<'c>),
+    TypeFunction(TypeFunction<'c>),
+    TypeFunctionCall(TypeFunctionCall<'c>),
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
@@ -383,36 +427,6 @@ pub struct MapLiteralEntry<'c> {
 pub struct MapLiteral<'c> {
     /// The elements of the map literal (key-value pairs).
     pub elements: AstNodes<'c, MapLiteralEntry<'c>>,
-}
-
-/// A function definition argument.
-#[derive(Debug, PartialEq)]
-pub struct FunctionDefArg<'c> {
-    /// The name of the argument.
-    pub name: AstNode<'c, Name>,
-    /// The type of the argument, if any.
-    ///
-    /// Will be inferred if [None].
-    pub ty: Option<AstNode<'c, Type<'c>>>,
-    /// Default value of the type if provided.
-    ///
-    /// If the value is provided, this makes it a named argument
-    /// which means that they can be specified by putting the name of the
-    /// argument.
-    pub default: Option<AstNode<'c, Expression<'c>>>,
-}
-
-/// A function definition.
-#[derive(Debug, PartialEq)]
-pub struct FunctionDef<'c> {
-    /// The arguments of the function definition.
-    pub args: AstNodes<'c, FunctionDefArg<'c>>,
-    /// The return type of the function definition.
-    ///
-    /// Will be inferred if [None].
-    pub return_ty: Option<AstNode<'c, Type<'c>>>,
-    /// The body/contents of the function, in the form of an expression.
-    pub fn_body: AstNode<'c, Expression<'c>>,
 }
 
 /// A string literal.
@@ -572,15 +586,6 @@ pub enum Pattern<'c> {
     Spread(SpreadPattern<'c>),
 }
 
-/// A trait bound, e.g. "where eq<T>"
-#[derive(Debug, PartialEq)]
-pub struct TraitBound<'c> {
-    /// The name of the trait.
-    pub name: AstNode<'c, AccessName<'c>>,
-    /// The type arguments of the trait.
-    pub type_args: AstNodes<'c, Type<'c>>,
-}
-
 /// A type function, e.g. `<T, U: Conv<U>> => ...`.
 ///
 /// Used in struct, enum, trait, and function definitions.
@@ -601,7 +606,7 @@ pub struct TypeFunctionDefArg<'c> {
     pub name: AstNode<'c, Name>,
 
     /// The argument bounds.
-    pub bounds: AstNodes<'c, Type<'c>>,
+    pub ty: AstNode<'c, Type<'c>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -735,12 +740,38 @@ pub struct LoopBlock<'c>(pub AstNode<'c, Block<'c>>);
 pub enum Block<'c> {
     /// A match block.
     Match(MatchBlock<'c>),
-    /// A loop block.
-    ///
-    /// The inner block is the loop body.
+    /// A loop block. The inner block is the loop body.
     Loop(LoopBlock<'c>),
     /// A body block.
     Body(BodyBlock<'c>),
+}
+
+/// A function definition argument.
+#[derive(Debug, PartialEq)]
+pub struct FunctionDefArg<'c> {
+    /// The name of the argument.
+    pub name: AstNode<'c, Name>,
+    /// The type of the argument, if any.
+    pub ty: Option<AstNode<'c, Type<'c>>>,
+    /// Default value of the argument if provided.
+    ///
+    /// If the value is provided, this makes it a named argument
+    /// which means that they can be specified by putting the name of the
+    /// argument.
+    pub default: Option<AstNode<'c, Expression<'c>>>,
+}
+
+/// A function definition.
+#[derive(Debug, PartialEq)]
+pub struct FunctionDef<'c> {
+    /// The arguments of the function definition.
+    pub args: AstNodes<'c, FunctionDefArg<'c>>,
+    /// The return type of the function definition.
+    ///
+    /// Will be inferred if [None].
+    pub return_ty: Option<AstNode<'c, Type<'c>>>,
+    /// The body/contents of the function, in the form of an expression.
+    pub fn_body: AstNode<'c, Expression<'c>>,
 }
 
 /// Function call argument.
@@ -807,7 +838,7 @@ pub struct VariableExpr<'c> {
     /// The name of the variable.
     pub name: AstNode<'c, AccessName<'c>>,
     /// Any type arguments of the variable. Only valid for traits.
-    pub type_args: AstNodes<'c, Type<'c>>,
+    pub type_args: AstNodes<'c, NamedFieldTypeEntry<'c>>,
 }
 
 /// A reference expression with a flag denoting whether it is a raw ref or not
