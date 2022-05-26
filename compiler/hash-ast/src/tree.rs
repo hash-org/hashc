@@ -334,7 +334,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::SetType<'c>>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
-        let walk::SetType { key } = walk::walk_set_type(self, ctx, node)?;
+        let walk::SetType { inner: key } = walk::walk_set_type(self, ctx, node)?;
 
         Ok(TreeNode::branch("set", vec![key]))
     }

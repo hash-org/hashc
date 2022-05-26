@@ -1407,7 +1407,7 @@ pub mod walk {
     }
 
     pub struct SetType<'c, V: AstVisitor<'c>> {
-        pub key: V::TypeRet,
+        pub inner: V::TypeRet,
     }
 
     pub fn walk_set_type<'c, V: AstVisitor<'c>>(
@@ -1416,7 +1416,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::SetType<'c>>,
     ) -> Result<SetType<'c, V>, V::Error> {
         Ok(SetType {
-            key: visitor.visit_type(ctx, node.0.ast_ref())?,
+            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
         })
     }
 

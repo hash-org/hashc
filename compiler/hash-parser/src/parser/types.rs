@@ -98,7 +98,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             value: value_ty,
                         })
                     }
-                    None => Type::Set(SetType(key_ty)),
+                    None => Type::Set(SetType { inner: key_ty }),
                     Some(_) => gen.expected_eof()?,
                 }
             }
