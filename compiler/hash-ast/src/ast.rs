@@ -881,6 +881,11 @@ pub struct RefExpr<'c> {
     pub inner_expr: AstNode<'c, Expression<'c>>,
     pub kind: RefKind,
 }
+
+/// A dereference expression.
+#[derive(Debug, PartialEq)]
+pub struct TypeExpr<'c>(pub AstNode<'c, Type<'c>>);
+
 /// A dereference expression.
 #[derive(Debug, PartialEq)]
 pub struct DerefExpr<'c>(pub AstNode<'c, Expression<'c>>);
@@ -921,6 +926,7 @@ pub enum ExpressionKind<'c> {
     TypeFunctionDef(TypeFunctionDef<'c>),
     TraitDef(TraitDef<'c>),
     FunctionDef(FunctionDef<'c>),
+    Type(TypeExpr<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),

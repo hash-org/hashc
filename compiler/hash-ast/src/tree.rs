@@ -258,6 +258,17 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
+    type TypeExprRet = TreeNode;
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error> {
+        let walk::TypeExpr(ty) = walk::walk_type_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch("type", vec![ty]))
+    }
+
     type BlockExprRet = TreeNode;
     fn visit_block_expr(
         &mut self,
