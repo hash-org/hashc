@@ -852,7 +852,7 @@ pub struct PropertyAccessExpr<'c> {
 
 /// A typed expression, e.g. `foo as int`.
 #[derive(Debug, PartialEq)]
-pub struct TypedExpr<'c> {
+pub struct AsExpr<'c> {
     /// The annotated type of the expression.
     pub ty: AstNode<'c, Type<'c>>,
     /// The expression being typed.
@@ -913,7 +913,7 @@ pub enum ExpressionKind<'c> {
     Deref(DerefExpr<'c>),
     Unsafe(UnsafeExpr<'c>),
     LiteralExpr(LiteralExpr<'c>),
-    Typed(TypedExpr<'c>),
+    As(AsExpr<'c>),
     Block(BlockExpr<'c>),
     Import(ImportExpr<'c>),
     StructDef(StructDef<'c>),
