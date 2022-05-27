@@ -313,7 +313,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // where we transform the AstNode into a different
                     if matches!(op.kind, OperatorKind::As) {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::Typed(TypedExpr {
+                            Expression::new(ExpressionKind::As(AsExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),
