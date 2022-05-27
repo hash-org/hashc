@@ -55,13 +55,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
 
                 // Check if this is a raw ref by checking if the keyword is present...
-                let is_ref = match self.peek() {
-                    Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Raw)) => {
-                        self.skip_token();
-                        true
-                    }
-                    _ => false,
-                };
+                let is_ref = self
+                    .parse_token_fast(TokenKind::Keyword(Keyword::Raw))
+                    .is_some();
 
                 match self.parse_type() {
                     Ok(ty) if is_ref => Type::RawRef(RawRefType(ty)),
