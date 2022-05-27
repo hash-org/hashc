@@ -1070,6 +1070,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::Prim(PrimType::Void), None))
     }
 
+    type ModBlockRet = TypeId;
+
+    fn visit_mod_block(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::ModBlock<'c>>,
+    ) -> Result<Self::ModBlockRet, Self::Error> {
+        todo!()
+    }
+
     type BodyBlockRet = TypeId;
     fn visit_body_block(
         &mut self,

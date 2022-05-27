@@ -764,6 +764,9 @@ pub struct BodyBlock<'c> {
 #[derive(Debug, PartialEq)]
 pub struct LoopBlock<'c>(pub AstNode<'c, Block<'c>>);
 
+#[derive(Debug, PartialEq)]
+pub struct ModBlock<'c>(pub AstNode<'c, Block<'c>>);
+
 /// A block.
 #[derive(Debug, PartialEq)]
 pub enum Block<'c> {
@@ -771,6 +774,8 @@ pub enum Block<'c> {
     Match(MatchBlock<'c>),
     /// A loop block. The inner block is the loop body.
     Loop(LoopBlock<'c>),
+    /// A module block. The inner block becomes an inner module of the current module.
+    Mod(ModBlock<'c>),
     /// A body block.
     Body(BodyBlock<'c>),
 }

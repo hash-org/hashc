@@ -362,6 +362,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::LoopBlock<'c>>,
     ) -> Result<Self::LoopBlockRet, Self::Error>;
 
+    type ModBlockRet: 'c;
+    fn visit_mod_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ModBlock<'c>>,
+    ) -> Result<Self::ModBlockRet, Self::Error>;
+
     type BodyBlockRet: 'c;
     fn visit_body_block(
         &mut self,
@@ -1161,6 +1168,16 @@ pub mod walk {
         Ok(LoopBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
+    pub struct ModBlock<'c, V: AstVisitor<'c>>(pub V::BlockRet);
+
+    pub fn walk_mod_block<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ModBlock<'c>>,
+    ) -> Result<ModBlock<'c, V>, V::Error> {
+        Ok(ModBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
+    }
+
     pub struct BodyBlock<'c, V: AstVisitor<'c>> {
         pub statements: V::CollectionContainer<V::ExpressionRet>,
         pub expr: Option<V::ExpressionRet>,
@@ -1189,6 +1206,7 @@ pub mod walk {
     pub enum Block<'c, V: AstVisitor<'c>> {
         Match(V::MatchBlockRet),
         Loop(V::LoopBlockRet),
+        Mod(V::ModBlockRet),
         Body(V::BodyBlockRet),
     }
 
@@ -1202,6 +1220,7 @@ pub mod walk {
                 Block::Match(visitor.visit_match_block(ctx, node.with_body(r))?)
             }
             ast::Block::Loop(r) => Block::Loop(visitor.visit_loop_block(ctx, node.with_body(r))?),
+            ast::Block::Mod(r) => Block::Mod(visitor.visit_mod_block(ctx, node.with_body(r))?),
             ast::Block::Body(r) => Block::Body(visitor.visit_body_block(ctx, node.with_body(r))?),
         })
     }
@@ -1212,11 +1231,18 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Block<'c>>,
     ) -> Result<Ret, V::Error>
     where
-        V: AstVisitor<'c, MatchBlockRet = Ret, LoopBlockRet = Ret, BodyBlockRet = Ret>,
+        V: AstVisitor<
+            'c,
+            MatchBlockRet = Ret,
+            LoopBlockRet = Ret,
+            ModBlockRet = Ret,
+            BodyBlockRet = Ret,
+        >,
     {
         Ok(match walk_block(visitor, ctx, node)? {
             Block::Match(r) => r,
             Block::Loop(r) => r,
+            Block::Mod(r) => r,
             Block::Body(r) => r,
         })
     }
