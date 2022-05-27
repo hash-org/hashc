@@ -397,6 +397,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error>;
 
+    type MutabilityRet: 'c;
+    fn visit_mutability_modifier(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Mutability>,
+    ) -> Result<Self::MutabilityRet, Self::Error>;
+
     type DeclarationRet: 'c;
     fn visit_declaration(
         &mut self,
@@ -1843,6 +1850,7 @@ pub mod walk {
     pub struct BindingPattern<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
         pub visibility: Option<V::VisibilityRet>,
+        pub mutability: Option<V::MutabilityRet>,
     }
 
     pub fn walk_binding_pattern<'c, V: AstVisitor<'c>>(
@@ -1856,6 +1864,12 @@ pub mod walk {
                 .visibility
                 .as_ref()
                 .map(|inner| visitor.visit_visibility_modifier(ctx, inner.ast_ref()))
+                .transpose()?,
+
+            mutability: node
+                .mutability
+                .as_ref()
+                .map(|inner| visitor.visit_mutability_modifier(ctx, inner.ast_ref()))
                 .transpose()?,
         })
     }
