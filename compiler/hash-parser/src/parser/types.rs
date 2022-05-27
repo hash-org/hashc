@@ -54,16 +54,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Amp => {
                 self.skip_token();
 
-                // Check if this is a raw ref by checking if the keyword is present...
-                let is_ref = self
+                // Check if this is a raw ref
+                let kind = self
                     .parse_token_fast(TokenKind::Keyword(Keyword::Raw))
-                    .is_some();
+                    .map(|_| self.node_with_span(RefKind::Raw, self.current_location()));
 
-                match self.parse_type() {
-                    Ok(ty) if is_ref => Type::RawRef(RawRefType(ty)),
-                    Ok(ty) => Type::Ref(RefType(ty)),
-                    err => return err,
-                }
+                // Parse a mutability modifier if any
+                let mutability = self
+                    .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
+                    .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
+
+                Type::Ref(RefType {
+                    inner: self.parse_type()?,
+                    kind,
+                    mutability,
+                })
             }
             TokenKind::Ident(id) => {
                 self.skip_token();

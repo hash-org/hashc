@@ -215,13 +215,6 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<Self::RefTypeRet, Self::Error>;
 
-    type RawRefTypeRet: 'c;
-    fn visit_raw_ref_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RawRefType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error>;
-
     type MergedTypeRet: 'c;
     fn visit_merged_type(
         &mut self,
@@ -1489,24 +1482,24 @@ pub mod walk {
         })
     }
 
-    pub struct RefType<'c, V: AstVisitor<'c>>(pub V::TypeRet);
+    pub struct RefType<'c, V: AstVisitor<'c>> {
+        pub inner: V::TypeRet,
+        pub mutability: Option<V::MutabilityRet>,
+    }
 
     pub fn walk_ref_type<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<RefType<'c, V>, V::Error> {
-        Ok(RefType(visitor.visit_type(ctx, node.0.ast_ref())?))
-    }
-
-    pub struct RawRefType<'c, V: AstVisitor<'c>>(pub V::TypeRet);
-
-    pub fn walk_raw_ref_type<'c, V: AstVisitor<'c>>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::RawRefType<'c>>,
-    ) -> Result<RawRefType<'c, V>, V::Error> {
-        Ok(RawRefType(visitor.visit_type(ctx, node.0.ast_ref())?))
+        Ok(RefType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
+            mutability: node
+                .mutability
+                .as_ref()
+                .map(|inner| visitor.visit_mutability_modifier(ctx, inner.ast_ref()))
+                .transpose()?,
+        })
     }
 
     pub struct MergedType<'c, V: AstVisitor<'c>>(pub V::CollectionContainer<V::TypeRet>);
@@ -1598,7 +1591,6 @@ pub mod walk {
         Map(V::MapTypeRet),
         Named(V::NamedTypeRet),
         Ref(V::RefTypeRet),
-        RawRef(V::RawRefTypeRet),
         Merged(V::MergedTypeRet),
         TypeFunction(V::TypeFunctionRet),
         TypeFunctionCall(V::TypeFunctionCallRet),
@@ -1617,9 +1609,6 @@ pub mod walk {
             ast::Type::Map(r) => Type::Map(visitor.visit_map_type(ctx, node.with_body(r))?),
             ast::Type::Named(r) => Type::Named(visitor.visit_named_type(ctx, node.with_body(r))?),
             ast::Type::Ref(r) => Type::Ref(visitor.visit_ref_type(ctx, node.with_body(r))?),
-            ast::Type::RawRef(r) => {
-                Type::RawRef(visitor.visit_raw_ref_type(ctx, node.with_body(r))?)
-            }
             ast::Type::Merged(r) => {
                 Type::Merged(visitor.visit_merged_type(ctx, node.with_body(r))?)
             }
@@ -1647,7 +1636,6 @@ pub mod walk {
             MapTypeRet = Ret,
             NamedTypeRet = Ret,
             RefTypeRet = Ret,
-            RawRefTypeRet = Ret,
             MergedTypeRet = Ret,
             TypeFunctionRet = Ret,
             TypeFunctionCallRet = Ret,
@@ -1661,7 +1649,6 @@ pub mod walk {
             Type::Map(r) => r,
             Type::Named(r) => r,
             Type::Ref(r) => r,
-            Type::RawRef(r) => r,
             Type::Merged(r) => r,
             Type::TypeFunction(r) => r,
             Type::TypeFunctionCall(r) => r,
