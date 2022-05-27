@@ -78,6 +78,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
         let pattern = match token {
+            // A name bind that has visibility/mutability modifiers
+            Token {
+                kind: TokenKind::Keyword(Keyword::Pub | Keyword::Priv),
+                ..
+            } => self.parse_binding_pattern()?,
             Token {
                 kind: TokenKind::Ident(ident),
                 span,
@@ -119,9 +124,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         if *ident == CORE_IDENTIFIERS.underscore {
                             Pattern::Ignore(IgnorePattern)
                         } else {
-                            Pattern::Binding(BindingPattern(
-                                self.node_with_span(Name { ident: *ident }, *span),
-                            ))
+                            Pattern::Binding(BindingPattern {
+                                name: self.node_with_span(Name { ident: *ident }, *span),
+                                visibility: None,
+                            })
                         }
                     }
                 }
@@ -204,7 +210,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let span = name.location();
                 let copy = self.node(Name { ..*name.body() });
 
-                self.node_with_span(Pattern::Binding(BindingPattern(copy)), span)
+                self.node_with_span(
+                    Pattern::Binding(BindingPattern {
+                        name: copy,
+                        visibility: None,
+                    }),
+                    span,
+                )
             }
         };
 
@@ -371,5 +383,35 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let name = self.peek_resultant_fn(|| self.parse_name());
 
         Ok(SpreadPattern { name })
+    }
+
+    /// Function to parse a [BindingPattern] without considering whether it might be part of a
+    /// constructor or any other form of pattern. This function also accounts for visibility or
+    /// mutability modifiers on the binding pattern.
+    fn parse_binding_pattern(&self) -> AstGenResult<'c, Pattern<'c>> {
+        let visibility = self.peek_resultant_fn(|| self.parse_visibility());
+        let name = self.parse_name()?; // @@Correctness: Should this be an access name?
+
+        Ok(Pattern::Binding(BindingPattern { name, visibility }))
+    }
+
+    /// Parse a [Visibility] modifier, either being a `pub` or `priv`.
+    fn parse_visibility(&self) -> AstGenResult<'c, AstNode<'c, Visibility>> {
+        match self.next_token() {
+            Some(Token {
+                kind: TokenKind::Keyword(Keyword::Pub),
+                span,
+            }) => Ok(self.node_with_span(Visibility::Public, *span)),
+            Some(Token {
+                kind: TokenKind::Keyword(Keyword::Priv),
+                span,
+            }) => Ok(self.node_with_span(Visibility::Private, *span)),
+            token => self.error_with_location(
+                AstGenErrorKind::Expected,
+                Some(TokenKindVector::begin_visibility(&self.wall)),
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
+            ),
+        }
     }
 }
