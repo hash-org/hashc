@@ -559,7 +559,12 @@ pub enum LiteralPattern {
 
 /// A pattern name binding.
 #[derive(Debug, PartialEq)]
-pub struct BindingPattern<'c>(pub AstNode<'c, Name>);
+pub struct BindingPattern<'c> {
+    /// The identifier that the name bind is using
+    pub name: AstNode<'c, Name>,
+    /// Visibility of the declaration (`priv` by default)
+    pub visibility: Option<AstNode<'c, Visibility>>,
+}
 
 /// A pattern spread
 #[derive(Debug, PartialEq)]
@@ -607,6 +612,14 @@ pub struct TypeFunctionDefArg<'c> {
 
     /// The argument bounds.
     pub ty: AstNode<'c, Type<'c>>,
+}
+
+/// Enum representing whether a declaration is public or private
+/// within module scope.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Visibility {
+    Private,
+    Public,
 }
 
 /// A declaration, e.g. `x := 3;`.

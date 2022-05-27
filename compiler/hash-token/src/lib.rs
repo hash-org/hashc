@@ -306,6 +306,14 @@ impl<'c> TokenKindVector<'c> {
         Self(row![wall; atom])
     }
 
+    #[inline(always)]
+    pub fn begin_visibility(wall: &Wall<'c>) -> Self {
+        Self(row![wall;
+            TokenKind::Keyword(Keyword::Pub),
+            TokenKind::Keyword(Keyword::Priv),
+        ])
+    }
+
     /// Tokens expected when the parser expects a collection of patterns to be present.
     pub fn begin_pattern_collection(wall: &Wall<'c>) -> Self {
         Self(row![wall;
