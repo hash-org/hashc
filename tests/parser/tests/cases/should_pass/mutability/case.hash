@@ -1,0 +1,6 @@
+(mut a, mut b) := (1, 2);
+mut test := get_test();
+
+modify_test(&test); // @@TODO: support `&mut`
+a += 2;
+b += 3;
