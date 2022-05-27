@@ -1138,6 +1138,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
+    type VisibilityRet = TypeId;
+    fn visit_visibility_modifier(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::Visibility>,
+    ) -> Result<Self::VisibilityRet, Self::Error> {
+        todo!()
+    }
+
     type DeclarationRet = TypeId;
     fn visit_declaration(
         &mut self,
@@ -1518,8 +1527,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         }
                         // Everything else better be just a binding
                         Some(symbol_type) => match field.pattern.body() {
-                            ast::Pattern::Binding(BindingPattern(binding)) => {
-                                self.scopes().add_symbol(binding.ident, symbol_type);
+                            ast::Pattern::Binding(BindingPattern { name, .. }) => {
+                                self.scopes().add_symbol(name.ident, symbol_type);
                             }
                             _ => {
                                 return Err(TypecheckError::DisallowedPatternNonVariable(
@@ -1708,7 +1717,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         // we need to resolve the symbol in the current scope and firstly check if it's
         // an enum...
-        let ident = node.0.ident;
+        let ident = node.name.ident;
 
         match self.scopes().resolve_symbol(ident) {
             Some(SymbolType::EnumVariant(ty_def_id)) => {
@@ -1733,7 +1742,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
                 // @@Correctness, should we add the node into scope if the variable ident is equal to '_' ignore?
                 self.scopes()
-                    .add_symbol(node.0.ident, SymbolType::Variable(variable_ty));
+                    .add_symbol(node.name.ident, SymbolType::Variable(variable_ty));
                 Ok(variable_ty)
             }
         }

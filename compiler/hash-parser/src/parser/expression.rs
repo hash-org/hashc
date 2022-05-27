@@ -23,8 +23,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         semi_required: bool,
     ) -> AstGenResult<'c, (bool, AstNode<'c, Expression<'c>>)> {
-        let start = self.current_location();
         let offset = self.offset();
+        let start = self.current_location();
 
         let decl =
             if let Some(pat) = self.peek_resultant_fn(|| self.parse_singular_pattern()) {
