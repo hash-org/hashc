@@ -527,6 +527,18 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(expr)
     }
 
+    type TypeExprRet = TypeId;
+
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error> {
+        let walk::TypeExpr(inner) = walk::walk_type_expr(self, ctx, node)?;
+
+        Ok(inner)
+    }
+
     type BlockExprRet = TypeId;
     fn visit_block_expr(
         &mut self,
