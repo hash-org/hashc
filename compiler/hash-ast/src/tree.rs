@@ -6,9 +6,9 @@ use std::iter;
 
 use hash_utils::tree_writing::TreeNode;
 
-use crate::ident::IDENTIFIER_MAP;
 use crate::literal::STRING_LITERAL_MAP;
 use crate::{ast, visitor::walk, visitor::AstVisitor};
+use crate::{ast::Visibility, ident::IDENTIFIER_MAP};
 
 /// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
 /// [TreeNode] tree, for visualisation purposes.
@@ -755,6 +755,18 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::leaf("continue"))
     }
 
+    type VisibilityRet = TreeNode;
+    fn visit_visibility_modifier(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Visibility>,
+    ) -> Result<Self::VisibilityRet, Self::Error> {
+        match node.body() {
+            Visibility::Private => Ok(TreeNode::leaf("private")),
+            Visibility::Public => Ok(TreeNode::leaf("public")),
+        }
+    }
+
     type DeclarationRet = TreeNode;
     fn visit_declaration(
         &mut self,
@@ -762,6 +774,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         let walk::Declaration { pattern, ty, value } = walk::walk_declaration(self, ctx, node)?;
+
         Ok(TreeNode::branch(
             "declaration",
             iter::once(TreeNode::branch("pattern", vec![pattern]))
@@ -1060,8 +1073,15 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let walk::BindingPattern(name) = walk::walk_binding_pattern(self, ctx, node)?;
-        Ok(TreeNode::leaf(labelled("binding", name.label, "\"")))
+        let walk::BindingPattern { name, visibility } =
+            walk::walk_binding_pattern(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "binding",
+            iter::once(TreeNode::leaf(labelled("binding", name.label, "\"")))
+                .chain(visibility.map(|t| TreeNode::branch("visibility", vec![t])))
+                .collect(),
+        ))
     }
 
     type SpreadPatternRet = TreeNode;

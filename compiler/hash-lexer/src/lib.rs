@@ -293,6 +293,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             "import" => TokenKind::Keyword(Keyword::Import),
             "raw" => TokenKind::Keyword(Keyword::Raw),
             "unsafe" => TokenKind::Keyword(Keyword::Unsafe),
+            "priv" => TokenKind::Keyword(Keyword::Priv),
+            "pub" => TokenKind::Keyword(Keyword::Pub),
             "_" => TokenKind::Ident(CORE_IDENTIFIERS.underscore),
             _ => {
                 // create the identifier here from the created map

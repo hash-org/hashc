@@ -390,6 +390,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error>;
 
+    type VisibilityRet: 'c;
+    fn visit_visibility_modifier(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::Visibility>,
+    ) -> Result<Self::VisibilityRet, Self::Error>;
+
     type DeclarationRet: 'c;
     fn visit_declaration(
         &mut self,
@@ -1833,13 +1840,24 @@ pub mod walk {
         })
     }
 
-    pub struct BindingPattern<'c, V: AstVisitor<'c>>(pub V::NameRet);
+    pub struct BindingPattern<'c, V: AstVisitor<'c>> {
+        pub name: V::NameRet,
+        pub visibility: Option<V::VisibilityRet>,
+    }
+
     pub fn walk_binding_pattern<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<BindingPattern<'c, V>, V::Error> {
-        Ok(BindingPattern(visitor.visit_name(ctx, node.0.ast_ref())?))
+        Ok(BindingPattern {
+            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            visibility: node
+                .visibility
+                .as_ref()
+                .map(|inner| visitor.visit_visibility_modifier(ctx, inner.ast_ref()))
+                .transpose()?,
+        })
     }
 
     pub struct SpreadPattern<'c, V: AstVisitor<'c>> {
@@ -1950,6 +1968,7 @@ pub mod walk {
         pub ty: Option<V::TypeRet>,
         pub value: Option<V::ExpressionRet>,
     }
+
     pub fn walk_declaration<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
