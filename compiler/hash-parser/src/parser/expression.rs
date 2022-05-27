@@ -646,7 +646,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         ExpressionKind::Ref(RefExpr {
                             inner_expr: self.parse_expression()?,
                             kind: RefKind::Raw,
-                            mutability
+                            mutability,
                         })
                     }
                     Some(Token {
@@ -821,7 +821,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
                 inner_expr: expr,
                 kind: RefKind::Normal,
-                mutability: None
+                mutability: None,
             }))),
             false => expr,
         }
