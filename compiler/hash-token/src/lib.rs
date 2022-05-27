@@ -101,6 +101,7 @@ impl TokenKind {
             TokenKind::Keyword(Keyword::For)
                 | TokenKind::Keyword(Keyword::While)
                 | TokenKind::Keyword(Keyword::Loop)
+                | TokenKind::Keyword(Keyword::Mod)
                 | TokenKind::Keyword(Keyword::If)
                 | TokenKind::Keyword(Keyword::Match)
         )
