@@ -460,7 +460,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::RefExpr<'c>>,
     ) -> Result<Self::RefExprRet, Self::Error> {
         let walk::RefExpr {
-            inner_expr: inner_ty,
+            inner_expr: inner_ty, ..
         } = walk::walk_ref_expr(self, ctx, node)?;
 
         let ty_location = self.source_location(node.location());

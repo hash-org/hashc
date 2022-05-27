@@ -963,6 +963,7 @@ pub mod walk {
 
     pub struct RefExpr<'c, V: AstVisitor<'c>> {
         pub inner_expr: V::ExpressionRet,
+        pub mutability: Option<V::MutabilityRet>,
     }
 
     pub fn walk_ref_expr<'c, V: AstVisitor<'c>>(
@@ -972,6 +973,11 @@ pub mod walk {
     ) -> Result<RefExpr<'c, V>, V::Error> {
         Ok(RefExpr {
             inner_expr: visitor.visit_expression(ctx, node.inner_expr.ast_ref())?,
+            mutability: node
+                .mutability
+                .as_ref()
+                .map(|inner| visitor.visit_mutability_modifier(ctx, inner.ast_ref()))
+                .transpose()?,
         })
     }
 

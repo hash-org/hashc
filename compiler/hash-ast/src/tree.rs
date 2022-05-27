@@ -208,8 +208,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefExpr<'c>>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        let walk::RefExpr { inner_expr } = walk::walk_ref_expr(self, ctx, node)?;
-        Ok(TreeNode::branch("ref", vec![inner_expr]))
+        let walk::RefExpr {
+            inner_expr,
+            mutability,
+        } = walk::walk_ref_expr(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "ref",
+            iter::once(inner_expr)
+                .chain(mutability.map(|inner| TreeNode::branch("mutability", vec![inner])))
+                .collect(),
+        ))
     }
 
     type DerefExprRet = TreeNode;
