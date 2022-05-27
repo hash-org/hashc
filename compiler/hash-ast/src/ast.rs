@@ -879,7 +879,10 @@ pub struct VariableExpr<'c> {
 #[derive(Debug, PartialEq)]
 pub struct RefExpr<'c> {
     pub inner_expr: AstNode<'c, Expression<'c>>,
+    /// The kind of reference, either being a normal reference or a `raw` reference
     pub kind: RefKind,
+    /// Mutability modifier on the expression.
+    pub mutability: Option<AstNode<'c, Mutability>>,
 }
 /// A dereference expression.
 #[derive(Debug, PartialEq)]
