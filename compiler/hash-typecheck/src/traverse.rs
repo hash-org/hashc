@@ -1138,12 +1138,21 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         }
     }
 
-    type VisibilityRet = TypeId;
+    type VisibilityRet = ();
     fn visit_visibility_modifier(
         &mut self,
         _: &Self::Ctx,
         _: ast::AstNodeRef<ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error> {
+        todo!()
+    }
+
+    type MutabilityRet = ();
+    fn visit_mutability_modifier(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::Mutability>,
+    ) -> Result<Self::MutabilityRet, Self::Error> {
         todo!()
     }
 

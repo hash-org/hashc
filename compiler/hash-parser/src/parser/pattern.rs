@@ -80,7 +80,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let pattern = match token {
             // A name bind that has visibility/mutability modifiers
             Token {
-                kind: TokenKind::Keyword(Keyword::Pub | Keyword::Priv),
+                kind: TokenKind::Keyword(Keyword::Pub | Keyword::Priv | Keyword::Mut),
                 ..
             } => self.parse_binding_pattern()?,
             Token {
@@ -127,6 +127,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             Pattern::Binding(BindingPattern {
                                 name: self.node_with_span(Name { ident: *ident }, *span),
                                 visibility: None,
+                                mutability: None,
                             })
                         }
                     }
@@ -214,6 +215,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Pattern::Binding(BindingPattern {
                         name: copy,
                         visibility: None,
+                        mutability: None,
                     }),
                     span,
                 )
@@ -390,9 +392,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// mutability modifiers on the binding pattern.
     fn parse_binding_pattern(&self) -> AstGenResult<'c, Pattern<'c>> {
         let visibility = self.peek_resultant_fn(|| self.parse_visibility());
+
+        // Parse a mutability modifier if any
+        let mutability = self
+            .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
+            .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
+
         let name = self.parse_name()?; // @@Correctness: Should this be an access name?
 
-        Ok(Pattern::Binding(BindingPattern { name, visibility }))
+        Ok(Pattern::Binding(BindingPattern {
+            name,
+            visibility,
+            mutability,
+        }))
     }
 
     /// Parse a [Visibility] modifier, either being a `pub` or `priv`.

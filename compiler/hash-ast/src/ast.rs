@@ -562,8 +562,10 @@ pub enum LiteralPattern {
 pub struct BindingPattern<'c> {
     /// The identifier that the name bind is using
     pub name: AstNode<'c, Name>,
-    /// Visibility of the declaration (`priv` by default)
+    /// Visibility of the binding (`priv` by default)
     pub visibility: Option<AstNode<'c, Visibility>>,
+    /// Mutability of the binding (immutable by default)
+    pub mutability: Option<AstNode<'c, Mutability>>,
 }
 
 /// A pattern spread
@@ -591,6 +593,28 @@ pub enum Pattern<'c> {
     Spread(SpreadPattern<'c>),
 }
 
+/// Enum representing whether a declaration is public or private
+/// within module scope.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Visibility {
+    /// The binding is private to outer scopes. This is assumed by default.
+    Private,
+    /// The binding is public to outer scopes. The modifier has no
+    /// effect if used within inner module scopes like a function.
+    Public,
+}
+
+/// Enum representing whether a [BindingPattern] is declared as being mutable
+/// or immutable.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Mutability {
+    /// Declare that the binding can be re-assigned.
+    Mutable,
+    /// Declare that the binding cannot be re-assigned or methods that require
+    /// mutable access cannot take this binding. This is assumed by default.
+    Immutable,
+}
+
 /// A type function, e.g. `<T, U: Conv<U>> => ...`.
 ///
 /// Used in struct, enum, trait, and function definitions.
@@ -612,14 +636,6 @@ pub struct TypeFunctionDefArg<'c> {
 
     /// The argument bounds.
     pub ty: AstNode<'c, Type<'c>>,
-}
-
-/// Enum representing whether a declaration is public or private
-/// within module scope.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Visibility {
-    Private,
-    Public,
 }
 
 /// A declaration, e.g. `x := 3;`.
