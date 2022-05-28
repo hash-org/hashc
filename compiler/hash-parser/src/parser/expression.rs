@@ -40,6 +40,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                             start,
                         ))
                     }
+                    Some(token) if token.has_kind(TokenKind::Tilde) => {
+                        let decl = self.parse_merge_declaration(pat)?;
+
+                        Some(self.node_with_span(
+                            Expression::new(ExpressionKind::MergeDeclaration(decl)),
+                            start,
+                        ))
+                    }
                     _ => {
                         self.offset.set(offset);
                         None
@@ -766,6 +774,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 value: None,
             }),
         }
+    }
+
+    /// Function to pass a [MergeDeclaration] which is a pattern on the right-hand side followed
+    /// by the `~=` operator and then an expression (which should be either a [ImplBlock] or a [TraitImpl]).
+    pub(crate) fn parse_merge_declaration(
+        &self,
+        pattern: AstNode<'c, Pattern<'c>>,
+    ) -> AstGenResult<'c, MergeDeclaration<'c>> {
+        // We skip the `~` since this in the only way that we got here
+        self.skip_token();
+        self.parse_token(TokenKind::Eq)?;
+
+        let value = self.parse_expression_with_precedence(0)?;
+
+        Ok(MergeDeclaration { pattern, value })
     }
 
     /// Given a initial left-hand side expression, attempt to parse a re-assignment operator and
