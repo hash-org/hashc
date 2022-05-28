@@ -652,6 +652,17 @@ pub struct Declaration<'c> {
     pub value: Option<AstNode<'c, Expression<'c>>>,
 }
 
+/// A merge declaration (adding implementations to traits/structs), e.g. `x ~= impl { ... };`.
+#[derive(Debug, PartialEq)]
+pub struct MergeDeclaration<'c> {
+    /// The pattern to bind the right-hand side to.
+    pub pattern: AstNode<'c, Pattern<'c>>,
+
+    /// Any value that is assigned to the binding, simply
+    /// an expression.
+    pub value: AstNode<'c, Expression<'c>>,
+}
+
 /// An assign expression, e.g. `x = 4;`.
 #[derive(Debug, PartialEq)]
 pub struct AssignExpression<'c> {
@@ -930,6 +941,7 @@ pub enum ExpressionKind<'c> {
     Break(BreakStatement),
     Continue(ContinueStatement),
     Assign(AssignExpression<'c>),
+    MergeDeclaration(MergeDeclaration<'c>)
 }
 
 /// An expression.
