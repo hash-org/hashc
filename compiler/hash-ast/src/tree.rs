@@ -943,7 +943,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::TypeFunctionDefArg { name, ty } =
             walk::walk_type_function_def_arg(self, ctx, node)?;
 
-        Ok(TreeNode::branch("arg", vec![name, ty]))
+        Ok(TreeNode::branch("arg", iter::once(name).chain(ty).collect()))
     }
 
     type ConstructorPatternRet = TreeNode;
