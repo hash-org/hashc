@@ -709,7 +709,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     }
 
     type ModBlockRet = TreeNode;
-
     fn visit_mod_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -717,6 +716,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::ModBlockRet, Self::Error> {
         let walk::ModBlock(inner) = walk::walk_mod_block(self, ctx, node)?;
         Ok(TreeNode::branch("module", inner.children))
+    }
+
+    type ImplBlockRet = TreeNode;
+    fn visit_impl_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        let walk::ImplBlock(inner) = walk::walk_impl_block(self, ctx, node)?;
+        Ok(TreeNode::branch("impl", inner.children))
     }
 
     type BodyBlockRet = TreeNode;
