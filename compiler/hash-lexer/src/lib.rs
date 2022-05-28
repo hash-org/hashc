@@ -297,6 +297,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             "pub" => TokenKind::Keyword(Keyword::Pub),
             "mut" => TokenKind::Keyword(Keyword::Mut),
             "mod" => TokenKind::Keyword(Keyword::Mod),
+            "impl" => TokenKind::Keyword(Keyword::Impl),
             "_" => TokenKind::Ident(CORE_IDENTIFIERS.underscore),
             _ => {
                 // create the identifier here from the created map

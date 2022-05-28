@@ -31,6 +31,7 @@ pub enum Keyword {
     Priv,
     Mut,
     Mod,
+    Impl,
 }
 
 /// Enum Variants for keywords
