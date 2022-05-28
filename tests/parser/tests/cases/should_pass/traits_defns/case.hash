@@ -4,4 +4,4 @@ Merge := <T: Add ~ Or> => trait {
 
 /// Type function def with no specified bounds on the parameter
 Merge := <R> => trait {
-}
+};
