@@ -635,7 +635,7 @@ pub struct TypeFunctionDefArg<'c> {
     pub name: AstNode<'c, Name>,
 
     /// The argument bounds.
-    pub ty: AstNode<'c, Type<'c>>,
+    pub ty: Option<AstNode<'c, Type<'c>>>,
 }
 
 /// A declaration, e.g. `x := 3;`.

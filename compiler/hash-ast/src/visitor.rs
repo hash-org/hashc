@@ -2177,7 +2177,7 @@ pub mod walk {
 
     pub struct TypeFunctionDefArg<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
-        pub ty: V::TypeRet,
+        pub ty: Option<V::TypeRet>,
     }
 
     pub fn walk_type_function_def_arg<'c, V: AstVisitor<'c>>(
@@ -2187,7 +2187,11 @@ pub mod walk {
     ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
         Ok(TypeFunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
+            ty: node
+                .ty
+                .as_ref()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref()))
+                .transpose()?,
         })
     }
 
