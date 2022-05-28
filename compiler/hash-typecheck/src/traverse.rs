@@ -1224,6 +1224,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_void_type())
     }
 
+    type MergeDeclarationRet = TypeId;
+
+    fn visit_merge_declaration(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
+        todo!()
+    }
+
     type AssignExpressionRet = TypeId;
 
     fn visit_assign_expression(

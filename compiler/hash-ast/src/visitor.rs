@@ -425,6 +425,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error>;
 
+    type MergeDeclarationRet: 'c;
+    fn visit_merge_declaration(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error>;
+
     type AssignExpressionRet: 'c;
     fn visit_assign_expression(
         &mut self,
@@ -730,6 +737,7 @@ pub mod walk {
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignExpressionRet),
+        MergeDeclaration(V::MergeDeclarationRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -747,6 +755,9 @@ pub mod walk {
             ast::ExpressionKind::Declaration(inner) => {
                 Expression::Declaration(visitor.visit_declaration(ctx, node.with_body(inner))?)
             }
+            ast::ExpressionKind::MergeDeclaration(inner) => Expression::MergeDeclaration(
+                visitor.visit_merge_declaration(ctx, node.with_body(inner))?,
+            ),
             ast::ExpressionKind::Variable(inner) => {
                 Expression::Variable(visitor.visit_variable_expr(ctx, node.with_body(inner))?)
             }
@@ -815,6 +826,7 @@ pub mod walk {
             FunctionCallExprRet = Ret,
             DirectiveExprRet = Ret,
             DeclarationRet = Ret,
+            MergeDeclarationRet = Ret,
             VariableExprRet = Ret,
             PropertyAccessExprRet = Ret,
             RefExprRet = Ret,
@@ -839,6 +851,7 @@ pub mod walk {
             Expression::FunctionCall(r) => r,
             Expression::Directive(r) => r,
             Expression::Declaration(r) => r,
+            Expression::MergeDeclaration(r) => r,
             Expression::Variable(r) => r,
             Expression::PropertyAccess(r) => r,
             Expression::Ref(r) => r,
@@ -2047,6 +2060,22 @@ pub mod walk {
                 .as_ref()
                 .map(|t| visitor.visit_expression(ctx, t.ast_ref()))
                 .transpose()?,
+        })
+    }
+
+    pub struct MergeDeclaration<'c, V: AstVisitor<'c>> {
+        pub pattern: V::PatternRet,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_merge_declaration<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<MergeDeclaration<'c, V>, V::Error> {
+        Ok(MergeDeclaration {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
         })
     }
 
