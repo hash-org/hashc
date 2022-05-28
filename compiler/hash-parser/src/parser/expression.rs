@@ -157,8 +157,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             kind if kind.begins_block() => {
                 let start = self.current_location();
 
-                println!("{kind}");
-
                 let block = match kind {
                     TokenKind::Keyword(Keyword::For) => self.parse_for_loop()?,
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
@@ -168,6 +166,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
                     TokenKind::Keyword(Keyword::Mod) => self
                         .node_with_joined_span(Block::Mod(ModBlock(self.parse_block()?)), &start),
+                    TokenKind::Keyword(Keyword::Impl) => self
+                        .node_with_joined_span(Block::Impl(ImplBlock(self.parse_block()?)), &start),
                     _ => unreachable!(),
                 };
 
