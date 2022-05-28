@@ -914,6 +914,24 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
+    type TraitImplRet = TreeNode;
+
+    fn visit_trait_impl(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error> {
+        let walk::TraitImpl {
+            implementation,
+            name,
+        } = walk::walk_trait_impl(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "trait_impl",
+            vec![name, TreeNode::branch("implementation", implementation)],
+        ))
+    }
+
     type PatternRet = TreeNode;
     fn visit_pattern(
         &mut self,
