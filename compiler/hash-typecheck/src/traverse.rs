@@ -1080,6 +1080,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
+    type ImplBlockRet = TypeId;
+    fn visit_impl_block(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        todo!()
+    }
+
     type BodyBlockRet = TypeId;
     fn visit_body_block(
         &mut self,

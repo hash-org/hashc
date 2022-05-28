@@ -369,6 +369,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::ModBlock<'c>>,
     ) -> Result<Self::ModBlockRet, Self::Error>;
 
+    type ImplBlockRet: 'c;
+    fn visit_impl_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error>;
+
     type BodyBlockRet: 'c;
     fn visit_body_block(
         &mut self,
@@ -1178,6 +1185,16 @@ pub mod walk {
         Ok(ModBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
+    pub struct ImplBlock<'c, V: AstVisitor<'c>>(pub V::BlockRet);
+
+    pub fn walk_impl_block<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<ImplBlock<'c, V>, V::Error> {
+        Ok(ImplBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
+    }
+
     pub struct BodyBlock<'c, V: AstVisitor<'c>> {
         pub statements: V::CollectionContainer<V::ExpressionRet>,
         pub expr: Option<V::ExpressionRet>,
@@ -1208,6 +1225,7 @@ pub mod walk {
         Loop(V::LoopBlockRet),
         Mod(V::ModBlockRet),
         Body(V::BodyBlockRet),
+        Impl(V::ImplBlockRet),
     }
 
     pub fn walk_block<'c, V: AstVisitor<'c>>(
@@ -1222,6 +1240,7 @@ pub mod walk {
             ast::Block::Loop(r) => Block::Loop(visitor.visit_loop_block(ctx, node.with_body(r))?),
             ast::Block::Mod(r) => Block::Mod(visitor.visit_mod_block(ctx, node.with_body(r))?),
             ast::Block::Body(r) => Block::Body(visitor.visit_body_block(ctx, node.with_body(r))?),
+            ast::Block::Impl(r) => Block::Impl(visitor.visit_impl_block(ctx, node.with_body(r))?),
         })
     }
 
@@ -1237,6 +1256,7 @@ pub mod walk {
             LoopBlockRet = Ret,
             ModBlockRet = Ret,
             BodyBlockRet = Ret,
+            ImplBlockRet = Ret,
         >,
     {
         Ok(match walk_block(visitor, ctx, node)? {
@@ -1244,6 +1264,7 @@ pub mod walk {
             Block::Loop(r) => r,
             Block::Mod(r) => r,
             Block::Body(r) => r,
+            Block::Impl(r) => r,
         })
     }
 
