@@ -822,12 +822,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let walk::MergeDeclaration { pattern, value } = walk::walk_merge_declaration(self, ctx, node)?;
+        let walk::MergeDeclaration { pattern, value } =
+            walk::walk_merge_declaration(self, ctx, node)?;
 
-        Ok(TreeNode::branch(
-            "merge_declaration",
-            vec![pattern, value]
-        ))
+        Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
 
     type AssignExpressionRet = TreeNode;

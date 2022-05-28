@@ -941,7 +941,7 @@ pub enum ExpressionKind<'c> {
     Break(BreakStatement),
     Continue(ContinueStatement),
     Assign(AssignExpression<'c>),
-    MergeDeclaration(MergeDeclaration<'c>)
+    MergeDeclaration(MergeDeclaration<'c>),
 }
 
 /// An expression.
