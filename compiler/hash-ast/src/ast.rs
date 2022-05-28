@@ -917,6 +917,15 @@ pub struct BlockExpr<'c>(pub AstNode<'c, Block<'c>>);
 #[derive(Debug, PartialEq)]
 pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
 
+/// A trait implementation.
+#[derive(Debug, PartialEq)]
+pub struct TraitImpl<'c> {
+    /// The referenced name to the trait
+    pub name: AstNode<'c, Name>,
+    /// The implementation of the trait.
+    pub implementation: AstNodes<'c, Expression<'c>>,
+}
+
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
@@ -942,6 +951,7 @@ pub enum ExpressionKind<'c> {
     Continue(ContinueStatement),
     Assign(AssignExpression<'c>),
     MergeDeclaration(MergeDeclaration<'c>),
+    TraitImpl(TraitImpl<'c>),
 }
 
 /// An expression.

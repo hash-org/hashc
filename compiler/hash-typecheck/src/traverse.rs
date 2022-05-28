@@ -1327,6 +1327,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.types_mut().create_void_type())
     }
 
+    type TraitImplRet = TypeId;
+
+    fn visit_trait_impl(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error> {
+        todo!()
+    }
+
     type PatternRet = TypeId;
     fn visit_pattern(
         &mut self,

@@ -481,6 +481,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Self::PatternRet, Self::Error>;
 
+    type TraitImplRet: 'c;
+    fn visit_trait_impl(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error>;
+
     type TypeFunctionDefRet: 'c;
     fn visit_type_function_def(
         &mut self,
@@ -738,6 +745,7 @@ pub mod walk {
         Continue(V::ContinueStatementRet),
         Assign(V::AssignExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
+        TraitImpl(V::TraitImplRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -812,6 +820,9 @@ pub mod walk {
             ast::ExpressionKind::Assign(r) => {
                 Expression::Assign(visitor.visit_assign_expression(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::TraitImpl(r) => {
+                Expression::TraitImpl(visitor.visit_trait_impl(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -840,6 +851,7 @@ pub mod walk {
             EnumDefRet = Ret,
             TypeFunctionDefRet = Ret,
             TraitDefRet = Ret,
+            TraitImplRet = Ret,
             FunctionDefRet = Ret,
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
@@ -865,6 +877,7 @@ pub mod walk {
             Expression::EnumDef(r) => r,
             Expression::TypeFunctionDef(r) => r,
             Expression::TraitDef(r) => r,
+            Expression::TraitImpl(r) => r,
             Expression::FunctionDef(r) => r,
             Expression::Return(r) => r,
             Expression::Break(r) => r,
@@ -2221,6 +2234,7 @@ pub mod walk {
     pub struct TraitDef<'c, V: AstVisitor<'c>> {
         pub members: V::CollectionContainer<V::ExpressionRet>,
     }
+
     pub fn walk_trait_def<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
@@ -2230,6 +2244,27 @@ pub mod walk {
             members: V::try_collect_items(
                 ctx,
                 node.members
+                    .iter()
+                    .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
+            )?,
+        })
+    }
+
+    pub struct TraitImpl<'c, V: AstVisitor<'c>> {
+        pub name: V::NameRet,
+        pub implementation: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_trait_impl<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<TraitImpl<'c, V>, V::Error> {
+        Ok(TraitImpl {
+            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            implementation: V::try_collect_items(
+                ctx,
+                node.implementation
                     .iter()
                     .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
             )?,
