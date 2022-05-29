@@ -205,7 +205,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
         // pattern.
-        let pattern = match self.peek_resultant_fn(|| self.parse_token(TokenKind::Eq)) {
+        let pattern = match self.parse_token_fast(TokenKind::Keyword(Keyword::As)) {
             Some(_) => self.parse_pattern()?,
             None => {
                 let span = name.location();
