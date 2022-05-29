@@ -329,7 +329,7 @@ pub struct FnType<'c> {
     pub return_ty: AstNode<'c, Type<'c>>,
 }
 
-/// A [TypeFunctionParameter] is a parameter that appears within a [TypeFunction]. This specifies
+/// A [TypeFunctionParam] is a parameter that appears within a [TypeFunction]. This specifies
 /// that the type function takes a particular parameter with a specific name, a bound and a default
 /// value.
 #[derive(Debug, PartialEq)]

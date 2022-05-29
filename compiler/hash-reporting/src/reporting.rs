@@ -389,7 +389,7 @@ impl ReportBuilder {
         self
     }
 
-    /// Add an associated [ErrorCode] to the [Report].
+    /// Add an associated [HashErrorCode] to the [Report].
     pub fn with_error_code(&mut self, error_code: HashErrorCode) -> &mut Self {
         self.error_code = Some(error_code);
         self
