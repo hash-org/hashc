@@ -273,11 +273,14 @@ pub enum RefKind {
 
 /// A reference type.
 #[derive(Debug, PartialEq)]
-pub struct RefType<'c>(pub AstNode<'c, Type<'c>>);
-
-/// A raw reference type
-#[derive(Debug, PartialEq)]
-pub struct RawRefType<'c>(pub AstNode<'c, Type<'c>>);
+pub struct RefType<'c> {
+    /// Inner type of the reference type
+    pub inner: AstNode<'c, Type<'c>>,
+    /// Whether this reference is a `raw` reference or normal reference (normal by default).
+    pub kind: Option<AstNode<'c, RefKind>>,
+    /// Mutability of the reference (immutable by default)
+    pub mutability: Option<AstNode<'c, Mutability>>,
+}
 
 /// The existential type (`?`).
 #[derive(Debug, PartialEq, Eq)]
@@ -373,7 +376,6 @@ pub enum Type<'c> {
     Fn(FnType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
-    RawRef(RawRefType<'c>),
     Merged(MergedType<'c>),
     TypeFunction(TypeFunction<'c>),
     TypeFunctionCall(TypeFunctionCall<'c>),
@@ -879,7 +881,10 @@ pub struct VariableExpr<'c> {
 #[derive(Debug, PartialEq)]
 pub struct RefExpr<'c> {
     pub inner_expr: AstNode<'c, Expression<'c>>,
+    /// The kind of reference, either being a normal reference or a `raw` reference
     pub kind: RefKind,
+    /// Mutability modifier on the expression.
+    pub mutability: Option<AstNode<'c, Mutability>>,
 }
 /// A dereference expression.
 #[derive(Debug, PartialEq)]
