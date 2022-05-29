@@ -208,8 +208,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefExpr<'c>>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        let walk::RefExpr { inner_expr } = walk::walk_ref_expr(self, ctx, node)?;
-        Ok(TreeNode::branch("ref", vec![inner_expr]))
+        let walk::RefExpr {
+            inner_expr,
+            mutability,
+        } = walk::walk_ref_expr(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "ref",
+            iter::once(inner_expr)
+                .chain(mutability.map(|inner| TreeNode::branch("mutability", vec![inner])))
+                .collect(),
+        ))
     }
 
     type DerefExprRet = TreeNode;
@@ -393,18 +401,24 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
-        let walk::RefType(inner) = walk::walk_ref_type(self, ctx, node)?;
-        Ok(TreeNode::branch("ref", vec![inner]))
-    }
+        let walk::RefType { inner, mutability } = walk::walk_ref_type(self, ctx, node)?;
 
-    type RawRefTypeRet = TreeNode;
-    fn visit_raw_ref_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RawRefType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error> {
-        let walk::RawRefType(inner) = walk::walk_raw_ref_type(self, ctx, node)?;
-        Ok(TreeNode::branch("raw_ref", vec![inner]))
+        let label = if node
+            .kind
+            .as_ref()
+            .map_or(false, |t| *t.body() == ast::RefKind::Raw)
+        {
+            "raw_ref"
+        } else {
+            "ref"
+        };
+
+        Ok(TreeNode::branch(
+            label,
+            iter::once(inner)
+                .chain(mutability.map(|t| TreeNode::branch("mutability", vec![t])))
+                .collect(),
+        ))
     }
 
     type MergedTypeRet = TreeNode;
@@ -412,7 +426,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergedType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+    ) -> Result<Self::MergedTypeRet, Self::Error> {
         let walk::MergedType(tys) = walk::walk_merged_type(self, ctx, node)?;
         Ok(TreeNode::branch("merged", tys))
     }

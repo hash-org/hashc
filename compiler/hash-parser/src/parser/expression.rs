@@ -635,14 +635,35 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 match self.peek() {
                     Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Raw)) => {
                         self.skip_token();
+
+                        // Parse a mutability modifier if any
+                        let mutability = self
+                            .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
+                            .map(|_| {
+                                self.node_with_span(Mutability::Mutable, self.current_location())
+                            });
+
                         ExpressionKind::Ref(RefExpr {
                             inner_expr: self.parse_expression()?,
                             kind: RefKind::Raw,
+                            mutability,
+                        })
+                    }
+                    Some(Token {
+                        kind: TokenKind::Keyword(Keyword::Mut),
+                        span,
+                    }) => {
+                        self.skip_token();
+                        ExpressionKind::Ref(RefExpr {
+                            inner_expr: self.parse_expression()?,
+                            kind: RefKind::Raw,
+                            mutability: Some(self.node_with_span(Mutability::Mutable, *span)),
                         })
                     }
                     _ => ExpressionKind::Ref(RefExpr {
                         inner_expr: self.parse_expression()?,
                         kind: RefKind::Normal,
+                        mutability: None,
                     }),
                 }
             }
@@ -800,6 +821,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
                 inner_expr: expr,
                 kind: RefKind::Normal,
+                mutability: None,
             }))),
             false => expr,
         }
