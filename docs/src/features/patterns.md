@@ -271,9 +271,9 @@ module_pattern_member = identifier ( "as" single_pattern )?
 
 module_pattern = "{" ( module_pattern_member "," )* module_pattern_member? "}"
 
-literal_pattern = integer_literal | string_literal | character_literal
+literal_pattern = integer_literal | string_literal | character_literal | float_literal
 
-list_pattern_member = pattern | ( "..." single_pattern? )
+list_pattern_member = pattern | ( "..." identifier? )
 
 list_pattern = "[" ( list_pattern_member "," )* list_pattern_member? "]"
 ```
