@@ -923,7 +923,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::TraitImplRet, Self::Error> {
         let walk::TraitImpl {
             implementation,
-            name,
+            trait_name: name,
         } = walk::walk_trait_impl(self, ctx, node)?;
 
         Ok(TreeNode::branch(

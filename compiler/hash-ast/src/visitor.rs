@@ -2251,7 +2251,7 @@ pub mod walk {
     }
 
     pub struct TraitImpl<'c, V: AstVisitor<'c>> {
-        pub name: V::NameRet,
+        pub trait_name: V::VariableExprRet,
         pub implementation: V::CollectionContainer<V::ExpressionRet>,
     }
 
@@ -2261,7 +2261,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TraitImpl<'c>>,
     ) -> Result<TraitImpl<'c, V>, V::Error> {
         Ok(TraitImpl {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
+            trait_name: visitor.visit_variable_expr(ctx, node.name.ast_ref())?,
             implementation: V::try_collect_items(
                 ctx,
                 node.implementation
