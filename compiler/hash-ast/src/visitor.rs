@@ -138,12 +138,19 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::LiteralExpr<'c>>,
     ) -> Result<Self::LiteralExprRet, Self::Error>;
 
-    type TypedExprRet: 'c;
-    fn visit_typed_expr(
+    type AsExprRet: 'c;
+    fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> Result<Self::TypedExprRet, Self::Error>;
+        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+    ) -> Result<Self::AsExprRet, Self::Error>;
+
+    type TypeExprRet: 'c;
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error>;
 
     type BlockExprRet: 'c;
     fn visit_block_expr(
@@ -704,7 +711,7 @@ pub mod walk {
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
         LiteralExpr(V::LiteralExprRet),
-        Typed(V::TypedExprRet),
+        Typed(V::AsExprRet),
         Block(V::BlockExprRet),
         Import(V::ImportExprRet),
         StructDef(V::StructDefRet),
@@ -712,6 +719,7 @@ pub mod walk {
         TypeFunctionDef(V::TypeFunctionDefRet),
         TraitDef(V::TraitDefRet),
         FunctionDef(V::FunctionDefRet),
+        Type(V::TypeExprRet),
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
@@ -727,6 +735,9 @@ pub mod walk {
             ast::ExpressionKind::FunctionCall(inner) => Expression::FunctionCall(
                 visitor.visit_function_call_expr(ctx, node.with_body(inner))?,
             ),
+            ast::ExpressionKind::Type(inner) => {
+                Expression::Type(visitor.visit_type_expr(ctx, node.with_body(inner))?)
+            }
             ast::ExpressionKind::Directive(inner) => {
                 Expression::Directive(visitor.visit_directive_expr(ctx, node.with_body(inner))?)
             }
@@ -751,8 +762,8 @@ pub mod walk {
             ast::ExpressionKind::LiteralExpr(inner) => {
                 Expression::LiteralExpr(visitor.visit_literal_expr(ctx, node.with_body(inner))?)
             }
-            ast::ExpressionKind::Typed(inner) => {
-                Expression::Typed(visitor.visit_typed_expr(ctx, node.with_body(inner))?)
+            ast::ExpressionKind::As(inner) => {
+                Expression::Typed(visitor.visit_as_expr(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::Block(inner) => {
                 Expression::Block(visitor.visit_block_expr(ctx, node.with_body(inner))?)
@@ -807,7 +818,7 @@ pub mod walk {
             DerefExprRet = Ret,
             UnsafeExprRet = Ret,
             LiteralExprRet = Ret,
-            TypedExprRet = Ret,
+            AsExprRet = Ret,
             BlockExprRet = Ret,
             ImportExprRet = Ret,
             StructDefRet = Ret,
@@ -815,6 +826,7 @@ pub mod walk {
             TypeFunctionDefRet = Ret,
             TraitDefRet = Ret,
             FunctionDefRet = Ret,
+            TypeExprRet = Ret,
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
@@ -839,6 +851,7 @@ pub mod walk {
             Expression::TypeFunctionDef(r) => r,
             Expression::TraitDef(r) => r,
             Expression::FunctionDef(r) => r,
+            Expression::Type(r) => r,
             Expression::Return(r) => r,
             Expression::Break(r) => r,
             Expression::Continue(r) => r,
@@ -1004,20 +1017,30 @@ pub mod walk {
         Ok(LiteralExpr(visitor.visit_literal(ctx, node.0.ast_ref())?))
     }
 
-    pub struct TypedExpr<'c, V: AstVisitor<'c>> {
+    pub struct AsExpr<'c, V: AstVisitor<'c>> {
         pub ty: V::TypeRet,
         pub expr: V::ExpressionRet,
     }
 
-    pub fn walk_typed_expr<'c, V: AstVisitor<'c>>(
+    pub fn walk_as_expr<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> Result<TypedExpr<'c, V>, V::Error> {
-        Ok(TypedExpr {
+        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+    ) -> Result<AsExpr<'c, V>, V::Error> {
+        Ok(AsExpr {
             ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
             expr: visitor.visit_expression(ctx, node.expr.ast_ref())?,
         })
+    }
+
+    pub struct TypeExpr<'c, V: AstVisitor<'c>>(pub V::TypeRet);
+
+    pub fn walk_type_expr<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<TypeExpr<'c, V>, V::Error> {
+        Ok(TypeExpr(visitor.visit_type(ctx, node.0.ast_ref())?))
     }
 
     pub struct BlockExpr<'c, V: AstVisitor<'c>>(pub V::BlockRet);
@@ -2147,7 +2170,7 @@ pub mod walk {
 
     pub struct TypeFunctionDefArg<'c, V: AstVisitor<'c>> {
         pub name: V::NameRet,
-        pub ty: V::TypeRet,
+        pub ty: Option<V::TypeRet>,
     }
 
     pub fn walk_type_function_def_arg<'c, V: AstVisitor<'c>>(
@@ -2157,7 +2180,11 @@ pub mod walk {
     ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
         Ok(TypeFunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
+            ty: node
+                .ty
+                .as_ref()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref()))
+                .transpose()?,
         })
     }
 

@@ -637,7 +637,7 @@ pub struct TypeFunctionDefArg<'c> {
     pub name: AstNode<'c, Name>,
 
     /// The argument bounds.
-    pub ty: AstNode<'c, Type<'c>>,
+    pub ty: Option<AstNode<'c, Type<'c>>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -854,7 +854,7 @@ pub struct PropertyAccessExpr<'c> {
 
 /// A typed expression, e.g. `foo as int`.
 #[derive(Debug, PartialEq)]
-pub struct TypedExpr<'c> {
+pub struct AsExpr<'c> {
     /// The annotated type of the expression.
     pub ty: AstNode<'c, Type<'c>>,
     /// The expression being typed.
@@ -886,6 +886,11 @@ pub struct RefExpr<'c> {
     /// Mutability modifier on the expression.
     pub mutability: Option<AstNode<'c, Mutability>>,
 }
+
+/// A dereference expression.
+#[derive(Debug, PartialEq)]
+pub struct TypeExpr<'c>(pub AstNode<'c, Type<'c>>);
+
 /// A dereference expression.
 #[derive(Debug, PartialEq)]
 pub struct DerefExpr<'c>(pub AstNode<'c, Expression<'c>>);
@@ -918,7 +923,7 @@ pub enum ExpressionKind<'c> {
     Deref(DerefExpr<'c>),
     Unsafe(UnsafeExpr<'c>),
     LiteralExpr(LiteralExpr<'c>),
-    Typed(TypedExpr<'c>),
+    As(AsExpr<'c>),
     Block(BlockExpr<'c>),
     Import(ImportExpr<'c>),
     StructDef(StructDef<'c>),
@@ -926,6 +931,7 @@ pub enum ExpressionKind<'c> {
     TypeFunctionDef(TypeFunctionDef<'c>),
     TraitDef(TraitDef<'c>),
     FunctionDef(FunctionDef<'c>),
+    Type(TypeExpr<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),

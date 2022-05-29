@@ -250,13 +250,13 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(literal)
     }
 
-    type TypedExprRet = TreeNode;
-    fn visit_typed_expr(
+    type AsExprRet = TreeNode;
+    fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> Result<Self::TypedExprRet, Self::Error> {
-        let walk::TypedExpr { ty, expr } = walk::walk_typed_expr(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+    ) -> Result<Self::AsExprRet, Self::Error> {
+        let walk::AsExpr { ty, expr } = walk::walk_as_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "typed_expr",
             vec![
@@ -264,6 +264,17 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
                 TreeNode::branch("type", vec![ty]),
             ],
         ))
+    }
+
+    type TypeExprRet = TreeNode;
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error> {
+        let walk::TypeExpr(ty) = walk::walk_type_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch("type", vec![ty]))
     }
 
     type BlockExprRet = TreeNode;
@@ -946,7 +957,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::TypeFunctionDefArg { name, ty } =
             walk::walk_type_function_def_arg(self, ctx, node)?;
 
-        Ok(TreeNode::branch("arg", vec![name, ty]))
+        Ok(TreeNode::branch(
+            "arg",
+            iter::once(name).chain(ty).collect(),
+        ))
     }
 
     type ConstructorPatternRet = TreeNode;
