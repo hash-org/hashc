@@ -31,7 +31,7 @@ impl Generics<'_> {
 pub struct EnumVariant<'c> {
     pub name: Identifier,
     pub data: Row<'c, TypeId>,
-    pub location: SourceLocation,
+    pub span: SourceLocation,
 }
 
 #[derive(Debug, Default)]
@@ -113,7 +113,7 @@ pub enum TypeDefValueKind<'c> {
 #[derive(Debug)]
 pub struct TypeDefValue<'c> {
     pub kind: TypeDefValueKind<'c>,
-    pub location: Option<SourceLocation>,
+    pub span: Option<SourceLocation>,
 }
 
 counter! {
@@ -444,7 +444,7 @@ impl<'c, 'w> TypeDefStorage<'c, 'w> {
             id,
             Cell::new(self.wall.alloc_value(TypeDefValue {
                 kind: def,
-                location,
+                span: location,
             })),
         );
         id
@@ -472,7 +472,7 @@ impl TypeLocation {
 pub struct TypeStorage<'c, 'w> {
     data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
     unknown_data: SlotMap<UnknownTypeId, Cell<Option<TypeId>>>,
-    location_map: TypeLocation,
+    span_map: TypeLocation,
     wall: &'w Wall<'c>,
 }
 
@@ -483,7 +483,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         Self {
             data: SlotMap::with_key(),
             unknown_data: SlotMap::with_key(),
-            location_map,
+            span_map: location_map,
             wall,
         }
     }
@@ -501,8 +501,8 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         }
     }
 
-    pub fn get_location(&self, ty: TypeId) -> Option<&SourceLocation> {
-        self.location_map.get_location(ty)
+    pub fn get_span(&self, ty: TypeId) -> Option<&SourceLocation> {
+        self.span_map.get_location(ty)
     }
 
     pub fn set_unknown(&self, target: UnknownTypeId, source: TypeId) {
@@ -538,7 +538,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn add_location(&mut self, ty: TypeId, location: SourceLocation) {
-        self.location_map.add_location(ty, location);
+        self.span_map.add_location(ty, location);
     }
 
     pub fn create_type_var(&mut self, name: &str) -> TypeId {
@@ -570,7 +570,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         let id = self.data.insert(Cell::new(self.wall.alloc_value(value)));
 
         if let Some(location) = location {
-            self.location_map.add_location(id, location);
+            self.span_map.add_location(id, location);
         }
 
         id

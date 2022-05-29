@@ -170,7 +170,7 @@ impl ReportCodeBlock {
                 let source_id = self.source_location.source_id;
                 let source = modules.contents_by_id(source_id);
 
-                let location = self.source_location.location;
+                let location = self.source_location.span;
 
                 let (start_col, start_row) = offset_col_row(location.start(), source);
                 let (end_col, end_row) = offset_col_row(location.end(), source);

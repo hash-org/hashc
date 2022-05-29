@@ -20,7 +20,7 @@ use hash_ast::{
     ast_nodes,
     ident::{Identifier, IDENTIFIER_MAP},
 };
-use hash_source::location::{Location, SourceLocation};
+use hash_source::location::{SourceLocation, Span};
 use hash_token::{Token, TokenKind, TokenKindVector};
 
 use self::error::{AstGenError, AstGenErrorKind};
@@ -78,7 +78,7 @@ pub struct AstGen<'c, 'stream, 'resolver> {
     /// if the expression `k[]` was being parsed, the index component `[]` is expected to be
     /// non-empty, so the error reporting can grab the span of the `[]` and report it as an
     /// expected expression.
-    parent_span: Option<Location>,
+    parent_span: Option<Span>,
 
     /// The token stream
     stream: &'stream [Token],
@@ -126,7 +126,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Create new AST generator from a provided token stream with inherited module resolver
     /// and a provided parent span.
     #[must_use]
-    pub fn from_stream(&self, stream: &'stream [Token], parent_span: Location) -> Self {
+    pub fn from_stream(&self, stream: &'stream [Token], parent_span: Span) -> Self {
         Self {
             stream,
             token_trees: self.token_trees,
@@ -140,9 +140,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to create a [SourceLocation] from a [Location] by using the provided resolver
-    pub(crate) fn source_location(&self, location: &Location) -> SourceLocation {
+    pub(crate) fn source_location(&self, location: &Span) -> SourceLocation {
         SourceLocation {
-            location: *location,
+            span: *location,
             source_id: self.resolver.current_source_id(),
         }
     }
@@ -216,7 +216,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Get the current location from the current token, if there is no token at the current
     /// offset, then the location of the last token is used.
-    pub(crate) fn current_location(&self) -> Location {
+    pub(crate) fn current_location(&self) -> Span {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
             return self.parent_span.unwrap_or_default();
@@ -232,12 +232,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Get the next location of the token, if there is no token after, we use the
     /// next character offset to determine the location.
-    pub(crate) fn next_location(&self) -> Location {
+    pub(crate) fn next_location(&self) -> Span {
         match self.peek() {
             Some(token) => token.span,
             None => {
                 let span = self.current_location();
-                Location::span(span.end(), span.end() + 1)
+                Span::span(span.end(), span.end() + 1)
             }
         }
     }
@@ -250,14 +250,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
-    pub fn node_with_span<T>(&self, inner: T, location: Location) -> AstNode<'c, T> {
+    pub fn node_with_span<T>(&self, inner: T, location: Span) -> AstNode<'c, T> {
         AstNode::new(inner, location, &self.wall)
     }
 
     /// Create a new [AstNode] with a span that ranges from the start [Location] to the
     /// current location.
     #[inline(always)]
-    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Location) -> AstNode<'c, T> {
+    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Span) -> AstNode<'c, T> {
         AstNode::new(body, start.join(self.current_location()), &self.wall)
     }
 
@@ -268,7 +268,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
         received: Option<TokenKind>,
-        location: Option<Location>,
+        location: Option<Span>,
     ) -> AstGenError<'c> {
         AstGenError::new(
             kind,
@@ -294,7 +294,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         kind: AstGenErrorKind,
         expected: Option<TokenKindVector<'c>>,
         received: Option<TokenKind>,
-        location: Location,
+        location: Span,
     ) -> AstGenResult<'c, T> {
         Err(self.make_error(kind, expected, received, Some(location)))
     }
@@ -328,11 +328,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Make an [Expression] with kind [ExpressionKind::Variable] from a specified identifier
     /// string.
-    pub(crate) fn make_ident(
-        &self,
-        name: &str,
-        location: &Location,
-    ) -> AstNode<'c, Expression<'c>> {
+    pub(crate) fn make_ident(&self, name: &str, location: &Span) -> AstNode<'c, Expression<'c>> {
         self.node_with_span(
             Expression::new(ExpressionKind::Variable(VariableExpr {
                 name: self.make_access_name_from_str(name, *location),
@@ -354,7 +350,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn make_access_name_from_str<T: Into<String>>(
         &self,
         name: T,
-        location: Location,
+        location: Span,
     ) -> AstNode<'c, AccessName<'c>> {
         let name = self.node_with_span(IDENTIFIER_MAP.create_ident(&name.into()), location);
 
@@ -370,7 +366,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn make_access_name_from_identifier(
         &self,
         name: Identifier,
-        location: Location,
+        location: Span,
     ) -> AstNode<'c, AccessName<'c>> {
         self.node_with_span(
             AccessName {

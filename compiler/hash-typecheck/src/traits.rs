@@ -214,7 +214,7 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
 
         if trait_args.len() != trt.args.len() {
             return Err(TypecheckError::TypeArgumentLengthMismatch {
-                location: args_location.or_else(|| trt_symbol().location()),
+                location: args_location.or_else(|| trt_symbol().span()),
                 mismatch: ArgumentLengthMismatch::new(trt.args.len(), trait_args.len()),
             });
         }
