@@ -517,15 +517,27 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(walk::walk_literal_expr(self, ctx, node)?.0)
     }
 
-    type TypedExprRet = TypeId;
-    fn visit_typed_expr(
+    type AsExprRet = TypeId;
+    fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> Result<Self::TypedExprRet, Self::Error> {
-        let walk::TypedExpr { expr, ty } = walk::walk_typed_expr(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+    ) -> Result<Self::AsExprRet, Self::Error> {
+        let walk::AsExpr { expr, ty } = walk::walk_as_expr(self, ctx, node)?;
         self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
         Ok(expr)
+    }
+
+    type TypeExprRet = TypeId;
+
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error> {
+        let walk::TypeExpr(inner) = walk::walk_type_expr(self, ctx, node)?;
+
+        Ok(inner)
     }
 
     type BlockExprRet = TypeId;

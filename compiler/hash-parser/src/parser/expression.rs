@@ -153,6 +153,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::TraitDef(self.parse_trait_def()?)),
                 &token.span,
             ),
+            TokenKind::Keyword(Keyword::Type) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::Type(TypeExpr(self.parse_type()?))),
+                &token.span,
+            ),
             // @@Note: This doesn't cover '{' case.
             kind if kind.begins_block() => {
                 let start = self.current_location();
@@ -313,7 +317,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // where we transform the AstNode into a different
                     if matches!(op.kind, OperatorKind::As) {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::Typed(TypedExpr {
+                            Expression::new(ExpressionKind::As(AsExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),
@@ -753,9 +757,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// A destructuring pattern, potential for-all statement, optional
     /// type definition and a potential definition of the right hand side. For example:
     /// ```text
-    /// some_var...<int>: float = ...;
-    /// ^^^^^^^^   ^^^^^  ^^^^^   ^^^─────┐
-    ///   pattern  bound   type    the right hand-side expr
+    /// some_var: float = ...;
+    /// ^^^^^^^^  ^^^^^   ^^^─────┐
+    /// pattern    type    the right hand-side expr
     /// ```
     pub(crate) fn parse_declaration(
         &self,
