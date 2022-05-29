@@ -9,6 +9,7 @@ use hash_alloc::{collections::row::Row, row};
 use hash_ast::{
     ast::*,
     ast_nodes,
+    ident::Identifier,
     literal::STRING_LITERAL_MAP,
     operator::{Operator, OperatorKind},
 };
@@ -124,22 +125,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // Handle primitive literals
             kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(ident) => {
-                let name = self.parse_access_name(self.node_with_span(*ident, token.span))?;
+                let start = self.node_with_span(*ident, token.span);
 
-                // @@Speed: so here we want to be efficient about type_args, we'll just try to
-                // see if the next token atom is a 'Lt' rather than using parse_token_atom
-                // because it throws an error essentially and thus allocates a stupid amount
-                // of strings which at the end of the day aren't even used...
-                let type_args = match self.peek() {
-                    Some(token) if token.has_kind(TokenKind::Lt) => self
-                        .peek_resultant_fn(|| self.parse_type_args(false))
-                        .unwrap_or_else(AstNodes::empty),
-                    _ => AstNodes::empty(),
-                };
-
-                // create the lhs expr.
                 self.node_with_joined_span(
-                    Expression::new(ExpressionKind::Variable(VariableExpr { name, type_args })),
+                    Expression::new(ExpressionKind::Variable(
+                        self.parse_variable_expression(Some(start))?,
+                    )),
                     &token.span,
                 )
             }
@@ -162,6 +153,24 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 &token.span,
             ),
             // @@Note: This doesn't cover '{' case.
+            TokenKind::Keyword(Keyword::Impl)
+                if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
+            {
+                // Parse the `VariableExpr`
+                let start_span = self.current_location();
+                let trait_name =
+                    self.node_with_joined_span(self.parse_variable_expression(None)?, &start_span);
+
+                let implementation = self.parse_expressions_from_braces()?;
+
+                self.node_with_joined_span(
+                    Expression::new(ExpressionKind::TraitImpl(TraitImpl {
+                        name: trait_name,
+                        implementation,
+                    })),
+                    &token.span,
+                )
+            }
             kind if kind.begins_block() => {
                 let start = self.current_location();
 
@@ -277,6 +286,40 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         };
 
         self.parse_singular_expression(subject)
+    }
+
+    fn parse_variable_expression(
+        &self,
+        start: Option<AstNode<'c, Identifier>>,
+    ) -> AstGenResult<'c, VariableExpr<'c>> {
+        let name = match start {
+            Some(node) => self.parse_access_name(node)?,
+            None => match self.peek() {
+                Some(Token {
+                    kind: TokenKind::Ident(ident),
+                    span,
+                }) => self.parse_access_name(self.node_with_span(*ident, *span))?,
+                token => self.error_with_location(
+                    AstGenErrorKind::AccessName,
+                    None,
+                    token.map(|t| t.kind),
+                    token.map_or_else(|| self.next_location(), |tok| tok.span),
+                )?,
+            },
+        };
+
+        // @@Speed: so here we want to be efficient about type_args, we'll just try to
+        // see if the next token atom is a 'Lt' rather than using parse_token_atom
+        // because it throws an error essentially and thus allocates a stupid amount
+        // of strings which at the end of the day aren't even used...
+        let type_args = match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Lt) => self
+                .peek_resultant_fn(|| self.parse_type_args(false))
+                .unwrap_or_else(AstNodes::empty),
+            _ => AstNodes::empty(),
+        };
+
+        Ok(VariableExpr { name, type_args })
     }
 
     /// Parse an expression whilst taking into account binary precedence operators.
@@ -1427,5 +1470,44 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             })),
             &start,
         ))
+    }
+
+    /// Function to parse a sequence of top-level [Expression]s from a brace-block exhausting all of the
+    /// remaining tokens within the block. This function expects that the next token is a [TokenKind::Tree]
+    /// and it will consume it producing [Expression]s from it.
+    pub(crate) fn parse_expressions_from_braces(
+        &self,
+    ) -> AstGenResult<'c, AstNodes<'c, Expression<'c>>> {
+        match self.peek() {
+            Some(Token {
+                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
+                span,
+            }) => {
+                self.skip_token();
+
+                let tree = self.token_trees.get(*tree_index).unwrap();
+                let gen = self.from_stream(tree, *span);
+
+                let mut expressions = vec![];
+
+                // Continue eating the generator until no more tokens are present
+                while gen.has_token() {
+                    let (_, expr) = gen.parse_top_level_expression(true)?;
+                    expressions.push(expr);
+                }
+                gen.verify_is_empty()?;
+
+                Ok(AstNodes::new(
+                    Row::from_vec(expressions, &self.wall),
+                    Some(*span),
+                ))
+            }
+            token => self.error_with_location(
+                AstGenErrorKind::Block,
+                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
+            )?,
+        }
     }
 }
