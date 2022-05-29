@@ -208,8 +208,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefExpr<'c>>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        let walk::RefExpr { inner_expr } = walk::walk_ref_expr(self, ctx, node)?;
-        Ok(TreeNode::branch("ref", vec![inner_expr]))
+        let walk::RefExpr {
+            inner_expr,
+            mutability,
+        } = walk::walk_ref_expr(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "ref",
+            iter::once(inner_expr)
+                .chain(mutability.map(|inner| TreeNode::branch("mutability", vec![inner])))
+                .collect(),
+        ))
     }
 
     type DerefExprRet = TreeNode;
@@ -242,13 +250,13 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(literal)
     }
 
-    type TypedExprRet = TreeNode;
-    fn visit_typed_expr(
+    type AsExprRet = TreeNode;
+    fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> Result<Self::TypedExprRet, Self::Error> {
-        let walk::TypedExpr { ty, expr } = walk::walk_typed_expr(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+    ) -> Result<Self::AsExprRet, Self::Error> {
+        let walk::AsExpr { ty, expr } = walk::walk_as_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "typed_expr",
             vec![
@@ -256,6 +264,17 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
                 TreeNode::branch("type", vec![ty]),
             ],
         ))
+    }
+
+    type TypeExprRet = TreeNode;
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error> {
+        let walk::TypeExpr(ty) = walk::walk_type_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch("type", vec![ty]))
     }
 
     type BlockExprRet = TreeNode;
@@ -393,18 +412,24 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
-        let walk::RefType(inner) = walk::walk_ref_type(self, ctx, node)?;
-        Ok(TreeNode::branch("ref", vec![inner]))
-    }
+        let walk::RefType { inner, mutability } = walk::walk_ref_type(self, ctx, node)?;
 
-    type RawRefTypeRet = TreeNode;
-    fn visit_raw_ref_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RawRefType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error> {
-        let walk::RawRefType(inner) = walk::walk_raw_ref_type(self, ctx, node)?;
-        Ok(TreeNode::branch("raw_ref", vec![inner]))
+        let label = if node
+            .kind
+            .as_ref()
+            .map_or(false, |t| *t.body() == ast::RefKind::Raw)
+        {
+            "raw_ref"
+        } else {
+            "ref"
+        };
+
+        Ok(TreeNode::branch(
+            label,
+            iter::once(inner)
+                .chain(mutability.map(|t| TreeNode::branch("mutability", vec![t])))
+                .collect(),
+        ))
     }
 
     type MergedTypeRet = TreeNode;
@@ -412,7 +437,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergedType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+    ) -> Result<Self::MergedTypeRet, Self::Error> {
         let walk::MergedType(tys) = walk::walk_merged_type(self, ctx, node)?;
         Ok(TreeNode::branch("merged", tys))
     }
@@ -971,7 +996,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         let walk::TypeFunctionDefArg { name, ty } =
             walk::walk_type_function_def_arg(self, ctx, node)?;
 
-        Ok(TreeNode::branch("arg", vec![name, ty]))
+        Ok(TreeNode::branch(
+            "arg",
+            iter::once(name).chain(ty).collect(),
+        ))
     }
 
     type ConstructorPatternRet = TreeNode;

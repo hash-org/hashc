@@ -273,11 +273,14 @@ pub enum RefKind {
 
 /// A reference type.
 #[derive(Debug, PartialEq)]
-pub struct RefType<'c>(pub AstNode<'c, Type<'c>>);
-
-/// A raw reference type
-#[derive(Debug, PartialEq)]
-pub struct RawRefType<'c>(pub AstNode<'c, Type<'c>>);
+pub struct RefType<'c> {
+    /// Inner type of the reference type
+    pub inner: AstNode<'c, Type<'c>>,
+    /// Whether this reference is a `raw` reference or normal reference (normal by default).
+    pub kind: Option<AstNode<'c, RefKind>>,
+    /// Mutability of the reference (immutable by default)
+    pub mutability: Option<AstNode<'c, Mutability>>,
+}
 
 /// The existential type (`?`).
 #[derive(Debug, PartialEq, Eq)]
@@ -373,7 +376,6 @@ pub enum Type<'c> {
     Fn(FnType<'c>),
     Named(NamedType<'c>),
     Ref(RefType<'c>),
-    RawRef(RawRefType<'c>),
     Merged(MergedType<'c>),
     TypeFunction(TypeFunction<'c>),
     TypeFunctionCall(TypeFunctionCall<'c>),
@@ -635,7 +637,7 @@ pub struct TypeFunctionDefArg<'c> {
     pub name: AstNode<'c, Name>,
 
     /// The argument bounds.
-    pub ty: AstNode<'c, Type<'c>>,
+    pub ty: Option<AstNode<'c, Type<'c>>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -868,7 +870,7 @@ pub struct PropertyAccessExpr<'c> {
 
 /// A typed expression, e.g. `foo as int`.
 #[derive(Debug, PartialEq)]
-pub struct TypedExpr<'c> {
+pub struct AsExpr<'c> {
     /// The annotated type of the expression.
     pub ty: AstNode<'c, Type<'c>>,
     /// The expression being typed.
@@ -895,8 +897,16 @@ pub struct VariableExpr<'c> {
 #[derive(Debug, PartialEq)]
 pub struct RefExpr<'c> {
     pub inner_expr: AstNode<'c, Expression<'c>>,
+    /// The kind of reference, either being a normal reference or a `raw` reference
     pub kind: RefKind,
+    /// Mutability modifier on the expression.
+    pub mutability: Option<AstNode<'c, Mutability>>,
 }
+
+/// A dereference expression.
+#[derive(Debug, PartialEq)]
+pub struct TypeExpr<'c>(pub AstNode<'c, Type<'c>>);
+
 /// A dereference expression.
 #[derive(Debug, PartialEq)]
 pub struct DerefExpr<'c>(pub AstNode<'c, Expression<'c>>);
@@ -938,7 +948,7 @@ pub enum ExpressionKind<'c> {
     Deref(DerefExpr<'c>),
     Unsafe(UnsafeExpr<'c>),
     LiteralExpr(LiteralExpr<'c>),
-    Typed(TypedExpr<'c>),
+    As(AsExpr<'c>),
     Block(BlockExpr<'c>),
     Import(ImportExpr<'c>),
     StructDef(StructDef<'c>),
@@ -946,6 +956,7 @@ pub enum ExpressionKind<'c> {
     TypeFunctionDef(TypeFunctionDef<'c>),
     TraitDef(TraitDef<'c>),
     FunctionDef(FunctionDef<'c>),
+    Type(TypeExpr<'c>),
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),

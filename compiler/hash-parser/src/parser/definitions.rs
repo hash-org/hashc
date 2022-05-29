@@ -194,15 +194,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
-        self.parse_token(TokenKind::Colon)?;
+        let ty = self
+            .parse_token_fast(TokenKind::Colon)
+            .map(|_| self.parse_type())
+            .transpose()?;
 
-        Ok(self.node_with_joined_span(
-            TypeFunctionDefArg {
-                name,
-                ty: self.parse_type()?,
-            },
-            &start,
-        ))
+        Ok(self.node_with_joined_span(TypeFunctionDefArg { name, ty }, &start))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with `trait` that contains

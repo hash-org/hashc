@@ -152,6 +152,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::TraitDef(self.parse_trait_def()?)),
                 &token.span,
             ),
+            TokenKind::Keyword(Keyword::Type) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::Type(TypeExpr(self.parse_type()?))),
+                &token.span,
+            ),
             // @@Note: This doesn't cover '{' case.
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
@@ -364,7 +368,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // where we transform the AstNode into a different
                     if matches!(op.kind, OperatorKind::As) {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::Typed(TypedExpr {
+                            Expression::new(ExpressionKind::As(AsExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),
@@ -686,14 +690,35 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 match self.peek() {
                     Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Raw)) => {
                         self.skip_token();
+
+                        // Parse a mutability modifier if any
+                        let mutability = self
+                            .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
+                            .map(|_| {
+                                self.node_with_span(Mutability::Mutable, self.current_location())
+                            });
+
                         ExpressionKind::Ref(RefExpr {
                             inner_expr: self.parse_expression()?,
                             kind: RefKind::Raw,
+                            mutability,
+                        })
+                    }
+                    Some(Token {
+                        kind: TokenKind::Keyword(Keyword::Mut),
+                        span,
+                    }) => {
+                        self.skip_token();
+                        ExpressionKind::Ref(RefExpr {
+                            inner_expr: self.parse_expression()?,
+                            kind: RefKind::Raw,
+                            mutability: Some(self.node_with_span(Mutability::Mutable, *span)),
                         })
                     }
                     _ => ExpressionKind::Ref(RefExpr {
                         inner_expr: self.parse_expression()?,
                         kind: RefKind::Normal,
+                        mutability: None,
                     }),
                 }
             }
@@ -783,9 +808,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// A destructuring pattern, potential for-all statement, optional
     /// type definition and a potential definition of the right hand side. For example:
     /// ```text
-    /// some_var...<int>: float = ...;
-    /// ^^^^^^^^   ^^^^^  ^^^^^   ^^^─────┐
-    ///   pattern  bound   type    the right hand-side expr
+    /// some_var: float = ...;
+    /// ^^^^^^^^  ^^^^^   ^^^─────┐
+    /// pattern    type    the right hand-side expr
     /// ```
     pub(crate) fn parse_declaration(
         &self,
@@ -866,6 +891,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
                 inner_expr: expr,
                 kind: RefKind::Normal,
+                mutability: None,
             }))),
             false => expr,
         }

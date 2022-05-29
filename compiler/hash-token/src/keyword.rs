@@ -32,6 +32,7 @@ pub enum Keyword {
     Mut,
     Mod,
     Impl,
+    Type,
 }
 
 /// Enum Variants for keywords
