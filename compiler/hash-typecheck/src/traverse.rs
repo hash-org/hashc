@@ -1,7 +1,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use crate::types::{
-    CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RawRefType, RefType, StructDef,
-    TupleType, TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVars,
+    CoreTypeDefs, EnumDef, FnType, NamespaceType, PrimType, RefType, StructDef, TupleType,
+    TypeDefStorage, TypeId, TypeStorage, TypeValue, TypeVars,
 };
 use crate::types::{TypeDefId, TypeVar, UserType};
 use crate::unify::{Substitution, Unifier, UnifyStrategy};
@@ -461,6 +461,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::RefExprRet, Self::Error> {
         let walk::RefExpr {
             inner_expr: inner_ty,
+            ..
         } = walk::walk_ref_expr(self, ctx, node)?;
 
         let ty_location = self.source_location(node.location());
@@ -516,15 +517,27 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(walk::walk_literal_expr(self, ctx, node)?.0)
     }
 
-    type TypedExprRet = TypeId;
-    fn visit_typed_expr(
+    type AsExprRet = TypeId;
+    fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypedExpr<'c>>,
-    ) -> Result<Self::TypedExprRet, Self::Error> {
-        let walk::TypedExpr { expr, ty } = walk::walk_typed_expr(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+    ) -> Result<Self::AsExprRet, Self::Error> {
+        let walk::AsExpr { expr, ty } = walk::walk_as_expr(self, ctx, node)?;
         self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
         Ok(expr)
+    }
+
+    type TypeExprRet = TypeId;
+
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error> {
+        let walk::TypeExpr(inner) = walk::walk_type_expr(self, ctx, node)?;
+
+        Ok(inner)
     }
 
     type BlockExprRet = TypeId;
@@ -702,21 +715,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
-        let walk::RefType(inner) = walk::walk_ref_type(self, ctx, node)?;
+        let walk::RefType { inner, .. } = walk::walk_ref_type(self, ctx, node)?;
         let ty_location = self.source_location(node.location());
 
         Ok(self.create_type(TypeValue::Ref(RefType { inner }), Some(ty_location)))
-    }
-
-    type RawRefTypeRet = TypeId;
-    fn visit_raw_ref_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RawRefType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error> {
-        let walk::RawRefType(inner) = walk::walk_raw_ref_type(self, ctx, node)?;
-        let ty_location = self.source_location(node.location());
-        Ok(self.create_type(TypeValue::RawRef(RawRefType { inner }), Some(ty_location)))
     }
 
     type MergedTypeRet = TypeId;
@@ -724,7 +726,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::MergedType<'c>>,
-    ) -> Result<Self::RawRefTypeRet, Self::Error> {
+    ) -> Result<Self::MergedTypeRet, Self::Error> {
         todo!()
     }
 
