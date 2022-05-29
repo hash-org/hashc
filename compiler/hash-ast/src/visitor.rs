@@ -369,6 +369,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::ModBlock<'c>>,
     ) -> Result<Self::ModBlockRet, Self::Error>;
 
+    type ImplBlockRet: 'c;
+    fn visit_impl_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error>;
+
     type BodyBlockRet: 'c;
     fn visit_body_block(
         &mut self,
@@ -418,6 +425,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Declaration<'c>>,
     ) -> Result<Self::DeclarationRet, Self::Error>;
 
+    type MergeDeclarationRet: 'c;
+    fn visit_merge_declaration(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error>;
+
     type AssignExpressionRet: 'c;
     fn visit_assign_expression(
         &mut self,
@@ -466,6 +480,13 @@ pub trait AstVisitor<'c>: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Pattern<'c>>,
     ) -> Result<Self::PatternRet, Self::Error>;
+
+    type TraitImplRet: 'c;
+    fn visit_trait_impl(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error>;
 
     type TypeFunctionDefRet: 'c;
     fn visit_type_function_def(
@@ -724,6 +745,8 @@ pub mod walk {
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignExpressionRet),
+        MergeDeclaration(V::MergeDeclarationRet),
+        TraitImpl(V::TraitImplRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -744,6 +767,9 @@ pub mod walk {
             ast::ExpressionKind::Declaration(inner) => {
                 Expression::Declaration(visitor.visit_declaration(ctx, node.with_body(inner))?)
             }
+            ast::ExpressionKind::MergeDeclaration(inner) => Expression::MergeDeclaration(
+                visitor.visit_merge_declaration(ctx, node.with_body(inner))?,
+            ),
             ast::ExpressionKind::Variable(inner) => {
                 Expression::Variable(visitor.visit_variable_expr(ctx, node.with_body(inner))?)
             }
@@ -798,6 +824,9 @@ pub mod walk {
             ast::ExpressionKind::Assign(r) => {
                 Expression::Assign(visitor.visit_assign_expression(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::TraitImpl(r) => {
+                Expression::TraitImpl(visitor.visit_trait_impl(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -812,6 +841,7 @@ pub mod walk {
             FunctionCallExprRet = Ret,
             DirectiveExprRet = Ret,
             DeclarationRet = Ret,
+            MergeDeclarationRet = Ret,
             VariableExprRet = Ret,
             PropertyAccessExprRet = Ret,
             RefExprRet = Ret,
@@ -825,6 +855,7 @@ pub mod walk {
             EnumDefRet = Ret,
             TypeFunctionDefRet = Ret,
             TraitDefRet = Ret,
+            TraitImplRet = Ret,
             FunctionDefRet = Ret,
             TypeExprRet = Ret,
             ReturnStatementRet = Ret,
@@ -837,6 +868,7 @@ pub mod walk {
             Expression::FunctionCall(r) => r,
             Expression::Directive(r) => r,
             Expression::Declaration(r) => r,
+            Expression::MergeDeclaration(r) => r,
             Expression::Variable(r) => r,
             Expression::PropertyAccess(r) => r,
             Expression::Ref(r) => r,
@@ -850,6 +882,7 @@ pub mod walk {
             Expression::EnumDef(r) => r,
             Expression::TypeFunctionDef(r) => r,
             Expression::TraitDef(r) => r,
+            Expression::TraitImpl(r) => r,
             Expression::FunctionDef(r) => r,
             Expression::Type(r) => r,
             Expression::Return(r) => r,
@@ -1200,6 +1233,16 @@ pub mod walk {
         Ok(ModBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
+    pub struct ImplBlock<'c, V: AstVisitor<'c>>(pub V::BlockRet);
+
+    pub fn walk_impl_block<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<ImplBlock<'c, V>, V::Error> {
+        Ok(ImplBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
+    }
+
     pub struct BodyBlock<'c, V: AstVisitor<'c>> {
         pub statements: V::CollectionContainer<V::ExpressionRet>,
         pub expr: Option<V::ExpressionRet>,
@@ -1230,6 +1273,7 @@ pub mod walk {
         Loop(V::LoopBlockRet),
         Mod(V::ModBlockRet),
         Body(V::BodyBlockRet),
+        Impl(V::ImplBlockRet),
     }
 
     pub fn walk_block<'c, V: AstVisitor<'c>>(
@@ -1244,6 +1288,7 @@ pub mod walk {
             ast::Block::Loop(r) => Block::Loop(visitor.visit_loop_block(ctx, node.with_body(r))?),
             ast::Block::Mod(r) => Block::Mod(visitor.visit_mod_block(ctx, node.with_body(r))?),
             ast::Block::Body(r) => Block::Body(visitor.visit_body_block(ctx, node.with_body(r))?),
+            ast::Block::Impl(r) => Block::Impl(visitor.visit_impl_block(ctx, node.with_body(r))?),
         })
     }
 
@@ -1259,6 +1304,7 @@ pub mod walk {
             LoopBlockRet = Ret,
             ModBlockRet = Ret,
             BodyBlockRet = Ret,
+            ImplBlockRet = Ret,
         >,
     {
         Ok(match walk_block(visitor, ctx, node)? {
@@ -1266,6 +1312,7 @@ pub mod walk {
             Block::Loop(r) => r,
             Block::Mod(r) => r,
             Block::Body(r) => r,
+            Block::Impl(r) => r,
         })
     }
 
@@ -2045,6 +2092,22 @@ pub mod walk {
         })
     }
 
+    pub struct MergeDeclaration<'c, V: AstVisitor<'c>> {
+        pub pattern: V::PatternRet,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_merge_declaration<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<MergeDeclaration<'c, V>, V::Error> {
+        Ok(MergeDeclaration {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref())?,
+        })
+    }
+
     pub struct AssignStatement<'c, V: AstVisitor<'c>> {
         pub lhs: V::ExpressionRet,
         pub rhs: V::ExpressionRet,
@@ -2191,6 +2254,7 @@ pub mod walk {
     pub struct TraitDef<'c, V: AstVisitor<'c>> {
         pub members: V::CollectionContainer<V::ExpressionRet>,
     }
+
     pub fn walk_trait_def<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
@@ -2200,6 +2264,27 @@ pub mod walk {
             members: V::try_collect_items(
                 ctx,
                 node.members
+                    .iter()
+                    .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
+            )?,
+        })
+    }
+
+    pub struct TraitImpl<'c, V: AstVisitor<'c>> {
+        pub trait_name: V::VariableExprRet,
+        pub implementation: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_trait_impl<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<TraitImpl<'c, V>, V::Error> {
+        Ok(TraitImpl {
+            trait_name: visitor.visit_variable_expr(ctx, node.name.ast_ref())?,
+            implementation: V::try_collect_items(
+                ctx,
+                node.implementation
                     .iter()
                     .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
             )?,

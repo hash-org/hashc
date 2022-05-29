@@ -734,7 +734,6 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     }
 
     type ModBlockRet = TreeNode;
-
     fn visit_mod_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -742,6 +741,16 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::ModBlockRet, Self::Error> {
         let walk::ModBlock(inner) = walk::walk_mod_block(self, ctx, node)?;
         Ok(TreeNode::branch("module", inner.children))
+    }
+
+    type ImplBlockRet = TreeNode;
+    fn visit_impl_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        let walk::ImplBlock(inner) = walk::walk_impl_block(self, ctx, node)?;
+        Ok(TreeNode::branch("impl", inner.children))
     }
 
     type BodyBlockRet = TreeNode;
@@ -832,6 +841,18 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
+    type MergeDeclarationRet = TreeNode;
+    fn visit_merge_declaration(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
+        let walk::MergeDeclaration { pattern, value } =
+            walk::walk_merge_declaration(self, ctx, node)?;
+
+        Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
+    }
+
     type AssignExpressionRet = TreeNode;
     fn visit_assign_expression(
         &mut self,
@@ -915,6 +936,24 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "trait_def",
             vec![TreeNode::branch("members", members)],
+        ))
+    }
+
+    type TraitImplRet = TreeNode;
+
+    fn visit_trait_impl(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error> {
+        let walk::TraitImpl {
+            implementation,
+            trait_name: name,
+        } = walk::walk_trait_impl(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "trait_impl",
+            vec![name, TreeNode::branch("implementation", implementation)],
         ))
     }
 

@@ -654,6 +654,17 @@ pub struct Declaration<'c> {
     pub value: Option<AstNode<'c, Expression<'c>>>,
 }
 
+/// A merge declaration (adding implementations to traits/structs), e.g. `x ~= impl { ... };`.
+#[derive(Debug, PartialEq)]
+pub struct MergeDeclaration<'c> {
+    /// The pattern to bind the right-hand side to.
+    pub pattern: AstNode<'c, Pattern<'c>>,
+
+    /// Any value that is assigned to the binding, simply
+    /// an expression.
+    pub value: AstNode<'c, Expression<'c>>,
+}
+
 /// An assign expression, e.g. `x = 4;`.
 #[derive(Debug, PartialEq)]
 pub struct AssignExpression<'c> {
@@ -769,6 +780,9 @@ pub struct LoopBlock<'c>(pub AstNode<'c, Block<'c>>);
 #[derive(Debug, PartialEq)]
 pub struct ModBlock<'c>(pub AstNode<'c, Block<'c>>);
 
+#[derive(Debug, PartialEq)]
+pub struct ImplBlock<'c>(pub AstNode<'c, Block<'c>>);
+
 /// A block.
 #[derive(Debug, PartialEq)]
 pub enum Block<'c> {
@@ -780,6 +794,8 @@ pub enum Block<'c> {
     Mod(ModBlock<'c>),
     /// A body block.
     Body(BodyBlock<'c>),
+    /// An implementation block
+    Impl(ImplBlock<'c>),
 }
 
 /// A function definition argument.
@@ -911,6 +927,15 @@ pub struct BlockExpr<'c>(pub AstNode<'c, Block<'c>>);
 #[derive(Debug, PartialEq)]
 pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
 
+/// A trait implementation.
+#[derive(Debug, PartialEq)]
+pub struct TraitImpl<'c> {
+    /// The referenced name to the trait
+    pub name: AstNode<'c, VariableExpr<'c>>,
+    /// The implementation of the trait.
+    pub implementation: AstNodes<'c, Expression<'c>>,
+}
+
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
@@ -936,6 +961,8 @@ pub enum ExpressionKind<'c> {
     Break(BreakStatement),
     Continue(ContinueStatement),
     Assign(AssignExpression<'c>),
+    MergeDeclaration(MergeDeclaration<'c>),
+    TraitImpl(TraitImpl<'c>),
 }
 
 /// An expression.
