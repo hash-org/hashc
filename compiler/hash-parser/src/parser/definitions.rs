@@ -209,40 +209,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        let members = match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                span,
-            }) => {
-                self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, *span);
-
-                let mut expressions = AstNodes::empty();
-
-                while gen.has_token() {
-                    let (_, expr) = gen.parse_top_level_expression(true)?;
-                    expressions.nodes.push(expr, &self.wall);
-                }
-
-                // Verify that generator is empty
-                if gen.has_token() {
-                    gen.error(AstGenErrorKind::EOF, None, None)?
-                }
-
-                expressions
-            }
-            token => self.error_with_location(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::singleton(
-                    &self.wall,
-                    TokenKind::Delimiter(Delimiter::Brace, true),
-                )),
-                token.map(|t| t.kind),
-                token.map_or_else(|| self.next_location(), |t| t.span),
-            )?,
-        };
-
-        Ok(TraitDef { members })
+        Ok(TraitDef {
+            members: self.parse_expressions_from_braces()?,
+        })
     }
 }

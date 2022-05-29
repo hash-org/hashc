@@ -1082,6 +1082,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
+    type ImplBlockRet = TypeId;
+    fn visit_impl_block(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        todo!()
+    }
+
     type BodyBlockRet = TypeId;
     fn visit_body_block(
         &mut self,
@@ -1217,6 +1226,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_void_type())
     }
 
+    type MergeDeclarationRet = TypeId;
+
+    fn visit_merge_declaration(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error> {
+        todo!()
+    }
+
     type AssignExpressionRet = TypeId;
 
     fn visit_assign_expression(
@@ -1308,6 +1327,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         //     .add_symbol(node.name.ident, SymbolType::Trait(trait_id));
 
         Ok(self.types_mut().create_void_type())
+    }
+
+    type TraitImplRet = TypeId;
+
+    fn visit_trait_impl(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error> {
+        todo!()
     }
 
     type PatternRet = TypeId;

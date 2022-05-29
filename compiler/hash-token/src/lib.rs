@@ -104,6 +104,7 @@ impl TokenKind {
                 | TokenKind::Keyword(Keyword::Mod)
                 | TokenKind::Keyword(Keyword::If)
                 | TokenKind::Keyword(Keyword::Match)
+                | TokenKind::Keyword(Keyword::Impl)
         )
     }
 
