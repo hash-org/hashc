@@ -10,14 +10,14 @@ use std::{convert::TryInto, fmt};
 /// The first element of the tuple represents the starting byte offset and the second element
 /// represents the ending byte offset.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
-pub struct Location(u32, u32);
+pub struct Span(u32, u32);
 
 /// General functions to create [Location] variants
-impl Location {
+impl Span {
     /// Create a 'Pos' variant by providing a single position
     pub fn pos(pos: usize) -> Self {
         let pos = pos.try_into().unwrap();
-        Location(pos, pos + 1)
+        Span(pos, pos + 1)
     }
 
     /// Create a 'Span' variant by providing a start and end byte position.
@@ -27,7 +27,7 @@ impl Location {
             "Got invalid span for Location::span. Start needs to be smaller than end."
         );
 
-        Location(start.try_into().unwrap(), end.try_into().unwrap())
+        Span(start.try_into().unwrap(), end.try_into().unwrap())
     }
 
     /// This function is used to join a location to another. The assumption is made that the left hand-side
@@ -46,7 +46,7 @@ impl Location {
     #[must_use]
     pub fn join(&self, end: Self) -> Self {
         if self.end() <= end.start() {
-            return Location::span(self.start(), end.end());
+            return Span::span(self.start(), end.end());
         }
 
         *self
@@ -69,14 +69,14 @@ impl Location {
 }
 
 /// Default value for a new [Location]
-impl Default for Location {
+impl Default for Span {
     fn default() -> Self {
         Self::pos(0)
     }
 }
 
 /// Implementation for displaying a [Location]
-impl fmt::Display for Location {
+impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}:{}", self.0, self.1)
     }
@@ -84,6 +84,6 @@ impl fmt::Display for Location {
 
 #[derive(Debug, Clone, Copy, Constructor)]
 pub struct SourceLocation {
-    pub location: Location,
+    pub span: Span,
     pub source_id: SourceId,
 }

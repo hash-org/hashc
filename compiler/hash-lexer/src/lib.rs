@@ -9,7 +9,7 @@ use hash_ast::{
     ident::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
     literal::STRING_LITERAL_MAP,
 };
-use hash_source::{location::Location, SourceId};
+use hash_source::{location::Span, SourceId};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use std::{cell::Cell, iter};
 use utils::is_id_start;
@@ -148,7 +148,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                         // return here the slash and advance it by one.
                         return Ok(Some(Token::new(
                             TokenKind::Slash,
-                            Location::pos(self.offset.get()),
+                            Span::pos(self.offset.get()),
                         )));
                     }
                 },
@@ -223,7 +223,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             ch => TokenKind::Unexpected(ch),
         };
 
-        let location = Location::span(offset, self.len_consumed());
+        let location = Span::span(offset, self.len_consumed());
         Ok(Some(Token::new(token_kind, location)))
     }
 
@@ -256,7 +256,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             _ => Err(LexerError::new(
                 None,
                 LexerErrorKind::Unclosed(delimiter),
-                Location::pos(start),
+                Span::pos(start),
             )),
         }
     }
@@ -339,7 +339,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     return Err(LexerError::new(
                         Some("Integer literal too large".to_string()),
                         LexerErrorKind::MalformedNumericalLiteral,
-                        Location::span(start, self.offset.get()),
+                        Span::span(start, self.offset.get()),
                     ));
                 }
 
@@ -380,7 +380,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     Err(e) => Err(LexerError::new(
                         Some(format!("Malformed integer literal: '{}'.", e)),
                         LexerErrorKind::MalformedNumericalLiteral,
-                        Location::span(start, self.offset.get()),
+                        Span::span(start, self.offset.get()),
                     )),
                     Ok(value) => Ok(TokenKind::IntLiteral(value)),
                 }
@@ -400,7 +400,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             Err(_) => Err(LexerError::new(
                 Some("Malformed float literal.".to_string()),
                 LexerErrorKind::MalformedNumericalLiteral,
-                Location::span(start, self.offset.get()),
+                Span::span(start, self.offset.get()),
             )),
             Ok(value) => {
                 let exp = self.eat_exponent(start)?;
@@ -436,7 +436,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             return Err(LexerError::new(
                 None,
                 LexerErrorKind::MissingExponentDigits,
-                Location::span(start, self.offset.get()),
+                Span::span(start, self.offset.get()),
             ));
         }
 
@@ -444,7 +444,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             Err(_) => Err(LexerError::new(
                 Some("Invalid float exponent.".to_string()),
                 LexerErrorKind::MalformedNumericalLiteral,
-                Location::span(start, self.offset.get() + 1),
+                Span::span(start, self.offset.get() + 1),
             )),
             Ok(num) if negated => Ok(-num),
             Ok(num) => Ok(num),
@@ -478,7 +478,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     return Err(LexerError::new(
                         Some("Expected '{' after a '\\u' escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Location::span(start, self.offset.get()),
+                        Span::span(start, self.offset.get()),
                     ));
                 }
 
@@ -491,7 +491,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     return Err(LexerError::new(
                         Some("Expected '}' after a escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Location::span(start, self.offset.get()),
+                        Span::span(start, self.offset.get()),
                     ));
                 }
                 self.skip(); // Eat the '}' ending part of the scape sequence
@@ -500,7 +500,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     return Err(LexerError::new(
                         Some("Unicode escape literal must be at most 6 hex digits.".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Location::span(start, self.offset.get()),
+                        Span::span(start, self.offset.get()),
                     ));
                 }
 
@@ -515,7 +515,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                                 .to_string(),
                         ),
                         LexerErrorKind::BadEscapeSequence,
-                        Location::span(start, self.offset.get()),
+                        Span::span(start, self.offset.get()),
                     ));
                 }
 
@@ -530,12 +530,12 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                         EOF_CHAR => Err(LexerError::new(
                             Some("ASCII escape code too short".to_string()),
                             LexerErrorKind::BadEscapeSequence,
-                            Location::span(start, self.offset.get()),
+                            Span::span(start, self.offset.get()),
                         )),
                         c => Err(LexerError::new(
                             Some("ASCII escape code must only contain hex digits".to_string()),
                             LexerErrorKind::Unexpected(c),
-                            Location::span(start, self.offset.get()),
+                            Span::span(start, self.offset.get()),
                         )),
                     })
                     .collect();
@@ -559,7 +559,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             ch => Err(LexerError::new(
                 Some(format!("Unknown escape sequence '{}'", ch)),
                 LexerErrorKind::BadEscapeSequence,
-                Location::pos(start),
+                Span::pos(start),
             )),
         }
     }
@@ -594,14 +594,14 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                     return Err(LexerError::new(
                         Some("Unclosed character literal.".to_string()),
                         LexerErrorKind::Expected(TokenKind::SingleQuote),
-                        Location::pos(self.offset.get()),
+                        Span::pos(self.offset.get()),
                     ));
                 }
 
                 return Err(LexerError::new(
                     Some("Character literal can only contain one codepoint.".to_string()),
                     LexerErrorKind::BadEscapeSequence,
-                    Location::span(start, self.offset.get()),
+                    Span::span(start, self.offset.get()),
                 ));
             }
 
@@ -618,7 +618,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         Err(LexerError::new(
             None,
             LexerErrorKind::InvalidCharacterLiteral(literal.to_string()),
-            Location::span(start, self.offset.get() + 1),
+            Span::span(start, self.offset.get() + 1),
         ))
     }
 
@@ -650,7 +650,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             return Err(LexerError::new(
                 None,
                 LexerErrorKind::UnclosedStringLiteral,
-                Location::span(start, self.offset.get()),
+                Span::span(start, self.offset.get()),
             ));
         }
 

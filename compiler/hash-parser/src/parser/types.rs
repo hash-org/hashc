@@ -192,7 +192,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // parsed type
             let arg_span = name
                 .as_ref()
-                .map_or_else(|| ty.location(), |node| node.location().join(ty.location()));
+                .map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
 
             type_args.push(self.node_with_span(NamedFieldTypeEntry { name, ty }, arg_span));
 

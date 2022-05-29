@@ -29,7 +29,7 @@ impl Symbol {
         }
     }
 
-    pub fn location(&self) -> Option<SourceLocation> {
+    pub fn span(&self) -> Option<SourceLocation> {
         match self {
             Symbol::Compound { location, .. } | Symbol::Single { location, .. } => *location,
         }
@@ -132,7 +132,7 @@ pub enum TypecheckError {
         field_name: Identifier,
         location: SourceLocation,
         ty_def_name: Identifier,
-        ty_def_location: Option<SourceLocation>,
+        ty_def_span: Option<SourceLocation>,
     },
     ExpectingBooleanInCondition {
         found: TypeId,
@@ -185,9 +185,9 @@ impl TypecheckError {
                 builder.with_error_code(HashErrorCode::TypeMismatch);
 
                 let given_ty = TypeWithStorage::new(given, storage);
-                let given_ty_location = storage.types.get_location(given);
+                let given_ty_location = storage.types.get_span(given);
                 let wanted_ty = TypeWithStorage::new(wanted, storage);
-                let wanted_ty_location = storage.types.get_location(wanted);
+                let wanted_ty_location = storage.types.get_span(wanted);
 
                 if let Some(location) = wanted_ty_location {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
@@ -266,9 +266,9 @@ impl TypecheckError {
                     let ancestor_name =
                         IDENTIFIER_MAP.get_path(ancestor_symbol.get_ident().into_iter());
 
-                    if let Some(location) = symbol.location() {
+                    if let Some(span) = symbol.span() {
                         builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                            location,
+                            span,
                             format!("not found in `{}`", ancestor_name),
                         )));
                     }
@@ -279,9 +279,9 @@ impl TypecheckError {
                         symbol_name, ancestor_name
                     ));
                 } else {
-                    if let Some(location) = symbol.location() {
+                    if let Some(span) = symbol.span() {
                         builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                            location,
+                            span,
                             "not found in this scope",
                         )));
                     }
@@ -298,7 +298,7 @@ impl TypecheckError {
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     if let Some(ancestor_symbol) = ancestor {
                         let ancestor_name =
                             IDENTIFIER_MAP.get_path(ancestor_symbol.get_ident().into_iter());
@@ -331,7 +331,7 @@ impl TypecheckError {
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "This is a variable",
@@ -361,7 +361,7 @@ impl TypecheckError {
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "This expects a type.",
@@ -378,7 +378,7 @@ impl TypecheckError {
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "This expects a type.",
@@ -395,7 +395,7 @@ impl TypecheckError {
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "This expects a variable.",
@@ -412,7 +412,7 @@ impl TypecheckError {
 
                 let symbol_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "This expects a trait.",
@@ -458,14 +458,14 @@ impl TypecheckError {
                 let ty_def_name = IDENTIFIER_MAP.get_path(ty_def.get_ident().into_iter());
 
                 // If we have the location of the definition, we can print it here
-                if let Some(ty_def_location) = ty_def.location() {
+                if let Some(ty_def_location) = ty_def.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         ty_def_location,
                         format!("The struct `{}` is defined here.", ty_def_name),
                     )));
                 }
 
-                if let Some(field_location) = field.location() {
+                if let Some(field_location) = field.span() {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                             field_location,
@@ -580,7 +580,7 @@ impl TypecheckError {
                 field_name,
                 location,
                 ty_def_name,
-                ty_def_location,
+                ty_def_span: ty_def_location,
             } => {
                 builder.with_error_code(HashErrorCode::InvalidPropertyAccess);
 
@@ -624,7 +624,7 @@ impl TypecheckError {
                 let ident_path = symbol.get_ident();
                 let formatted_symbol = IDENTIFIER_MAP.get_path(ident_path.into_iter());
 
-                if let Some(location) = symbol.location() {
+                if let Some(location) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "trait not found in this scope",
@@ -674,7 +674,7 @@ impl TypecheckError {
 
                 let trt_name = IDENTIFIER_MAP.get_path(symbol.get_ident().into_iter());
 
-                if let Some(loc) = symbol.location() {
+                if let Some(loc) = symbol.span() {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         loc,
                         format!("No matching implementations for `{}`.", trt_name),
@@ -694,8 +694,8 @@ impl TypecheckError {
                 builder.with_error_code(HashErrorCode::FunctionArgumentLengthMismatch);
 
                 let ArgumentLengthMismatch { wanted, given } = mismatch;
-                let source_location = storage.types.get_location(source);
-                let target_location = storage.types.get_location(target);
+                let source_location = storage.types.get_span(source);
+                let target_location = storage.types.get_span(target);
 
                 builder.with_message(format!(
                     "Function argument mismatch, expected `{}` arguments, but got `{}`.",
@@ -723,7 +723,7 @@ impl TypecheckError {
             }
             TypecheckError::UnresolvedType(ty) => {
                 builder.with_error_code(HashErrorCode::UnresolvedType);
-                let source_location = storage.types.get_location(ty);
+                let source_location = storage.types.get_span(ty);
 
                 builder.with_message(
                     "Cannot resolve this type.", // @@Todo: get smart about whether this is a pattern, expression, etc.

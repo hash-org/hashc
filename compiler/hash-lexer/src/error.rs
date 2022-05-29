@@ -3,7 +3,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use derive_more::Constructor;
-use hash_source::{location::Location, SourceId};
+use hash_source::{location::Span, SourceId};
 use hash_token::{delimiter::Delimiter, TokenKind};
 use thiserror::Error;
 
@@ -18,7 +18,7 @@ pub type LexerResult<T> = Result<T, LexerError>;
 pub struct LexerError {
     pub(crate) message: Option<String>,
     kind: LexerErrorKind,
-    pub location: Location,
+    pub span: Span,
 }
 
 /// This implementation exists since we can't use tuples that are un-named
@@ -71,7 +71,7 @@ pub enum LexerErrorKind {
 //             .with_message("Failed to parse")
 //             .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
 //                 SourceLocation {
-//                     location: self.location,
+//                     span: self.span,
 //                     source_id,
 //                 },
 //                 "here",

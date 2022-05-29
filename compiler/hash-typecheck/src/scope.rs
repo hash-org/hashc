@@ -292,7 +292,7 @@ pub fn resolve_compound_symbol(
         match symbols_iter.next() {
             Some(&(symbol, symbol_location)) => {
                 let location = SourceLocation {
-                    location: symbol_location,
+                    span: symbol_location,
                     source_id,
                 };
 
