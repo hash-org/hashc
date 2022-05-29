@@ -236,8 +236,8 @@ impl ParseError {
 }
 
 impl From<LexerErrorWrapper> for ParseError {
-    /// Implementation to convert a [`hash_lexer::LexerError`] with the combination of a
-    /// [SourceId] into a [ParseError]. This is used in order to interface with the lexer
+    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the combination of a
+    /// [`hash_source::SourceId`] into a [ParseError]. This is used in order to interface with the lexer
     /// within the parsing stage.
     ///
     /// @@Future: In the future, there is a hope that we don't

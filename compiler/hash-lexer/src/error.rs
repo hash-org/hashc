@@ -11,7 +11,7 @@ use thiserror::Error;
 pub type LexerResult<T> = Result<T, LexerError>;
 
 /// A [LexerError] represents a encountered error during tokenisation, which includes an optional message
-/// with the error, the [LexerErrorKind] which classifies the error, and a [Location] that represents
+/// with the error, the [LexerErrorKind] which classifies the error, and a [Span] that represents
 /// where the tokenisation error occurred.
 #[derive(Debug, Constructor, Error)]
 #[error("{kind} {}", .message.as_ref().unwrap_or(&String::from("")))]

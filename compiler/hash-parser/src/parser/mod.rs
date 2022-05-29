@@ -139,10 +139,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
     }
 
-    /// Function to create a [SourceLocation] from a [Location] by using the provided resolver
-    pub(crate) fn source_location(&self, location: &Span) -> SourceLocation {
+    /// Function to create a [SourceLocation] from a [Span] by using the provided resolver
+    pub(crate) fn source_location(&self, span: &Span) -> SourceLocation {
         SourceLocation {
-            span: *location,
+            span: *span,
             source_id: self.resolver.current_source_id(),
         }
     }
@@ -237,7 +237,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             Some(token) => token.span,
             None => {
                 let span = self.current_location();
-                Span::span(span.end(), span.end() + 1)
+                Span::new(span.end(), span.end() + 1)
             }
         }
     }
@@ -254,8 +254,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         AstNode::new(inner, location, &self.wall)
     }
 
-    /// Create a new [AstNode] with a span that ranges from the start [Location] to the
-    /// current location.
+    /// Create a new [AstNode] with a span that ranges from the start [Span] to the
+    /// current [Span].
     #[inline(always)]
     pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Span) -> AstNode<'c, T> {
         AstNode::new(body, start.join(self.current_location()), &self.wall)
