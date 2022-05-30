@@ -85,3 +85,144 @@ impl SourceStorage {
         }
     }
 }
+
+mod new {
+    #![allow(unused)]
+
+    use hash_ast::ident::Identifier;
+    use std::collections::HashMap;
+
+    pub struct TyId;
+    pub struct TrtDefId;
+    pub struct StructDefId;
+    pub struct EnumDefId;
+    pub struct ModDefId;
+    pub struct ResolutionId;
+
+    enum Visibility {
+        Public,
+        Private,
+    }
+
+    enum Mutability {
+        Mutable,
+        Immutable,
+    }
+
+    struct ScopeMember {
+        name: Identifier,
+        ty: TyId,
+        visibility: Visibility,
+        mutability: Mutability,
+        initialised: bool,
+    }
+
+    struct ConstMember {
+        name: Identifier,
+        ty: TyId,
+        visibility: Visibility,
+        initialised: bool,
+    }
+
+    struct TyArg {
+        name: Identifier,
+        value: TyId,
+    }
+
+    struct TyParam {
+        name: Identifier,
+        bound: TyId,
+        default: Option<TyId>,
+    }
+
+    pub struct Param {
+        name: Option<Identifier>,
+        ty: TyId,
+        has_default: bool,
+    }
+
+    pub enum ModDefOrigin {
+        TrtImpl(TrtDefId),
+        AnonImpl,
+        Mod,
+    }
+
+    pub struct ModDef {
+        name: Identifier,
+        origin: ModDefOrigin,
+        resolved_ty_args: Vec<TyArg>,
+        members: Vec<ConstMember>,
+    }
+
+    pub enum StructFields {
+        Explicit(Vec<Param>),
+        Opaque,
+    }
+
+    pub struct StructDef {
+        name: Identifier,
+        fields: StructFields,
+    }
+
+    pub struct EnumVariant {
+        name: Identifier,
+        fields: Vec<Param>,
+    }
+
+    pub struct EnumDef {
+        name: Identifier,
+        variants: HashMap<Identifier, EnumVariant>,
+    }
+
+    pub struct TrtDef {
+        name: Identifier,
+        members: Vec<ConstMember>,
+    }
+
+    pub enum NominalDef {
+        Struct(StructDefId),
+        Enum(EnumDefId),
+    }
+
+    pub struct ImplGroup {
+        nominal_def: Option<NominalDef>,
+        modules: Vec<ModDefId>,
+    }
+
+    pub struct TupleTy {
+        members: Vec<Param>,
+    }
+
+    pub struct FnTy {
+        params: Vec<Param>,
+        return_ty: TyId,
+    }
+
+    pub struct TyFnTy {
+        params: Vec<TyParam>,
+        return_ty: TyId,
+    }
+
+    pub struct UnresolvedTy {
+        resolution_id: ResolutionId,
+    }
+
+    pub enum Ty {
+        /// Any type, only to be used from within [Extends].
+        Any,
+        /// The type of a type
+        Ty,
+        /// Type that extends some other type.
+        Extends(Box<Ty>),
+        /// Definitions (structs, enums, traits, impl blocks, mod blocks)
+        ImplGroup(ImplGroup),
+        /// Tuple type.
+        Tuple(TupleTy),
+        /// Function type.
+        Fn(FnTy),
+        /// Type function type.
+        TyFn(TyFnTy),
+        /// Not yet resolved.
+        Unresolved(UnresolvedTy),
+    }
+}
