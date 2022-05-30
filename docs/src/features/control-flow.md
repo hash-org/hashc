@@ -32,11 +32,11 @@ conditional statements:
 
 ```rust
 if b == 2 {
-    print("b is 2")
+    print("b is 2");
 } else if b == 3 {
-    print("b is 3")
+    print("b is 3");
 } else {
-    print("b isn't 2 or 3 ")
+    print("b isn't 2 or 3 ");
 }
 ```
 
@@ -143,44 +143,34 @@ match result {
 
 # Loops
 
-Hash contains 3 distinct loop control constructs: `for`, `while` and `loop`. Each construct has
-a distinct usage case, but they can often be used interchangeably without hassle and are merely
-a style choice.
+Hash has three different kinds of loops: `for`, `while` and `loop`.
+Each construct has a distinct use case, but they can often be used interchangeably without hassle and are often a stylistic choice.
 
 ## General
 
-Each construct supports the basic `break` and `continue` loop control flow statements. These statements
-have the same properties as in many other languages like C, Rust, Python etc.
+Each construct supports the basic `break` and `continue` loop control flow statements.
+These statements have the same properties as in many other languages like C, Rust, Python etc.
 
-`break` - Using this control flow statements immediately terminates the loop and continues
-to any statement after the loop (if any).
-
-`continue` - Using this control flow statement will immediately skip the current iteration
-of the loop body and move on to the next iteration (if any). Obviously, if no iterations
-remain, `continue` behaves just like `break`.
+- `break`: Immediately exit the loop.
+- `continue`: Skip the current iteration of the loop and move on to the next iteration (if any).
 
 ## For loop
 
-###  Basics
-
-For loops are special loop control statements that are designed to be used
-with iterators. 
-
-For loops can be defined as:
+For loops are loop control statements that are designed to be used with iterators. 
+For example:
 
 ```rust
-for i in range(1, 10) { // range is a built in iterator
+for i in range(1, 10) { // range is a built in function that returns an Iterator<isize>
     print(i);
 }
 ```
 
-Iterating over lists is also quite simple using the `iter` function to 
-convert the list into an iterator:
+Iterating over lists is also quite simple using the `iter` function to convert the list into an iterator:
 
 ```rust
-nums: [u32] = [1,2,3,4,5,6,7,8,9,10]; 
+nums := [1,2,3,4,5,6,7,8,9,10]; 
 
-// infix functional notation
+// Infix functional notation:
 for num in nums.iter() {
     print(num);
 }
