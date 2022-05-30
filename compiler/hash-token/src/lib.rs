@@ -13,24 +13,24 @@ use hash_alloc::Wall;
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
-use hash_source::location::Location;
+use hash_source::location::Span;
 use keyword::Keyword;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
-/// token contains a kind which is elaborated by [TokenKind] and a [Location] in the
+/// token contains a kind which is elaborated by [TokenKind] and a [Span] in the
 /// source that is represented as a span. The span is the beginning byte offset, and the
 /// number of bytes for the said token.
 #[derive(Debug, PartialEq)]
 pub struct Token {
     /// The current token type.
     pub kind: TokenKind,
-    /// The spanning location of the current token.
-    pub span: Location,
+    /// The span of the current token.
+    pub span: Span,
 }
 
 impl Token {
-    /// Create a new token from a kind and a provided location.
-    pub fn new(kind: TokenKind, span: Location) -> Self {
+    /// Create a new token from a kind and a provided [Span].
+    pub fn new(kind: TokenKind, span: Span) -> Self {
         Token { kind, span }
     }
 

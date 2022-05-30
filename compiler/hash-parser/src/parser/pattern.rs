@@ -5,7 +5,7 @@
 
 use hash_alloc::{collections::row::Row, row};
 use hash_ast::{ast::*, ast_nodes, ident::CORE_IDENTIFIERS};
-use hash_source::location::Location;
+use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use crate::{disable_flag, enable_flag};
@@ -208,7 +208,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let pattern = match self.parse_token_fast(TokenKind::Keyword(Keyword::As)) {
             Some(_) => self.parse_pattern()?,
             None => {
-                let span = name.location();
+                let span = name.span();
                 let copy = self.node(Name { ..*name.body() });
 
                 self.node_with_span(
@@ -229,7 +229,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_destructuring_patterns(
         &self,
         tree: &'stream Row<'stream, Token>,
-        span: Location,
+        span: Span,
     ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
         let gen = self.from_stream(tree, span);
 
@@ -259,7 +259,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_list_pattern(
         &self,
         tree_index: usize,
-        parent_span: Location,
+        parent_span: Span,
     ) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let tree = self.token_trees.get(tree_index).unwrap();
         let gen = self.from_stream(tree, parent_span);
@@ -281,7 +281,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_tuple_pattern(
         &self,
         tree_index: usize,
-        parent_span: Location,
+        parent_span: Span,
     ) -> AstGenResult<'c, AstNode<'c, Pattern<'c>>> {
         let tree = self.token_trees.get(tree_index).unwrap();
 

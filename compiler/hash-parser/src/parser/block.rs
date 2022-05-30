@@ -5,7 +5,7 @@
 
 use hash_alloc::row;
 use hash_ast::{ast::*, ast_nodes};
-use hash_source::location::Location;
+use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -39,7 +39,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_block_from_gen(
         &self,
         gen: &Self,
-        start: Location,
+        start: Span,
         initial_statement: Option<AstNode<'c, Expression<'c>>>,
     ) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         // Append the initial statement if there is one.
@@ -95,8 +95,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let iterator = self.parse_expression_with_precedence(0)?;
 
         let body = self.parse_block()?;
-        let (pat_span, iter_span, body_span) =
-            (pattern.location(), iterator.location(), body.location());
+        let (pat_span, iter_span, body_span) = (pattern.span(), iterator.span(), body.span());
 
         // transpile the for-loop into a simpler loop as described by the documentation.
         // Since for loops are used for iterators in hash, we transpile the construct into a primitive loop.
@@ -208,7 +207,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let body = self.parse_block()?;
 
-        let (condition_span, body_span) = (condition.location(), body.location());
+        let (condition_span, body_span) = (condition.span(), body.span());
 
         Ok(self.node_with_joined_span(
             Block::Loop(LoopBlock(self.node_with_span(
@@ -327,7 +326,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             let clause = self.parse_expression_with_precedence(0)?;
 
             let branch = self.parse_block()?;
-            let (clause_span, branch_span) = (clause.location(), branch.location());
+            let (clause_span, branch_span) = (clause.span(), branch.span());
 
             cases.nodes.push(
                 self.node_with_span(
@@ -369,7 +368,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     let start = self.current_location();
 
                     let else_branch = self.parse_block()?;
-                    let else_span = start.join(else_branch.location());
+                    let else_span = start.join(else_branch.span());
 
                     has_else_branch = true;
 

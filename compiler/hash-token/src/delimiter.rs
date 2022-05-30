@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-/// A [Delimiter] is a [Token] kind that is used to denote a separation or a nested token
+/// A [Delimiter] is a [super::TokenKind] is used to denote a separation or a nested token
 /// tree. The [Delimiter] does not contain the `<...>` because this conflicts with the
 /// binary operators '<' and '>'.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -53,9 +53,9 @@ impl Delimiter {
     }
 }
 
-/// Display implementation for [Delimiter], it's always assumed that it's asking for
-/// the right hand-side variant of the delimiter.
 impl std::fmt::Display for Delimiter {
+    /// Display implementation for [Delimiter], it's always assumed that it's asking for
+    /// the right hand-side variant of the delimiter.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.right())
     }

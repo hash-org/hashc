@@ -21,7 +21,7 @@ pub struct AstGenError<'a> {
     /// The kind of the error.
     kind: AstGenErrorKind,
     /// Location of where the error references
-    location: SourceLocation,
+    span: SourceLocation,
     /// An optional vector of tokens that are expected to circumvent the error.
     expected: Option<TokenKindVector<'a>>,
     /// An optional token in question that was received byt shouldn't of been
@@ -173,7 +173,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
 
         Self::Parsing {
             message: base_message,
-            src: Some(err.location),
+            src: Some(err.span),
         }
     }
 }
@@ -236,8 +236,8 @@ impl ParseError {
 }
 
 impl From<LexerErrorWrapper> for ParseError {
-    /// Implementation to convert a [`hash_lexer::LexerError`] with the combination of a
-    /// [SourceId] into a [ParseError]. This is used in order to interface with the lexer
+    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the combination of a
+    /// [`hash_source::SourceId`] into a [ParseError]. This is used in order to interface with the lexer
     /// within the parsing stage.
     ///
     /// @@Future: In the future, there is a hope that we don't
@@ -247,7 +247,7 @@ impl From<LexerErrorWrapper> for ParseError {
         ParseError::Parsing {
             message: err.to_string(),
             src: Some(SourceLocation {
-                location: err.location,
+                span: err.span,
                 source_id,
             }),
         }

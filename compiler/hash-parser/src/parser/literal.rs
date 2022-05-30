@@ -5,7 +5,7 @@
 
 use hash_alloc::collections::row::Row;
 use hash_ast::ast::*;
-use hash_source::location::Location;
+use hash_source::location::Span;
 use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -149,7 +149,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_array_literal(
         &self,
         tree: &'stream Row<'stream, Token>,
-        span: &Location,
+        span: &Span,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
         let start = gen.current_location();

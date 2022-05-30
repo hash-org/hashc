@@ -7,7 +7,7 @@ use crate::literal::StringLiteral;
 use hash_alloc::brick::Brick;
 use hash_alloc::collections::row::Row;
 use hash_alloc::{row, Wall};
-use hash_source::location::Location;
+use hash_source::location::Span;
 use hash_utils::counter;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -26,7 +26,7 @@ counter! {
 #[derive(Debug)]
 pub struct AstNode<'c, T> {
     body: Brick<'c, T>,
-    location: Location,
+    span: Span,
     id: AstNodeId,
 }
 
@@ -38,10 +38,10 @@ impl<T> PartialEq for AstNode<'_, T> {
 
 impl<'c, T> AstNode<'c, T> {
     /// Create a new node with a given body and location.
-    pub fn new(body: T, location: Location, wall: &Wall<'c>) -> Self {
+    pub fn new(body: T, span: Span, wall: &Wall<'c>) -> Self {
         Self {
             body: Brick::new(body, wall),
-            location,
+            span,
             id: AstNodeId::new(),
         }
     }
@@ -63,7 +63,7 @@ impl<'c, T> AstNode<'c, T> {
     pub fn ast_ref(&self) -> AstNodeRef<T> {
         AstNodeRef {
             body: self.body.as_ref(),
-            location: self.location,
+            span: self.span,
             id: self.id,
         }
     }
@@ -71,14 +71,14 @@ impl<'c, T> AstNode<'c, T> {
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
         AstNodeRef {
             body,
-            location: self.location,
+            span: self.span,
             id: self.id,
         }
     }
 
     /// Get the location of this node in the input.
-    pub fn location(&self) -> Location {
-        self.location
+    pub fn span(&self) -> Span {
+        self.span
     }
 
     /// Get the ID of this node.
@@ -90,7 +90,7 @@ impl<'c, T> AstNode<'c, T> {
 #[derive(Debug)]
 pub struct AstNodeRef<'t, T> {
     body: &'t T,
-    location: Location,
+    span: Span,
     id: AstNodeId,
 }
 
@@ -98,7 +98,7 @@ impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
         Self {
             body: self.body,
-            location: self.location,
+            span: self.span,
             id: self.id,
         }
     }
@@ -115,14 +115,14 @@ impl<'t, T> AstNodeRef<'t, T> {
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
         AstNodeRef {
             body,
-            location: self.location,
+            span: self.span,
             id: self.id,
         }
     }
 
-    /// Get the location of this node in the input.
-    pub fn location(&self) -> Location {
-        self.location
+    /// Get the [Span] of this node in the input.
+    pub fn span(&self) -> Span {
+        self.span
     }
 
     /// Get the ID of this node.
@@ -144,7 +144,7 @@ pub struct AstNodes<'c, T> {
     pub nodes: Row<'c, AstNode<'c, T>>,
 
     /// The span of the AST nodes if one is available,
-    pub span: Option<Location>,
+    pub span: Option<Span>,
 }
 
 #[macro_export]
@@ -174,7 +174,7 @@ impl<'c, T> AstNodes<'c, T> {
         }
     }
 
-    pub fn new(nodes: Row<'c, AstNode<'c, T>>, span: Option<Location>) -> Self {
+    pub fn new(nodes: Row<'c, AstNode<'c, T>>, span: Option<Span>) -> Self {
         Self { nodes, span }
     }
 
@@ -182,19 +182,13 @@ impl<'c, T> AstNodes<'c, T> {
     /// incorrectly offset because there is a 'pre-conditional' token that must
     /// be parsed before parsing the nodes. This token could be something like a
     /// '<' or '(' which starts a tuple, or type bound
-    pub fn set_span(&mut self, span: Location) {
+    pub fn set_span(&mut self, span: Span) {
         self.span = Some(span);
     }
 
-    pub fn location(&self) -> Option<Location> {
-        self.span.or_else(|| {
-            Some(
-                self.nodes
-                    .first()?
-                    .location()
-                    .join(self.nodes.last()?.location()),
-            )
-        })
+    pub fn span(&self) -> Option<Span> {
+        self.span
+            .or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
     }
 }
 
@@ -247,10 +241,10 @@ impl AccessName<'_> {
             .collect::<Vec<_>>()
     }
 
-    pub fn path_with_locations(&self) -> Vec<(Identifier, Location)> {
+    pub fn path_with_locations(&self) -> Vec<(Identifier, Span)> {
         self.path
             .iter()
-            .map(|part| (*part.body(), part.location()))
+            .map(|part| (*part.body(), part.span()))
             .collect::<Vec<_>>()
     }
 }
@@ -335,7 +329,7 @@ pub struct FnType<'c> {
     pub return_ty: AstNode<'c, Type<'c>>,
 }
 
-/// A [TypeFunctionParameter] is a parameter that appears within a [TypeFunction]. This specifies
+/// A [TypeFunctionParam] is a parameter that appears within a [TypeFunction]. This specifies
 /// that the type function takes a particular parameter with a specific name, a bound and a default
 /// value.
 #[derive(Debug, PartialEq)]

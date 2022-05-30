@@ -104,7 +104,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an [EnumDefEntry].
     pub fn parse_enum_def_entry(&self) -> AstGenResult<'c, AstNode<'c, EnumDefEntry<'c>>> {
         let name = self.parse_name()?;
-        let name_span = name.location();
+        let name_span = name.span();
 
         let mut args = AstNodes::empty();
 
