@@ -170,7 +170,7 @@ impl ReportCodeBlock {
                 let source_id = self.source_location.source_id;
                 let source = modules.contents_by_id(source_id);
 
-                let location = self.source_location.location;
+                let location = self.source_location.span;
 
                 let (start_col, start_row) = offset_col_row(location.start(), source);
                 let (end_col, end_row) = offset_col_row(location.end(), source);
@@ -389,7 +389,7 @@ impl ReportBuilder {
         self
     }
 
-    /// Add an associated [ErrorCode] to the [Report].
+    /// Add an associated [HashErrorCode] to the [Report].
     pub fn with_error_code(&mut self, error_code: HashErrorCode) -> &mut Self {
         self.error_code = Some(error_code);
         self

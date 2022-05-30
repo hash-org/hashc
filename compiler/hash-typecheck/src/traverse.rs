@@ -30,7 +30,7 @@ use hash_ast::{visitor, visitor::walk};
 use hash_pipeline::sources::{SourceRef, Sources};
 use hash_source::ModuleId;
 use hash_source::{
-    location::{Location, SourceLocation},
+    location::{SourceLocation, Span},
     SourceId,
 };
 use slotmap::Key;
@@ -71,13 +71,13 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.wall
     }
 
-    pub fn some_source_location(&self, location: Location) -> Option<SourceLocation> {
+    pub fn some_source_location(&self, location: Span) -> Option<SourceLocation> {
         Some(self.source_location(location))
     }
 
-    pub fn source_location(&self, location: Location) -> SourceLocation {
+    pub fn source_location(&self, location: Span) -> SourceLocation {
         SourceLocation {
-            location,
+            span: location,
             source_id: self.source_id,
         }
     }
@@ -322,7 +322,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr<'c>>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let loc = self.source_location(node.location());
+        let loc = self.source_location(node.span());
 
         match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Variable(var_ty_id)) => {
@@ -330,7 +330,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                     Err(TypecheckError::TypeArgumentLengthMismatch {
                         mismatch: ArgumentLengthMismatch::new(0, node.type_args.len()),
                         // It is not empty, as checked above.
-                        location: self.some_source_location(node.type_args.location().unwrap()),
+                        location: self.some_source_location(node.type_args.span().unwrap()),
                     })
                 } else {
                     Ok(var_ty_id)
@@ -381,7 +381,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let given_args = self.visit_function_call_args(ctx, node.args.ast_ref())?;
         let return_ty = self.create_unknown_type();
 
-        let args_ty_location = self.source_location(node.body().args.location());
+        let args_ty_location = self.source_location(node.body().args.span());
         let expected_fn_ty = self.create_type(
             TypeValue::Fn(FnType {
                 args: given_args,
@@ -430,17 +430,17 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                         } else {
                             Err(TypecheckError::InvalidPropertyAccess {
                                 ty_def_name: *name,
-                                ty_def_location: ty_def.location,
+                                ty_def_span: ty_def.span,
                                 field_name: property_ident,
-                                location: self.source_location(node.location()),
+                                location: self.source_location(node.span()),
                             })
                         }
                     }
                     TypeDefValueKind::Enum(EnumDef { .. }) => {
                         Err(TypecheckError::TypeIsNotStruct {
                             ty: subject,
-                            ty_def_location: ty_def.location,
-                            location: self.source_location(node.location()),
+                            ty_def_location: ty_def.span,
+                            location: self.source_location(node.span()),
                         })
                     }
                 }
@@ -448,7 +448,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             _ => Err(TypecheckError::TypeIsNotStruct {
                 ty: subject,
                 ty_def_location: None,
-                location: self.source_location(node.location()),
+                location: self.source_location(node.span()),
             }),
         }
     }
@@ -464,7 +464,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
             ..
         } = walk::walk_ref_expr(self, ctx, node)?;
 
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
         Ok(self.create_type(
             TypeValue::Ref(RefType { inner: inner_ty }),
             Some(ty_location),
@@ -479,7 +479,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let walk::DerefExpr(given_ref_ty) = walk::walk_deref_expr(self, ctx, node)?;
 
-        let ref_location = self.source_location(node.location());
+        let ref_location = self.source_location(node.span());
 
         let created_inner_ty = self.create_unknown_type();
         let created_ref_ty = self.create_type(
@@ -565,7 +565,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::TupleType<'c>>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
         let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
-        let ty_location = self.some_source_location(node.location());
+        let ty_location = self.some_source_location(node.span());
 
         Ok(self
             .types_mut()
@@ -609,7 +609,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         Ok(self.create_type(
             TypeValue::Fn(FnType { args, return_ty }),
-            self.some_source_location(node.location()),
+            self.some_source_location(node.span()),
         ))
     }
 
@@ -632,7 +632,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::Type<'c>>,
     ) -> Result<Self::TypeRet, Self::Error> {
         let ty_id = walk::walk_type_same_children(self, ctx, node)?;
-        // self.global_storage.types.add_location(ty_id, self.source_location(node.location()));
+        // self.global_storage.types.add_location(ty_id, self.source_location(node.span()));
         Ok(ty_id)
     }
 
@@ -642,7 +642,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedType<'c>>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        let location = self.source_location(node.location());
+        let location = self.source_location(node.span());
 
         match self.resolve_compound_symbol(&node.name)? {
             (_, SymbolType::Type(ty_id)) => Ok(self.types_mut().duplicate(ty_id, Some(location))),
@@ -716,7 +716,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         node: ast::AstNodeRef<ast::RefType<'c>>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
         let walk::RefType { inner, .. } = walk::walk_ref_type(self, ctx, node)?;
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Ref(RefType { inner }), Some(ty_location)))
     }
@@ -736,7 +736,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     //     _ctx: &Self::Ctx,
     //     node: ast::AstNodeRef<ast::TypeVar<'c>>,
     // ) -> Result<Self::TypeVarRet, Self::Error> {
-    //     let ty_location = self.some_source_location(node.location());
+    //     let ty_location = self.some_source_location(node.span());
     //     let var = TypeVar {
     //         name: node.name.ident,
     //     };
@@ -875,7 +875,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_str_type(Some(ty_location)))
     }
@@ -886,7 +886,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CharLiteral>,
     ) -> Result<Self::CharLiteralRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::Char), Some(ty_location)))
     }
@@ -897,7 +897,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
     }
@@ -908,7 +908,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BoolLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::Bool), Some(ty_location)))
     }
@@ -919,7 +919,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLiteral>,
     ) -> Result<Self::IntLiteralRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::I32), Some(ty_location)))
     }
@@ -947,10 +947,10 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let old_ret_once = mem::replace(&mut self.tc_state().ret_once, false);
 
         // Try to combine the entire span of the arguments and types
-        let mut location = node.args.location().unwrap_or_else(|| node.location());
+        let mut location = node.args.span().unwrap_or_else(|| node.span());
 
         if let Some(return_ty) = &node.return_ty {
-            location = location.join(return_ty.location());
+            location = location.join(return_ty.span());
         }
 
         let location = self.source_location(location);
@@ -1124,7 +1124,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 Ok(ret)
             }
             None => Err(TypecheckError::UsingReturnOutsideFunction(
-                self.source_location(node.location()),
+                self.source_location(node.span()),
             )),
         }
     }
@@ -1137,7 +1137,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         if !self.tc_state().in_loop {
             Err(TypecheckError::UsingBreakOutsideLoop(
-                self.source_location(node.location()),
+                self.source_location(node.span()),
             ))
         } else {
             Ok(self.types_mut().create_void_type())
@@ -1152,7 +1152,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.tc_state().in_loop {
             Err(TypecheckError::UsingContinueOutsideLoop(
-                self.source_location(node.location()),
+                self.source_location(node.span()),
             ))
         } else {
             Ok(self.types_mut().create_void_type())
@@ -1185,7 +1185,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         // Ensure that the given pattern for the declaration is irrefutable
         if !is_pattern_irrefutable(node.pattern.body()) {
-            let location = self.source_location(node.pattern.location());
+            let location = self.source_location(node.pattern.span());
             return Err(TypecheckError::RequiresIrrefutablePattern(location));
         }
 
@@ -1206,7 +1206,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
         // add type location information on  pattern_ty and annotation_ty
         if let Some(annotation) = &node.body().ty {
-            let location = self.source_location(annotation.location());
+            let location = self.source_location(annotation.span());
             self.add_location_to_ty(annotation_ty, location);
         }
 
@@ -1217,7 +1217,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let pattern_ty = self.visit_pattern(ctx, node.pattern.ast_ref())?;
         self.tc_state().pattern_hint = None;
 
-        let pattern_location = self.source_location(node.body().pattern.location());
+        let pattern_location = self.source_location(node.body().pattern.span());
         self.add_location_to_ty(pattern_ty, pattern_location);
 
         self.unifier()
@@ -1291,7 +1291,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(EnumVariant {
             name: node.name.ident,
             data,
-            location: self.source_location(node.name.location()),
+            span: self.source_location(node.name.span()),
         })
     }
 
@@ -1312,7 +1312,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
         // let type_var_bound =
-        //     self.type_var_only_bound(&bound, self.source_location(node.bound.location()))?;
+        //     self.type_var_only_bound(&bound, self.source_location(node.bound.span()))?;
         // let scope_key = self
         //     .type_vars_mut()
         //     .enter_bounded_type_var_scope(type_var_bound.iter().copied());
@@ -1354,7 +1354,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     //     ctx: &Self::Ctx,
     //     node: ast::AstNodeRef<ast::TraitBound<'c>>,
     // ) -> Result<Self::TraitBoundRet, Self::Error> {
-    // let name_loc = self.source_location(node.name.location());
+    // let name_loc = self.source_location(node.name.span());
 
     // match self.resolve_compound_symbol(&node.name)? {
     //     (_, SymbolType::Trait(trait_id)) => {
@@ -1408,7 +1408,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         let walk::ConstructorPattern { name: _, args } =
             walk::walk_constructor_pattern(self, ctx, node)?;
 
-        let location = self.source_location(node.location());
+        let location = self.source_location(node.span());
 
         let variant_data_mismatches = |ident, ty_def_location, wanted, given| {
             Err(TypecheckError::EnumVariantArgumentsMismatch {
@@ -1479,7 +1479,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     //     ctx: &Self::Ctx,
     //     node: ast::AstNodeRef<ast::StructPattern<'c>>,
     // ) -> Result<Self::StructPatternRet, Self::Error> {
-    //     let location = self.source_location(node.location());
+    //     let location = self.source_location(node.span());
 
     //     let symbol_res = self.resolve_compound_symbol(&node.name)?;
 
@@ -1494,12 +1494,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     //                     node,
     //                     ty_id,
     //                     struct_def,
-    //                     type_def.location,
+    //                     type_def.span,
     //                 ),
     //                 _ => Err(TypecheckError::TypeIsNotStruct {
     //                     ty: ty_id,
     //                     location,
-    //                     ty_def_location: type_def.location,
+    //                     ty_def_location: type_def.span,
     //                 }),
     //             }
     //         }
@@ -1517,12 +1517,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     //                                 node,
     //                                 ty_id,
     //                                 struct_def,
-    //                                 type_def.location,
+    //                                 type_def.span,
     //                             ),
     //                         _ => Err(TypecheckError::TypeIsNotStruct {
     //                             ty: ty_id,
     //                             location,
-    //                             ty_def_location: type_def.location,
+    //                             ty_def_location: type_def.span,
     //                         }),
     //                     }
     //                 }
@@ -1546,7 +1546,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
-        let location = self.source_location(node.location());
+        let location = self.source_location(node.span());
 
         let pattern_ty = self.create_unknown_type();
         self.add_location_to_ty(pattern_ty, location);
@@ -1564,7 +1564,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                 // support types and traits in addition to variables, whereas the implementation
                 // for self.visit_destructuring_pattern does not.
                 for field in node.fields.iter() {
-                    let location = self.source_location(field.location());
+                    let location = self.source_location(field.span());
                     match members.resolve_symbol(field.name.ident) {
                         // Only variables are allowed actual pattern destructuring
                         Some(SymbolType::Variable(variable_type_id)) => {
@@ -1586,7 +1586,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
                                         symbol: field.name.ident,
                                         location: Some(location),
                                     },
-                                    self.source_location(field.pattern.location()),
+                                    self.source_location(field.pattern.span()),
                                 ))
                             }
                         },
@@ -1663,7 +1663,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::StrLiteralPattern>,
     ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_str_type(Some(ty_location)))
     }
@@ -1674,7 +1674,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CharLiteralPattern>,
     ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
         Ok(self.create_type(TypeValue::Prim(PrimType::Char), Some(ty_location)))
     }
 
@@ -1684,7 +1684,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IntLiteralPattern>,
     ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::I32), Some(ty_location)))
     }
@@ -1695,7 +1695,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::F32), Some(ty_location)))
     }
@@ -1706,7 +1706,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BoolLiteralPattern>,
     ) -> Result<Self::BoolLiteralRet, Self::Error> {
-        let ty_location = self.source_location(node.location());
+        let ty_location = self.source_location(node.span());
 
         Ok(self.create_type(TypeValue::Prim(PrimType::Bool), Some(ty_location)))
     }
@@ -1751,7 +1751,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         match self.types().get(condition) {
             TypeValue::Prim(PrimType::Bool) => Ok(pattern),
             _ => Err(TypecheckError::ExpectingBooleanInCondition {
-                location: self.source_location(node.location()),
+                location: self.source_location(node.span()),
                 found: condition,
             }),
         }
@@ -1763,7 +1763,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         _ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BindingPattern<'c>>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let location = self.source_location(node.location());
+        let location = self.source_location(node.span());
 
         // we need to resolve the symbol in the current scope and firstly check if it's
         // an enum...
@@ -1828,11 +1828,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         } = walk::walk_destructuring_pattern(self, ctx, node)?;
         let ident = node.name.ident;
 
-        Ok((
-            ident,
-            pattern_ty,
-            self.source_location(node.name.location()),
-        ))
+        Ok((ident, pattern_ty, self.source_location(node.name.span())))
     }
 
     type ModuleRet = TypeId;
@@ -1896,7 +1892,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     //     for (expected, _) in fields.iter() {
     //         if !entries_given.contains(&expected) {
     //             let name_node = &node.body().name;
-    //             let location = self.source_location(name_node.location());
+    //             let location = self.source_location(name_node.span());
 
     //             return Err(TypecheckError::MissingStructField {
     //                 ty_def_location,
@@ -1920,11 +1916,11 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     //                 return Err(TypecheckError::UnresolvedStructField {
     //                     ty_def: Symbol::Single {
     //                         symbol: *name,
-    //                         location: ty_def_location,
+    //                         span: ty_def_location,
     //                     },
     //                     field: Symbol::Single {
     //                         symbol: entry_name,
-    //                         location: self.some_source_location(entry.location()),
+    //                         span: self.some_source_location(entry.span()),
     //                     },
     //                 });
     //             }
@@ -2017,7 +2013,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                 );
 
                 if variant.data.is_empty() {
-                    return Ok((enum_ty_id, variant.location));
+                    return Ok((enum_ty_id, variant.span));
                 };
 
                 let args = self.unifier().apply_sub_to_arg_list_make_row(
@@ -2038,7 +2034,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
                     Some(location),
                 );
 
-                Ok((enum_variant_fn_ty, variant.location))
+                Ok((enum_variant_fn_ty, variant.span))
             }
             TypeDefValueKind::Struct(_) => unreachable!(),
         }
@@ -2101,12 +2097,12 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
             .iter()
             .map(|a| self.visit_named_field_type(ctx, a.ast_ref()))
             .collect::<Result<_, _>>()?;
-        let trt_name_location = self.some_source_location(node.name.location());
+        let trt_name_location = self.some_source_location(node.name.span());
         let trt_symbol = || Symbol::Compound {
             location: trt_name_location,
             path: node.name.path(),
         };
-        let type_args_location = node.type_args.location().map(|l| self.source_location(l));
+        let type_args_location = node.type_args.span().map(|l| self.source_location(l));
         let MatchTraitImplResult {
             sub_from_trait_def, ..
         } = self.trait_helper().find_trait_impl(

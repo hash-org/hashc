@@ -13,7 +13,7 @@ use hash_ast::{
     literal::STRING_LITERAL_MAP,
     operator::{Operator, OperatorKind},
 };
-use hash_source::location::Location;
+use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -429,7 +429,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         // `foo.bar(baz)` transpiles to `bar(foo, baz)`
                         //
                         ExpressionKind::FunctionCall(FunctionCallExpr { subject, mut args }) => {
-                            let span = lhs_expr.location();
+                            let span = lhs_expr.span();
 
                             // insert lhs_expr first...
                             args.entries.nodes.insert(
@@ -455,7 +455,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
                             // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
                             let ident = name.body().path[0].body();
-                            let span = name.location();
+                            let span = name.span();
 
                             let node = self.node_with_span(Name { ident: *ident }, span);
 
@@ -573,7 +573,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         subject: AstNode<'c, Expression<'c>>,
         tree: &'stream Row<'stream, Token>,
-        span: Location,
+        span: Span,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, span);
         let mut args = self.node_with_span(
@@ -622,7 +622,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             };
         }
 
-        let span = subject.location();
+        let span = subject.span();
 
         Ok(gen.node_with_joined_span(
             Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
@@ -639,14 +639,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         subject: AstNode<'c, Expression<'c>>,
         tree: &'stream Row<'stream, Token>,
-        span: Location,
+        span: Span,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, span);
         let start = gen.current_location();
 
         // parse the indexing expression between the square brackets...
         let index_expr = gen.parse_expression_with_precedence(0)?;
-        let (index_span, subject_span) = (index_expr.location(), subject.location());
+        let (index_span, subject_span) = (index_expr.span(), subject.span());
         let span = subject_span.join(index_span);
 
         // since nothing should be after the expression, we can check that no tokens
@@ -724,7 +724,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             kind @ (TokenKind::Plus | TokenKind::Minus) => {
                 let value = self.parse_expression()?;
-                let span = value.location();
+                let span = value.span();
 
                 let fn_name = match kind {
                     TokenKind::Plus => "pos",
@@ -747,7 +747,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             TokenKind::Tilde => {
                 let value = self.parse_expression()?;
-                let span = value.location();
+                let span = value.span();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident("notb", &start),
@@ -776,7 +776,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             TokenKind::Exclamation => {
                 let value = self.parse_expression()?;
-                let span = value.location();
+                let span = value.span();
 
                 ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.make_ident("not", &start),
@@ -904,7 +904,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         rhs: AstNode<'c, Expression<'c>>,
         op: AstNode<'c, Operator>,
     ) -> AstNode<'c, Expression<'c>> {
-        let operator_location = op.location();
+        let operator_location = op.span();
         let Operator { kind, assigning } = op.body();
 
         if kind.is_compound() {
@@ -926,17 +926,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // >>> and(lhs, () => rhs)
             //
 
-            let (lhs_span, rhs_span) = (lhs.location(), rhs.location());
+            let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
             let span = lhs_span.join(rhs_span);
 
             self.node_with_span(Expression::new(ExpressionKind::FunctionCall(
                     FunctionCallExpr {
                         subject: self.node_with_span(
                             Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: self.make_access_name_from_str(op.body().to_str(), op.location()),
+                                name: self.make_access_name_from_str(op.body().to_str(), op.span()),
                                 type_args: AstNodes::empty(),
                             })),
-                            op.location(),
+                            op.span(),
                         ),
                         args: self.node_with_joined_span(
                             FunctionCallArgs {
@@ -960,17 +960,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     },
                 )), span)
         } else {
-            let (lhs_span, rhs_span) = (lhs.location(), rhs.location());
+            let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
             let location = lhs_span.join(rhs_span);
 
             self.node_with_span(
                 Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
                     subject: self.node_with_span(
                         Expression::new(ExpressionKind::Variable(VariableExpr {
-                            name: self.make_access_name_from_str(op.body().to_str(), op.location()),
+                            name: self.make_access_name_from_str(op.body().to_str(), op.span()),
                             type_args: AstNodes::empty(),
                         })),
-                        op.location(),
+                        op.span(),
                     ),
                     args: self.node_with_joined_span(
                         FunctionCallArgs {
@@ -992,7 +992,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         &location,
                     ),
                 })),
-                op.location(),
+                op.span(),
             )
         }
     }
@@ -1030,13 +1030,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         assigning: bool,
         lhs: AstNode<'c, Expression<'c>>,
         rhs: AstNode<'c, Expression<'c>>,
-        operator_location: Location,
+        operator_location: Span,
     ) -> AstNode<'c, Expression<'c>> {
-        let location = lhs.location().join(rhs.location());
+        let location = lhs.span().join(rhs.span());
 
         // we need to transform the lhs into a reference if the type of function is 'assigning'
         let lhs = self.transform_expr_into_ref(lhs, assigning);
-        let (lhs_span, rhs_span) = (lhs.location(), rhs.location());
+        let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
 
         let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
             FunctionCallExpr {
@@ -1061,7 +1061,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             },
         )));
 
-        let make_constructor_pattern = |symbol: &str, location: Location| {
+        let make_constructor_pattern = |symbol: &str, location: Span| {
             self.node(Pattern::Constructor(ConstructorPattern {
                 name: self.make_access_name_from_str(symbol, location),
                 fields: AstNodes::empty(),
@@ -1180,7 +1180,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_block_or_braced_literal(
         &self,
         tree: &'stream Row<'stream, Token>,
-        span: &Location,
+        span: &Span,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
 
@@ -1278,7 +1278,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     return parse_block(initial_offset);
                 }
 
-                let start_pos = expr.location();
+                let start_pos = expr.span();
                 let entry = self.node_with_joined_span(
                     MapLiteralEntry {
                         key: expr,
@@ -1362,7 +1362,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_expression_or_tuple(
         &self,
         tree: &'stream Row<'stream, Token>,
-        span: &Location,
+        span: &Span,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let gen = self.from_stream(tree, *span);
         let start = self.current_location();
@@ -1440,7 +1440,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
     ) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
         let name = self.parse_name()?;
-        let name_span = name.location();
+        let name_span = name.span();
 
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
