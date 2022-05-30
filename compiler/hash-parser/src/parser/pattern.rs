@@ -83,11 +83,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 kind: TokenKind::Keyword(Keyword::Pub | Keyword::Priv | Keyword::Mut),
                 ..
             } => self.parse_binding_pattern()?,
+            // this could be either just a binding pattern, enum, or a struct pattern
             Token {
                 kind: TokenKind::Ident(ident),
                 span,
             } => {
-                // this could be either just a binding pattern, enum, or a struct pattern
                 self.skip_token();
 
                 // So here we try to parse an access name, if it is only made of a single binding
