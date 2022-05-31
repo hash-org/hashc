@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:6
 1 |   k := 'ab';
   |        ^^^^ here
-  = note: Invalid character literal `ab`, character literals may only contain one codepoint 
+  = note: Invalid character literal `ab`, character literals may only contain one codepoint

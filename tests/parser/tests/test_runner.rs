@@ -16,7 +16,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 /// Whether or not the UI tests should re-generate the output.
-const REGENERATE_OUTPUT: bool = true;
+const REGENERATE_OUTPUT: bool = false;
 
 /// This is the ANSI Regular expression matcher. This will match all the specified
 /// ANSI escape codes that are used by the [`hash_reporting`] crate.
