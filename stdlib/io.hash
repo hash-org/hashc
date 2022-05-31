@@ -10,7 +10,7 @@
 
 
 // Error type for all I/O operations.
-enum IoErrorType = {
+IoErrorType := enum(
    FileNotFound,
    PermissionDenied,
    AlreadyExists,
@@ -19,20 +19,20 @@ enum IoErrorType = {
    EOF, // Failed due to end of file being reached
    IllegalOperation,
    Other,
-};
+);
 
 // @@Safety: The order of these fields must be preserved since the compiler internally assumes
 // this order. Yes it is somewhat dangerous, and the 'IoError' struct will likely get moved into 
 // Primitives, but for now: DO NOT TOUCH THE ORDER OF THE FIELDS!
-struct IoError = {
+IoError = struct(
     error: IoErrorType,
     message: str,
-};
+);
 
 // These mapping is the same as the internal one, so it should be ok to convert.
 // the primitive int code into an one of the IoErrorType variants.
-let _conv_ioerr_code: (int) => IoErrorType = (code: int) => {
-    let ret = match code {
+_conv_ioerr_code := (code: int) -> IoErrorType => {
+    match code {
         0 => FileNotFound;
         1 => PermissionDenied;
         2 => AlreadyExists;
@@ -41,53 +41,55 @@ let _conv_ioerr_code: (int) => IoErrorType = (code: int) => {
         5 => EOF;
         6 => IllegalOperation;
         _ => Other;
-    };
-
-    ret
-};
-
-let _conv_ioerr_prim: ((int, str)) => IoError = (e: (int, str)) => {
-    IoError {
-        error   = _conv_ioerr_code(e.first),
-        message = e.second,
     }
 };
 
-trait _wrap_io = <T> => (Result<T, (int, str)>) => Result<T, IoError>;
-let _wrap_io<T> = (res: Result<T, (int, str)>): Result<T, IoError> => match res {
-    Err(e) => Err(_conv_ioerr_prim(e));
-    Ok(t) => Ok(t);
+_conv_ioerr_prim: = (e: (i32, str)) -> IoError => {
+    IoError(
+        error   = _conv_ioerr_code(e.first),
+        message = e.second,
+    )
+};
+
+
+_wrap_io := <T> => trait {
+    wrap: (Result<T, (int, str)>) -> Result<T, IoError>;
+};
+
+_wrap_io ~= impl {
+    wrap := (res: Result<T, (int, str)>) -> Result<T, IoError> => match res {
+        Err(e) => Err(_conv_ioerr_prim(e));
+        Ok(t) => Ok(t);
+    };
 };
 
 // Send a character to stdout.
-let set = (data: char): Result<void, IoError> => {
-    let ret = match (#intrinsic_char_set(data) as Result<void, (int, str)>) {
+set := (data: char) -> Result<void, IoError> => {
+    match (intrinsic_char_set(data) as Result<void, (int, str)>) {
         Err(e) => Err(_conv_ioerr_prim(e));
         Ok(r) => Ok(r);
-    };
-
-    ret
+    }
 };
 
 
 // Read a character from stdin.
-let get: () => Result<char, IoError> = () => _wrap_io<char>(Ok(#intrinsic_char_get()) as Result<char, (int, str)>);
+get := () => _wrap_io<char>(Ok(#intrinsic_char_get()) as Result<char, (int, str)>);
 
 // File opening mode
-enum OpenMode = {
+OpenMode = enum(
    Read, // r
    ReadWrite, // r+ | w+
    Write, // w
    Append, // a
-};
+);
 
-enum SeekMode = {
+SeekMode = enum(
     SeekSet, // begin file offset
     SeekCur, // current handle offset
     SeekEnd, // end of file offset
-};
+);
 
-let _mode_to_int = (mode: OpenMode): int => match mode {
+_mode_to_int := (mode: OpenMode) -> u32 => match mode {
     Read => 0;
     Write => 1;
     Append => 2;
@@ -95,7 +97,7 @@ let _mode_to_int = (mode: OpenMode): int => match mode {
 };
 
 // Convert a string representation of a mode into a mode enum
-let str_to_mode = (mode: str): OpenMode => match mode {
+str_to_mode := (mode: str) -> OpenMode => match mode {
     "r" => Read;
     "w" => Write;
     "a" => Append;
@@ -104,36 +106,36 @@ let str_to_mode = (mode: str): OpenMode => match mode {
 };
 
 // A data structure representing a file.
-struct File = { 
+File = struct( 
     handle: Native,
-};
+);
 
 // Standard In/Out file handles
-let stdin: File = #intrinsic_get_stdin();
-let stdout: File = #intrinsic_get_stdout();
-let stderr: File = #intrinsic_get_stderr();
+stdin: File = intrinsic_get_stdin();
+stdout: File = intrinsic_get_stdout();
+stderr: File = intrinsic_get_stderr();
 
 // Open a file
-let open = (filename: str, mode: OpenMode): Result<File, IoError> => _wrap_io<File>(#intrinsic_open(filename, _mode_to_int(mode)));
+open := (filename: str, mode: OpenMode) -> Result<File, IoError> => _wrap_io<File>(#intrinsic_open(filename, _mode_to_int(mode)));
    
 // Close a file
-let close = (handle: File): Result<void, IoError> => _wrap_io<void>(#intrinsic_close(handle));
+close := (handle: File) -> Result<void, IoError> => _wrap_io<void>(#intrinsic_close(handle));
 
 // Send a character to a file.
-let fset = (handle: File, ch: char): Result<void, IoError> => _wrap_io<void>(#intrinsic_fset(handle, ch));
+fset := (handle: File, ch: char) -> Result<void, IoError> => _wrap_io<void>(#intrinsic_fset(handle, ch));
 
 // Read a character from a file.
-let fget = (handle: File): Result<char, IoError> => _wrap_io<char>(#intrinsic_fget(handle));
+fget := (handle: File) -> Result<char, IoError> => _wrap_io<char>(#intrinsic_fget(handle));
 
 // Send a string to a file, \n terminated.
-let fprint = (handle: File, line: str): Result<void, IoError> => _wrap_io<void>(#intrinsic_fprint(handle, line));
+fprint := (handle: File, line: str) -> Result<void, IoError> => _wrap_io<void>(#intrinsic_fprint(handle, line));
 
 // Read a line from a file.
-let finput = (handle: File): Result<str, IoError> => _wrap_io<str>(#intrinsic_finput(handle));
+finput := (handle: File) -> Result<str, IoError> => _wrap_io<str>(#intrinsic_finput(handle));
 
 // Seek a file.
-let fseek = (file: File, position: int, whence: SeekMode): Result<void, IoError> => {
-    let whence_mode = match whence {
+fseek := (file: File, position: u64, whence: SeekMode) -> Result<void, IoError> => {
+    whence_mode = match whence {
         SeekSet => 0;
         SeekCur => 1;
         SeekEnd => 2;
@@ -144,10 +146,10 @@ let fseek = (file: File, position: int, whence: SeekMode): Result<void, IoError>
 
 
 // Lines iterator
-struct LinesIterator = {
-   index: int,
+LinesIterator := struct(
+   index: u64,
    lines: [str],
-};
+);
 
 //let next<LinesIterator, Result<str, IoError>>;
 //let flines = (file: File) => LinesIterator;
