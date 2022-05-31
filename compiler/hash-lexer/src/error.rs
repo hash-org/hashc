@@ -14,7 +14,7 @@ pub type LexerResult<T> = Result<T, LexerError>;
 /// with the error, the [LexerErrorKind] which classifies the error, and a [Span] that represents
 /// where the tokenisation error occurred.
 #[derive(Debug, Constructor, Error)]
-#[error("{kind} {}", .message.as_ref().unwrap_or(&String::from("")))]
+#[error("{kind}{}", .message.as_ref().map(|s| format!(". {s}")).unwrap_or_else(|| String::from("")))]
 pub struct LexerError {
     pub(crate) message: Option<String>,
     kind: LexerErrorKind,
@@ -48,10 +48,10 @@ pub enum LexerErrorKind {
     #[error("Encountered unexpected character `{0}`")]
     Unexpected(char),
     /// Occurs when the tokeniser expects a particular token next, but could not derive one.
-    #[error("Expected token `{0}` here")]
+    #[error("Expected token `{0}`")]
     Expected(TokenKind),
     /// Unclosed tree block
-    #[error("Encountered unclosed delimiter `{}`, consider adding a `{0}` after inner expression", .0.left())]
+    #[error("Encountered unclosed delimiter `{}`, add a `{0}` after the inner expression", .0.left())]
     Unclosed(Delimiter),
 }
 

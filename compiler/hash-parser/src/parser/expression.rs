@@ -618,9 +618,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
-                _ => break,
+                Some(token) => gen.error_with_location(
+                    AstGenErrorKind::Expected,
+                    Some(TokenKindVector::singleton(&self.wall, TokenKind::Comma)),
+                    Some(token.kind),
+                    token.span,
+                )?,
+                None => break,
             };
         }
+
+        gen.verify_is_empty()?;
 
         let span = subject.span();
 

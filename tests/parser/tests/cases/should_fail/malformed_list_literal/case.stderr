@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:5
 1 |   k = [1,
   |       ^ here
-  = note: Encountered unclosed delimiter `[`, consider adding a `]` after inner expression 
+  = note: Encountered unclosed delimiter `[`, add a `]` after the inner expression

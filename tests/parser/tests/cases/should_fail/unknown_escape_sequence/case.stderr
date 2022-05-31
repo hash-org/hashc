@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:8
 1 |   k := '\j';
   |          ^ here
-  = note: Invalid character escape sequence Unknown escape sequence 'j'
+  = note: Invalid character escape sequence. Unknown escape sequence `j`
