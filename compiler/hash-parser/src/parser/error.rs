@@ -80,6 +80,8 @@ pub enum AstGenErrorKind {
     AccessName,
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
+    /// Malformed spread pattern (if for any reason there is a problem with parsing the spread operator)
+    MalformedSpreadPattern(u8),
 }
 
 impl std::fmt::Display for TyArgumentKind {
@@ -144,6 +146,11 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::ErroneousImport(err) => err.to_string(),
             AstGenErrorKind::AccessName => {
                 "Expected identifier after a name access qualifier '::'".to_string()
+            }
+            AstGenErrorKind::MalformedSpreadPattern(dots) => {
+                format!(
+                    "Malformed spread pattern, expected {dots} more `.` to complete the pattern"
+                )
             }
         };
 
