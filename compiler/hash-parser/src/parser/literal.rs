@@ -123,7 +123,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     TupleLiteralEntry {
                         name: Some(name),
                         ty,
-                        value: self.try_parse_expression_with_re_assignment()?.0,
+                        value: self.parse_expression_with_re_assignment()?.0,
                     },
                     &start,
                 ))
@@ -138,7 +138,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 TupleLiteralEntry {
                     name: None,
                     ty: None,
-                    value: self.try_parse_expression_with_re_assignment()?.0,
+                    value: self.parse_expression_with_re_assignment()?.0,
                 },
                 &start,
             )),

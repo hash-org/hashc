@@ -847,8 +847,10 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let walk::MergeDeclaration { pattern, value } =
-            walk::walk_merge_declaration(self, ctx, node)?;
+        let walk::MergeDeclaration {
+            decl: pattern,
+            value,
+        } = walk::walk_merge_declaration(self, ctx, node)?;
 
         Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
@@ -948,7 +950,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     ) -> Result<Self::TraitImplRet, Self::Error> {
         let walk::TraitImpl {
             implementation,
-            trait_name: name,
+            ty: name,
         } = walk::walk_trait_impl(self, ctx, node)?;
 
         Ok(TreeNode::branch(

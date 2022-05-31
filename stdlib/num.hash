@@ -11,18 +11,18 @@
 pub pi: float = 3.141592653589793;
 
 // Euler's Number
-pub exp = 2.718281828459045;
+pub exp := 2.718281828459045;
 
 // Exponentiation
 Pow := <T> => trait {
     pow : (base: T, exponent: T) -> T;
-}
+};
 
-Pow ~= impl float {
+int ~= impl Pow {
     pow := (base, exponent) => intrinsic_pow(base, exponent);
 };
 
-Pow ~= impl int {
+int ~= impl Pow {
     pow := (base, exponent) => intrinsic_pow(base, exponent);
 };
 
@@ -52,8 +52,8 @@ to_rad: (f64) -> f64 = (deg) => (pi/180.0)*deg;
 to_rad: (f32) -> f32 = (deg) => (pi/180.0)*deg;
 
 // Convert radians to degrees
-to_deg: (f64) => f64 = (rad) => (180.0/pi)*rad;
-to_deg: (f32) => f32 = (rad) => (180.0/pi)*rad;
+to_deg: (f64) -> f64 = (rad) => (180.0/pi)*rad;
+to_deg: (f32) -> f32 = (rad) => (180.0/pi)*rad;
 
 // complex numbers
 Complex = <I: Add ~ Sub ~ Mul> => struct(
