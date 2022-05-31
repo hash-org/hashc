@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:11
+1 |   l := f(a = );
+  |             ^ here
+  = note: Expected an expression.

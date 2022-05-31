@@ -1,1 +1,1 @@
-let str_eq: (str, str) > str;
+str_eq: (str, str) > str;

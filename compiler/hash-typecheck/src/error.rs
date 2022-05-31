@@ -756,6 +756,6 @@ impl TypecheckError {
             }
         }
 
-        builder.build().unwrap()
+        builder.build()
     }
 }
