@@ -1,1 +1,1 @@
-let str_eq: (str, str) => str = (a, b) = a == b;
+str_eq: (str, str) -> str = (a, b) = a == b;

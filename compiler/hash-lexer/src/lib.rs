@@ -379,8 +379,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 // @@TODO: Use our own parser for integers and floats instead of relying on rust's default one.
                 match digits.parse::<u64>() {
-                    Err(e) => Err(LexerError::new(
-                        Some(format!("Malformed integer literal: '{}'.", e)),
+                    Err(err) => Err(LexerError::new(
+                        Some(format!("{}.", err)),
                         LexerErrorKind::MalformedNumericalLiteral,
                         Span::new(start, self.offset.get()),
                     )),
@@ -399,8 +399,8 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         let num = num.collect::<String>().parse::<f64>();
 
         match num {
-            Err(_) => Err(LexerError::new(
-                Some("Malformed float literal.".to_string()),
+            Err(err) => Err(LexerError::new(
+                Some(format!("{}.", err)),
                 LexerErrorKind::MalformedNumericalLiteral,
                 Span::new(start, self.offset.get()),
             )),
@@ -478,7 +478,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 // literal
                 if self.peek() != '{' {
                     return Err(LexerError::new(
-                        Some("Expected '{' after a '\\u' escape sequence".to_string()),
+                        Some("Expected `{` after a `\\u` escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
                         Span::new(start, self.offset.get()),
                     ));
@@ -491,16 +491,16 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 if self.peek() != '}' {
                     return Err(LexerError::new(
-                        Some("Expected '}' after a escape sequence".to_string()),
+                        Some("Expected `}` after a escape sequence".to_string()),
                         LexerErrorKind::BadEscapeSequence,
-                        Span::new(start, self.offset.get()),
+                        Span::new(self.offset.get(), self.offset.get() + 1),
                     ));
                 }
                 self.skip(); // Eat the '}' ending part of the scape sequence
 
                 if chars.len() > 6 {
                     return Err(LexerError::new(
-                        Some("Unicode escape literal must be at most 6 hex digits.".to_string()),
+                        Some("Unicode escape literal must be at most 6 hex digits".to_string()),
                         LexerErrorKind::BadEscapeSequence,
                         Span::new(start, self.offset.get()),
                     ));
@@ -508,12 +508,10 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
                 let value = u32::from_str_radix(chars, 16);
 
-                // let c = '\u{000000}';
-
                 if value.is_err() {
                     return Err(LexerError::new(
                         Some(
-                            "Unicode escape literal must only be comprised of hex digits."
+                            "Unicode escape literal must only be comprised of hex digits"
                                 .to_string(),
                         ),
                         LexerErrorKind::BadEscapeSequence,
@@ -559,7 +557,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
             '"' => Ok('\"'),
             '\'' => Ok('\''),
             ch => Err(LexerError::new(
-                Some(format!("Unknown escape sequence '{}'", ch)),
+                Some(format!("Unknown escape sequence `{}`", ch)),
                 LexerErrorKind::BadEscapeSequence,
                 Span::new(start, start + 1),
             )),
@@ -596,14 +594,14 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
                 // @@Improvement: Maybe make this a function to check if we're about to hit the end...
                 if next == EOF_CHAR {
                     return Err(LexerError::new(
-                        Some("Unclosed character literal.".to_string()),
+                        Some("Unclosed character literal".to_string()),
                         LexerErrorKind::Expected(TokenKind::SingleQuote),
                         Span::new(offset, offset + 1),
                     ));
                 }
 
                 return Err(LexerError::new(
-                    Some("Character literal can only contain one codepoint.".to_string()),
+                    Some("Character literal can only contain one codepoint".to_string()),
                     LexerErrorKind::BadEscapeSequence,
                     Span::new(start, offset),
                 ));

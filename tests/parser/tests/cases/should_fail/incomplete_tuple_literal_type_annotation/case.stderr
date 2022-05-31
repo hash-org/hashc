@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:32
+1 |   k : (str, bar: u8) -> u32 = (k: );
+  |                                  ^ here
+  = note: Expected a type annotation.

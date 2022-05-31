@@ -1,0 +1,6 @@
+error: Failed to parse
+ --> $DIR/case.hash:2:11
+1 |   // This directive does not have an expression
+2 |   k := #dump;
+  |             ^ here
+  = note: Expected an expression, however received a `;`.

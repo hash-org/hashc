@@ -14,7 +14,7 @@ use thiserror::Error;
 /// Import error is an abstraction to represent errors that are in relevance to IO
 /// operations rather than parsing operations.
 #[derive(Debug, Clone, Error)]
-#[error("Couldn't import module '{filename}':\n {message}")]
+#[error("Couldn't import module `{filename}`: {message}")]
 pub struct ImportError {
     pub filename: PathBuf,
     pub message: String,
@@ -38,7 +38,8 @@ impl ImportError {
         } else {
             builder.with_message(format!("Failed to import: {}", self.message));
         }
-        builder.build().unwrap()
+
+        builder.build()
     }
 }
 

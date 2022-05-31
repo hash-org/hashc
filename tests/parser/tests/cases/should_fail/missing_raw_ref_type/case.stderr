@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:9
+1 |   k: &raw = &raw [1,2,3,4,5,6];
+  |           ^ here
+  = note: Expected a type annotation, however received a `=`.

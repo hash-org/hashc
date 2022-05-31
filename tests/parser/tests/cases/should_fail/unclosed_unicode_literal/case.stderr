@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:14
+1 |   k := '\u{005a';
+  |                ^ here
+  = note: Invalid character escape sequence. Expected `}` after a escape sequence

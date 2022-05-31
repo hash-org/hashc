@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:12
+1 |   k := (a) + ((b)));
+  |              ^^^^^ here
+  = note: Unexpectedly reached the end of input. Consider adding a ';'
