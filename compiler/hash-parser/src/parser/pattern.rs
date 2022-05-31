@@ -376,8 +376,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// which means that any other location will mark it as `invalid` in the current implementation.
     ///
     pub(crate) fn parse_spread_pattern(&self) -> AstGenResult<'c, SpreadPattern<'c>> {
-        for _ in 0..3 {
-            self.parse_token(TokenKind::Dot)?;
+        for k in 0..3 {
+            self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
+                self.make_error(
+                    AstGenErrorKind::MalformedSpreadPattern(3 - k),
+                    None,
+                    None,
+                    Some(self.next_location()),
+                )
+            })?;
         }
 
         // Try and see if there is a identifier that is followed by the spread to try and
