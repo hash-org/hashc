@@ -925,7 +925,7 @@ pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
 #[derive(Debug, PartialEq)]
 pub struct TraitImpl<'c> {
     /// The referenced name to the trait
-    pub name: AstNode<'c, VariableExpr<'c>>,
+    pub ty: AstNode<'c, Type<'c>>,
     /// The implementation of the trait.
     pub implementation: AstNodes<'c, Expression<'c>>,
 }

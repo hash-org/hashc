@@ -142,18 +142,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
             {
-                // Parse the `VariableExpr`
-                let start_span = self.current_location();
-                let trait_name =
-                    self.node_with_joined_span(self.parse_variable_expression(None)?, &start_span);
-
+                let ty = self.parse_type()?;
                 let implementation = self.parse_expressions_from_braces()?;
 
                 self.node_with_joined_span(
-                    Expression::new(ExpressionKind::TraitImpl(TraitImpl {
-                        name: trait_name,
-                        implementation,
-                    })),
+                    Expression::new(ExpressionKind::TraitImpl(TraitImpl { ty, implementation })),
                     &token.span,
                 )
             }
