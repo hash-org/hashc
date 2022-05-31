@@ -7,11 +7,17 @@ authors = ["The Hash Language authors"]
 edition = "2018"
 
 [dependencies]
+
+pretty_assertions = "1.2.1"
+regex = "1.5.6"
+lazy_static = "1.4.0"
+
 hash-ast = {path = "../../compiler/hash-ast" }
 hash-source = {path = "../../compiler/hash-source" }
 hash-alloc = {path = "../../compiler/hash-alloc" }
 hash-utils = {path = "../../compiler/hash-utils" }
 hash-pipeline = {path = "../../compiler/hash-pipeline" }
 hash-parser = {path = "../../compiler/hash-parser" }
+hash-reporting = {path = "../../compiler/hash-reporting" }
 hash-lexer = {path = "../../compiler/hash-lexer" }
 hash-utils-testing-macros = { path = "../../compiler/hash-utils/testing-macros" }

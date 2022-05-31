@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:1
+1 |   [a := b;
+  |   ^ here
+  = note: Encountered unclosed delimiter `[`, consider adding a `]` after inner expression 

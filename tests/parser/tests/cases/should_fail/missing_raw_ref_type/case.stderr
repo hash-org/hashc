@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:1
+1 |   let k: &raw = &raw [1,2,3,4,5,6];
+  |   ^^^ here
+  = note: Expected an expression, however received the identifier `k`.

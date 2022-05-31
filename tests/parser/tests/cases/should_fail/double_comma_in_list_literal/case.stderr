@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:9
+1 |   k := [1,,];
+  |           ^ here
+  = note: Expected an expression, however received a `,`.

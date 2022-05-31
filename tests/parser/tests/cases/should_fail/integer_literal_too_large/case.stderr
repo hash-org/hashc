@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:6
+1 |   k := 23384912398412397432849123413027948091234809213480923409823231498;
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ here
+  = note: Malformed numerical literal Malformed integer literal: 'number too large to fit in target type'.

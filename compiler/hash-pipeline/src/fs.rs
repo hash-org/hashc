@@ -38,7 +38,8 @@ impl ImportError {
         } else {
             builder.with_message(format!("Failed to import: {}", self.message));
         }
-        builder.build().unwrap()
+
+        builder.build()
     }
 }
 

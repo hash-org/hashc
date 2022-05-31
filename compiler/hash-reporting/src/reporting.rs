@@ -351,17 +351,6 @@ pub struct Report {
     pub contents: Vec<ReportElement>,
 }
 
-/// Error that is thrown if a [Report] is malformed (when building).
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct IncompleteReportError;
-
-impl std::error::Error for IncompleteReportError {}
-impl fmt::Display for IncompleteReportError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "incomplete report, cannot build")
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct ReportBuilder {
     kind: Option<ReportKind>,
@@ -402,13 +391,13 @@ impl ReportBuilder {
     }
 
     /// Create a [Report] from the [ReportBuilder].
-    pub fn build(&mut self) -> Result<Report, IncompleteReportError> {
-        Ok(Report {
-            kind: self.kind.take().ok_or(IncompleteReportError)?,
-            message: self.message.take().ok_or(IncompleteReportError)?,
+    pub fn build(&mut self) -> Report {
+        Report {
+            kind: self.kind.take().unwrap(),
+            message: self.message.take().unwrap(),
             error_code: self.error_code.take(),
             contents: std::mem::take(&mut self.contents),
-        })
+        }
     }
 }
 

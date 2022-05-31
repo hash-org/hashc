@@ -231,7 +231,7 @@ impl ParseError {
             }
         };
 
-        builder.build().unwrap()
+        builder.build()
     }
 }
 
