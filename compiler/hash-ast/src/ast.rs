@@ -651,8 +651,8 @@ pub struct Declaration<'c> {
 /// A merge declaration (adding implementations to traits/structs), e.g. `x ~= impl { ... };`.
 #[derive(Debug, PartialEq)]
 pub struct MergeDeclaration<'c> {
-    /// The pattern to bind the right-hand side to.
-    pub pattern: AstNode<'c, Pattern<'c>>,
+    /// The expression to bind the right-hand side to.
+    pub decl: AstNode<'c, Expression<'c>>,
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
@@ -925,7 +925,7 @@ pub struct ImportExpr<'c>(pub AstNode<'c, Import>);
 #[derive(Debug, PartialEq)]
 pub struct TraitImpl<'c> {
     /// The referenced name to the trait
-    pub name: AstNode<'c, VariableExpr<'c>>,
+    pub ty: AstNode<'c, Type<'c>>,
     /// The implementation of the trait.
     pub implementation: AstNodes<'c, Expression<'c>>,
 }
