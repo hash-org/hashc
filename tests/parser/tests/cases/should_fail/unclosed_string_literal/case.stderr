@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:2
+1 |   "a
+  |    ^^ here
+  = note: Unclosed string literal 

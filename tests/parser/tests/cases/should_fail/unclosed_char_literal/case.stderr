@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:1
+1 |   'a
+  |   ^^^ here
+  = note: Invalid character literal `a`, character literals may only contain one codepoint 

@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:1
+1 |   let str_eq: (str, str) => str = (a, b) = a == b;
+  |   ^^^ here
+  = note: Expected an expression, however received the identifier `str_eq`.

@@ -1,0 +1,5 @@
+error: Failed to parse
+ --> $DIR/case.hash:1:12
+1 |   k := 12e23.0;
+  |              ^ here
+  = note: Expected field name access or an infix function call.
