@@ -652,7 +652,7 @@ pub struct Declaration<'c> {
 #[derive(Debug, PartialEq)]
 pub struct MergeDeclaration<'c> {
     /// The pattern to bind the right-hand side to.
-    pub pattern: AstNode<'c, Pattern<'c>>,
+    pub decl: AstNode<'c, Expression<'c>>,
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
