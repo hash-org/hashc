@@ -2093,7 +2093,7 @@ pub mod walk {
     }
 
     pub struct MergeDeclaration<'c, V: AstVisitor<'c>> {
-        pub pattern: V::PatternRet,
+        pub decl: V::ExpressionRet,
         pub value: V::ExpressionRet,
     }
 
@@ -2103,7 +2103,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
     ) -> Result<MergeDeclaration<'c, V>, V::Error> {
         Ok(MergeDeclaration {
-            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
+            decl: visitor.visit_expression(ctx, node.decl.ast_ref())?,
             value: visitor.visit_expression(ctx, node.value.ast_ref())?,
         })
     }

@@ -43,7 +43,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let expr = match decl {
             Some(statement) => Ok(statement),
             None => {
-                let (expr, re_assigned) = self.try_parse_expression_with_re_assignment()?;
+                let (expr, re_assigned) = self.parse_expression_with_re_assignment()?;
 
                 if re_assigned {
                     Ok(expr)
@@ -829,27 +829,36 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to pass a [MergeDeclaration] which is a pattern on the right-hand side followed
     /// by the `~=` operator and then an expression (which should be either a [ImplBlock] or a [TraitImpl]).
-    pub(crate) fn _parse_merge_declaration(
+    pub(crate) fn parse_merge_declaration(
         &self,
-        pattern: AstNode<'c, Pattern<'c>>,
-    ) -> AstGenResult<'c, MergeDeclaration<'c>> {
-        // We skip the `~` since this in the only way that we got here
-        self.skip_token();
+        decl: AstNode<'c, Expression<'c>>,
+    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         self.parse_token(TokenKind::Eq)?;
-
         let value = self.parse_expression_with_precedence(0)?;
+        let decl_span = decl.span();
 
-        Ok(MergeDeclaration { pattern, value })
+        Ok(self.node_with_joined_span(
+            Expression::new(ExpressionKind::MergeDeclaration(MergeDeclaration {
+                decl,
+                value,
+            })),
+            &decl_span,
+        ))
     }
 
     /// Given a initial left-hand side expression, attempt to parse a re-assignment operator and
     /// then right hand-side. If a re-assignment operator is successfully parsed, then a right
     /// hand-side is expected and will hard fail. If no re-assignment operator is found, then it
     /// should just return the left-hand side.
-    pub(crate) fn try_parse_expression_with_re_assignment(
+    pub(crate) fn parse_expression_with_re_assignment(
         &self,
     ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
         let lhs = self.parse_expression_with_precedence(0)?;
+
+        // Check if we can parse a merge declaration
+        if self.parse_token_fast(TokenKind::Tilde).is_some() {
+            return Ok((self.parse_merge_declaration(lhs)?, false));
+        }
 
         if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
             // Parse the rhs and the semi
