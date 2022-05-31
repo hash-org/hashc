@@ -302,7 +302,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Some(Token {
                     kind: TokenKind::Ident(ident),
                     span,
-                }) => self.parse_access_name(self.node_with_span(*ident, *span))?,
+                }) => {
+                    self.skip_token();
+                    self.parse_access_name(self.node_with_span(*ident, *span))?
+                }
                 token => self.error_with_location(
                     AstGenErrorKind::AccessName,
                     None,
