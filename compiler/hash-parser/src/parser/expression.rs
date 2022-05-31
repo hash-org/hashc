@@ -24,39 +24,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         semi_required: bool,
     ) -> AstGenResult<'c, (bool, AstNode<'c, Expression<'c>>)> {
-        let offset = self.offset();
         let start = self.current_location();
 
-        let decl =
-            if let Some(pat) = self.peek_resultant_fn(|| self.parse_singular_pattern()) {
-                // Check if there is a colon here and if not we have to backtrack and
-                // now attempt to parse a simple expression
+        // So here we want to check that the next token(s) could make up a singular pattern which
+        // is then followed by a `:` to denote that this is a declaration.
+        let decl = match self.begins_pattern() {
+            true => {
+                let pat = self.parse_singular_pattern()?;
+                self.parse_token(TokenKind::Colon)?;
 
-                match self.peek() {
-                    Some(token) if token.has_kind(TokenKind::Colon) => {
-                        let decl = self.parse_declaration(pat)?;
+                let decl = self.parse_declaration(pat)?;
 
-                        Some(self.node_with_span(
-                            Expression::new(ExpressionKind::Declaration(decl)),
-                            start,
-                        ))
-                    }
-                    Some(token) if token.has_kind(TokenKind::Tilde) => {
-                        let decl = self.parse_merge_declaration(pat)?;
-
-                        Some(self.node_with_span(
-                            Expression::new(ExpressionKind::MergeDeclaration(decl)),
-                            start,
-                        ))
-                    }
-                    _ => {
-                        self.offset.set(offset);
-                        None
-                    }
-                }
-            } else {
-                None
-            };
+                Some(self.node_with_span(Expression::new(ExpressionKind::Declaration(decl)), start))
+            }
+            false => None,
+        };
 
         let expr = match decl {
             Some(statement) => Ok(statement),
@@ -819,8 +801,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         pattern: AstNode<'c, Pattern<'c>>,
     ) -> AstGenResult<'c, Declaration<'c>> {
-        self.parse_token(TokenKind::Colon)?;
-
         // Attempt to parse an optional type...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Eq) => None,
@@ -849,7 +829,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Function to pass a [MergeDeclaration] which is a pattern on the right-hand side followed
     /// by the `~=` operator and then an expression (which should be either a [ImplBlock] or a [TraitImpl]).
-    pub(crate) fn parse_merge_declaration(
+    pub(crate) fn _parse_merge_declaration(
         &self,
         pattern: AstNode<'c, Pattern<'c>>,
     ) -> AstGenResult<'c, MergeDeclaration<'c>> {

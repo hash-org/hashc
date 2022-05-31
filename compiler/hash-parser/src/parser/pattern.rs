@@ -426,4 +426,65 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ),
         }
     }
+
+    /// Utility function to lookahead and see if it's possible to parse a singular pattern
+    /// from the current position in the token stream.
+    pub(crate) fn begins_pattern(&self) -> bool {
+        let n_lookahead = match self.peek() {
+            // Namespace, List, Tuple, etc.
+            Some(Token {
+                kind: TokenKind::Tree(_, _),
+                ..
+            }) => 1,
+            // Identifier or constructor pattern
+            Some(Token {
+                kind: TokenKind::Ident(_),
+                ..
+            }) => match self.peek_second() {
+                Some(Token {
+                    kind: TokenKind::Tree(Delimiter::Paren, _),
+                    ..
+                }) => 2,
+                _ => 1,
+            },
+            // This is the case for a bind that has a visibility modifier at the beginning. In
+            // this scenario, it can be followed by a `mut` modifier and then a identifier or
+            // just an identifier.
+            Some(Token {
+                kind: TokenKind::Keyword(Keyword::Priv | Keyword::Pub),
+                ..
+            }) => match self.peek_second() {
+                Some(Token {
+                    kind: TokenKind::Ident(_),
+                    ..
+                }) => 2,
+                Some(Token {
+                    kind: TokenKind::Keyword(Keyword::Mut),
+                    ..
+                }) => match self.peek_nth(3) {
+                    Some(Token {
+                        kind: TokenKind::Ident(_),
+                        ..
+                    }) => 3,
+                    _ => return false,
+                },
+                _ => return false,
+            },
+            // This case covers the scenario where there is just a mutability modifier
+            // in front of the name binding
+            Some(Token {
+                kind: TokenKind::Keyword(Keyword::Mut),
+                ..
+            }) => match self.peek_second() {
+                Some(Token {
+                    kind: TokenKind::Ident(_),
+                    ..
+                }) => 2,
+                _ => return false,
+            },
+            _ => return false,
+        };
+
+        matches!(self.peek_nth(n_lookahead), Some(token) if token.has_kind(TokenKind::Colon))
+    }
 }
