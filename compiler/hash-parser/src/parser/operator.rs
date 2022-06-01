@@ -110,11 +110,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Eq).is_none() {
-            return self.error_with_location(AstGenErrorKind::ExpectedArrow, None, None, self.next_location())?;
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedArrow,
+                None,
+                None,
+                self.next_location(),
+            )?;
         }
 
         if self.parse_token_fast(TokenKind::Gt).is_none() {
-            return self.error_with_location(AstGenErrorKind::ExpectedArrow, None, None, self.next_location())?
+            return self.error_with_location(
+                AstGenErrorKind::ExpectedArrow,
+                None,
+                None,
+                self.next_location(),
+            )?;
         }
 
         Ok(())

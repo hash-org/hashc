@@ -70,6 +70,8 @@ pub enum AstGenErrorKind {
     ExpectedFnBody,
     /// Expected a type at the current location.
     ExpectedType,
+    /// Expected an expression after a type annotation within named tuples
+    ExpectedValueAfterTyAnnotation,
     /// After a dot operator, the parser expects either a property access or an
     /// infix call which is an extended version of a property access.
     InfixCall,
@@ -128,6 +130,9 @@ impl<'a> From<AstGenError<'a>> for ParseError {
                     "Expected {} definition entries here which begin with a '('",
                     ty
                 )
+            }
+            AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
+                "Expected value assignment after type annotation within named tuple".to_string()
             }
             AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
