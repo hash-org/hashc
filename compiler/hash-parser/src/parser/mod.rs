@@ -91,7 +91,26 @@ pub struct AstGen<'c, 'stream, 'resolver> {
     is_compound_expr: Cell<bool>,
 
     /// Flag denoting whether spread patterns are allowed in the current context. This
-    /// is only true if the parser is parsing either `tuple` or `list` patterns
+    /// is only true if the parser is parsing either `tuple` or `list` patterns.
+    ///
+    // @@Future: It might be simpler just to allow spread patterns to be parsed within
+    //           any `pattern` context and then later report the error at semantic checking.
+    //           This might reduce the number of *silly* parser errors that are generated when
+    //           parsing patterns that aren't supposed to be allowed in other patterns.
+    //
+    //           A good example of one case is:
+    //           ```
+    //           { x, ...y } := ...;
+    //           ```
+    //
+    //           Since `spread` patterns are disallowed within namespace patterns, the parser reports it as an
+    //           error:
+    //           ```
+    //              |
+    //            1 |   { x,  ...d} := foo();
+    //              |         ^ here
+    //              = note: Expected an expression, however received a `.`.
+    //           ```
     spread_patterns_allowed: Cell<bool>,
 
     /// Instance of an [ImportResolver] to notify the parser of encountered imports.
@@ -430,16 +449,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.skip_token();
                 Ok(())
             }
-            Some(token) => self.error_with_location(
+            token => self.error_with_location(
                 AstGenErrorKind::Expected,
                 Some(TokenKindVector::singleton(&self.wall, atom)),
-                Some(token.kind),
-                token.span,
-            ),
-            _ => self.error(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::singleton(&self.wall, atom)),
-                None,
+                token.map(|t| t.kind),
+                token.map_or_else(|| self.next_location(), |t| t.span),
             ),
         }
     }

@@ -3,4 +3,4 @@ error: Failed to parse
 1 |   // Spread patterns are disallowed within namespaces
 2 |   { x,  ...d} := foo();
   |         ^ here
-  = note: Expected an expression, however received a `.`.
+  = note: Unexpectedly reached the end of input, however received a `.`.

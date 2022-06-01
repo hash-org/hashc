@@ -320,7 +320,7 @@ impl<'c> TokenKindVector<'c> {
     pub fn begin_pattern_collection(wall: &Wall<'c>) -> Self {
         Self(row![wall;
             TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Delimiter(Delimiter::Brace, true),
+            TokenKind::Colon
         ])
     }
 

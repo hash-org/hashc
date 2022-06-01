@@ -3,7 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::{collections::row::Row, row};
+use hash_alloc::collections::row::Row;
 use hash_ast::{ast::*, ast_nodes, ident::CORE_IDENTIFIERS};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
@@ -115,10 +115,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                         Pattern::Constructor(ConstructorPattern { name, fields })
                     }
-                    Some(token) if name.path.len() > 1 => self.error(
+                    Some(token) if name.path.len() > 1 => self.error_with_location(
                         AstGenErrorKind::Expected,
-                        Some(TokenKindVector::begin_pattern_collection(&self.wall)),
+                        None,
                         Some(token.kind),
+                        token.span,
                     )?,
                     _ => {
                         if *ident == CORE_IDENTIFIERS.underscore {
@@ -138,7 +139,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Pattern::Spread(self.parse_spread_pattern()?)
             }
 
-            // Literal patterns: which are disallowed within declarations. @@ErrorReporting: Parse it and maybe report it?
+            // Literal patterns
             token if token.kind.is_literal() => {
                 self.skip_token();
                 Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
@@ -160,10 +161,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
                 disable_flag!(self; spread_patterns_allowed;
-                    let fields = self.parse_destructuring_patterns(tree, *span)?
+                    let pat = self.parse_namespace_pattern(tree, *span)?
                 );
 
-                Pattern::Namespace(NamespacePattern { fields })
+                Pattern::Namespace(pat)
             }
             // List pattern
             Token {
@@ -225,19 +226,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_span(DestructuringPattern { name, pattern }, &start))
     }
 
-    /// Parse a collection of [DestructuringPattern]s that are comma separated.
-    pub(crate) fn parse_destructuring_patterns(
+    /// Parse a collection of [DestructuringPattern]s that are comma separated within a brace
+    /// tree.
+    fn parse_namespace_pattern(
         &self,
         tree: &'stream Row<'stream, Token>,
         span: Span,
-    ) -> AstGenResult<'c, AstNodes<'c, DestructuringPattern<'c>>> {
+    ) -> AstGenResult<'c, NamespacePattern<'c>> {
         let gen = self.from_stream(tree, span);
-
-        let mut patterns = AstNodes::new(row![&self.wall;], Some(span));
+        let mut fields = vec![];
 
         while gen.has_token() {
             match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern()) {
-                Some(pat) => patterns.nodes.push(pat, &self.wall),
+                Some(pat) => fields.push(pat),
                 None => break,
             }
 
@@ -251,7 +252,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         //                   contexts the function is being peeked and the error is being ignored,
         //                   maybe there should be some mechanism to cause the function to hard error?
         gen.verify_is_empty()?;
-        Ok(patterns)
+
+        Ok(NamespacePattern {
+            fields: AstNodes::new(Row::from_vec(fields, &self.wall), Some(span)),
+        })
     }
 
     /// Parse a [Pattern::List] pattern from the token vector. A list [Pattern] consists
