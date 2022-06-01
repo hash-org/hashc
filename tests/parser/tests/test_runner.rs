@@ -64,7 +64,7 @@ fn handle_failure_case(
 
     // If we specify to re-generate the output, then we will always write the
     // content of the report into the specified file
-    if REGENERATE_OUTPUT {
+    if REGENERATE_OUTPUT || !stderr_path.exists() {
         fs::write(&stderr_path, &report_contents)?;
     }
 
