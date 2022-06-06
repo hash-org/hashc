@@ -212,7 +212,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 match is_func {
                     true => {
                         let gen = self.from_stream(tree, token.span);
-                        self.parse_function_literal(&gen)?
+                        self.parse_function_definition(&gen)?
                     }
                     false => self.parse_expression_or_tuple(tree, &self.current_location())?,
                 }
@@ -1477,7 +1477,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a function literal. Function literals are essentially definitions of lambdas
     /// that can be assigned to variables or passed as arguments into other functions.
-    pub(crate) fn parse_function_literal(
+    pub(crate) fn parse_function_definition(
         &self,
         gen: &Self,
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {

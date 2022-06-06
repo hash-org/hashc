@@ -116,7 +116,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     _ => None,
                 };
 
-                self.parse_token(TokenKind::Eq)?;
+                self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
+                    self.make_error(
+                        AstGenErrorKind::ExpectedValueAfterTyAnnotation,
+                        Some(TokenKindVector::singleton(&self.wall, TokenKind::Eq)),
+                        None,
+                        Some(self.next_location()),
+                    )
+                })?;
 
                 // Now we try and parse an expression that allows re-assignment operators...
                 Some(self.node_with_joined_span(

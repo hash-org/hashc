@@ -1,5 +1,5 @@
 error: Failed to parse
- --> $DIR/case.hash:1:3
+ --> $DIR/case.hash:1:5
 1 |   [ ..d ] := k;
-  |     ^ here
-  = note: Expected an expression, however received a `.`.
+  |       ^ here
+  = note: Malformed spread pattern, expected 1 more `.` to complete the pattern.
