@@ -1094,6 +1094,13 @@ pub struct BinaryExpression<'c> {
     pub operator: AstNode<'c, BinaryOperator>,
 }
 
+/// A unary expression `!a`.
+#[derive(Debug, PartialEq)]
+pub struct UnaryExpression<'c> {
+    pub expr: AstNode<'c, Expression<'c>>,
+    pub operator: AstNode<'c, UnaryOperator>,
+}
+
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
@@ -1128,6 +1135,8 @@ pub enum ExpressionKind<'c> {
     TraitImpl(TraitImpl<'c>),
     /// Binary Expression composed of a left and right hand-side with a binary operator
     BinaryExpr(BinaryExpression<'c>),
+    /// Unary Expression composed of a unary operator and an expression
+    UnaryExpr(UnaryExpression<'c>),
 }
 
 /// An expression.

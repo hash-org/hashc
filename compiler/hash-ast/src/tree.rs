@@ -890,6 +890,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     }
 
     type BinaryExpressionRet = TreeNode;
+
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -905,6 +906,21 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
                 TreeNode::branch("lhs", vec![lhs]),
                 TreeNode::branch("rhs", vec![rhs]),
             ],
+        ))
+    }
+
+    type UnaryExpressionRet = TreeNode;
+
+    fn visit_unary_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnaryExpression<'c>>,
+    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
+        let walk::UnaryExpression { operator, expr } = walk::walk_unary_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "unary_expr",
+            vec![operator, TreeNode::branch("expr", vec![expr])],
         ))
     }
 

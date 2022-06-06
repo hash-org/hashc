@@ -1245,6 +1245,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         panic!("Hit bin_op within typechecker pass")
     }
 
+    type UnaryExpressionRet = TypeId;
+    fn visit_unary_expr(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::UnaryExpression<'c>>,
+    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
+        panic!("Hit un_op within typechecker pass")
+    }
+
     type UnaryOperatorRet = TypeId;
     fn visit_unary_operator(
         &mut self,
