@@ -467,6 +467,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::BinaryExpression<'c>>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error>;
 
+    type UnaryExpressionRet: 'c;
+    fn visit_unary_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnaryExpression<'c>>,
+    ) -> Result<Self::UnaryExpressionRet, Self::Error>;
+
     type StructDefEntryRet: 'c;
     fn visit_struct_def_entry(
         &mut self,
@@ -777,6 +784,7 @@ pub mod walk {
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
         BinaryExpr(V::BinaryExpressionRet),
+        UnaryExpr(V::UnaryExpressionRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -863,6 +871,9 @@ pub mod walk {
             ast::ExpressionKind::BinaryExpr(r) => {
                 Expression::BinaryExpr(visitor.visit_binary_expr(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::UnaryExpr(r) => {
+                Expression::UnaryExpr(visitor.visit_unary_expr(ctx, node.with_body(r))?)
+            }
         })
     }
 
@@ -900,6 +911,7 @@ pub mod walk {
             AssignExpressionRet = Ret,
             AssignOpExpressionRet = Ret,
             BinaryExpressionRet = Ret,
+            UnaryExpressionRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -929,6 +941,7 @@ pub mod walk {
             Expression::Assign(r) => r,
             Expression::AssignOp(r) => r,
             Expression::BinaryExpr(r) => r,
+            Expression::UnaryExpr(r) => r,
         })
     }
 
@@ -2195,6 +2208,21 @@ pub mod walk {
             lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expression(ctx, node.rhs.ast_ref())?,
             operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,
+        })
+    }
+
+    pub struct UnaryExpression<'c, V: AstVisitor<'c>> {
+        pub expr: V::ExpressionRet,
+        pub operator: V::UnaryOperatorRet,
+    }
+    pub fn walk_unary_expr<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::UnaryExpression<'c>>,
+    ) -> Result<UnaryExpression<'c, V>, V::Error> {
+        Ok(UnaryExpression {
+            expr: visitor.visit_expression(ctx, node.expr.ast_ref())?,
+            operator: visitor.visit_unary_operator(ctx, node.operator.ast_ref())?,
         })
     }
 

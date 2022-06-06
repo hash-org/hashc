@@ -710,45 +710,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }),
                 }
             }
-            kind @ (TokenKind::Plus | TokenKind::Minus) => {
-                let value = self.parse_expression()?;
-                let span = value.span();
+            TokenKind::Plus => return self.parse_expression(),
+            kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
+                let expr = self.parse_expression()?;
 
-                let fn_name = match kind {
-                    TokenKind::Plus => "pos",
-                    TokenKind::Minus => "neg",
-                    _ => unreachable!(),
-                };
+                let operator = self.node_with_span(
+                    match kind {
+                        TokenKind::Minus => UnaryOperator::Neg,
+                        TokenKind::Exclamation => UnaryOperator::Not,
+                        TokenKind::Tilde => UnaryOperator::BitNot,
+                        _ => unreachable!(),
+                    },
+                    start,
+                );
 
-                ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.make_ident(fn_name, &start),
-                    args: self.node_with_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value
-                                }, span)],
-                        },
-                        span,
-                    ),
-                })
-            }
-            TokenKind::Tilde => {
-                let value = self.parse_expression()?;
-                let span = value.span();
-
-                ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.make_ident("notb", &start),
-                    args: self.node_with_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value
-                                }, span)],
-                        },
-                        span,
-                    ),
-                })
+                ExpressionKind::UnaryExpr(UnaryExpression { expr, operator })
             }
             TokenKind::Hash => {
                 // First get the directive subject, and expect a possible singular expression
@@ -761,23 +737,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Expression::new(ExpressionKind::Directive(DirectiveExpr { name, subject })),
                     &start,
                 ));
-            }
-            TokenKind::Exclamation => {
-                let value = self.parse_expression()?;
-                let span = value.span();
-
-                ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.make_ident("not", &start),
-                    args: self.node_with_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value
-                                }, span)],
-                        },
-                        span,
-                    ),
-                })
             }
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expression()?;
