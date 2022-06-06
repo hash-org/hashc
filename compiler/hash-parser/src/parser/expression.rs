@@ -6,13 +6,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use hash_alloc::{collections::row::Row, row};
-use hash_ast::{
-    ast::*,
-    ast_nodes,
-    ident::Identifier,
-    literal::STRING_LITERAL_MAP,
-    operator::{Operator, OperatorKind},
-};
+use hash_ast::{ast::*, ast_nodes, ident::Identifier, literal::STRING_LITERAL_MAP};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
@@ -314,6 +308,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
+        let lhs_span = lhs.span();
 
         // reset the compound_expr flag, since this is a new expression...
         self.is_compound_expr.set(false);
@@ -322,31 +317,35 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             let op_start = self.next_location();
             // this doesn't consider operators that have an 'eq' variant because that is handled at the statement level,
             // since it isn't really a binary operator...
-            let (op, consumed_tokens) = self.parse_operator();
+            let (op, consumed_tokens) = self.parse_binary_operator();
+
+            // We want to break if it's an operator and it is wanting to re-assign
+            if op.is_some_and(|op| op.is_re_assignable())
+                && matches!(self.peek_nth(consumed_tokens as usize), Some(token) if token.has_kind(TokenKind::Eq))
+            {
+                break;
+            }
 
             match op {
                 // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
                 // parsing onwards because this might be an assignable expression...
                 // Only perform this check if know prior that the expression is not made of compounded components.
-                Some(op) if !op.assigning => {
-                    // consume the number of tokens eaten whilst getting the operator...
-                    self.offset.update(|x| x + consumed_tokens as usize);
-
-                    let op_span = op_start.join(self.current_location());
-
+                Some(op) => {
                     // check if we have higher precedence than the lhs expression...
-                    let (l_prec, r_prec) = op.kind.infix_binding_power();
+                    let (l_prec, r_prec) = op.infix_binding_power();
 
                     if l_prec < min_prec {
-                        self.offset.update(|x| x - consumed_tokens as usize);
                         break;
                     }
 
+                    self.offset.update(|x| x + consumed_tokens as usize);
+                    let op_span = op_start.join(self.current_location());
+
                     // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
                     // where we transform the AstNode into a different
-                    if matches!(op.kind, OperatorKind::As) {
+                    if op == BinaryOperator::As {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::As(AsExpr {
+                            Expression::new(ExpressionKind::As(CastExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),
@@ -361,10 +360,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         self.is_compound_expr.set(true);
 
                         // transform the operator into an OperatorFn
-                        lhs = self.transform_binary_expression(
-                            lhs,
-                            rhs,
-                            self.node_with_span(op, op_span),
+                        lhs = self.node_with_joined_span(
+                            Expression::new(ExpressionKind::BinaryExpr(BinaryExpression {
+                                lhs,
+                                rhs,
+                                operator: self.node_with_span(op, op_span),
+                            })),
+                            &lhs_span,
                         );
                     }
                 }
@@ -855,140 +857,159 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
     ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
         let lhs = self.parse_expression_with_precedence(0)?;
+        let lhs_span = lhs.span();
 
         // Check if we can parse a merge declaration
         if self.parse_token_fast(TokenKind::Tilde).is_some() {
             return Ok((self.parse_merge_declaration(lhs)?, false));
         }
 
-        if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
-            // Parse the rhs and the semi
-            let rhs = self.parse_expression_with_precedence(0)?;
+        let start = self.current_location();
+        let (operator, consumed_tokens) = self.parse_binary_operator();
 
-            // Now we need to transform the re-assignment operator into a function call
-            Ok((self.transform_binary_expression(lhs, rhs, op), false))
-        } else {
-            Ok((lhs, false))
+        // Look at the token after the consumed tokens and see if it's an equal sign
+        match self.peek_nth(consumed_tokens as usize) {
+            Some(token) if operator.is_some() && token.has_kind(TokenKind::Eq) => {
+                // consume the number of tokens eaten whilst getting the operator...
+                self.offset.update(|x| x + 1 + consumed_tokens as usize);
+                let operator = self.node_with_joined_span(operator.unwrap(), &start);
+
+                let rhs = self.parse_expression_with_precedence(0)?;
+
+                // Now we need to transform the re-assignment operator into a function call
+                Ok((
+                    self.node_with_span(
+                        Expression::new(ExpressionKind::AssignOp(AssignOpExpression {
+                            lhs,
+                            rhs,
+                            operator,
+                        })),
+                        lhs_span,
+                    ),
+                    false,
+                ))
+            }
+            _ => Ok((lhs, false)),
         }
     }
 
     /// Utility function to transform to some expression into a referenced expression
     /// given some condition. This function is useful when transpiling some types of
     /// operators which might have a side-effect to overwrite the lhs.
-    fn transform_expr_into_ref(
-        &self,
-        expr: AstNode<'c, Expression<'c>>,
-        transform: bool,
-    ) -> AstNode<'c, Expression<'c>> {
-        match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
-                inner_expr: expr,
-                kind: RefKind::Normal,
-                mutability: None,
-            }))),
-            false => expr,
-        }
-    }
+    // fn transform_expr_into_ref(
+    //     &self,
+    //     expr: AstNode<'c, Expression<'c>>,
+    //     transform: bool,
+    // ) -> AstNode<'c, Expression<'c>> {
+    //     match transform {
+    //         true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
+    //             inner_expr: expr,
+    //             kind: RefKind::Normal,
+    //             mutability: None,
+    //         }))),
+    //         false => expr,
+    //     }
+    // }
 
     /// Create an [Expression] from two provided expressions and an [Operator].
-    fn transform_binary_expression(
-        &self,
-        lhs: AstNode<'c, Expression<'c>>,
-        rhs: AstNode<'c, Expression<'c>>,
-        op: AstNode<'c, Operator>,
-    ) -> AstNode<'c, Expression<'c>> {
-        let operator_location = op.span();
-        let Operator { kind, assigning } = op.body();
+    // fn transform_binary_expression(
+    //     &self,
+    //     lhs: AstNode<'c, Expression<'c>>,
+    //     rhs: AstNode<'c, Expression<'c>>,
+    //     op: AstNode<'c, Operator>,
+    // ) -> AstNode<'c, Expression<'c>> {
+    //     let operator_location = op.span();
+    //     let Operator { kind, assigning } = op.body();
 
-        if kind.is_compound() {
-            // for compound functions that include ordering, we essentially transpile
-            // into a match block that checks the result of the 'ord' fn call to the
-            // 'Ord' enum variants. This also happens for operators such as '>=' which
-            // essentially means that we have to check if the result of 'ord()' is either
-            // 'Eq' or 'Gt'.
-            self.transform_compound_ord_fn(*kind, *assigning, lhs, rhs, operator_location)
-        } else if kind.is_lazy() {
-            // some functions have to exhibit a short-circuiting behaviour, namely
-            // the logical 'and' and 'or' operators. To do this, we expect the 'and'
-            // 'or' trait (and their assignment counterparts) to expect the rhs part
-            // as a lambda. So, we essentially create a lambda that calls the rhs, or
-            // in other words, something like this happens:
-            //
-            // >>> lhs && rhs
-            // vvv (transpiles to...)
-            // >>> and(lhs, () => rhs)
-            //
+    //     if kind.is_compound() {
+    //         // for compound functions that include ordering, we essentially transpile
+    //         // into a match block that checks the result of the 'ord' fn call to the
+    //         // 'Ord' enum variants. This also happens for operators such as '>=' which
+    //         // essentially means that we have to check if the result of 'ord()' is either
+    //         // 'Eq' or 'Gt'.
+    //         self.transform_compound_ord_fn(*kind, *assigning, lhs, rhs, operator_location)
+    //     } else if kind.is_lazy() {
+    //         // some functions have to exhibit a short-circuiting behaviour, namely
+    //         // the logical 'and' and 'or' operators. To do this, we expect the 'and'
+    //         // 'or' trait (and their assignment counterparts) to expect the rhs part
+    //         // as a lambda. So, we essentially create a lambda that calls the rhs, or
+    //         // in other words, something like this happens:
+    //         //
+    //         // >>> lhs && rhs
+    //         // vvv (transpiles to...)
+    //         // >>> and(lhs, () => rhs)
+    //         //
 
-            let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
-            let span = lhs_span.join(rhs_span);
+    //         let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
+    //         let span = lhs_span.join(rhs_span);
 
-            self.node_with_span(Expression::new(ExpressionKind::FunctionCall(
-                    FunctionCallExpr {
-                        subject: self.node_with_span(
-                            Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: self.make_access_name_from_str(op.body().to_str(), op.span()),
-                                type_args: AstNodes::empty(),
-                            })),
-                            op.span(),
-                        ),
-                        args: self.node_with_joined_span(
-                            FunctionCallArgs {
-                            entries: ast_nodes![&self.wall;
-                                self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value: self.transform_expr_into_ref(lhs, *assigning),
-                                }, lhs_span),
-                                self.node(
-                                FunctionCallArg {
-                                    name: None,
-                                    value: self.node_with_span(Expression::new(ExpressionKind::FunctionDef(
-                                        FunctionDef {
-                                            args: AstNodes::empty(),
-                                            return_ty: None,
-                                            fn_body: rhs,
-                                        })), rhs_span),
-                                })
-                            ],
-                        },  &span),
-                    },
-                )), span)
-        } else {
-            let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
-            let location = lhs_span.join(rhs_span);
+    //         self.node_with_span(Expression::new(ExpressionKind::FunctionCall(
+    //                 FunctionCallExpr {
+    //                     subject: self.node_with_span(
+    //                         Expression::new(ExpressionKind::Variable(VariableExpr {
+    //                             name: self.make_access_name_from_str(op.body().to_str(), op.span()),
+    //                             type_args: AstNodes::empty(),
+    //                         })),
+    //                         op.span(),
+    //                     ),
+    //                     args: self.node_with_joined_span(
+    //                         FunctionCallArgs {
+    //                         entries: ast_nodes![&self.wall;
+    //                             self.node_with_span(FunctionCallArg {
+    //                                 name: None,
+    //                                 value: self.transform_expr_into_ref(lhs, *assigning),
+    //                             }, lhs_span),
+    //                             self.node(
+    //                             FunctionCallArg {
+    //                                 name: None,
+    //                                 value: self.node_with_span(Expression::new(ExpressionKind::FunctionDef(
+    //                                     FunctionDef {
+    //                                         args: AstNodes::empty(),
+    //                                         return_ty: None,
+    //                                         fn_body: rhs,
+    //                                     })), rhs_span),
+    //                             })
+    //                         ],
+    //                     },  &span),
+    //                 },
+    //             )), span)
+    //     } else {
+    //         let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
+    //         let location = lhs_span.join(rhs_span);
 
-            self.node_with_span(
-                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.node_with_span(
-                        Expression::new(ExpressionKind::Variable(VariableExpr {
-                            name: self.make_access_name_from_str(op.body().to_str(), op.span()),
-                            type_args: AstNodes::empty(),
-                        })),
-                        op.span(),
-                    ),
-                    args: self.node_with_joined_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall;
-                                self.node_with_span( {
-                                    FunctionCallArg {
-                                        name: None,
-                                        value: self.transform_expr_into_ref(lhs, *assigning),
-                                    }
-                                }, lhs_span),
-                                self.node_with_span( {
-                                    FunctionCallArg {
-                                        name: None,
-                                        value: rhs,
-                                    }
-                                }, rhs_span)
-                            ],
-                        },
-                        &location,
-                    ),
-                })),
-                op.span(),
-            )
-        }
-    }
+    //         self.node_with_span(
+    //             Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+    //                 subject: self.node_with_span(
+    //                     Expression::new(ExpressionKind::Variable(VariableExpr {
+    //                         name: self.make_access_name_from_str(op.body().to_str(), op.span()),
+    //                         type_args: AstNodes::empty(),
+    //                     })),
+    //                     op.span(),
+    //                 ),
+    //                 args: self.node_with_joined_span(
+    //                     FunctionCallArgs {
+    //                         entries: ast_nodes![&self.wall;
+    //                             self.node_with_span( {
+    //                                 FunctionCallArg {
+    //                                     name: None,
+    //                                     value: self.transform_expr_into_ref(lhs, *assigning),
+    //                                 }
+    //                             }, lhs_span),
+    //                             self.node_with_span( {
+    //                                 FunctionCallArg {
+    //                                     name: None,
+    //                                     value: rhs,
+    //                                 }
+    //                             }, rhs_span)
+    //                         ],
+    //                     },
+    //                     &location,
+    //                 ),
+    //             })),
+    //             op.span(),
+    //         )
+    //     }
+    // }
 
     /// Function that is used to transfer an operator which is of `compound` type into a
     /// `match` statement that involves matching on the return type of the language defined
@@ -1017,109 +1038,109 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ///     _ =>  false
     /// }
     /// ```
-    fn transform_compound_ord_fn(
-        &self,
-        fn_ty: OperatorKind,
-        assigning: bool,
-        lhs: AstNode<'c, Expression<'c>>,
-        rhs: AstNode<'c, Expression<'c>>,
-        operator_location: Span,
-    ) -> AstNode<'c, Expression<'c>> {
-        let location = lhs.span().join(rhs.span());
+    // fn transform_compound_ord_fn(
+    //     &self,
+    //     fn_ty: OperatorKind,
+    //     assigning: bool,
+    //     lhs: AstNode<'c, Expression<'c>>,
+    //     rhs: AstNode<'c, Expression<'c>>,
+    //     operator_location: Span,
+    // ) -> AstNode<'c, Expression<'c>> {
+    //     let location = lhs.span().join(rhs.span());
 
-        // we need to transform the lhs into a reference if the type of function is 'assigning'
-        let lhs = self.transform_expr_into_ref(lhs, assigning);
-        let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
+    //     // we need to transform the lhs into a reference if the type of function is 'assigning'
+    //     let lhs = self.transform_expr_into_ref(lhs, assigning);
+    //     let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
 
-        let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
-            FunctionCallExpr {
-                subject: self.make_ident("ord", &operator_location),
-                args: self.node(FunctionCallArgs {
-                    entries: ast_nodes![&self.wall;
-                    self.node_with_span(
-                        FunctionCallArg {
-                            name: None,
-                            value: lhs,
-                        },
-                        lhs_span
-                    ),
-                    self.node_with_span(
-                        FunctionCallArg {
-                            name: None,
-                            value: rhs,
-                        },
-                        rhs_span
-                    )],
-                }),
-            },
-        )));
+    //     let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
+    //         FunctionCallExpr {
+    //             subject: self.make_ident("ord", &operator_location),
+    //             args: self.node(FunctionCallArgs {
+    //                 entries: ast_nodes![&self.wall;
+    //                 self.node_with_span(
+    //                     FunctionCallArg {
+    //                         name: None,
+    //                         value: lhs,
+    //                     },
+    //                     lhs_span
+    //                 ),
+    //                 self.node_with_span(
+    //                     FunctionCallArg {
+    //                         name: None,
+    //                         value: rhs,
+    //                     },
+    //                     rhs_span
+    //                 )],
+    //             }),
+    //         },
+    //     )));
 
-        let make_constructor_pattern = |symbol: &str, location: Span| {
-            self.node(Pattern::Constructor(ConstructorPattern {
-                name: self.make_access_name_from_str(symbol, location),
-                fields: AstNodes::empty(),
-            }))
-        };
+    //     let make_constructor_pattern = |symbol: &str, location: Span| {
+    //         self.node(Pattern::Constructor(ConstructorPattern {
+    //             name: self.make_access_name_from_str(symbol, location),
+    //             fields: AstNodes::empty(),
+    //         }))
+    //     };
 
-        // each tuple bool variant represents a branch the match statement
-        // should return 'true' on, and all the rest will return false...
-        // the order is (Lt, Eq, Gt)
-        let mut branches = match fn_ty {
-            OperatorKind::LtEq => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: self.node(Pattern::Or(OrPattern {
-                        variants: ast_nodes![&self.wall;
-                        make_constructor_pattern("Lt", location),
-                        make_constructor_pattern("Eq", location),
-                        ],
-                    })),
-                    expr: self.make_bool(true)
-                })]
-            }
-            OperatorKind::GtEq => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: self.node(Pattern::Or(OrPattern {
-                        variants: ast_nodes![&self.wall;
-                        make_constructor_pattern("Gt", location),
-                        make_constructor_pattern("Eq", location),
-                        ],
-                    })),
-                    expr: self.make_bool(true)
-                })]
-            }
-            OperatorKind::Lt => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_constructor_pattern("Lt", location),
-                    expr: self.make_bool(true)
-                })]
-            }
-            OperatorKind::Gt => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_constructor_pattern("Gt", location),
-                    expr: self.make_bool(true)
-                })]
-            }
-            _ => unreachable!(),
-        };
+    //     // each tuple bool variant represents a branch the match statement
+    //     // should return 'true' on, and all the rest will return false...
+    //     // the order is (Lt, Eq, Gt)
+    //     let mut branches = match fn_ty {
+    //         OperatorKind::LtEq => {
+    //             ast_nodes![&self.wall; self.node(MatchCase {
+    //                 pattern: self.node(Pattern::Or(OrPattern {
+    //                     variants: ast_nodes![&self.wall;
+    //                     make_constructor_pattern("Lt", location),
+    //                     make_constructor_pattern("Eq", location),
+    //                     ],
+    //                 })),
+    //                 expr: self.make_bool(true)
+    //             })]
+    //         }
+    //         OperatorKind::GtEq => {
+    //             ast_nodes![&self.wall; self.node(MatchCase {
+    //                 pattern: self.node(Pattern::Or(OrPattern {
+    //                     variants: ast_nodes![&self.wall;
+    //                     make_constructor_pattern("Gt", location),
+    //                     make_constructor_pattern("Eq", location),
+    //                     ],
+    //                 })),
+    //                 expr: self.make_bool(true)
+    //             })]
+    //         }
+    //         OperatorKind::Lt => {
+    //             ast_nodes![&self.wall; self.node(MatchCase {
+    //                 pattern: make_constructor_pattern("Lt", location),
+    //                 expr: self.make_bool(true)
+    //             })]
+    //         }
+    //         OperatorKind::Gt => {
+    //             ast_nodes![&self.wall; self.node(MatchCase {
+    //                 pattern: make_constructor_pattern("Gt", location),
+    //                 expr: self.make_bool(true)
+    //             })]
+    //         }
+    //         _ => unreachable!(),
+    //     };
 
-        // add the '_' case to the branches to return false on any other
-        // condition
-        branches.nodes.push(
-            self.node(MatchCase {
-                pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                expr: self.make_bool(false),
-            }),
-            &self.wall,
-        );
+    //     // add the '_' case to the branches to return false on any other
+    //     // condition
+    //     branches.nodes.push(
+    //         self.node(MatchCase {
+    //             pattern: self.node(Pattern::Ignore(IgnorePattern)),
+    //             expr: self.make_bool(false),
+    //         }),
+    //         &self.wall,
+    //     );
 
-        self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-            self.node(Block::Match(MatchBlock {
-                subject: fn_call,
-                cases: branches,
-                origin: MatchOrigin::Match,
-            })),
-        ))))
-    }
+    //     self.node(Expression::new(ExpressionKind::Block(BlockExpr(
+    //         self.node(Block::Match(MatchBlock {
+    //             subject: fn_call,
+    //             cases: branches,
+    //             origin: MatchOrigin::Match,
+    //         })),
+    //     ))))
+    // }
 
     /// Parse an single name or a function call that is applied on the left hand side
     /// expression. Infix calls and name are only separated by infix calls having

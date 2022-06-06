@@ -521,7 +521,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+        node: ast::AstNodeRef<ast::CastExpr<'c>>,
     ) -> Result<Self::AsExprRet, Self::Error> {
         let walk::AsExpr { expr, ty } = walk::walk_as_expr(self, ctx, node)?;
         self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
@@ -1256,7 +1256,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
     type AssignExpressionRet = TypeId;
 
-    fn visit_assign_expression(
+    fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignExpression<'c>>,
@@ -1274,11 +1274,21 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 
     type AssignOpExpressionRet = TypeId;
 
-    fn visit_assign_op_expression(
+    fn visit_assign_op_expr(
         &mut self,
         _ctx: &Self::Ctx,
         _node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+        todo!()
+    }
+
+    type BinaryExpressionRet = TypeId;
+
+    fn visit_binary_expr(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::BinaryExpression<'c>>,
+    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
         todo!()
     }
 

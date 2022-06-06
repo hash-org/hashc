@@ -156,7 +156,7 @@ pub trait AstVisitor<'c>: Sized {
     fn visit_as_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+        node: ast::AstNodeRef<ast::CastExpr<'c>>,
     ) -> Result<Self::AsExprRet, Self::Error>;
 
     type TypeExprRet: 'c;
@@ -447,18 +447,25 @@ pub trait AstVisitor<'c>: Sized {
     ) -> Result<Self::MergeDeclarationRet, Self::Error>;
 
     type AssignExpressionRet: 'c;
-    fn visit_assign_expression(
+    fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignExpression<'c>>,
     ) -> Result<Self::AssignExpressionRet, Self::Error>;
 
     type AssignOpExpressionRet: 'c;
-    fn visit_assign_op_expression(
+    fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error>;
+
+    type BinaryExpressionRet: 'c;
+    fn visit_binary_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BinaryExpression<'c>>,
+    ) -> Result<Self::BinaryExpressionRet, Self::Error>;
 
     type StructDefEntryRet: 'c;
     fn visit_struct_def_entry(
@@ -769,6 +776,7 @@ pub mod walk {
         AssignOp(V::AssignOpExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
+        BinaryExpr(V::BinaryExpressionRet),
     }
 
     pub fn walk_expression<'c, V: AstVisitor<'c>>(
@@ -844,13 +852,16 @@ pub mod walk {
                 Expression::Continue(visitor.visit_continue_statement(ctx, node.with_body(r))?)
             }
             ast::ExpressionKind::Assign(r) => {
-                Expression::Assign(visitor.visit_assign_expression(ctx, node.with_body(r))?)
+                Expression::Assign(visitor.visit_assign_expr(ctx, node.with_body(r))?)
             }
             ast::ExpressionKind::AssignOp(r) => {
-                Expression::AssignOp(visitor.visit_assign_op_expression(ctx, node.with_body(r))?)
+                Expression::AssignOp(visitor.visit_assign_op_expr(ctx, node.with_body(r))?)
             }
             ast::ExpressionKind::TraitImpl(r) => {
                 Expression::TraitImpl(visitor.visit_trait_impl(ctx, node.with_body(r))?)
+            }
+            ast::ExpressionKind::BinaryExpr(r) => {
+                Expression::BinaryExpr(visitor.visit_binary_expr(ctx, node.with_body(r))?)
             }
         })
     }
@@ -888,6 +899,7 @@ pub mod walk {
             ContinueStatementRet = Ret,
             AssignExpressionRet = Ret,
             AssignOpExpressionRet = Ret,
+            BinaryExpressionRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -916,6 +928,7 @@ pub mod walk {
             Expression::Continue(r) => r,
             Expression::Assign(r) => r,
             Expression::AssignOp(r) => r,
+            Expression::BinaryExpr(r) => r,
         })
     }
 
@@ -1085,7 +1098,7 @@ pub mod walk {
     pub fn walk_as_expr<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::AsExpr<'c>>,
+        node: ast::AstNodeRef<ast::CastExpr<'c>>,
     ) -> Result<AsExpr<'c, V>, V::Error> {
         Ok(AsExpr {
             ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
@@ -2139,6 +2152,7 @@ pub mod walk {
         pub lhs: V::ExpressionRet,
         pub rhs: V::ExpressionRet,
     }
+
     pub fn walk_assign_statement<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
@@ -2161,6 +2175,23 @@ pub mod walk {
         node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
     ) -> Result<AssignOpStatement<'c, V>, V::Error> {
         Ok(AssignOpStatement {
+            lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
+            rhs: visitor.visit_expression(ctx, node.rhs.ast_ref())?,
+            operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,
+        })
+    }
+
+    pub struct BinaryExpression<'c, V: AstVisitor<'c>> {
+        pub lhs: V::ExpressionRet,
+        pub rhs: V::ExpressionRet,
+        pub operator: V::BinaryOperatorRet,
+    }
+    pub fn walk_binary_expr<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::BinaryExpression<'c>>,
+    ) -> Result<BinaryExpression<'c, V>, V::Error> {
+        Ok(BinaryExpression {
             lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expression(ctx, node.rhs.ast_ref())?,
             operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,

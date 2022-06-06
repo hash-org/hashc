@@ -3,6 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 #![feature(cell_update)]
+#![feature(is_some_with)]
 
 mod import_resolver;
 pub mod parser;
