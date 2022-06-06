@@ -681,7 +681,7 @@ impl Display for UnaryOperator {
 }
 
 /// Binary operators that are defined within the core of the language.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BinaryOperator {
     /// '=='
     EqEq,
@@ -749,6 +749,51 @@ impl Display for BinaryOperator {
             BinaryOperator::Mod => write!(f, "%"),
             BinaryOperator::As => write!(f, "as"),
         }
+    }
+}
+
+impl BinaryOperator {
+    /// Compute the precedence for an operator
+    pub fn infix_binding_power(&self) -> (u8, u8) {
+        match self {
+            BinaryOperator::Or => (2, 3),
+            BinaryOperator::And => (4, 5),
+            BinaryOperator::EqEq | BinaryOperator::NotEq => (6, 5),
+            BinaryOperator::Gt
+            | BinaryOperator::GtEq
+            | BinaryOperator::Lt
+            | BinaryOperator::LtEq => (7, 8),
+            BinaryOperator::BitOr | BinaryOperator::BitXor => (9, 10),
+            BinaryOperator::BitAnd => (11, 12),
+            BinaryOperator::Shr | BinaryOperator::Shl => (13, 14),
+            BinaryOperator::Add | BinaryOperator::Sub => (15, 16),
+            BinaryOperator::Mul | BinaryOperator::Div | BinaryOperator::Mod => (17, 18),
+            BinaryOperator::Exp => (20, 19),
+            BinaryOperator::As => (21, 22),
+        }
+    }
+
+    /// This returns if an operator is actually re-assignable. By re-assignable, this is in the sense
+    /// that you can add a '=' to mean that you are performing a re-assigning operation using the left
+    /// hand-side expression as a starting point and the rhs as the other argument to the operator.
+    /// For example, `a += b` is re-assigning because it means `a = a + b`.
+    pub fn is_re_assignable(&self) -> bool {
+        matches!(
+            self,
+            BinaryOperator::BitOr
+                | BinaryOperator::Or
+                | BinaryOperator::BitAnd
+                | BinaryOperator::And
+                | BinaryOperator::BitXor
+                | BinaryOperator::Exp
+                | BinaryOperator::Shr
+                | BinaryOperator::Shl
+                | BinaryOperator::Add
+                | BinaryOperator::Sub
+                | BinaryOperator::Mul
+                | BinaryOperator::Div
+                | BinaryOperator::Mod
+        )
     }
 }
 
@@ -975,7 +1020,7 @@ pub struct PropertyAccessExpr<'c> {
 
 /// A typed expression, e.g. `foo as int`.
 #[derive(Debug, PartialEq)]
-pub struct AsExpr<'c> {
+pub struct CastExpr<'c> {
     /// The annotated type of the expression.
     pub ty: AstNode<'c, Type<'c>>,
     /// The expression being typed.
@@ -1041,6 +1086,14 @@ pub struct TraitImpl<'c> {
     pub implementation: AstNodes<'c, Expression<'c>>,
 }
 
+/// A binary expression `2 + 2`.
+#[derive(Debug, PartialEq)]
+pub struct BinaryExpression<'c> {
+    pub lhs: AstNode<'c, Expression<'c>>,
+    pub rhs: AstNode<'c, Expression<'c>>,
+    pub operator: AstNode<'c, BinaryOperator>,
+}
+
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
@@ -1053,7 +1106,7 @@ pub enum ExpressionKind<'c> {
     Deref(DerefExpr<'c>),
     Unsafe(UnsafeExpr<'c>),
     LiteralExpr(LiteralExpr<'c>),
-    As(AsExpr<'c>),
+    As(CastExpr<'c>),
     Block(BlockExpr<'c>),
     Import(ImportExpr<'c>),
     StructDef(StructDef<'c>),
@@ -1073,6 +1126,8 @@ pub enum ExpressionKind<'c> {
     AssignOp(AssignOpExpression<'c>),
     MergeDeclaration(MergeDeclaration<'c>),
     TraitImpl(TraitImpl<'c>),
+    /// Binary Expression composed of a left and right hand-side with a binary operator
+    BinaryExpr(BinaryExpression<'c>),
 }
 
 /// An expression.

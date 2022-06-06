@@ -37,7 +37,7 @@ counter! {
 //
 // But, this means that we have to perform exhaustiveness checking before transforming into IR?
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PatKind<'i> {
     Spread,
     Ignore,
@@ -49,32 +49,32 @@ pub enum PatKind<'i> {
     Union(&'i [Pat<'i>]),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Pat<'i> {
     kind: &'i PatKind<'i>,
     span: Span,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum UnaryOp {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum BinOp {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Expr<'i> {
     ir_id: IrId,
     kind: ExprKind<'i>,
     span: Span,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Mutability {
     Mutable,
     Immutable,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ExprKind<'i> {
     Nop,
     Identity(&'i Expr<'i>),
@@ -87,15 +87,15 @@ pub enum ExprKind<'i> {
     AddrOf(Mutability, &'i Expr<'i>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Body<'i> {
     exprs: &'i [Expr<'i>],
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Const {
     kind: ConstKind,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ConstKind {}
