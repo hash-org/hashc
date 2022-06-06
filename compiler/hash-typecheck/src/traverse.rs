@@ -1236,6 +1236,24 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
+    type BinaryOperatorRet = TypeId;
+    fn visit_binary_operator(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::BinaryOperator>,
+    ) -> Result<Self::BinaryOperatorRet, Self::Error> {
+        panic!("Hit bin_op within typechecker pass")
+    }
+
+    type UnaryOperatorRet = TypeId;
+    fn visit_unary_operator(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::UnaryOperator>,
+    ) -> Result<Self::UnaryOperatorRet, Self::Error> {
+        panic!("Hit unary_op within typechecker pass")
+    }
+
     type AssignExpressionRet = TypeId;
 
     fn visit_assign_expression(
@@ -1252,6 +1270,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         // that was found found for the left hand side
         self.unifier().unify(rhs, lhs, UnifyStrategy::CheckOnly)?;
         Ok(self.types_mut().create_void_type())
+    }
+
+    type AssignOpExpressionRet = TypeId;
+
+    fn visit_assign_op_expression(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
+    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+        todo!()
     }
 
     type StructDefEntryRet = (Identifier, TypeId);

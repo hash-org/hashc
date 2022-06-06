@@ -855,6 +855,24 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
 
+    type BinaryOperatorRet = TreeNode;
+    fn visit_binary_operator(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BinaryOperator>,
+    ) -> Result<Self::BinaryOperatorRet, Self::Error> {
+        Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
+    }
+
+    type UnaryOperatorRet = TreeNode;
+    fn visit_unary_operator(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnaryOperator>,
+    ) -> Result<Self::UnaryOperatorRet, Self::Error> {
+        Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
+    }
+
     type AssignExpressionRet = TreeNode;
     fn visit_assign_expression(
         &mut self,
@@ -865,6 +883,24 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch(
             "assign",
             vec![
+                TreeNode::branch("lhs", vec![lhs]),
+                TreeNode::branch("rhs", vec![rhs]),
+            ],
+        ))
+    }
+
+    type AssignOpExpressionRet = TreeNode;
+    fn visit_assign_op_expression(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
+    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+        let walk::AssignOpStatement { lhs, rhs, operator } =
+            walk::walk_assign_op_statement(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "assign",
+            vec![
+                operator,
                 TreeNode::branch("lhs", vec![lhs]),
                 TreeNode::branch("rhs", vec![rhs]),
             ],

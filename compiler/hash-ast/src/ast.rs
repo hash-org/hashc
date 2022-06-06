@@ -9,9 +9,9 @@ use hash_alloc::collections::row::Row;
 use hash_alloc::{row, Wall};
 use hash_source::location::Span;
 use hash_utils::counter;
-use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
+use std::{fmt::Display, hash::Hash};
 
 counter! {
     name: AstNodeId,
@@ -659,6 +659,99 @@ pub struct MergeDeclaration<'c> {
     pub value: AstNode<'c, Expression<'c>>,
 }
 
+/// Unary operators that are defined within the core of the language.
+#[derive(Debug, Clone)]
+pub enum UnaryOperator {
+    // Bitwise logical inversion
+    BitNot,
+    /// Logical inversion.
+    Not,
+    /// The operator '-' for negation
+    Neg,
+}
+
+impl Display for UnaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOperator::BitNot => write!(f, "~"),
+            UnaryOperator::Not => write!(f, "!"),
+            UnaryOperator::Neg => write!(f, "-"),
+        }
+    }
+}
+
+/// Binary operators that are defined within the core of the language.
+#[derive(Debug, Clone)]
+pub enum BinaryOperator {
+    /// '=='
+    EqEq,
+    /// '!='
+    NotEq,
+    /// '|'
+    BitOr,
+    /// '||'
+    Or,
+    /// '&'
+    BitAnd,
+    /// '&&'
+    And,
+    /// '^'
+    BitXor,
+    /// '^^'
+    Exp,
+    /// '>'
+    Gt,
+    /// '>='
+    GtEq,
+    /// '<'
+    Lt,
+    /// '<='
+    LtEq,
+    /// '>>'
+    Shr,
+    /// '<<'
+    Shl,
+    /// '+'
+    Add,
+    /// '-'
+    Sub,
+    /// '*'
+    Mul,
+    /// '/'
+    Div,
+    /// '%'
+    Mod,
+    /// 'as'
+    As,
+}
+
+impl Display for BinaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOperator::EqEq => write!(f, "=="),
+            BinaryOperator::NotEq => write!(f, "!="),
+            BinaryOperator::BitOr => write!(f, "|"),
+            BinaryOperator::Or => write!(f, "||"),
+            BinaryOperator::BitAnd => write!(f, "&"),
+            BinaryOperator::And => write!(f, "&&"),
+            BinaryOperator::BitXor => write!(f, "^"),
+            BinaryOperator::Exp => write!(f, "^^"),
+            BinaryOperator::Gt => write!(f, ">"),
+            BinaryOperator::GtEq => write!(f, ">="),
+            BinaryOperator::Lt => write!(f, "<"),
+            BinaryOperator::LtEq => write!(f, "<="),
+            BinaryOperator::Shr => write!(f, "<<"),
+            BinaryOperator::Shl => write!(f, ">>"),
+            BinaryOperator::Add => write!(f, "+"),
+            BinaryOperator::Sub => write!(f, "-"),
+            BinaryOperator::Mul => write!(f, "*"),
+            BinaryOperator::Div => write!(f, "/"),
+            BinaryOperator::Mod => write!(f, "%"),
+            BinaryOperator::As => write!(f, "as"),
+        }
+    }
+}
+
 /// An assign expression, e.g. `x = 4;`.
 #[derive(Debug, PartialEq)]
 pub struct AssignExpression<'c> {
@@ -670,6 +763,24 @@ pub struct AssignExpression<'c> {
     ///
     /// The value will be assigned to the left-hand side.
     pub rhs: AstNode<'c, Expression<'c>>,
+}
+
+/// An assign expression, e.g. `x += 4;`.
+#[derive(Debug, PartialEq)]
+pub struct AssignOpExpression<'c> {
+    /// The left-hand side of the assignment.
+    ///
+    /// This should resolve to either a variable or a struct field.
+    pub lhs: AstNode<'c, Expression<'c>>,
+    /// The right-hand side of the assignment.
+    ///
+    /// The value will be assigned to the left-hand side.
+    pub rhs: AstNode<'c, Expression<'c>>,
+
+    /// Operator that is applied with the assignment on the lhs with the rhs value.
+    ///
+    /// Note: Some binary operators are not allowed to be in the location.
+    pub operator: AstNode<'c, BinaryOperator>,
 }
 
 /// A field of a struct definition, e.g. "name: str".
@@ -954,7 +1065,12 @@ pub enum ExpressionKind<'c> {
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),
+    /// An expression that captures a variable or a pattern being assigned
+    /// to a right hand-side expression such as `x = 3`.
     Assign(AssignExpression<'c>),
+    /// An expression that captures a variable or a pattern being assigned with
+    /// the application of a binary operator, such as `x += 3`.
+    AssignOp(AssignOpExpression<'c>),
     MergeDeclaration(MergeDeclaration<'c>),
     TraitImpl(TraitImpl<'c>),
 }
