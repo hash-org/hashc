@@ -61,6 +61,20 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::Literal<'c>>,
     ) -> Result<Self::LiteralRet, Self::Error>;
 
+    type BinaryOperatorRet: 'c;
+    fn visit_binary_operator(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::BinaryOperator>,
+    ) -> Result<Self::BinaryOperatorRet, Self::Error>;
+
+    type UnaryOperatorRet: 'c;
+    fn visit_unary_operator(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnaryOperator>,
+    ) -> Result<Self::UnaryOperatorRet, Self::Error>;
+
     type ExpressionRet: 'c;
     fn visit_expression(
         &mut self,
@@ -439,6 +453,13 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::AssignExpression<'c>>,
     ) -> Result<Self::AssignExpressionRet, Self::Error>;
 
+    type AssignOpExpressionRet: 'c;
+    fn visit_assign_op_expression(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
+    ) -> Result<Self::AssignOpExpressionRet, Self::Error>;
+
     type StructDefEntryRet: 'c;
     fn visit_struct_def_entry(
         &mut self,
@@ -745,6 +766,7 @@ pub mod walk {
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignExpressionRet),
+        AssignOp(V::AssignOpExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
     }
@@ -824,6 +846,9 @@ pub mod walk {
             ast::ExpressionKind::Assign(r) => {
                 Expression::Assign(visitor.visit_assign_expression(ctx, node.with_body(r))?)
             }
+            ast::ExpressionKind::AssignOp(r) => {
+                Expression::AssignOp(visitor.visit_assign_op_expression(ctx, node.with_body(r))?)
+            }
             ast::ExpressionKind::TraitImpl(r) => {
                 Expression::TraitImpl(visitor.visit_trait_impl(ctx, node.with_body(r))?)
             }
@@ -862,6 +887,7 @@ pub mod walk {
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
             AssignExpressionRet = Ret,
+            AssignOpExpressionRet = Ret,
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
@@ -889,6 +915,7 @@ pub mod walk {
             Expression::Break(r) => r,
             Expression::Continue(r) => r,
             Expression::Assign(r) => r,
+            Expression::AssignOp(r) => r,
         })
     }
 
@@ -2120,6 +2147,23 @@ pub mod walk {
         Ok(AssignStatement {
             lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expression(ctx, node.rhs.ast_ref())?,
+        })
+    }
+
+    pub struct AssignOpStatement<'c, V: AstVisitor<'c>> {
+        pub lhs: V::ExpressionRet,
+        pub rhs: V::ExpressionRet,
+        pub operator: V::BinaryOperatorRet,
+    }
+    pub fn walk_assign_op_statement<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
+    ) -> Result<AssignOpStatement<'c, V>, V::Error> {
+        Ok(AssignOpStatement {
+            lhs: visitor.visit_expression(ctx, node.lhs.ast_ref())?,
+            rhs: visitor.visit_expression(ctx, node.rhs.ast_ref())?,
+            operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,
         })
     }
 
