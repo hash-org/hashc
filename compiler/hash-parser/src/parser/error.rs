@@ -70,6 +70,8 @@ pub enum AstGenErrorKind {
     ExpectedFnBody,
     /// Expected a type at the current location.
     ExpectedType,
+    /// Expected an expression after a type annotation within named tuples
+    ExpectedValueAfterTyAnnotation,
     /// After a dot operator, the parser expects either a property access or an
     /// infix call which is an extended version of a property access.
     InfixCall,
@@ -80,6 +82,8 @@ pub enum AstGenErrorKind {
     AccessName,
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
+    /// Malformed spread pattern (if for any reason there is a problem with parsing the spread operator)
+    MalformedSpreadPattern(u8),
 }
 
 impl std::fmt::Display for TyArgumentKind {
@@ -127,6 +131,9 @@ impl<'a> From<AstGenError<'a>> for ParseError {
                     ty
                 )
             }
+            AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
+                "Expected value assignment after type annotation within named tuple".to_string()
+            }
             AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
@@ -144,6 +151,11 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::ErroneousImport(err) => err.to_string(),
             AstGenErrorKind::AccessName => {
                 "Expected identifier after a name access qualifier '::'".to_string()
+            }
+            AstGenErrorKind::MalformedSpreadPattern(dots) => {
+                format!(
+                    "Malformed spread pattern, expected {dots} more `.` to complete the pattern"
+                )
             }
         };
 
