@@ -79,7 +79,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         Ok(self.node_with_joined_span(Block::Body(block), &start))
     }
 
-    /// Parse a for-loop block
+    /// Parse a `for` loop block.
     pub(crate) fn parse_for_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
@@ -93,141 +93,30 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.parse_token(TokenKind::Keyword(Keyword::In))?;
 
         let iterator = self.parse_expression_with_precedence(0)?;
-
         let body = self.parse_block()?;
-        let (pat_span, iter_span, body_span) = (pattern.span(), iterator.span(), body.span());
 
-        // transpile the for-loop into a simpler loop as described by the documentation.
-        // Since for loops are used for iterators in hash, we transpile the construct into a primitive loop.
-        // An iterator can be traversed by calling the next function on the iterator.
-        // Since next returns a Option type, we need to check if there is a value or if it returns None.
-        // If a value does exist, we essentially perform an assignment to the pattern provided.
-        // If None, the branch immediately breaks the for loop.
-        //
-        // A rough outline of what the transpilation process for a for loop looks like:
-        //
-        // For example, the for loop can be expressed using loop as:
-        //
-        // >>> for <pat> in <iterator> {
-        // >>>     <block>
-        // >>> }
-        //
-        // converted to:
-        // >>> loop {
-        // >>>     match next(<iterator>) {
-        // >>>         Some(<pat>) => <block>;
-        // >>>         None        => break;
-        // >>>     }
-        // >>> }
-        //
-        Ok(self.node_with_joined_span(Block::Loop(LoopBlock(self.node_with_joined_span(
-            Block::Match(MatchBlock {
-            subject: self.node(Expression::new(ExpressionKind::FunctionCall(
-                FunctionCallExpr {
-                    subject: self.node(Expression::new(ExpressionKind::Variable(
-                        VariableExpr {
-                            name: self.make_access_name_from_str("next", iter_span),
-                            type_args: AstNodes::empty(),
-                        },
-                    ))),
-                    args: self.node_with_span(FunctionCallArgs {
-                        entries: ast_nodes![&self.wall; self.node_with_span(
-                            FunctionCallArg {
-                                name: None,
-                                value: iterator,
-                            },
-                            iter_span
-                        )],
-                    }, iter_span),
-                },
-            ))),
-            cases: ast_nodes![&self.wall; self.node_with_span(MatchCase {
-                    pattern: self.node_with_span(
-                        Pattern::Constructor(
-                            ConstructorPattern {
-                                name:
-                                    self.make_access_name_from_str(
-                                        "Some",
-                                        self.current_location()
-                                    ),
-                                fields: ast_nodes![&self.wall; self.node_with_joined_span(TuplePatternEntry { name: None, pattern }, &pat_span)],
-                            },
-                        ), pat_span
-                    ),
-                    expr: self.node_with_span(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
-                }, start),
-                self.node(MatchCase {
-                    pattern: self.node(
-                        Pattern::Constructor(
-                            ConstructorPattern {
-                                name:
-                                    self.make_access_name_from_str(
-                                        "None",
-                                        self.current_location()
-                                    ),
-                                fields: AstNodes::empty(),
-                            },
-                        ),
-                    ),
-                    expr: self.node(Expression::new(ExpressionKind::Break(BreakStatement))),
-                }),
-            ],
-            origin: MatchOrigin::For
-        }), &start))), &start))
+        Ok(self.node_with_joined_span(
+            Block::For(ForLoopBlock {
+                pattern,
+                iterator,
+                body,
+            }),
+            &start,
+        ))
     }
 
-    /// In general, a while loop transpilation process occurs by transferring the looping
-    /// condition into a match block, which compares a boolean condition. If the boolean condition
-    /// evaluates to false, the loop will immediately break. Otherwise the body expression is expected.
-    /// A rough outline of what the transpilation process for a while loop looks like:
-    ///
-    /// ```text
-    /// while <condition> {
-    ///      <block>
-    /// }
-    /// ```
-    ///
-    /// Is converted to
-    ///
-    /// ```text
-    /// loop {
-    ///     match <condition> {
-    ///         true  => <block>;
-    ///         false => break;
-    ///     }
-    /// }
-    /// ```
+    /// Parse a `while` loop block.
     pub(crate) fn parse_while_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::While)));
 
         let start = self.current_location();
-        let condition = self.parse_expression_with_precedence(0)?;
 
+        let condition = self.parse_expression_with_precedence(0)?;
         let body = self.parse_block()?;
 
-        let (condition_span, body_span) = (condition.span(), body.span());
-
-        Ok(self.node_with_joined_span(
-            Block::Loop(LoopBlock(self.node_with_span(
-                Block::Match(MatchBlock {
-                    subject: condition,
-                    cases: ast_nodes![&self.wall; self.node(MatchCase {
-                        pattern: self.node(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false)))),
-                            expr: self.node_with_span(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
-                        }),
-                        self.node(MatchCase {
-                            pattern: self.node(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false)))),
-                            expr: self.node(Expression::new(ExpressionKind::Break(BreakStatement)))
-                        }),
-                    ],
-                    origin: MatchOrigin::While
-                }),
-                condition_span,
-            ))),
-            &start,
-        ))
+        Ok(self.node_with_joined_span(Block::While(WhileLoopBlock { condition, body }), &start))
     }
 
     /// Parse a match case. A match case involves handling the pattern and the

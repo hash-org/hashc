@@ -376,6 +376,20 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::LoopBlock<'c>>,
     ) -> Result<Self::LoopBlockRet, Self::Error>;
 
+    type ForLoopBlockRet: 'c;
+    fn visit_for_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ForLoopBlock<'c>>,
+    ) -> Result<Self::ForLoopBlockRet, Self::Error>;
+
+    type WhileLoopBlockRet: 'c;
+    fn visit_while_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::WhileLoopBlock<'c>>,
+    ) -> Result<Self::WhileLoopBlockRet, Self::Error>;
+
     type ModBlockRet: 'c;
     fn visit_mod_block(
         &mut self,
@@ -1276,6 +1290,40 @@ pub mod walk {
         Ok(LoopBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
+    pub struct ForLoopBlock<'c, V: AstVisitor<'c>> {
+        pub pattern: V::PatternRet,
+        pub iterator: V::ExpressionRet,
+        pub body: V::BlockRet,
+    }
+
+    pub fn walk_for_loop_block<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::ForLoopBlock<'c>>,
+    ) -> Result<ForLoopBlock<'c, V>, V::Error> {
+        Ok(ForLoopBlock {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
+            iterator: visitor.visit_expression(ctx, node.iterator.ast_ref())?,
+            body: visitor.visit_block(ctx, node.body.ast_ref())?,
+        })
+    }
+
+    pub struct WhileLoopBlock<'c, V: AstVisitor<'c>> {
+        pub condition: V::ExpressionRet,
+        pub body: V::BlockRet,
+    }
+
+    pub fn walk_while_loop_block<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::WhileLoopBlock<'c>>,
+    ) -> Result<WhileLoopBlock<'c, V>, V::Error> {
+        Ok(WhileLoopBlock {
+            condition: visitor.visit_expression(ctx, node.condition.ast_ref())?,
+            body: visitor.visit_block(ctx, node.body.ast_ref())?,
+        })
+    }
+
     pub struct ModBlock<'c, V: AstVisitor<'c>>(pub V::BlockRet);
 
     pub fn walk_mod_block<'c, V: AstVisitor<'c>>(
@@ -1324,6 +1372,8 @@ pub mod walk {
     pub enum Block<'c, V: AstVisitor<'c>> {
         Match(V::MatchBlockRet),
         Loop(V::LoopBlockRet),
+        For(V::ForLoopBlockRet),
+        While(V::WhileLoopBlockRet),
         Mod(V::ModBlockRet),
         Body(V::BodyBlockRet),
         Impl(V::ImplBlockRet),
@@ -1339,6 +1389,10 @@ pub mod walk {
                 Block::Match(visitor.visit_match_block(ctx, node.with_body(r))?)
             }
             ast::Block::Loop(r) => Block::Loop(visitor.visit_loop_block(ctx, node.with_body(r))?),
+            ast::Block::For(r) => Block::For(visitor.visit_for_loop_block(ctx, node.with_body(r))?),
+            ast::Block::While(r) => {
+                Block::While(visitor.visit_while_loop_block(ctx, node.with_body(r))?)
+            }
             ast::Block::Mod(r) => Block::Mod(visitor.visit_mod_block(ctx, node.with_body(r))?),
             ast::Block::Body(r) => Block::Body(visitor.visit_body_block(ctx, node.with_body(r))?),
             ast::Block::Impl(r) => Block::Impl(visitor.visit_impl_block(ctx, node.with_body(r))?),
@@ -1355,6 +1409,8 @@ pub mod walk {
             'c,
             MatchBlockRet = Ret,
             LoopBlockRet = Ret,
+            ForLoopBlockRet = Ret,
+            WhileLoopBlockRet = Ret,
             ModBlockRet = Ret,
             BodyBlockRet = Ret,
             ImplBlockRet = Ret,
@@ -1363,6 +1419,8 @@ pub mod walk {
         Ok(match walk_block(visitor, ctx, node)? {
             Block::Match(r) => r,
             Block::Loop(r) => r,
+            Block::For(r) => r,
+            Block::While(r) => r,
             Block::Mod(r) => r,
             Block::Body(r) => r,
             Block::Impl(r) => r,
