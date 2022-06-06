@@ -928,6 +928,19 @@ pub struct BodyBlock<'c> {
 pub struct LoopBlock<'c>(pub AstNode<'c, Block<'c>>);
 
 #[derive(Debug, PartialEq)]
+pub struct ForLoopBlock<'c> {
+    pub pattern: AstNode<'c, Pattern<'c>>,
+    pub iterator: AstNode<'c, Expression<'c>>,
+    pub body: AstNode<'c, Block<'c>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct WhileLoopBlock<'c> {
+    pub condition: AstNode<'c, Expression<'c>>,
+    pub body: AstNode<'c, Block<'c>>,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct ModBlock<'c>(pub AstNode<'c, Block<'c>>);
 
 #[derive(Debug, PartialEq)]
@@ -940,6 +953,60 @@ pub enum Block<'c> {
     Match(MatchBlock<'c>),
     /// A loop block. The inner block is the loop body.
     Loop(LoopBlock<'c>),
+    /// A for-loop block. This is later transpiled into a more simpler
+    /// construct using a `loop` and a `match` clause.
+    ///
+    /// Since for loops are used for iterators in hash, we transpile the construct into a primitive loop.
+    /// An iterator can be traversed by calling the next function on the iterator.
+    /// Since next returns a Option type, we need to check if there is a value or if it returns None.
+    /// If a value does exist, we essentially perform an assignment to the pattern provided.
+    /// If None, the branch immediately breaks the for loop.
+    ///
+    /// A rough outline of what the transpilation process for a for loop looks like:
+    ///
+    /// Take the original for-loop:
+    ///
+    /// ```text
+    /// for <pat> in <iterator> {
+    ///      <block>
+    /// }
+    /// ```
+    ///
+    /// convert it to:
+    ///
+    /// ```text
+    /// loop {
+    ///     match next(<iterator>) {
+    ///         Some(<pat>) => <block>;
+    ///         None        => break;
+    ///     }
+    /// }
+    /// ```
+    For(ForLoopBlock<'c>),
+    /// A while-loop block. This is later transpiled into a `loop` and `match` clause.
+    ///
+    /// In general, a while loop transpilation process occurs by transferring the looping
+    /// condition into a match block, which compares a boolean condition. If the boolean condition
+    /// evaluates to false, the loop will immediately break. Otherwise the body expression is expected.
+    /// A rough outline of what the transpilation process for a while loop looks like:
+    ///
+    /// ```text
+    /// while <condition> {
+    ///      <block>
+    /// }
+    /// ```
+    ///
+    /// Is converted to:
+    ///
+    /// ```text
+    /// loop {
+    ///     match <condition> {
+    ///         true  => <block>;
+    ///         false => break;
+    ///     }
+    /// }
+    /// ```
+    While(WhileLoopBlock<'c>),
     /// A module block. The inner block becomes an inner module of the current module.
     Mod(ModBlock<'c>),
     /// A body block.

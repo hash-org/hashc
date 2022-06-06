@@ -733,6 +733,33 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("loop", inner.children))
     }
 
+    type ForLoopBlockRet = TreeNode;
+    fn visit_for_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ForLoopBlock<'c>>,
+    ) -> Result<Self::LoopBlockRet, Self::Error> {
+        let walk::ForLoopBlock {
+            pattern,
+            iterator,
+            body,
+        } = walk::walk_for_loop_block(self, ctx, node)?;
+
+        Ok(TreeNode::branch("for_loop", vec![pattern, iterator, body]))
+    }
+
+    type WhileLoopBlockRet = TreeNode;
+    fn visit_while_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::WhileLoopBlock<'c>>,
+    ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
+        let walk::WhileLoopBlock { condition, body } =
+            walk::walk_while_loop_block(self, ctx, node)?;
+
+        Ok(TreeNode::branch("while_loop", vec![condition, body]))
+    }
+
     type ModBlockRet = TreeNode;
     fn visit_mod_block(
         &mut self,

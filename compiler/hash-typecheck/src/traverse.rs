@@ -1072,6 +1072,24 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(self.create_type(TypeValue::Prim(PrimType::Void), None))
     }
 
+    type ForLoopBlockRet = TypeId;
+    fn visit_for_loop_block(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::ForLoopBlock<'c>>,
+    ) -> Result<Self::ForLoopBlockRet, Self::Error> {
+        panic!("Hit for_block at typecheck")
+    }
+
+    type WhileLoopBlockRet = TypeId;
+    fn visit_while_loop_block(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::WhileLoopBlock<'c>>,
+    ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
+        panic!("Hit while_block at typecheck")
+    }
+
     type ModBlockRet = TypeId;
 
     fn visit_mod_block(
