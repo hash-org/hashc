@@ -404,6 +404,20 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::ImplBlock<'c>>,
     ) -> Result<Self::ImplBlockRet, Self::Error>;
 
+    type IfClauseRet: 'c;
+    fn visit_if_clause(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IfClause<'c>>,
+    ) -> Result<Self::IfClauseRet, Self::Error>;
+
+    type IfBlockRet: 'c;
+    fn visit_if_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IfBlock<'c>>,
+    ) -> Result<Self::IfBlockRet, Self::Error>;
+
     type BodyBlockRet: 'c;
     fn visit_body_block(
         &mut self,
@@ -1357,6 +1371,47 @@ pub mod walk {
         Ok(ImplBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
     }
 
+    pub struct IfClause<'c, V: AstVisitor<'c>> {
+        pub condition: V::ExpressionRet,
+        pub body: V::BlockRet,
+    }
+
+    pub fn walk_if_clause<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::IfClause<'c>>,
+    ) -> Result<IfClause<'c, V>, V::Error> {
+        Ok(IfClause {
+            condition: visitor.visit_expression(ctx, node.condition.ast_ref())?,
+            body: visitor.visit_block(ctx, node.body.ast_ref())?,
+        })
+    }
+
+    pub struct IfBlock<'c, V: AstVisitor<'c>> {
+        pub clauses: V::CollectionContainer<V::IfClauseRet>,
+        pub otherwise: Option<V::ExpressionRet>,
+    }
+
+    pub fn walk_if_block<'c, V: AstVisitor<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::IfBlock<'c>>,
+    ) -> Result<IfBlock<'c, V>, V::Error> {
+        Ok(IfBlock {
+            clauses: V::try_collect_items(
+                ctx,
+                node.clauses
+                    .iter()
+                    .map(|clause| visitor.visit_if_clause(ctx, clause.ast_ref())),
+            )?,
+            otherwise: node
+                .otherwise
+                .as_ref()
+                .map(|body| visitor.visit_expression(ctx, body.ast_ref()))
+                .transpose()?,
+        })
+    }
+
     pub struct BodyBlock<'c, V: AstVisitor<'c>> {
         pub statements: V::CollectionContainer<V::ExpressionRet>,
         pub expr: Option<V::ExpressionRet>,
@@ -1390,6 +1445,7 @@ pub mod walk {
         Mod(V::ModBlockRet),
         Body(V::BodyBlockRet),
         Impl(V::ImplBlockRet),
+        If(V::IfBlockRet),
     }
 
     pub fn walk_block<'c, V: AstVisitor<'c>>(
@@ -1409,6 +1465,7 @@ pub mod walk {
             ast::Block::Mod(r) => Block::Mod(visitor.visit_mod_block(ctx, node.with_body(r))?),
             ast::Block::Body(r) => Block::Body(visitor.visit_body_block(ctx, node.with_body(r))?),
             ast::Block::Impl(r) => Block::Impl(visitor.visit_impl_block(ctx, node.with_body(r))?),
+            ast::Block::If(r) => Block::If(visitor.visit_if_block(ctx, node.with_body(r))?),
         })
     }
 
@@ -1426,6 +1483,7 @@ pub mod walk {
             WhileLoopBlockRet = Ret,
             ModBlockRet = Ret,
             BodyBlockRet = Ret,
+            IfBlockRet = Ret,
             ImplBlockRet = Ret,
         >,
     {
@@ -1433,6 +1491,7 @@ pub mod walk {
             Block::Match(r) => r,
             Block::Loop(r) => r,
             Block::For(r) => r,
+            Block::If(r) => r,
             Block::While(r) => r,
             Block::Mod(r) => r,
             Block::Body(r) => r,

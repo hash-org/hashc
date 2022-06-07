@@ -934,10 +934,29 @@ pub struct ForLoopBlock<'c> {
     pub body: AstNode<'c, Block<'c>>,
 }
 
+/// A `while` loop, e.g. `while x > 2 { ... }`
 #[derive(Debug, PartialEq)]
 pub struct WhileLoopBlock<'c> {
+    /// The condition of the the `while` loop.
     pub condition: AstNode<'c, Expression<'c>>,
+    /// The body of the `while` loop.
     pub body: AstNode<'c, Block<'c>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IfClause<'c> {
+    /// The condition of the `if` block.
+    pub condition: AstNode<'c, Expression<'c>>,
+    /// The body of the `if-statement`
+    pub body: AstNode<'c, Block<'c>>,
+}
+
+/// An `if` block consisting of the condition, block and an optional else clause e.g. `if x { ... } else { y }`
+#[derive(Debug, PartialEq)]
+pub struct IfBlock<'c> {
+    pub clauses: AstNodes<'c, IfClause<'c>>,
+    /// The else clause.
+    pub otherwise: Option<AstNode<'c, Expression<'c>>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -1007,7 +1026,32 @@ pub enum Block<'c> {
     /// }
     /// ```
     While(WhileLoopBlock<'c>),
+
+    /// The AST representation of an if-block.
+    ///
+    /// ## Transpilation
+    /// We transpile if-else blocks into match blocks in order to simplify
+    /// the typechecking process and optimisation efforts.
+    ///
+    /// Firstly, since we always want to check each case, we convert the
+    /// if statement into a series of and-patterns, where the right hand-side
+    /// pattern is the condition to execute the branch...
+    ///
+    /// For example:
+    /// >>> if a {a_branch} else if b {b_branch} else {c_branch}
+    /// will be transpiled into...
+    /// >>> match true {
+    ///      _ if a => a_branch
+    ///      _ if b => b_branch
+    ///      _ => c_branch
+    ///     }
+    ///
+    /// Additionally, if no 'else' clause is specified, we fill it with an
+    /// empty block since an if-block could be assigned to any variable and therefore
+    /// we need to know the outcome of all branches for typechecking.
+    If(IfBlock<'c>),
     /// A module block. The inner block becomes an inner module of the current module.
+    ///
     Mod(ModBlock<'c>),
     /// A body block.
     Body(BodyBlock<'c>),

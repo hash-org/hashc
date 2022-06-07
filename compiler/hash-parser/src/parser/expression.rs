@@ -152,7 +152,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
                     TokenKind::Keyword(Keyword::Loop) => self
                         .node_with_joined_span(Block::Loop(LoopBlock(self.parse_block()?)), &start),
-                    TokenKind::Keyword(Keyword::If) => self.parse_if_statement()?,
+                    TokenKind::Keyword(Keyword::If) => self.parse_if_block()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
                     TokenKind::Keyword(Keyword::Mod) => self
                         .node_with_joined_span(Block::Mod(ModBlock(self.parse_block()?)), &start),
