@@ -200,7 +200,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Additionally, if no 'else' clause is specified, we fill it with an
     /// empty block since an if-block could be assigned to any variable and therefore
     /// we need to know the outcome of all branches for typechecking.
-    pub(crate) fn parse_if_statement(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_if_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
         debug_assert!(matches!(
             self.current_token().kind,
             TokenKind::Keyword(Keyword::If)

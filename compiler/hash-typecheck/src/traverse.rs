@@ -1100,6 +1100,26 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         todo!()
     }
 
+    type IfClauseRet = TypeId;
+
+    fn visit_if_clause(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::IfClause<'c>>,
+    ) -> Result<Self::IfClauseRet, Self::Error> {
+        panic!("hit if-clause in typechecking")
+    }
+
+    type IfBlockRet = TypeId;
+
+    fn visit_if_block(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::IfBlock<'c>>,
+    ) -> Result<Self::IfBlockRet, Self::Error> {
+        panic!("hit if-block in typechecking")
+    }
+
     type ImplBlockRet = TypeId;
     fn visit_impl_block(
         &mut self,

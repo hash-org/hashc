@@ -770,6 +770,42 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(TreeNode::branch("module", inner.children))
     }
 
+    type IfClauseRet = TreeNode;
+
+    fn visit_if_clause(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IfClause<'c>>,
+    ) -> Result<Self::IfClauseRet, Self::Error> {
+        let walk::IfClause { condition, body } = walk::walk_if_clause(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "clause",
+            vec![
+                TreeNode::branch("condition", vec![condition]),
+                TreeNode::branch("body", vec![body]),
+            ],
+        ))
+    }
+
+    type IfBlockRet = TreeNode;
+
+    fn visit_if_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IfBlock<'c>>,
+    ) -> Result<Self::IfBlockRet, Self::Error> {
+        let walk::IfBlock { clauses, otherwise } = walk::walk_if_block(self, ctx, node)?;
+
+        let mut children = vec![TreeNode::branch("clauses", clauses)];
+
+        if let Some(else_clause) = otherwise {
+            children.push(TreeNode::branch("otherwise", vec![else_clause]))
+        }
+
+        Ok(TreeNode::branch("if", children))
+    }
+
     type ImplBlockRet = TreeNode;
     fn visit_impl_block(
         &mut self,
