@@ -1389,7 +1389,7 @@ pub mod walk {
 
     pub struct IfBlock<'c, V: AstVisitor<'c>> {
         pub clauses: V::CollectionContainer<V::IfClauseRet>,
-        pub otherwise: Option<V::ExpressionRet>,
+        pub otherwise: Option<V::BlockRet>,
     }
 
     pub fn walk_if_block<'c, V: AstVisitor<'c>>(
@@ -1407,7 +1407,7 @@ pub mod walk {
             otherwise: node
                 .otherwise
                 .as_ref()
-                .map(|body| visitor.visit_expression(ctx, body.ast_ref()))
+                .map(|body| visitor.visit_block(ctx, body.ast_ref()))
                 .transpose()?,
         })
     }

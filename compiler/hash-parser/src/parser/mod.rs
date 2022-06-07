@@ -341,14 +341,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.error(AstGenErrorKind::EOF, None, None)
     }
 
-    /// Utility for creating a boolean in enum representation
-    #[inline(always)]
-    fn make_bool(&self, value: bool) -> AstNode<'c, Expression<'c>> {
-        self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-            self.node(Literal::Bool(BoolLiteral(value))),
-        ))))
-    }
-
     /// Function to peek ahead and match some parsing function that returns a [Option<T>].
     /// If The result is an error, the function wil reset the current offset of the token stream
     /// to where it was the function was peeked. This is essentially a convertor from a [AstGenResult<T>]
