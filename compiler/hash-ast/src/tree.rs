@@ -951,6 +951,27 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         ))
     }
 
+    type IndexExpressionRet = TreeNode;
+
+    fn visit_index_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::IndexExpr<'c>>,
+    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+        let walk::IndexExpr {
+            subject,
+            index_expr,
+        } = walk::walk_index_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "index",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::branch("index_expr", vec![index_expr]),
+            ],
+        ))
+    }
+
     type AssignOpExpressionRet = TreeNode;
     fn visit_assign_op_expr(
         &mut self,

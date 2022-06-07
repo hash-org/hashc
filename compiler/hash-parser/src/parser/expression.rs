@@ -634,33 +634,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         // parse the indexing expression between the square brackets...
         let index_expr = gen.parse_expression_with_precedence(0)?;
-        let (index_span, subject_span) = (index_expr.span(), subject.span());
-        let span = subject_span.join(index_span);
 
         // since nothing should be after the expression, we can check that no tokens
         // are left and the generator is empty, otherwise report this as an unexpected_token
         gen.verify_is_empty()?;
 
-        Ok(self.node_with_span(
-            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                subject: self.make_ident("index", &start),
-                args: self.node_with_span(
-                    FunctionCallArgs {
-                        entries: ast_nodes![&self.wall; self.node_with_span(
-                                FunctionCallArg {
-                                    name: None,
-                                    value: subject
-                                }, subject_span),
-                                self.node_with_span(
-                                FunctionCallArg {
-                                name: None,
-                                value: index_expr
-                            }, index_span)],
-                    },
-                    span,
-                ),
+        Ok(self.node_with_joined_span(
+            Expression::new(ExpressionKind::Index(IndexExpr {
+                subject,
+                index_expr,
             })),
-            span,
+            &start,
         ))
     }
 
@@ -872,7 +856,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // create the subject of the call
                 let subject = self.node_with_span(
                     Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: self.make_access_name_from_identifier(*id, *id_span),
+                        name: self.node_with_span(
+                            AccessName {
+                                path: ast_nodes![&self.wall; self.node_with_span(*id, *id_span)],
+                            },
+                            *id_span,
+                        ),
                         type_args,
                     })),
                     start.join(self.current_location()),
