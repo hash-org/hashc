@@ -956,7 +956,7 @@ pub struct IfClause<'c> {
 pub struct IfBlock<'c> {
     pub clauses: AstNodes<'c, IfClause<'c>>,
     /// The else clause.
-    pub otherwise: Option<AstNode<'c, Expression<'c>>>,
+    pub otherwise: Option<AstNode<'c, Block<'c>>>,
 }
 
 #[derive(Debug, PartialEq)]

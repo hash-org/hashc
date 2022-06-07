@@ -3,7 +3,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::row;
+use hash_alloc::{collections::row::Row, row};
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
@@ -208,35 +208,19 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         let start = self.current_location();
 
-        let mut cases = AstNodes::empty();
-        let mut has_else_branch = false;
+        let mut clauses = vec![];
+        let mut otherwise_clause = None;
 
         while self.has_token() {
-            let clause = self.parse_expression_with_precedence(0)?;
+            let if_span = self.current_location();
 
-            let branch = self.parse_block()?;
-            let (clause_span, branch_span) = (clause.span(), branch.span());
-
-            cases.nodes.push(
-                self.node_with_span(
-                    MatchCase {
-                        pattern: self.node_with_span(
-                            Pattern::If(IfPattern {
-                                pattern: self
-                                    .node_with_span(Pattern::Ignore(IgnorePattern), clause_span),
-                                condition: clause,
-                            }),
-                            clause_span,
-                        ),
-                        expr: self.node_with_span(
-                            Expression::new(ExpressionKind::Block(BlockExpr(branch))),
-                            branch_span,
-                        ),
-                    },
-                    clause_span.join(branch_span),
-                ),
-                &self.wall,
-            );
+            clauses.push(self.node_with_joined_span(
+                IfClause {
+                    condition: self.parse_expression_with_precedence(0)?,
+                    body: self.parse_block()?,
+                },
+                &if_span,
+            ));
 
             // Now check if there is another branch after the else or if, and loop onwards...
             match self.peek() {
@@ -252,55 +236,17 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         _ => (),
                     };
 
-                    // this is the final branch of the if statement, and it is added to the end
-                    // of the statements...
-                    let start = self.current_location();
-
-                    let else_branch = self.parse_block()?;
-                    let else_span = start.join(else_branch.span());
-
-                    has_else_branch = true;
-
-                    cases.nodes.push(
-                        self.node_with_span(
-                            MatchCase {
-                                pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                                expr: self.node_with_span(
-                                    Expression::new(ExpressionKind::Block(BlockExpr(else_branch))),
-                                    else_span,
-                                ),
-                            },
-                            else_span,
-                        ),
-                        &self.wall,
-                    );
-
+                    otherwise_clause = Some(self.parse_block()?);
                     break;
                 }
                 _ => break,
             };
         }
 
-        if !has_else_branch {
-            cases.nodes.push(
-                self.node(MatchCase {
-                    pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                    expr: self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-                        self.node(Block::Body(BodyBlock {
-                            statements: AstNodes::empty(),
-                            expr: None,
-                        })),
-                    )))),
-                }),
-                &self.wall,
-            );
-        }
-
         Ok(self.node_with_joined_span(
-            Block::Match(MatchBlock {
-                subject: self.make_bool(true),
-                cases,
-                origin: MatchOrigin::If,
+            Block::If(IfBlock {
+                clauses: AstNodes::new(Row::from_vec(clauses, &self.wall), None),
+                otherwise: otherwise_clause,
             }),
             &start,
         ))
