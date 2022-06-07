@@ -1272,6 +1272,15 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         panic!("Hit un_op within typechecker pass")
     }
 
+    type IndexExpressionRet = TypeId;
+    fn visit_index_expr(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: ast::AstNodeRef<ast::IndexExpr<'c>>,
+    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+        todo!()
+    }
+
     type UnaryOperatorRet = TypeId;
     fn visit_unary_operator(
         &mut self,

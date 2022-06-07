@@ -15,11 +15,7 @@ mod types;
 use std::cell::Cell;
 
 use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::{
-    ast::*,
-    ast_nodes,
-    ident::{Identifier, IDENTIFIER_MAP},
-};
+use hash_ast::ast::*;
 use hash_source::location::{SourceLocation, Span};
 use hash_token::{Token, TokenKind, TokenKindVector};
 
@@ -345,54 +341,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         self.error(AstGenErrorKind::EOF, None, None)
     }
 
-    /// Make an [Expression] with kind [ExpressionKind::Variable] from a specified identifier
-    /// string.
-    pub(crate) fn make_ident(&self, name: &str, location: &Span) -> AstNode<'c, Expression<'c>> {
-        self.node_with_span(
-            Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.make_access_name_from_str(name, *location),
-                type_args: AstNodes::empty(),
-            })),
-            *location,
-        )
-    }
-
     /// Utility for creating a boolean in enum representation
     #[inline(always)]
     fn make_bool(&self, value: bool) -> AstNode<'c, Expression<'c>> {
         self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
             self.node(Literal::Bool(BoolLiteral(value))),
         ))))
-    }
-
-    /// Create an [AccessName] from a passed string.
-    pub(crate) fn make_access_name_from_str<T: Into<String>>(
-        &self,
-        name: T,
-        location: Span,
-    ) -> AstNode<'c, AccessName<'c>> {
-        let name = self.node_with_span(IDENTIFIER_MAP.create_ident(&name.into()), location);
-
-        self.node_with_span(
-            AccessName {
-                path: ast_nodes![&self.wall; name],
-            },
-            location,
-        )
-    }
-
-    /// Create a [AccessName] node from an [Identifier].
-    pub(crate) fn make_access_name_from_identifier(
-        &self,
-        name: Identifier,
-        location: Span,
-    ) -> AstNode<'c, AccessName<'c>> {
-        self.node_with_span(
-            AccessName {
-                path: ast_nodes![&self.wall; self.node_with_span(name, location)],
-            },
-            location,
-        )
     }
 
     /// Function to peek ahead and match some parsing function that returns a [Option<T>].

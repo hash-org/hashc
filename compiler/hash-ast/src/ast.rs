@@ -1168,6 +1168,15 @@ pub struct UnaryExpression<'c> {
     pub operator: AstNode<'c, UnaryOperator>,
 }
 
+/// An index expression `arr[x]`.
+#[derive(Debug, PartialEq)]
+pub struct IndexExpr<'c> {
+    /// The subject that is being indexed.
+    pub subject: AstNode<'c, Expression<'c>>,
+    /// The expression that is the index.
+    pub index_expr: AstNode<'c, Expression<'c>>,
+}
+
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'c> {
@@ -1192,6 +1201,8 @@ pub enum ExpressionKind<'c> {
     Return(ReturnStatement<'c>),
     Break(BreakStatement),
     Continue(ContinueStatement),
+    /// Expression to index a subject e.g. `arr[x]`
+    Index(IndexExpr<'c>),
     /// An expression that captures a variable or a pattern being assigned
     /// to a right hand-side expression such as `x = 3`.
     Assign(AssignExpression<'c>),
