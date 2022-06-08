@@ -14,6 +14,7 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse a top level [Expression] that are terminated with a semi-colon.
+    #[profiling::function]
     pub fn parse_top_level_expression(
         &self,
         semi_required: bool,
@@ -83,6 +84,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse an expression which can be compound.
+    #[profiling::function]
     pub(crate) fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
         let token = self.next_token().ok_or_else(|| {
             self.make_error(
@@ -796,6 +798,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// then right hand-side. If a re-assignment operator is successfully parsed, then a right
     /// hand-side is expected and will hard fail. If no re-assignment operator is found, then it
     /// should just return the left-hand side.
+    #[profiling::function]
     pub(crate) fn parse_expression_with_re_assignment(
         &self,
     ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {

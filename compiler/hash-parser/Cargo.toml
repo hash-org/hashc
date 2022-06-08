@@ -10,6 +10,8 @@ derive_more = "0.99"
 crossbeam-channel = "0.5.1"
 rayon = "1.5.0"
 
+profiling = "1.0"
+
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-alloc = {path = "../hash-alloc" }

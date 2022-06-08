@@ -94,6 +94,13 @@ fn main() {
     panic::set_hook(Box::new(panic_handler));
     log::set_logger(&CONSOLE_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
 
+    // Starting the Tracy client is necessary before any invoking any of its APIs
+    #[cfg(feature = "profile-with-tracy")]
+    tracy_client::Client::start();
+
+    // Register main thread with the profiler
+    profiling::register_thread!("Main Thread");
+
     let opts: CompilerOptions = CompilerOptions::parse();
 
     // if debug is specified, we want to log everything that is debug level...
