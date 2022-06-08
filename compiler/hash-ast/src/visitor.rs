@@ -65,14 +65,14 @@ pub trait AstVisitor<'c>: Sized {
     fn visit_binary_operator(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BinaryOperator>,
+        node: ast::AstNodeRef<ast::BinOp>,
     ) -> Result<Self::BinaryOperatorRet, Self::Error>;
 
     type UnaryOperatorRet: 'c;
     fn visit_unary_operator(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnaryOperator>,
+        node: ast::AstNodeRef<ast::UnOp>,
     ) -> Result<Self::UnaryOperatorRet, Self::Error>;
 
     type ExpressionRet: 'c;

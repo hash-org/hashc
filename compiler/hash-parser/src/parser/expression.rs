@@ -345,7 +345,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                     // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
                     // where we transform the AstNode into a different
-                    if op == BinaryOperator::As {
+                    if op == BinOp::As {
                         lhs = self.node_with_joined_span(
                             Expression::new(ExpressionKind::As(CastExpr {
                                 expr: lhs,
@@ -702,9 +702,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
                 let operator = self.node_with_span(
                     match kind {
-                        TokenKind::Minus => UnaryOperator::Neg,
-                        TokenKind::Exclamation => UnaryOperator::Not,
-                        TokenKind::Tilde => UnaryOperator::BitNot,
+                        TokenKind::Minus => UnOp::Neg,
+                        TokenKind::Exclamation => UnOp::Not,
+                        TokenKind::Tilde => UnOp::BitNot,
                         _ => unreachable!(),
                     },
                     start,
