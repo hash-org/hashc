@@ -49,8 +49,7 @@ pub enum PatKind<'i> {
     Union(&'i [Pat<'i>]),
 }
 
-
-/// A Pattern within IR 
+/// A Pattern within IR
 #[derive(Debug, PartialEq, Eq)]
 pub struct Pat<'i> {
     /// The kind of the pattern
@@ -113,7 +112,7 @@ pub enum BinOp {
     As,
 }
 
-/// Mutability 
+/// Mutability
 #[derive(Debug, PartialEq, Eq)]
 pub enum Mutability {
     Mutable,
@@ -149,14 +148,13 @@ pub enum ExprKind<'i> {
     /// pattern e.g. `x = 2`
     Assign(&'i Pat<'i>, &'i Expr<'i>),
     /// An expression which represents a re-assignment to a pattern with a right hand-side
-    /// expression and a binary operator that combines assignment and an operator, e.g. 
+    /// expression and a binary operator that combines assignment and an operator, e.g.
     /// `x += 2`
     AssignOp(&'i Pat<'i>, BinOp, &'i Expr<'i>),
-    /// An expression which is taking the address of another expression with an 
+    /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
     AddrOf(Mutability, &'i Expr<'i>),
 }
-
 
 /// Essentially a block
 #[derive(Debug, PartialEq, Eq)]
@@ -186,7 +184,7 @@ pub enum Ty {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ConstData {
     data: u64,
-    size: u8
+    size: u8,
 }
 
 #[derive(Debug, PartialEq, Eq)]

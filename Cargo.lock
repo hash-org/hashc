@@ -337,6 +337,7 @@ dependencies = [
  "log",
  "num_cpus",
  "profiling",
+ "rayon",
  "thiserror",
  "tracy-client",
 ]
@@ -446,6 +447,8 @@ dependencies = [
  "hash-source",
  "hash-utils",
  "log",
+ "num_cpus",
+ "rayon",
  "slotmap",
  "thiserror",
 ]

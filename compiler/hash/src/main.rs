@@ -131,7 +131,7 @@ fn main() {
     // Create a castle for allocations in the pipeline
     let castle = Castle::new();
 
-    let parser = HashParser::new(worker_count, &castle);
+    let parser = HashParser::new(&castle);
     let tc_wall = &castle.wall();
     let checker = HashTypechecker::new(tc_wall);
 
@@ -140,11 +140,17 @@ fn main() {
 
     let compiler_settings = match opts.mode {
         // @@Incomplete: We also want to integrate IrGen when we begin working on this
-        Some(SubCmd::AstGen { .. }) => CompilerSettings::new(CompilerMode::AstGen),
+        Some(SubCmd::AstGen { .. }) => CompilerSettings::new(CompilerMode::AstGen, worker_count),
         _ => CompilerSettings::default(),
     };
 
-    let mut compiler = Compiler::new(parser, checker, vm, compiler_settings);
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(worker_count + 1)
+        .thread_name(|id| format!("parse-worker-{}", id))
+        .build()
+        .unwrap();
+
+    let mut compiler = Compiler::new(parser, checker, vm, &pool, compiler_settings);
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {

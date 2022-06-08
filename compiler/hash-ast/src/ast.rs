@@ -759,10 +759,7 @@ impl BinOp {
             BinOp::Or => (2, 3),
             BinOp::And => (4, 5),
             BinOp::EqEq | BinOp::NotEq => (6, 5),
-            BinOp::Gt
-            | BinOp::GtEq
-            | BinOp::Lt
-            | BinOp::LtEq => (7, 8),
+            BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => (7, 8),
             BinOp::BitOr | BinOp::BitXor => (9, 10),
             BinOp::BitAnd => (11, 12),
             BinOp::Shr | BinOp::Shl => (13, 14),

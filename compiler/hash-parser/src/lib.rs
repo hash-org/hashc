@@ -105,18 +105,12 @@ fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castl
 /// Implementation structure for the parser.
 pub struct HashParser<'c> {
     castle: &'c Castle,
-    pool: rayon::ThreadPool,
 }
 
-impl<'c> HashParser<'c> {
+impl<'c, 'pool> HashParser<'c> {
     /// Create a new Hash parser with the self hosted backend.
-    pub fn new(worker_count: usize, castle: &'c Castle) -> Self {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(worker_count + 1)
-            .thread_name(|id| format!("parse-worker-{}", id))
-            .build()
-            .unwrap();
-        Self { pool, castle }
+    pub fn new(castle: &'c Castle) -> Self {
+        Self { castle }
     }
 
     pub fn parse_main(
@@ -124,6 +118,7 @@ impl<'c> HashParser<'c> {
         sources: &mut Sources<'c>,
         entry_point_id: SourceId,
         current_dir: PathBuf,
+        pool: &'pool rayon::ThreadPool,
     ) -> Vec<ParseError> {
         let castle = self.castle;
         let mut errors = Vec::new();
@@ -133,7 +128,7 @@ impl<'c> HashParser<'c> {
         let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);
         parse_source(entry_source_kind, sender, castle);
 
-        self.pool.scope(|scope| {
+        pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
                     ParserAction::SetInteractiveInfo {
@@ -178,10 +173,15 @@ impl<'c> HashParser<'c> {
     }
 }
 
-impl<'c> Parser<'c> for HashParser<'c> {
-    fn parse(&mut self, target: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
+impl<'c, 'pool> Parser<'c, 'pool> for HashParser<'c> {
+    fn parse(
+        &mut self,
+        target: SourceId,
+        sources: &mut Sources<'c>,
+        pool: &'pool rayon::ThreadPool,
+    ) -> CompilerResult<()> {
         let current_dir = env::current_dir().map_err(ParseError::from)?;
-        let errors = self.parse_main(sources, target, current_dir);
+        let errors = self.parse_main(sources, target, current_dir, pool);
 
         // @@Todo: merge errors
         match errors.into_iter().next() {
