@@ -1278,7 +1278,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_binary_operator(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::BinaryOperator>,
+        _: ast::AstNodeRef<ast::BinOp>,
     ) -> Result<Self::BinaryOperatorRet, Self::Error> {
         panic!("Hit bin_op within typechecker pass")
     }
@@ -1305,7 +1305,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_unary_operator(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::UnaryOperator>,
+        _: ast::AstNodeRef<ast::UnOp>,
     ) -> Result<Self::UnaryOperatorRet, Self::Error> {
         panic!("Hit unary_op within typechecker pass")
     }

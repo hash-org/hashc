@@ -922,7 +922,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     fn visit_binary_operator(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BinaryOperator>,
+        node: ast::AstNodeRef<ast::BinOp>,
     ) -> Result<Self::BinaryOperatorRet, Self::Error> {
         Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
     }
@@ -931,7 +931,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     fn visit_unary_operator(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnaryOperator>,
+        node: ast::AstNodeRef<ast::UnOp>,
     ) -> Result<Self::UnaryOperatorRet, Self::Error> {
         Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
     }

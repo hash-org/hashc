@@ -661,7 +661,7 @@ pub struct MergeDeclaration<'c> {
 
 /// Unary operators that are defined within the core of the language.
 #[derive(Debug, Clone)]
-pub enum UnaryOperator {
+pub enum UnOp {
     // Bitwise logical inversion
     BitNot,
     /// Logical inversion.
@@ -670,19 +670,19 @@ pub enum UnaryOperator {
     Neg,
 }
 
-impl Display for UnaryOperator {
+impl Display for UnOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnaryOperator::BitNot => write!(f, "~"),
-            UnaryOperator::Not => write!(f, "!"),
-            UnaryOperator::Neg => write!(f, "-"),
+            UnOp::BitNot => write!(f, "~"),
+            UnOp::Not => write!(f, "!"),
+            UnOp::Neg => write!(f, "-"),
         }
     }
 }
 
 /// Binary operators that are defined within the core of the language.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BinaryOperator {
+pub enum BinOp {
     /// '=='
     EqEq,
     /// '!='
@@ -725,51 +725,51 @@ pub enum BinaryOperator {
     As,
 }
 
-impl Display for BinaryOperator {
+impl Display for BinOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BinaryOperator::EqEq => write!(f, "=="),
-            BinaryOperator::NotEq => write!(f, "!="),
-            BinaryOperator::BitOr => write!(f, "|"),
-            BinaryOperator::Or => write!(f, "||"),
-            BinaryOperator::BitAnd => write!(f, "&"),
-            BinaryOperator::And => write!(f, "&&"),
-            BinaryOperator::BitXor => write!(f, "^"),
-            BinaryOperator::Exp => write!(f, "^^"),
-            BinaryOperator::Gt => write!(f, ">"),
-            BinaryOperator::GtEq => write!(f, ">="),
-            BinaryOperator::Lt => write!(f, "<"),
-            BinaryOperator::LtEq => write!(f, "<="),
-            BinaryOperator::Shr => write!(f, "<<"),
-            BinaryOperator::Shl => write!(f, ">>"),
-            BinaryOperator::Add => write!(f, "+"),
-            BinaryOperator::Sub => write!(f, "-"),
-            BinaryOperator::Mul => write!(f, "*"),
-            BinaryOperator::Div => write!(f, "/"),
-            BinaryOperator::Mod => write!(f, "%"),
-            BinaryOperator::As => write!(f, "as"),
+            BinOp::EqEq => write!(f, "=="),
+            BinOp::NotEq => write!(f, "!="),
+            BinOp::BitOr => write!(f, "|"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::BitAnd => write!(f, "&"),
+            BinOp::And => write!(f, "&&"),
+            BinOp::BitXor => write!(f, "^"),
+            BinOp::Exp => write!(f, "^^"),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::GtEq => write!(f, ">="),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::LtEq => write!(f, "<="),
+            BinOp::Shr => write!(f, "<<"),
+            BinOp::Shl => write!(f, ">>"),
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
+            BinOp::Mod => write!(f, "%"),
+            BinOp::As => write!(f, "as"),
         }
     }
 }
 
-impl BinaryOperator {
+impl BinOp {
     /// Compute the precedence for an operator
     pub fn infix_binding_power(&self) -> (u8, u8) {
         match self {
-            BinaryOperator::Or => (2, 3),
-            BinaryOperator::And => (4, 5),
-            BinaryOperator::EqEq | BinaryOperator::NotEq => (6, 5),
-            BinaryOperator::Gt
-            | BinaryOperator::GtEq
-            | BinaryOperator::Lt
-            | BinaryOperator::LtEq => (7, 8),
-            BinaryOperator::BitOr | BinaryOperator::BitXor => (9, 10),
-            BinaryOperator::BitAnd => (11, 12),
-            BinaryOperator::Shr | BinaryOperator::Shl => (13, 14),
-            BinaryOperator::Add | BinaryOperator::Sub => (15, 16),
-            BinaryOperator::Mul | BinaryOperator::Div | BinaryOperator::Mod => (17, 18),
-            BinaryOperator::Exp => (20, 19),
-            BinaryOperator::As => (21, 22),
+            BinOp::Or => (2, 3),
+            BinOp::And => (4, 5),
+            BinOp::EqEq | BinOp::NotEq => (6, 5),
+            BinOp::Gt
+            | BinOp::GtEq
+            | BinOp::Lt
+            | BinOp::LtEq => (7, 8),
+            BinOp::BitOr | BinOp::BitXor => (9, 10),
+            BinOp::BitAnd => (11, 12),
+            BinOp::Shr | BinOp::Shl => (13, 14),
+            BinOp::Add | BinOp::Sub => (15, 16),
+            BinOp::Mul | BinOp::Div | BinOp::Mod => (17, 18),
+            BinOp::Exp => (20, 19),
+            BinOp::As => (21, 22),
         }
     }
 
@@ -780,19 +780,19 @@ impl BinaryOperator {
     pub fn is_re_assignable(&self) -> bool {
         matches!(
             self,
-            BinaryOperator::BitOr
-                | BinaryOperator::Or
-                | BinaryOperator::BitAnd
-                | BinaryOperator::And
-                | BinaryOperator::BitXor
-                | BinaryOperator::Exp
-                | BinaryOperator::Shr
-                | BinaryOperator::Shl
-                | BinaryOperator::Add
-                | BinaryOperator::Sub
-                | BinaryOperator::Mul
-                | BinaryOperator::Div
-                | BinaryOperator::Mod
+            BinOp::BitOr
+                | BinOp::Or
+                | BinOp::BitAnd
+                | BinOp::And
+                | BinOp::BitXor
+                | BinOp::Exp
+                | BinOp::Shr
+                | BinOp::Shl
+                | BinOp::Add
+                | BinOp::Sub
+                | BinOp::Mul
+                | BinOp::Div
+                | BinOp::Mod
         )
     }
 }
@@ -825,7 +825,7 @@ pub struct AssignOpExpression<'c> {
     /// Operator that is applied with the assignment on the lhs with the rhs value.
     ///
     /// Note: Some binary operators are not allowed to be in the location.
-    pub operator: AstNode<'c, BinaryOperator>,
+    pub operator: AstNode<'c, BinOp>,
 }
 
 /// A field of a struct definition, e.g. "name: str".
@@ -1202,14 +1202,14 @@ pub struct TraitImpl<'c> {
 pub struct BinaryExpression<'c> {
     pub lhs: AstNode<'c, Expression<'c>>,
     pub rhs: AstNode<'c, Expression<'c>>,
-    pub operator: AstNode<'c, BinaryOperator>,
+    pub operator: AstNode<'c, BinOp>,
 }
 
 /// A unary expression `!a`.
 #[derive(Debug, PartialEq)]
 pub struct UnaryExpression<'c> {
     pub expr: AstNode<'c, Expression<'c>>,
-    pub operator: AstNode<'c, UnaryOperator>,
+    pub operator: AstNode<'c, UnOp>,
 }
 
 /// An index expression `arr[x]`.
