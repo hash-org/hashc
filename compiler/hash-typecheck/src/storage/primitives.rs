@@ -263,7 +263,7 @@ pub struct TyFnTy {
 ///
 /// This translates to a case:
 /// ```
-/// (T: Type = str) -> Type<Conv<str>> => Dog<str> ~ impl Conv<str> { ... };
+/// (T: Type = str) -> Type<Impl<Conv<str>>> (or actually Type<Mod<...>>) => type Dog<str> ~ impl Conv<str> { ... };
 /// ```
 ///
 /// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
@@ -276,23 +276,50 @@ pub struct TyFnCase {
     pub return_value: TyId,
 }
 
+/// Not yet resolved.
+///
+/// Might contain a bound which is progressively resolved as more information about the usage of
+/// the type is known during inference.
+///
+/// The resolution ID is incremented for each new unresolved type.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct UnresolvedTy {
     pub resolution_id: ResolutionId,
-    pub bound: TyId, // either a trait type or merge type of traits, for now
+    pub bound: TyId, // @@TODO: doc on this and general ty bounds
 }
 
+/// The type of a type.
+///
+/// Contains the bound of the type. For representing any generic type, the bound
+/// should be set to an empty `Ty::Merge`.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TyOfTy {
-    pub bound: TyId, // either a trait type or merge type of traits, for now
+    pub bound: TyId,
 }
 
+/// The action of applying a set of arguments to a type function.
+///
+/// This essentially creates a lambda calculus within the Hash type system, which allows it to
+/// express arbitrary programs.
+///
+/// When this type is unified with another type, the function is applied by first instantiating its
+/// return value over its type parameters, and then unifying the instantiated type parameters with
+/// the given type arguments of the function (the `ty_args` field).
 #[derive(Debug, PartialEq, Eq)]
 pub struct AppTyFnTy {
     pub ty_fn_ty: TyId,
     pub ty_args: TyArgs,
 }
 
+/// Merge of multiple types.
+///
+/// This corresponds to the `~` operator in Hash. Might contain:
+/// - One or zero [Ty::Nominal]
+/// - Zero or more [Ty::Impls]
+/// - Zero or more [Ty::Mod]
+/// - Zero or more [Ty::Merge] types with the same restrictions.
+///
+/// `~` is commutative, idempotent, and associative.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct MergeTy {
     pub elements: Vec<TyId>,
@@ -305,17 +332,47 @@ pub struct VarTy {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Ty {
-    /// The type of a type
+    /// The type of some type X, where X can be the type `Type` too.
+    ///
+    /// Here, `X` is represented by another `TyId`.
+    ///
+    /// This can lead to arbitrarily deep types `DeepTy<DeepTy<DeepTy<..>>>`, which by default is
+    /// not deemed very useful. This is why [Ty::Ty] is the default type bound when writing `Type`.
+    DeepTy(TyId),
+    /// The type of some type X, where `X` is not a `Type<..>`.
     Ty(TyOfTy),
-    /// Modules or impls
+    /// Modules or impls.
+    ///
+    /// Modules and trait implementations, as well as anonymous implementations, are treated as
+    /// types, and they are all represented by [Ty::Mod], since they are all constant scopes.
+    ///
+    /// Information about the origin of each instance of [Ty::Mod] can be found in its
+    /// corresponding [ModDef].
     Mod(ModDefId),
     /// Tuple type.
     Tuple(TupleTy),
-    /// The type of a trait
+    /// The type of a trait.
+    ///
+    /// This is the return type of a `trait(..)` definition
     Trt(TrtDefId),
-    /// The nominal type
+    /// Type that implements a trait.
+    ///
+    /// This unifies with appropriate [Ty::Mod], [Ty::Merge], i.e. a [Ty::Mod] that is an
+    /// implementation of the [TrtDefId] stored in this variant, or a [Ty::Merge] containing at
+    /// least one such [Ty::Mod].
+    Impls(TrtDefId),
+    /// A nominal type, either a struct or an enum.
+    ///
+    /// This unifies only with types that have the same nominal, at the very least.
     Nominal(NominalDefId),
-    /// Merge of multiple types, for now must be traits
+    /// An instance of a type.
+    ///
+    /// The inner type must be a `Ty::Nominal` or a merge containing it.
+    ///
+    /// If `X` is of type `Nominal ~ A ~ B`, then instantiating `X` yields type `Instance<Nominal ~
+    /// A ~ B>`.
+    Instance(TyId),
+    /// Merge type.
     Merge(MergeTy),
     /// Function type.
     Fn(FnTy),
@@ -329,9 +386,16 @@ pub enum Ty {
     Unresolved(UnresolvedTy),
 }
 
+// IDs for all the primitives to be stored on mapped storage:
+
 new_key_type! { pub struct TyId; }
+
 new_key_type! { pub struct TrtDefId; }
+
 new_key_type! { pub struct NominalDefId; }
+
 new_key_type! { pub struct ImplGroupId; }
+
 new_key_type! { pub struct ModDefId; }
+
 new_key_type! { pub struct ResolutionId; }
