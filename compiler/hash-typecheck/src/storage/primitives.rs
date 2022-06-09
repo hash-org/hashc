@@ -228,8 +228,8 @@ pub struct FnTy {
 ///     general_return_ty = Type,
 ///     cases = {
 ///         (T: Type) -> Type => ..,
-///         (T: Type<Hash>) -> Type<Hash> => ..,
-///         (T: Type<Hash ~ Eq>) -> Type<FindInHashMap> => ..,
+///         (T: Type<Hash>) -> Impl<Hash> => ..,
+///         (T: Type<Hash ~ Eq>) -> Nominal<FindInHashMap> => ..,
 ///     }
 /// }
 /// ```
@@ -263,7 +263,7 @@ pub struct TyFnTy {
 ///
 /// This translates to a case:
 /// ```
-/// (T: Type = str) -> Type<Impl<Conv<str>>> (or actually Type<Mod<...>>) => type Dog<str> ~ impl Conv<str> { ... };
+/// (T: Type = str) -> Impl<Conv<str>> (or actually Mod<...>) => type Dog<str> ~ impl Conv<str> { ... };
 /// ```
 ///
 /// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
