@@ -1,24 +1,25 @@
 //! Contains type definitions that the rest of the storage and the general typechecker use.
 use hash_ast::ident::Identifier;
+use hash_source::SourceId;
 use slotmap::new_key_type;
 use std::collections::HashMap;
 
 /// The visibility of a member of a const scope.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Visibility {
     Public,
     Private,
 }
 
 /// The mutability of a variable in a scope.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Mutability {
     Mutable,
     Immutable,
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ScopeMember {
     pub name: Identifier,
     pub ty: TyId,
@@ -27,7 +28,7 @@ pub struct ScopeMember {
 }
 
 /// A member of a const scope, i.e. an item in a module or impl.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ConstMember {
     pub name: Identifier,
     pub ty: TyId,
@@ -41,7 +42,7 @@ pub struct ConstMember {
 macro_rules! params_list {
     ($(#[$met:meta])* $visibility:vis $Name:ident, ParamType = $Param:ty) => {
         $(#[$met])*
-        #[derive(Debug, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq)]
         $visibility struct $Name {
             pub params: Vec<$Param>,
             pub name_map: std::collections::HashMap<Identifier, usize>,
@@ -58,10 +59,12 @@ macro_rules! params_list {
                 Self { params, name_map }
             }
 
+            /// Get a parameter by position.
             pub fn positional(&self) -> &[$Param] {
                 &self.params
             }
 
+            /// Get a parameter by name.
             pub fn get_by_name(&self, name: Identifier) -> Option<&$Param> {
                 self.positional().get(*self.name_map.get(&name)?)
             }
@@ -70,7 +73,7 @@ macro_rules! params_list {
 }
 
 /// A type argument to a type parameter.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TyArg {
     pub name: Option<Identifier>,
     pub value: TyId,
@@ -84,7 +87,7 @@ params_list!(
 
 /// A type parameter, declaring a named type variable with a given type bound and optional default
 /// value.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TyParam {
     pub name: Option<Identifier>,
     pub bound: TyId,
@@ -98,7 +101,7 @@ params_list!(
 );
 
 /// A parameter, declaring a named variable with a given type and optional default value presence.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Param {
     pub name: Option<Identifier>,
     pub ty: TyId,
@@ -113,19 +116,21 @@ params_list!(
 
 /// The origin of a pub module: was it defined in a `mod` block, an anonymous `impl` block, or an `impl
 /// Trait` block?
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ModDefOrigin {
     /// Defined as a trait implementation (for the given trait).
     TrtImpl(TrtDefId),
     /// Defined as an anonymous implementation.
     AnonImpl,
-    /// Defined as a module.
+    /// Defined as a module (`mod` block).
     Mod,
+    /// Defined as a file module or interactive.
+    Source(SourceId),
 }
 
 /// A module definition, which is of a given origin, has a binding name, and contains some constant
 /// members.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ModDef {
     pub name: Identifier,
     pub origin: ModDefOrigin,
@@ -133,7 +138,7 @@ pub struct ModDef {
 }
 
 /// The fields of a struct.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructFields {
     /// An explicit set of fields, as a set of parameters.
     Explicit(Params),
@@ -145,7 +150,7 @@ pub enum StructFields {
 }
 
 /// A struct definition, containing a binding name and a set of fields.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructDef {
     pub name: Identifier,
     pub fields: StructFields,
@@ -154,35 +159,35 @@ pub struct StructDef {
 /// An enum variant, containing a variant name and a set of fields.
 ///
 /// Structurally the same as a struct.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
     pub name: Identifier,
     pub fields: Params,
 }
 
 /// An enum definition, containing a binding name and a set of variants.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDef {
     pub name: Identifier,
     pub variants: HashMap<Identifier, EnumVariant>,
 }
 
 /// A trait definition, containing a binding name and a set of constant members.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TrtDef {
     pub name: Identifier,
     pub members: Vec<ConstMember>,
 }
 
 /// A nominal definition, which for now is either a struct or an enum.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NominalDef {
     Struct(StructDef),
     Enum(EnumDef),
 }
 
 /// A tuple type, containg parameters as members.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TupleTy {
     pub members: Params,
 }
@@ -190,7 +195,7 @@ pub struct TupleTy {
 /// A function type, with a set of input parameters and a return type.
 ///
 /// All the parameter types and return type must be of shape `Instance<..>`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnTy {
     pub params: Params,
     pub return_ty: TyId,
@@ -244,7 +249,7 @@ pub struct FnTy {
 /// The `general_return_ty` field is always a supertype of the return type of each case.
 /// Also note that `general_return_ty` never changes---a type cannot become more general than it
 /// already is; however, it can become more refined.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyFnTy {
     pub general_params: TyParams,
     pub general_return_ty: TyId,
@@ -271,7 +276,7 @@ pub struct TyFnTy {
 /// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
 /// and the type parameters should be able to each unify with the target `general_params`, of the
 /// parent [TyFnTy].
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyFnCase {
     pub params: TyParams,
     pub return_ty: TyId,
@@ -284,7 +289,7 @@ pub struct TyFnCase {
 /// the type is known during inference.
 ///
 /// The resolution ID is incremented for each new unresolved type.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct UnresolvedTy {
     pub resolution_id: ResolutionId,
     pub bound: TyId, // @@TODO: doc on this and general ty bounds
@@ -294,7 +299,7 @@ pub struct UnresolvedTy {
 ///
 /// Contains the bound of the type. For representing any generic type, the bound
 /// should be set to an empty `Ty::Merge`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyOfTy {
     pub bound: TyId,
 }
@@ -307,7 +312,7 @@ pub struct TyOfTy {
 /// When this type is unified with another type, the function is applied by first instantiating its
 /// return value over its type parameters, and then unifying the instantiated type parameters with
 /// the given type arguments of the function (the `ty_args` field).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppTyFnTy {
     pub ty_fn_ty: TyId,
     pub ty_args: TyArgs,
@@ -329,7 +334,7 @@ pub struct AppTyFnTy {
 ///
 /// `A ~ B ~ C` is assignable to `A`, `A ~ B`, `A ~ C` or any other combination of `A`, `B` and
 /// `C`. In that sense, it is like an intersection type.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct MergeTy {
     pub elements: Vec<TyId>,
 }
@@ -341,12 +346,12 @@ pub struct MergeTy {
 ///
 /// For example, if `T: Hash`, then `T = str` is valid because `str: Hash` is true. Note, here `T:
 /// Hash` actually translates to `Ty::Var("T")` unifies with `Ty::Impls(HashTraitID)`.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VarTy {
     pub name: Identifier,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ty {
     /// Modules or impls.
     ///
@@ -411,4 +416,5 @@ new_key_type! { pub struct ImplGroupId; }
 
 new_key_type! { pub struct ModDefId; }
 
-new_key_type! { pub struct ResolutionId; }
+#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct ResolutionId(pub(super) usize);
