@@ -6,6 +6,7 @@ members = [
   "compiler/hash-ir",
   "compiler/hash-interactive",
   "compiler/hash-lexer",
+  "compiler/hash-lowering",
   "compiler/hash-parser",
   "compiler/hash-reporting",
   "compiler/hash-token",

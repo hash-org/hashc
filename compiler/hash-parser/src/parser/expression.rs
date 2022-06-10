@@ -642,7 +642,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         gen.verify_is_empty()?;
 
         Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::Index(IndexExpr {
+            Expression::new(ExpressionKind::Index(IndexExpression {
                 subject,
                 index_expr,
             })),

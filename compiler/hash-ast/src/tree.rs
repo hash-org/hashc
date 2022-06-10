@@ -250,12 +250,12 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
         Ok(literal)
     }
 
-    type AsExprRet = TreeNode;
-    fn visit_as_expr(
+    type CastExprRet = TreeNode;
+    fn visit_cast_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr<'c>>,
-    ) -> Result<Self::AsExprRet, Self::Error> {
+    ) -> Result<Self::CastExprRet, Self::Error> {
         let walk::AsExpr { ty, expr } = walk::walk_as_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "typed_expr",
@@ -992,7 +992,7 @@ impl<'c> AstVisitor<'c> for AstTreeGenerator {
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IndexExpr<'c>>,
+        node: ast::AstNodeRef<ast::IndexExpression<'c>>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         let walk::IndexExpr {
             subject,

@@ -152,12 +152,12 @@ pub trait AstVisitor<'c>: Sized {
         node: ast::AstNodeRef<ast::LiteralExpr<'c>>,
     ) -> Result<Self::LiteralExprRet, Self::Error>;
 
-    type AsExprRet: 'c;
-    fn visit_as_expr(
+    type CastExprRet: 'c;
+    fn visit_cast_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr<'c>>,
-    ) -> Result<Self::AsExprRet, Self::Error>;
+    ) -> Result<Self::CastExprRet, Self::Error>;
 
     type TypeExprRet: 'c;
     fn visit_type_expr(
@@ -506,7 +506,7 @@ pub trait AstVisitor<'c>: Sized {
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IndexExpr<'c>>,
+        node: ast::AstNodeRef<ast::IndexExpression<'c>>,
     ) -> Result<Self::IndexExpressionRet, Self::Error>;
 
     type StructDefEntryRet: 'c;
@@ -727,6 +727,724 @@ pub trait AstVisitor<'c>: Sized {
     ) -> Result<Self::ModuleRet, Self::Error>;
 }
 
+pub trait AstVisitorMut<'c>: Sized {
+    /// Context type immutably passed to each visitor method for separating mutable from immutable context.
+    type Ctx: 'c;
+
+    /// What container to use to collect multiple children, used by [walk].
+    type CollectionContainer<T: 'c>: Sized + 'c;
+
+    /// Try collect an iterator of results into a container specified by [Self::CollectionContainer].
+    fn try_collect_items<T: 'c, E, I: Iterator<Item = Result<T, E>>>(
+        ctx: &Self::Ctx,
+        items: I,
+    ) -> Result<Self::CollectionContainer<T>, E>;
+
+    /// Collect an iterator of items into a container specified by [Self::CollectionContainer].
+    fn collect_items<T: 'c, E, I: Iterator<Item = T>>(
+        ctx: &Self::Ctx,
+        items: I,
+    ) -> Self::CollectionContainer<T> {
+        Self::try_collect_items::<T, Infallible, _>(ctx, items.map(|item| Ok(item))).unwrap()
+    }
+
+    /// The error type to use for each visit method.
+    type Error: 'c;
+
+    type ImportRet: 'c;
+    fn visit_import(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Import>,
+    ) -> Result<Self::ImportRet, Self::Error>;
+
+    type NameRet: 'c;
+    fn visit_name(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Name>,
+    ) -> Result<Self::NameRet, Self::Error>;
+
+    type AccessNameRet: 'c;
+    fn visit_access_name(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::AccessName<'c>>,
+    ) -> Result<Self::AccessNameRet, Self::Error>;
+
+    type LiteralRet: 'c;
+    fn visit_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Literal<'c>>,
+    ) -> Result<Self::LiteralRet, Self::Error>;
+
+    type BinaryOperatorRet: 'c;
+    fn visit_binary_operator(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BinOp>,
+    ) -> Result<Self::BinaryOperatorRet, Self::Error>;
+
+    type UnaryOperatorRet: 'c;
+    fn visit_unary_operator(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::UnOp>,
+    ) -> Result<Self::UnaryOperatorRet, Self::Error>;
+
+    type ExpressionRet: 'c;
+    fn visit_expression(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Expression<'c>>,
+    ) -> Result<Self::ExpressionRet, Self::Error>;
+
+    type VariableExprRet: 'c;
+    fn visit_variable_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::VariableExpr<'c>>,
+    ) -> Result<Self::VariableExprRet, Self::Error>;
+
+    type DirectiveExprRet: 'c;
+    fn visit_directive_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::DirectiveExpr<'c>>,
+    ) -> Result<Self::DirectiveExprRet, Self::Error>;
+
+    type FunctionCallArgRet: 'c;
+    fn visit_function_call_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FunctionCallArg<'c>>,
+    ) -> Result<Self::FunctionCallArgRet, Self::Error>;
+
+    type FunctionCallArgsRet: 'c;
+    fn visit_function_call_args(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FunctionCallArgs<'c>>,
+    ) -> Result<Self::FunctionCallArgsRet, Self::Error>;
+
+    type FunctionCallExprRet: 'c;
+    fn visit_function_call_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FunctionCallExpr<'c>>,
+    ) -> Result<Self::FunctionCallExprRet, Self::Error>;
+
+    type PropertyAccessExprRet: 'c;
+    fn visit_property_access_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::PropertyAccessExpr<'c>>,
+    ) -> Result<Self::PropertyAccessExprRet, Self::Error>;
+
+    type RefExprRet: 'c;
+    fn visit_ref_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::RefExpr<'c>>,
+    ) -> Result<Self::RefExprRet, Self::Error>;
+
+    type DerefExprRet: 'c;
+    fn visit_deref_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::DerefExpr<'c>>,
+    ) -> Result<Self::DerefExprRet, Self::Error>;
+
+    type UnsafeExprRet: 'c;
+    fn visit_unsafe_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::UnsafeExpr<'c>>,
+    ) -> Result<Self::UnsafeExprRet, Self::Error>;
+
+    type LiteralExprRet: 'c;
+    fn visit_literal_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::LiteralExpr<'c>>,
+    ) -> Result<Self::LiteralExprRet, Self::Error>;
+
+    type CastExprRet: 'c;
+    fn visit_cast_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::CastExpr<'c>>,
+    ) -> Result<Self::CastExprRet, Self::Error>;
+
+    type TypeExprRet: 'c;
+    fn visit_type_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TypeExpr<'c>>,
+    ) -> Result<Self::TypeExprRet, Self::Error>;
+
+    type BlockExprRet: 'c;
+    fn visit_block_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BlockExpr<'c>>,
+    ) -> Result<Self::BlockExprRet, Self::Error>;
+
+    type ImportExprRet: 'c;
+    fn visit_import_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ImportExpr<'c>>,
+    ) -> Result<Self::ImportExprRet, Self::Error>;
+
+    type TypeRet: 'c;
+    fn visit_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Type<'c>>,
+    ) -> Result<Self::TypeRet, Self::Error>;
+
+    type NamedFieldTypeRet: 'c;
+    fn visit_named_field_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<Self::NamedFieldTypeRet, Self::Error>;
+
+    type FnTypeRet: 'c;
+    fn visit_function_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FnType<'c>>,
+    ) -> Result<Self::FnTypeRet, Self::Error>;
+
+    type TypeFunctionParamRet: 'c;
+    fn visit_type_function_param(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TypeFunctionParam<'c>>,
+    ) -> Result<Self::TypeFunctionParamRet, Self::Error>;
+
+    type TypeFunctionRet: 'c;
+    fn visit_type_function(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TypeFunction<'c>>,
+    ) -> Result<Self::TypeFunctionRet, Self::Error>;
+
+    type TypeFunctionCallRet: 'c;
+    fn visit_type_function_call(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TypeFunctionCall<'c>>,
+    ) -> Result<Self::TypeFunctionCallRet, Self::Error>;
+
+    type NamedTypeRet: 'c;
+    fn visit_named_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::NamedType<'c>>,
+    ) -> Result<Self::NamedTypeRet, Self::Error>;
+
+    type RefTypeRet: 'c;
+    fn visit_ref_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::RefType<'c>>,
+    ) -> Result<Self::RefTypeRet, Self::Error>;
+
+    type MergedTypeRet: 'c;
+    fn visit_merged_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MergedType<'c>>,
+    ) -> Result<Self::MergedTypeRet, Self::Error>;
+
+    type ExistentialTypeRet: 'c;
+    fn visit_existential_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ExistentialType>,
+    ) -> Result<Self::ExistentialTypeRet, Self::Error>;
+
+    type InferTypeRet: 'c;
+    fn visit_infer_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::InferType>,
+    ) -> Result<Self::InferTypeRet, Self::Error>;
+
+    type MapLiteralRet: 'c;
+    fn visit_map_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MapLiteral<'c>>,
+    ) -> Result<Self::MapLiteralRet, Self::Error>;
+
+    type MapLiteralEntryRet: 'c;
+    fn visit_map_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MapLiteralEntry<'c>>,
+    ) -> Result<Self::MapLiteralEntryRet, Self::Error>;
+
+    type ListLiteralRet: 'c;
+    fn visit_list_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ListLiteral<'c>>,
+    ) -> Result<Self::ListLiteralRet, Self::Error>;
+
+    type SetLiteralRet: 'c;
+    fn visit_set_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::SetLiteral<'c>>,
+    ) -> Result<Self::SetLiteralRet, Self::Error>;
+
+    type TupleLiteralEntryRet: 'c;
+    fn visit_tuple_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<Self::TupleLiteralEntryRet, Self::Error>;
+
+    type TupleLiteralRet: 'c;
+    fn visit_tuple_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TupleLiteral<'c>>,
+    ) -> Result<Self::TupleLiteralRet, Self::Error>;
+
+    type StrLiteralRet: 'c;
+    fn visit_str_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::StrLiteral>,
+    ) -> Result<Self::StrLiteralRet, Self::Error>;
+
+    type CharLiteralRet: 'c;
+    fn visit_char_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::CharLiteral>,
+    ) -> Result<Self::CharLiteralRet, Self::Error>;
+
+    type FloatLiteralRet: 'c;
+    fn visit_float_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FloatLiteral>,
+    ) -> Result<Self::FloatLiteralRet, Self::Error>;
+
+    type BoolLiteralRet: 'c;
+    fn visit_bool_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BoolLiteral>,
+    ) -> Result<Self::BoolLiteralRet, Self::Error>;
+
+    type IntLiteralRet: 'c;
+    fn visit_int_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IntLiteral>,
+    ) -> Result<Self::IntLiteralRet, Self::Error>;
+
+    type FunctionDefRet: 'c;
+    fn visit_function_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FunctionDef<'c>>,
+    ) -> Result<Self::FunctionDefRet, Self::Error>;
+
+    type FunctionDefArgRet: 'c;
+    fn visit_function_def_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FunctionDefArg<'c>>,
+    ) -> Result<Self::FunctionDefArgRet, Self::Error>;
+
+    type BlockRet: 'c;
+    fn visit_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Block<'c>>,
+    ) -> Result<Self::BlockRet, Self::Error>;
+
+    type MatchCaseRet: 'c;
+    fn visit_match_case(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MatchCase<'c>>,
+    ) -> Result<Self::MatchCaseRet, Self::Error>;
+
+    type MatchBlockRet: 'c;
+    fn visit_match_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MatchBlock<'c>>,
+    ) -> Result<Self::MatchBlockRet, Self::Error>;
+
+    type LoopBlockRet: 'c;
+    fn visit_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::LoopBlock<'c>>,
+    ) -> Result<Self::LoopBlockRet, Self::Error>;
+
+    type ForLoopBlockRet: 'c;
+    fn visit_for_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ForLoopBlock<'c>>,
+    ) -> Result<Self::ForLoopBlockRet, Self::Error>;
+
+    type WhileLoopBlockRet: 'c;
+    fn visit_while_loop_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::WhileLoopBlock<'c>>,
+    ) -> Result<Self::WhileLoopBlockRet, Self::Error>;
+
+    type ModBlockRet: 'c;
+    fn visit_mod_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ModBlock<'c>>,
+    ) -> Result<Self::ModBlockRet, Self::Error>;
+
+    type ImplBlockRet: 'c;
+    fn visit_impl_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ImplBlock<'c>>,
+    ) -> Result<Self::ImplBlockRet, Self::Error>;
+
+    type IfClauseRet: 'c;
+    fn visit_if_clause(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IfClause<'c>>,
+    ) -> Result<Self::IfClauseRet, Self::Error>;
+
+    type IfBlockRet: 'c;
+    fn visit_if_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IfBlock<'c>>,
+    ) -> Result<Self::IfBlockRet, Self::Error>;
+
+    type BodyBlockRet: 'c;
+    fn visit_body_block(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BodyBlock<'c>>,
+    ) -> Result<Self::BodyBlockRet, Self::Error>;
+
+    type ReturnStatementRet: 'c;
+    fn visit_return_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ReturnStatement<'c>>,
+    ) -> Result<Self::ReturnStatementRet, Self::Error>;
+
+    type BreakStatementRet: 'c;
+    fn visit_break_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BreakStatement>,
+    ) -> Result<Self::BreakStatementRet, Self::Error>;
+
+    type ContinueStatementRet: 'c;
+    fn visit_continue_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ContinueStatement>,
+    ) -> Result<Self::ContinueStatementRet, Self::Error>;
+
+    type VisibilityRet: 'c;
+    fn visit_visibility_modifier(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Visibility>,
+    ) -> Result<Self::VisibilityRet, Self::Error>;
+
+    type MutabilityRet: 'c;
+    fn visit_mutability_modifier(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Mutability>,
+    ) -> Result<Self::MutabilityRet, Self::Error>;
+
+    type DeclarationRet: 'c;
+    fn visit_declaration(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Declaration<'c>>,
+    ) -> Result<Self::DeclarationRet, Self::Error>;
+
+    type MergeDeclarationRet: 'c;
+    fn visit_merge_declaration(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MergeDeclaration<'c>>,
+    ) -> Result<Self::MergeDeclarationRet, Self::Error>;
+
+    type AssignExpressionRet: 'c;
+    fn visit_assign_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::AssignExpression<'c>>,
+    ) -> Result<Self::AssignExpressionRet, Self::Error>;
+
+    type AssignOpExpressionRet: 'c;
+    fn visit_assign_op_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::AssignOpExpression<'c>>,
+    ) -> Result<Self::AssignOpExpressionRet, Self::Error>;
+
+    type BinaryExpressionRet: 'c;
+    fn visit_binary_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BinaryExpression<'c>>,
+    ) -> Result<Self::BinaryExpressionRet, Self::Error>;
+
+    type UnaryExpressionRet: 'c;
+    fn visit_unary_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::UnaryExpression<'c>>,
+    ) -> Result<Self::UnaryExpressionRet, Self::Error>;
+
+    type IndexExpressionRet: 'c;
+    fn visit_index_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IndexExpression<'c>>,
+    ) -> Result<Self::IndexExpressionRet, Self::Error>;
+
+    type StructDefEntryRet: 'c;
+    fn visit_struct_def_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::StructDefEntry<'c>>,
+    ) -> Result<Self::StructDefEntryRet, Self::Error>;
+
+    type StructDefRet: 'c;
+    fn visit_struct_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::StructDef<'c>>,
+    ) -> Result<Self::StructDefRet, Self::Error>;
+
+    type EnumDefEntryRet: 'c;
+    fn visit_enum_def_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::EnumDefEntry<'c>>,
+    ) -> Result<Self::EnumDefEntryRet, Self::Error>;
+
+    type EnumDefRet: 'c;
+    fn visit_enum_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::EnumDef<'c>>,
+    ) -> Result<Self::EnumDefRet, Self::Error>;
+
+    type TraitDefRet: 'c;
+    fn visit_trait_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TraitDef<'c>>,
+    ) -> Result<Self::TraitDefRet, Self::Error>;
+
+    type PatternRet: 'c;
+    fn visit_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Pattern<'c>>,
+    ) -> Result<Self::PatternRet, Self::Error>;
+
+    type TraitImplRet: 'c;
+    fn visit_trait_impl(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TraitImpl<'c>>,
+    ) -> Result<Self::TraitImplRet, Self::Error>;
+
+    type TypeFunctionDefRet: 'c;
+    fn visit_type_function_def(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TypeFunctionDef<'c>>,
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
+
+    type TypeFunctionDefArgRet: 'c;
+    fn visit_type_function_def_arg(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error>;
+
+    type ConstructorPatternRet: 'c;
+    fn visit_constructor_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ConstructorPattern<'c>>,
+    ) -> Result<Self::ConstructorPatternRet, Self::Error>;
+
+    type NamespacePatternRet: 'c;
+    fn visit_namespace_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::NamespacePattern<'c>>,
+    ) -> Result<Self::NamespacePatternRet, Self::Error>;
+
+    type TuplePatternEntryRet: 'c;
+    fn visit_tuple_pattern_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TuplePatternEntry<'c>>,
+    ) -> Result<Self::TuplePatternEntryRet, Self::Error>;
+
+    type TuplePatternRet: 'c;
+    fn visit_tuple_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TuplePattern<'c>>,
+    ) -> Result<Self::TuplePatternRet, Self::Error>;
+
+    type ListPatternRet: 'c;
+    fn visit_list_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ListPattern<'c>>,
+    ) -> Result<Self::ListPatternRet, Self::Error>;
+
+    type TupleTypeRet: 'c;
+    fn visit_tuple_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::TupleType<'c>>,
+    ) -> Result<Self::TupleTypeRet, Self::Error>;
+
+    type ListTypeRet: 'c;
+    fn visit_list_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ListType<'c>>,
+    ) -> Result<Self::ListTypeRet, Self::Error>;
+
+    type SetTypeRet: 'c;
+    fn visit_set_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::SetType<'c>>,
+    ) -> Result<Self::SetTypeRet, Self::Error>;
+
+    type MapTypeRet: 'c;
+    fn visit_map_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::MapType<'c>>,
+    ) -> Result<Self::MapTypeRet, Self::Error>;
+
+    type StrLiteralPatternRet: 'c;
+    fn visit_str_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::StrLiteralPattern>,
+    ) -> Result<Self::StrLiteralPatternRet, Self::Error>;
+
+    type CharLiteralPatternRet: 'c;
+    fn visit_char_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::CharLiteralPattern>,
+    ) -> Result<Self::CharLiteralPatternRet, Self::Error>;
+
+    type IntLiteralPatternRet: 'c;
+    fn visit_int_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IntLiteralPattern>,
+    ) -> Result<Self::IntLiteralPatternRet, Self::Error>;
+
+    type FloatLiteralPatternRet: 'c;
+    fn visit_float_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::FloatLiteralPattern>,
+    ) -> Result<Self::FloatLiteralPatternRet, Self::Error>;
+
+    type BoolLiteralPatternRet: 'c;
+    fn visit_bool_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BoolLiteralPattern>,
+    ) -> Result<Self::BoolLiteralPatternRet, Self::Error>;
+
+    type LiteralPatternRet: 'c;
+    fn visit_literal_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::LiteralPattern>,
+    ) -> Result<Self::LiteralPatternRet, Self::Error>;
+
+    type OrPatternRet: 'c;
+    fn visit_or_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::OrPattern<'c>>,
+    ) -> Result<Self::OrPatternRet, Self::Error>;
+
+    type IfPatternRet: 'c;
+    fn visit_if_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IfPattern<'c>>,
+    ) -> Result<Self::IfPatternRet, Self::Error>;
+
+    type BindingPatternRet: 'c;
+    fn visit_binding_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::BindingPattern<'c>>,
+    ) -> Result<Self::BindingPatternRet, Self::Error>;
+
+    type SpreadPatternRet: 'c;
+    fn visit_spread_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::SpreadPattern<'c>>,
+    ) -> Result<Self::SpreadPatternRet, Self::Error>;
+
+    type IgnorePatternRet: 'c;
+    fn visit_ignore_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::IgnorePattern>,
+    ) -> Result<Self::IgnorePatternRet, Self::Error>;
+
+    type DestructuringPatternRet: 'c;
+    fn visit_destructuring_pattern(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::DestructuringPattern<'c>>,
+    ) -> Result<Self::DestructuringPatternRet, Self::Error>;
+
+    type ModuleRet: 'c;
+    fn visit_module(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::Module<'c>>,
+    ) -> Result<Self::ModuleRet, Self::Error>;
+}
+
 /// Contains helper functions and structures to traverse AST nodes using a given visitor.
 ///
 /// Structures are defined which mirror the layout of the AST nodes, but instead of having AST
@@ -802,7 +1520,7 @@ pub mod walk {
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
         LiteralExpr(V::LiteralExprRet),
-        Typed(V::AsExprRet),
+        Typed(V::CastExprRet),
         Block(V::BlockExprRet),
         Import(V::ImportExprRet),
         StructDef(V::StructDefRet),
@@ -863,7 +1581,7 @@ pub mod walk {
                 Expression::LiteralExpr(visitor.visit_literal_expr(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::As(inner) => {
-                Expression::Typed(visitor.visit_as_expr(ctx, node.with_body(inner))?)
+                Expression::Typed(visitor.visit_cast_expr(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::Block(inner) => {
                 Expression::Block(visitor.visit_block_expr(ctx, node.with_body(inner))?)
@@ -934,7 +1652,7 @@ pub mod walk {
             DerefExprRet = Ret,
             UnsafeExprRet = Ret,
             LiteralExprRet = Ret,
-            AsExprRet = Ret,
+            CastExprRet = Ret,
             BlockExprRet = Ret,
             ImportExprRet = Ret,
             StructDefRet = Ret,
@@ -2365,7 +3083,7 @@ pub mod walk {
     pub fn walk_index_expr<'c, V: AstVisitor<'c>>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::IndexExpr<'c>>,
+        node: ast::AstNodeRef<ast::IndexExpression<'c>>,
     ) -> Result<IndexExpr<'c, V>, V::Error> {
         Ok(IndexExpr {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
@@ -2556,6 +3274,1890 @@ pub mod walk {
                 node.contents
                     .iter()
                     .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
+            )?,
+        })
+    }
+}
+
+pub mod walk_mut {
+    use crate::ast::AstNodeRefMut;
+
+    use super::ast;
+    use super::AstVisitorMut;
+
+    pub struct FunctionDefArg<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub ty: Option<V::TypeRet>,
+        pub default: Option<V::ExpressionRet>,
+    }
+
+    pub fn walk_function_def_arg<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::FunctionDefArg<'c>>,
+    ) -> Result<FunctionDefArg<'c, V>, V::Error> {
+        Ok(FunctionDefArg {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            ty: node
+                .ty
+                .as_mut()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            default: node
+                .default
+                .as_mut()
+                .map(|t| visitor.visit_expression(ctx, t.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct FunctionDef<'c, V: AstVisitorMut<'c>> {
+        pub args: V::CollectionContainer<V::FunctionDefArgRet>,
+        pub return_ty: Option<V::TypeRet>,
+        pub fn_body: V::ExpressionRet,
+    }
+
+    pub fn walk_function_def<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::FunctionDef<'c>>,
+    ) -> Result<FunctionDef<'c, V>, V::Error> {
+        Ok(FunctionDef {
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref_mut())),
+            )?,
+            return_ty: node
+                .return_ty
+                .as_mut()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            fn_body: visitor.visit_expression(ctx, node.fn_body.ast_ref_mut())?,
+        })
+    }
+
+    pub enum Expression<'c, V: AstVisitorMut<'c>> {
+        FunctionCall(V::FunctionCallExprRet),
+        Directive(V::DirectiveExprRet),
+        Declaration(V::DeclarationRet),
+        Variable(V::VariableExprRet),
+        PropertyAccess(V::PropertyAccessExprRet),
+        Ref(V::RefExprRet),
+        Deref(V::DerefExprRet),
+        Unsafe(V::UnsafeExprRet),
+        LiteralExpr(V::LiteralExprRet),
+        Typed(V::CastExprRet),
+        Block(V::BlockExprRet),
+        Import(V::ImportExprRet),
+        StructDef(V::StructDefRet),
+        EnumDef(V::EnumDefRet),
+        TypeFunctionDef(V::TypeFunctionDefRet),
+        TraitDef(V::TraitDefRet),
+        FunctionDef(V::FunctionDefRet),
+        Type(V::TypeExprRet),
+        Return(V::ReturnStatementRet),
+        Break(V::BreakStatementRet),
+        Continue(V::ContinueStatementRet),
+        Assign(V::AssignExpressionRet),
+        AssignOp(V::AssignOpExpressionRet),
+        MergeDeclaration(V::MergeDeclarationRet),
+        TraitImpl(V::TraitImplRet),
+        BinaryExpr(V::BinaryExpressionRet),
+        UnaryExpr(V::UnaryExpressionRet),
+        Index(V::IndexExpressionRet),
+    }
+
+    pub fn walk_expression<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Expression<'c>>,
+    ) -> Result<Expression<'c, V>, V::Error> {
+        let span = node.span;
+        let id = node.id;
+
+        Ok(match &mut node.kind {
+            ast::ExpressionKind::FunctionCall(inner) => Expression::FunctionCall(
+                visitor.visit_function_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::Type(inner) => {
+                Expression::Type(visitor.visit_type_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
+            ast::ExpressionKind::Directive(inner) => Expression::Directive(
+                visitor.visit_directive_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::Declaration(inner) => Expression::Declaration(
+                visitor.visit_declaration(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::MergeDeclaration(inner) => Expression::MergeDeclaration(
+                visitor.visit_merge_declaration(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::Variable(inner) => Expression::Variable(
+                visitor.visit_variable_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::PropertyAccess(inner) => Expression::PropertyAccess({
+                visitor.visit_property_access_expr(ctx, AstNodeRefMut::new(inner, span, id))?
+            }),
+            ast::ExpressionKind::Ref(inner) => {
+                Expression::Ref(visitor.visit_ref_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
+            ast::ExpressionKind::Deref(inner) => Expression::Deref(
+                visitor.visit_deref_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::Unsafe(inner) => Expression::Unsafe(
+                visitor.visit_unsafe_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::LiteralExpr(inner) => Expression::LiteralExpr(
+                visitor.visit_literal_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::As(inner) => Expression::Typed(
+                visitor.visit_cast_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::Block(inner) => Expression::Block(
+                visitor.visit_block_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::Import(inner) => Expression::Import(
+                visitor.visit_import_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ),
+            ast::ExpressionKind::StructDef(r) => Expression::StructDef(
+                visitor.visit_struct_def(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::EnumDef(r) => {
+                Expression::EnumDef(visitor.visit_enum_def(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExpressionKind::TypeFunctionDef(r) => Expression::TypeFunctionDef(
+                visitor.visit_type_function_def(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::TraitDef(r) => {
+                Expression::TraitDef(visitor.visit_trait_def(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExpressionKind::FunctionDef(r) => Expression::FunctionDef(
+                visitor.visit_function_def(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::Return(r) => Expression::Return(
+                visitor.visit_return_statement(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::Break(r) => Expression::Break(
+                visitor.visit_break_statement(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::Continue(r) => Expression::Continue(
+                visitor.visit_continue_statement(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::Assign(r) => {
+                Expression::Assign(visitor.visit_assign_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExpressionKind::AssignOp(r) => Expression::AssignOp(
+                visitor.visit_assign_op_expr(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::TraitImpl(r) => Expression::TraitImpl(
+                visitor.visit_trait_impl(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::BinaryExpr(r) => Expression::BinaryExpr(
+                visitor.visit_binary_expr(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::UnaryExpr(r) => Expression::UnaryExpr(
+                visitor.visit_unary_expr(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::ExpressionKind::Index(r) => {
+                Expression::Index(visitor.visit_index_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+        })
+    }
+
+    pub fn walk_expression_same_children<'c, V, Ret>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRefMut<ast::Expression<'c>>,
+    ) -> Result<Ret, V::Error>
+    where
+        V: AstVisitorMut<
+            'c,
+            FunctionCallExprRet = Ret,
+            DirectiveExprRet = Ret,
+            DeclarationRet = Ret,
+            MergeDeclarationRet = Ret,
+            VariableExprRet = Ret,
+            PropertyAccessExprRet = Ret,
+            RefExprRet = Ret,
+            DerefExprRet = Ret,
+            UnsafeExprRet = Ret,
+            LiteralExprRet = Ret,
+            CastExprRet = Ret,
+            BlockExprRet = Ret,
+            ImportExprRet = Ret,
+            StructDefRet = Ret,
+            EnumDefRet = Ret,
+            TypeFunctionDefRet = Ret,
+            TraitDefRet = Ret,
+            TraitImplRet = Ret,
+            FunctionDefRet = Ret,
+            TypeExprRet = Ret,
+            ReturnStatementRet = Ret,
+            BreakStatementRet = Ret,
+            ContinueStatementRet = Ret,
+            AssignExpressionRet = Ret,
+            AssignOpExpressionRet = Ret,
+            BinaryExpressionRet = Ret,
+            UnaryExpressionRet = Ret,
+            IndexExpressionRet = Ret,
+        >,
+    {
+        Ok(match walk_expression(visitor, ctx, node)? {
+            Expression::FunctionCall(r) => r,
+            Expression::Directive(r) => r,
+            Expression::Declaration(r) => r,
+            Expression::MergeDeclaration(r) => r,
+            Expression::Variable(r) => r,
+            Expression::PropertyAccess(r) => r,
+            Expression::Ref(r) => r,
+            Expression::Deref(r) => r,
+            Expression::Unsafe(r) => r,
+            Expression::LiteralExpr(r) => r,
+            Expression::Typed(r) => r,
+            Expression::Block(r) => r,
+            Expression::Import(r) => r,
+            Expression::StructDef(r) => r,
+            Expression::EnumDef(r) => r,
+            Expression::TypeFunctionDef(r) => r,
+            Expression::TraitDef(r) => r,
+            Expression::TraitImpl(r) => r,
+            Expression::FunctionDef(r) => r,
+            Expression::Type(r) => r,
+            Expression::Return(r) => r,
+            Expression::Break(r) => r,
+            Expression::Continue(r) => r,
+            Expression::Assign(r) => r,
+            Expression::AssignOp(r) => r,
+            Expression::BinaryExpr(r) => r,
+            Expression::UnaryExpr(r) => r,
+            Expression::Index(r) => r,
+        })
+    }
+
+    pub struct VariableExpr<'c, V: AstVisitorMut<'c>> {
+        pub name: V::AccessNameRet,
+        pub type_args: V::CollectionContainer<V::NamedFieldTypeRet>,
+    }
+
+    pub fn walk_variable_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::VariableExpr<'c>>,
+    ) -> Result<VariableExpr<'c, V>, V::Error> {
+        Ok(VariableExpr {
+            name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())?,
+            type_args: V::try_collect_items(
+                ctx,
+                node.type_args
+                    .iter_mut()
+                    .map(|t| visitor.visit_named_field_type(ctx, t.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct DirectiveExpr<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub subject: V::ExpressionRet,
+    }
+
+    pub fn walk_directive_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::DirectiveExpr<'c>>,
+    ) -> Result<DirectiveExpr<'c, V>, V::Error> {
+        Ok(DirectiveExpr {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
+        })
+    }
+
+    pub struct FunctionCallArg<'c, V: AstVisitorMut<'c>> {
+        pub name: Option<V::NameRet>,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_function_call_arg<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::FunctionCallArg<'c>>,
+    ) -> Result<FunctionCallArg<'c, V>, V::Error> {
+        Ok(FunctionCallArg {
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref_mut())?,
+        })
+    }
+
+    pub struct FunctionCallArgs<'c, V: AstVisitorMut<'c>> {
+        pub entries: V::CollectionContainer<V::FunctionCallArgRet>,
+    }
+
+    pub fn walk_function_call_args<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::FunctionCallArgs<'c>>,
+    ) -> Result<FunctionCallArgs<'c, V>, V::Error> {
+        Ok(FunctionCallArgs {
+            entries: V::try_collect_items(
+                ctx,
+                node.entries
+                    .iter_mut()
+                    .map(|e| visitor.visit_function_call_arg(ctx, e.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct FunctionCallExpr<'c, V: AstVisitorMut<'c>> {
+        pub subject: V::ExpressionRet,
+        pub args: V::FunctionCallArgsRet,
+    }
+
+    pub fn walk_function_call_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::FunctionCallExpr<'c>>,
+    ) -> Result<FunctionCallExpr<'c, V>, V::Error> {
+        Ok(FunctionCallExpr {
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
+            args: visitor.visit_function_call_args(ctx, node.args.ast_ref_mut())?,
+        })
+    }
+
+    pub struct PropertyAccessExpr<'c, V: AstVisitorMut<'c>> {
+        pub subject: V::ExpressionRet,
+        pub property: V::NameRet,
+    }
+
+    pub fn walk_property_access_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::PropertyAccessExpr<'c>>,
+    ) -> Result<PropertyAccessExpr<'c, V>, V::Error> {
+        Ok(PropertyAccessExpr {
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
+            property: visitor.visit_name(ctx, node.property.ast_ref_mut())?,
+        })
+    }
+
+    pub struct RefExpr<'c, V: AstVisitorMut<'c>> {
+        pub inner_expr: V::ExpressionRet,
+        pub mutability: Option<V::MutabilityRet>,
+    }
+
+    pub fn walk_ref_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::RefExpr<'c>>,
+    ) -> Result<RefExpr<'c, V>, V::Error> {
+        Ok(RefExpr {
+            inner_expr: visitor.visit_expression(ctx, node.inner_expr.ast_ref_mut())?,
+            mutability: node
+                .mutability
+                .as_mut()
+                .map(|inner| visitor.visit_mutability_modifier(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct DerefExpr<'c, V: AstVisitorMut<'c>>(pub V::ExpressionRet);
+
+    pub fn walk_deref_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::DerefExpr<'c>>,
+    ) -> Result<DerefExpr<'c, V>, V::Error> {
+        Ok(DerefExpr(
+            visitor.visit_expression(ctx, node.0.ast_ref_mut())?,
+        ))
+    }
+
+    pub struct UnsafeExpr<'c, V: AstVisitorMut<'c>>(pub V::ExpressionRet);
+
+    pub fn walk_unsafe_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::UnsafeExpr<'c>>,
+    ) -> Result<UnsafeExpr<'c, V>, V::Error> {
+        Ok(UnsafeExpr(
+            visitor.visit_expression(ctx, node.0.ast_ref_mut())?,
+        ))
+    }
+
+    pub struct LiteralExpr<'c, V: AstVisitorMut<'c>>(pub V::LiteralRet);
+
+    pub fn walk_literal_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::LiteralExpr<'c>>,
+    ) -> Result<LiteralExpr<'c, V>, V::Error> {
+        Ok(LiteralExpr(
+            visitor.visit_literal(ctx, node.0.ast_ref_mut())?,
+        ))
+    }
+
+    pub struct AsExpr<'c, V: AstVisitorMut<'c>> {
+        pub ty: V::TypeRet,
+        pub expr: V::ExpressionRet,
+    }
+
+    pub fn walk_as_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::CastExpr<'c>>,
+    ) -> Result<AsExpr<'c, V>, V::Error> {
+        Ok(AsExpr {
+            ty: visitor.visit_type(ctx, node.ty.ast_ref_mut())?,
+            expr: visitor.visit_expression(ctx, node.expr.ast_ref_mut())?,
+        })
+    }
+
+    pub struct TypeExpr<'c, V: AstVisitorMut<'c>>(pub V::TypeRet);
+
+    pub fn walk_type_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TypeExpr<'c>>,
+    ) -> Result<TypeExpr<'c, V>, V::Error> {
+        Ok(TypeExpr(visitor.visit_type(ctx, node.0.ast_ref_mut())?))
+    }
+
+    pub struct BlockExpr<'c, V: AstVisitorMut<'c>>(pub V::BlockRet);
+
+    pub fn walk_block_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::BlockExpr<'c>>,
+    ) -> Result<BlockExpr<'c, V>, V::Error> {
+        Ok(BlockExpr(visitor.visit_block(ctx, node.0.ast_ref_mut())?))
+    }
+
+    pub struct ImportExpr<'c, V: AstVisitorMut<'c>>(pub V::ImportRet);
+
+    pub fn walk_import_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ImportExpr<'c>>,
+    ) -> Result<ImportExpr<'c, V>, V::Error> {
+        Ok(ImportExpr(visitor.visit_import(ctx, node.0.ast_ref_mut())?))
+    }
+
+    pub enum Literal<'c, V: AstVisitorMut<'c>> {
+        Str(V::StrLiteralRet),
+        Char(V::CharLiteralRet),
+        Int(V::IntLiteralRet),
+        Float(V::FloatLiteralRet),
+        Bool(V::BoolLiteralRet),
+        Set(V::SetLiteralRet),
+        Map(V::MapLiteralRet),
+        List(V::ListLiteralRet),
+        Tuple(V::TupleLiteralRet),
+    }
+
+    pub fn walk_literal<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Literal<'c>>,
+    ) -> Result<Literal<'c, V>, V::Error> {
+        let span = node.span;
+        let id = node.id;
+
+        Ok(match &mut *node {
+            ast::Literal::Str(r) => {
+                Literal::Str(visitor.visit_str_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Char(r) => {
+                Literal::Char(visitor.visit_char_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Int(r) => {
+                Literal::Int(visitor.visit_int_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Float(r) => {
+                Literal::Float(visitor.visit_float_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Bool(r) => {
+                Literal::Bool(visitor.visit_bool_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Set(r) => {
+                Literal::Set(visitor.visit_set_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Map(r) => {
+                Literal::Map(visitor.visit_map_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::List(r) => {
+                Literal::List(visitor.visit_list_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Literal::Tuple(r) => {
+                Literal::Tuple(visitor.visit_tuple_literal(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+        })
+    }
+
+    pub fn walk_literal_same_children<'c, V, Ret>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRefMut<ast::Literal<'c>>,
+    ) -> Result<Ret, V::Error>
+    where
+        V: AstVisitorMut<
+            'c,
+            StrLiteralRet = Ret,
+            CharLiteralRet = Ret,
+            IntLiteralRet = Ret,
+            FloatLiteralRet = Ret,
+            BoolLiteralRet = Ret,
+            SetLiteralRet = Ret,
+            MapLiteralRet = Ret,
+            ListLiteralRet = Ret,
+            TupleLiteralRet = Ret,
+        >,
+    {
+        Ok(match walk_literal(visitor, ctx, node)? {
+            Literal::Str(r) => r,
+            Literal::Char(r) => r,
+            Literal::Int(r) => r,
+            Literal::Float(r) => r,
+            Literal::Bool(r) => r,
+            Literal::Set(r) => r,
+            Literal::Map(r) => r,
+            Literal::List(r) => r,
+            Literal::Tuple(r) => r,
+        })
+    }
+
+    pub struct MatchCase<'c, V: AstVisitorMut<'c>> {
+        pub pattern: V::PatternRet,
+        pub expr: V::ExpressionRet,
+    }
+
+    pub fn walk_match_case<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MatchCase<'c>>,
+    ) -> Result<MatchCase<'c, V>, V::Error> {
+        Ok(MatchCase {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
+            expr: visitor.visit_expression(ctx, node.expr.ast_ref_mut())?,
+        })
+    }
+
+    pub struct MatchBlock<'c, V: AstVisitorMut<'c>> {
+        pub subject: V::ExpressionRet,
+        pub cases: V::CollectionContainer<V::MatchCaseRet>,
+    }
+
+    pub fn walk_match_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MatchBlock<'c>>,
+    ) -> Result<MatchBlock<'c, V>, V::Error> {
+        Ok(MatchBlock {
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
+            cases: V::try_collect_items(
+                ctx,
+                node.cases
+                    .iter_mut()
+                    .map(|c| visitor.visit_match_case(ctx, c.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct LoopBlock<'c, V: AstVisitorMut<'c>>(pub V::BlockRet);
+
+    pub fn walk_loop_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::LoopBlock<'c>>,
+    ) -> Result<LoopBlock<'c, V>, V::Error> {
+        Ok(LoopBlock(visitor.visit_block(ctx, node.0.ast_ref_mut())?))
+    }
+
+    pub struct ForLoopBlock<'c, V: AstVisitorMut<'c>> {
+        pub pattern: V::PatternRet,
+        pub iterator: V::ExpressionRet,
+        pub body: V::BlockRet,
+    }
+
+    pub fn walk_for_loop_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ForLoopBlock<'c>>,
+    ) -> Result<ForLoopBlock<'c, V>, V::Error> {
+        Ok(ForLoopBlock {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
+            iterator: visitor.visit_expression(ctx, node.iterator.ast_ref_mut())?,
+            body: visitor.visit_block(ctx, node.body.ast_ref_mut())?,
+        })
+    }
+
+    pub struct WhileLoopBlock<'c, V: AstVisitorMut<'c>> {
+        pub condition: V::ExpressionRet,
+        pub body: V::BlockRet,
+    }
+
+    pub fn walk_while_loop_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::WhileLoopBlock<'c>>,
+    ) -> Result<WhileLoopBlock<'c, V>, V::Error> {
+        Ok(WhileLoopBlock {
+            condition: visitor.visit_expression(ctx, node.condition.ast_ref_mut())?,
+            body: visitor.visit_block(ctx, node.body.ast_ref_mut())?,
+        })
+    }
+
+    pub struct ModBlock<'c, V: AstVisitorMut<'c>>(pub V::BlockRet);
+
+    pub fn walk_mod_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ModBlock<'c>>,
+    ) -> Result<ModBlock<'c, V>, V::Error> {
+        Ok(ModBlock(visitor.visit_block(ctx, node.0.ast_ref_mut())?))
+    }
+
+    pub struct ImplBlock<'c, V: AstVisitorMut<'c>>(pub V::BlockRet);
+
+    pub fn walk_impl_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ImplBlock<'c>>,
+    ) -> Result<ImplBlock<'c, V>, V::Error> {
+        Ok(ImplBlock(visitor.visit_block(ctx, node.0.ast_ref_mut())?))
+    }
+
+    pub struct IfClause<'c, V: AstVisitorMut<'c>> {
+        pub condition: V::ExpressionRet,
+        pub body: V::BlockRet,
+    }
+
+    pub fn walk_if_clause<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::IfClause<'c>>,
+    ) -> Result<IfClause<'c, V>, V::Error> {
+        Ok(IfClause {
+            condition: visitor.visit_expression(ctx, node.condition.ast_ref_mut())?,
+            body: visitor.visit_block(ctx, node.body.ast_ref_mut())?,
+        })
+    }
+
+    pub struct IfBlock<'c, V: AstVisitorMut<'c>> {
+        pub clauses: V::CollectionContainer<V::IfClauseRet>,
+        pub otherwise: Option<V::BlockRet>,
+    }
+
+    pub fn walk_if_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::IfBlock<'c>>,
+    ) -> Result<IfBlock<'c, V>, V::Error> {
+        Ok(IfBlock {
+            clauses: V::try_collect_items(
+                ctx,
+                node.clauses
+                    .iter_mut()
+                    .map(|clause| visitor.visit_if_clause(ctx, clause.ast_ref_mut())),
+            )?,
+            otherwise: node
+                .otherwise
+                .as_mut()
+                .map(|body| visitor.visit_block(ctx, body.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct BodyBlock<'c, V: AstVisitorMut<'c>> {
+        pub statements: V::CollectionContainer<V::ExpressionRet>,
+        pub expr: Option<V::ExpressionRet>,
+    }
+
+    pub fn walk_body_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::BodyBlock<'c>>,
+    ) -> Result<BodyBlock<'c, V>, V::Error> {
+        Ok(BodyBlock {
+            statements: V::try_collect_items(
+                ctx,
+                node.statements
+                    .iter_mut()
+                    .map(|s| visitor.visit_expression(ctx, s.ast_ref_mut())),
+            )?,
+            expr: node
+                .expr
+                .as_mut()
+                .map(|e| visitor.visit_expression(ctx, e.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub enum Block<'c, V: AstVisitorMut<'c>> {
+        Match(V::MatchBlockRet),
+        Loop(V::LoopBlockRet),
+        For(V::ForLoopBlockRet),
+        While(V::WhileLoopBlockRet),
+        Mod(V::ModBlockRet),
+        Body(V::BodyBlockRet),
+        Impl(V::ImplBlockRet),
+        If(V::IfBlockRet),
+    }
+
+    pub fn walk_block<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Block<'c>>,
+    ) -> Result<Block<'c, V>, V::Error> {
+        let span = node.span;
+        let id = node.id;
+
+        Ok(match &mut *node {
+            ast::Block::Match(r) => {
+                Block::Match(visitor.visit_match_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::Loop(r) => {
+                Block::Loop(visitor.visit_loop_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::For(r) => {
+                Block::For(visitor.visit_for_loop_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::While(r) => {
+                Block::While(visitor.visit_while_loop_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::Mod(r) => {
+                Block::Mod(visitor.visit_mod_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::Body(r) => {
+                Block::Body(visitor.visit_body_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::Impl(r) => {
+                Block::Impl(visitor.visit_impl_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Block::If(r) => {
+                Block::If(visitor.visit_if_block(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+        })
+    }
+
+    pub fn walk_block_same_children<'c, V, Ret>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRefMut<ast::Block<'c>>,
+    ) -> Result<Ret, V::Error>
+    where
+        V: AstVisitorMut<
+            'c,
+            MatchBlockRet = Ret,
+            LoopBlockRet = Ret,
+            ForLoopBlockRet = Ret,
+            WhileLoopBlockRet = Ret,
+            ModBlockRet = Ret,
+            BodyBlockRet = Ret,
+            IfBlockRet = Ret,
+            ImplBlockRet = Ret,
+        >,
+    {
+        Ok(match walk_block(visitor, ctx, node)? {
+            Block::Match(r) => r,
+            Block::Loop(r) => r,
+            Block::For(r) => r,
+            Block::If(r) => r,
+            Block::While(r) => r,
+            Block::Mod(r) => r,
+            Block::Body(r) => r,
+            Block::Impl(r) => r,
+        })
+    }
+
+    pub struct SetLiteral<'c, V: AstVisitorMut<'c>> {
+        pub elements: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_set_literal<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::SetLiteral<'c>>,
+    ) -> Result<SetLiteral<'c, V>, V::Error> {
+        Ok(SetLiteral {
+            elements: V::try_collect_items(
+                ctx,
+                node.elements
+                    .iter_mut()
+                    .map(|e| visitor.visit_expression(ctx, e.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct MapLiteralEntry<'c, V: AstVisitorMut<'c>> {
+        pub key: V::ExpressionRet,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_map_literal_entry<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MapLiteralEntry<'c>>,
+    ) -> Result<MapLiteralEntry<'c, V>, V::Error> {
+        Ok(MapLiteralEntry {
+            key: visitor.visit_expression(ctx, node.key.ast_ref_mut())?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref_mut())?,
+        })
+    }
+
+    pub struct MapLiteral<'c, V: AstVisitorMut<'c>> {
+        pub entries: V::CollectionContainer<V::MapLiteralEntryRet>,
+    }
+
+    pub fn walk_map_literal<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MapLiteral<'c>>,
+    ) -> Result<MapLiteral<'c, V>, V::Error> {
+        Ok(MapLiteral {
+            entries: V::try_collect_items(
+                ctx,
+                node.elements
+                    .iter_mut()
+                    .map(|e| visitor.visit_map_literal_entry(ctx, e.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct ListLiteral<'c, V: AstVisitorMut<'c>> {
+        pub elements: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_list_literal<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ListLiteral<'c>>,
+    ) -> Result<ListLiteral<'c, V>, V::Error> {
+        Ok(ListLiteral {
+            elements: V::try_collect_items(
+                ctx,
+                node.elements
+                    .iter_mut()
+                    .map(|e| visitor.visit_expression(ctx, e.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct TupleLiteralEntry<'c, V: AstVisitorMut<'c>> {
+        pub name: Option<V::NameRet>,
+        pub ty: Option<V::TypeRet>,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_tuple_literal_entry<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TupleLiteralEntry<'c>>,
+    ) -> Result<TupleLiteralEntry<'c, V>, V::Error> {
+        Ok(TupleLiteralEntry {
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            ty: node
+                .ty
+                .as_mut()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref_mut())?,
+        })
+    }
+
+    pub struct TupleLiteral<'c, V: AstVisitorMut<'c>> {
+        pub elements: V::CollectionContainer<V::TupleLiteralEntryRet>,
+    }
+
+    pub fn walk_tuple_literal<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TupleLiteral<'c>>,
+    ) -> Result<TupleLiteral<'c, V>, V::Error> {
+        Ok(TupleLiteral {
+            elements: V::try_collect_items(
+                ctx,
+                node.elements
+                    .iter_mut()
+                    .map(|e| visitor.visit_tuple_literal_entry(ctx, e.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct NamedFieldTypeEntry<'c, V: AstVisitorMut<'c>> {
+        pub ty: V::TypeRet,
+        pub name: Option<V::NameRet>,
+    }
+
+    pub fn walk_named_field_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::NamedFieldTypeEntry<'c>>,
+    ) -> Result<NamedFieldTypeEntry<'c, V>, V::Error> {
+        Ok(NamedFieldTypeEntry {
+            ty: visitor.visit_type(ctx, node.ty.ast_ref_mut())?,
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct FnType<'c, V: AstVisitorMut<'c>> {
+        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub return_ty: V::TypeRet,
+    }
+
+    pub fn walk_function_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::FnType<'c>>,
+    ) -> Result<FnType<'c, V>, V::Error> {
+        Ok(FnType {
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref_mut())),
+            )?,
+            return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref_mut())?,
+        })
+    }
+
+    pub struct TupleType<'c, V: AstVisitorMut<'c>> {
+        pub entries: V::CollectionContainer<V::NamedFieldTypeRet>,
+    }
+
+    pub fn walk_tuple_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TupleType<'c>>,
+    ) -> Result<TupleType<'c, V>, V::Error> {
+        Ok(TupleType {
+            entries: V::try_collect_items(
+                ctx,
+                node.entries
+                    .iter_mut()
+                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct ListType<'c, V: AstVisitorMut<'c>> {
+        pub inner: V::TypeRet,
+    }
+
+    pub fn walk_list_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ListType<'c>>,
+    ) -> Result<ListType<'c, V>, V::Error> {
+        Ok(ListType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())?,
+        })
+    }
+
+    pub struct SetType<'c, V: AstVisitorMut<'c>> {
+        pub inner: V::TypeRet,
+    }
+
+    pub fn walk_set_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::SetType<'c>>,
+    ) -> Result<SetType<'c, V>, V::Error> {
+        Ok(SetType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())?,
+        })
+    }
+
+    pub struct MapType<'c, V: AstVisitorMut<'c>> {
+        pub key: V::TypeRet,
+        pub value: V::TypeRet,
+    }
+
+    pub fn walk_map_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MapType<'c>>,
+    ) -> Result<MapType<'c, V>, V::Error> {
+        Ok(MapType {
+            key: visitor.visit_type(ctx, node.key.ast_ref_mut())?,
+            value: visitor.visit_type(ctx, node.value.ast_ref_mut())?,
+        })
+    }
+
+    pub struct NamedType<'c, V: AstVisitorMut<'c>> {
+        pub name: V::AccessNameRet,
+    }
+
+    pub fn walk_named_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::NamedType<'c>>,
+    ) -> Result<NamedType<'c, V>, V::Error> {
+        Ok(NamedType {
+            name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())?,
+        })
+    }
+
+    pub struct RefType<'c, V: AstVisitorMut<'c>> {
+        pub inner: V::TypeRet,
+        pub mutability: Option<V::MutabilityRet>,
+    }
+
+    pub fn walk_ref_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::RefType<'c>>,
+    ) -> Result<RefType<'c, V>, V::Error> {
+        Ok(RefType {
+            inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())?,
+            mutability: node
+                .mutability
+                .as_mut()
+                .map(|inner| visitor.visit_mutability_modifier(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct MergedType<'c, V: AstVisitorMut<'c>>(pub V::CollectionContainer<V::TypeRet>);
+
+    pub fn walk_merged_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MergedType<'c>>,
+    ) -> Result<MergedType<'c, V>, V::Error> {
+        Ok(MergedType(V::try_collect_items(
+            ctx,
+            node.0
+                .iter_mut()
+                .map(|a| visitor.visit_type(ctx, a.ast_ref_mut())),
+        )?))
+    }
+
+    pub struct TypeFunctionCall<'c, V: AstVisitorMut<'c>> {
+        pub subject: V::TypeRet,
+        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+    }
+
+    pub fn walk_type_function_call<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TypeFunctionCall<'c>>,
+    ) -> Result<TypeFunctionCall<'c, V>, V::Error> {
+        Ok(TypeFunctionCall {
+            subject: visitor.visit_type(ctx, node.subject.ast_ref_mut())?,
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|a| visitor.visit_named_field_type(ctx, a.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct TypeFunctionParam<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub bound: Option<V::TypeRet>,
+        pub default: Option<V::TypeRet>,
+    }
+
+    pub fn walk_type_function_param<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TypeFunctionParam<'c>>,
+    ) -> Result<TypeFunctionParam<'c, V>, V::Error> {
+        Ok(TypeFunctionParam {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            bound: node
+                .bound
+                .as_mut()
+                .map(|bound| visitor.visit_type(ctx, bound.ast_ref_mut()))
+                .transpose()?,
+            default: node
+                .default
+                .as_mut()
+                .map(|default| visitor.visit_type(ctx, default.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct TypeFunction<'c, V: AstVisitorMut<'c>> {
+        pub args: V::CollectionContainer<V::TypeFunctionParamRet>,
+        pub return_ty: V::TypeRet,
+    }
+
+    pub fn walk_type_function<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TypeFunction<'c>>,
+    ) -> Result<TypeFunction<'c, V>, V::Error> {
+        Ok(TypeFunction {
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|a| visitor.visit_type_function_param(ctx, a.ast_ref_mut())),
+            )?,
+            return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref_mut())?,
+        })
+    }
+
+    pub enum Type<'c, V: AstVisitorMut<'c>> {
+        Fn(V::FnTypeRet),
+        Tuple(V::TupleTypeRet),
+        List(V::ListTypeRet),
+        Set(V::SetTypeRet),
+        Map(V::MapTypeRet),
+        Named(V::NamedTypeRet),
+        Ref(V::RefTypeRet),
+        Merged(V::MergedTypeRet),
+        TypeFunction(V::TypeFunctionRet),
+        TypeFunctionCall(V::TypeFunctionCallRet),
+    }
+
+    pub fn walk_type<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Type<'c>>,
+    ) -> Result<Type<'c, V>, V::Error> {
+        let span = node.span;
+        let id = node.id;
+
+        Ok(match &mut *node {
+            ast::Type::Fn(r) => {
+                Type::Fn(visitor.visit_function_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::Tuple(r) => {
+                Type::Tuple(visitor.visit_tuple_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::List(r) => {
+                Type::List(visitor.visit_list_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::Set(r) => {
+                Type::Set(visitor.visit_set_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::Map(r) => {
+                Type::Map(visitor.visit_map_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::Named(r) => {
+                Type::Named(visitor.visit_named_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::Ref(r) => {
+                Type::Ref(visitor.visit_ref_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::Merged(r) => {
+                Type::Merged(visitor.visit_merged_type(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Type::TypeFunction(r) => Type::TypeFunction(
+                visitor.visit_type_function(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::Type::TypeFunctionCall(r) => Type::TypeFunctionCall(
+                visitor.visit_type_function_call(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+        })
+    }
+
+    pub fn walk_type_same_children<'c, V, Ret>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRefMut<ast::Type<'c>>,
+    ) -> Result<Ret, V::Error>
+    where
+        V: AstVisitorMut<
+            'c,
+            FnTypeRet = Ret,
+            TupleTypeRet = Ret,
+            ListTypeRet = Ret,
+            SetTypeRet = Ret,
+            MapTypeRet = Ret,
+            NamedTypeRet = Ret,
+            RefTypeRet = Ret,
+            MergedTypeRet = Ret,
+            TypeFunctionRet = Ret,
+            TypeFunctionCallRet = Ret,
+        >,
+    {
+        Ok(match walk_type(visitor, ctx, node)? {
+            Type::Fn(r) => r,
+            Type::Tuple(r) => r,
+            Type::List(r) => r,
+            Type::Set(r) => r,
+            Type::Map(r) => r,
+            Type::Named(r) => r,
+            Type::Ref(r) => r,
+            Type::Merged(r) => r,
+            Type::TypeFunction(r) => r,
+            Type::TypeFunctionCall(r) => r,
+        })
+    }
+
+    pub enum Pattern<'c, V: AstVisitorMut<'c>> {
+        Constructor(V::ConstructorPatternRet),
+        Namespace(V::NamespacePatternRet),
+        Tuple(V::TuplePatternRet),
+        List(V::ListPatternRet),
+        Literal(V::LiteralPatternRet),
+        Or(V::OrPatternRet),
+        If(V::IfPatternRet),
+        Binding(V::BindingPatternRet),
+        Spread(V::SpreadPatternRet),
+        Ignore(V::IgnorePatternRet),
+    }
+
+    pub fn walk_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Pattern<'c>>,
+    ) -> Result<Pattern<'c, V>, V::Error> {
+        let span = node.span;
+        let id = node.id;
+
+        Ok(match &mut *node {
+            ast::Pattern::Constructor(r) => Pattern::Constructor(
+                visitor.visit_constructor_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::Pattern::Namespace(r) => Pattern::Namespace(
+                visitor.visit_namespace_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::Pattern::Tuple(r) => {
+                Pattern::Tuple(visitor.visit_tuple_pattern(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Pattern::List(r) => {
+                Pattern::List(visitor.visit_list_pattern(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Pattern::Literal(r) => Pattern::Literal(
+                visitor.visit_literal_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::Pattern::Or(r) => {
+                Pattern::Or(visitor.visit_or_pattern(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Pattern::If(r) => {
+                Pattern::If(visitor.visit_if_pattern(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Pattern::Binding(r) => Pattern::Binding(
+                visitor.visit_binding_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::Pattern::Spread(r) => {
+                Pattern::Spread(visitor.visit_spread_pattern(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Pattern::Ignore(r) => {
+                Pattern::Ignore(visitor.visit_ignore_pattern(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+        })
+    }
+
+    pub fn walk_pattern_same_children<'c, V, Ret>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRefMut<ast::Pattern<'c>>,
+    ) -> Result<Ret, V::Error>
+    where
+        V: AstVisitorMut<
+            'c,
+            ConstructorPatternRet = Ret,
+            NamespacePatternRet = Ret,
+            TuplePatternRet = Ret,
+            ListPatternRet = Ret,
+            LiteralPatternRet = Ret,
+            OrPatternRet = Ret,
+            IfPatternRet = Ret,
+            BindingPatternRet = Ret,
+            SpreadPatternRet = Ret,
+            IgnorePatternRet = Ret,
+        >,
+    {
+        Ok(match walk_pattern(visitor, ctx, node)? {
+            Pattern::Constructor(r) => r,
+            Pattern::Namespace(r) => r,
+            Pattern::Tuple(r) => r,
+            Pattern::List(r) => r,
+            Pattern::Literal(r) => r,
+            Pattern::Or(r) => r,
+            Pattern::If(r) => r,
+            Pattern::Binding(r) => r,
+            Pattern::Spread(r) => r,
+            Pattern::Ignore(r) => r,
+        })
+    }
+
+    pub struct OrPattern<'c, V: AstVisitorMut<'c>> {
+        pub variants: V::CollectionContainer<V::PatternRet>,
+    }
+    pub fn walk_or_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::OrPattern<'c>>,
+    ) -> Result<OrPattern<'c, V>, V::Error> {
+        Ok(OrPattern {
+            variants: V::try_collect_items(
+                ctx,
+                node.variants
+                    .iter_mut()
+                    .map(|v| visitor.visit_pattern(ctx, v.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct ConstructorPattern<'c, V: AstVisitorMut<'c>> {
+        pub name: V::AccessNameRet,
+        pub args: V::CollectionContainer<V::TuplePatternEntryRet>,
+    }
+    pub fn walk_constructor_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ConstructorPattern<'c>>,
+    ) -> Result<ConstructorPattern<'c, V>, V::Error> {
+        Ok(ConstructorPattern {
+            name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())?,
+            args: V::try_collect_items(
+                ctx,
+                node.fields
+                    .iter_mut()
+                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct NamespacePattern<'c, V: AstVisitorMut<'c>> {
+        pub patterns: V::CollectionContainer<V::DestructuringPatternRet>,
+    }
+    pub fn walk_namespace_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::NamespacePattern<'c>>,
+    ) -> Result<NamespacePattern<'c, V>, V::Error> {
+        Ok(NamespacePattern {
+            patterns: V::try_collect_items(
+                ctx,
+                node.fields
+                    .iter_mut()
+                    .map(|a| visitor.visit_destructuring_pattern(ctx, a.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct TuplePatternEntry<'c, V: AstVisitorMut<'c>> {
+        pub name: Option<V::NameRet>,
+        pub pattern: V::PatternRet,
+    }
+
+    pub fn walk_tuple_pattern_entry<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TuplePatternEntry<'c>>,
+    ) -> Result<TuplePatternEntry<'c, V>, V::Error> {
+        Ok(TuplePatternEntry {
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
+        })
+    }
+
+    pub struct TuplePattern<'c, V: AstVisitorMut<'c>> {
+        pub elements: V::CollectionContainer<V::TuplePatternEntryRet>,
+    }
+
+    pub fn walk_tuple_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TuplePattern<'c>>,
+    ) -> Result<TuplePattern<'c, V>, V::Error> {
+        Ok(TuplePattern {
+            elements: V::try_collect_items(
+                ctx,
+                node.fields
+                    .iter_mut()
+                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct ListPattern<'c, V: AstVisitorMut<'c>> {
+        pub elements: V::CollectionContainer<V::PatternRet>,
+    }
+
+    pub fn walk_list_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ListPattern<'c>>,
+    ) -> Result<ListPattern<'c, V>, V::Error> {
+        Ok(ListPattern {
+            elements: V::try_collect_items(
+                ctx,
+                node.fields
+                    .iter_mut()
+                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct IfPattern<'c, V: AstVisitorMut<'c>> {
+        pub pattern: V::PatternRet,
+        pub condition: V::ExpressionRet,
+    }
+    pub fn walk_if_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::IfPattern<'c>>,
+    ) -> Result<IfPattern<'c, V>, V::Error> {
+        Ok(IfPattern {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
+            condition: visitor.visit_expression(ctx, node.condition.ast_ref_mut())?,
+        })
+    }
+
+    pub struct BindingPattern<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub visibility: Option<V::VisibilityRet>,
+        pub mutability: Option<V::MutabilityRet>,
+    }
+
+    pub fn walk_binding_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::BindingPattern<'c>>,
+    ) -> Result<BindingPattern<'c, V>, V::Error> {
+        Ok(BindingPattern {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            visibility: node
+                .visibility
+                .as_mut()
+                .map(|inner| visitor.visit_visibility_modifier(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+
+            mutability: node
+                .mutability
+                .as_mut()
+                .map(|inner| visitor.visit_mutability_modifier(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct SpreadPattern<'c, V: AstVisitorMut<'c>> {
+        pub name: Option<V::NameRet>,
+    }
+
+    pub fn walk_spread_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::SpreadPattern<'c>>,
+    ) -> Result<SpreadPattern<'c, V>, V::Error> {
+        Ok(SpreadPattern {
+            name: node
+                .name
+                .as_mut()
+                .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub enum LiteralPattern<'c, V: AstVisitorMut<'c>> {
+        Str(V::StrLiteralPatternRet),
+        Char(V::CharLiteralPatternRet),
+        Int(V::IntLiteralPatternRet),
+        Float(V::FloatLiteralPatternRet),
+        Bool(V::BoolLiteralPatternRet),
+    }
+
+    pub fn walk_literal_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::LiteralPattern>,
+    ) -> Result<LiteralPattern<'c, V>, V::Error> {
+        let span = node.span;
+        let id = node.id;
+
+        Ok(match &mut *node {
+            ast::LiteralPattern::Str(r) => LiteralPattern::Str(
+                visitor.visit_str_literal_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::LiteralPattern::Char(r) => LiteralPattern::Char(
+                visitor.visit_char_literal_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::LiteralPattern::Int(r) => LiteralPattern::Int(
+                visitor.visit_int_literal_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::LiteralPattern::Float(r) => LiteralPattern::Float(
+                visitor.visit_float_literal_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+            ast::LiteralPattern::Bool(r) => LiteralPattern::Bool(
+                visitor.visit_bool_literal_pattern(ctx, AstNodeRefMut::new(r, span, id))?,
+            ),
+        })
+    }
+
+    pub fn walk_literal_pattern_same_children<'c, V, Ret>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRefMut<ast::LiteralPattern>,
+    ) -> Result<Ret, V::Error>
+    where
+        V: AstVisitorMut<
+            'c,
+            StrLiteralPatternRet = Ret,
+            CharLiteralPatternRet = Ret,
+            IntLiteralPatternRet = Ret,
+            FloatLiteralPatternRet = Ret,
+            BoolLiteralPatternRet = Ret,
+        >,
+    {
+        Ok(match walk_literal_pattern(visitor, ctx, node)? {
+            LiteralPattern::Str(r) => r,
+            LiteralPattern::Char(r) => r,
+            LiteralPattern::Int(r) => r,
+            LiteralPattern::Float(r) => r,
+            LiteralPattern::Bool(r) => r,
+        })
+    }
+
+    pub struct DestructuringPattern<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub pattern: V::PatternRet,
+    }
+    pub fn walk_destructuring_pattern<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::DestructuringPattern<'c>>,
+    ) -> Result<DestructuringPattern<'c, V>, V::Error> {
+        Ok(DestructuringPattern {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
+        })
+    }
+
+    pub struct ReturnStatement<'c, V: AstVisitorMut<'c>>(pub Option<V::ExpressionRet>);
+    pub fn walk_return_statement<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::ReturnStatement<'c>>,
+    ) -> Result<ReturnStatement<'c, V>, V::Error> {
+        Ok(ReturnStatement(
+            node.0
+                .as_mut()
+                .map(|n| visitor.visit_expression(ctx, n.ast_ref_mut()))
+                .transpose()?,
+        ))
+    }
+
+    pub struct Declaration<'c, V: AstVisitorMut<'c>> {
+        pub pattern: V::PatternRet,
+        pub ty: Option<V::TypeRet>,
+        pub value: Option<V::ExpressionRet>,
+    }
+
+    pub fn walk_declaration<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Declaration<'c>>,
+    ) -> Result<Declaration<'c, V>, V::Error> {
+        Ok(Declaration {
+            pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
+            ty: node
+                .ty
+                .as_mut()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            value: node
+                .value
+                .as_mut()
+                .map(|t| visitor.visit_expression(ctx, t.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct MergeDeclaration<'c, V: AstVisitorMut<'c>> {
+        pub decl: V::ExpressionRet,
+        pub value: V::ExpressionRet,
+    }
+
+    pub fn walk_merge_declaration<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::MergeDeclaration<'c>>,
+    ) -> Result<MergeDeclaration<'c, V>, V::Error> {
+        Ok(MergeDeclaration {
+            decl: visitor.visit_expression(ctx, node.decl.ast_ref_mut())?,
+            value: visitor.visit_expression(ctx, node.value.ast_ref_mut())?,
+        })
+    }
+
+    pub struct AssignStatement<'c, V: AstVisitorMut<'c>> {
+        pub lhs: V::ExpressionRet,
+        pub rhs: V::ExpressionRet,
+    }
+
+    pub fn walk_assign_statement<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::AssignExpression<'c>>,
+    ) -> Result<AssignStatement<'c, V>, V::Error> {
+        Ok(AssignStatement {
+            lhs: visitor.visit_expression(ctx, node.lhs.ast_ref_mut())?,
+            rhs: visitor.visit_expression(ctx, node.rhs.ast_ref_mut())?,
+        })
+    }
+
+    pub struct AssignOpStatement<'c, V: AstVisitorMut<'c>> {
+        pub lhs: V::ExpressionRet,
+        pub rhs: V::ExpressionRet,
+        pub operator: V::BinaryOperatorRet,
+    }
+    pub fn walk_assign_op_statement<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::AssignOpExpression<'c>>,
+    ) -> Result<AssignOpStatement<'c, V>, V::Error> {
+        Ok(AssignOpStatement {
+            lhs: visitor.visit_expression(ctx, node.lhs.ast_ref_mut())?,
+            rhs: visitor.visit_expression(ctx, node.rhs.ast_ref_mut())?,
+            operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref_mut())?,
+        })
+    }
+
+    pub struct BinaryExpression<'c, V: AstVisitorMut<'c>> {
+        pub lhs: V::ExpressionRet,
+        pub rhs: V::ExpressionRet,
+        pub operator: V::BinaryOperatorRet,
+    }
+    pub fn walk_binary_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::BinaryExpression<'c>>,
+    ) -> Result<BinaryExpression<'c, V>, V::Error> {
+        Ok(BinaryExpression {
+            lhs: visitor.visit_expression(ctx, node.lhs.ast_ref_mut())?,
+            rhs: visitor.visit_expression(ctx, node.rhs.ast_ref_mut())?,
+            operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref_mut())?,
+        })
+    }
+
+    pub struct UnaryExpression<'c, V: AstVisitorMut<'c>> {
+        pub expr: V::ExpressionRet,
+        pub operator: V::UnaryOperatorRet,
+    }
+
+    pub fn walk_unary_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::UnaryExpression<'c>>,
+    ) -> Result<UnaryExpression<'c, V>, V::Error> {
+        Ok(UnaryExpression {
+            expr: visitor.visit_expression(ctx, node.expr.ast_ref_mut())?,
+            operator: visitor.visit_unary_operator(ctx, node.operator.ast_ref_mut())?,
+        })
+    }
+
+    pub struct IndexExpr<'c, V: AstVisitorMut<'c>> {
+        pub subject: V::ExpressionRet,
+        pub index_expr: V::ExpressionRet,
+    }
+
+    pub fn walk_index_expr<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::IndexExpression<'c>>,
+    ) -> Result<IndexExpr<'c, V>, V::Error> {
+        Ok(IndexExpr {
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
+            index_expr: visitor.visit_expression(ctx, node.index_expr.ast_ref_mut())?,
+        })
+    }
+
+    pub struct StructDefEntry<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub ty: Option<V::TypeRet>,
+        pub default: Option<V::ExpressionRet>,
+    }
+    pub fn walk_struct_def_entry<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::StructDefEntry<'c>>,
+    ) -> Result<StructDefEntry<'c, V>, V::Error> {
+        Ok(StructDefEntry {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            ty: node
+                .ty
+                .as_mut()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            default: node
+                .default
+                .as_mut()
+                .map(|d| visitor.visit_expression(ctx, d.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct StructDef<'c, V: AstVisitorMut<'c>> {
+        pub entries: V::CollectionContainer<V::StructDefEntryRet>,
+    }
+    pub fn walk_struct_def<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::StructDef<'c>>,
+    ) -> Result<StructDef<'c, V>, V::Error> {
+        Ok(StructDef {
+            entries: V::try_collect_items(
+                ctx,
+                node.entries
+                    .iter_mut()
+                    .map(|b| visitor.visit_struct_def_entry(ctx, b.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct EnumDefEntry<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub args: V::CollectionContainer<V::TypeRet>,
+    }
+    pub fn walk_enum_def_entry<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::EnumDefEntry<'c>>,
+    ) -> Result<EnumDefEntry<'c, V>, V::Error> {
+        Ok(EnumDefEntry {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|b| visitor.visit_type(ctx, b.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct EnumDef<'c, V: AstVisitorMut<'c>> {
+        pub entries: V::CollectionContainer<V::EnumDefEntryRet>,
+    }
+    pub fn walk_enum_def<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::EnumDef<'c>>,
+    ) -> Result<EnumDef<'c, V>, V::Error> {
+        Ok(EnumDef {
+            entries: V::try_collect_items(
+                ctx,
+                node.entries
+                    .iter_mut()
+                    .map(|b| visitor.visit_enum_def_entry(ctx, b.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct TypeFunctionDef<'c, V: AstVisitorMut<'c>> {
+        pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
+        pub return_ty: Option<V::TypeRet>,
+        pub expression: V::ExpressionRet,
+    }
+
+    pub fn walk_type_function_def<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TypeFunctionDef<'c>>,
+    ) -> Result<TypeFunctionDef<'c, V>, V::Error> {
+        Ok(TypeFunctionDef {
+            args: V::try_collect_items(
+                ctx,
+                node.args
+                    .iter_mut()
+                    .map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref_mut())),
+            )?,
+            return_ty: node
+                .return_ty
+                .as_mut()
+                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
+                .transpose()?,
+            expression: visitor.visit_expression(ctx, node.expr.ast_ref_mut())?,
+        })
+    }
+
+    pub struct TypeFunctionDefArg<'c, V: AstVisitorMut<'c>> {
+        pub name: V::NameRet,
+        pub ty: Option<V::TypeRet>,
+    }
+
+    pub fn walk_type_function_def_arg<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TypeFunctionDefArg<'c>>,
+    ) -> Result<TypeFunctionDefArg<'c, V>, V::Error> {
+        Ok(TypeFunctionDefArg {
+            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
+            ty: node
+                .ty
+                .as_mut()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+        })
+    }
+
+    pub struct TraitDef<'c, V: AstVisitorMut<'c>> {
+        pub members: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_trait_def<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TraitDef<'c>>,
+    ) -> Result<TraitDef<'c, V>, V::Error> {
+        Ok(TraitDef {
+            members: V::try_collect_items(
+                ctx,
+                node.members
+                    .iter_mut()
+                    .map(|t| visitor.visit_expression(ctx, t.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct TraitImpl<'c, V: AstVisitorMut<'c>> {
+        pub ty: V::TypeRet,
+        pub implementation: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_trait_impl<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::TraitImpl<'c>>,
+    ) -> Result<TraitImpl<'c, V>, V::Error> {
+        Ok(TraitImpl {
+            ty: visitor.visit_type(ctx, node.ty.ast_ref_mut())?,
+            implementation: V::try_collect_items(
+                ctx,
+                node.implementation
+                    .iter_mut()
+                    .map(|t| visitor.visit_expression(ctx, t.ast_ref_mut())),
+            )?,
+        })
+    }
+
+    pub struct Module<'c, V: AstVisitorMut<'c>> {
+        pub contents: V::CollectionContainer<V::ExpressionRet>,
+    }
+
+    pub fn walk_module<'c, V: AstVisitorMut<'c>>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::Module<'c>>,
+    ) -> Result<Module<'c, V>, V::Error> {
+        Ok(Module {
+            contents: V::try_collect_items(
+                ctx,
+                node.contents
+                    .iter_mut()
+                    .map(|s| visitor.visit_expression(ctx, s.ast_ref_mut())),
             )?,
         })
     }
