@@ -517,12 +517,12 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(walk::walk_literal_expr(self, ctx, node)?.0)
     }
 
-    type AsExprRet = TypeId;
-    fn visit_as_expr(
+    type CastExprRet = TypeId;
+    fn visit_cast_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr<'c>>,
-    ) -> Result<Self::AsExprRet, Self::Error> {
+    ) -> Result<Self::CastExprRet, Self::Error> {
         let walk::AsExpr { expr, ty } = walk::walk_as_expr(self, ctx, node)?;
         self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
         Ok(expr)
@@ -1296,7 +1296,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_index_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::IndexExpr<'c>>,
+        _node: ast::AstNodeRef<ast::IndexExpression<'c>>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         todo!()
     }

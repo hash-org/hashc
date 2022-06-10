@@ -68,6 +68,14 @@ impl<'c, T> AstNode<'c, T> {
         }
     }
 
+    pub fn ast_ref_mut(&mut self) -> AstNodeRefMut<T> {
+        AstNodeRefMut {
+            body: self.body.as_mut(),
+            span: self.span,
+            id: self.id,
+        }
+    }
+
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
         AstNodeRef {
             body,
@@ -136,6 +144,61 @@ impl<T> Deref for AstNodeRef<'_, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.body()
+    }
+}
+
+#[derive(Debug)]
+pub struct AstNodeRefMut<'t, T> {
+    body: &'t mut T,
+    pub span: Span,
+    pub id: AstNodeId,
+}
+
+impl<'t, T> AstNodeRefMut<'t, T> {
+    pub fn new(body: &'t mut T, span: Span, id: AstNodeId) -> Self {
+        AstNodeRefMut { body, span, id }
+    }
+
+    /// Get a reference to the reference contained within this node.
+    pub fn body(&self) -> &T {
+        self.body
+    }
+
+    pub fn with_body<'u, U>(&self, body: &'u mut U) -> AstNodeRefMut<'u, U> {
+        AstNodeRefMut {
+            body,
+            span: self.span,
+            id: self.id,
+        }
+    }
+
+    /// Get a mutable reference to the reference contained within this node.
+    pub fn body_mut(&mut self) -> &mut T {
+        self.body
+    }
+
+    /// Get the [Span] of this node in the input.
+    pub fn span(&self) -> Span {
+        self.span
+    }
+
+    /// Get the ID of this node.
+    pub fn id(&self) -> AstNodeId {
+        self.id
+    }
+}
+
+impl<T> Deref for AstNodeRefMut<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.body()
+    }
+}
+
+impl<T> DerefMut for AstNodeRefMut<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.body
     }
 }
 
@@ -1211,7 +1274,7 @@ pub struct UnaryExpression<'c> {
 
 /// An index expression `arr[x]`.
 #[derive(Debug, PartialEq)]
-pub struct IndexExpr<'c> {
+pub struct IndexExpression<'c> {
     /// The subject that is being indexed.
     pub subject: AstNode<'c, Expression<'c>>,
     /// The expression that is the index.
@@ -1243,7 +1306,7 @@ pub enum ExpressionKind<'c> {
     Break(BreakStatement),
     Continue(ContinueStatement),
     /// Expression to index a subject e.g. `arr[x]`
-    Index(IndexExpr<'c>),
+    Index(IndexExpression<'c>),
     /// An expression that captures a variable or a pattern being assigned
     /// to a right hand-side expression such as `x = 3`.
     Assign(AssignExpression<'c>),
@@ -1262,7 +1325,7 @@ pub enum ExpressionKind<'c> {
 #[derive(Debug, PartialEq)]
 pub struct Expression<'c> {
     /// The kind of the expression
-    kind: ExpressionKind<'c>,
+    pub kind: ExpressionKind<'c>,
 }
 
 impl<'c> Expression<'c> {
@@ -1279,6 +1342,11 @@ impl<'c> Expression<'c> {
     /// Get the [ExpressionKind] of the expression
     pub fn kind(&self) -> &ExpressionKind<'c> {
         &self.kind
+    }
+
+    /// Get the [ExpressionKind] of the expression
+    pub fn kind_mut(&mut self) -> &mut ExpressionKind<'c> {
+        &mut self.kind
     }
 }
 

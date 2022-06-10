@@ -4,7 +4,10 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 use hash_ast::ast;
 use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
-use slotmap::{basic::Iter, SlotMap};
+use slotmap::{
+    basic::{Iter, IterMut},
+    SlotMap,
+};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -59,6 +62,10 @@ impl<'c> Module<'c> {
 
     pub fn node(&self) -> ast::AstNodeRef<ast::Module<'c>> {
         self.node.as_ref().unwrap().ast_ref()
+    }
+
+    pub fn node_mut(&mut self) -> &mut ast::Module<'c> {
+        self.node.as_mut().unwrap()
     }
 
     pub fn contents(&self) -> &str {
@@ -161,6 +168,10 @@ impl<'c> Sources<'c> {
     /// present within the sources.
     pub fn iter_modules(&self) -> Iter<'_, ModuleId, Module<'c>> {
         self.modules.iter()
+    }
+
+    pub fn iter_mut_modules(&mut self) -> IterMut<'_, ModuleId, Module<'c>> {
+        self.modules.iter_mut()
     }
 
     pub fn get_source(&self, source_id: SourceId) -> SourceRef<'_, 'c> {
