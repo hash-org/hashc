@@ -4,5 +4,6 @@ pub mod nominals;
 pub mod primitives;
 pub mod sources;
 pub mod tys;
+pub mod trts;
 
-// LocalStorage, GlobalStorage, Reference types for accessing them
+// @@TODO: LocalStorage, GlobalStorage, Reference types for accessing them
