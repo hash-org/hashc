@@ -188,6 +188,8 @@ pub struct TupleTy {
 }
 
 /// A function type, with a set of input parameters and a return type.
+///
+/// All the parameter types and return type must be of shape `Instance<..>`.
 #[derive(Debug, PartialEq, Eq)]
 pub struct FnTy {
     pub params: Params,
@@ -203,8 +205,8 @@ pub struct FnTy {
 /// the function, based on what the arguments are.
 ///
 /// These cases might contain nothing, in which case the type function does not return a type, but
-/// a variable. If cases, is empty, `general_return_ty` must be a type that isn't `Type`, for
-/// example `Fn`.
+/// a value. If cases, is empty, `general_return_ty` must be a type that is `Instance<..>`, for
+/// example `Instance<Fn<..>>`.
 ///
 /// For example, consider:
 ///
@@ -224,12 +226,12 @@ pub struct FnTy {
 ///
 /// ```
 /// TyFnTy {
-///     general_params = (T: Type),
-///     general_return_ty = Type,
+///     general_params = (T: Impl<Any>),
+///     general_return_ty = NominalDef<"Dog">,
 ///     cases = {
-///         (T: Type) -> Type => ..,
-///         (T: Type<Hash>) -> Impl<Hash> => ..,
-///         (T: Type<Hash ~ Eq>) -> Nominal<FindInHashMap> => ..,
+///         (T: ~) -> NominalDef<"Dog"> => ..,
+///         (T: Impl<Hash>) -> NominalDef<"Dog"> ~ Impl<Hash> => ..,
+///         (T: Impl<Hash> ~ Impl<Eq>) -> NominalDef<"Dog"> ~ Impl<FindInHashMap> => ..,
 ///     }
 /// }
 /// ```
@@ -263,7 +265,7 @@ pub struct TyFnTy {
 ///
 /// This translates to a case:
 /// ```
-/// (T: Type = str) -> Impl<Conv<str>> (or actually Mod<...>) => type Dog<str> ~ impl Conv<str> { ... };
+/// (T: ~ = str) -> Impl<Conv<str>> => type Dog<str> ~ impl Conv<str> { ... };
 /// ```
 ///
 /// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
@@ -320,11 +322,25 @@ pub struct AppTyFnTy {
 /// - Zero or more [Ty::Merge] types with the same restrictions.
 ///
 /// `~` is commutative, idempotent, and associative.
+///
+/// Joining types is a core operation in Hash, and it is what allows for polymorphism. Within
+/// the language, "Type" is a synonym for an empty merge, i.e. a type that can unify with any
+/// other type (other than instance types).
+///
+/// `A ~ B ~ C` is assignable to `A`, `A ~ B`, `A ~ C` or any other combination of `A`, `B` and
+/// `C`. In that sense, it is like an intersection type.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct MergeTy {
     pub elements: Vec<TyId>,
 }
 
+/// Represents a type variable.
+///
+/// This is a variable that exists in some scope bound and is of some supertype. Any type that is
+/// assignable to the supertype of a variable can be assigned to that variable.
+///
+/// For example, if `T: Hash`, then `T = str` is valid because `str: Hash` is true. Note, here `T:
+/// Hash` actually translates to `Ty::Var("T")` unifies with `Ty::Impls(HashTraitID)`.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct VarTy {
     pub name: Identifier,
@@ -332,15 +348,6 @@ pub struct VarTy {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Ty {
-    /// The type of some type X, where X can be the type `Type` too.
-    ///
-    /// Here, `X` is represented by another `TyId`.
-    ///
-    /// This can lead to arbitrarily deep types `DeepTy<DeepTy<DeepTy<..>>>`, which by default is
-    /// not deemed very useful. This is why [Ty::Ty] is the default type bound when writing `Type`.
-    DeepTy(TyId),
-    /// The type of some type X, where `X` is not a `Type<..>`.
-    Ty(TyOfTy),
     /// Modules or impls.
     ///
     /// Modules and trait implementations, as well as anonymous implementations, are treated as
@@ -350,6 +357,8 @@ pub enum Ty {
     /// corresponding [ModDef].
     Mod(ModDefId),
     /// Tuple type.
+    ///
+    /// Usually used within a [Ty::Instance].
     Tuple(TupleTy),
     /// The type of a trait.
     ///
@@ -367,10 +376,14 @@ pub enum Ty {
     Nominal(NominalDefId),
     /// An instance of a type.
     ///
-    /// The inner type must be a `Ty::Nominal` or a merge containing it.
+    /// The inner type must be a `Ty::Nominal` or a merge containing it (for now, until we get
+    /// trait objects).
     ///
     /// If `X` is of type `Nominal ~ A ~ B`, then instantiating `X` yields type `Instance<Nominal ~
     /// A ~ B>`.
+    ///
+    /// All arguments of normal functions must be wrapped in `Instance`. Only type arguments are
+    /// not wrapped in `Instance`.
     Instance(TyId),
     /// Merge type.
     Merge(MergeTy),
@@ -386,7 +399,7 @@ pub enum Ty {
     Unresolved(UnresolvedTy),
 }
 
-// IDs for all the primitives to be stored on mapped storage:
+// IDs for all the primitives to be stored on mapped storage.
 
 new_key_type! { pub struct TyId; }
 
