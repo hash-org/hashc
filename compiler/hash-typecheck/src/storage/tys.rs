@@ -1,8 +1,8 @@
-use std::{collections::HashMap, cell::Cell};
-
-use super::primitives::{Ty, TyId, ResolutionId};
+//! Contains structures to keep track of types and information relevant to them.
+use super::primitives::{ResolutionId, Ty, TyId};
 use hash_source::location::SourceLocation;
 use slotmap::SlotMap;
+use std::{cell::Cell, collections::HashMap};
 
 /// Stores all the types within a typechecking cycle.
 ///
