@@ -4,7 +4,11 @@ pub struct Substitution {
 
 pub struct TyOps {}
 
-pub struct TyBuilder {}
+pub struct TyBuilder {
+}
+
+impl TyBuilder {
+}
 
 // TyOps
 //
