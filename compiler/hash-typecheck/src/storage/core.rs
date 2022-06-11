@@ -1,13 +1,13 @@
 //! Contains all the core type and trait definitions of the language.
 use super::{
+    kinds::KindStore,
     nominals::NominalDefStore,
-    primitives::{NominalDef, NominalDefId, TrtDefId},
+    primitives::{NominalDefId, TrtDefId},
     scope::Scope,
     trts::TrtDefStore,
     tys::TyStore,
+    values::ValueStore,
 };
-use crate::storage::primitives::StructDef;
-use hash_ast::ident::IDENTIFIER_MAP;
 
 /// Contains all the core type and trait definitions of the language.
 pub struct CoreDefs {
@@ -37,9 +37,11 @@ impl CoreDefs {
     /// Create the core language type and trait definitions in the given stores, and add their
     /// symbols to the given scope.
     pub fn create(
-        nominal_def_store: &mut NominalDefStore,
         ty_store: &mut TyStore,
+        kind_store: &mut KindStore,
+        value_store: &mut ValueStore,
         trt_def_store: &mut TrtDefStore,
+        nominal_def_store: &mut NominalDefStore,
         scope: &mut Scope,
     ) -> Self {
         todo!()
