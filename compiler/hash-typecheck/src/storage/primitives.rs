@@ -208,11 +208,11 @@ pub struct TupleTy {
 
 /// A function type, with a set of input parameters and a return type.
 ///
-/// All the parameter types and return type must be of kind `Kind::Rt(..)`.
+/// All the parameter types and return type must be (or evaluate to) of kind `Kind::Rt(..)`.
 #[derive(Debug, Clone)]
 pub struct FnTy {
     pub params: Params,
-    pub return_ty: TyId, // We know this will be a `Kind::Rt(TyId)`, so we just write `TyId` here.
+    pub return_ty: KindId,
 }
 
 /// A type function type.
@@ -314,13 +314,13 @@ pub struct TyFnCase {
 /// Not yet resolved.
 ///
 /// Might contain a bound which is progressively resolved as more information about the usage of
-/// the type is known during inference.
+/// the value is known during inference.
 ///
-/// The resolution ID is incremented for each new unresolved type.
+/// The resolution ID is incremented for each new unresolved kind.
 #[derive(Debug, Clone, Hash)]
-pub struct UnresolvedTy {
+pub struct UnresolvedKind {
     pub resolution_id: ResolutionId,
-    pub bound: TyId, // @@TODO: doc on this and general ty bounds
+    pub bound: KindId,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -361,19 +361,23 @@ pub enum Kind {
     /// A trait kind.
     Trt,
     /// A type kind, with some trait bound.
-    Ty(TrtId),
+    Ty(TrtDefId),
     /// A runtime kind, with some type bound.
     Rt(TyId),
     /// A type function, with some return kind.
     TyFn(TyFnKind),
     /// A type function application.
     AppTyFn(AppTyFn),
+    /// Merge of multiple kinds.
+    Merge(Vec<KindId>),
+    /// Not yet resolved.
+    Unresolved(UnresolvedKind),
 }
 
 #[derive(Debug, Clone)]
 pub enum Value {
     /// A trait value.
-    Trt(TrtId),
+    Trt(TrtDefId),
     /// A type value.
     Ty(TyId),
     /// A runtime value.
@@ -384,20 +388,10 @@ pub enum Value {
     AppTyFn(AppTyFn),
     /// A type-level variable, with some kind that is stored in the current scope.
     Var(Identifier),
+    /// Merge of multiple values.
+    Merge(Vec<ValueId>),
     /// Unset value.
     Unset,
-}
-
-#[derive(Debug, Clone)]
-pub enum Trt {
-    /// A trait definition.
-    ///
-    /// This is the return type of a `trait(..)` definition
-    Def(TrtDefId),
-    /// Merge of multiple traits.
-    Merge(Vec<TrtId>),
-    /// A type function application.
-    AppTyFn(AppTyFn),
 }
 
 #[derive(Debug, Clone)]
@@ -414,16 +408,8 @@ pub enum Ty {
     Mod(ModDefId),
     /// Tuple type.
     Tuple(TupleTy),
-    /// Merge of multiple types.
-    Merge(Vec<TyId>),
-    /// A variable that is of kind `Type`.
-    Var(Identifier),
     /// Function type.
     Fn(FnTy),
-    /// Not yet resolved.
-    Unresolved(UnresolvedTy),
-    /// A type function application.
-    AppTyFn(AppTyFn),
 }
 
 // IDs for all the primitives to be stored on mapped storage.
