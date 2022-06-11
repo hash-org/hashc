@@ -7,19 +7,36 @@
 //! type definition will be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
 
-use self::{tys::TyStore, trts::TrtDefStore, mods::ModDefStore, sources::CheckedSources, core::CoreDefs, nominals::NominalDefStore, scope::Scope};
+use self::{
+    core::CoreDefs,
+    kinds::KindStore,
+    mods::ModDefStore,
+    nominals::NominalDefStore,
+    scope::{Scope, ScopeStack},
+    sources::CheckedSources,
+    state::TypecheckState,
+    trts::TrtDefStore,
+    tys::TyStore,
+    values::ValueStore,
+};
+
 pub mod core;
+pub mod kinds;
 pub mod mods;
 pub mod nominals;
 pub mod primitives;
-pub mod sources;
-pub mod tys;
-pub mod trts;
 pub mod scope;
+pub mod sources;
+pub mod state;
+pub mod trts;
+pub mod tys;
+pub mod values;
 
-
+/// Keeps track of typechecking information across all source files.
 pub struct GlobalStorage {
     pub ty_store: TyStore,
+    pub kind_store: KindStore,
+    pub value_store: ValueStore,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
@@ -28,4 +45,162 @@ pub struct GlobalStorage {
     pub root_scope: Scope,
 }
 
-// @@TODO: LocalStorage, GlobalStorage, Reference types for accessing them
+/// Keeps track of typechecking information specific to a given source file.
+pub struct LocalStorage {
+    /// All the scopes in a given source.
+    pub scopes: ScopeStack,
+    /// The state of the typechecker for the given source.
+    pub state: TypecheckState,
+}
+
+/// A reference to the storage, which includes both local and global storage.
+pub struct StorageRef<'gs, 'ls> {
+    pub local_storage: &'ls LocalStorage,
+    pub global_storage: &'gs GlobalStorage,
+}
+
+/// A mutable reference to the storage, which includes both local and global storage.
+pub struct StorageRefMut<'gs, 'ls> {
+    pub local_storage: &'ls mut LocalStorage,
+    pub global_storage: &'gs mut GlobalStorage,
+}
+
+/// Trait that provides convenient accessor methods to various parts of the storage given a path to
+/// a [StorageRef] object.
+trait AccessToStorage {
+    fn storages(&self) -> StorageRef;
+
+    fn global_storage(&self) -> &GlobalStorage {
+        self.storages().global_storage
+    }
+
+    fn local_storage(&self) -> &LocalStorage {
+        self.storages().local_storage
+    }
+
+    fn core_defs(&mut self) -> &CoreDefs {
+        &self.global_storage().core_defs
+    }
+
+    fn ty_store(&self) -> &TyStore {
+        &self.global_storage().ty_store
+    }
+
+    fn kind_store(&self) -> &KindStore {
+        &self.global_storage().kind_store
+    }
+
+    fn value_store(&self) -> &ValueStore {
+        &self.global_storage().value_store
+    }
+
+    fn nominal_def_store(&self) -> &NominalDefStore {
+        &self.global_storage().nominal_def_store
+    }
+
+    fn trt_def_store(&self) -> &TrtDefStore {
+        &self.global_storage().trt_def_store
+    }
+
+    fn mod_def_store(&self) -> &ModDefStore {
+        &self.global_storage().mod_def_store
+    }
+
+    fn checked_sources(&self) -> &CheckedSources {
+        &self.global_storage().checked_sources
+    }
+
+    fn root_scope(&self) -> &Scope {
+        &self.global_storage().root_scope
+    }
+
+    fn state(&self) -> &TypecheckState {
+        &self.local_storage().state
+    }
+
+    fn scopes(&self) -> &ScopeStack {
+        &self.local_storage().scopes
+    }
+}
+
+/// Trait that provides convenient mutable accessor methods to various parts of the storage given a
+/// path to a [StorageRefMut] object.
+trait AccessToStorageMut: AccessToStorage {
+    fn storages_mut(&mut self) -> StorageRefMut;
+
+    fn global_storage_mut(&mut self) -> &mut GlobalStorage {
+        self.storages_mut().global_storage
+    }
+
+    fn local_storage_mut(&mut self) -> &mut LocalStorage {
+        self.storages_mut().local_storage
+    }
+
+    fn core_defs_mut(&mut self) -> &mut CoreDefs {
+        &mut self.global_storage_mut().core_defs
+    }
+
+    fn ty_store_mut(&mut self) -> &mut TyStore {
+        &mut self.global_storage_mut().ty_store
+    }
+
+    fn kind_store_mut(&mut self) -> &mut KindStore {
+        &mut self.global_storage_mut().kind_store
+    }
+
+    fn value_store_mut(&mut self) -> &mut ValueStore {
+        &mut self.global_storage_mut().value_store
+    }
+
+    fn nominal_def_store_mut(&mut self) -> &mut NominalDefStore {
+        &mut self.global_storage_mut().nominal_def_store
+    }
+
+    fn trt_def_store_mut(&mut self) -> &mut TrtDefStore {
+        &mut self.global_storage_mut().trt_def_store
+    }
+
+    fn mod_def_store_mut(&mut self) -> &mut ModDefStore {
+        &mut self.global_storage_mut().mod_def_store
+    }
+
+    fn checked_sources_mut(&mut self) -> &mut CheckedSources {
+        &mut self.global_storage_mut().checked_sources
+    }
+
+    fn root_scope_mut(&mut self) -> &mut Scope {
+        &mut self.global_storage_mut().root_scope
+    }
+
+    fn state_mut(&mut self) -> &mut TypecheckState {
+        &mut self.local_storage_mut().state
+    }
+
+    fn scopes_mut(&mut self) -> &mut ScopeStack {
+        &mut self.local_storage_mut().scopes
+    }
+}
+
+impl<'gs, 'ls> AccessToStorage for StorageRef<'gs, 'ls> {
+    fn storages(&self) -> StorageRef {
+        StorageRef { ..*self }
+    }
+}
+
+impl<'gs, 'ls> AccessToStorage for StorageRefMut<'gs, 'ls> {
+    fn storages(&self) -> StorageRef {
+        StorageRef {
+            global_storage: self.global_storage,
+            local_storage: self.local_storage,
+        }
+    }
+}
+
+impl<'gs, 'ls> AccessToStorageMut for StorageRefMut<'gs, 'ls> {
+    fn storages_mut(&mut self) -> StorageRefMut {
+        StorageRefMut {
+            global_storage: self.global_storage,
+            local_storage: self.local_storage,
+        }
+    }
+}
