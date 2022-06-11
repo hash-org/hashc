@@ -96,7 +96,7 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
         Self { params, name_map }
     }
 
-    /// Get a parameter by position.
+    /// Get the parameters as a positional slice
     pub fn positional(&self) -> &[ParamType] {
         &self.params
     }
@@ -114,6 +114,12 @@ pub struct Arg {
     pub value: ValueId,
 }
 
+impl GetNameOpt for Arg {
+    fn get_name_opt(&self) -> Option<Identifier> {
+        self.name
+    }
+}
+
 /// A list of arguments.
 pub type Args = ParamList<Arg>;
 
@@ -123,6 +129,12 @@ pub struct Param {
     pub name: Option<Identifier>,
     pub kind: KindId,
     pub value: ValueId, // Could be Value::Unset
+}
+
+impl GetNameOpt for Param {
+    fn get_name_opt(&self) -> Option<Identifier> {
+        self.name
+    }
 }
 
 /// A list of parameters.
@@ -212,7 +224,7 @@ pub struct TupleTy {
 #[derive(Debug, Clone)]
 pub struct FnTy {
     pub params: Params,
-    pub return_ty: KindId,
+    pub return_kind: KindId,
 }
 
 /// A type function type.
@@ -355,8 +367,8 @@ pub struct AppTyFn {
 /// ```
 #[derive(Debug, Clone)]
 pub struct TyFnKind {
-    params: Params,
-    return_kind: KindId,
+    pub params: Params,
+    pub return_kind: KindId,
 }
 
 #[derive(Debug, Clone)]
