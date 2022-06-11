@@ -7,13 +7,20 @@ use fnv::FnvBuildHasher;
 use hash_alloc::{collections::string::BrickString, Castle, Wall};
 use hash_utils::counter;
 use lazy_static::lazy_static;
-use std::{borrow::Borrow, thread_local};
+use std::{borrow::Borrow, fmt::Display, thread_local};
 
 counter! {
     name: Identifier,
     counter_name: IDENTIFIER_COUNTER,
     visibility: pub,
     method_visibility:,
+}
+
+/// Render the identifier when displaying it
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", IDENTIFIER_MAP.get_ident(*self))
+    }
 }
 
 thread_local! {
