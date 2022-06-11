@@ -1,32 +1,54 @@
 //! Contains structures that store information about the scopes in a given module, as well as the
 //! symbols in each scope.
-use super::primitives::TyId;
+use super::primitives::{Member, Members};
 use hash_ast::ident::Identifier;
-use std::collections::HashMap;
 
-/// Represents a scope `{...}`. Contains a mapping for symbols within that scope and their targets.
-#[derive(Debug, Default, Clone)]
+/// A scope is either a variable scope or a constant scope.
+///
+/// Examples of variable scopes are:
+/// - Block expression scope
+/// - Function parameter scope
+///
+/// Examples of const scopes are:
+/// - The root scope
+/// - Module block scope
+/// - Trait block scope
+/// - Impl block scope
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopeKind {
+    Variable,
+    Constant,
+}
+
+/// Represents a scope, which has a kind as well as a set of members.
+///
+/// If the kind is `Constant`, then all the members have:
+/// - Any `visibility`
+/// - `mutability = Immutable`
+///
+/// If the kind is `Variable`, then all members have:
+/// - `visibility = Private`
+/// - Any `mutability`
+///
+/// @@Future: Maybe we should store the origin of each scope in some place, for better error
+/// messages.
+#[derive(Debug, Clone)]
 pub struct Scope {
-    symbols: HashMap<Identifier, TyId>,
+    pub kind: ScopeKind,
+    pub members: Members,
 }
 
 impl Scope {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Resolve the given symbol into a [TyId].
-    pub fn resolve_symbol(&self, symbol: Identifier) -> Option<TyId> {
-        self.symbols.get(&symbol).copied()
-    }
-
-    /// Add the given symbol to the scope, for the given target.
-    pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: TyId) {
-        self.symbols.insert(symbol, symbol_type);
+    /// Create an empty [Scope], with no members, and the given [ScopeKind].
+    pub fn empty(kind: ScopeKind) -> Self {
+        Self {
+            kind,
+            members: Members::empty(),
+        }
     }
 }
 
-/// Represents a nested set of scopes.
+/// Represents a "nested" set of scopes.
 ///
 /// This is dynamically modified during typechecking when the checker enters (push) or exits (pop)
 /// some scope.
@@ -39,7 +61,7 @@ impl ScopeStack {
     /// Create an empty [ScopeStack].
     pub fn empty() -> Self {
         Self {
-            scopes: vec![Scope::new()],
+            scopes: vec![Scope::empty(ScopeKind::Constant)],
         }
     }
 
@@ -51,10 +73,10 @@ impl ScopeStack {
     }
 
     /// Resolve a single symbol within the scope stack.
-    pub fn resolve_symbol(&self, symbol: Identifier) -> Option<TyId> {
+    pub fn resolve_symbol(&self, symbol: Identifier) -> Option<&Member> {
         for scope in self.iter_up() {
-            if let Some(symbol_type) = scope.resolve_symbol(symbol) {
-                return Some(symbol_type);
+            if let Some(member) = scope.members.get(symbol) {
+                return Some(member);
             }
         }
 
@@ -64,11 +86,6 @@ impl ScopeStack {
     /// Append a scope to the stack.
     pub fn append(&mut self, other: ScopeStack) {
         self.scopes.extend(other.scopes);
-    }
-
-    /// Add a symbol to the current scope in the stack.
-    pub fn add_symbol(&mut self, symbol: Identifier, symbol_type: TyId) {
-        self.current_scope_mut().add_symbol(symbol, symbol_type);
     }
 
     /// Get the current scope.
@@ -81,9 +98,9 @@ impl ScopeStack {
         self.scopes.last_mut().unwrap()
     }
 
-    /// Enter a new empty scope.
-    pub fn enter_scope(&mut self) {
-        self.scopes.push(Scope::new());
+    /// Enter a new empty scope of the given [ScopeKind].
+    pub fn enter_scope(&mut self, kind: ScopeKind) {
+        self.scopes.push(Scope::empty(kind));
     }
 
     /// Iterate up the scopes in the stack.

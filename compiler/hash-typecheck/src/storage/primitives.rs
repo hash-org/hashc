@@ -18,42 +18,43 @@ pub enum Mutability {
     Immutable,
 }
 
-/// Trait to be implemented by primitives which contain a `name` field that is an identifier.
-///
-/// This and [GetNameOpt] are useful because they allow the creation of generic collection types
-/// such as [MemberList] or [ParamList] that work for any element that has a `name` field.
-trait GetName {
-    /// Get the name of [Self], which should be an [Identifier].
-    fn get_name(&self) -> Identifier;
-}
-
-/// Trait to be implemented by primitives which contain a `name` field that is an
-/// optional identifier.
-trait GetNameOpt {
-    /// Get the name of [Self], which should be an [Option<Identifier>].
-    fn get_name_opt(&self) -> Option<Identifier>;
+/// A member of a scope, i.e. a variable or a type definition.
+#[derive(Debug, Clone)]
+pub struct Member {
+    pub name: Identifier,
+    pub kind: KindId,
+    pub value: ValueId,
+    pub visibility: Visibility,
+    pub mutability: Mutability,
 }
 
 /// Stores a list of members, indexed by the members' names.
 #[derive(Debug, Clone)]
-pub struct MemberList<Member: Clone> {
+pub struct Members {
     members: HashMap<Identifier, Member>,
 }
 
-impl<Member: GetName + Clone> MemberList<Member> {
-    /// Create a new [MemberList] from the given members.
+impl Members {
+    /// Create an empty [Members].
+    pub fn empty() -> Self {
+        Self {
+            members: HashMap::new(),
+        }
+    }
+
+    /// Create a new [Members] from the given members.
     pub fn new(members: impl IntoIterator<Item = Member>) -> Self {
         Self {
             members: members
                 .into_iter()
-                .map(|member| (member.get_name(), member))
+                .map(|member| (member.name, member))
                 .collect(),
         }
     }
 
     /// Add a member by name.
-    pub fn add(&self, member: Member) {
-        self.members.insert(member.get_name(), member);
+    pub fn add(&mut self, member: Member) {
+        self.members.insert(member.name, member);
     }
 
     /// Get a member by name.
@@ -62,34 +63,17 @@ impl<Member: GetName + Clone> MemberList<Member> {
     }
 
     /// Get a member by name, mutably.
-    pub fn get_mut(&self, member_name: Identifier) -> Option<&mut Member> {
+    pub fn get_mut(&mut self, member_name: Identifier) -> Option<&mut Member> {
         self.members.get_mut(&member_name)
     }
 }
 
-/// A member of a scope, i.e. a variable or a type definition.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct ScopeMember {
-    pub name: Identifier,
-    pub ty: TyId,
-    pub mutability: Mutability,
-    pub initialised: bool,
+/// Trait to be implemented by primitives which contain a `name` field that is an
+/// optional identifier.
+pub trait GetNameOpt {
+    /// Get the name of [Self], which should be an [Option<Identifier>].
+    fn get_name_opt(&self) -> Option<Identifier>;
 }
-
-/// A list of members, i.e. a scope.
-pub type ScopeMembers = MemberList<ScopeMember>;
-
-/// A member of a const scope, i.e. an item in a module or impl.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct ConstMember {
-    pub name: Identifier,
-    pub ty: TyId,
-    pub visibility: Visibility,
-    pub initialised: bool,
-}
-
-/// A list of const members, i.e. a const scope.
-pub type ConstMembers = MemberList<ScopeMember>;
 
 /// A list of parameters, generic over the parameter type.
 ///
@@ -123,45 +107,33 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     }
 }
 
-/// A type argument to a type parameter.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct TyArg {
+/// An argument
+#[derive(Debug, Clone, Hash)]
+pub struct Arg {
     pub name: Option<Identifier>,
-    pub value: TyId,
+    pub value: ValueId,
 }
 
-/// A list of type arguments to a type parameter list.
-pub type TyArgs = ParamList<TyArg>;
+/// A list of arguments.
+pub type Args = ParamList<Arg>;
 
-/// A type parameter, declaring a named type variable with a given type bound and optional default
-/// value.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct TyParam {
-    pub name: Option<Identifier>,
-    pub bound: TyId,
-    pub default: Option<TyId>,
-}
-
-/// A list of type parameters.
-pub type TyParams = ParamList<TyParam>;
-
-/// A parameter, declaring a named variable with a given type and optional default value presence.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+/// A parameter, declaring a potentially named variable with a given kind and default value.
+#[derive(Debug, Clone, Hash)]
 pub struct Param {
     pub name: Option<Identifier>,
-    pub ty: TyId,
-    pub has_default: bool,
+    pub kind: KindId,
+    pub value: ValueId, // Could be Value::Unset
 }
 
 /// A list of parameters.
 pub type Params = ParamList<Param>;
 
-/// The origin of a pub module: was it defined in a `mod` block, an anonymous `impl` block, or an `impl
+/// The origin of a module: was it defined in a `mod` block, an anonymous `impl` block, or an `impl
 /// Trait` block?
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash)]
 pub enum ModDefOrigin {
-    /// Defined as a trait implementation (for the given trait).
-    TrtImpl(TrtDefId),
+    /// Defined as a trait implementation (for the given trait value).
+    TrtImpl(ValueId),
     /// Defined as an anonymous implementation.
     AnonImpl,
     /// Defined as a module (`mod` block).
@@ -172,11 +144,11 @@ pub enum ModDefOrigin {
 
 /// A module definition, which is of a given origin, has a binding name, and contains some constant
 /// members.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ModDef {
     pub name: Identifier,
     pub origin: ModDefOrigin,
-    pub members: Vec<ConstMember>,
+    pub members: Members,
 }
 
 /// The fields of a struct.
@@ -215,10 +187,10 @@ pub struct EnumDef {
 }
 
 /// A trait definition, containing a binding name and a set of constant members.
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone)]
 pub struct TrtDef {
     pub name: Identifier,
-    pub members: Vec<ConstMember>,
+    pub members: Members,
 }
 
 /// A nominal definition, which for now is either a struct or an enum.
@@ -236,24 +208,20 @@ pub struct TupleTy {
 
 /// A function type, with a set of input parameters and a return type.
 ///
-/// All the parameter types and return type must be of shape `Instance<..>`.
+/// All the parameter types and return type must be of kind `Kind::Rt(..)`.
 #[derive(Debug, Clone)]
 pub struct FnTy {
     pub params: Params,
-    pub return_ty: TyId,
+    pub return_ty: TyId, // We know this will be a `Kind::Rt(TyId)`, so we just write `TyId` here.
 }
 
 /// A type function type.
 ///
 /// A type function is a compile-time function that works on types.
-/// It has a general set of "base" parameters and return type.
+/// It has a general set of "base" parameters and return kind.
 ///
-/// These are refined in the `cases` field, which provides conditional values for the return type of
-/// the function, based on what the arguments are.
-///
-/// These cases might contain nothing, in which case the type function does not return a type, but
-/// a value. If cases, is empty, `general_return_ty` must be a type that is `Instance<..>`, for
-/// example `Instance<Fn<..>>`.
+/// These are refined in the `cases` field, which provides conditional values for the return value
+/// of the function, based on what the arguments are.
 ///
 /// For example, consider:
 ///
@@ -273,35 +241,45 @@ pub struct FnTy {
 ///
 /// ```
 /// TyFnTy {
-///     general_params = (T: Impl<Any>),
-///     general_return_ty = NominalDef<"Dog">,
+///     general_params = (T: Kind::Ty = Value::Unset),
+///     general_return_ty = Kind::Ty,
 ///     cases = {
-///         (T: ~) -> NominalDef<"Dog"> => ..,
-///         (T: Impl<Hash>) -> NominalDef<"Dog"> ~ Impl<Hash> => ..,
-///         (T: Impl<Hash> ~ Impl<Eq>) -> NominalDef<"Dog"> ~ Impl<FindInHashMap> => ..,
+///         (T: Kind::Ty) -> Kind::Ty => Value::Ty(Ty::NominalDef(DogStructDef)),
+///         (T: Kind::Ty(HashTraitDef)) -> Kind::Ty(HashTraitDef) => Value::Ty(Merge([
+///             Ty::NominalDef(DogStructDef),
+///             Ty::Mod(Mod { origin: TraitImpl(Value::Trt(HashTraitDef)), members: .. }),
+///         ])),
+///         (T: Kind::Ty(Merge([HashTraitDef, EqTraitDef])))
+///             -> Kind::Ty(FindInHashMapTraitDef) =>
+///             => Value::Ty(Merge([
+///                 Ty::NominalDef(DogStructDef),
+///                 Ty::Mod(Mod {
+///                     origin: TraitImpl(Value::Trt(FindInHashMapTraitDef)),
+///                     members: ..
+///                 }),
+///             ]))
 ///     }
 /// }
 /// ```
 ///
-/// At any point, the resolved type of `Dog<T>` is the merged type of the return type of each case
+/// At any point, the resolved kind of `Dog<T>` is the merged kind of the return kind of each case
 /// which matches `T`. In other words, cases are not short-circuiting; they are all evaluated and
-/// then combined. If there are no cases, then `Dog<T>` cannot be used as a type, and is in fact a
-/// variable (usually a function).
+/// then combined.
 ///
-/// The `general_return_ty` field is always a supertype of the return type of each case.
-/// Also note that `general_return_ty` never changes---a type cannot become more general than it
+/// The `general_return_kind` field is always a superkind of the return type of each case. Also
+/// note that `general_return_kind` never changes---a type cannot become more general than it
 /// already is; however, it can become more refined.
 #[derive(Debug, Clone)]
-pub struct TyFnTy {
-    pub general_params: TyParams,
-    pub general_return_ty: TyId,
+pub struct TyFnValue {
+    pub general_params: Params,
+    pub general_return_kind: KindId,
     pub cases: Vec<TyFnCase>,
 }
 
 /// Represents a case in a type function, for some subset of its `general_params`, to some specific
 /// return type and refined return value.
 ///
-/// The `default` property of each [TyParam] in the `params` field represents types which have been
+/// The `value` property of each [Param] in the `params` field represents types which have been
 /// set, for example:
 ///
 /// ```
@@ -312,17 +290,25 @@ pub struct TyFnTy {
 ///
 /// This translates to a case:
 /// ```
-/// (T: ~ = str) -> Impl<Conv<str>> => type Dog<str> ~ impl Conv<str> { ... };
+/// (T: Kind::Ty = Value::Ty(strDefId))
+///     -> Kind::AppTyFn(ConvValue (a type fn), [strDefId])
+///     => Value::Ty(Ty::Merge([
+///         Value::AppTyFn(DogValue (a type fn), [strDefId]),
+///         Value::Ty(Mod {
+///             origin: TraitImpl(Value::AppTyFn(ConvValue (a type fn), [strDefId])),
+///             members: ...
+///         })
+///     ]))
 /// ```
 ///
-/// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
+/// The case's `return_kind` must always be able to unify with the target `general_return_kind`,
 /// and the type parameters should be able to each unify with the target `general_params`, of the
-/// parent [TyFnTy].
+/// parent [TyFnValue].
 #[derive(Debug, Clone)]
 pub struct TyFnCase {
-    pub params: TyParams,
-    pub return_ty: TyId,
-    pub return_value: TyId,
+    pub params: Params,
+    pub return_kind: KindId,
+    pub return_value: ValueId,
 }
 
 /// Not yet resolved.
@@ -337,15 +323,6 @@ pub struct UnresolvedTy {
     pub bound: TyId, // @@TODO: doc on this and general ty bounds
 }
 
-/// The type of a type.
-///
-/// Contains the bound of the type. For representing any generic type, the bound
-/// should be set to an empty `Ty::Merge`.
-#[derive(Debug, Clone)]
-pub struct TyOfTy {
-    pub bound: TyId,
-}
-
 /// The action of applying a set of arguments to a type function.
 ///
 /// This essentially creates a lambda calculus within the Hash type system, which allows it to
@@ -355,46 +332,78 @@ pub struct TyOfTy {
 /// return value over its type parameters, and then unifying the instantiated type parameters with
 /// the given type arguments of the function (the `ty_args` field).
 #[derive(Debug, Clone)]
-pub struct AppTyFnTy {
-    pub ty_fn_ty: TyId,
-    pub ty_args: TyArgs,
+pub struct AppTyFn {
+    pub ty_fn_value: ValueId,
+    pub args: Args,
 }
 
-/// Merge of multiple types.
+/// The kind of a type function, for example:
 ///
-/// This corresponds to the `~` operator in Hash. Might contain:
-/// - One or zero [Ty::Nominal]
-/// - Zero or more [Ty::Impls]
-/// - Zero or more [Ty::Mod]
-/// - Zero or more [Ty::Merge] types with the same restrictions.
+/// ```
+/// T: <X: Type> -> Type
+/// ```
 ///
-/// `~` is commutative, idempotent, and associative.
+/// would be
 ///
-/// Joining types is a core operation in Hash, and it is what allows for polymorphism. Within
-/// the language, "Type" is a synonym for an empty merge, i.e. a type that can unify with any
-/// other type (other than instance types).
-///
-/// `A ~ B ~ C` is assignable to `A`, `A ~ B`, `A ~ C` or any other combination of `A`, `B` and
-/// `C`. In that sense, it is like an intersection type.
-#[derive(Debug, Clone, Hash)]
-pub struct MergeTy {
-    pub elements: Vec<TyId>,
+/// ```
+/// name: "T",
+/// kind: Kind::TyFn(params = [(name="X", kind=Kind::Ty)], return_kind=Kind::Ty)
+/// value: Value::Unset,
+/// ```
+#[derive(Debug, Clone)]
+pub struct TyFnKind {
+    params: Params,
+    return_kind: KindId,
 }
 
-/// Represents a type variable.
-///
-/// This is a variable that exists in some scope bound and is of some supertype. Any type that is
-/// assignable to the supertype of a variable can be assigned to that variable.
-///
-/// For example, if `T: Hash`, then `T = str` is valid because `str: Hash` is true. Note, here `T:
-/// Hash` actually translates to `Ty::Var("T")` unifies with `Ty::Impls(HashTraitID)`.
-#[derive(Debug, Clone, Hash)]
-pub struct VarTy {
-    pub name: Identifier,
+#[derive(Debug, Clone)]
+pub enum Kind {
+    /// A trait kind.
+    Trt,
+    /// A type kind, with some trait bound.
+    Ty(TrtId),
+    /// A runtime kind, with some type bound.
+    Rt(TyId),
+    /// A type function, with some return kind.
+    TyFn(TyFnKind),
+    /// A type function application.
+    AppTyFn(AppTyFn),
+}
+
+#[derive(Debug, Clone)]
+pub enum Value {
+    /// A trait value.
+    Trt(TrtId),
+    /// A type value.
+    Ty(TyId),
+    /// A runtime value.
+    Rt,
+    /// A type function value, returning any kind of value.
+    TyFn(TyFnValue),
+    /// A type function application.
+    AppTyFn(AppTyFn),
+    /// A type-level variable, with some kind that is stored in the current scope.
+    Var(Identifier),
+    /// Unset value.
+    Unset,
+}
+
+#[derive(Debug, Clone)]
+pub enum Trt {
+    /// A trait definition.
+    ///
+    /// This is the return type of a `trait(..)` definition
+    Def(TrtDefId),
+    /// Merge of multiple traits.
+    Merge(Vec<TrtId>),
+    /// A type function application.
+    AppTyFn(AppTyFn),
 }
 
 #[derive(Debug, Clone)]
 pub enum Ty {
+    /// A nominal type definition, either a struct or an enum.
+    NominalDef(NominalDefId),
     /// Modules or impls.
     ///
     /// Modules and trait implementations, as well as anonymous implementations, are treated as
@@ -404,46 +413,17 @@ pub enum Ty {
     /// corresponding [ModDef].
     Mod(ModDefId),
     /// Tuple type.
-    ///
-    /// Usually used within a [Ty::Instance].
     Tuple(TupleTy),
-    /// The type of a trait.
-    ///
-    /// This is the return type of a `trait(..)` definition
-    Trt(TrtDefId),
-    /// Type that implements a trait.
-    ///
-    /// This unifies with appropriate [Ty::Mod], [Ty::Merge], i.e. a [Ty::Mod] that is an
-    /// implementation of the [TrtDefId] stored in this variant, or a [Ty::Merge] containing at
-    /// least one such [Ty::Mod].
-    Impls(TrtDefId),
-    /// A nominal type, either a struct or an enum.
-    ///
-    /// This unifies only with types that have the same nominal, at the very least.
-    Nominal(NominalDefId),
-    /// An instance of a type.
-    ///
-    /// The inner type must be a `Ty::Nominal` or a merge containing it (for now, until we get
-    /// trait objects).
-    ///
-    /// If `X` is of type `Nominal ~ A ~ B`, then instantiating `X` yields type `Instance<Nominal ~
-    /// A ~ B>`.
-    ///
-    /// All arguments of normal functions must be wrapped in `Instance`. Only type arguments are
-    /// not wrapped in `Instance`.
-    Instance(TyId),
-    /// Merge type.
-    Merge(MergeTy),
+    /// Merge of multiple types.
+    Merge(Vec<TyId>),
+    /// A variable that is of kind `Type`.
+    Var(Identifier),
     /// Function type.
     Fn(FnTy),
-    /// Type function type.
-    TyFn(TyFnTy),
-    /// Type function application
-    AppTyFn(AppTyFnTy),
-    /// Type variable
-    Var(VarTy),
     /// Not yet resolved.
     Unresolved(UnresolvedTy),
+    /// A type function application.
+    AppTyFn(AppTyFn),
 }
 
 // IDs for all the primitives to be stored on mapped storage.
@@ -457,6 +437,18 @@ new_key_type! { pub struct NominalDefId; }
 new_key_type! { pub struct ImplGroupId; }
 
 new_key_type! { pub struct ModDefId; }
+
+new_key_type! {
+    pub struct TrtId;
+}
+
+new_key_type! {
+    pub struct ValueId;
+}
+
+new_key_type! {
+    pub struct KindId;
+}
 
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct ResolutionId(pub(super) usize);
