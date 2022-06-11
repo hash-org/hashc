@@ -1,8 +1,9 @@
 //! Contains utilities to format types for displaying in error messages and debug output.
 use crate::storage::{
     primitives::{
-        AppTyFn, Args, EnumDef, FnTy, Kind, KindId, ModDefId, NominalDef, Params, StructDef,
-        TrtDefId, TupleTy, Ty, TyFnKind, TyFnValue, TyId, UnresolvedKind, Value, ValueId,
+        AppTyFn, Args, EnumDef, FnTy, Kind, KindId, ModDefId, ModDefOrigin, NominalDef, Params,
+        StructDef, TrtDefId, TupleTy, Ty, TyFnKind, TyFnValue, TyId, UnresolvedKind, Value,
+        ValueId,
     },
     GlobalStorage,
 };
@@ -92,8 +93,9 @@ impl<'gs> TypeFormatter<'gs> {
         }
         write!(f, "{}", subject_fmt)?;
         if !subject_is_atomic.get() {
-            write!(f, ")<")?;
+            write!(f, ")")?;
         }
+        write!(f, "<")?;
 
         self.fmt_args(f, &app_ty_fn.args)?;
         write!(f, ">")?;
@@ -103,11 +105,14 @@ impl<'gs> TypeFormatter<'gs> {
 
     /// Format the [TrtDef] indexed by the given [TrtDefId] with the given formatter.
     pub fn fmt_trt_def(&self, f: &mut fmt::Formatter, trt_def_id: TrtDefId) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.global_storage.trt_def_store.get(trt_def_id).name
-        )
+        match self.global_storage.trt_def_store.get(trt_def_id).name {
+            Some(name) => {
+                write!(f, "{}", name)
+            }
+            None => {
+                write!(f, "trait(..)")
+            }
+        }
     }
 
     /// Format the [Value] indexed by the given [ValueId] with the given formatter.
@@ -132,25 +137,35 @@ impl<'gs> TypeFormatter<'gs> {
                 write!(f, "{{runtime value}}")
             }
             Value::TyFn(TyFnValue {
+                name,
                 general_params,
                 general_return_kind,
                 cases,
             }) => {
-                is_atomic.set(false);
-                write!(f, "<")?;
-                self.fmt_params(f, general_params)?;
-                write!(f, "> -> ")?;
-                self.fmt_kind(f, *general_return_kind, &Cell::new(false))?;
+                match name {
+                    Some(name) => {
+                        is_atomic.set(true);
+                        write!(f, "{}", name)?;
+                        Ok(())
+                    }
+                    None => {
+                        is_atomic.set(false);
+                        write!(f, "<")?;
+                        self.fmt_params(f, general_params)?;
+                        write!(f, "> -> ")?;
+                        self.fmt_kind(f, *general_return_kind, &Cell::new(false))?;
 
-                if let Some(case) = cases.first() {
-                    write!(f, " => ")?;
-                    let is_atomic = Cell::new(false);
-                    self.fmt_value(f, case.return_value, &is_atomic)?;
+                        if let Some(case) = cases.first() {
+                            write!(f, " => ")?;
+                            let is_atomic = Cell::new(false);
+                            self.fmt_value(f, case.return_value, &is_atomic)?;
+                        }
+
+                        // We assume only the first case is the base one
+                        // @@TODO: refine this to show all cases
+                        Ok(())
+                    }
                 }
-
-                // We assume only the first case is the base one
-                // @@TODO: refine this to show all cases
-                Ok(())
             }
             Value::AppTyFn(app_ty_fn) => {
                 is_atomic.set(true);
@@ -201,15 +216,50 @@ impl<'gs> TypeFormatter<'gs> {
         match self.global_storage.ty_store.get(ty_id) {
             Ty::NominalDef(nominal_def_id) => {
                 is_atomic.set(true);
-                let (NominalDef::Struct(StructDef { name, .. })
-                | NominalDef::Enum(EnumDef { name, .. })) =
-                    self.global_storage.nominal_def_store.get(*nominal_def_id);
-                write!(f, "{}", name)
+                match self.global_storage.nominal_def_store.get(*nominal_def_id) {
+                    NominalDef::Struct(StructDef {
+                        name: Some(name), ..
+                    })
+                    | NominalDef::Enum(EnumDef {
+                        name: Some(name), ..
+                    }) => {
+                        write!(f, "{}", name)
+                    }
+                    NominalDef::Struct(_) => {
+                        write!(f, "struct(..)")
+                    }
+                    NominalDef::Enum(_) => {
+                        write!(f, "enum(..)")
+                    }
+                }
             }
             Ty::Mod(mod_def_id) => {
                 is_atomic.set(true);
                 let mod_def = self.global_storage.mod_def_store.get(*mod_def_id);
-                write!(f, "{}", mod_def.name)
+                match mod_def.name {
+                    Some(name) => {
+                        write!(f, "{}", name)
+                    }
+                    None => match mod_def.origin {
+                        ModDefOrigin::TrtImpl(trt_def_id) => {
+                            write!(
+                                f,
+                                "impl({})",
+                                trt_def_id.for_formatting(self.global_storage)
+                            )
+                        }
+                        ModDefOrigin::AnonImpl => {
+                            write!(f, "impl(..)")
+                        }
+                        ModDefOrigin::Mod => {
+                            write!(f, "mod(..)")
+                        }
+                        ModDefOrigin::Source(_) => {
+                            // @@TODO: show the source path
+                            write!(f, "source(..)")
+                        }
+                    },
+                }
             }
             Ty::Tuple(TupleTy { members }) => {
                 is_atomic.set(true);
@@ -250,14 +300,11 @@ impl<'gs> TypeFormatter<'gs> {
                 write!(f, "Type")
             }
             Kind::Ty(Some(bound_trt_def_id)) => {
-                is_atomic.set(true);
                 write!(
                     f,
                     "{}",
-                    self.global_storage
-                        .trt_def_store
-                        .get(*bound_trt_def_id)
-                        .name
+                    bound_trt_def_id
+                        .for_formatting_with_atomic_flag(self.global_storage, is_atomic)
                 )
             }
             Kind::Rt(bound_ty_id) => self.fmt_ty(f, *bound_ty_id, is_atomic),
@@ -382,6 +429,12 @@ impl fmt::Display for ForFormatting<'_, '_, TyId> {
             self.t,
             self.is_atomic.unwrap_or(&Cell::new(false)),
         )
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, '_, TrtDefId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TypeFormatter::new(self.global_storage).fmt_trt_def(f, self.t)
     }
 }
 

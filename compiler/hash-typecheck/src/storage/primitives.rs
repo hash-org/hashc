@@ -158,7 +158,7 @@ pub enum ModDefOrigin {
 /// members.
 #[derive(Debug, Clone)]
 pub struct ModDef {
-    pub name: Identifier,
+    pub name: Option<Identifier>,
     pub origin: ModDefOrigin,
     pub members: Members,
 }
@@ -178,7 +178,7 @@ pub enum StructFields {
 /// A struct definition, containing a binding name and a set of fields.
 #[derive(Debug, Clone)]
 pub struct StructDef {
-    pub name: Identifier,
+    pub name: Option<Identifier>,
     pub fields: StructFields,
 }
 
@@ -194,14 +194,14 @@ pub struct EnumVariant {
 /// An enum definition, containing a binding name and a set of variants.
 #[derive(Debug, Clone)]
 pub struct EnumDef {
-    pub name: Identifier,
+    pub name: Option<Identifier>,
     pub variants: HashMap<Identifier, EnumVariant>,
 }
 
 /// A trait definition, containing a binding name and a set of constant members.
 #[derive(Debug, Clone)]
 pub struct TrtDef {
-    pub name: Identifier,
+    pub name: Option<Identifier>,
     pub members: Members,
 }
 
@@ -286,6 +286,8 @@ pub struct FnTy {
 /// already is; however, it can become more refined.
 #[derive(Debug, Clone)]
 pub struct TyFnValue {
+    /// An optional name for the type function, if it is directly assigned to a binding.
+    pub name: Option<Identifier>,
     pub general_params: Params,
     pub general_return_kind: KindId,
     pub cases: Vec<TyFnCase>,
