@@ -245,19 +245,22 @@ pub struct FnTy {
 ///     general_return_ty = Kind::Ty,
 ///     cases = {
 ///         (T: Kind::Ty) -> Kind::Ty => Value::Ty(Ty::NominalDef(DogStructDef)),
-///         (T: Kind::Ty(HashTraitDef)) -> Kind::Ty(HashTraitDef) => Value::Ty(Merge([
-///             Ty::NominalDef(DogStructDef),
-///             Ty::Mod(Mod { origin: TraitImpl(Value::Trt(HashTraitDef)), members: .. }),
-///         ])),
+///         (T: Kind::Ty(HashTraitDef)) -> Kind::Ty(HashTraitDef) => Value::Merge([
+///             Value::Ty(Ty::NominalDef(DogStructDef)),
+///             Value::Ty(Ty::Mod(
+///                 origin=TraitImpl(Value::Trt(HashTraitDef)),
+///                 members=..
+///             )),
+///         ]),
 ///         (T: Kind::Ty(Merge([HashTraitDef, EqTraitDef])))
 ///             -> Kind::Ty(FindInHashMapTraitDef) =>
-///             => Value::Ty(Merge([
-///                 Ty::NominalDef(DogStructDef),
-///                 Ty::Mod(Mod {
-///                     origin: TraitImpl(Value::Trt(FindInHashMapTraitDef)),
-///                     members: ..
-///                 }),
-///             ]))
+///             => Value::Merge([
+///                 Value::Ty(Ty::NominalDef(DogStructDef)),
+///                 Value::Ty(Ty::Mod(
+///                     origin=TraitImpl(Value::Trt(FindInHashMapTraitDef)),
+///                     members=..
+///                 )),
+///             ])
 ///     }
 /// }
 /// ```
@@ -292,13 +295,13 @@ pub struct TyFnValue {
 /// ```
 /// (T: Kind::Ty = Value::Ty(strDefId))
 ///     -> Kind::AppTyFn(ConvValue (a type fn), [strDefId])
-///     => Value::Ty(Ty::Merge([
+///     => Value::Merge([
 ///         Value::AppTyFn(DogValue (a type fn), [strDefId]),
-///         Value::Ty(Mod {
-///             origin: TraitImpl(Value::AppTyFn(ConvValue (a type fn), [strDefId])),
-///             members: ...
-///         })
-///     ]))
+///         Value::Ty(Ty::Mod(
+///             origin=TraitImpl(Value::AppTyFn(ConvValue (a type fn), [strDefId])),
+///             members=...
+///         ))
+///     ])
 /// ```
 ///
 /// The case's `return_kind` must always be able to unify with the target `general_return_kind`,
@@ -360,8 +363,8 @@ pub struct TyFnKind {
 pub enum Kind {
     /// A trait kind.
     Trt,
-    /// A type kind, with some trait bound.
-    Ty(TrtDefId),
+    /// A type kind, with some optional trait bound.
+    Ty(Option<TrtDefId>),
     /// A runtime kind, with some type bound.
     Rt(TyId),
     /// A type function, with some return kind.
@@ -423,10 +426,6 @@ new_key_type! { pub struct NominalDefId; }
 new_key_type! { pub struct ImplGroupId; }
 
 new_key_type! { pub struct ModDefId; }
-
-new_key_type! {
-    pub struct TrtId;
-}
 
 new_key_type! {
     pub struct ValueId;
