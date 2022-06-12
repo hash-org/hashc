@@ -67,7 +67,7 @@ pub struct StorageRefMut<'gs, 'ls> {
 
 /// Trait that provides convenient accessor methods to various parts of the storage given a path to
 /// a [StorageRef] object.
-trait AccessToStorage {
+pub trait AccessToStorage {
     fn storages(&self) -> StorageRef;
 
     fn global_storage(&self) -> &GlobalStorage {
@@ -125,7 +125,7 @@ trait AccessToStorage {
 
 /// Trait that provides convenient mutable accessor methods to various parts of the storage given a
 /// path to a [StorageRefMut] object.
-trait AccessToStorageMut: AccessToStorage {
+pub trait AccessToStorageMut: AccessToStorage {
     fn storages_mut(&mut self) -> StorageRefMut;
 
     fn global_storage_mut(&mut self) -> &mut GlobalStorage {

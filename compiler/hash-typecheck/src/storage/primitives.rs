@@ -281,9 +281,7 @@ pub struct FnTy {
 /// which matches `T`. In other words, cases are not short-circuiting; they are all evaluated and
 /// then combined.
 ///
-/// The `general_return_kind` field is always a superkind of the return type of each case. Also
-/// note that `general_return_kind` never changes---a type cannot become more general than it
-/// already is; however, it can become more refined.
+/// The `general_return_kind` field is always a superkind of the return type of each case.
 #[derive(Debug, Clone)]
 pub struct TyFnValue {
     /// An optional name for the type function, if it is directly assigned to a binding.
@@ -330,14 +328,16 @@ pub struct TyFnCase {
 
 /// Not yet resolved.
 ///
-/// Might contain a bound which is progressively resolved as more information about the usage of
-/// the value is known during inference.
-///
-/// The resolution ID is incremented for each new unresolved kind.
-#[derive(Debug, Clone, Hash)]
-pub struct UnresolvedKind {
+/// The resolution ID is incremented for each new unresolved type.
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct UnresolvedTy {
     pub resolution_id: ResolutionId,
-    pub bound: KindId,
+}
+
+/// A type variable, which is just a name.
+#[derive(Debug, Clone, Hash, Copy, Eq, PartialEq)]
+pub struct Var {
+    pub name: Identifier,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -377,7 +377,7 @@ pub struct TyFnKind {
 ///
 /// Each binding has a kind, which is either a type kind, a trait kind, or a runtime kind. The
 /// usual notion of "type" in programming languages is a [Kind::Rt] here, with a given type ID. On
-/// the other hand, [Kind::Ty] is the kind of a type (i.e. type of a type). 
+/// the other hand, [Kind::Ty] is the kind of a type (i.e. type of a type).
 #[derive(Debug, Clone)]
 pub enum Kind {
     /// A trait kind.
@@ -393,7 +393,7 @@ pub enum Kind {
     /// Merge of multiple kinds.
     Merge(Vec<KindId>),
     /// Not yet resolved.
-    Unresolved(UnresolvedKind),
+    Unresolved(UnresolvedTy),
 }
 
 /// Each binding in Hash has a value
@@ -414,7 +414,7 @@ pub enum Value {
     /// A type function application.
     AppTyFn(AppTyFn),
     /// A type-level variable, with some kind that is stored in the current scope.
-    Var(Identifier),
+    Var(Var),
     /// Merge of multiple values.
     Merge(Vec<ValueId>),
     /// Unset value.
@@ -444,7 +444,9 @@ pub enum Ty {
     /// Function type.
     Fn(FnTy),
     /// A type-level variable, with some kind that is stored in the current scope.
-    Var(Identifier)
+    ///
+    /// This variable must be of kind [Kind::Ty] to be valid in this context.
+    Var(Var),
 }
 
 // IDs for all the primitives to be stored on mapped storage.
