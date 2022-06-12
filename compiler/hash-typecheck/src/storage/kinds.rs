@@ -1,8 +1,7 @@
-use std::cell::Cell;
-
-use super::primitives::{KindId, Kind, ResolutionId};
+use super::primitives::{Kind, KindId, ResolutionId};
 use hash_source::location::SourceLocation;
 use slotmap::{SecondaryMap, SlotMap};
+use std::{cell::Cell, collections::HashMap};
 
 /// Stores all the kinds within a typechecking cycle.
 ///
@@ -18,6 +17,8 @@ pub struct KindStore {
     /// type resolution, where substitutions correspond to mutating kinds rather than creating
     /// whole new ones. This could greatly improve performance.
     last_resolution_id: Cell<usize>,
+    // /// Bound data of unresolved variables
+    // unresolved_bound_data: HashMap<ResolutionId, KindId>,
 }
 
 impl KindStore {
@@ -54,6 +55,17 @@ impl KindStore {
         self.last_resolution_id.set(new_id);
         ResolutionId(new_id)
     }
+
+    // @@TODO: reintroduce bounds for unresolved variables
+    ///// Get the bound of the unresolved variable with the given [ResolutionId], if any.
+    //pub fn get_bound_of_unresolved(&self, resolution_id: ResolutionId) -> Option<KindId> {
+    //    self.unresolved_bound_data.get(&resolution_id).map(|&x| x)
+    //}
+
+    ///// Set the bound of the unresolved variable with the given [ResolutionId], if any.
+    //pub fn set_bound_of_unresolved(&self, resolution_id: ResolutionId, bound: KindId) {
+    //    self.unresolved_bound_data.insert(resolution_id, bound);
+    //}
 }
 
 /// Stores the source location of kinds in the AST tree.

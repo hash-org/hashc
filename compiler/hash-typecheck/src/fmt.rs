@@ -2,8 +2,7 @@
 use crate::storage::{
     primitives::{
         AppTyFn, Args, EnumDef, FnTy, Kind, KindId, ModDefId, ModDefOrigin, NominalDef, Params,
-        StructDef, TrtDefId, TupleTy, Ty, TyFnKind, TyFnValue, TyId, UnresolvedKind, Value,
-        ValueId,
+        StructDef, TrtDefId, TupleTy, Ty, TyFnKind, TyFnValue, TyId, UnresolvedTy, Value, ValueId,
     },
     GlobalStorage,
 };
@@ -171,9 +170,9 @@ impl<'gs> TypeFormatter<'gs> {
                 is_atomic.set(true);
                 self.fmt_app_ty_fn(f, app_ty_fn)
             }
-            Value::Var(var_name) => {
+            Value::Var(var) => {
                 is_atomic.set(true);
-                write!(f, "{}", var_name)
+                write!(f, "{}", var.name)
             }
             Value::Merge(values) => {
                 is_atomic.set(false);
@@ -280,11 +279,39 @@ impl<'gs> TypeFormatter<'gs> {
                 self.fmt_kind(f, *return_kind, &Cell::new(false))?;
                 Ok(())
             }
-            Ty::Var(name) => {
+            Ty::Var(var) => {
                 is_atomic.set(true);
-                write!(f, "{}", name)
-            }
+                write!(f, "{}", var.name)
+            } // Ty::Unresolved(unresolved) => {
+              //     is_atomic.set(true);
+              //     self.fmt_unresolved(f, unresolved)
+              // }
         }
+    }
+
+    pub fn fmt_unresolved(
+        &self,
+        f: &mut fmt::Formatter,
+        UnresolvedTy { resolution_id }: &UnresolvedTy,
+    ) -> fmt::Result {
+        // let bound = self
+        //     .global_storage
+        //     .kind_store
+        //     .get_bound_of_unresolved(*resolution_id);
+        write!(f, "{{unresolved({:?})}}", resolution_id,)
+        // match bound {
+        //     Some(bound) => {
+        //         write!(
+        //             f,
+        //             "{{unresolved({:?}): {}}}",
+        //             resolution_id,
+        //             bound.for_formatting(self.global_storage)
+        //         )
+        //     }
+        //     None => {
+        //         write!(f, "{{unresolved({:?})}}", resolution_id,)
+        //     }
+        // }
     }
 
     /// Format the [Kind] indexed by the given [KindId] with the given formatter.
@@ -352,17 +379,9 @@ impl<'gs> TypeFormatter<'gs> {
                 }
                 Ok(())
             }
-            Kind::Unresolved(UnresolvedKind {
-                resolution_id,
-                bound,
-            }) => {
+            Kind::Unresolved(unresolved) => {
                 is_atomic.set(true);
-                write!(
-                    f,
-                    "{{unresolved({:?}): {}}}",
-                    resolution_id,
-                    bound.for_formatting(self.global_storage)
-                )
+                self.fmt_unresolved(f, unresolved)
             }
         }
     }
