@@ -94,10 +94,16 @@ fn handle_test(input: TestingInput) {
     let target = Module::new(content_path.clone());
     let target_id = sources.add_module(target);
 
-    let mut parser = HashParser::new(1, &castle);
+    let mut parser = HashParser::new(&castle);
+
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .thread_name(|id| format!("parse-worker-{}", id))
+        .build()
+        .unwrap();
 
     // Now parse the module and store the result
-    let result = parser.parse(SourceId::Module(target_id), &mut sources);
+    let result = parser.parse(SourceId::Module(target_id), &mut sources, &pool);
 
     if should_fail {
         handle_failure_case(input, result, sources).unwrap();

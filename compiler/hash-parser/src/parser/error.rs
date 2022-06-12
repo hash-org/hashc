@@ -17,13 +17,13 @@ use hash_utils::printing::SequenceDisplay;
 /// A [AstGenError] represents possible errors that occur when transforming the token
 /// stream into the AST.
 #[derive(Debug, Constructor)]
-pub struct AstGenError<'a> {
+pub struct AstGenError {
     /// The kind of the error.
     kind: AstGenErrorKind,
     /// Location of where the error references
     span: SourceLocation,
     /// An optional vector of tokens that are expected to circumvent the error.
-    expected: Option<TokenKindVector<'a>>,
+    expected: Option<TokenKindVector>,
     /// An optional token in question that was received byt shouldn't of been
     received: Option<TokenKind>,
 }
@@ -99,7 +99,7 @@ impl std::fmt::Display for TyArgumentKind {
 }
 
 /// Conversion implementation from an AST Generator Error into a Parser Error.
-impl<'a> From<AstGenError<'a>> for ParseError {
+impl From<AstGenError> for ParseError {
     fn from(err: AstGenError) -> Self {
         let expected = err.expected;
 
@@ -178,7 +178,9 @@ impl<'a> From<AstGenError<'a>> for ParseError {
                 if expected.is_empty() {
                     base_message.push('.');
                 } else {
-                    let slice_display = SequenceDisplay(expected.into_inner().into_slice());
+                    let expected_items = expected.into_inner();
+
+                    let slice_display = SequenceDisplay(expected_items.as_slice());
                     let expected_items_msg = format!(". Consider adding {}", slice_display);
                     base_message.push_str(&expected_items_msg);
                 }

@@ -14,12 +14,12 @@ use std::{
 };
 
 #[derive(Debug)]
-pub struct InteractiveBlock<'c> {
+pub struct InteractiveBlock {
     contents: String,
-    node: Option<ast::AstNode<'c, ast::BodyBlock<'c>>>,
+    node: Option<ast::AstNode<ast::BodyBlock>>,
 }
 
-impl<'c> InteractiveBlock<'c> {
+impl InteractiveBlock {
     pub fn new(contents: String) -> Self {
         Self {
             contents,
@@ -27,7 +27,7 @@ impl<'c> InteractiveBlock<'c> {
         }
     }
 
-    pub fn node(&self) -> ast::AstNodeRef<ast::BodyBlock<'c>> {
+    pub fn node(&self) -> ast::AstNodeRef<ast::BodyBlock> {
         self.node.as_ref().unwrap().ast_ref()
     }
 
@@ -35,19 +35,19 @@ impl<'c> InteractiveBlock<'c> {
         &self.contents
     }
 
-    pub fn set_node(&mut self, node: ast::AstNode<'c, ast::BodyBlock<'c>>) {
+    pub fn set_node(&mut self, node: ast::AstNode<ast::BodyBlock>) {
         self.node = Some(node);
     }
 }
 
 #[derive(Debug)]
-pub struct Module<'c> {
+pub struct Module {
     path: PathBuf,
     contents: Option<String>,
-    node: Option<ast::AstNode<'c, ast::Module<'c>>>,
+    node: Option<ast::AstNode<ast::Module>>,
 }
 
-impl<'c> Module<'c> {
+impl Module {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
@@ -60,11 +60,11 @@ impl<'c> Module<'c> {
         &self.path
     }
 
-    pub fn node(&self) -> ast::AstNodeRef<ast::Module<'c>> {
+    pub fn node(&self) -> ast::AstNodeRef<ast::Module> {
         self.node.as_ref().unwrap().ast_ref()
     }
 
-    pub fn node_mut(&mut self) -> &mut ast::Module<'c> {
+    pub fn node_mut(&mut self) -> &mut ast::Module {
         self.node.as_mut().unwrap()
     }
 
@@ -72,7 +72,7 @@ impl<'c> Module<'c> {
         self.contents.as_ref().unwrap()
     }
 
-    pub fn set_node(&mut self, node: ast::AstNode<'c, ast::Module<'c>>) {
+    pub fn set_node(&mut self, node: ast::AstNode<ast::Module>) {
         self.node = Some(node);
     }
 
@@ -82,27 +82,27 @@ impl<'c> Module<'c> {
 }
 
 #[derive(Debug)]
-pub enum Source<'c> {
-    Interactive(InteractiveBlock<'c>),
-    Module(Module<'c>),
+pub enum Source {
+    Interactive(InteractiveBlock),
+    Module(Module),
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum SourceRef<'i, 'c> {
-    Interactive(&'i InteractiveBlock<'c>),
-    Module(&'i Module<'c>),
+pub enum SourceRef<'i> {
+    Interactive(&'i InteractiveBlock),
+    Module(&'i Module),
 }
 
 #[derive(Debug, Default)]
-pub struct Sources<'c> {
+pub struct Sources {
     interactive_offset: usize,
-    interactive_blocks: SlotMap<InteractiveId, InteractiveBlock<'c>>,
-    modules: SlotMap<ModuleId, Module<'c>>,
+    interactive_blocks: SlotMap<InteractiveId, InteractiveBlock>,
+    modules: SlotMap<ModuleId, Module>,
     module_paths: HashMap<PathBuf, ModuleId>,
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
 }
 
-impl<'c> Sources<'c> {
+impl Sources {
     pub fn new() -> Self {
         Self {
             interactive_offset: 0,
@@ -113,22 +113,19 @@ impl<'c> Sources<'c> {
         }
     }
 
-    pub fn add_interactive_block(
-        &mut self,
-        interactive_block: InteractiveBlock<'c>,
-    ) -> InteractiveId {
+    pub fn add_interactive_block(&mut self, interactive_block: InteractiveBlock) -> InteractiveId {
         self.interactive_offset += interactive_block.contents.len();
         self.interactive_blocks.insert(interactive_block)
     }
 
-    pub fn add_module(&mut self, module: Module<'c>) -> ModuleId {
+    pub fn add_module(&mut self, module: Module) -> ModuleId {
         let module_path = module.path.to_owned();
         let module_id = self.modules.insert(module);
         self.module_paths.insert(module_path, module_id);
         module_id
     }
 
-    pub fn add_source(&mut self, source: Source<'c>) -> SourceId {
+    pub fn add_source(&mut self, source: Source) -> SourceId {
         match source {
             Source::Interactive(interactive_block) => {
                 SourceId::Interactive(self.add_interactive_block(interactive_block))
@@ -137,22 +134,22 @@ impl<'c> Sources<'c> {
         }
     }
 
-    pub fn get_interactive_block(&self, interactive_id: InteractiveId) -> &InteractiveBlock<'c> {
+    pub fn get_interactive_block(&self, interactive_id: InteractiveId) -> &InteractiveBlock {
         self.interactive_blocks.get(interactive_id).unwrap()
     }
 
     pub fn get_interactive_block_mut(
         &mut self,
         interactive_id: InteractiveId,
-    ) -> &mut InteractiveBlock<'c> {
+    ) -> &mut InteractiveBlock {
         self.interactive_blocks.get_mut(interactive_id).unwrap()
     }
 
-    pub fn get_module_mut(&mut self, module_id: ModuleId) -> &mut Module<'c> {
+    pub fn get_module_mut(&mut self, module_id: ModuleId) -> &mut Module {
         self.modules.get_mut(module_id).unwrap()
     }
 
-    pub fn get_module(&self, module_id: ModuleId) -> &Module<'c> {
+    pub fn get_module(&self, module_id: ModuleId) -> &Module {
         self.modules.get(module_id).unwrap()
     }
 
@@ -160,21 +157,21 @@ impl<'c> Sources<'c> {
         self.module_paths.get(path).copied()
     }
 
-    pub fn get_module_by_path(&self, path: &Path) -> Option<&Module<'c>> {
+    pub fn get_module_by_path(&self, path: &Path) -> Option<&Module> {
         Some(self.get_module(self.get_module_id_by_path(path)?))
     }
 
     /// Function to iterate over the modules that are currently
     /// present within the sources.
-    pub fn iter_modules(&self) -> Iter<'_, ModuleId, Module<'c>> {
+    pub fn iter_modules(&self) -> Iter<'_, ModuleId, Module> {
         self.modules.iter()
     }
 
-    pub fn iter_mut_modules(&mut self) -> IterMut<'_, ModuleId, Module<'c>> {
+    pub fn iter_mut_modules(&mut self) -> IterMut<'_, ModuleId, Module> {
         self.modules.iter_mut()
     }
 
-    pub fn get_source(&self, source_id: SourceId) -> SourceRef<'_, 'c> {
+    pub fn get_source(&self, source_id: SourceId) -> SourceRef<'_> {
         match source_id {
             SourceId::Interactive(interactive_id) => {
                 SourceRef::Interactive(self.get_interactive_block(interactive_id))
@@ -191,7 +188,7 @@ impl<'c> Sources<'c> {
     }
 }
 
-impl<'c> SourceMap for Sources<'c> {
+impl SourceMap for Sources {
     fn path_by_id(&self, source_id: SourceId) -> &Path {
         match self.get_source(source_id) {
             SourceRef::Interactive(_) => Path::new("<interactive>"),

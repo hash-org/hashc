@@ -447,6 +447,7 @@ dependencies = [
  "hash-utils-testing-macros",
  "lazy_static",
  "pretty_assertions",
+ "rayon",
  "regex",
 ]
 

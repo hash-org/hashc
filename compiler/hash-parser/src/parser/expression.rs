@@ -5,20 +5,19 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use hash_alloc::{collections::row::Row, row};
 use hash_ast::{ast::*, ast_nodes, ident::Identifier, literal::STRING_LITERAL_MAP};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a top level [Expression] that are terminated with a semi-colon.
     #[profiling::function]
     pub fn parse_top_level_expression(
         &self,
         semi_required: bool,
-    ) -> AstGenResult<'c, (bool, AstNode<'c, Expression<'c>>)> {
+    ) -> AstGenResult<(bool, AstNode<Expression>)> {
         let start = self.current_location();
 
         // So here we want to check that the next token(s) could make up a singular pattern which
@@ -62,9 +61,11 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         }
                         Some(_) => self.error_with_location(
                             AstGenErrorKind::ExpectedOperator,
-                            Some(TokenKindVector::from_row(
-                                row![&self.wall; TokenKind::Dot, TokenKind::Eq, TokenKind::Semi],
-                            )),
+                            Some(TokenKindVector::from_row(vec![
+                                TokenKind::Dot,
+                                TokenKind::Eq,
+                                TokenKind::Semi,
+                            ])),
                             None,
                             self.next_location(),
                         ),
@@ -90,7 +91,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse an expression which can be compound.
     #[profiling::function]
-    pub(crate) fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_expression(&self) -> AstGenResult<AstNode<Expression>> {
         let token = self.next_token().ok_or_else(|| {
             self.make_error(
                 AstGenErrorKind::ExpectedExpression,
@@ -270,8 +271,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     fn parse_variable_expression(
         &self,
-        start: Option<AstNode<'c, Identifier>>,
-    ) -> AstGenResult<'c, VariableExpr<'c>> {
+        start: Option<AstNode<Identifier>>,
+    ) -> AstGenResult<VariableExpr> {
         let name = match start {
             Some(node) => self.parse_access_name(node)?,
             None => match self.peek() {
@@ -312,7 +313,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_expression_with_precedence(
         &self,
         mut min_prec: u8,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
         let lhs_span = lhs.span();
@@ -389,8 +390,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// property access, infix function calls, indexing, etc.
     pub(crate) fn parse_singular_expression(
         &self,
-        subject: AstNode<'c, Expression<'c>>,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        subject: AstNode<Expression>,
+    ) -> AstGenResult<AstNode<Expression>> {
         // record the starting span
         let start = self.current_location();
 
@@ -404,7 +405,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
 
                     let name_or_fn_call = self.parse_name_or_infix_call()?;
-                    let kind = name_or_fn_call.into_body().move_out().into_kind();
+                    let kind = name_or_fn_call.into_body().into_kind();
 
                     match kind {
                         // The current behaviour is that the lhs is inserted as the first argument:
@@ -428,7 +429,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     },
                                     span,
                                 ),
-                                &self.wall,
                             );
 
                             lhs_expr = self.node_with_joined_span(
@@ -489,7 +489,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// The path argument to imports automatically assumes that the path you provide
     /// is references '.hash' extension file or a directory with a 'index.hash' file
     /// contained within the directory.
-    pub(crate) fn parse_import(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_import(&self) -> AstGenResult<AstNode<Expression>> {
         let pre = self.current_token().span;
         let start = self.current_location();
 
@@ -505,9 +505,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(
-                    row![&self.wall; TokenKind::Delimiter(Delimiter::Paren, true)],
-                )),
+                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
+                    Delimiter::Paren,
+                    true,
+                )])),
                 Some(token.kind),
             )?,
             None => self.unexpected_eof()?,
@@ -558,10 +559,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// into the function which deals with the call arguments.
     pub(crate) fn parse_function_call(
         &self,
-        subject: AstNode<'c, Expression<'c>>,
-        tree: &'stream Row<'stream, Token>,
+        subject: AstNode<Expression>,
+        tree: &'stream Vec<Token>,
         span: Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
         let mut args = self.node_with_span(
             FunctionCallArgs {
@@ -597,17 +598,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // Now here we expect an expression...
             let value = gen.parse_expression_with_precedence(0)?;
 
-            args.entries.nodes.push(
-                gen.node_with_span(FunctionCallArg { name, value }, start),
-                &self.wall,
-            );
+            args.entries
+                .nodes
+                .push(gen.node_with_span(FunctionCallArg { name, value }, start));
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
                 Some(token) => gen.error_with_location(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::singleton(&self.wall, TokenKind::Comma)),
+                    Some(TokenKindVector::singleton(TokenKind::Comma)),
                     Some(token.kind),
                     token.span,
                 )?,
@@ -632,10 +632,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// wrapping a singular expression.
     pub(crate) fn parse_array_index(
         &self,
-        subject: AstNode<'c, Expression<'c>>,
-        tree: &'stream Row<'stream, Token>,
+        subject: AstNode<Expression>,
+        tree: &'stream Vec<Token>,
         span: Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
         let start = gen.current_location();
 
@@ -658,7 +658,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parses a unary operator or expression modifier followed by a singular expression.
     /// Once the unary operator is picked up, the expression is parsed given the specific
     /// rules of the operator or expression modifier.
-    pub(crate) fn parse_unary_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_unary_expression(&self) -> AstGenResult<AstNode<Expression>> {
         let token = self.current_token();
         let start = self.current_location();
 
@@ -750,10 +750,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// ^^^^^^^^  ^^^^^   ^^^─────┐
     /// pattern    type    the right hand-side expr
     /// ```
-    pub(crate) fn parse_declaration(
-        &self,
-        pattern: AstNode<'c, Pattern<'c>>,
-    ) -> AstGenResult<'c, Declaration<'c>> {
+    pub(crate) fn parse_declaration(&self, pattern: AstNode<Pattern>) -> AstGenResult<Declaration> {
         // Attempt to parse an optional type...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Eq) => None,
@@ -784,8 +781,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// by the `~=` operator and then an expression (which should be either a [ImplBlock] or a [TraitImpl]).
     pub(crate) fn parse_merge_declaration(
         &self,
-        decl: AstNode<'c, Expression<'c>>,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        decl: AstNode<Expression>,
+    ) -> AstGenResult<AstNode<Expression>> {
         self.parse_token(TokenKind::Eq)?;
         let value = self.parse_expression_with_precedence(0)?;
         let decl_span = decl.span();
@@ -806,7 +803,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     #[profiling::function]
     pub(crate) fn parse_expression_with_re_assignment(
         &self,
-    ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
+    ) -> AstGenResult<(AstNode<Expression>, bool)> {
         let lhs = self.parse_expression_with_precedence(0)?;
         let lhs_span = lhs.span();
 
@@ -847,7 +844,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an single name or a function call that is applied on the left hand side
     /// expression. Infix calls and name are only separated by infix calls having
     /// parenthesees at the end of the name.
-    pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<AstNode<Expression>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
 
         let start = self.current_location();
@@ -866,7 +863,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Expression::new(ExpressionKind::Variable(VariableExpr {
                         name: self.node_with_span(
                             AccessName {
-                                path: ast_nodes![&self.wall; self.node_with_span(*id, *id_span)],
+                                path: ast_nodes![self.node_with_span(*id, *id_span)],
                             },
                             *id_span,
                         ),
@@ -900,9 +897,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// by the following operator, whether it is a colon, comma or a semicolon.
     pub(crate) fn parse_block_or_braced_literal(
         &self,
-        tree: &'stream Row<'stream, Token>,
+        tree: &'stream Vec<Token>,
         span: &Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
 
         // handle two special cases for empty map and set literals, if the only token
@@ -954,7 +951,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ));
         }
 
-        let parse_block = |initial_offset: usize| -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        let parse_block = |initial_offset: usize| -> AstGenResult<AstNode<Expression>> {
             // reset the position and attempt to parse a statement
             gen.offset.set(initial_offset);
 
@@ -1025,7 +1022,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_with_span(
                                 Literal::Map(MapLiteral {
-                                    elements: ast_nodes![&self.wall; entry],
+                                    elements: ast_nodes![entry],
                                 }),
                                 *span,
                             ),
@@ -1057,7 +1054,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Ok(self.node_with_span(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(
                         Block::Body(BodyBlock {
-                            statements: ast_nodes![&self.wall; statement],
+                            statements: ast_nodes![statement],
                             expr: None,
                         }),
                         *span,
@@ -1082,9 +1079,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ///
     pub(crate) fn parse_expression_or_tuple(
         &self,
-        tree: &'stream Row<'stream, Token>,
+        tree: &'stream Vec<Token>,
         span: &Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
         let start = self.current_location();
 
@@ -1097,7 +1094,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                     gen.node_with_joined_span(
                         Literal::Tuple(TupleLiteral {
-                            elements: ast_nodes![&self.wall;],
+                            elements: ast_nodes![],
                         }),
                         &start,
                     ),
@@ -1122,10 +1119,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // check that the 'name' and 'ty' parameters are set to `None` and that there are no extra tokens
         // that are left within the token tree...
         if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
-            return Ok(entry.into_body().move_out().value);
+            return Ok(entry.into_body().value);
         }
 
-        let mut elements = ast_nodes![&self.wall; entry];
+        let mut elements = ast_nodes![entry];
 
         loop {
             match gen.peek() {
@@ -1137,9 +1134,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         break;
                     }
 
-                    elements
-                        .nodes
-                        .push(gen.parse_tuple_literal_entry()?, &self.wall)
+                    elements.nodes.push(gen.parse_tuple_literal_entry()?)
                 }
                 Some(token) => {
                     gen.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))?
@@ -1157,9 +1152,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a function definition argument, which is made of an identifier and a function type.
-    pub(crate) fn parse_function_def_arg(
-        &self,
-    ) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
+    pub(crate) fn parse_function_def_arg(&self) -> AstGenResult<AstNode<FunctionDefArg>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -1187,7 +1180,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_function_definition(
         &self,
         gen: &Self,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let start = self.current_location();
 
         // parse function definition arguments.
@@ -1222,9 +1215,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Function to parse a sequence of top-level [Expression]s from a brace-block exhausting all of the
     /// remaining tokens within the block. This function expects that the next token is a [TokenKind::Tree]
     /// and it will consume it producing [Expression]s from it.
-    pub(crate) fn parse_expressions_from_braces(
-        &self,
-    ) -> AstGenResult<'c, AstNodes<'c, Expression<'c>>> {
+    pub(crate) fn parse_expressions_from_braces(&self) -> AstGenResult<AstNodes<Expression>> {
         match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree_index),
@@ -1244,10 +1235,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
                 gen.verify_is_empty()?;
 
-                Ok(AstNodes::new(
-                    Row::from_vec(expressions, &self.wall),
-                    Some(*span),
-                ))
+                Ok(AstNodes::new(expressions, Some(*span)))
             }
             token => self.error_with_location(
                 AstGenErrorKind::Block,

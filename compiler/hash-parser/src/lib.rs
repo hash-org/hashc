@@ -23,19 +23,19 @@ use std::env;
 use std::path::PathBuf;
 
 #[derive(Debug)]
-pub enum ParserAction<'c> {
+pub enum ParserAction {
     Error(ParseError),
     ParseImport {
         resolved_path: PathBuf,
-        sender: Sender<ParserAction<'c>>,
+        sender: Sender<ParserAction>,
     },
     SetInteractiveInfo {
         interactive_id: InteractiveId,
-        node: ast::AstNode<'c, ast::BodyBlock<'c>>,
+        node: ast::AstNode<ast::BodyBlock>,
     },
     SetModuleNode {
         module_id: ModuleId,
-        node: ast::AstNode<'c, ast::Module<'c>>,
+        node: ast::AstNode<ast::Module>,
     },
     SetModuleContents {
         module_id: ModuleId,
@@ -43,7 +43,7 @@ pub enum ParserAction<'c> {
     },
 }
 
-fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castle: &'c Castle) {
+fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.source_id();
     let contents = match source.contents() {
         Ok(source) => source,
@@ -54,8 +54,7 @@ fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castl
 
     let current_dir = source.current_dir();
 
-    let wall = castle.wall();
-    let mut lexer = Lexer::new(&contents, source_id, &wall);
+    let mut lexer = Lexer::new(&contents, source_id);
 
     // We need to send the source either way
     if let SourceId::Module(module_id) = source_id {
@@ -75,9 +74,8 @@ fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction<'c>>, castl
     };
     let trees = lexer.into_token_trees();
 
-    let wall = castle.wall();
     let resolver = ImportResolver::new(source_id, current_dir, sender);
-    let gen = AstGen::new(&tokens, &trees, &resolver, wall);
+    let gen = AstGen::new(&tokens, &trees, &resolver);
 
     let action = match &source {
         ParseSource::Module { module_id, .. } => match gen.parse_module() {
@@ -115,18 +113,18 @@ impl<'c, 'pool> HashParser<'c> {
 
     pub fn parse_main(
         &mut self,
-        sources: &mut Sources<'c>,
+        sources: &mut Sources,
         entry_point_id: SourceId,
         current_dir: PathBuf,
         pool: &'pool rayon::ThreadPool,
     ) -> Vec<ParseError> {
-        let castle = self.castle;
+        let _castle = self.castle;
         let mut errors = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
 
         // Parse the entry point
         let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);
-        parse_source(entry_source_kind, sender, castle);
+        parse_source(entry_source_kind, sender);
 
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
@@ -160,7 +158,7 @@ impl<'c, 'pool> HashParser<'c> {
 
                         let module_id = sources.add_module(Module::new(resolved_path.clone()));
                         let source = ParseSource::from_module(module_id, sources);
-                        scope.spawn(move |_| parse_source(source, sender, castle));
+                        scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {
                         errors.push(err);
@@ -177,7 +175,7 @@ impl<'c, 'pool> Parser<'c, 'pool> for HashParser<'c> {
     fn parse(
         &mut self,
         target: SourceId,
-        sources: &mut Sources<'c>,
+        sources: &mut Sources,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
         let current_dir = env::current_dir().map_err(ParseError::from)?;
