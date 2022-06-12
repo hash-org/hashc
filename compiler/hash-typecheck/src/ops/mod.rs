@@ -49,6 +49,19 @@ impl KindSub {
     }
 }
 
+impl PartialEq for KindSub {
+    fn eq(&self, other: &Self) -> bool {
+        // @@Todo: more sophisticated substitution equivalence
+        self.data == other.data
+    }
+}
+
+enum ValuesAreEqual {
+    Yes,
+    No,
+    Unsure,
+}
+
 impl<'gs, 'ls> Unifier<'gs, 'ls> {
     pub fn new(storage: StorageRefMut<'gs, 'ls>) -> Self {
         Self { storage }
@@ -72,6 +85,18 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
         todo!()
     }
 
+    // Use a value as a kind
+    pub fn value_as_kind(&self, value_id: ValueId) -> TcResult<KindId> {
+        todo!()
+    }
+
+    // Use a value as a kind
+    pub fn values_are_equal(&self, a_id: ValueId, b_id: ValueId) -> ValuesAreEqual {
+        todo!()
+    }
+
+    pub fn unify_args(&self, src_args: &Args, target_args: &Args) -> TcResult<KindSub> {}
+
     pub fn unify_kinds(
         &self,
         src_id: KindId,
@@ -86,8 +111,17 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
         match (src, target) {
             // First, type functions:
             (Kind::AppTyFn(_), Kind::AppTyFn(_)) => {
-                // Check if same subject and unify, otherwise evaluate and unify
                 todo!()
+                // Check if same subject and unify, otherwise evaluate and unify
+                // match self.values_are_equal(src_ty_fn_value, target_ty_fn_value) {
+                //     ValuesAreEqual::Yes => {
+                //             // If the values are equal, then if the arguments unify then we have
+                //             // the same kinds
+                //             self.unify_kinds(src_args, target_args, opts)
+                //         }
+                //     ValuesAreEqual::No => {}
+                //     ValuesAreEqual::Unsure => {}
+                // }
             }
             (_, Kind::AppTyFn(_)) => {
                 // Try to apply the RHS, if it works then try to unify again, else error:
@@ -103,9 +137,7 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
                 // Try to apply the LHS, if it works then try to unify again, else error:
                 let simplified_src = self.simplify_kind(src_id)?;
                 match simplified_src {
-                    Some(simplified_src_id) => {
-                        self.unify_kinds(simplified_src_id, target_id, opts)
-                    }
+                    Some(simplified_src_id) => self.unify_kinds(simplified_src_id, target_id, opts),
                     None => cannot_unify(),
                 }
             }
