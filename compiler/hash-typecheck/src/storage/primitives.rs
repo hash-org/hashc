@@ -373,6 +373,11 @@ pub struct TyFnKind {
     pub return_kind: KindId,
 }
 
+/// Kind is the most fundamental concept of "type" in Hash.
+///
+/// Each binding has a kind, which is either a type kind, a trait kind, or a runtime kind. The
+/// usual notion of "type" in programming languages is a [Kind::Rt] here, with a given type ID. On
+/// the other hand, [Kind::Ty] is the kind of a type (i.e. type of a type). 
 #[derive(Debug, Clone)]
 pub enum Kind {
     /// A trait kind.
@@ -391,6 +396,11 @@ pub enum Kind {
     Unresolved(UnresolvedKind),
 }
 
+/// Each binding in Hash has a value
+///
+/// This is [Value::Rt] if the binding is a runtime variable. Otherwise, the value of a binding
+/// contains the information that the binding provides to the program. For example, a `struct(..)`
+/// definition has a value `Value::Ty(<a new TyID>)`.
 #[derive(Debug, Clone)]
 pub enum Value {
     /// A trait value.
@@ -411,6 +421,12 @@ pub enum Value {
     Unset,
 }
 
+/// A type is the kind of a runtime variable in Hash, just like a trait is the kind of a type
+/// variable.
+///
+/// A type is either a nominal type, a module, a tuple, a function, or a type variable. Every
+/// binding that is a runtime variable should have a kind that eventually resolves to a `Ty` (once
+/// all type functions have been evaluated, that is).
 #[derive(Debug, Clone)]
 pub enum Ty {
     /// A nominal type definition, either a struct or an enum.
@@ -427,6 +443,8 @@ pub enum Ty {
     Tuple(TupleTy),
     /// Function type.
     Fn(FnTy),
+    /// A type-level variable, with some kind that is stored in the current scope.
+    Var(Identifier)
 }
 
 // IDs for all the primitives to be stored on mapped storage.
