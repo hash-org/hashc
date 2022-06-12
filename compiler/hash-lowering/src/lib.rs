@@ -1,8 +1,21 @@
 #![feature(generic_associated_types)]
+#![allow(unreachable_code, unused)] // @@Temporary
 
 use std::convert::Infallible;
 
-use hash_ast::visitor::AstVisitorMut;
+use hash_alloc::{collections::row::Row, Castle, Wall};
+use hash_ast::{
+    ast::{
+        self, AccessName, AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral,
+        BoolLiteralPattern, BreakStatement, ConstructorPattern, Expression, ExpressionKind,
+        ForLoopBlock, FunctionCallArg, FunctionCallArgs, FunctionCallExpr, IfBlock, IfClause,
+        IfPattern, IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock, MatchBlock,
+        MatchCase, MatchOrigin, Pattern, TuplePatternEntry, VariableExpr, WhileLoopBlock,
+    },
+    ast_nodes,
+    ident::IDENTIFIER_MAP,
+    visitor::{walk_mut, AstVisitorMut},
+};
 use hash_pipeline::sources::Sources;
 
 pub struct AstLowering;
@@ -29,6 +42,7 @@ pub struct AstLowering;
 /// each [hash_ast::ast::Module].
 pub fn lower_ast_for_typechecking<'pool, 'c>(
     sources: &mut Sources<'c>,
+    castle: &'c Castle,
     pool: &'pool rayon::ThreadPool,
 ) -> ()
 where
@@ -40,8 +54,12 @@ where
         for (_, module) in sources.iter_mut_modules() {
             for expr in module.node_mut().contents.iter_mut() {
                 scope.spawn(|_| {
+                    // @@Hack: Is this efficient to get a wall each time for each
+                    //         expression that might be transformed?
+                    let wall = castle.wall();
+
                     AstLowering
-                        .visit_expression(&(), expr.ast_ref_mut())
+                        .visit_expression(&(wall), expr.ast_ref_mut())
                         .unwrap()
                 })
             }
@@ -50,7 +68,7 @@ where
 }
 
 impl<'c> AstVisitorMut<'c> for AstLowering {
-    type Ctx = ();
+    type Ctx = Wall<'c>;
 
     type CollectionContainer<T: 'c> = Vec<T>;
 
@@ -553,24 +571,147 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
         Ok(())
     }
 
-    type ForLoopBlockRet = ();
+    type ForLoopBlockRet = ast::Block<'c>;
 
     fn visit_for_loop_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock<'c>>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock<'c>>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        Ok(())
+        // Get the right spans for the transformation
+        let ForLoopBlock {
+            pattern,
+            iterator,
+            body,
+        } = todo!(); // *node.body();
+
+        let for_block_span = node.span();
+        let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
+
+        // let iterator = AstNode::new(iterator.body().move_out(), iter_span, ctx);
+
+        let make_access_name = |label: &str| -> AstNode<'c, AccessName> {
+            // Create the identifier within the map...
+            let ident = IDENTIFIER_MAP.create_ident(label);
+
+            AstNode::new(
+                AccessName {
+                    path: ast_nodes![ctx; AstNode::new(ident, iter_span, ctx)],
+                },
+                iter_span,
+                ctx,
+            )
+        };
+
+        // Copy the bodies of the inner components of the for-loop by moving out the
+        // brick and then re-make the node.
+        // let iterator = AstNode::new(iterator.into_body().move_out(), iter_span, ctx);
+
+        // Here want to transform the for-loop into just a loop block
+        Ok(Block::Loop(LoopBlock(AstNode::new(
+            Block::Match(MatchBlock {
+                subject: AstNode::new(
+                    Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                        subject: AstNode::new(
+                            Expression::new(ExpressionKind::Variable(VariableExpr {
+                                name: make_access_name("next"),
+                                type_args: ast_nodes![],
+                            })),
+                            iter_span,
+                            ctx,
+                        ),
+                        args: AstNode::new(
+                            FunctionCallArgs {
+                                entries: ast_nodes![ctx; AstNode::new( FunctionCallArg {
+                                    name: None,
+                                    value: iterator,
+                                },
+                                iter_span, ctx)],
+                            },
+                            iter_span,
+                            ctx,
+                        ),
+                    })),
+                    for_block_span,
+                    ctx,
+                ),
+                cases: ast_nodes![ctx; AstNode::new(
+                    MatchCase {
+                        pattern: AstNode::new(
+                            Pattern::Constructor(ConstructorPattern {
+                                name: make_access_name("Some"),
+                                fields: ast_nodes![ctx; AstNode::new(
+                                    TuplePatternEntry {
+                                        name: None,
+                                        pattern
+                                    },
+                                    pat_span,
+                                    ctx
+                                )]
+                            }),
+                            pat_span,
+                            ctx),
+                        expr: AstNode::new(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span, ctx)
+                    },
+                    pat_span,
+                    ctx
+                ),
+                AstNode::new(MatchCase {
+                    pattern: AstNode::new(
+                        Pattern::Constructor(
+                            ConstructorPattern {
+                                name:
+                                    make_access_name(
+                                        "None",
+                                    ),
+                                fields: ast_nodes![],
+                            },
+                        ),
+                        pat_span,
+                        ctx
+                    ),
+                    expr: AstNode::new(Expression::new(ExpressionKind::Break(BreakStatement)), body_span, ctx),
+                }, pat_span, ctx),
+
+                ],
+                origin: MatchOrigin::For,
+            }),
+            for_block_span,
+            ctx,
+        ))))
     }
 
-    type WhileLoopBlockRet = ();
+    type WhileLoopBlockRet = Block<'c>;
 
     fn visit_while_loop_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock<'c>>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock<'c>>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        Ok(())
+        let while_block_span = node.span();
+
+        // Get the right spans for the transformation
+        let WhileLoopBlock { condition, body } = todo!(); // *node.body();
+
+        let (body_span, condition_span) = (body.span(), condition.span());
+
+        Ok(Block::Loop(LoopBlock(AstNode::new(
+            Block::Match(MatchBlock {
+                subject: condition,
+                cases: ast_nodes![ctx; AstNode::new(MatchCase {
+                    pattern: AstNode::new(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(true))), condition_span, ctx),
+                        expr: AstNode::new(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span, ctx),
+                    }, condition_span, ctx),
+                    AstNode::new(MatchCase {
+                        pattern: AstNode::new(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false))), condition_span, ctx),
+                        expr: AstNode::new(Expression::new(ExpressionKind::Break(BreakStatement)), condition_span, ctx)
+                    }, condition_span, ctx),
+                ],
+                origin: MatchOrigin::While,
+            }),
+            while_block_span,
+            ctx,
+        ))))
     }
 
     type ModBlockRet = ();
@@ -593,24 +734,110 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
         Ok(())
     }
 
-    type IfClauseRet = ();
+    type IfClauseRet = AstNode<'c, MatchCase<'c>>;
 
     fn visit_if_clause(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause<'c>>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause<'c>>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
-        Ok(())
+        let branch_span = node.span();
+
+        let IfClause { condition, body } = todo!(); // *node.body();
+        let (body_span, condition_span) = (body.span(), condition.span());
+
+        Ok(AstNode::new(
+            MatchCase {
+                pattern: AstNode::new(
+                    Pattern::If(IfPattern {
+                        pattern: AstNode::new(Pattern::Ignore(IgnorePattern), condition_span, ctx),
+                        condition,
+                    }),
+                    branch_span,
+                    ctx,
+                ),
+                expr: AstNode::new(
+                    Expression::new(ExpressionKind::Block(BlockExpr(body))),
+                    body_span,
+                    ctx,
+                ),
+            },
+            branch_span,
+            ctx,
+        ))
     }
 
-    type IfBlockRet = ();
+    type IfBlockRet = Block<'c>;
 
     fn visit_if_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock<'c>>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock<'c>>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
-        Ok(())
+        let span = node.span();
+        let clauses_span = node.body().clauses.span();
+
+        // We don't case about 'clauses' because we can use the visitor to transform
+        // the clauses separately
+        let IfBlock { otherwise, .. } = todo!(); // *node.body();
+
+        let walk_mut::IfBlock { mut clauses, .. } = walk_mut::walk_if_block(self, ctx, node)?;
+
+        // Deal with the `otherwise` case, if there is no otherwise case then we can just
+        // push an ignore branch and the body of the else block, otherwise it is replaces by
+        // just an empty block
+        let else_block = if let Some(block) = otherwise {
+            let block_span = block.span();
+
+            AstNode::new(
+                MatchCase {
+                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), block_span, ctx),
+                    expr: AstNode::new(
+                        Expression::new(ExpressionKind::Block(BlockExpr(block))),
+                        block_span,
+                        ctx,
+                    ),
+                },
+                block_span,
+                ctx,
+            )
+        } else {
+            AstNode::new(
+                MatchCase {
+                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), span, ctx),
+                    expr: AstNode::new(
+                        Expression::new(ExpressionKind::Block(BlockExpr(AstNode::new(
+                            Block::Body(BodyBlock {
+                                statements: AstNodes::empty(),
+                                expr: None,
+                            }),
+                            span,
+                            ctx,
+                        )))),
+                        span,
+                        ctx,
+                    ),
+                },
+                span,
+                ctx,
+            )
+        };
+
+        clauses.push(else_block);
+
+        Ok(Block::Match(MatchBlock {
+            subject: AstNode::new(
+                Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(AstNode::new(
+                    Literal::Bool(BoolLiteral(true)),
+                    span,
+                    ctx,
+                )))),
+                span,
+                ctx,
+            ),
+            cases: AstNodes::new(Row::from_vec(clauses, ctx), clauses_span),
+            origin: MatchOrigin::If,
+        }))
     }
 
     type BodyBlockRet = ();
