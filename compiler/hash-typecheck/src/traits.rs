@@ -6,7 +6,7 @@ use crate::{
     unify::{Substitution, Unifier, UnifyStrategy},
     writer::TypeWithStorage,
 };
-use hash_alloc::{collections::row::Row, row, Wall};
+use hash_alloc::Wall;
 use hash_source::location::SourceLocation;
 use hash_utils::counter;
 use std::cell::Cell;
@@ -20,23 +20,23 @@ counter! {
 }
 
 #[derive(Debug)]
-pub struct TraitBounds<'c> {
-    pub bounds: Row<'c, TraitBound<'c>>,
+pub struct TraitBounds {
+    pub bounds: Vec<TraitBound>,
 }
 
-impl<'c> TraitBounds<'c> {
+impl TraitBounds {
     pub fn empty() -> Self {
-        Self { bounds: row![] }
+        Self { bounds: vec![] }
     }
 }
 
 #[derive(Debug)]
-pub struct TraitBound<'c> {
+pub struct TraitBound {
     pub trt: TraitId,
-    pub params: TypeList<'c>,
+    pub params: TypeList,
 }
 
-impl TraitBound<'_> {}
+impl TraitBound {}
 
 counter! {
     name: TraitImplId,
@@ -46,70 +46,66 @@ counter! {
 }
 
 #[derive(Debug)]
-pub struct TraitImpl<'c> {
+pub struct TraitImpl {
     pub trait_id: TraitId,
-    pub args: TypeList<'c>,
-    pub bounds: TraitBounds<'c>,
+    pub args: TypeList,
+    pub bounds: TraitBounds,
 }
 
 #[derive(Debug)]
-pub struct Trait<'c> {
+pub struct Trait {
     pub id: TraitId,
-    pub args: TypeList<'c>,
-    pub bounds: TraitBounds<'c>,
+    pub args: TypeList,
+    pub bounds: TraitBounds,
     pub fn_type: TypeId,
 }
 
 #[derive(Debug)]
-pub struct ImplsForTrait<'c> {
-    impls: BTreeMap<TraitImplId, &'c TraitImpl<'c>>,
+pub struct ImplsForTrait {
+    impls: BTreeMap<TraitImplId, Box<TraitImpl>>,
 }
 
-impl<'c> ImplsForTrait<'c> {
+impl ImplsForTrait {
     pub fn empty() -> Self {
         Self {
             impls: BTreeMap::new(),
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (TraitImplId, &'c TraitImpl<'c>)> + '_ {
-        self.impls.iter().map(|(&a, &b)| (a, b))
+    pub fn iter(&self) -> impl Iterator<Item = (TraitImplId, &TraitImpl)> + '_ {
+        self.impls.iter().map(|(&a, b)| (a, b.as_ref()))
     }
 }
 
 #[derive(Debug)]
-pub struct TraitImplStorage<'c, 'w> {
-    data: HashMap<TraitId, ImplsForTrait<'c>>,
-    wall: &'w Wall<'c>,
+pub struct TraitImplStorage {
+    data: HashMap<TraitId, ImplsForTrait>,
 }
 
-impl<'c, 'w> TraitImplStorage<'c, 'w> {
-    pub fn new(wall: &'w Wall<'c>) -> Self {
+impl TraitImplStorage {
+    pub fn new() -> Self {
         Self {
             data: HashMap::new(),
-            wall,
         }
     }
 
-    pub fn add_impl(&mut self, trait_id: TraitId, trait_impl: TraitImpl<'c>) -> TraitImplId {
+    pub fn add_impl(&mut self, trait_id: TraitId, trait_impl: TraitImpl) -> TraitImplId {
         let impls_for_trait = self
             .data
             .entry(trait_id)
             .or_insert_with(ImplsForTrait::empty);
         let id = TraitImplId::new();
-        impls_for_trait
-            .impls
-            .insert(id, self.wall.alloc_value(trait_impl));
+        impls_for_trait.impls.insert(id, Box::new(trait_impl));
         id
     }
 
-    pub fn get_impls(&mut self, trait_id: TraitId) -> &ImplsForTrait<'c> {
+    pub fn get_impls(&mut self, trait_id: TraitId) -> &ImplsForTrait {
         self.data
             .entry(trait_id)
             .or_insert_with(ImplsForTrait::empty)
     }
 
-    pub fn get_impls_mut(&mut self, trait_id: TraitId) -> &mut ImplsForTrait<'c> {
+    pub fn get_impls_mut(&mut self, trait_id: TraitId) -> &mut ImplsForTrait {
         self.data
             .entry(trait_id)
             .or_insert_with(ImplsForTrait::empty)
@@ -118,7 +114,7 @@ impl<'c, 'w> TraitImplStorage<'c, 'w> {
 
 #[derive(Debug)]
 pub struct TraitStorage<'c, 'w> {
-    data: HashMap<TraitId, Cell<&'c Trait<'c>>>,
+    data: HashMap<TraitId, Cell<&'c Trait>>,
     wall: &'w Wall<'c>,
 }
 
@@ -130,16 +126,11 @@ impl<'c, 'w> TraitStorage<'c, 'w> {
         }
     }
 
-    pub fn get(&self, trait_id: TraitId) -> &'c Trait<'c> {
+    pub fn get(&self, trait_id: TraitId) -> &'c Trait {
         self.data.get(&trait_id).unwrap().get()
     }
 
-    pub fn create(
-        &mut self,
-        args: TypeList<'c>,
-        bounds: TraitBounds<'c>,
-        fn_type: TypeId,
-    ) -> TraitId {
+    pub fn create(&mut self, args: TypeList, bounds: TraitBounds, fn_type: TypeId) -> TraitId {
         let id = TraitId::new();
         self.data.insert(
             id,
@@ -161,7 +152,7 @@ pub struct CoreTraits {
 }
 
 impl<'c, 'w> CoreTraits {
-    pub fn create(_types: &mut TypeStorage<'c, 'w>, _wall: &'w Wall<'c>) -> Self {
+    pub fn create(_types: &mut TypeStorage<'c, 'w>, _wall: &'w Wall) -> Self {
         CoreTraits {
             hash: TraitId::new(),
             eq: TraitId::new(),
@@ -235,23 +226,24 @@ impl<'c, 'w, 'ms, 'gs> TraitHelper<'c, 'w, 'ms, 'gs> {
         }
 
         // @@Performance: we have to collect due to lifetime issues, this is not ideal.
-        let impls: Vec<_> = self
-            .global_storage
-            .trait_impls
-            .get_impls(trt.id)
-            .iter()
-            .collect();
-        for (_, trait_impl) in impls.iter() {
-            match self.match_trait_impl(trait_impl, &trait_args) {
-                Ok(matched) => {
-                    return Ok(matched);
-                }
-                Err(_e) => {
-                    continue;
-                    // last_err.replace(e);
-                }
-            }
-        }
+        // let impls: Vec<_> = self
+        //     .global_storage
+        //     .trait_impls
+        //     .get_impls(trt.id)
+        //     .iter()
+        //     .collect();
+
+        // for (_, trait_impl) in impls.iter() {
+        //     match self.match_trait_impl(trait_impl, &trait_args) {
+        //         Ok(matched) => {
+        //             return Ok(matched);
+        //         }
+        //         Err(_e) => {
+        //             continue;
+        //             // last_err.replace(e);
+        //         }
+        //     }
+        // }
 
         // @@Todo: better errors
         Err(TypecheckError::NoMatchingTraitImplementations(trt_symbol()))

@@ -25,7 +25,7 @@ use hash_ast::ast::{NamespacePattern, Pattern};
 /// However, the algorithm does not catch "irrefutable" cases with if-patterns and or-patterns that might
 /// have all variants covered and correctly matched. This algorithm is only capable of ensuring that struct,
 /// namespace patterns and binds are definitely irrefutable.
-pub fn is_pattern_irrefutable(pattern: &Pattern<'_>) -> bool {
+pub fn is_pattern_irrefutable(pattern: &Pattern) -> bool {
     match pattern {
         Pattern::Namespace(NamespacePattern { fields }) => fields
             .iter()

@@ -3,16 +3,15 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::{collections::row::Row, row};
 use hash_ast::{ast::*, ast_nodes};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a block.
-    pub(crate) fn parse_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_block(&self) -> AstGenResult<AstNode<Block>> {
         let (gen, start) = match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree_index),
@@ -40,12 +39,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         &self,
         gen: &Self,
         start: Span,
-        initial_statement: Option<AstNode<'c, Expression<'c>>>,
-    ) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+        initial_statement: Option<AstNode<Expression>>,
+    ) -> AstGenResult<AstNode<Block>> {
         // Append the initial statement if there is one.
         let mut block = if initial_statement.is_some() {
             BodyBlock {
-                statements: ast_nodes![&self.wall; initial_statement.unwrap()],
+                statements: ast_nodes![initial_statement.unwrap()],
                 expr: None,
             }
         } else {
@@ -66,10 +65,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             let (has_semi, statement) = gen.parse_top_level_expression(false)?;
 
             match (has_semi, gen.peek()) {
-                (true, _) => block.statements.nodes.push(statement, &self.wall),
+                (true, _) => block.statements.nodes.push(statement),
                 (false, Some(token)) => gen.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(row![&self.wall; TokenKind::Semi])),
+                    Some(TokenKindVector::from_row(vec![TokenKind::Semi])),
                     Some(token.kind),
                 )?,
                 (false, None) => block.expr = Some(statement),
@@ -80,7 +79,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a `for` loop block.
-    pub(crate) fn parse_for_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_for_loop(&self) -> AstGenResult<AstNode<Block>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::For)));
@@ -106,7 +105,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a `while` loop block.
-    pub(crate) fn parse_while_loop(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_while_loop(&self) -> AstGenResult<AstNode<Block>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::While)));
@@ -121,7 +120,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a match case. A match case involves handling the pattern and the
     /// expression branch.
-    pub(crate) fn parse_match_case(&self) -> AstGenResult<'c, AstNode<'c, MatchCase<'c>>> {
+    pub(crate) fn parse_match_case(&self) -> AstGenResult<AstNode<MatchCase>> {
         let start = self.current_location();
         let pattern = self.parse_pattern()?;
 
@@ -133,7 +132,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Parse a match block statement, which is composed of a subject and an arbitrary
     /// number of match cases that are surrounded in braces.
-    pub(crate) fn parse_match_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_match_block(&self) -> AstGenResult<AstNode<Block>> {
         debug_assert!(self
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Match)));
@@ -155,16 +154,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 let gen = self.from_stream(tree, *span);
 
                 while gen.has_token() {
-                    cases.nodes.push(gen.parse_match_case()?, &self.wall);
+                    cases.nodes.push(gen.parse_match_case()?);
 
                     gen.parse_token(TokenKind::Semi)?;
                 }
             }
             Some(token) => {
                 let atom = token.kind;
-                let expected = TokenKindVector::from_row(
-                    row![&self.wall; TokenKind::Delimiter(Delimiter::Brace, true)],
-                );
+                let expected =
+                    TokenKindVector::from_row(vec![TokenKind::Delimiter(Delimiter::Brace, true)]);
 
                 self.error(AstGenErrorKind::Expected, Some(expected), Some(atom))?
             }
@@ -200,7 +198,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Additionally, if no 'else' clause is specified, we fill it with an
     /// empty block since an if-block could be assigned to any variable and therefore
     /// we need to know the outcome of all branches for typechecking.
-    pub(crate) fn parse_if_block(&self) -> AstGenResult<'c, AstNode<'c, Block<'c>>> {
+    pub(crate) fn parse_if_block(&self) -> AstGenResult<AstNode<Block>> {
         debug_assert!(matches!(
             self.current_token().kind,
             TokenKind::Keyword(Keyword::If)
@@ -245,7 +243,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         Ok(self.node_with_joined_span(
             Block::If(IfBlock {
-                clauses: AstNodes::new(Row::from_vec(clauses, &self.wall), None),
+                clauses: AstNodes::new(clauses, None),
                 otherwise: otherwise_clause,
             }),
             &start,

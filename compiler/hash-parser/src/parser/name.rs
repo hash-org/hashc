@@ -3,15 +3,14 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::row;
 use hash_ast::{ast::*, ident::Identifier};
 use hash_token::{Token, TokenKind};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Name] from the current token stream.
-    pub fn parse_name(&self) -> AstGenResult<'c, AstNode<'c, Name>> {
+    pub fn parse_name(&self) -> AstGenResult<AstNode<Name>> {
         match self.next_token() {
             Some(Token {
                 kind: TokenKind::Ident(ident),
@@ -26,10 +25,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// presumes that the current token is an identifier an that the next token is a colon.
     pub fn parse_access_name(
         &self,
-        start_id: AstNode<'c, Identifier>,
-    ) -> AstGenResult<'c, AstNode<'c, AccessName<'c>>> {
+        start_id: AstNode<Identifier>,
+    ) -> AstGenResult<AstNode<AccessName>> {
         let start = self.current_location();
-        let mut path = row![&self.wall; start_id];
+        let mut path = vec![start_id];
 
         loop {
             match self.peek() {
@@ -46,7 +45,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     span,
                                 }) => {
                                     self.skip_token();
-                                    path.push(self.node_with_span(*id, *span), &self.wall);
+                                    path.push(self.node_with_span(*id, *span));
                                 }
                                 _ => self.error(AstGenErrorKind::AccessName, None, None)?,
                             }

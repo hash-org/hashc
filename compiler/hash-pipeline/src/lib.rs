@@ -28,7 +28,7 @@ pub trait Parser<'c, 'pool> {
     fn parse(
         &mut self,
         target: SourceId,
-        sources: &mut Sources<'c>,
+        sources: &mut Sources,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()>;
 }
@@ -68,7 +68,7 @@ pub trait Checker<'c> {
     fn check_interactive<'pool>(
         &'pool mut self,
         interactive_id: InteractiveId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<String>, Self::InteractiveState);
@@ -78,7 +78,7 @@ pub trait Checker<'c> {
     fn check_module(
         &mut self,
         module_id: ModuleId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut Self::State,
         module_state: Self::ModuleState,
     ) -> (CompilerResult<()>, Self::ModuleState);
@@ -120,7 +120,7 @@ pub struct Compiler<'pool, P, C, V> {
 /// so that incremental executions of the compiler are possible.
 pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
     /// The collected workspace sources for the current job.
-    pub sources: Sources<'c>,
+    pub sources: Sources,
     /// The typechecker state.
     pub checker_state: C::State,
     /// The interactive typechecker state. This mainly differs from the
@@ -179,7 +179,7 @@ where
     }
 
     /// Function to invoke a parsing job of a specified [SourceId].
-    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
+    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources) -> CompilerResult<()> {
         self.parser.parse(id, sources, self.pool)
     }
 

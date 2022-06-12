@@ -21,8 +21,7 @@ use crate::{
 };
 use crate::{state::TypecheckState, types::EnumVariant};
 use core::panic;
-use hash_alloc::row;
-use hash_alloc::{collections::row::Row, Wall};
+use hash_alloc::Wall;
 use hash_ast::ast::{self, AccessName, BindingPattern};
 use hash_ast::ident::Identifier;
 use hash_ast::visitor::AstVisitor;
@@ -40,7 +39,7 @@ use std::mem;
 pub struct SourceTypechecker<'c, 'w, 'g, 'src> {
     global_storage: &'g mut GlobalStorage<'c, 'w>,
     wall: &'w Wall<'c>,
-    sources: &'src Sources<'c>,
+    sources: &'src Sources,
     source_storage: SourceStorage,
     source_id: SourceId,
 }
@@ -48,7 +47,7 @@ pub struct SourceTypechecker<'c, 'w, 'g, 'src> {
 impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     pub fn new(
         source_id: SourceId,
-        sources: &'src Sources<'c>,
+        sources: &'src Sources,
         global_storage: &'g mut GlobalStorage<'c, 'w>,
         scopes: ScopeStack,
         wall: &'w Wall<'c>,
@@ -111,7 +110,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         }
     }
 
-    fn create_type(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
+    fn create_type(&mut self, value: TypeValue, location: Option<SourceLocation>) -> TypeId {
         self.global_storage.types.create(value, location)
     }
 
@@ -123,7 +122,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         &mut self.global_storage.traits
     }
 
-    fn _trait_impls_mut(&mut self) -> &mut TraitImplStorage<'c, 'w> {
+    fn _trait_impls_mut(&mut self) -> &mut TraitImplStorage {
         &mut self.global_storage.trait_impls
     }
 
@@ -167,7 +166,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.add_location(ty, location)
     }
 
-    fn create_tuple_type(&mut self, types: Row<'c, (Option<Identifier>, TypeId)>) -> TypeId {
+    fn create_tuple_type(&mut self, types: Vec<(Option<Identifier>, TypeId)>) -> TypeId {
         self.global_storage
             .types
             .create(TypeValue::Tuple(TupleType { types }), None)
@@ -178,7 +177,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: str_def_id,
-                args: row![self.wall()],
+                args: vec![],
             }),
             location,
         )
@@ -189,7 +188,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: list_def_id,
-                args: row![self.wall(); el_ty],
+                args: vec![el_ty],
             }),
             None,
         )
@@ -200,7 +199,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: set_def_id,
-                args: row![self.wall(); el_ty],
+                args: vec![el_ty],
             }),
             None,
         )
@@ -211,7 +210,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
         self.global_storage.types.create(
             TypeValue::User(UserType {
                 def_id: map_def_id,
-                args: row![self.wall(); key_ty, value_ty],
+                args: vec![key_ty, value_ty],
             }),
             None,
         )
@@ -235,7 +234,7 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
 
     fn resolve_compound_symbol(
         &mut self,
-        symbols: &AccessName<'_>,
+        symbols: &AccessName,
     ) -> TypecheckResult<(Identifier, SymbolType)> {
         resolve_compound_symbol(
             &self.source_storage.scopes,
@@ -246,15 +245,15 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     }
 }
 
-impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g, 'src> {
+impl<'c, 'w, 'g, 'src> visitor::AstVisitor for SourceTypechecker<'c, 'w, 'g, 'src> {
     type Ctx = Wall<'c>;
 
-    type CollectionContainer<T: 'c> = Row<'c, T>;
-    fn try_collect_items<T: 'c, E, I: Iterator<Item = Result<T, E>>>(
-        ctx: &Self::Ctx,
+    type CollectionContainer<T> = Vec<T>;
+    fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
+        _: &Self::Ctx,
         items: I,
     ) -> Result<Self::CollectionContainer<T>, E> {
-        Row::try_from_iter(items, ctx)
+        items.collect()
     }
 
     type Error = TypecheckError;
@@ -293,7 +292,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_access_name(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::AccessName<'c>>,
+        _node: ast::AstNodeRef<ast::AccessName>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(())
     }
@@ -302,7 +301,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_literal(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Literal<'c>>,
+        node: ast::AstNodeRef<ast::Literal>,
     ) -> Result<Self::LiteralRet, Self::Error> {
         walk::walk_literal_same_children(self, ctx, node)
     }
@@ -311,7 +310,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_expression(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Expression<'c>>,
+        node: ast::AstNodeRef<ast::Expression>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
         walk::walk_expression_same_children(self, ctx, node)
     }
@@ -320,7 +319,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_variable_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::VariableExpr<'c>>,
+        node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let loc = self.source_location(node.span());
 
@@ -353,7 +352,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_directive_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DirectiveExpr<'c>>,
+        node: ast::AstNodeRef<ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         // @@Future: At the moment, we're completely passing the 'directive' within the
         //          typechecking stage. This will change when we solidify how we want
@@ -363,11 +362,11 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
         Ok(subject)
     }
 
-    type FunctionCallArgsRet = Row<'c, (Option<Identifier>, TypeId)>;
+    type FunctionCallArgsRet = Vec<(Option<Identifier>, TypeId)>;
     fn visit_function_call_args(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArgs<'c>>,
+        node: ast::AstNodeRef<ast::FunctionCallArgs>,
     ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
         Ok(walk::walk_function_call_args(self, ctx, node)?.entries)
     }
@@ -376,7 +375,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_function_call_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallExpr<'c>>,
+        node: ast::AstNodeRef<ast::FunctionCallExpr>,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
         let given_args = self.visit_function_call_args(ctx, node.args.ast_ref())?;
         let return_ty = self.create_unknown_type();
@@ -413,7 +412,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_property_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::PropertyAccessExpr<'c>>,
+        node: ast::AstNodeRef<ast::PropertyAccessExpr>,
     ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
         let property_ident = node.property.body().ident;
         let walk::PropertyAccessExpr { subject, .. } =
@@ -457,7 +456,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_ref_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RefExpr<'c>>,
+        node: ast::AstNodeRef<ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
         let walk::RefExpr {
             inner_expr: inner_ty,
@@ -475,7 +474,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_deref_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DerefExpr<'c>>,
+        node: ast::AstNodeRef<ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let walk::DerefExpr(given_ref_ty) = walk::walk_deref_expr(self, ctx, node)?;
 
@@ -498,7 +497,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_unsafe_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::UnsafeExpr<'c>>,
+        node: ast::AstNodeRef<ast::UnsafeExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let walk::UnsafeExpr(inner_ty) = walk::walk_unsafe_expr(self, ctx, node)?;
 
@@ -512,7 +511,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_literal_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LiteralExpr<'c>>,
+        node: ast::AstNodeRef<ast::LiteralExpr>,
     ) -> Result<Self::LiteralExprRet, Self::Error> {
         Ok(walk::walk_literal_expr(self, ctx, node)?.0)
     }
@@ -521,7 +520,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_cast_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::CastExpr<'c>>,
+        node: ast::AstNodeRef<ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
         let walk::AsExpr { expr, ty } = walk::walk_as_expr(self, ctx, node)?;
         self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
@@ -533,7 +532,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeExpr<'c>>,
+        node: ast::AstNodeRef<ast::TypeExpr>,
     ) -> Result<Self::TypeExprRet, Self::Error> {
         let walk::TypeExpr(inner) = walk::walk_type_expr(self, ctx, node)?;
 
@@ -544,7 +543,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_block_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BlockExpr<'c>>,
+        node: ast::AstNodeRef<ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
         Ok(walk::walk_block_expr(self, ctx, node)?.0)
     }
@@ -553,7 +552,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_import_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ImportExpr<'c>>,
+        node: ast::AstNodeRef<ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
         Ok(walk::walk_import_expr(self, ctx, node)?.0)
     }
@@ -562,7 +561,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_tuple_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleType<'c>>,
+        node: ast::AstNodeRef<ast::TupleType>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
         let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
         let ty_location = self.some_source_location(node.span());
@@ -576,7 +575,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_list_type(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::ListType<'c>>,
+        _node: ast::AstNodeRef<ast::ListType>,
     ) -> Result<Self::ListTypeRet, Self::Error> {
         todo!()
     }
@@ -585,7 +584,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_set_type(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::SetType<'c>>,
+        _node: ast::AstNodeRef<ast::SetType>,
     ) -> Result<Self::SetTypeRet, Self::Error> {
         todo!()
     }
@@ -594,7 +593,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_map_type(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MapType<'c>>,
+        _node: ast::AstNodeRef<ast::MapType>,
     ) -> Result<Self::MapTypeRet, Self::Error> {
         todo!()
     }
@@ -603,7 +602,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_function_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FnType<'c>>,
+        node: ast::AstNodeRef<ast::FnType>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
         let walk::FnType { args, return_ty } = walk::walk_function_type(self, ctx, node)?;
 
@@ -618,7 +617,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_named_field_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamedFieldTypeEntry<'c>>,
+        node: ast::AstNodeRef<ast::NamedFieldTypeEntry>,
     ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
         let walk::NamedFieldTypeEntry { ty, .. } = walk::walk_named_field_type(self, ctx, node)?;
 
@@ -629,7 +628,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Type<'c>>,
+        node: ast::AstNodeRef<ast::Type>,
     ) -> Result<Self::TypeRet, Self::Error> {
         let ty_id = walk::walk_type_same_children(self, ctx, node)?;
         // self.global_storage.types.add_location(ty_id, self.source_location(node.span()));
@@ -640,7 +639,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_named_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamedType<'c>>,
+        node: ast::AstNodeRef<ast::NamedType>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
         let location = self.source_location(node.span());
 
@@ -686,7 +685,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type_function_param(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TypeFunctionParam<'c>>,
+        _node: ast::AstNodeRef<ast::TypeFunctionParam>,
     ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
         todo!()
     }
@@ -695,7 +694,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type_function(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TypeFunction<'c>>,
+        _node: ast::AstNodeRef<ast::TypeFunction>,
     ) -> Result<Self::TypeFunctionRet, Self::Error> {
         todo!()
     }
@@ -704,7 +703,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type_function_call(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TypeFunctionCall<'c>>,
+        _node: ast::AstNodeRef<ast::TypeFunctionCall>,
     ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
         todo!()
     }
@@ -713,7 +712,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_ref_type(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RefType<'c>>,
+        node: ast::AstNodeRef<ast::RefType>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
         let walk::RefType { inner, .. } = walk::walk_ref_type(self, ctx, node)?;
         let ty_location = self.source_location(node.span());
@@ -725,7 +724,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_merged_type(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MergedType<'c>>,
+        _node: ast::AstNodeRef<ast::MergedType>,
     ) -> Result<Self::MergedTypeRet, Self::Error> {
         todo!()
     }
@@ -734,7 +733,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     // fn visit_type_var(
     //     &mut self,
     //     _ctx: &Self::Ctx,
-    //     node: ast::AstNodeRef<ast::TypeVar<'c>>,
+    //     node: ast::AstNodeRef<ast::TypeVar>,
     // ) -> Result<Self::TypeVarRet, Self::Error> {
     //     let ty_location = self.some_source_location(node.span());
     //     let var = TypeVar {
@@ -783,7 +782,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_map_literal(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapLiteral<'c>>,
+        node: ast::AstNodeRef<ast::MapLiteral>,
     ) -> Result<Self::MapLiteralRet, Self::Error> {
         let entries = node
             .elements
@@ -807,7 +806,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_map_literal_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapLiteralEntry<'c>>,
+        node: ast::AstNodeRef<ast::MapLiteralEntry>,
     ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
         let walk::MapLiteralEntry { key, value } = walk::walk_map_literal_entry(self, ctx, node)?;
         Ok((key, value))
@@ -817,7 +816,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_list_literal(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListLiteral<'c>>,
+        node: ast::AstNodeRef<ast::ListLiteral>,
     ) -> Result<Self::ListLiteralRet, Self::Error> {
         let entries = node
             .elements
@@ -835,7 +834,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_set_literal(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SetLiteral<'c>>,
+        node: ast::AstNodeRef<ast::SetLiteral>,
     ) -> Result<Self::SetLiteralRet, Self::Error> {
         let entries = node
             .elements
@@ -854,7 +853,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_tuple_literal_entry(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TupleLiteralEntry<'c>>,
+        _node: ast::AstNodeRef<ast::TupleLiteralEntry>,
     ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
         todo!()
     }
@@ -863,7 +862,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_tuple_literal(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleLiteral<'c>>,
+        node: ast::AstNodeRef<ast::TupleLiteral>,
     ) -> Result<Self::TupleLiteralRet, Self::Error> {
         let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
         Ok(self.create_tuple_type(elements))
@@ -928,7 +927,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDef<'c>>,
+        node: ast::AstNodeRef<ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error> {
         let args_ty = Self::try_collect_items(
             ctx,
@@ -993,7 +992,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_function_def_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDefArg<'c>>,
+        node: ast::AstNodeRef<ast::FunctionDefArg>,
     ) -> Result<Self::FunctionDefArgRet, Self::Error> {
         let ast::Name { ident } = node.name.body();
         let walk::FunctionDefArg { ty, default, .. } =
@@ -1017,7 +1016,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Block<'c>>,
+        node: ast::AstNodeRef<ast::Block>,
     ) -> Result<Self::BlockRet, Self::Error> {
         walk::walk_block_same_children(self, ctx, node)
     }
@@ -1026,7 +1025,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_match_case(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MatchCase<'c>>,
+        node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         let walk::MatchCase { pattern, expr } = walk::walk_match_case(self, ctx, node)?;
 
@@ -1039,7 +1038,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_match_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MatchBlock<'c>>,
+        node: ast::AstNodeRef<ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
         let walk::MatchBlock { subject, cases } = walk::walk_match_block(self, ctx, node)?;
 
@@ -1063,7 +1062,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_loop_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LoopBlock<'c>>,
+        node: ast::AstNodeRef<ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         let last_in_loop = mem::replace(&mut self.tc_state().in_loop, true);
         self.visit_block(ctx, node.0.ast_ref())?;
@@ -1076,7 +1075,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_for_loop_block(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::ForLoopBlock<'c>>,
+        _: ast::AstNodeRef<ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic!("Hit for_block at typecheck")
     }
@@ -1085,7 +1084,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_while_loop_block(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::WhileLoopBlock<'c>>,
+        _: ast::AstNodeRef<ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic!("Hit while_block at typecheck")
     }
@@ -1095,7 +1094,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_mod_block(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::ModBlock<'c>>,
+        _node: ast::AstNodeRef<ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
         todo!()
     }
@@ -1105,7 +1104,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_if_clause(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::IfClause<'c>>,
+        _: ast::AstNodeRef<ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic!("hit if-clause in typechecking")
     }
@@ -1115,7 +1114,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_if_block(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::IfBlock<'c>>,
+        _: ast::AstNodeRef<ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic!("hit if-block in typechecking")
     }
@@ -1124,7 +1123,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_impl_block(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::ImplBlock<'c>>,
+        _node: ast::AstNodeRef<ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         todo!()
     }
@@ -1133,7 +1132,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_body_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BodyBlock<'c>>,
+        node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         let walk::BodyBlock {
             statements: _,
@@ -1147,7 +1146,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_return_statement(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ReturnStatement<'c>>,
+        node: ast::AstNodeRef<ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         match self.tc_state().func_ret_type {
             Some(ret) => {
@@ -1219,7 +1218,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Declaration<'c>>,
+        node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         // Ensure that the given pattern for the declaration is irrefutable
         if !is_pattern_irrefutable(node.pattern.body()) {
@@ -1269,7 +1268,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_merge_declaration(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::MergeDeclaration<'c>>,
+        _node: ast::AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         todo!()
     }
@@ -1287,7 +1286,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_unary_expr(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::UnaryExpression<'c>>,
+        _: ast::AstNodeRef<ast::UnaryExpression>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
         panic!("Hit un_op within typechecker pass")
     }
@@ -1296,7 +1295,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_index_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::IndexExpression<'c>>,
+        _node: ast::AstNodeRef<ast::IndexExpression>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         todo!()
     }
@@ -1315,7 +1314,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AssignExpression<'c>>,
+        node: ast::AstNodeRef<ast::AssignExpression>,
     ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
 
@@ -1333,7 +1332,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_assign_op_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::AssignOpExpression<'c>>,
+        _node: ast::AstNodeRef<ast::AssignOpExpression>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
         todo!()
     }
@@ -1343,7 +1342,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_binary_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::BinaryExpression<'c>>,
+        _node: ast::AstNodeRef<ast::BinaryExpression>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
         todo!()
     }
@@ -1352,7 +1351,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_struct_def_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructDefEntry<'c>>,
+        node: ast::AstNodeRef<ast::StructDefEntry>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
         let walk::StructDefEntry { ty, default, .. } =
             walk::walk_struct_def_entry(self, ctx, node)?;
@@ -1369,16 +1368,16 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_struct_def(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::StructDef<'c>>,
+        _node: ast::AstNodeRef<ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         todo!()
     }
 
-    type EnumDefEntryRet = EnumVariant<'c>;
+    type EnumDefEntryRet = EnumVariant;
     fn visit_enum_def_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::EnumDefEntry<'c>>,
+        node: ast::AstNodeRef<ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { args: data, .. } = walk::walk_enum_def_entry(self, ctx, node)?;
 
@@ -1393,7 +1392,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_enum_def(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::EnumDef<'c>>,
+        _node: ast::AstNodeRef<ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         todo!()
     }
@@ -1402,7 +1401,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_trait_def(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TraitDef<'c>>,
+        _node: ast::AstNodeRef<ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         // let bound = self.visit_bound(ctx, node.bound.ast_ref())?;
         // let type_var_bound =
@@ -1428,7 +1427,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_trait_impl(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TraitImpl<'c>>,
+        _node: ast::AstNodeRef<ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
         todo!()
     }
@@ -1437,7 +1436,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Pattern<'c>>,
+        node: ast::AstNodeRef<ast::Pattern>,
     ) -> Result<Self::PatternRet, Self::Error> {
         walk::walk_pattern_same_children(self, ctx, node)
     }
@@ -1446,7 +1445,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     // fn visit_trait_bound(
     //     &mut self,
     //     ctx: &Self::Ctx,
-    //     node: ast::AstNodeRef<ast::TraitBound<'c>>,
+    //     node: ast::AstNodeRef<ast::TraitBound>,
     // ) -> Result<Self::TraitBoundRet, Self::Error> {
     // let name_loc = self.source_location(node.name.span());
 
@@ -1470,7 +1469,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type_function_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionDef<'c>>,
+        node: ast::AstNodeRef<ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         self.tc_state().in_bound_def = true;
         let walk::TypeFunctionDef {
@@ -1488,7 +1487,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_type_function_def_arg(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TypeFunctionDefArg<'c>>,
+        _node: ast::AstNodeRef<ast::TypeFunctionDefArg>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
         todo!()
     }
@@ -1497,7 +1496,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_constructor_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorPattern<'c>>,
+        node: ast::AstNodeRef<ast::ConstructorPattern>,
     ) -> Result<Self::ConstructorPatternRet, Self::Error> {
         let walk::ConstructorPattern { name: _, args } =
             walk::walk_constructor_pattern(self, ctx, node)?;
@@ -1571,7 +1570,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     // fn visit_struct_pattern(
     //     &mut self,
     //     ctx: &Self::Ctx,
-    //     node: ast::AstNodeRef<ast::StructPattern<'c>>,
+    //     node: ast::AstNodeRef<ast::StructPattern>,
     // ) -> Result<Self::StructPatternRet, Self::Error> {
     //     let location = self.source_location(node.span());
 
@@ -1638,7 +1637,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_namespace_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePattern<'c>>,
+        node: ast::AstNodeRef<ast::NamespacePattern>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
         let location = self.source_location(node.span());
 
@@ -1720,7 +1719,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_tuple_pattern_entry(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::TuplePatternEntry<'c>>,
+        _node: ast::AstNodeRef<ast::TuplePatternEntry>,
     ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
         todo!()
     }
@@ -1729,7 +1728,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_tuple_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TuplePattern<'c>>,
+        node: ast::AstNodeRef<ast::TuplePattern>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
         let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
 
@@ -1740,7 +1739,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_list_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListPattern<'c>>,
+        node: ast::AstNodeRef<ast::ListPattern>,
     ) -> Result<Self::ListPatternRet, Self::Error> {
         let walk::ListPattern { elements } = walk::walk_list_pattern(self, ctx, node)?;
 
@@ -1818,7 +1817,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_or_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::OrPattern<'c>>,
+        node: ast::AstNodeRef<ast::OrPattern>,
     ) -> Result<Self::OrPatternRet, Self::Error> {
         let entries = node
             .variants
@@ -1838,7 +1837,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_if_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IfPattern<'c>>,
+        node: ast::AstNodeRef<ast::IfPattern>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
         let walk::IfPattern { pattern, condition } = walk::walk_if_pattern(self, ctx, node)?;
 
@@ -1855,7 +1854,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_binding_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BindingPattern<'c>>,
+        node: ast::AstNodeRef<ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
         let location = self.source_location(node.span());
 
@@ -1896,7 +1895,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_spread_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::SpreadPattern<'c>>,
+        _node: ast::AstNodeRef<ast::SpreadPattern>,
     ) -> Result<Self::SpreadPatternRet, Self::Error> {
         todo!()
     }
@@ -1914,7 +1913,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_destructuring_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPattern<'c>>,
+        node: ast::AstNodeRef<ast::DestructuringPattern>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
         let walk::DestructuringPattern {
             name: _,
@@ -1929,7 +1928,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_module(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Module<'c>>,
+        node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let walk::Module { contents: _ } = walk::walk_module(self, ctx, node)?;
 
@@ -1954,7 +1953,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
     fn visit_function_call_arg(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::FunctionCallArg<'c>>,
+        _node: ast::AstNodeRef<ast::FunctionCallArg>,
     ) -> Result<Self::FunctionCallArgRet, Self::Error> {
         todo!()
     }
@@ -1963,8 +1962,8 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor<'c> for SourceTypechecker<'c, 'w, 'g,
 impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
     // fn typecheck_known_struct_literal(
     //     &mut self,
-    //     ctx: &<Self as AstVisitor<'c>>::Ctx,
-    //     node: ast::AstNodeRef<ast::StructLiteral<'c>>,
+    //     ctx: &<Self as AstVisitor>::Ctx,
+    //     node: ast::AstNodeRef<ast::StructLiteral>,
     //     ty_id: TypeId,
     //     StructDef {
     //         name,
@@ -2026,8 +2025,8 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
 
     // fn typecheck_known_struct_pattern(
     //     &mut self,
-    //     ctx: &<Self as AstVisitor<'c>>::Ctx,
-    //     node: ast::AstNodeRef<ast::StructPattern<'c>>,
+    //     ctx: &<Self as AstVisitor>::Ctx,
+    //     node: ast::AstNodeRef<ast::StructPattern>,
     //     ty_id: TypeId,
     //     StructDef {
     //         name,
@@ -2180,9 +2179,9 @@ impl<'c, 'w, 'g, 'src> SourceTypechecker<'c, 'w, 'g, 'src> {
 
     fn visit_trait_variable(
         &mut self,
-        ctx: &<Self as AstVisitor<'c>>::Ctx,
+        ctx: &<Self as AstVisitor>::Ctx,
         trait_id: TraitId,
-        node: ast::AstNodeRef<ast::VariableExpr<'c>>,
+        node: ast::AstNodeRef<ast::VariableExpr>,
         fn_type: Option<TypeId>,
     ) -> TypecheckResult<TypeId> {
         let trt = self.traits().get(trait_id);

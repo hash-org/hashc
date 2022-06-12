@@ -3,7 +3,7 @@ use hash_token::{keyword::Keyword, TokenKind};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// This function is used to pickup 'glued' operator tokens to form more complex binary operators
     /// that might be made up of multiple tokens. The function will peek ahead (2 tokens at most since
     /// all binary operators are made of that many tokens). The function returns an optional derived
@@ -60,7 +60,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to parse a fat arrow component '=>' in any given context.
-    pub(crate) fn parse_arrow(&self) -> AstGenResult<'c, ()> {
+    pub(crate) fn parse_arrow(&self) -> AstGenResult<()> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Eq).is_none() {
@@ -85,7 +85,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Function to parse a fat arrow component '=>' in any given context.
-    pub(crate) fn parse_thin_arrow(&self) -> AstGenResult<'c, ()> {
+    pub(crate) fn parse_thin_arrow(&self) -> AstGenResult<()> {
         // Essentially, we want to re-map the error into a more concise one given
         // the parsing context.
         if self.parse_token_fast(TokenKind::Minus).is_none() {

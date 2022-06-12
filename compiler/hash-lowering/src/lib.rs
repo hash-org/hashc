@@ -41,7 +41,7 @@ pub struct AstLowering;
 /// as parallel as possible. There is a queue that is queues all of the expressions within
 /// each [hash_ast::ast::Module].
 pub fn lower_ast_for_typechecking<'pool, 'c>(
-    sources: &mut Sources<'c>,
+    sources: &mut Sources,
     castle: &'c Castle,
     pool: &'pool rayon::ThreadPool,
 ) -> ()
@@ -54,12 +54,8 @@ where
         for (_, module) in sources.iter_mut_modules() {
             for expr in module.node_mut().contents.iter_mut() {
                 scope.spawn(|_| {
-                    // @@Hack: Is this efficient to get a wall each time for each
-                    //         expression that might be transformed?
-                    let wall = castle.wall();
-
                     AstLowering
-                        .visit_expression(&(wall), expr.ast_ref_mut())
+                        .visit_expression(&(), expr.ast_ref_mut())
                         .unwrap()
                 })
             }
@@ -67,12 +63,12 @@ where
     })
 }
 
-impl<'c> AstVisitorMut<'c> for AstLowering {
-    type Ctx = Wall<'c>;
+impl AstVisitorMut for AstLowering {
+    type Ctx = ();
 
-    type CollectionContainer<T: 'c> = Vec<T>;
+    type CollectionContainer<T> = Vec<T>;
 
-    fn try_collect_items<T: 'c, E, I: Iterator<Item = Result<T, E>>>(
+    fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
         _: &Self::Ctx,
         items: I,
     ) -> Result<Self::CollectionContainer<T>, E> {
@@ -106,7 +102,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_access_name(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessName<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessName>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(())
     }
@@ -116,7 +112,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_literal(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Literal<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Literal>,
     ) -> Result<Self::LiteralRet, Self::Error> {
         Ok(())
     }
@@ -146,7 +142,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_expression(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expression<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expression>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
         Ok(())
     }
@@ -156,7 +152,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_variable_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::VariableExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         Ok(())
     }
@@ -166,7 +162,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_directive_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DirectiveExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         Ok(())
     }
@@ -176,7 +172,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_function_call_arg(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArg<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArg>,
     ) -> Result<Self::FunctionCallArgRet, Self::Error> {
         Ok(())
     }
@@ -186,7 +182,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_function_call_args(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArgs<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArgs>,
     ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
         Ok(())
     }
@@ -196,7 +192,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_function_call_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallExpr>,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
         Ok(())
     }
@@ -206,7 +202,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_property_access_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyAccessExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyAccessExpr>,
     ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
         Ok(())
     }
@@ -216,7 +212,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_ref_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
         Ok(())
     }
@@ -226,7 +222,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_deref_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DerefExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         Ok(())
     }
@@ -236,7 +232,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_unsafe_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnsafeExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnsafeExpr>,
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
         Ok(())
     }
@@ -246,7 +242,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_literal_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LiteralExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LiteralExpr>,
     ) -> Result<Self::LiteralExprRet, Self::Error> {
         Ok(())
     }
@@ -256,7 +252,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_cast_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CastExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
         Ok(())
     }
@@ -266,7 +262,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeExpr>,
     ) -> Result<Self::TypeExprRet, Self::Error> {
         Ok(())
     }
@@ -276,7 +272,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_block_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BlockExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
         Ok(())
     }
@@ -286,7 +282,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_import_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImportExpr<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
         Ok(())
     }
@@ -296,7 +292,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Type<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Type>,
     ) -> Result<Self::TypeRet, Self::Error> {
         Ok(())
     }
@@ -306,7 +302,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_named_field_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedFieldTypeEntry<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedFieldTypeEntry>,
     ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
         Ok(())
     }
@@ -316,7 +312,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_function_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnType>,
     ) -> Result<Self::FnTypeRet, Self::Error> {
         Ok(())
     }
@@ -326,7 +322,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type_function_param(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionParam<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionParam>,
     ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
         Ok(())
     }
@@ -336,7 +332,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type_function(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunction<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunction>,
     ) -> Result<Self::TypeFunctionRet, Self::Error> {
         Ok(())
     }
@@ -346,7 +342,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type_function_call(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionCall<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionCall>,
     ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
         Ok(())
     }
@@ -356,7 +352,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_named_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedType>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
         Ok(())
     }
@@ -366,7 +362,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_ref_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefType>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
         Ok(())
     }
@@ -376,7 +372,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_merged_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergedType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergedType>,
     ) -> Result<Self::MergedTypeRet, Self::Error> {
         Ok(())
     }
@@ -406,7 +402,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_map_literal(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteral<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteral>,
     ) -> Result<Self::MapLiteralRet, Self::Error> {
         Ok(())
     }
@@ -416,7 +412,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_map_literal_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteralEntry<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteralEntry>,
     ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
         Ok(())
     }
@@ -426,7 +422,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_list_literal(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLiteral<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLiteral>,
     ) -> Result<Self::ListLiteralRet, Self::Error> {
         Ok(())
     }
@@ -436,7 +432,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_set_literal(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLiteral<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLiteral>,
     ) -> Result<Self::SetLiteralRet, Self::Error> {
         Ok(())
     }
@@ -446,7 +442,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_tuple_literal_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteralEntry<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteralEntry>,
     ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
         Ok(())
     }
@@ -456,7 +452,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_tuple_literal(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteral<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteral>,
     ) -> Result<Self::TupleLiteralRet, Self::Error> {
         Ok(())
     }
@@ -516,7 +512,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_function_def(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDef<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error> {
         Ok(())
     }
@@ -526,7 +522,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_function_def_arg(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDefArg<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDefArg>,
     ) -> Result<Self::FunctionDefArgRet, Self::Error> {
         Ok(())
     }
@@ -536,7 +532,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Block<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Block>,
     ) -> Result<Self::BlockRet, Self::Error> {
         Ok(())
     }
@@ -546,7 +542,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_match_case(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchCase<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         Ok(())
     }
@@ -556,7 +552,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_match_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchBlock<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
         Ok(())
     }
@@ -566,17 +562,17 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_loop_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LoopBlock<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         Ok(())
     }
 
-    type ForLoopBlockRet = ast::Block<'c>;
+    type ForLoopBlockRet = ast::Block;
 
     fn visit_for_loop_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock<'c>>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         // Get the right spans for the transformation
         let ForLoopBlock {
@@ -588,18 +584,15 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
         let for_block_span = node.span();
         let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
 
-        // let iterator = AstNode::new(iterator.body().move_out(), iter_span, ctx);
-
-        let make_access_name = |label: &str| -> AstNode<'c, AccessName> {
+        let make_access_name = |label: &str| -> AstNode<AccessName> {
             // Create the identifier within the map...
             let ident = IDENTIFIER_MAP.create_ident(label);
 
             AstNode::new(
                 AccessName {
-                    path: ast_nodes![ctx; AstNode::new(ident, iter_span, ctx)],
+                    path: ast_nodes![AstNode::new(ident, iter_span)],
                 },
                 iter_span,
-                ctx,
             )
         };
 
@@ -618,75 +611,74 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
                                 type_args: ast_nodes![],
                             })),
                             iter_span,
-                            ctx,
                         ),
                         args: AstNode::new(
                             FunctionCallArgs {
-                                entries: ast_nodes![ctx; AstNode::new( FunctionCallArg {
-                                    name: None,
-                                    value: iterator,
-                                },
-                                iter_span, ctx)],
+                                entries: ast_nodes![AstNode::new(
+                                    FunctionCallArg {
+                                        name: None,
+                                        value: iterator,
+                                    },
+                                    iter_span
+                                )],
                             },
                             iter_span,
-                            ctx,
                         ),
                     })),
                     for_block_span,
-                    ctx,
                 ),
-                cases: ast_nodes![ctx; AstNode::new(
-                    MatchCase {
-                        pattern: AstNode::new(
-                            Pattern::Constructor(ConstructorPattern {
-                                name: make_access_name("Some"),
-                                fields: ast_nodes![ctx; AstNode::new(
-                                    TuplePatternEntry {
-                                        name: None,
-                                        pattern
-                                    },
-                                    pat_span,
-                                    ctx
-                                )]
-                            }),
-                            pat_span,
-                            ctx),
-                        expr: AstNode::new(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span, ctx)
-                    },
-                    pat_span,
-                    ctx
-                ),
-                AstNode::new(MatchCase {
-                    pattern: AstNode::new(
-                        Pattern::Constructor(
-                            ConstructorPattern {
-                                name:
-                                    make_access_name(
-                                        "None",
-                                    ),
-                                fields: ast_nodes![],
-                            },
-                        ),
-                        pat_span,
-                        ctx
+                cases: ast_nodes![
+                    AstNode::new(
+                        MatchCase {
+                            pattern: AstNode::new(
+                                Pattern::Constructor(ConstructorPattern {
+                                    name: make_access_name("Some"),
+                                    fields: ast_nodes![AstNode::new(
+                                        TuplePatternEntry {
+                                            name: None,
+                                            pattern
+                                        },
+                                        pat_span
+                                    )]
+                                }),
+                                pat_span
+                            ),
+                            expr: AstNode::new(
+                                Expression::new(ExpressionKind::Block(BlockExpr(body))),
+                                body_span
+                            )
+                        },
+                        pat_span
                     ),
-                    expr: AstNode::new(Expression::new(ExpressionKind::Break(BreakStatement)), body_span, ctx),
-                }, pat_span, ctx),
-
+                    AstNode::new(
+                        MatchCase {
+                            pattern: AstNode::new(
+                                Pattern::Constructor(ConstructorPattern {
+                                    name: make_access_name("None",),
+                                    fields: ast_nodes![],
+                                },),
+                                pat_span
+                            ),
+                            expr: AstNode::new(
+                                Expression::new(ExpressionKind::Break(BreakStatement)),
+                                body_span
+                            ),
+                        },
+                        pat_span
+                    ),
                 ],
                 origin: MatchOrigin::For,
             }),
             for_block_span,
-            ctx,
         ))))
     }
 
-    type WhileLoopBlockRet = Block<'c>;
+    type WhileLoopBlockRet = Block;
 
     fn visit_while_loop_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock<'c>>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         let while_block_span = node.span();
 
@@ -698,19 +690,37 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
         Ok(Block::Loop(LoopBlock(AstNode::new(
             Block::Match(MatchBlock {
                 subject: condition,
-                cases: ast_nodes![ctx; AstNode::new(MatchCase {
-                    pattern: AstNode::new(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(true))), condition_span, ctx),
-                        expr: AstNode::new(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span, ctx),
-                    }, condition_span, ctx),
-                    AstNode::new(MatchCase {
-                        pattern: AstNode::new(Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false))), condition_span, ctx),
-                        expr: AstNode::new(Expression::new(ExpressionKind::Break(BreakStatement)), condition_span, ctx)
-                    }, condition_span, ctx),
+                cases: ast_nodes![
+                    AstNode::new(
+                        MatchCase {
+                            pattern: AstNode::new(
+                                Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(true))),
+                                condition_span
+                            ),
+                            expr: AstNode::new(
+                                Expression::new(ExpressionKind::Block(BlockExpr(body))),
+                                body_span
+                            ),
+                        },
+                        condition_span
+                    ),
+                    AstNode::new(
+                        MatchCase {
+                            pattern: AstNode::new(
+                                Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false))),
+                                condition_span
+                            ),
+                            expr: AstNode::new(
+                                Expression::new(ExpressionKind::Break(BreakStatement)),
+                                condition_span
+                            )
+                        },
+                        condition_span
+                    ),
                 ],
                 origin: MatchOrigin::While,
             }),
             while_block_span,
-            ctx,
         ))))
     }
 
@@ -719,7 +729,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_mod_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModBlock<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
         Ok(())
     }
@@ -729,17 +739,17 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_impl_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImplBlock<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         Ok(())
     }
 
-    type IfClauseRet = AstNode<'c, MatchCase<'c>>;
+    type IfClauseRet = AstNode<MatchCase>;
 
     fn visit_if_clause(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause<'c>>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         let branch_span = node.span();
 
@@ -750,29 +760,26 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
             MatchCase {
                 pattern: AstNode::new(
                     Pattern::If(IfPattern {
-                        pattern: AstNode::new(Pattern::Ignore(IgnorePattern), condition_span, ctx),
+                        pattern: AstNode::new(Pattern::Ignore(IgnorePattern), condition_span),
                         condition,
                     }),
                     branch_span,
-                    ctx,
                 ),
                 expr: AstNode::new(
                     Expression::new(ExpressionKind::Block(BlockExpr(body))),
                     body_span,
-                    ctx,
                 ),
             },
             branch_span,
-            ctx,
         ))
     }
 
-    type IfBlockRet = Block<'c>;
+    type IfBlockRet = Block;
 
     fn visit_if_block(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock<'c>>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         let span = node.span();
         let clauses_span = node.body().clauses.span();
@@ -791,20 +798,18 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
 
             AstNode::new(
                 MatchCase {
-                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), block_span, ctx),
+                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), block_span),
                     expr: AstNode::new(
                         Expression::new(ExpressionKind::Block(BlockExpr(block))),
                         block_span,
-                        ctx,
                     ),
                 },
                 block_span,
-                ctx,
             )
         } else {
             AstNode::new(
                 MatchCase {
-                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), span, ctx),
+                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), span),
                     expr: AstNode::new(
                         Expression::new(ExpressionKind::Block(BlockExpr(AstNode::new(
                             Block::Body(BodyBlock {
@@ -812,14 +817,11 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
                                 expr: None,
                             }),
                             span,
-                            ctx,
                         )))),
                         span,
-                        ctx,
                     ),
                 },
                 span,
-                ctx,
             )
         };
 
@@ -830,12 +832,10 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
                 Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(AstNode::new(
                     Literal::Bool(BoolLiteral(true)),
                     span,
-                    ctx,
                 )))),
                 span,
-                ctx,
             ),
-            cases: AstNodes::new(Row::from_vec(clauses, ctx), clauses_span),
+            cases: AstNodes::new(clauses, clauses_span),
             origin: MatchOrigin::If,
         }))
     }
@@ -845,7 +845,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_body_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BodyBlock<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         Ok(())
     }
@@ -855,7 +855,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_return_statement(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ReturnStatement<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         Ok(())
     }
@@ -905,7 +905,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_declaration(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Declaration<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
         Ok(())
     }
@@ -915,7 +915,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_merge_declaration(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeDeclaration<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
         Ok(())
     }
@@ -925,7 +925,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_assign_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpression<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpression>,
     ) -> Result<Self::AssignExpressionRet, Self::Error> {
         Ok(())
     }
@@ -935,7 +935,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_assign_op_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpression<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpression>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
         Ok(())
     }
@@ -945,7 +945,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_binary_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpression<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpression>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
         Ok(())
     }
@@ -955,7 +955,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_unary_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpression<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpression>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
         Ok(())
     }
@@ -965,7 +965,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_index_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpression<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpression>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         Ok(())
     }
@@ -975,7 +975,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_struct_def_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDefEntry<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDefEntry>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
         Ok(())
     }
@@ -985,7 +985,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_struct_def(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDef<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
         Ok(())
     }
@@ -995,7 +995,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_enum_def_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EnumDefEntry<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         Ok(())
     }
@@ -1005,7 +1005,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_enum_def(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EnumDef<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
         Ok(())
     }
@@ -1015,7 +1015,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_trait_def(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitDef<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
         Ok(())
     }
@@ -1025,7 +1025,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Pattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Pattern>,
     ) -> Result<Self::PatternRet, Self::Error> {
         Ok(())
     }
@@ -1035,7 +1035,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_trait_impl(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitImpl<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
         Ok(())
     }
@@ -1045,7 +1045,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type_function_def(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDef<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
         Ok(())
     }
@@ -1055,7 +1055,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_type_function_def_arg(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDefArg<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDefArg>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
         Ok(())
     }
@@ -1065,7 +1065,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_constructor_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorPattern>,
     ) -> Result<Self::ConstructorPatternRet, Self::Error> {
         Ok(())
     }
@@ -1075,7 +1075,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_namespace_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamespacePattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamespacePattern>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
         Ok(())
     }
@@ -1085,7 +1085,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_tuple_pattern_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TuplePatternEntry<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TuplePatternEntry>,
     ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
         Ok(())
     }
@@ -1095,7 +1095,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_tuple_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TuplePattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TuplePattern>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
         Ok(())
     }
@@ -1105,7 +1105,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_list_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListPattern>,
     ) -> Result<Self::ListPatternRet, Self::Error> {
         Ok(())
     }
@@ -1115,7 +1115,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_tuple_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleType>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
         Ok(())
     }
@@ -1125,7 +1125,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_list_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListType>,
     ) -> Result<Self::ListTypeRet, Self::Error> {
         Ok(())
     }
@@ -1135,7 +1135,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_set_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetType>,
     ) -> Result<Self::SetTypeRet, Self::Error> {
         Ok(())
     }
@@ -1145,7 +1145,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_map_type(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapType<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapType>,
     ) -> Result<Self::MapTypeRet, Self::Error> {
         Ok(())
     }
@@ -1215,7 +1215,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_or_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::OrPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::OrPattern>,
     ) -> Result<Self::OrPatternRet, Self::Error> {
         Ok(())
     }
@@ -1225,7 +1225,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_if_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfPattern>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
         Ok(())
     }
@@ -1235,7 +1235,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_binding_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BindingPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
         Ok(())
     }
@@ -1245,7 +1245,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_spread_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPattern>,
     ) -> Result<Self::SpreadPatternRet, Self::Error> {
         Ok(())
     }
@@ -1265,7 +1265,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_destructuring_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DestructuringPattern<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DestructuringPattern>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
         Ok(())
     }
@@ -1275,7 +1275,7 @@ impl<'c> AstVisitorMut<'c> for AstLowering {
     fn visit_module(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Module<'c>>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         Ok(())
     }

@@ -10,14 +10,14 @@ use hash_source::{location::SourceLocation, SourceId};
 
 use crate::ParserAction;
 
-pub struct ImportResolver<'c> {
+pub struct ImportResolver {
     source_id: SourceId,
     root_dir: PathBuf,
-    sender: Sender<ParserAction<'c>>,
+    sender: Sender<ParserAction>,
 }
 
-impl<'c> ImportResolver<'c> {
-    pub fn new(source_id: SourceId, root_dir: PathBuf, sender: Sender<ParserAction<'c>>) -> Self {
+impl ImportResolver {
+    pub fn new(source_id: SourceId, root_dir: PathBuf, sender: Sender<ParserAction>) -> Self {
         Self {
             root_dir,
             sender,
@@ -44,7 +44,7 @@ impl<'c> ImportResolver<'c> {
         Ok(resolved_path)
     }
 
-    pub fn into_sender(self) -> Sender<ParserAction<'c>> {
+    pub fn into_sender(self) -> Sender<ParserAction> {
         self.sender
     }
 }
