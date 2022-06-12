@@ -84,17 +84,12 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
 
         // Basically, can src be used where a target is required?
         match (src, target) {
-            (Kind::Trt, Kind::Trt) => Ok(KindSub::empty()),
-            (Kind::Trt, Kind::Unresolved(unresolved)) => Ok(KindSub::from_pairs([(
-                KindSubSubject::Unresolved(*unresolved),
-                src_id,
-            )])),
-            (Kind::Trt, _) => cannot_unify(),
-            (Kind::Ty(_), Kind::Unresolved(unresolved)) => Ok(KindSub::from_pairs([(
-                KindSubSubject::Unresolved(*unresolved),
-                src_id,
-            )])),
-            (Kind::Ty(_), Kind::AppTyFn(_)) => {
+            // First, type functions:
+            (Kind::AppTyFn(_), Kind::AppTyFn(_)) => {
+                // Check if same subject and unify, otherwise evaluate and unify
+                todo!()
+            }
+            (_, Kind::AppTyFn(_)) => {
                 // Try to apply the RHS, if it works then try to unify again, else error:
                 let simplified_target = self.simplify_kind(target_id)?;
                 match simplified_target {
@@ -104,22 +99,18 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
                     None => cannot_unify(),
                 }
             }
-            (Kind::Ty(src_bound), Kind::Ty(target_bound)) => {
-                match target_bound {
-                    Some(target_bound) => {
-                        match src_bound {
-                            // Trait bounds are the same
-                            Some(src_bound) if src_bound == target_bound => Ok(KindSub::empty()),
-                            Some(_) | None => {
-                                // Missing bound on source required by target
-                                cannot_unify()
-                            }
-                        }
+            (Kind::AppTyFn(_), _) => {
+                // Try to apply the LHS, if it works then try to unify again, else error:
+                let simplified_src = self.simplify_kind(src_id)?;
+                match simplified_src {
+                    Some(simplified_src_id) => {
+                        self.unify_kinds(simplified_src_id, target_id, opts)
                     }
-                    // No bounds on target
-                    None => Ok(KindSub::empty()),
+                    None => cannot_unify(),
                 }
             }
+
+            // Merging:
             (Kind::Merge(_), Kind::Merge(inner_target)) => {
                 // Try to merge source with each individual type in target. If all succeed,
                 // then the whole thing should succeed.
@@ -163,30 +154,53 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
                     None => cannot_unify(),
                 }
             }
+
+            // Traits:
+            (Kind::Trt, Kind::Trt) => Ok(KindSub::empty()),
+            (Kind::Trt, Kind::Unresolved(unresolved)) => Ok(KindSub::from_pairs([(
+                KindSubSubject::Unresolved(*unresolved),
+                src_id,
+            )])),
+            (Kind::Trt, _) => cannot_unify(),
+            (Kind::Ty(_), Kind::Unresolved(unresolved)) => Ok(KindSub::from_pairs([(
+                KindSubSubject::Unresolved(*unresolved),
+                src_id,
+            )])),
+
+            // Types:
+            (Kind::Ty(src_bound), Kind::Ty(target_bound)) => {
+                match target_bound {
+                    Some(target_bound) => {
+                        match src_bound {
+                            // Trait bounds are the same
+                            Some(src_bound) if src_bound == target_bound => Ok(KindSub::empty()),
+                            Some(_) | None => {
+                                // Missing bound on source required by target
+                                cannot_unify()
+                            }
+                        }
+                    }
+                    // No bounds on target
+                    None => Ok(KindSub::empty()),
+                }
+            }
             (Kind::Ty(_), _) => cannot_unify(),
-            (Kind::Rt(_), Kind::Trt) => todo!(),
-            (Kind::Rt(_), Kind::Ty(_)) => todo!(),
+
+            // Runtime
             (Kind::Rt(_), Kind::Rt(_)) => todo!(),
-            (Kind::Rt(_), Kind::TyFn(_)) => todo!(),
-            (Kind::Rt(_), Kind::AppTyFn(_)) => todo!(),
             (Kind::Rt(_), Kind::Unresolved(_)) => todo!(),
-            (Kind::TyFn(_), Kind::Trt) => todo!(),
-            (Kind::TyFn(_), Kind::Ty(_)) => todo!(),
-            (Kind::TyFn(_), Kind::Rt(_)) => todo!(),
+            (Kind::Rt(_), _) => cannot_unify(),
+
+            // TyFns
             (Kind::TyFn(_), Kind::TyFn(_)) => todo!(),
-            (Kind::TyFn(_), Kind::AppTyFn(_)) => todo!(),
             (Kind::TyFn(_), Kind::Unresolved(_)) => todo!(),
-            (Kind::AppTyFn(_), Kind::Trt) => todo!(),
-            (Kind::AppTyFn(_), Kind::Ty(_)) => todo!(),
-            (Kind::AppTyFn(_), Kind::Rt(_)) => todo!(),
-            (Kind::AppTyFn(_), Kind::TyFn(_)) => todo!(),
-            (Kind::AppTyFn(_), Kind::AppTyFn(_)) => todo!(),
-            (Kind::AppTyFn(_), Kind::Unresolved(_)) => todo!(),
+            (Kind::TyFn(_), _) => cannot_unify(),
+
+            // Unresolved
             (Kind::Unresolved(_), Kind::Trt) => todo!(),
             (Kind::Unresolved(_), Kind::Ty(_)) => todo!(),
             (Kind::Unresolved(_), Kind::Rt(_)) => todo!(),
             (Kind::Unresolved(_), Kind::TyFn(_)) => todo!(),
-            (Kind::Unresolved(_), Kind::AppTyFn(_)) => todo!(),
             (Kind::Unresolved(_), Kind::Unresolved(_)) => todo!(),
         }
     }
