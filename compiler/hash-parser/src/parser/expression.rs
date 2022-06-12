@@ -60,9 +60,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 &start,
                             ))
                         }
-                        Some(token) => {
-                            self.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))
-                        }
+                        Some(_) => self.error_with_location(
+                            AstGenErrorKind::ExpectedOperator,
+                            Some(TokenKindVector::from_row(
+                                row![&self.wall; TokenKind::Dot, TokenKind::Eq, TokenKind::Semi],
+                            )),
+                            None,
+                            self.next_location(),
+                        ),
                         // Special case where there is a expression at the end of the stream and therefore it
                         // is signifying that it is returning the expression value here
                         None => Ok(expr),

@@ -59,6 +59,9 @@ pub enum AstGenErrorKind {
     TypeDefinition(TyArgumentKind),
     /// Expected an identifier here.
     ExpectedIdentifier,
+    /// Expected a binary operator that ties two expressions together to create
+    /// a binary expression.
+    ExpectedOperator,
     /// Expected an expression.
     ExpectedExpression,
     /// Expected a '=>' at the current location. This error can occur in a number of places; including
@@ -134,6 +137,7 @@ impl<'a> From<AstGenError<'a>> for ParseError {
             AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
                 "Expected value assignment after type annotation within named tuple".to_string()
             }
+            AstGenErrorKind::ExpectedOperator => "Expected an operator".to_string(),
             AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
