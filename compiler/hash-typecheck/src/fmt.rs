@@ -244,7 +244,7 @@ impl<'gs> TypeFormatter<'gs> {
                         ModDefOrigin::TrtImpl(trt_def_id) => {
                             write!(
                                 f,
-                                "impl({})",
+                                "impl[{}](..)",
                                 trt_def_id.for_formatting(self.global_storage)
                             )
                         }
@@ -279,6 +279,10 @@ impl<'gs> TypeFormatter<'gs> {
                 write!(f, ") -> ")?;
                 self.fmt_kind(f, *return_kind, &Cell::new(false))?;
                 Ok(())
+            }
+            Ty::Var(name) => {
+                is_atomic.set(true);
+                write!(f, "{}", name)
             }
         }
     }
