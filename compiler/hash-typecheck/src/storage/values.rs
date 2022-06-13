@@ -2,7 +2,7 @@
 use super::primitives::{Value, ValueId};
 use slotmap::SlotMap;
 
-/// Stores all the values within a valuechecking cycle.
+/// Stores all the values within a typechecking cycle.
 ///
 /// Values are accessed by an ID, of value [ValueId].
 #[derive(Debug, Default)]

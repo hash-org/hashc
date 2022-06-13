@@ -1,4 +1,9 @@
 //! Contains all the core type and trait definitions of the language.
+//!
+//! These are accessed during the AST traversal in order to type certain language primitives (for
+//! example `if`-block subjects). This is because a lot of the "primitive" Hash types aren't
+//! actually primitives as far as the typechecker is concerned. This includes: integers, floats,
+//! characters, strings, lists, maps, references, etc.
 use super::{
     primitives::{NominalDefId, TrtDefId, ValueId},
     scope::{Scope, ScopeKind},

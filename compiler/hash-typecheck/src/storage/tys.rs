@@ -45,9 +45,9 @@ impl TyStore {
         self.data.get_mut(ty_id).unwrap()
     }
 
-    /// Get a new [ResolutionId] for a new [Kind::Unresolved].
+    /// Get a new [ResolutionId] for a new [Ty::Unresolved].
     ///
-    /// This shouldn't be directly used in inference code, rather call the appropriate [KindBuilder]
+    /// This shouldn't be directly used in inference code, rather call the appropriate [PrimitiveBuilder]
     /// function.
     pub fn new_resolution_id(&self) -> ResolutionId {
         let new_id = self.last_resolution_id.get() + 1;
@@ -73,7 +73,7 @@ impl TyLocations {
 
     /// Get the location of the type with the given [TyId], if it exists.
     pub fn get_location(&self, id: TyId) -> Option<SourceLocation> {
-        self.data.get(id).map(|&x| x)
+        self.data.get(id).copied()
     }
 
     /// Attach a location to the type with the given [TyId].

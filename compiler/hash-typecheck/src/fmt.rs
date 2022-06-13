@@ -138,7 +138,7 @@ impl<'gs> TcFormatter<'gs> {
             Value::TyFn(TyFnValue {
                 name,
                 general_params,
-                general_return_ty: general_return_kind,
+                general_return_ty,
                 cases,
             }) => {
                 match name {
@@ -152,7 +152,7 @@ impl<'gs> TcFormatter<'gs> {
                         write!(f, "<")?;
                         self.fmt_params(f, general_params)?;
                         write!(f, "> -> ")?;
-                        self.fmt_ty(f, *general_return_kind, &Cell::new(false))?;
+                        self.fmt_ty(f, *general_return_ty, &Cell::new(false))?;
 
                         if let Some(case) = cases.first() {
                             write!(f, " => ")?;
