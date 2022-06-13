@@ -243,20 +243,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::MergedType>,
     ) -> Result<Self::MergedTypeRet, Self::Error>;
 
-    type ExistentialTypeRet;
-    fn visit_existential_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ExistentialType>,
-    ) -> Result<Self::ExistentialTypeRet, Self::Error>;
-
-    type InferTypeRet;
-    fn visit_infer_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::InferType>,
-    ) -> Result<Self::InferTypeRet, Self::Error>;
-
     type MapLiteralRet;
     fn visit_map_literal(
         &mut self,
@@ -960,20 +946,6 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::MergedType>,
     ) -> Result<Self::MergedTypeRet, Self::Error>;
-
-    type ExistentialTypeRet;
-    fn visit_existential_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ExistentialType>,
-    ) -> Result<Self::ExistentialTypeRet, Self::Error>;
-
-    type InferTypeRet;
-    fn visit_infer_type(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::InferType>,
-    ) -> Result<Self::InferTypeRet, Self::Error>;
 
     type MapLiteralRet;
     fn visit_map_literal(
@@ -1866,7 +1838,7 @@ pub mod walk {
         pub expr: V::ExpressionRet,
     }
 
-    pub fn walk_as_expr<V: AstVisitor>(
+    pub fn walk_cast_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::CastExpr>,
@@ -3697,7 +3669,7 @@ pub mod walk_mut {
         pub expr: V::ExpressionRet,
     }
 
-    pub fn walk_as_expr<V: AstVisitorMut>(
+    pub fn walk_cast_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::CastExpr>,

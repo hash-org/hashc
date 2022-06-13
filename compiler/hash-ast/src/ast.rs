@@ -20,7 +20,7 @@ counter! {
 /// Represents an abstract syntax tree node.
 ///
 /// Contains an inner type, as well as begin and end positions in the input.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AstNode<T> {
     body: Box<T>,
     span: Span,
@@ -175,6 +175,12 @@ impl<'t, T> AstNodeRefMut<'t, T> {
             span: self.span,
             id: self.id,
         }
+    }
+
+    /// Function to replace the body of the node with a newly generated body
+    pub fn replace(&mut self, _f: impl FnOnce(T) -> T) {
+        // std::mem::replace(&mut *self.body, f(*self.body));
+        todo!()
     }
 
     /// Get a mutable reference to the reference contained within this node.
@@ -334,14 +340,6 @@ pub struct RefType {
     /// Mutability of the reference (immutable by default)
     pub mutability: Option<AstNode<Mutability>>,
 }
-
-/// The existential type (`?`).
-#[derive(Debug, PartialEq, Eq)]
-pub struct ExistentialType;
-
-/// The type infer operator.
-#[derive(Debug, PartialEq, Eq)]
-pub struct InferType;
 
 /// An entry within a tuple type.
 #[derive(Debug, PartialEq)]
@@ -1094,13 +1092,17 @@ pub enum Block {
     /// pattern is the condition to execute the branch...
     ///
     /// For example:
-    /// >>> if a {a_branch} else if b {b_branch} else {c_branch}
-    /// will be transpiled into...
-    /// >>> match true {
-    ///      _ if a => a_branch
-    ///      _ if b => b_branch
-    ///      _ => c_branch
-    ///     }
+    /// ```text
+    /// if a { a_branch } else if b { b_branch } else { c_branch }
+    /// ```
+    /// will be transformed into...
+    /// ```text
+    /// match true {
+    ///     _ if a => a_branch
+    ///     _ if b => b_branch
+    ///     _ => c_branch
+    /// }
+    ///```
     ///
     /// Additionally, if no 'else' clause is specified, we fill it with an
     /// empty block since an if-block could be assigned to any variable and therefore
@@ -1113,6 +1115,21 @@ pub enum Block {
     Body(BodyBlock),
     /// An implementation block
     Impl(ImplBlock),
+}
+
+impl Block {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Block::Match(_) => "match(..)",
+            Block::Loop(_) => "loop(..)",
+            Block::For(_) => "for(..)",
+            Block::While(_) => "while(..)",
+            Block::If(_) => "if(..)",
+            Block::Mod(_) => "mod(..)",
+            Block::Body(_) => "body(..)",
+            Block::Impl(_) => "impl(..)",
+        }
+    }
 }
 
 /// A function definition argument.

@@ -256,7 +256,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        let walk::AsExpr { ty, expr } = walk::walk_as_expr(self, ctx, node)?;
+        let walk::AsExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "typed_expr",
             vec![
@@ -500,24 +500,6 @@ impl AstVisitor for AstTreeGenerator {
         };
 
         Ok(TreeNode::branch("type_function", children))
-    }
-
-    type ExistentialTypeRet = TreeNode;
-    fn visit_existential_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::ExistentialType>,
-    ) -> Result<Self::ExistentialTypeRet, Self::Error> {
-        Ok(TreeNode::leaf("existential"))
-    }
-
-    type InferTypeRet = TreeNode;
-    fn visit_infer_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::InferType>,
-    ) -> Result<Self::InferTypeRet, Self::Error> {
-        Ok(TreeNode::leaf("infer"))
     }
 
     type MapLiteralRet = TreeNode;
