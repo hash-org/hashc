@@ -15,7 +15,7 @@ use hash_pipeline::{
     fs::resolve_path, settings::CompilerMode, settings::CompilerSettings, sources::Module, Compiler,
 };
 use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
-use hash_typecheck::HashTypechecker;
+use hash_typecheck::Typechecker;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
@@ -133,8 +133,7 @@ fn main() {
     // Create a castle for allocations in the pipeline
     let castle = Castle::new();
 
-    let tc_wall = &castle.wall();
-    let checker = HashTypechecker::new(tc_wall);
+    let checker = Typechecker;
 
     // Create the vm
     let vm = Interpreter::new(InterpreterOptions::new(opts.stack_size));
