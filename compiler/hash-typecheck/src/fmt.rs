@@ -102,7 +102,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the [TrtDef] indexed by the given [TrtDefId] with the given formatter.
+    /// Format the [TrtDef](crate::storage::primitives::TrtDef) indexed by the given [TrtDefId]
+    /// with the given formatter.
     pub fn fmt_trt_def(&self, f: &mut fmt::Formatter, trt_def_id: TrtDefId) -> fmt::Result {
         match self.global_storage.trt_def_store.get(trt_def_id).name {
             Some(name) => {
@@ -202,7 +203,7 @@ impl<'gs> TcFormatter<'gs> {
                 is_atomic.set(true);
                 write!(f, "{{unset}}")
             }
-            Value::Mod(_) => todo!(),
+            Value::ModDef(_) => todo!(),
             Value::NominalDef(_) => todo!(),
         }
     }
@@ -366,10 +367,10 @@ impl<'gs> TcFormatter<'gs> {
 }
 
 /// Wraps a type `T` in a structure that contains information to be able to format `T` using
-/// [TypeFormatter].
+/// [TcFormatter].
 ///
 /// This can wrap any type, but only types that have corresponding `fmt_*` methods in
-/// [TypeFormatter] are useful with it.
+/// [TcFormatter] are useful with it.
 pub struct ForFormatting<'gs, 'a, T> {
     pub t: T,
     pub global_storage: &'gs GlobalStorage,
