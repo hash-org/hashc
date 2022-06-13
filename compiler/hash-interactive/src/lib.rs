@@ -39,7 +39,7 @@ pub fn goodbye() {
 pub fn init<'c, 'pool, P, C, V>(mut compiler: Compiler<'pool, P, C, V>) -> CompilerResult<()>
 where
     'pool: 'c,
-    P: Parser<'c, 'pool>,
+    P: Parser<'pool>,
     C: Checker<'c>,
     V: VirtualMachine<'c>,
 {
@@ -82,7 +82,7 @@ fn execute<'c, 'pool, P, C, V>(
 ) -> CompilerState<'c, C, V>
 where
     'pool: 'c,
-    P: Parser<'c, 'pool>,
+    P: Parser<'pool>,
     C: Checker<'c>,
     V: VirtualMachine<'c>,
 {

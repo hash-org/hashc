@@ -10,7 +10,6 @@ pub mod parser;
 mod source;
 
 use crossbeam_channel::{unbounded, Sender};
-use hash_alloc::Castle;
 use hash_ast::ast;
 use hash_lexer::Lexer;
 use hash_pipeline::sources::{Module, Sources};
@@ -101,14 +100,18 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 }
 
 /// Implementation structure for the parser.
-pub struct HashParser<'c> {
-    castle: &'c Castle,
+pub struct HashParser;
+
+impl Default for HashParser {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-impl<'c, 'pool> HashParser<'c> {
+impl<'pool> HashParser {
     /// Create a new Hash parser with the self hosted backend.
-    pub fn new(castle: &'c Castle) -> Self {
-        Self { castle }
+    pub fn new() -> Self {
+        Self
     }
 
     pub fn parse_main(
@@ -118,7 +121,6 @@ impl<'c, 'pool> HashParser<'c> {
         current_dir: PathBuf,
         pool: &'pool rayon::ThreadPool,
     ) -> Vec<ParseError> {
-        let _castle = self.castle;
         let mut errors = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
 
@@ -176,7 +178,7 @@ impl<'c, 'pool> HashParser<'c> {
     }
 }
 
-impl<'c, 'pool> Parser<'c, 'pool> for HashParser<'c> {
+impl<'pool> Parser<'pool> for HashParser {
     fn parse(
         &mut self,
         target: SourceId,
