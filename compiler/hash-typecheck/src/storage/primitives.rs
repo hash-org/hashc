@@ -22,7 +22,7 @@ pub enum Mutability {
 #[derive(Debug, Clone)]
 pub struct Member {
     pub name: Identifier,
-    pub kind: KindId,
+    pub ty: TyId,
     pub value: ValueId,
     pub visibility: Visibility,
     pub mutability: Mutability,
@@ -123,11 +123,11 @@ impl GetNameOpt for Arg {
 /// A list of arguments.
 pub type Args = ParamList<Arg>;
 
-/// A parameter, declaring a potentially named variable with a given kind and default value.
+/// A parameter, declaring a potentially named variable with a given type and default value.
 #[derive(Debug, Clone, Hash)]
 pub struct Param {
     pub name: Option<Identifier>,
-    pub kind: KindId,
+    pub ty: TyId,
     pub value: ValueId, // Could be Value::Unset
 }
 
@@ -220,17 +220,17 @@ pub struct TupleTy {
 
 /// A function type, with a set of input parameters and a return type.
 ///
-/// All the parameter types and return type must be (or evaluate to) of kind `Kind::Rt(..)`.
+/// All the parameter types and return type must be level 0
 #[derive(Debug, Clone)]
 pub struct FnTy {
     pub params: Params,
-    pub return_kind: KindId,
+    pub return_ty: TyId,
 }
 
 /// A type function type.
 ///
-/// A type function is a compile-time function that works on types.
-/// It has a general set of "base" parameters and return kind.
+/// A type function is a compile-time function that works on types. Type function return types can
+/// be level 0, level 1 or level 2. It has a general set of "base" parameters and return type.
 ///
 /// These are refined in the `cases` field, which provides conditional values for the return value
 /// of the function, based on what the arguments are.
@@ -253,41 +253,41 @@ pub struct FnTy {
 ///
 /// ```
 /// TyFnTy {
-///     general_params = (T: Kind::Ty = Value::Unset),
-///     general_return_ty = Kind::Ty,
+///     general_params = (T: Ty::Ty = Value::Unset),
+///     general_return_ty = Ty::Ty,
 ///     cases = {
-///         (T: Kind::Ty) -> Kind::Ty => Value::Ty(Ty::NominalDef(DogStructDef)),
-///         (T: Kind::Ty(HashTraitDef)) -> Kind::Ty(HashTraitDef) => Value::Merge([
-///             Value::Ty(Ty::NominalDef(DogStructDef)),
-///             Value::Ty(Ty::Mod(
+///         (T: Ty::Ty) -> Ty::Ty => Value::NominalDef(DogStructDef),
+///         (T: Ty::Ty(HashTraitDef)) -> Ty::Ty(HashTraitDef) => Value::Merge([
+///             Value::NominalDef(DogStructDef),
+///             Value::Mod(
 ///                 origin=TraitImpl(Value::Trt(HashTraitDef)),
 ///                 members=..
-///             )),
+///             ),
 ///         ]),
-///         (T: Kind::Ty(Merge([HashTraitDef, EqTraitDef])))
-///             -> Kind::Ty(FindInHashMapTraitDef) =>
+///         (T: Ty::Merge([Ty::Ty(HashTraitDef), Ty::Ty(EqTraitDef)]))
+///             -> Ty::Ty(FindInHashMapTraitDef) =>
 ///             => Value::Merge([
-///                 Value::Ty(Ty::NominalDef(DogStructDef)),
-///                 Value::Ty(Ty::Mod(
+///                 Value::NominalDef(DogStructDef),
+///                 Value::Mod(
 ///                     origin=TraitImpl(Value::Trt(FindInHashMapTraitDef)),
 ///                     members=..
-///                 )),
+///                 ),
 ///             ])
 ///     }
 /// }
 /// ```
 ///
-/// At any point, the resolved kind of `Dog<T>` is the merged kind of the return kind of each case
+/// At any point, the resolved type of `Dog<T>` is the merged type of the return type of each case
 /// which matches `T`. In other words, cases are not short-circuiting; they are all evaluated and
 /// then combined.
 ///
-/// The `general_return_kind` field is always a superkind of the return type of each case.
+/// The `general_return_ty` field is always a supertype of the return type of each case.
 #[derive(Debug, Clone)]
 pub struct TyFnValue {
     /// An optional name for the type function, if it is directly assigned to a binding.
     pub name: Option<Identifier>,
     pub general_params: Params,
-    pub general_return_kind: KindId,
+    pub general_return_ty: TyId,
     pub cases: Vec<TyFnCase>,
 }
 
@@ -305,8 +305,8 @@ pub struct TyFnValue {
 ///
 /// This translates to a case:
 /// ```
-/// (T: Kind::Ty = Value::Ty(strDefId))
-///     -> Kind::AppTyFn(ConvValue (a type fn), [strDefId])
+/// (T: Ty::Ty = Value::NominalDef(strDefId))
+///     -> Ty::AppTyFn(ConvValue (a type fn), [Value::NominalDef(strDefId)])
 ///     => Value::Merge([
 ///         Value::AppTyFn(DogValue (a type fn), [strDefId]),
 ///         Value::Ty(Ty::Mod(
@@ -316,13 +316,13 @@ pub struct TyFnValue {
 ///     ])
 /// ```
 ///
-/// The case's `return_kind` must always be able to unify with the target `general_return_kind`,
+/// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
 /// and the type parameters should be able to each unify with the target `general_params`, of the
 /// parent [TyFnValue].
 #[derive(Debug, Clone)]
 pub struct TyFnCase {
     pub params: Params,
-    pub return_kind: KindId,
+    pub return_ty: TyId,
     pub return_value: ValueId,
 }
 
@@ -354,7 +354,7 @@ pub struct AppTyFn {
     pub args: Args,
 }
 
-/// The kind of a type function, for example:
+/// The type of a type function, for example:
 ///
 /// ```
 /// T: <X: Type> -> Type
@@ -364,89 +364,116 @@ pub struct AppTyFn {
 ///
 /// ```
 /// name: "T",
-/// kind: Kind::TyFn(params = [(name="X", kind=Kind::Ty)], return_kind=Kind::Ty)
+/// ty: Ty::TyFn(params = [(name="X", ty=Ty::Ty)], return_ty=Ty::Ty)
 /// value: Value::Unset,
 /// ```
 #[derive(Debug, Clone)]
-pub struct TyFnKind {
+pub struct TyFnTy {
     pub params: Params,
-    pub return_kind: KindId,
+    pub return_ty: TyId,
 }
 
-/// Kind is the most fundamental concept of "type" in Hash.
-///
-/// Each binding has a kind, which is either a type kind, a trait kind, or a runtime kind. The
-/// usual notion of "type" in programming languages is a [Kind::Rt] here, with a given type ID. On
-/// the other hand, [Kind::Ty] is the kind of a type (i.e. type of a type).
-#[derive(Debug, Clone)]
-pub enum Kind {
-    /// A trait kind.
-    Trt,
-    /// A type kind, with some optional trait bound.
-    Ty(Option<TrtDefId>),
-    /// A runtime kind, with some type bound.
-    Rt(TyId),
-    /// A type function, with some return kind.
-    TyFn(TyFnKind),
-    /// A type function application.
-    AppTyFn(AppTyFn),
-    /// Merge of multiple kinds.
-    Merge(Vec<KindId>),
-    /// Not yet resolved.
-    Unresolved(UnresolvedTy),
-}
-
-/// Each binding in Hash has a value
-///
-/// This is [Value::Rt] if the binding is a runtime variable. Otherwise, the value of a binding
-/// contains the information that the binding provides to the program. For example, a `struct(..)`
-/// definition has a value `Value::Ty(<a new TyID>)`.
+/// The basic data structure of a compile-time value, or [Value::Rt] if the value is run-time.
 #[derive(Debug, Clone)]
 pub enum Value {
     /// A trait value.
+    ///
+    /// Has a level 2 type.
     Trt(TrtDefId),
-    /// A type value.
+    /// A value returned by the `type` keyword.
+    ///
+    /// Has a level 1 type.
     Ty(TyId),
     /// A runtime value.
+    ///
+    /// Has a level 0 type.
     Rt,
-    /// A type function value, returning any kind of value.
+    /// A type function value.
+    ///
+    /// Has a level N type, where N is the level of the return value of the function.
     TyFn(TyFnValue),
     /// A type function application.
+    ///
+    /// Has a level N type, where N is the level of the resultant application.
     AppTyFn(AppTyFn),
-    /// A type-level variable, with some kind that is stored in the current scope.
+    /// Modules or impls.
+    ///
+    /// Modules and trait implementations, as well as anonymous implementations, are treated as
+    /// types.
+    ///
+    /// Information about the origin of each instance of [Ty::Mod] can be found in its
+    /// corresponding [ModDef].
+    ///
+    /// Has a level 1 type.
+    Mod(ModDefId),
+    /// A nominal type definition, either a struct or an enum.
+    ///
+    /// Has a level 1 type.
+    NominalDef(NominalDefId),
+    /// A type-level variable, with some type that is stored in the current scope.
+    ///
+    /// Has a level N type, where N is the level of the type of the variable in the context
     Var(Var),
     /// Merge of multiple values.
+    ///
+    /// Inner types must have the same level.
+    ///
+    /// Has a level N type, where N is the level of the inner types.
     Merge(Vec<ValueId>),
     /// Unset value.
     Unset,
 }
 
-/// A type is the kind of a runtime variable in Hash, just like a trait is the kind of a type
-/// variable.
-///
-/// A type is either a nominal type, a module, a tuple, a function, or a type variable. Every
-/// binding that is a runtime variable should have a kind that eventually resolves to a `Ty` (once
-/// all type functions have been evaluated, that is).
+/// The basic data structure of a type.
 #[derive(Debug, Clone)]
 pub enum Ty {
+    /// A type function
+    ///
+    /// Level N, where N is the level of the return type of the type function.
+    TyFn(TyFnTy),
+    /// A type function application.
+    ///
+    /// Level N, where N is the level of the return type of the type function applied to these args.
+    AppTyFn(AppTyFn),
+    /// The type of a trait
+    ///
+    /// Level 2
+    Trt,
+    /// A type, possibly with a trait bound
+    ///
+    /// Level 1
+    Ty(Option<TrtDefId>),
     /// A nominal type definition, either a struct or an enum.
+    ///
+    /// Level 0
     NominalDef(NominalDefId),
-    /// Modules or impls.
-    ///
-    /// Modules and trait implementations, as well as anonymous implementations, are treated as
-    /// types, and they are all represented by [Ty::Mod], since they are all constant scopes.
-    ///
-    /// Information about the origin of each instance of [Ty::Mod] can be found in its
-    /// corresponding [ModDef].
-    Mod(ModDefId),
+    /// A module
+    ModDef(ModDefId),
     /// Tuple type.
+    ///
+    /// Level 0
     Tuple(TupleTy),
     /// Function type.
-    Fn(FnTy),
-    /// A type-level variable, with some kind that is stored in the current scope.
     ///
-    /// This variable must be of kind [Kind::Ty] to be valid in this context.
+    /// Level 0
+    Fn(FnTy),
+    /// A type-level variable, with some type that is stored in the current scope.
+    ///
+    /// Level N - 1, where N is the level of the type of the variable in the context
     Var(Var),
+    /// Merge of multiple types.
+    ///
+    /// Inner types must have the same level.
+    ///
+    /// Level N, where N is the level of the inner types.
+    Merge(Vec<TyId>),
+    /// Not yet resolved.
+    ///
+    /// Unknown level.
+    ///
+    /// @@TODO: Maybe unknown types should keep track of their levels and any additional inferred
+    /// info.
+    Unresolved(UnresolvedTy),
 }
 
 // IDs for all the primitives to be stored on mapped storage.
@@ -463,10 +490,6 @@ new_key_type! { pub struct ModDefId; }
 
 new_key_type! {
     pub struct ValueId;
-}
-
-new_key_type! {
-    pub struct KindId;
 }
 
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]

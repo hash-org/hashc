@@ -1,7 +1,7 @@
-use crate::storage::primitives::KindId;
+use crate::storage::primitives::TyId;
 
 pub type TcResult<T> = Result<T, TcError>;
 
 pub enum TcError {
-    CannotUnify(KindId, KindId),
+    CannotUnify(TyId, TyId),
 }

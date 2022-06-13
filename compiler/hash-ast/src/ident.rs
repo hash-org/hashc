@@ -23,6 +23,13 @@ impl Display for Identifier {
     }
 }
 
+/// Create an identifier from a string.
+impl From<&str> for Identifier {
+    fn from(name: &str) -> Self {
+        IDENTIFIER_MAP.create_ident(name)
+    }
+}
+
 thread_local! {
     static IDENTIFIER_STORAGE_WALL: Wall<'static> = IDENTIFIER_STORAGE_CASTLE.wall();
 }
