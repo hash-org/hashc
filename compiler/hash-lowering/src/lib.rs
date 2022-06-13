@@ -403,7 +403,7 @@ fn lower_if_block(node: Block, parent_span: Span) -> Block {
     let mut clauses = clauses
         .nodes
         .into_iter()
-        .map(|node| lower_if_clause(node))
+        .map(lower_if_clause)
         .collect::<Vec<_>>();
 
     // Deal with the `otherwise` case, if there is no otherwise case then we can just
