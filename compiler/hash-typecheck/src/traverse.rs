@@ -522,7 +522,7 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor for SourceTypechecker<'c, 'w, 'g, 'sr
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        let walk::AsExpr { expr, ty } = walk::walk_as_expr(self, ctx, node)?;
+        let walk::AsExpr { expr, ty } = walk::walk_cast_expr(self, ctx, node)?;
         self.unifier().unify(expr, ty, UnifyStrategy::ModifyBoth)?;
         Ok(expr)
     }
@@ -757,26 +757,6 @@ impl<'c, 'w, 'g, 'src> visitor::AstVisitor for SourceTypechecker<'c, 'w, 'g, 'sr
     //         }
     //     }
     // }
-
-    type ExistentialTypeRet = TypeId;
-    fn visit_existential_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::ExistentialType>,
-    ) -> Result<Self::ExistentialTypeRet, Self::Error> {
-        // By definition, an existential type is an anonymous type variable.
-        Ok(self.create_unknown_type())
-    }
-
-    type InferTypeRet = TypeId;
-    fn visit_infer_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: ast::AstNodeRef<ast::InferType>,
-    ) -> Result<Self::InferTypeRet, Self::Error> {
-        // @@Todo: Is this right?
-        Ok(self.create_unknown_type())
-    }
 
     type MapLiteralRet = TypeId;
     fn visit_map_literal(

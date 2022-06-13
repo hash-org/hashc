@@ -5,14 +5,11 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 #![feature(generic_associated_types)]
-#![allow(unreachable_code, unused, clippy::diverging_sub_expression)] // @@Temporary
+// #![allow(unreachable_code, unused, clippy::diverging_sub_expression)] // @@Temporary
 
-use std::convert::Infallible;
-
-use hash_alloc::{collections::row::Row, Castle, Wall};
 use hash_ast::{
     ast::{
-        self, AccessName, AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral,
+        AccessName, AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral,
         BoolLiteralPattern, BreakStatement, ConstructorPattern, Expression, ExpressionKind,
         ForLoopBlock, FunctionCallArg, FunctionCallArgs, FunctionCallExpr, IfBlock, IfClause,
         IfPattern, IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock, MatchBlock,
@@ -23,6 +20,8 @@ use hash_ast::{
     visitor::{walk_mut, AstVisitorMut},
 };
 use hash_pipeline::sources::Sources;
+use hash_source::location::Span;
+use std::convert::Infallible;
 
 pub struct AstLowering;
 
@@ -46,11 +45,8 @@ pub struct AstLowering;
 /// This function utilised the pipeline thread pool in order to make the transformations
 /// as parallel as possible. There is a queue that is queues all of the expressions within
 /// each [hash_ast::ast::Module].
-pub fn lower_ast_for_typechecking<'pool, 'c>(
-    sources: &mut Sources,
-    castle: &'c Castle,
-    pool: &'pool rayon::ThreadPool,
-) where
+pub fn lower_ast_for_typechecking<'pool, 'c>(sources: &mut Sources, pool: &'pool rayon::ThreadPool)
+where
     'c: 'pool,
 {
     // Iterate over all of the modules and add the expressions
@@ -65,6 +61,406 @@ pub fn lower_ast_for_typechecking<'pool, 'c>(
                 })
             }
         }
+    })
+}
+
+/// This function is responsible for converting a [ForLoopBlock] into a
+/// simpler [LoopBlock]. This is not obvious from the function definition
+/// because it accepts a [AstNode<Block>], not specifically a [ForLoopBlock].
+/// This is because it operates by using [AstNode::replace] in order to convert
+/// the for-loop into a de-sugared loop.
+///
+/// The process is as follows: de-sugaring a for-loop from:
+/// ```text
+/// for <pat> in <iterator> {
+///     <body>
+/// }
+/// ```
+///
+/// Into:
+///
+/// ```text
+/// loop {
+///     match next(<iterator>) {
+///         Some(<pat>) => <block>;
+///         None        => break;
+///     }
+/// }
+/// ```
+///
+/// So essentially the for-loop becomes a simple loop with a match block on the given
+/// iterator since for-loops only support iterators.
+fn lower_for_loop_block(node: Block, parent_span: Span) -> Block {
+    // Since this function expects it to be a for-loop block, we match it and unwrap
+    let block = match node {
+        Block::For(body) => body,
+        block => panic!(
+            "Expected for-loop within for-loop lowering, got {}",
+            block.as_str()
+        ),
+    };
+
+    let ForLoopBlock {
+        pattern,
+        iterator,
+        body,
+    } = block;
+
+    let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
+
+    let make_access_name = |label: &str| -> AstNode<AccessName> {
+        // Create the identifier within the map...
+        let ident = IDENTIFIER_MAP.create_ident(label);
+
+        AstNode::new(
+            AccessName {
+                path: ast_nodes![AstNode::new(ident, iter_span)],
+            },
+            iter_span,
+        )
+    };
+
+    // Convert the pattern into a constructor pattern like `Some(<pat>)`
+    let pattern = AstNode::new(
+        Pattern::Constructor(ConstructorPattern {
+            name: make_access_name("Some"),
+            fields: ast_nodes![AstNode::new(
+                TuplePatternEntry {
+                    name: None,
+                    pattern
+                },
+                pat_span
+            )],
+        }),
+        pat_span,
+    );
+
+    // Create the match cases, one for when the iterator is `Some(_)` and the
+    // other is `None` so that it should break.
+    let match_cases = ast_nodes![
+        AstNode::new(
+            MatchCase {
+                pattern,
+                expr: AstNode::new(
+                    Expression::new(ExpressionKind::Block(BlockExpr(body))),
+                    body_span
+                )
+            },
+            pat_span
+        ),
+        AstNode::new(
+            MatchCase {
+                pattern: AstNode::new(
+                    Pattern::Constructor(ConstructorPattern {
+                        name: make_access_name("None"),
+                        fields: ast_nodes![],
+                    },),
+                    pat_span
+                ),
+                expr: AstNode::new(
+                    Expression::new(ExpressionKind::Break(BreakStatement)),
+                    body_span
+                ),
+            },
+            pat_span
+        ),
+    ];
+
+    // Here want to transform the for-loop into just a loop block
+    Block::Loop(LoopBlock(AstNode::new(
+        Block::Match(MatchBlock {
+            subject: AstNode::new(
+                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                    subject: AstNode::new(
+                        Expression::new(ExpressionKind::Variable(VariableExpr {
+                            name: make_access_name("next"),
+                            type_args: ast_nodes![],
+                        })),
+                        iter_span,
+                    ),
+                    args: AstNode::new(
+                        FunctionCallArgs {
+                            entries: ast_nodes![AstNode::new(
+                                FunctionCallArg {
+                                    name: None,
+                                    value: iterator,
+                                },
+                                iter_span
+                            )],
+                        },
+                        parent_span,
+                    ),
+                })),
+                body_span,
+            ),
+            cases: match_cases,
+            origin: MatchOrigin::For,
+        }),
+        parent_span,
+    )))
+}
+
+/// This function is responsible for converting a [WhileLoopBlock] into a
+/// [LoopBlock]. This is not obvious from the function definition
+/// because it accepts a [AstNode<Block>], not specifically a [WhileLoopBlock].
+/// This is because it operates by using [AstNode::replace] in order to convert
+/// the while-loop into a de-sugared loop.
+///
+/// The process is as follows: de-sugaring a for-loop from:
+/// ```text
+/// while <condition> {
+///      <block>
+/// }
+/// ```
+///
+/// Is converted to:
+///
+/// ```text
+/// loop {
+///     match <condition> {
+///         true  => <block>;
+///         false => break;
+///     }
+/// }
+/// ```
+///
+/// The de-sugaring process is similar to the for-loop de-sugaring
+/// process. The condition that is specified for the while-loop to continue
+/// executing is treated like a matchable pattern, and then matched on whether
+/// if it is true or not. If it is true, the body block is executed, otherwise the loop
+/// breaks.
+fn lower_while_loop_block(node: Block, parent_span: Span) -> Block {
+    // Since this function expects it to be a for-loop block, we match it and unwrap
+    let block = match node {
+        Block::While(body) => body,
+        block => panic!(
+            "Expected while-block within while-block lowering, got {}",
+            block.as_str()
+        ),
+    };
+
+    let WhileLoopBlock { condition, body } = block;
+    let (body_span, condition_span) = (body.span(), condition.span());
+
+    Block::Loop(LoopBlock(AstNode::new(
+        Block::Match(MatchBlock {
+            subject: condition,
+            cases: ast_nodes![
+                AstNode::new(
+                    MatchCase {
+                        pattern: AstNode::new(
+                            Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(true))),
+                            condition_span
+                        ),
+                        expr: AstNode::new(
+                            Expression::new(ExpressionKind::Block(BlockExpr(body))),
+                            body_span
+                        ),
+                    },
+                    condition_span
+                ),
+                AstNode::new(
+                    MatchCase {
+                        pattern: AstNode::new(
+                            Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false))),
+                            condition_span
+                        ),
+                        expr: AstNode::new(
+                            Expression::new(ExpressionKind::Break(BreakStatement)),
+                            condition_span
+                        )
+                    },
+                    condition_span
+                ),
+            ],
+            origin: MatchOrigin::While,
+        }),
+        parent_span,
+    )))
+}
+
+/// This function converts a [AstNode<IfClause>] into a [AstNode<MatchCase>]. This
+/// is part of the de-sugaring process for if-statements. Each branch in the
+/// if-block is converted into a branch within a match block using the `if-guard`
+/// pattern.
+///
+/// For example, take the branch:
+///
+/// ```text
+/// if <condition> { <body> }
+/// ```
+///
+/// This is converted into the following match case:
+///
+/// ```text
+/// // match true {
+///     _ if <condition> => <body>;
+///     ...
+/// // }
+/// ```
+///
+/// This function is not responsible for generating the match block, but only
+/// de-sugaring the specific [IfClause] into a [MatchCase].
+fn lower_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
+    let branch_span = node.span();
+
+    let IfClause { condition, body } = node.into_body();
+    let (body_span, condition_span) = (body.span(), condition.span());
+
+    AstNode::new(
+        MatchCase {
+            pattern: AstNode::new(
+                Pattern::If(IfPattern {
+                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), condition_span),
+                    condition,
+                }),
+                branch_span,
+            ),
+            expr: AstNode::new(
+                Expression::new(ExpressionKind::Block(BlockExpr(body))),
+                body_span,
+            ),
+        },
+        branch_span,
+    )
+}
+
+/// This function is responsible for de-sugaring an if-block into a match case. This
+/// function converts a [IfBlock] into a [MatchBlock]. This is not obvious from the
+/// function definition because it accepts a [Block], not specifically a [IfBlock].
+/// This is because it operates by using [AstNode<T>::replace] in order to convert
+/// the if-block into a match-block.
+///
+/// The de-sugaring process is as follows, take the following if block:
+///
+/// ```text
+/// if a { a_branch } else if b { b_branch } else { c_branch }
+/// ```
+///
+/// will be transformed into...
+///
+/// ```text
+/// match true {
+///     _ if a => a_branch
+///     _ if b => b_branch
+///     _ => c_branch
+/// }
+///```
+///
+/// The condition of the if-branch is converted into a [hash_ast::ast::MatchCase] by using
+/// the `if-guard` pattern with the condition being the guard. As can be seen in the example,
+/// the condition that the match-block is matching is `true`. This is essentially a filler for
+/// the de-sugaring process and will be optimised out. This process is done so that the
+/// later stages of the compiler don't need to deal with multiple constructs that resemble
+/// each other in functionality. An if-block is de-sugared into a match-block because it
+/// captures all of the features of an if-block, but the relationship is not mutual and thus
+/// converting to a match-block is the only case.
+///
+/// In the event that there is no `else` branch, this function will add a default branch that
+/// adds a default branch with an empty block like so:
+///
+/// ```text
+/// if x == 3 { <body> }
+/// ```
+///
+/// Transforms to the following:
+///
+/// ```text
+/// match true {
+///     _ if x == 3 { <body> };
+///     _ => {};
+/// }
+/// ```
+///
+/// This is done so that the typechecker can perform that the whole
+/// block returns the same type. If the previous branches do not return
+/// anything, omitting an `else` case is ok and this will pass later stages,
+/// however when an if block returns something from a previous branch, then
+/// this will fail compilation and it will be reported.
+///
+/// @@Note: We could just add some flag on the match-case to say that when
+///         it was lowered from a if-block, it was missing an else case, and this
+///         would mean we don't always have to add it. However, this might complicate
+///         things with pattern exhaustiveness because then there would be no base case
+///         branch, thus the exhaustiveness checking would also need to know about
+///         the omitted else branch.
+fn lower_if_block(node: Block, parent_span: Span) -> Block {
+    // Since this function expects it to be a for-loop block, we match it and unwrap
+    let block = match node {
+        Block::If(body) => body,
+        block => panic!(
+            "Expected if-block within if-block lowering, got {}",
+            block.as_str()
+        ),
+    };
+
+    // We don't case about 'clauses' because we can use the visitor to transform
+    // the clauses separately
+    let IfBlock { clauses, otherwise } = block;
+    let clauses_span = clauses.span();
+
+    // Iterate over the clauses and transform them
+    let mut clauses = clauses
+        .nodes
+        .into_iter()
+        .map(|node| lower_if_clause(node))
+        .collect::<Vec<_>>();
+
+    // Deal with the `otherwise` case, if there is no otherwise case then we can just
+    // push an ignore branch and the body of the else block, otherwise it is replaces by
+    // just an empty block
+    let else_block = if let Some(block) = otherwise {
+        let else_block_span = block.span();
+
+        AstNode::new(
+            MatchCase {
+                pattern: AstNode::new(Pattern::Ignore(IgnorePattern), else_block_span),
+                expr: AstNode::new(
+                    Expression::new(ExpressionKind::Block(BlockExpr(block))),
+                    else_block_span,
+                ),
+            },
+            else_block_span,
+        )
+    } else {
+        // @@Hack: We don't have a span for the branch, so we rely on using the span of the
+        //         entire if-clause. This might not be the exactly right approach because some
+        //         later checks (within typechecking) might report errors that are related to a
+        //         missing else-branch because the return type of the block doesn't become the same
+        //         anymore. Therefore, we might later want to re-think which span we use for
+        //         generating the else-branch.
+        AstNode::new(
+            MatchCase {
+                pattern: AstNode::new(Pattern::Ignore(IgnorePattern), parent_span),
+                expr: AstNode::new(
+                    Expression::new(ExpressionKind::Block(BlockExpr(AstNode::new(
+                        Block::Body(BodyBlock {
+                            statements: AstNodes::empty(),
+                            expr: None,
+                        }),
+                        parent_span,
+                    )))),
+                    parent_span,
+                ),
+            },
+            parent_span,
+        )
+    };
+
+    // In either case, we still push the the else_block branch into the match cases
+    // generated from the if-clause pass.
+    clauses.push(else_block);
+
+    Block::Match(MatchBlock {
+        subject: AstNode::new(
+            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(AstNode::new(
+                Literal::Bool(BoolLiteral(true)),
+                parent_span,
+            )))),
+            parent_span,
+        ),
+        cases: AstNodes::new(clauses, clauses_span),
+        origin: MatchOrigin::If,
     })
 }
 
@@ -146,9 +542,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_expression(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expression>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
+        let _ = walk_mut::walk_expression(self, ctx, node);
         Ok(())
     }
 
@@ -166,9 +563,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_directive_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DirectiveExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        let _ = walk_mut::walk_directive_expr(self, ctx, node);
         Ok(())
     }
 
@@ -176,9 +574,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_function_call_arg(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArg>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArg>,
     ) -> Result<Self::FunctionCallArgRet, Self::Error> {
+        let _ = walk_mut::walk_function_call_arg(self, ctx, node);
         Ok(())
     }
 
@@ -186,9 +585,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_function_call_args(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArgs>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArgs>,
     ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
+        let _ = walk_mut::walk_function_call_args(self, ctx, node);
         Ok(())
     }
 
@@ -196,9 +596,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_function_call_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallExpr>,
     ) -> Result<Self::FunctionCallExprRet, Self::Error> {
+        let _ = walk_mut::walk_function_call_expr(self, ctx, node);
         Ok(())
     }
 
@@ -206,9 +607,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_property_access_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyAccessExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyAccessExpr>,
     ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
+        let _ = walk_mut::walk_property_access_expr(self, ctx, node);
         Ok(())
     }
 
@@ -216,9 +618,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_ref_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
+        let _ = walk_mut::walk_ref_expr(self, ctx, node);
         Ok(())
     }
 
@@ -226,9 +629,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_deref_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DerefExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
+        let _ = walk_mut::walk_deref_expr(self, ctx, node);
         Ok(())
     }
 
@@ -236,9 +640,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_unsafe_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnsafeExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnsafeExpr>,
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
+        let _ = walk_mut::walk_unsafe_expr(self, ctx, node);
         Ok(())
     }
 
@@ -256,9 +661,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_cast_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CastExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
+        let _ = walk_mut::walk_cast_expr(self, ctx, node);
         Ok(())
     }
 
@@ -274,11 +680,14 @@ impl AstVisitorMut for AstLowering {
 
     type BlockExprRet = ();
 
+    #[inline]
     fn visit_block_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BlockExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BlockExpr>,
     ) -> Result<Self::BlockExprRet, Self::Error> {
+        let _ = walk_mut::walk_block_expr(self, ctx, node)?;
+
         Ok(())
     }
 
@@ -382,33 +791,14 @@ impl AstVisitorMut for AstLowering {
         Ok(())
     }
 
-    type ExistentialTypeRet = ();
-
-    fn visit_existential_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ExistentialType>,
-    ) -> Result<Self::ExistentialTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type InferTypeRet = ();
-
-    fn visit_infer_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::InferType>,
-    ) -> Result<Self::InferTypeRet, Self::Error> {
-        Ok(())
-    }
-
     type MapLiteralRet = ();
 
     fn visit_map_literal(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteral>,
     ) -> Result<Self::MapLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_map_literal(self, ctx, node);
         Ok(())
     }
 
@@ -416,9 +806,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_map_literal_entry(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteralEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteralEntry>,
     ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
+        let _ = walk_mut::walk_map_literal_entry(self, ctx, node);
         Ok(())
     }
 
@@ -426,9 +817,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_list_literal(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLiteral>,
     ) -> Result<Self::ListLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_list_literal(self, ctx, node);
         Ok(())
     }
 
@@ -436,9 +828,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_set_literal(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLiteral>,
     ) -> Result<Self::SetLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_set_literal(self, ctx, node);
         Ok(())
     }
 
@@ -446,9 +839,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_tuple_literal_entry(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteralEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteralEntry>,
     ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
+        let _ = walk_mut::walk_tuple_literal_entry(self, ctx, node);
         Ok(())
     }
 
@@ -456,9 +850,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_tuple_literal(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteral>,
     ) -> Result<Self::TupleLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_tuple_literal(self, ctx, node);
         Ok(())
     }
 
@@ -516,9 +911,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_function_def(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error> {
+        let _ = walk_mut::walk_function_def(self, ctx, node);
         Ok(())
     }
 
@@ -526,9 +922,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_function_def_arg(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDefArg>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDefArg>,
     ) -> Result<Self::FunctionDefArgRet, Self::Error> {
+        let _ = walk_mut::walk_function_def_arg(self, ctx, node);
         Ok(())
     }
 
@@ -536,9 +933,28 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Block>,
+        ctx: &Self::Ctx,
+        mut node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Block>,
     ) -> Result<Self::BlockRet, Self::Error> {
+        let parent_span = node.span();
+
+        // Check if this is a for, while, or if block and then apply the appropriate transformations.
+        match node.body() {
+            Block::For(_) => {
+                node.replace(|old| lower_for_loop_block(old, parent_span));
+            }
+            Block::While(_) => {
+                node.replace(|old| lower_while_loop_block(old, parent_span));
+            }
+            Block::If(_) => {
+                node.replace(|old| lower_if_block(old, parent_span));
+            }
+            _ => {}
+        };
+
+        // We still need to walk the block now
+        let _ = walk_mut::walk_block(self, ctx, node);
+
         Ok(())
     }
 
@@ -546,9 +962,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_match_case(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchCase>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
+        let _ = walk_mut::walk_match_case(self, ctx, node);
         Ok(())
     }
 
@@ -556,9 +973,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_match_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
+        let _ = walk_mut::walk_match_block(self, ctx, node);
         Ok(())
     }
 
@@ -566,176 +984,66 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_loop_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LoopBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
+        let _ = walk_mut::walk_loop_block(self, ctx, node);
+
         Ok(())
     }
 
-    type ForLoopBlockRet = ast::Block;
+    type ForLoopBlockRet = ();
 
     fn visit_for_loop_block(
         &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock>,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        // Get the right spans for the transformation
-        let ForLoopBlock {
-            pattern,
-            iterator,
-            body,
-        } = todo!(); // *node.body();
-
-        let for_block_span = node.span();
-        let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
-
-        let make_access_name = |label: &str| -> AstNode<AccessName> {
-            // Create the identifier within the map...
-            let ident = IDENTIFIER_MAP.create_ident(label);
-
-            AstNode::new(
-                AccessName {
-                    path: ast_nodes![AstNode::new(ident, iter_span)],
-                },
-                iter_span,
-            )
-        };
-
-        // Copy the bodies of the inner components of the for-loop by moving out the
-        // brick and then re-make the node.
-        // let iterator = AstNode::new(iterator.into_body().move_out(), iter_span, ctx);
-
-        // Here want to transform the for-loop into just a loop block
-        Ok(Block::Loop(LoopBlock(AstNode::new(
-            Block::Match(MatchBlock {
-                subject: AstNode::new(
-                    Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                        subject: AstNode::new(
-                            Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: make_access_name("next"),
-                                type_args: ast_nodes![],
-                            })),
-                            iter_span,
-                        ),
-                        args: AstNode::new(
-                            FunctionCallArgs {
-                                entries: ast_nodes![AstNode::new(
-                                    FunctionCallArg {
-                                        name: None,
-                                        value: iterator,
-                                    },
-                                    iter_span
-                                )],
-                            },
-                            iter_span,
-                        ),
-                    })),
-                    for_block_span,
-                ),
-                cases: ast_nodes![
-                    AstNode::new(
-                        MatchCase {
-                            pattern: AstNode::new(
-                                Pattern::Constructor(ConstructorPattern {
-                                    name: make_access_name("Some"),
-                                    fields: ast_nodes![AstNode::new(
-                                        TuplePatternEntry {
-                                            name: None,
-                                            pattern
-                                        },
-                                        pat_span
-                                    )]
-                                }),
-                                pat_span
-                            ),
-                            expr: AstNode::new(
-                                Expression::new(ExpressionKind::Block(BlockExpr(body))),
-                                body_span
-                            )
-                        },
-                        pat_span
-                    ),
-                    AstNode::new(
-                        MatchCase {
-                            pattern: AstNode::new(
-                                Pattern::Constructor(ConstructorPattern {
-                                    name: make_access_name("None",),
-                                    fields: ast_nodes![],
-                                },),
-                                pat_span
-                            ),
-                            expr: AstNode::new(
-                                Expression::new(ExpressionKind::Break(BreakStatement)),
-                                body_span
-                            ),
-                        },
-                        pat_span
-                    ),
-                ],
-                origin: MatchOrigin::For,
-            }),
-            for_block_span,
-        ))))
+        // Specifically left empty since this should never fire!
+        Ok(())
     }
 
-    type WhileLoopBlockRet = Block;
+    type WhileLoopBlockRet = ();
 
     fn visit_while_loop_block(
         &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock>,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        let while_block_span = node.span();
+        // Specifically left empty since this should never fire!
+        Ok(())
+    }
 
-        // Get the right spans for the transformation
-        let WhileLoopBlock { condition, body } = todo!(); // *node.body();
+    type IfClauseRet = ();
 
-        let (body_span, condition_span) = (body.span(), condition.span());
+    fn visit_if_clause(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause>,
+    ) -> Result<Self::IfClauseRet, Self::Error> {
+        // Specifically left empty since this should never fire!
+        Ok(())
+    }
 
-        Ok(Block::Loop(LoopBlock(AstNode::new(
-            Block::Match(MatchBlock {
-                subject: condition,
-                cases: ast_nodes![
-                    AstNode::new(
-                        MatchCase {
-                            pattern: AstNode::new(
-                                Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(true))),
-                                condition_span
-                            ),
-                            expr: AstNode::new(
-                                Expression::new(ExpressionKind::Block(BlockExpr(body))),
-                                body_span
-                            ),
-                        },
-                        condition_span
-                    ),
-                    AstNode::new(
-                        MatchCase {
-                            pattern: AstNode::new(
-                                Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false))),
-                                condition_span
-                            ),
-                            expr: AstNode::new(
-                                Expression::new(ExpressionKind::Break(BreakStatement)),
-                                condition_span
-                            )
-                        },
-                        condition_span
-                    ),
-                ],
-                origin: MatchOrigin::While,
-            }),
-            while_block_span,
-        ))))
+    type IfBlockRet = ();
+
+    fn visit_if_block(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock>,
+    ) -> Result<Self::IfBlockRet, Self::Error> {
+        // Specifically left empty since this should never fire!
+        Ok(())
     }
 
     type ModBlockRet = ();
 
     fn visit_mod_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
+        let _ = walk_mut::walk_mod_block(self, ctx, node);
         Ok(())
     }
 
@@ -743,115 +1051,21 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_impl_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImplBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
+        let _ = walk_mut::walk_impl_block(self, ctx, node);
         Ok(())
-    }
-
-    type IfClauseRet = AstNode<MatchCase>;
-
-    fn visit_if_clause(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause>,
-    ) -> Result<Self::IfClauseRet, Self::Error> {
-        let branch_span = node.span();
-
-        let IfClause { condition, body } = todo!(); // *node.body();
-        let (body_span, condition_span) = (body.span(), condition.span());
-
-        Ok(AstNode::new(
-            MatchCase {
-                pattern: AstNode::new(
-                    Pattern::If(IfPattern {
-                        pattern: AstNode::new(Pattern::Ignore(IgnorePattern), condition_span),
-                        condition,
-                    }),
-                    branch_span,
-                ),
-                expr: AstNode::new(
-                    Expression::new(ExpressionKind::Block(BlockExpr(body))),
-                    body_span,
-                ),
-            },
-            branch_span,
-        ))
-    }
-
-    type IfBlockRet = Block;
-
-    fn visit_if_block(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock>,
-    ) -> Result<Self::IfBlockRet, Self::Error> {
-        let span = node.span();
-        let clauses_span = node.body().clauses.span();
-
-        // We don't case about 'clauses' because we can use the visitor to transform
-        // the clauses separately
-        let IfBlock { otherwise, .. } = todo!(); // *node.body();
-
-        let walk_mut::IfBlock { mut clauses, .. } = walk_mut::walk_if_block(self, ctx, node)?;
-
-        // Deal with the `otherwise` case, if there is no otherwise case then we can just
-        // push an ignore branch and the body of the else block, otherwise it is replaces by
-        // just an empty block
-        let else_block = if let Some(block) = otherwise {
-            let block_span = block.span();
-
-            AstNode::new(
-                MatchCase {
-                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), block_span),
-                    expr: AstNode::new(
-                        Expression::new(ExpressionKind::Block(BlockExpr(block))),
-                        block_span,
-                    ),
-                },
-                block_span,
-            )
-        } else {
-            AstNode::new(
-                MatchCase {
-                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), span),
-                    expr: AstNode::new(
-                        Expression::new(ExpressionKind::Block(BlockExpr(AstNode::new(
-                            Block::Body(BodyBlock {
-                                statements: AstNodes::empty(),
-                                expr: None,
-                            }),
-                            span,
-                        )))),
-                        span,
-                    ),
-                },
-                span,
-            )
-        };
-
-        clauses.push(else_block);
-
-        Ok(Block::Match(MatchBlock {
-            subject: AstNode::new(
-                Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(AstNode::new(
-                    Literal::Bool(BoolLiteral(true)),
-                    span,
-                )))),
-                span,
-            ),
-            cases: AstNodes::new(clauses, clauses_span),
-            origin: MatchOrigin::If,
-        }))
     }
 
     type BodyBlockRet = ();
 
     fn visit_body_block(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BodyBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
+        let _ = walk_mut::walk_body_block(self, ctx, node);
         Ok(())
     }
 
@@ -859,9 +1073,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_return_statement(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ReturnStatement>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
+        let _ = walk_mut::walk_return_statement(self, ctx, node);
         Ok(())
     }
 
@@ -909,9 +1124,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_declaration(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Declaration>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
+        let _ = walk_mut::walk_declaration(self, ctx, node);
         Ok(())
     }
 
@@ -919,9 +1135,11 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_merge_declaration(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeDeclaration>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
+        // @@Note: We probably don't have to walk this??
+        let _ = walk_mut::walk_merge_declaration(self, ctx, node);
         Ok(())
     }
 
@@ -929,9 +1147,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_assign_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpression>,
     ) -> Result<Self::AssignExpressionRet, Self::Error> {
+        let _ = walk_mut::walk_assign_statement(self, ctx, node);
         Ok(())
     }
 
@@ -939,9 +1158,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_assign_op_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpression>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+        let _ = walk_mut::walk_assign_op_statement(self, ctx, node);
         Ok(())
     }
 
@@ -949,9 +1169,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_binary_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpression>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
+        let _ = walk_mut::walk_binary_expr(self, ctx, node);
         Ok(())
     }
 
@@ -959,9 +1180,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_unary_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpression>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
+        let _ = walk_mut::walk_unary_expr(self, ctx, node);
         Ok(())
     }
 
@@ -969,9 +1191,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_index_expr(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpression>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
+        let _ = walk_mut::walk_index_expr(self, ctx, node);
         Ok(())
     }
 
@@ -979,9 +1202,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_struct_def_entry(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDefEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDefEntry>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
+        let _ = walk_mut::walk_struct_def_entry(self, ctx, node);
         Ok(())
     }
 
@@ -989,9 +1213,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_struct_def(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
+        let _ = walk_mut::walk_struct_def(self, ctx, node);
         Ok(())
     }
 
@@ -1019,9 +1244,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_trait_def(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
+        let _ = walk_mut::walk_trait_def(self, ctx, node);
         Ok(())
     }
 
@@ -1039,9 +1265,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_trait_impl(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitImpl>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
+        let _ = walk_mut::walk_trait_impl(self, ctx, node);
         Ok(())
     }
 
@@ -1049,9 +1276,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_type_function_def(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
+        let _ = walk_mut::walk_type_function_def(self, ctx, node);
         Ok(())
     }
 
@@ -1229,9 +1457,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_if_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfPattern>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
+        let _ = walk_mut::walk_if_pattern(self, ctx, node);
         Ok(())
     }
 
@@ -1279,9 +1508,10 @@ impl AstVisitorMut for AstLowering {
 
     fn visit_module(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Module>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
+        let _ = walk_mut::walk_module(self, ctx, node);
         Ok(())
     }
 }
