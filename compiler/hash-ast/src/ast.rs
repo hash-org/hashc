@@ -6,6 +6,7 @@ use crate::ident::Identifier;
 use crate::literal::StringLiteral;
 use hash_source::location::Span;
 use hash_utils::counter;
+use replace_with::replace_with_or_abort;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::{fmt::Display, hash::Hash};
@@ -178,9 +179,8 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     }
 
     /// Function to replace the body of the node with a newly generated body
-    pub fn replace(&mut self, _f: impl FnOnce(T) -> T) {
-        // std::mem::replace(&mut *self.body, f(*self.body));
-        todo!()
+    pub fn replace(&mut self, f: impl FnOnce(T) -> T) {
+        replace_with_or_abort(self.body, f);
     }
 
     /// Get a mutable reference to the reference contained within this node.
