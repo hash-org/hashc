@@ -128,10 +128,11 @@ fn main() {
         })
         .into();
 
+    let parser = HashParser::new();
+
     // Create a castle for allocations in the pipeline
     let castle = Castle::new();
 
-    let parser = HashParser::new(&castle);
     let tc_wall = &castle.wall();
     let checker = HashTypechecker::new(tc_wall);
 

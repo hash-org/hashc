@@ -21,7 +21,7 @@ pub type CompilerResult<T> = Result<T, Report>;
 
 /// The [Parser] represents an abstract parser that can parse all aspects of the Hash programming
 /// language.
-pub trait Parser<'c, 'pool> {
+pub trait Parser<'pool> {
     /// Given a [SourceId], parse the current job and append any parsed modules to the
     /// provided sources parameter. On success, the function returns nothing and on
     /// failure, the stage provides a generated diagnostics [Report].
@@ -136,7 +136,7 @@ pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
 impl<'c, 'pool, P, C, V> Compiler<'pool, P, C, V>
 where
     'pool: 'c,
-    P: Parser<'c, 'pool>,
+    P: Parser<'pool>,
     C: Checker<'c>,
     V: VirtualMachine<'c>,
 {

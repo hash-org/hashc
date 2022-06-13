@@ -2,7 +2,6 @@
 
 use std::fs;
 
-use hash_alloc::Castle;
 use hash_parser::HashParser;
 use hash_pipeline::{
     sources::{Module, Sources},
@@ -85,14 +84,13 @@ fn handle_failure_case(
 fn handle_test(input: TestingInput) {
     // determine if this test should fail or not
     let should_fail = input.snake_name.starts_with("should_fail");
-    let castle = Castle::new();
 
     let mut sources = Sources::new();
     let content_path = input.path.join("case.hash");
     let target = Module::new(content_path.clone());
     let target_id = sources.add_module(target);
 
-    let mut parser = HashParser::new(&castle);
+    let mut parser = HashParser::new();
 
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(2)
