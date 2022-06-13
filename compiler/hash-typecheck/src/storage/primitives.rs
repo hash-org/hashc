@@ -351,6 +351,8 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct AppTyFn {
     pub ty_fn_value: ValueId,
+    // @@Reconsider(kontheocharis): should this be something like `TyArgs`? Aren't only types
+    // allowed here? Unclear with type functions.
     pub args: Args,
 }
 
@@ -478,19 +480,35 @@ pub enum Ty {
 
 // IDs for all the primitives to be stored on mapped storage.
 
-new_key_type! { pub struct TyId; }
-
-new_key_type! { pub struct TrtDefId; }
-
-new_key_type! { pub struct NominalDefId; }
-
-new_key_type! { pub struct ImplGroupId; }
-
-new_key_type! { pub struct ModDefId; }
+new_key_type! {
+    /// The ID of a [Ty] stored in [super::tys::TyStore].
+    pub struct TyId;
+}
 
 new_key_type! {
+    /// The ID of a [TrtDef] stored in [super::trts::TrtDefStore].
+    pub struct TrtDefId;
+}
+
+new_key_type! {
+    /// The ID of a [NominalDef] stored in [super::nominals::NominalDefStore].
+    pub struct NominalDefId;
+}
+
+new_key_type! {
+    /// The ID of a [ModDef] stored in [super::mods::ModDefStore].
+    pub struct ModDefId;
+}
+
+new_key_type! {
+    /// The ID of a [Value] stored in [super::values::ValueStore].
     pub struct ValueId;
 }
 
+/// The ID of a [UnresolvedTy], separate from its [TyId], stored in [super::tys::TyStore].
+///
+/// This needs to be separate from [TyId] so that if a type is copied (and new IDs are generated
+/// for its members) the identity of the unknown variables remains the same as in the original
+/// type.
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct ResolutionId(pub(super) usize);

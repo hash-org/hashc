@@ -78,6 +78,12 @@ impl GlobalStorage {
     }
 }
 
+impl Default for GlobalStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Keeps track of typechecking information specific to a given source file.
 pub struct LocalStorage {
     /// All the scopes in a given source.
@@ -112,7 +118,7 @@ pub trait AccessToStorage {
     }
 
     fn core_defs(&mut self) -> &CoreDefs {
-        &self.global_storage().core_defs()
+        self.global_storage().core_defs()
     }
 
     fn ty_store(&self) -> &TyStore {

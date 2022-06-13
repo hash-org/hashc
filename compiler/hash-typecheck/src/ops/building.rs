@@ -343,11 +343,10 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
         ty_fn_value_id: ValueId,
         args: impl IntoIterator<Item = Arg>,
     ) -> AppTyFn {
-        let app_ty_fn = AppTyFn {
+        AppTyFn {
             args: Args::new(args.into_iter().collect()),
             ty_fn_value: ty_fn_value_id,
-        };
-        app_ty_fn
+        }
     }
 
     /// Create an argument with the given name and value.
