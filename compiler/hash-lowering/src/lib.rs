@@ -1,5 +1,11 @@
+//! Hash AST lowering passes crate. This crate holds an implementation for the
+//! visitor pattern on the AST in order to `lower` it to a simpler version so that
+//! later stages can work on it without having to operate on similar constructs and
+//! duplicating logic.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 #![feature(generic_associated_types)]
-#![allow(unreachable_code, unused)] // @@Temporary
+#![allow(unreachable_code, unused, clippy::diverging_sub_expression)] // @@Temporary
 
 use std::convert::Infallible;
 
@@ -25,17 +31,17 @@ pub struct AstLowering;
 /// essentially a pass that will transform the following structures
 /// into a "simpler" variant:
 ///
-///     - Any for-loops are transformed into a more simpler `loop` construct
-///       with an inner match case that verifies that the iterator has no
-///       more items that can be consumed.
+/// Any for-loops are transformed into a more simpler "loop" construct
+/// with an inner match case that verifies that the iterator has no
+/// more items that can be consumed.
 ///
-///    - Any while-loops are also transformed into a simpler loop variant with
-///      an inner match case that matches on the result of the while-loop
-///      `condition` to see if it is `true` or `false`. If it is false, then
-///      the loop breaks, otherwise the body of the while-loop is executed.
+/// Any while-loops are also transformed into a simpler loop variant with
+/// an inner match case that matches on the result of the while-loop
+/// "condition" to see if it is "true" or "false". If it is false, then
+/// the loop breaks, otherwise the body of the while-loop is executed.
 ///
-///    - Any if-statements are transformed into equivalent match cases by using
-///      the `if-guard` pattern to express all of the branches in the if-statement.
+/// Any if-statements are transformed into equivalent match cases by using
+/// the "if-guard" pattern to express all of the branches in the if-statement.
 ///
 /// This function utilised the pipeline thread pool in order to make the transformations
 /// as parallel as possible. There is a queue that is queues all of the expressions within
@@ -44,8 +50,7 @@ pub fn lower_ast_for_typechecking<'pool, 'c>(
     sources: &mut Sources,
     castle: &'c Castle,
     pool: &'pool rayon::ThreadPool,
-) -> ()
-where
+) where
     'c: 'pool,
 {
     // Iterate over all of the modules and add the expressions

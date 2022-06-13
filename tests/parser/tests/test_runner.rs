@@ -38,9 +38,8 @@ fn handle_failure_case(
     let content_path = input.path.join("case.hash");
 
     // Verify that the parser failed to parse this file
-    assert_eq!(
+    assert!(
         result.is_err(),
-        true,
         "parsing file: {:?} did not fail",
         content_path
     );
@@ -73,8 +72,7 @@ fn handle_failure_case(
 
         pretty_assertions::assert_eq!(err_contents, report_contents);
     } else {
-        assert!(
-            false,
+        panic!(
             "Missing `.stderr` file for `{:?}`. Consider running with `REGENERATE_OUTPUT=true`",
             content_path
         );
@@ -97,7 +95,7 @@ fn handle_test(input: TestingInput) {
     let mut parser = HashParser::new(&castle);
 
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(2)
         .thread_name(|id| format!("parse-worker-{}", id))
         .build()
         .unwrap();

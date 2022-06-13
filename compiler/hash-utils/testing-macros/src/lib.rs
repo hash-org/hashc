@@ -167,7 +167,9 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     .unwrap();
 
     let test_pattern = Regex::new(&input.test_pattern).unwrap();
-    let entries = read_dir(&file_path, &test_pattern, None).unwrap();
+
+    let mut entries = read_dir(&file_path, &test_pattern, None).unwrap();
+    entries.sort_by_cached_key(|entry| entry.path.to_owned());
 
     let paths = entries.iter().map(|entry| entry.path.to_str().unwrap());
     let snake_names = entries.iter().map(|entry| entry.snake_name.to_owned());

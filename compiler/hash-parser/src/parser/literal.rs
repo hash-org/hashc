@@ -152,7 +152,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an array literal.
     pub(crate) fn parse_array_literal(
         &self,
-        tree: &'stream Vec<Token>,
+        tree: &'stream [Token],
         span: &Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);

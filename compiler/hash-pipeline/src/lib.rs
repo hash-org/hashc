@@ -229,7 +229,7 @@ where
                 self.parser.parse(
                     SourceId::Module(module_id),
                     &mut compiler_state.sources,
-                    &self.pool,
+                    self.pool,
                 )
             },
             log::Level::Debug,

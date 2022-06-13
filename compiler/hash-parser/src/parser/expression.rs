@@ -560,7 +560,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_function_call(
         &self,
         subject: AstNode<Expression>,
-        tree: &'stream Vec<Token>,
+        tree: &'stream [Token],
         span: Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
@@ -633,7 +633,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_array_index(
         &self,
         subject: AstNode<Expression>,
-        tree: &'stream Vec<Token>,
+        tree: &'stream [Token],
         span: Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
@@ -897,7 +897,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// by the following operator, whether it is a colon, comma or a semicolon.
     pub(crate) fn parse_block_or_braced_literal(
         &self,
-        tree: &'stream Vec<Token>,
+        tree: &'stream [Token],
         span: &Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
@@ -1079,7 +1079,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ///
     pub(crate) fn parse_expression_or_tuple(
         &self,
-        tree: &'stream Vec<Token>,
+        tree: &'stream [Token],
         span: &Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
