@@ -229,7 +229,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// tree.
     fn parse_namespace_pattern(
         &self,
-        tree: &'stream Vec<Token>,
+        tree: &'stream [Token],
         span: Span,
     ) -> AstGenResult<NamespacePattern> {
         let gen = self.from_stream(tree, span);

@@ -43,7 +43,7 @@ pub enum ParserAction {
     },
 }
 
-fn parse_source<'c>(source: ParseSource, sender: Sender<ParserAction>) {
+fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.source_id();
     let contents = match source.contents() {
         Ok(source) => source,
@@ -121,6 +121,11 @@ impl<'c, 'pool> HashParser<'c> {
         let _castle = self.castle;
         let mut errors = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
+
+        assert!(
+            pool.current_num_threads() > 1,
+            "Parser loop requires at least 2 workers"
+        );
 
         // Parse the entry point
         let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);

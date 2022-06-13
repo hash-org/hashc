@@ -21,7 +21,7 @@ pub enum ParseSource {
     },
 }
 
-impl<'c> ParseSource {
+impl ParseSource {
     pub fn from_module(module_id: ModuleId, sources: &Sources) -> Self {
         let module = sources.get_module(module_id);
         Self::Module {

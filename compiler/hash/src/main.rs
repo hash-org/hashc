@@ -144,9 +144,11 @@ fn main() {
         _ => CompilerSettings::default(),
     };
 
+    // We need at least 2 workers for the parsing loop in order so that the job queue can run
+    // within a worker and any other jobs can run inside another worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(worker_count + 1)
-        .thread_name(|id| format!("parse-worker-{}", id))
+        .thread_name(|id| format!("compiler-worker-{}", id))
         .build()
         .unwrap();
 

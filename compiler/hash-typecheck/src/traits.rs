@@ -112,6 +112,12 @@ impl TraitImplStorage {
     }
 }
 
+impl Default for TraitImplStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug)]
 pub struct TraitStorage<'c, 'w> {
     data: HashMap<TraitId, Cell<&'c Trait>>,
