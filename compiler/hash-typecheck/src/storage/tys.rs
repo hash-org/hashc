@@ -47,8 +47,8 @@ impl TyStore {
 
     /// Get a new [ResolutionId] for a new [Ty::Unresolved].
     ///
-    /// This shouldn't be directly used in inference code, rather call the appropriate [PrimitiveBuilder]
-    /// function.
+    /// This shouldn't be directly used in inference code, rather call the appropriate
+    /// [PrimitiveBuilder](crate::ops::building::PrimitiveBuilder) function.
     pub fn new_resolution_id(&self) -> ResolutionId {
         let new_id = self.last_resolution_id.get() + 1;
         self.last_resolution_id.set(new_id);
@@ -59,8 +59,8 @@ impl TyStore {
 /// Stores the source location of types in the AST tree.
 ///
 /// Not every type is guaranteed to have an attached location, but if it does it will be stored
-/// here. Note that type locations are on the [TypeId]-level, not on the [Type]-level. So two
-/// identical [Type]s with different [TypeId]s can have separate location attachments.
+/// here. Note that type locations are on the [TyId]-level, not on the [Ty]-level. So two identical
+/// [Ty]s with different [TyId]s can have separate location attachments.
 #[derive(Debug, Default)]
 pub struct TyLocations {
     data: SecondaryMap<TyId, SourceLocation>,

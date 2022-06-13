@@ -403,11 +403,11 @@ pub enum Value {
     /// Modules and trait implementations, as well as anonymous implementations, are treated as
     /// types.
     ///
-    /// Information about the origin of each instance of [Ty::Mod] can be found in its
+    /// Information about the origin of each instance of [Value::ModDef] can be found in its
     /// corresponding [ModDef].
     ///
     /// Has a level 1 type.
-    Mod(ModDefId),
+    ModDef(ModDefId),
     /// A nominal type definition, either a struct or an enum.
     ///
     /// Has a level 1 type.

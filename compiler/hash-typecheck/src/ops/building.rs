@@ -12,12 +12,12 @@ use crate::storage::{
 use hash_ast::ident::Identifier;
 use std::cell::RefCell;
 
-/// Helper to create various primitive constructions (from [super::storage::primitives]).
+/// Helper to create various primitive constructions (from [crate::storage::primitives]).
 ///
 /// Optionally adds the constructions to a scope, if given.
 ///
-/// *Note*: This builder does *not* use [CoreDefs], so it is safe to use to construct
-/// [CoreDefs].
+/// *Note*: This builder does *not* use [CoreDefs](crate::storage::core::CoreDefs), so it is safe
+/// to use to construct [CoreDefs](crate::storage::core::CoreDefs).
 pub struct PrimitiveBuilder<'gs, 'sc> {
     // Keep these in RefCells so that calls to [PrimitiveBuilder] can be nested without borrowing
     // issues.
@@ -336,7 +336,7 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
 
     /// Create a type function application, given type function value and arguments.
     ///
-    /// The [args] must all have values [Value::Ty] or end in it (if they are type functions, for
+    /// The `args` must all have values [Value::Ty] or end in it (if they are type functions, for
     /// example).
     pub fn create_app_ty_fn(
         &self,

@@ -103,8 +103,9 @@ impl<'gs, 'ls> Unifier<'gs, 'ls> {
         todo!()
     }
 
-    /// Try to use the value as a type. Only works if the value is [Value::Ty] or resolves to such
-    /// a thing (for example applied type functions).
+    /// Try to use the value as a type. Only works if the value is
+    /// [Value::Ty](crate::storage::primitives::Value) or resolves to such a thing (for example
+    /// applied type functions).
     pub fn value_as_ty(&self, _value_id: ValueId) -> TcResult<TyId> {
         todo!()
     }

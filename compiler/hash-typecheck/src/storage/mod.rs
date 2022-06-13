@@ -60,7 +60,7 @@ impl GlobalStorage {
     }
 
     /// Populate the core definitions
-    fn populate_core_defs(&mut self) {
+    pub fn populate_core_defs(&mut self) {
         match self.core_defs {
             Some(_) => {}
             None => {
