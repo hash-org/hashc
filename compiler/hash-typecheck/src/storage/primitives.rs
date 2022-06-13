@@ -237,7 +237,7 @@ pub struct FnTy {
 ///
 /// For example, consider:
 ///
-/// ```
+/// ```ignore
 /// Dog := <T> => struct(foo: T);
 ///
 /// Dog ~= <T: Hash> => impl Hash {
@@ -251,7 +251,7 @@ pub struct FnTy {
 ///
 /// Then, the definition of the type function `Dog` would look something like:
 ///
-/// ```
+/// ```ignore
 /// TyFnTy {
 ///     general_params = (T: Ty::Ty = Value::Unset),
 ///     general_return_ty = Ty::Ty,
@@ -297,14 +297,14 @@ pub struct TyFnValue {
 /// The `value` property of each [Param] in the `params` field represents types which have been
 /// set, for example:
 ///
-/// ```
+/// ```ignore
 /// Dog<str> ~= impl Conv<str> {
 ///     conv = (self) => "Dog with foo=" + conv(self.foo);
 /// };
 /// ```
 ///
 /// This translates to a case:
-/// ```
+/// ```ignore
 /// (T: Ty::Ty = Value::NominalDef(strDefId))
 ///     -> Ty::AppTyFn(ConvValue (a type fn), [Value::NominalDef(strDefId)])
 ///     => Value::Merge([
@@ -358,13 +358,13 @@ pub struct AppTyFn {
 
 /// The type of a type function, for example:
 ///
-/// ```
+/// ```ignore
 /// T: <X: Type> -> Type
 /// ```
 ///
 /// would be
 ///
-/// ```
+/// ```ignore
 /// name: "T",
 /// ty: Ty::TyFn(params = [(name="X", ty=Ty::Ty)], return_ty=Ty::Ty)
 /// value: Value::Unset,
