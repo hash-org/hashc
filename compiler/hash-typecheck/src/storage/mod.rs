@@ -9,7 +9,6 @@
 
 use self::{
     core::CoreDefs,
-    kinds::KindStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
     scope::{Scope, ScopeStack},
@@ -21,7 +20,6 @@ use self::{
 };
 
 pub mod core;
-pub mod kinds;
 pub mod mods;
 pub mod nominals;
 pub mod primitives;
@@ -35,14 +33,49 @@ pub mod values;
 /// Keeps track of typechecking information across all source files.
 pub struct GlobalStorage {
     pub ty_store: TyStore,
-    pub kind_store: KindStore,
     pub value_store: ValueStore,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
     pub checked_sources: CheckedSources,
-    pub core_defs: CoreDefs,
     pub root_scope: Scope,
+    core_defs: Option<CoreDefs>,
+}
+
+impl GlobalStorage {
+    /// Create a new, empty [GlobalStorage].
+    pub fn new() -> Self {
+        let mut gs = Self {
+            ty_store: TyStore::new(),
+            value_store: ValueStore::new(),
+            trt_def_store: TrtDefStore::new(),
+            mod_def_store: ModDefStore::new(),
+            nominal_def_store: NominalDefStore::new(),
+            checked_sources: CheckedSources::new(),
+            root_scope: Scope::empty(scope::ScopeKind::Constant),
+            core_defs: None,
+        };
+        gs.populate_core_defs();
+        gs
+    }
+
+    /// Populate the core definitions
+    fn populate_core_defs(&mut self) {
+        match self.core_defs {
+            Some(_) => {}
+            None => {
+                self.core_defs = Some(CoreDefs::new(self));
+            }
+        }
+    }
+
+    /// Get the core definitions
+    ///
+    /// This panics if [Self::populate_core_defs] has not been called yet (---it is called when
+    /// [Self::new] is called).
+    pub fn core_defs(&self) -> &CoreDefs {
+        self.core_defs.as_ref().unwrap()
+    }
 }
 
 /// Keeps track of typechecking information specific to a given source file.
@@ -79,15 +112,11 @@ pub trait AccessToStorage {
     }
 
     fn core_defs(&mut self) -> &CoreDefs {
-        &self.global_storage().core_defs
+        &self.global_storage().core_defs()
     }
 
     fn ty_store(&self) -> &TyStore {
         &self.global_storage().ty_store
-    }
-
-    fn kind_store(&self) -> &KindStore {
-        &self.global_storage().kind_store
     }
 
     fn value_store(&self) -> &ValueStore {
@@ -136,16 +165,8 @@ pub trait AccessToStorageMut: AccessToStorage {
         self.storages_mut().local_storage
     }
 
-    fn core_defs_mut(&mut self) -> &mut CoreDefs {
-        &mut self.global_storage_mut().core_defs
-    }
-
     fn ty_store_mut(&mut self) -> &mut TyStore {
         &mut self.global_storage_mut().ty_store
-    }
-
-    fn kind_store_mut(&mut self) -> &mut KindStore {
-        &mut self.global_storage_mut().kind_store
     }
 
     fn value_store_mut(&mut self) -> &mut ValueStore {
