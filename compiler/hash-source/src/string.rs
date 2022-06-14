@@ -1,6 +1,8 @@
 //! Hash AST string literal storage utilities and wrappers.
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
+use std::fmt::Display;
+
 use fnv::FnvBuildHasher;
 use hash_utils::counter;
 use lazy_static::lazy_static;
@@ -21,6 +23,41 @@ counter! {
     counter_name: STRING_LITERAL_COUNTER,
     visibility: pub,
     method_visibility:,
+}
+
+impl Display for StringLiteral {
+    /// Render the identifier when displaying it
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", STRING_LITERAL_MAP.lookup(*self))
+    }
+}
+
+impl From<&str> for StringLiteral {
+    /// Create an identifier from a string.
+    fn from(string: &str) -> Self {
+        STRING_LITERAL_MAP.create_string(string)
+    }
+}
+
+impl From<String> for StringLiteral {
+    /// Create an identifier from a string.
+    fn from(string: String) -> Self {
+        STRING_LITERAL_MAP.create_string(&string)
+    }
+}
+
+impl From<StringLiteral> for &str {
+    /// Convert an identifier into a string, panics if the identifier doesn't exist.
+    fn from(string: StringLiteral) -> Self {
+        STRING_LITERAL_MAP.lookup(string)
+    }
+}
+
+impl From<StringLiteral> for String {
+    /// Convert an identifier into a string, panics if the identifier doesn't exist.
+    fn from(string: StringLiteral) -> Self {
+        String::from(STRING_LITERAL_MAP.lookup(string))
+    }
 }
 
 lazy_static! {

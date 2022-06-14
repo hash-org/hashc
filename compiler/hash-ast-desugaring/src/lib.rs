@@ -5,7 +5,6 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 #![feature(generic_associated_types)]
-// #![allow(unreachable_code, unused, clippy::diverging_sub_expression)] // @@Temporary
 
 use hash_ast::{
     ast::{
@@ -19,7 +18,7 @@ use hash_ast::{
     visitor::{walk_mut, AstVisitorMut},
 };
 use hash_pipeline::sources::Sources;
-use hash_source::{identifier::IDENTIFIER_MAP, location::Span};
+use hash_source::location::Span;
 use std::convert::Infallible;
 
 pub struct AstLowering;
@@ -109,11 +108,9 @@ fn lower_for_loop_block(node: Block, parent_span: Span) -> Block {
 
     let make_access_name = |label: &str| -> AstNode<AccessName> {
         // Create the identifier within the map...
-        let ident = IDENTIFIER_MAP.create_ident(label);
-
         AstNode::new(
             AccessName {
-                path: ast_nodes![AstNode::new(ident, iter_span)],
+                path: ast_nodes![AstNode::new(label.into(), iter_span)],
             },
             iter_span,
         )
