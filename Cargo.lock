@@ -354,12 +354,8 @@ dependencies = [
 name = "hash-ast"
 version = "0.1.0"
 dependencies = [
- "dashmap",
- "fnv",
- "hash-alloc",
  "hash-source",
  "hash-utils",
- "lazy_static",
  "replace_with",
 ]
 
@@ -397,7 +393,6 @@ name = "hash-ir"
 version = "0.1.0"
 dependencies = [
  "hash-alloc",
- "hash-ast",
  "hash-source",
  "hash-utils",
 ]
@@ -407,7 +402,6 @@ name = "hash-lexer"
 version = "0.1.0"
 dependencies = [
  "derive_more",
- "hash-ast",
  "hash-source",
  "hash-token",
  "thiserror",
@@ -493,7 +487,6 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "hash-alloc",
- "hash-ast",
  "hash-source",
  "strum_macros",
 ]
