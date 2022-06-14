@@ -2,7 +2,6 @@
 
 use std::fs;
 
-use hash_alloc::Castle;
 use hash_parser::HashParser;
 use hash_pipeline::{
     sources::{Module, Sources},
@@ -38,9 +37,8 @@ fn handle_failure_case(
     let content_path = input.path.join("case.hash");
 
     // Verify that the parser failed to parse this file
-    assert_eq!(
+    assert!(
         result.is_err(),
-        true,
         "parsing file: {:?} did not fail",
         content_path
     );
@@ -73,8 +71,7 @@ fn handle_failure_case(
 
         pretty_assertions::assert_eq!(err_contents, report_contents);
     } else {
-        assert!(
-            false,
+        panic!(
             "Missing `.stderr` file for `{:?}`. Consider running with `REGENERATE_OUTPUT=true`",
             content_path
         );
@@ -87,17 +84,22 @@ fn handle_failure_case(
 fn handle_test(input: TestingInput) {
     // determine if this test should fail or not
     let should_fail = input.snake_name.starts_with("should_fail");
-    let castle = Castle::new();
 
     let mut sources = Sources::new();
     let content_path = input.path.join("case.hash");
     let target = Module::new(content_path.clone());
     let target_id = sources.add_module(target);
 
-    let mut parser = HashParser::new(1, &castle);
+    let mut parser = HashParser::new();
+
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .thread_name(|id| format!("parse-worker-{}", id))
+        .build()
+        .unwrap();
 
     // Now parse the module and store the result
-    let result = parser.parse(SourceId::Module(target_id), &mut sources);
+    let result = parser.parse(SourceId::Module(target_id), &mut sources, &pool);
 
     if should_fail {
         handle_failure_case(input, result, sources).unwrap();

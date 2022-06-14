@@ -1,7 +1,6 @@
 #![feature(test)]
 extern crate test;
 
-use hash_alloc::Castle;
 use hash_lexer::Lexer;
 use hash_pipeline::sources::{InteractiveBlock, Sources};
 use hash_source::SourceId;
@@ -19,9 +18,6 @@ macro_rules! bench_func {
         fn $fn_name(b: &mut Bencher) {
             b.bytes = $source.len() as u64;
 
-            let castle = Castle::new();
-            let wall = castle.wall();
-
             // make a new sources
             let mut sources = Sources::new();
             let interactive_id =
@@ -29,7 +25,7 @@ macro_rules! bench_func {
 
             b.iter(|| {
                 // create a new lexer
-                let mut lex = Lexer::new($source, SourceId::Interactive(interactive_id), &wall);
+                let mut lex = Lexer::new($source, SourceId::Interactive(interactive_id));
 
                 while let Ok(Some(token)) = lex.advance_token() {
                     black_box(token);

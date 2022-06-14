@@ -4,7 +4,7 @@ use crate::{
     scope::ScopeStack,
     traits::{CoreTraits, TraitBound, TraitBounds},
 };
-use hash_alloc::{collections::row::Row, row, Wall};
+use hash_alloc::Wall;
 use hash_ast::ident::{Identifier, IDENTIFIER_MAP};
 use hash_source::{location::SourceLocation, ModuleId};
 use hash_utils::counter;
@@ -13,12 +13,12 @@ use std::hash::Hash;
 use std::{cell::Cell, collections::HashMap, ptr};
 
 #[derive(Debug)]
-pub struct Generics<'c> {
-    pub params: TypeList<'c>,
-    pub bounds: TraitBounds<'c>,
+pub struct Generics {
+    pub params: TypeList,
+    pub bounds: TraitBounds,
 }
 
-impl Generics<'_> {
+impl Generics {
     pub fn empty() -> Self {
         Self {
             params: TypeList::default(),
@@ -28,33 +28,33 @@ impl Generics<'_> {
 }
 
 #[derive(Debug)]
-pub struct EnumVariant<'c> {
+pub struct EnumVariant {
     pub name: Identifier,
-    pub data: Row<'c, TypeId>,
+    pub data: Vec<TypeId>,
     pub span: SourceLocation,
 }
 
 #[derive(Debug, Default)]
-pub struct EnumVariants<'c> {
-    data: HashMap<Identifier, EnumVariant<'c>>,
+pub struct EnumVariants {
+    data: HashMap<Identifier, EnumVariant>,
 }
 
-impl<'c> EnumVariants<'c> {
+impl EnumVariants {
     pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn get_variant(&self, name: Identifier) -> Option<&EnumVariant<'c>> {
+    pub fn get_variant(&self, name: Identifier) -> Option<&EnumVariant> {
         self.data.get(&name)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Identifier, &EnumVariant<'c>)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (Identifier, &EnumVariant)> + '_ {
         self.data.iter().map(|(key, value)| (*key, value))
     }
 }
 
-impl<'c> FromIterator<EnumVariant<'c>> for EnumVariants<'c> {
-    fn from_iter<T: IntoIterator<Item = EnumVariant<'c>>>(iter: T) -> Self {
+impl FromIterator<EnumVariant> for EnumVariants {
+    fn from_iter<T: IntoIterator<Item = EnumVariant>>(iter: T) -> Self {
         Self {
             data: iter.into_iter().map(|var| (var.name, var)).collect(),
         }
@@ -62,10 +62,10 @@ impl<'c> FromIterator<EnumVariant<'c>> for EnumVariants<'c> {
 }
 
 #[derive(Debug)]
-pub struct EnumDef<'c> {
+pub struct EnumDef {
     pub name: Identifier,
-    pub generics: Generics<'c>,
-    pub variants: EnumVariants<'c>,
+    pub generics: Generics,
+    pub variants: EnumVariants,
 }
 
 #[derive(Debug)]
@@ -98,21 +98,21 @@ impl FromIterator<(Identifier, TypeId)> for StructFields {
 }
 
 #[derive(Debug)]
-pub struct StructDef<'c> {
+pub struct StructDef {
     pub name: Identifier,
-    pub generics: Generics<'c>,
+    pub generics: Generics,
     pub fields: StructFields,
 }
 
 #[derive(Debug)]
-pub enum TypeDefValueKind<'c> {
-    Enum(EnumDef<'c>),
-    Struct(StructDef<'c>),
+pub enum TypeDefValueKind {
+    Enum(EnumDef),
+    Struct(StructDef),
 }
 
 #[derive(Debug)]
-pub struct TypeDefValue<'c> {
-    pub kind: TypeDefValueKind<'c>,
+pub struct TypeDefValue {
+    pub kind: TypeDefValueKind,
     pub span: Option<SourceLocation>,
 }
 
@@ -164,17 +164,17 @@ pub struct RawRefType {
     pub inner: TypeId,
 }
 
-pub type TypeList<'c> = Row<'c, TypeId>;
+pub type TypeList = Vec<TypeId>;
 
 #[derive(Debug)]
-pub struct UserType<'c> {
+pub struct UserType {
     pub def_id: TypeDefId,
-    pub args: TypeList<'c>,
+    pub args: TypeList,
 }
 
 #[derive(Debug)]
-pub struct FnType<'c> {
-    pub args: Row<'c, (Option<Identifier>, TypeId)>,
+pub struct FnType {
+    pub args: Vec<(Option<Identifier>, TypeId)>,
     pub return_ty: TypeId,
 }
 
@@ -194,24 +194,24 @@ pub struct UnknownType {
 }
 
 #[derive(Debug)]
-pub struct TupleType<'c> {
-    pub types: Row<'c, (Option<Identifier>, TypeId)>,
+pub struct TupleType {
+    pub types: Vec<(Option<Identifier>, TypeId)>,
 }
 
 #[derive(Debug)]
-pub enum TypeValue<'c> {
+pub enum TypeValue {
     Ref(RefType),
     RawRef(RawRefType),
-    Fn(FnType<'c>),
+    Fn(FnType),
     Var(TypeVar),
-    User(UserType<'c>),
+    User(UserType),
     Prim(PrimType),
-    Tuple(TupleType<'c>),
+    Tuple(TupleType),
     Unknown(UnknownType),
     Namespace(NamespaceType),
 }
 
-impl<'c> TypeValue<'c> {
+impl TypeValue {
     pub fn fold_type_ids<F, T>(&self, initial: T, mut f: F) -> T
     where
         F: FnMut(T, TypeId) -> T,
@@ -236,7 +236,7 @@ impl<'c> TypeValue<'c> {
         }
     }
 
-    pub fn try_map_type_ids<F, E>(&self, mut f: F, wall: &Wall<'c>) -> Result<Self, E>
+    pub fn try_map_type_ids<F, E>(&self, mut f: F) -> Result<Self, E>
     where
         F: FnMut(TypeId) -> Result<TypeId, E>,
     {
@@ -246,20 +246,23 @@ impl<'c> TypeValue<'c> {
                 TypeValue::RawRef(RawRefType { inner: f(*inner)? })
             }
             TypeValue::Fn(FnType { args, return_ty }) => TypeValue::Fn(FnType {
-                args: Row::try_from_iter(
-                    args.iter().map(|&(name, arg)| Ok((name, f(arg)?))),
-                    wall,
-                )?,
+                args: args
+                    .iter()
+                    .map(|&(name, arg)| Ok((name, f(arg)?)))
+                    .collect::<Result<Vec<_>, _>>()?,
                 return_ty: f(*return_ty)?,
             }),
             TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
-                types: Row::try_from_iter(
-                    args.iter().map(|&(name, arg)| Ok((name, f(arg)?))),
-                    wall,
-                )?,
+                types: args
+                    .iter()
+                    .map(|&(name, arg)| Ok((name, f(arg)?)))
+                    .collect::<Result<Vec<_>, _>>()?,
             }),
             TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
-                args: Row::try_from_iter(args.iter().map(|&arg| f(arg)), wall)?,
+                args: args
+                    .iter()
+                    .map(|&arg| f(arg))
+                    .collect::<Result<Vec<_>, _>>()?,
                 def_id: *def_id,
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
@@ -273,7 +276,7 @@ impl<'c> TypeValue<'c> {
     }
 
     #[must_use]
-    pub fn map_type_ids<F>(&self, mut f: F, wall: &Wall<'c>) -> Self
+    pub fn map_type_ids<F>(&self, mut f: F) -> Self
     where
         F: FnMut(TypeId) -> TypeId,
     {
@@ -283,15 +286,15 @@ impl<'c> TypeValue<'c> {
                 TypeValue::RawRef(RawRefType { inner: f(*inner) })
             }
             TypeValue::Fn(FnType { args, return_ty }) => TypeValue::Fn(FnType {
-                args: Row::from_iter(args.iter().map(|&arg| (arg.0, f(arg.1))), wall),
+                args: args.iter().map(|&arg| (arg.0, f(arg.1))).collect(),
                 return_ty: f(*return_ty),
             }),
             TypeValue::User(UserType { args, def_id }) => TypeValue::User(UserType {
-                args: Row::from_iter(args.iter().map(|&arg| f(arg)), wall),
+                args: args.iter().map(|&arg| f(arg)).collect(),
                 def_id: *def_id,
             }),
             TypeValue::Tuple(TupleType { types: args }) => TypeValue::Tuple(TupleType {
-                types: Row::from_iter(args.iter().map(|&arg| (arg.0, f(arg.1))), wall),
+                types: args.iter().map(|&arg| (arg.0, f(arg.1))).collect(),
             }),
             TypeValue::Var(var) => TypeValue::Var(*var),
             TypeValue::Prim(prim) => TypeValue::Prim(*prim),
@@ -304,19 +307,19 @@ impl<'c> TypeValue<'c> {
     }
 }
 
-impl<'c> Hash for &'c TypeValue<'c> {
+impl<'c> Hash for &'c TypeValue {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         ptr::hash(*self, state)
     }
 }
 
-impl<'c> PartialEq for &'c TypeValue<'c> {
+impl<'c> PartialEq for &'c TypeValue {
     fn eq(&self, other: &Self) -> bool {
         ptr::eq(*self, *other)
     }
 }
 
-impl<'c> Eq for &'c TypeValue<'c> {}
+impl<'c> Eq for &'c TypeValue {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeVarStrategy {
@@ -342,7 +345,6 @@ impl<'c, 'w> CoreTypeDefs {
         type_defs: &mut TypeDefStorage<'c, 'w>,
         types: &mut TypeStorage<'c, 'w>,
         core_traits: &CoreTraits,
-        wall: &'w Wall<'c>,
     ) -> Self {
         let str = type_defs.create(
             TypeDefValueKind::Struct(StructDef {
@@ -359,21 +361,18 @@ impl<'c, 'w> CoreTypeDefs {
             TypeDefValueKind::Struct(StructDef {
                 name: IDENTIFIER_MAP.create_ident("Map"),
                 generics: Generics {
-                    params: row![wall; map_key, map_value],
+                    params: vec![map_key, map_value],
                     bounds: TraitBounds {
-                        bounds: Row::from_iter(
-                            [
-                                TraitBound {
-                                    trt: core_traits.hash,
-                                    params: Row::from_iter([map_key], wall),
-                                },
-                                TraitBound {
-                                    trt: core_traits.eq,
-                                    params: Row::from_iter([map_key], wall),
-                                },
-                            ],
-                            wall,
-                        ),
+                        bounds: vec![
+                            TraitBound {
+                                trt: core_traits.hash,
+                                params: vec![map_key],
+                            },
+                            TraitBound {
+                                trt: core_traits.eq,
+                                params: vec![map_key],
+                            },
+                        ],
                     },
                 },
                 fields: StructFields::no_fields(),
@@ -386,7 +385,7 @@ impl<'c, 'w> CoreTypeDefs {
             TypeDefValueKind::Struct(StructDef {
                 name: IDENTIFIER_MAP.create_ident("List"),
                 generics: Generics {
-                    params: row![wall; list_el],
+                    params: vec![list_el],
                     bounds: TraitBounds::empty(),
                 },
                 fields: StructFields::no_fields(),
@@ -399,7 +398,7 @@ impl<'c, 'w> CoreTypeDefs {
             TypeDefValueKind::Struct(StructDef {
                 name: IDENTIFIER_MAP.create_ident("Set"),
                 generics: Generics {
-                    params: row![wall; set_el],
+                    params: vec![set_el],
                     bounds: TraitBounds::empty(),
                 },
                 fields: StructFields::no_fields(),
@@ -418,7 +417,7 @@ impl<'c, 'w> CoreTypeDefs {
 
 #[derive(Debug)]
 pub struct TypeDefStorage<'c, 'w> {
-    data: HashMap<TypeDefId, Cell<&'c TypeDefValue<'c>>>,
+    data: HashMap<TypeDefId, Cell<&'c TypeDefValue>>,
     wall: &'w Wall<'c>,
 }
 
@@ -430,15 +429,11 @@ impl<'c, 'w> TypeDefStorage<'c, 'w> {
         }
     }
 
-    pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue<'c> {
+    pub fn get(&self, ty_def: TypeDefId) -> &'c TypeDefValue {
         self.data.get(&ty_def).unwrap().get()
     }
 
-    pub fn create(
-        &mut self,
-        def: TypeDefValueKind<'c>,
-        location: Option<SourceLocation>,
-    ) -> TypeDefId {
+    pub fn create(&mut self, def: TypeDefValueKind, location: Option<SourceLocation>) -> TypeDefId {
         let id = TypeDefId::new();
         self.data.insert(
             id,
@@ -470,7 +465,7 @@ impl TypeLocation {
 
 #[derive(Debug)]
 pub struct TypeStorage<'c, 'w> {
-    data: SlotMap<TypeId, Cell<&'c TypeValue<'c>>>,
+    data: SlotMap<TypeId, Cell<&'c TypeValue>>,
     unknown_data: SlotMap<UnknownTypeId, Cell<Option<TypeId>>>,
     span_map: TypeLocation,
     wall: &'w Wall<'c>,
@@ -488,7 +483,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         }
     }
 
-    pub fn get(&self, ty: TypeId) -> &'c TypeValue<'c> {
+    pub fn get(&self, ty: TypeId) -> &'c TypeValue {
         match self.data.get(ty).unwrap().get() {
             val @ TypeValue::Unknown(UnknownType { unknown_id }) => {
                 if let Some(mapping) = self.unknown_data.get(*unknown_id).unwrap().get() {
@@ -528,12 +523,11 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
     }
 
     pub fn duplicate_deep(&mut self, ty: TypeId, location: Option<SourceLocation>) -> TypeId {
-        let wall = self.wall;
         // @@Correctness: here we set all inner TypeId locations to the same location, this might
         // produce unexpected results.
         let created = self
             .get(ty)
-            .map_type_ids(|x| self.duplicate_deep(x, location), wall);
+            .map_type_ids(|x| self.duplicate_deep(x, location));
         self.create(created, location)
     }
 
@@ -566,7 +560,7 @@ impl<'c, 'w> TypeStorage<'c, 'w> {
         type_id
     }
 
-    pub fn create(&mut self, value: TypeValue<'c>, location: Option<SourceLocation>) -> TypeId {
+    pub fn create(&mut self, value: TypeValue, location: Option<SourceLocation>) -> TypeId {
         let id = self.data.insert(Cell::new(self.wall.alloc_value(value)));
 
         if let Some(location) = location {

@@ -14,12 +14,7 @@ mod types;
 
 use std::cell::Cell;
 
-use hash_alloc::{collections::row::Row, Wall};
-use hash_ast::{
-    ast::*,
-    ast_nodes,
-    ident::{Identifier, IDENTIFIER_MAP},
-};
+use hash_ast::ast::*;
 use hash_source::location::{SourceLocation, Span};
 use hash_token::{Token, TokenKind, TokenKindVector};
 
@@ -66,9 +61,9 @@ macro_rules! disable_flag {
     };
 }
 
-pub type AstGenResult<'a, T> = Result<T, AstGenError<'a>>;
+pub type AstGenResult<T> = Result<T, AstGenError>;
 
-pub struct AstGen<'c, 'stream, 'resolver> {
+pub struct AstGen<'stream, 'resolver> {
     /// Current token stream offset.
     offset: Cell<usize>,
 
@@ -84,7 +79,7 @@ pub struct AstGen<'c, 'stream, 'resolver> {
     stream: &'stream [Token],
 
     /// Token trees that were generated from the stream
-    token_trees: &'stream [Row<'stream, Token>],
+    token_trees: &'stream [Vec<Token>],
 
     /// State set by expression parsers for parents to let them know if the parsed expression
     /// was made up of multiple expressions with precedence operators.
@@ -114,21 +109,17 @@ pub struct AstGen<'c, 'stream, 'resolver> {
     spread_patterns_allowed: Cell<bool>,
 
     /// Instance of an [ImportResolver] to notify the parser of encountered imports.
-    resolver: &'resolver ImportResolver<'c>,
-
-    /// The parser allocator
-    wall: Wall<'c>,
+    resolver: &'resolver ImportResolver,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
 /// language components.
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Create new AST generator from a token stream.
     pub fn new(
         stream: &'stream [Token],
-        token_trees: &'stream [Row<'stream, Token>],
-        resolver: &'resolver ImportResolver<'c>,
-        wall: Wall<'c>,
+        token_trees: &'stream [Vec<Token>],
+        resolver: &'resolver ImportResolver,
     ) -> Self {
         Self {
             stream,
@@ -138,7 +129,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             spread_patterns_allowed: Cell::new(false),
             offset: Cell::new(0),
             resolver,
-            wall,
         }
     }
 
@@ -154,7 +144,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             spread_patterns_allowed: self.spread_patterns_allowed.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
-            wall: self.wall.owning_castle().wall(),
         }
     }
 
@@ -263,21 +252,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
-    pub fn node<T>(&self, inner: T) -> AstNode<'c, T> {
-        AstNode::new(inner, self.current_location(), &self.wall)
+    pub fn node<T>(&self, inner: T) -> AstNode<T> {
+        AstNode::new(inner, self.current_location())
     }
 
     /// Create a new [AstNode] from the information provided by the [AstGen]
     #[inline(always)]
-    pub fn node_with_span<T>(&self, inner: T, location: Span) -> AstNode<'c, T> {
-        AstNode::new(inner, location, &self.wall)
+    pub fn node_with_span<T>(&self, inner: T, location: Span) -> AstNode<T> {
+        AstNode::new(inner, location)
     }
 
     /// Create a new [AstNode] with a span that ranges from the start [Span] to the
     /// current [Span].
     #[inline(always)]
-    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Span) -> AstNode<'c, T> {
-        AstNode::new(body, start.join(self.current_location()), &self.wall)
+    pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Span) -> AstNode<T> {
+        AstNode::new(body, start.join(self.current_location()))
     }
 
     /// Create an error without wrapping it in an [Err] variant
@@ -285,10 +274,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     fn make_error(
         &self,
         kind: AstGenErrorKind,
-        expected: Option<TokenKindVector<'c>>,
+        expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
         location: Option<Span>,
-    ) -> AstGenError<'c> {
+    ) -> AstGenError {
         AstGenError::new(
             kind,
             self.source_location(&location.unwrap_or_else(|| self.current_location())),
@@ -301,9 +290,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn error<T>(
         &self,
         kind: AstGenErrorKind,
-        expected: Option<TokenKindVector<'c>>,
+        expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
-    ) -> AstGenResult<'c, T> {
+    ) -> AstGenResult<T> {
         Err(self.make_error(kind, expected, received, None))
     }
 
@@ -311,10 +300,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn error_with_location<T>(
         &self,
         kind: AstGenErrorKind,
-        expected: Option<TokenKindVector<'c>>,
+        expected: Option<TokenKindVector>,
         received: Option<TokenKind>,
         location: Span,
-    ) -> AstGenResult<'c, T> {
+    ) -> AstGenResult<T> {
         Err(self.make_error(kind, expected, received, Some(location)))
     }
 
@@ -323,7 +312,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// generator there are no more tokens or within a nested generator (such as
     /// if the generator is within a brackets) that it should now read no more
     /// tokens.
-    pub(crate) fn expected_eof<T>(&self) -> AstGenResult<'c, T> {
+    pub(crate) fn expected_eof<T>(&self) -> AstGenResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
         self.error(AstGenErrorKind::EOF, None, Some(self.current_token().kind))
@@ -331,7 +320,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Verify that the current [AstGen] has no more tokens.
     #[inline(always)]
-    pub(crate) fn verify_is_empty(&self) -> AstGenResult<'c, ()> {
+    pub(crate) fn verify_is_empty(&self) -> AstGenResult<()> {
         if self.has_token() {
             return self.expected_eof();
         }
@@ -341,58 +330,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     /// Generate an error representing that the current generator unexpectedly reached the
     /// end of input at this point.
-    pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<'c, T> {
+    pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<T> {
         self.error(AstGenErrorKind::EOF, None, None)
-    }
-
-    /// Make an [Expression] with kind [ExpressionKind::Variable] from a specified identifier
-    /// string.
-    pub(crate) fn make_ident(&self, name: &str, location: &Span) -> AstNode<'c, Expression<'c>> {
-        self.node_with_span(
-            Expression::new(ExpressionKind::Variable(VariableExpr {
-                name: self.make_access_name_from_str(name, *location),
-                type_args: AstNodes::empty(),
-            })),
-            *location,
-        )
-    }
-
-    /// Utility for creating a boolean in enum representation
-    #[inline(always)]
-    fn make_bool(&self, value: bool) -> AstNode<'c, Expression<'c>> {
-        self.node(Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-            self.node(Literal::Bool(BoolLiteral(value))),
-        ))))
-    }
-
-    /// Create an [AccessName] from a passed string.
-    pub(crate) fn make_access_name_from_str<T: Into<String>>(
-        &self,
-        name: T,
-        location: Span,
-    ) -> AstNode<'c, AccessName<'c>> {
-        let name = self.node_with_span(IDENTIFIER_MAP.create_ident(&name.into()), location);
-
-        self.node_with_span(
-            AccessName {
-                path: ast_nodes![&self.wall; name],
-            },
-            location,
-        )
-    }
-
-    /// Create a [AccessName] node from an [Identifier].
-    pub(crate) fn make_access_name_from_identifier(
-        &self,
-        name: Identifier,
-        location: Span,
-    ) -> AstNode<'c, AccessName<'c>> {
-        self.node_with_span(
-            AccessName {
-                path: ast_nodes![&self.wall; self.node_with_span(name, location)],
-            },
-            location,
-        )
     }
 
     /// Function to peek ahead and match some parsing function that returns a [Option<T>].
@@ -418,9 +357,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// is intended to be used with a nested generator.
     pub(crate) fn parse_separated_fn<T>(
         &self,
-        parse_fn: impl Fn() -> AstGenResult<'c, AstNode<'c, T>>,
-        separator_fn: impl Fn() -> AstGenResult<'c, ()>,
-    ) -> AstGenResult<'c, AstNodes<'c, T>> {
+        parse_fn: impl Fn() -> AstGenResult<AstNode<T>>,
+        separator_fn: impl Fn() -> AstGenResult<()>,
+    ) -> AstGenResult<AstNodes<T>> {
         let start = self.current_location();
         let mut args = vec![];
 
@@ -437,13 +376,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         }
 
         Ok(AstNodes::new(
-            Row::from_vec(args, &self.wall),
+            args,
             Some(start.join(self.current_location())),
         ))
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
-    pub(crate) fn parse_token(&self, atom: TokenKind) -> AstGenResult<'c, ()> {
+    pub(crate) fn parse_token(&self, atom: TokenKind) -> AstGenResult<()> {
         match self.peek() {
             Some(token) if token.has_kind(atom) => {
                 self.skip_token();
@@ -451,7 +390,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::singleton(&self.wall, atom)),
+                Some(TokenKindVector::singleton(atom)),
                 token.map(|t| t.kind),
                 token.map_or_else(|| self.next_location(), |t| t.span),
             ),
@@ -471,7 +410,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a [Module] which is simply made of a list of statements
-    pub(crate) fn parse_module(&self) -> AstGenResult<'c, AstNode<'c, Module<'c>>> {
+    pub(crate) fn parse_module(&self) -> AstGenResult<AstNode<Module>> {
         let start = self.current_location();
         let mut contents = vec![];
 
@@ -485,7 +424,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         let span = start.join(self.current_location());
         Ok(self.node_with_span(
             Module {
-                contents: AstNodes::new(Row::from_vec(contents, &self.wall), Some(span)),
+                contents: AstNodes::new(contents, Some(span)),
             },
             span,
         ))
@@ -496,16 +435,14 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// without the actual braces to begin with. It follows that there are an arbitrary
     /// number of statements, followed by an optional final expression which doesn't
     /// need to be completed by a comma...
-    pub(crate) fn parse_expression_from_interactive(
-        &self,
-    ) -> AstGenResult<'c, AstNode<'c, BodyBlock<'c>>> {
+    pub(crate) fn parse_expression_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
         // get the starting position
         let start = self.current_location();
 
         let block = self.parse_block_from_gen(self, start, None)?;
 
         // We just need to unwrap the BodyBlock from Block since parse_block_from_gen is generic...
-        match block.into_body().move_out() {
+        match block.into_body() {
             Block::Body(body) => Ok(self.node_with_joined_span(body, &start)),
             _ => unreachable!(),
         }

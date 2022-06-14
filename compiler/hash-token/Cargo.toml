@@ -5,9 +5,7 @@ authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-thiserror = "1.0"
 derive_more = "0.99"
-strum = "0.21"
 strum_macros = "0.21"
 
 hash-ast = {path = "../hash-ast" }

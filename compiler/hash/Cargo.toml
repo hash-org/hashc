@@ -9,7 +9,11 @@ thiserror = "1.0"
 log = "0.4"
 backtrace = "0.3"
 num_cpus = "1.13.0"
+rayon = "1.5.0"
 clap = { version = "3.0.0", features = ["derive"] }
+
+profiling = "1.0.6"
+tracy-client = "0.13.2"
 
 hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
@@ -20,3 +24,9 @@ hash-reporting = {path = "../hash-reporting" }
 hash-pipeline = {path = "../hash-pipeline" }
 hash-typecheck = {path = "../hash-typecheck" }
 hash-vm = {path = "../hash-vm" }
+
+[features]
+profile-with-tracy = ["profiling/profile-with-tracy"]
+
+# Enable this flag to run tracy profiling
+# default = ["profile-with-tracy"]

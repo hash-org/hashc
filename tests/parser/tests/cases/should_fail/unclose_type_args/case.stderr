@@ -1,5 +1,5 @@
 error: Failed to parse
- --> $DIR/case.hash:1:3
+ --> $DIR/case.hash:1:5
 1 |   k<t := do_something();
-  |     ^ here
-  = note: Expected an expression, however received a `:`.
+  |       ^ here
+  = note: Expected an operator. Consider adding either a '.', '=', or ';'.

@@ -9,7 +9,6 @@ thiserror = "1.0"
 derive_more = "0.99"
 
 hash-ast = {path = "../hash-ast" }
-hash-alloc = {path = "../hash-alloc" }
 hash-source = {path = "../hash-source" }
 hash-token = {path = "../hash-token" }
 

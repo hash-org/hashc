@@ -3,17 +3,16 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_alloc::collections::row::Row;
 use hash_ast::ast::*;
 use hash_source::location::Span;
 use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a [ExpressionKind::LiteralExpr]
     /// by simply matching on the type of the expr.
-    pub(crate) fn parse_literal(&self) -> AstNode<'c, Expression<'c>> {
+    pub(crate) fn parse_literal(&self) -> AstNode<Expression> {
         let token = self.current_token();
         let literal = self.node_with_span(
             match token.kind {
@@ -35,7 +34,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a single map entry in a literal.
-    pub(crate) fn parse_map_entry(&self) -> AstGenResult<'c, AstNode<'c, MapLiteralEntry<'c>>> {
+    pub(crate) fn parse_map_entry(&self) -> AstGenResult<AstNode<MapLiteralEntry>> {
         let start = self.current_location();
 
         let key = self.parse_expression_with_precedence(0)?;
@@ -50,15 +49,15 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_map_literal(
         &self,
         gen: Self,
-        initial_entry: AstNode<'c, MapLiteralEntry<'c>>,
-    ) -> AstGenResult<'c, AstNode<'c, Literal<'c>>> {
+        initial_entry: AstNode<MapLiteralEntry>,
+    ) -> AstGenResult<AstNode<Literal>> {
         let start = gen.current_location();
         let mut elements = gen.parse_separated_fn(
             || gen.parse_map_entry(),
             || gen.parse_token(TokenKind::Comma),
         )?;
 
-        elements.nodes.insert(0, initial_entry, &self.wall);
+        elements.nodes.insert(0, initial_entry);
 
         Ok(self.node_with_joined_span(Literal::Map(MapLiteral { elements }), &start))
     }
@@ -68,8 +67,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_set_literal(
         &self,
         gen: Self,
-        initial_entry: AstNode<'c, Expression<'c>>,
-    ) -> AstGenResult<'c, AstNode<'c, Literal<'c>>> {
+        initial_entry: AstNode<Expression>,
+    ) -> AstGenResult<AstNode<Literal>> {
         let start = self.current_location();
 
         let mut elements = gen.parse_separated_fn(
@@ -78,15 +77,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         )?;
 
         // insert the first item into elements
-        elements.nodes.insert(0, initial_entry, &self.wall);
+        elements.nodes.insert(0, initial_entry);
 
         Ok(self.node_with_joined_span(Literal::Set(SetLiteral { elements }), &start))
     }
 
     /// Function to parse a tuple literal entry with a name.
-    pub(crate) fn parse_tuple_literal_entry(
-        &self,
-    ) -> AstGenResult<'c, AstNode<'c, TupleLiteralEntry<'c>>> {
+    pub(crate) fn parse_tuple_literal_entry(&self) -> AstGenResult<AstNode<TupleLiteralEntry>> {
         let start = self.current_location();
         let offset = self.offset();
 
@@ -119,7 +116,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 self.parse_token_fast(TokenKind::Eq).ok_or_else(|| {
                     self.make_error(
                         AstGenErrorKind::ExpectedValueAfterTyAnnotation,
-                        Some(TokenKindVector::singleton(&self.wall, TokenKind::Eq)),
+                        Some(TokenKindVector::singleton(TokenKind::Eq)),
                         None,
                         Some(self.next_location()),
                     )
@@ -155,9 +152,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Parse an array literal.
     pub(crate) fn parse_array_literal(
         &self,
-        tree: &'stream Row<'stream, Token>,
+        tree: &'stream [Token],
         span: &Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
         let start = gen.current_location();
 
@@ -165,7 +162,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
         while gen.has_token() {
             let expr = gen.parse_expression_with_precedence(0)?;
-            elements.nodes.push(expr, &self.wall);
+            elements.nodes.push(expr);
 
             match gen.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => {
@@ -176,7 +173,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     // token error
                     return gen.error(
                         AstGenErrorKind::Expected,
-                        Some(TokenKindVector::singleton(&self.wall, TokenKind::Comma)),
+                        Some(TokenKindVector::singleton(TokenKind::Comma)),
                         Some(token.kind),
                     );
                 }

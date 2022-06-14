@@ -8,7 +8,8 @@ edition = "2021"
 lazy_static = "1.4.0"
 dashmap = "4.0"
 fnv = "1.0.7"
+replace_with = "0.1.7"
+
 hash-utils = { path = "../hash-utils" } 
 hash-alloc = { path = "../hash-alloc" }
 hash-source = { path = "../hash-source" }
-hash-reporting = {path = "../hash-reporting" }

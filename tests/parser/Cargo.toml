@@ -10,11 +10,11 @@ edition = "2018"
 
 pretty_assertions = "1.2.1"
 regex = "1.5.6"
+rayon = "1.5.0"
 lazy_static = "1.4.0"
 
 hash-ast = {path = "../../compiler/hash-ast" }
 hash-source = {path = "../../compiler/hash-source" }
-hash-alloc = {path = "../../compiler/hash-alloc" }
 hash-utils = {path = "../../compiler/hash-utils" }
 hash-pipeline = {path = "../../compiler/hash-pipeline" }
 hash-parser = {path = "../../compiler/hash-parser" }

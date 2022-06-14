@@ -5,25 +5,19 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use hash_alloc::{collections::row::Row, row};
-use hash_ast::{
-    ast::*,
-    ast_nodes,
-    ident::Identifier,
-    literal::STRING_LITERAL_MAP,
-    operator::{Operator, OperatorKind},
-};
+use hash_ast::{ast::*, ast_nodes, ident::Identifier, literal::STRING_LITERAL_MAP};
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
-impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
+impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a top level [Expression] that are terminated with a semi-colon.
+    #[profiling::function]
     pub fn parse_top_level_expression(
         &self,
         semi_required: bool,
-    ) -> AstGenResult<'c, (bool, AstNode<'c, Expression<'c>>)> {
+    ) -> AstGenResult<(bool, AstNode<Expression>)> {
         let start = self.current_location();
 
         // So here we want to check that the next token(s) could make up a singular pattern which
@@ -65,9 +59,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                 &start,
                             ))
                         }
-                        Some(token) => {
-                            self.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))
-                        }
+                        Some(_) => self.error_with_location(
+                            AstGenErrorKind::ExpectedOperator,
+                            Some(TokenKindVector::from_row(vec![
+                                TokenKind::Dot,
+                                TokenKind::Eq,
+                                TokenKind::Semi,
+                            ])),
+                            None,
+                            self.next_location(),
+                        ),
                         // Special case where there is a expression at the end of the stream and therefore it
                         // is signifying that it is returning the expression value here
                         None => Ok(expr),
@@ -89,7 +90,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse an expression which can be compound.
-    pub(crate) fn parse_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    #[profiling::function]
+    pub(crate) fn parse_expression(&self) -> AstGenResult<AstNode<Expression>> {
         let token = self.next_token().ok_or_else(|| {
             self.make_error(
                 AstGenErrorKind::ExpectedExpression,
@@ -158,7 +160,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     TokenKind::Keyword(Keyword::While) => self.parse_while_loop()?,
                     TokenKind::Keyword(Keyword::Loop) => self
                         .node_with_joined_span(Block::Loop(LoopBlock(self.parse_block()?)), &start),
-                    TokenKind::Keyword(Keyword::If) => self.parse_if_statement()?,
+                    TokenKind::Keyword(Keyword::If) => self.parse_if_block()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
                     TokenKind::Keyword(Keyword::Mod) => self
                         .node_with_joined_span(Block::Mod(ModBlock(self.parse_block()?)), &start),
@@ -269,8 +271,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
 
     fn parse_variable_expression(
         &self,
-        start: Option<AstNode<'c, Identifier>>,
-    ) -> AstGenResult<'c, VariableExpr<'c>> {
+        start: Option<AstNode<Identifier>>,
+    ) -> AstGenResult<VariableExpr> {
         let name = match start {
             Some(node) => self.parse_access_name(node)?,
             None => match self.peek() {
@@ -311,9 +313,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_expression_with_precedence(
         &self,
         mut min_prec: u8,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         // first of all, we want to get the lhs...
         let mut lhs = self.parse_expression()?;
+        let lhs_span = lhs.span();
 
         // reset the compound_expr flag, since this is a new expression...
         self.is_compound_expr.set(false);
@@ -322,31 +325,35 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             let op_start = self.next_location();
             // this doesn't consider operators that have an 'eq' variant because that is handled at the statement level,
             // since it isn't really a binary operator...
-            let (op, consumed_tokens) = self.parse_operator();
+            let (op, consumed_tokens) = self.parse_binary_operator();
+
+            // We want to break if it's an operator and it is wanting to re-assign
+            if op.is_some_and(|op| op.is_re_assignable())
+                && matches!(self.peek_nth(consumed_tokens as usize), Some(token) if token.has_kind(TokenKind::Eq))
+            {
+                break;
+            }
 
             match op {
                 // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
                 // parsing onwards because this might be an assignable expression...
                 // Only perform this check if know prior that the expression is not made of compounded components.
-                Some(op) if !op.assigning => {
-                    // consume the number of tokens eaten whilst getting the operator...
-                    self.offset.update(|x| x + consumed_tokens as usize);
-
-                    let op_span = op_start.join(self.current_location());
-
+                Some(op) => {
                     // check if we have higher precedence than the lhs expression...
-                    let (l_prec, r_prec) = op.kind.infix_binding_power();
+                    let (l_prec, r_prec) = op.infix_binding_power();
 
                     if l_prec < min_prec {
-                        self.offset.update(|x| x - consumed_tokens as usize);
                         break;
                     }
 
+                    self.offset.update(|x| x + consumed_tokens as usize);
+                    let op_span = op_start.join(self.current_location());
+
                     // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
                     // where we transform the AstNode into a different
-                    if matches!(op.kind, OperatorKind::As) {
+                    if op == BinOp::As {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::As(AsExpr {
+                            Expression::new(ExpressionKind::As(CastExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),
@@ -361,10 +368,13 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         self.is_compound_expr.set(true);
 
                         // transform the operator into an OperatorFn
-                        lhs = self.transform_binary_expression(
-                            lhs,
-                            rhs,
-                            self.node_with_span(op, op_span),
+                        lhs = self.node_with_joined_span(
+                            Expression::new(ExpressionKind::BinaryExpr(BinaryExpression {
+                                lhs,
+                                rhs,
+                                operator: self.node_with_span(op, op_span),
+                            })),
+                            &lhs_span,
                         );
                     }
                 }
@@ -380,8 +390,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// property access, infix function calls, indexing, etc.
     pub(crate) fn parse_singular_expression(
         &self,
-        subject: AstNode<'c, Expression<'c>>,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        subject: AstNode<Expression>,
+    ) -> AstGenResult<AstNode<Expression>> {
         // record the starting span
         let start = self.current_location();
 
@@ -395,7 +405,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
 
                     let name_or_fn_call = self.parse_name_or_infix_call()?;
-                    let kind = name_or_fn_call.into_body().move_out().into_kind();
+                    let kind = name_or_fn_call.into_body().into_kind();
 
                     match kind {
                         // The current behaviour is that the lhs is inserted as the first argument:
@@ -419,7 +429,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                                     },
                                     span,
                                 ),
-                                &self.wall,
                             );
 
                             lhs_expr = self.node_with_joined_span(
@@ -480,7 +489,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// The path argument to imports automatically assumes that the path you provide
     /// is references '.hash' extension file or a directory with a 'index.hash' file
     /// contained within the directory.
-    pub(crate) fn parse_import(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_import(&self) -> AstGenResult<AstNode<Expression>> {
         let pre = self.current_token().span;
         let start = self.current_location();
 
@@ -496,9 +505,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             }
             Some(token) => self.error(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(
-                    row![&self.wall; TokenKind::Delimiter(Delimiter::Paren, true)],
-                )),
+                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
+                    Delimiter::Paren,
+                    true,
+                )])),
                 Some(token.kind),
             )?,
             None => self.unexpected_eof()?,
@@ -549,10 +559,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// into the function which deals with the call arguments.
     pub(crate) fn parse_function_call(
         &self,
-        subject: AstNode<'c, Expression<'c>>,
-        tree: &'stream Row<'stream, Token>,
+        subject: AstNode<Expression>,
+        tree: &'stream [Token],
         span: Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
         let mut args = self.node_with_span(
             FunctionCallArgs {
@@ -588,17 +598,16 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             // Now here we expect an expression...
             let value = gen.parse_expression_with_precedence(0)?;
 
-            args.entries.nodes.push(
-                gen.node_with_span(FunctionCallArg { name, value }, start),
-                &self.wall,
-            );
+            args.entries
+                .nodes
+                .push(gen.node_with_span(FunctionCallArg { name, value }, start));
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => gen.next_token(),
                 Some(token) => gen.error_with_location(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::singleton(&self.wall, TokenKind::Comma)),
+                    Some(TokenKindVector::singleton(TokenKind::Comma)),
                     Some(token.kind),
                     token.span,
                 )?,
@@ -623,49 +632,33 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// wrapping a singular expression.
     pub(crate) fn parse_array_index(
         &self,
-        subject: AstNode<'c, Expression<'c>>,
-        tree: &'stream Row<'stream, Token>,
+        subject: AstNode<Expression>,
+        tree: &'stream [Token],
         span: Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
         let start = gen.current_location();
 
         // parse the indexing expression between the square brackets...
         let index_expr = gen.parse_expression_with_precedence(0)?;
-        let (index_span, subject_span) = (index_expr.span(), subject.span());
-        let span = subject_span.join(index_span);
 
         // since nothing should be after the expression, we can check that no tokens
         // are left and the generator is empty, otherwise report this as an unexpected_token
         gen.verify_is_empty()?;
 
-        Ok(self.node_with_span(
-            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                subject: self.make_ident("index", &start),
-                args: self.node_with_span(
-                    FunctionCallArgs {
-                        entries: ast_nodes![&self.wall; self.node_with_span(
-                                FunctionCallArg {
-                                    name: None,
-                                    value: subject
-                                }, subject_span),
-                                self.node_with_span(
-                                FunctionCallArg {
-                                name: None,
-                                value: index_expr
-                            }, index_span)],
-                    },
-                    span,
-                ),
+        Ok(self.node_with_joined_span(
+            Expression::new(ExpressionKind::Index(IndexExpression {
+                subject,
+                index_expr,
             })),
-            span,
+            &start,
         ))
     }
 
     /// Parses a unary operator or expression modifier followed by a singular expression.
     /// Once the unary operator is picked up, the expression is parsed given the specific
     /// rules of the operator or expression modifier.
-    pub(crate) fn parse_unary_expression(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_unary_expression(&self) -> AstGenResult<AstNode<Expression>> {
         let token = self.current_token();
         let start = self.current_location();
 
@@ -708,45 +701,21 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     }),
                 }
             }
-            kind @ (TokenKind::Plus | TokenKind::Minus) => {
-                let value = self.parse_expression()?;
-                let span = value.span();
+            TokenKind::Plus => return self.parse_expression(),
+            kind @ (TokenKind::Minus | TokenKind::Exclamation | TokenKind::Tilde) => {
+                let expr = self.parse_expression()?;
 
-                let fn_name = match kind {
-                    TokenKind::Plus => "pos",
-                    TokenKind::Minus => "neg",
-                    _ => unreachable!(),
-                };
+                let operator = self.node_with_span(
+                    match kind {
+                        TokenKind::Minus => UnOp::Neg,
+                        TokenKind::Exclamation => UnOp::Not,
+                        TokenKind::Tilde => UnOp::BitNot,
+                        _ => unreachable!(),
+                    },
+                    start,
+                );
 
-                ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.make_ident(fn_name, &start),
-                    args: self.node_with_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value
-                                }, span)],
-                        },
-                        span,
-                    ),
-                })
-            }
-            TokenKind::Tilde => {
-                let value = self.parse_expression()?;
-                let span = value.span();
-
-                ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.make_ident("notb", &start),
-                    args: self.node_with_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value
-                                }, span)],
-                        },
-                        span,
-                    ),
-                })
+                ExpressionKind::UnaryExpr(UnaryExpression { expr, operator })
             }
             TokenKind::Hash => {
                 // First get the directive subject, and expect a possible singular expression
@@ -759,23 +728,6 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                     Expression::new(ExpressionKind::Directive(DirectiveExpr { name, subject })),
                     &start,
                 ));
-            }
-            TokenKind::Exclamation => {
-                let value = self.parse_expression()?;
-                let span = value.span();
-
-                ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.make_ident("not", &start),
-                    args: self.node_with_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall; self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value
-                                }, span)],
-                        },
-                        span,
-                    ),
-                })
             }
             TokenKind::Keyword(Keyword::Unsafe) => {
                 let arg = self.parse_expression()?;
@@ -798,10 +750,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// ^^^^^^^^  ^^^^^   ^^^─────┐
     /// pattern    type    the right hand-side expr
     /// ```
-    pub(crate) fn parse_declaration(
-        &self,
-        pattern: AstNode<'c, Pattern<'c>>,
-    ) -> AstGenResult<'c, Declaration<'c>> {
+    pub(crate) fn parse_declaration(&self, pattern: AstNode<Pattern>) -> AstGenResult<Declaration> {
         // Attempt to parse an optional type...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Eq) => None,
@@ -832,8 +781,8 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// by the `~=` operator and then an expression (which should be either a [ImplBlock] or a [TraitImpl]).
     pub(crate) fn parse_merge_declaration(
         &self,
-        decl: AstNode<'c, Expression<'c>>,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        decl: AstNode<Expression>,
+    ) -> AstGenResult<AstNode<Expression>> {
         self.parse_token(TokenKind::Eq)?;
         let value = self.parse_expression_with_precedence(0)?;
         let decl_span = decl.span();
@@ -851,280 +800,51 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// then right hand-side. If a re-assignment operator is successfully parsed, then a right
     /// hand-side is expected and will hard fail. If no re-assignment operator is found, then it
     /// should just return the left-hand side.
+    #[profiling::function]
     pub(crate) fn parse_expression_with_re_assignment(
         &self,
-    ) -> AstGenResult<'c, (AstNode<'c, Expression<'c>>, bool)> {
+    ) -> AstGenResult<(AstNode<Expression>, bool)> {
         let lhs = self.parse_expression_with_precedence(0)?;
+        let lhs_span = lhs.span();
 
         // Check if we can parse a merge declaration
         if self.parse_token_fast(TokenKind::Tilde).is_some() {
             return Ok((self.parse_merge_declaration(lhs)?, false));
         }
 
-        if let Some(op) = self.peek_resultant_fn(|| self.parse_re_assignment_op()) {
-            // Parse the rhs and the semi
-            let rhs = self.parse_expression_with_precedence(0)?;
+        let start = self.current_location();
+        let (operator, consumed_tokens) = self.parse_binary_operator();
 
-            // Now we need to transform the re-assignment operator into a function call
-            Ok((self.transform_binary_expression(lhs, rhs, op), false))
-        } else {
-            Ok((lhs, false))
-        }
-    }
+        // Look at the token after the consumed tokens and see if it's an equal sign
+        match self.peek_nth(consumed_tokens as usize) {
+            Some(token) if operator.is_some() && token.has_kind(TokenKind::Eq) => {
+                // consume the number of tokens eaten whilst getting the operator...
+                self.offset.update(|x| x + 1 + consumed_tokens as usize);
+                let operator = self.node_with_joined_span(operator.unwrap(), &start);
 
-    /// Utility function to transform to some expression into a referenced expression
-    /// given some condition. This function is useful when transpiling some types of
-    /// operators which might have a side-effect to overwrite the lhs.
-    fn transform_expr_into_ref(
-        &self,
-        expr: AstNode<'c, Expression<'c>>,
-        transform: bool,
-    ) -> AstNode<'c, Expression<'c>> {
-        match transform {
-            true => self.node(Expression::new(ExpressionKind::Ref(RefExpr {
-                inner_expr: expr,
-                kind: RefKind::Normal,
-                mutability: None,
-            }))),
-            false => expr,
-        }
-    }
+                let rhs = self.parse_expression_with_precedence(0)?;
 
-    /// Create an [Expression] from two provided expressions and an [Operator].
-    fn transform_binary_expression(
-        &self,
-        lhs: AstNode<'c, Expression<'c>>,
-        rhs: AstNode<'c, Expression<'c>>,
-        op: AstNode<'c, Operator>,
-    ) -> AstNode<'c, Expression<'c>> {
-        let operator_location = op.span();
-        let Operator { kind, assigning } = op.body();
-
-        if kind.is_compound() {
-            // for compound functions that include ordering, we essentially transpile
-            // into a match block that checks the result of the 'ord' fn call to the
-            // 'Ord' enum variants. This also happens for operators such as '>=' which
-            // essentially means that we have to check if the result of 'ord()' is either
-            // 'Eq' or 'Gt'.
-            self.transform_compound_ord_fn(*kind, *assigning, lhs, rhs, operator_location)
-        } else if kind.is_lazy() {
-            // some functions have to exhibit a short-circuiting behaviour, namely
-            // the logical 'and' and 'or' operators. To do this, we expect the 'and'
-            // 'or' trait (and their assignment counterparts) to expect the rhs part
-            // as a lambda. So, we essentially create a lambda that calls the rhs, or
-            // in other words, something like this happens:
-            //
-            // >>> lhs && rhs
-            // vvv (transpiles to...)
-            // >>> and(lhs, () => rhs)
-            //
-
-            let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
-            let span = lhs_span.join(rhs_span);
-
-            self.node_with_span(Expression::new(ExpressionKind::FunctionCall(
-                    FunctionCallExpr {
-                        subject: self.node_with_span(
-                            Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: self.make_access_name_from_str(op.body().to_str(), op.span()),
-                                type_args: AstNodes::empty(),
-                            })),
-                            op.span(),
-                        ),
-                        args: self.node_with_joined_span(
-                            FunctionCallArgs {
-                            entries: ast_nodes![&self.wall;
-                                self.node_with_span(FunctionCallArg {
-                                    name: None,
-                                    value: self.transform_expr_into_ref(lhs, *assigning),
-                                }, lhs_span),
-                                self.node(
-                                FunctionCallArg {
-                                    name: None,
-                                    value: self.node_with_span(Expression::new(ExpressionKind::FunctionDef(
-                                        FunctionDef {
-                                            args: AstNodes::empty(),
-                                            return_ty: None,
-                                            fn_body: rhs,
-                                        })), rhs_span),
-                                })
-                            ],
-                        },  &span),
-                    },
-                )), span)
-        } else {
-            let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
-            let location = lhs_span.join(rhs_span);
-
-            self.node_with_span(
-                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                    subject: self.node_with_span(
-                        Expression::new(ExpressionKind::Variable(VariableExpr {
-                            name: self.make_access_name_from_str(op.body().to_str(), op.span()),
-                            type_args: AstNodes::empty(),
+                // Now we need to transform the re-assignment operator into a function call
+                Ok((
+                    self.node_with_span(
+                        Expression::new(ExpressionKind::AssignOp(AssignOpExpression {
+                            lhs,
+                            rhs,
+                            operator,
                         })),
-                        op.span(),
+                        lhs_span,
                     ),
-                    args: self.node_with_joined_span(
-                        FunctionCallArgs {
-                            entries: ast_nodes![&self.wall;
-                                self.node_with_span( {
-                                    FunctionCallArg {
-                                        name: None,
-                                        value: self.transform_expr_into_ref(lhs, *assigning),
-                                    }
-                                }, lhs_span),
-                                self.node_with_span( {
-                                    FunctionCallArg {
-                                        name: None,
-                                        value: rhs,
-                                    }
-                                }, rhs_span)
-                            ],
-                        },
-                        &location,
-                    ),
-                })),
-                op.span(),
-            )
+                    false,
+                ))
+            }
+            _ => Ok((lhs, false)),
         }
-    }
-
-    /// Function that is used to transfer an operator which is of `compound` type into a
-    /// `match` statement that involves matching on the return type of the language defined
-    /// `ord` trait. The transformation involves converting the initial operator into
-    /// a function call that invokes `ord` with the `lhs` and `rhs`.
-    ///
-    /// The function result is then matched within a match on the [Ord] enumeration
-    /// which contains variants that represent the result of the comparison.
-    ///
-    /// Depending on whether the comparison operator is inclusive or not, multiple variants
-    /// within a single comparison branch might be generated. For example, if the
-    /// expression `a < 3` is transformed, then the following code is generated:
-    ///
-    /// ```text
-    /// match ord(a, 3) {
-    ///     Lt => true,
-    ///     _ =>  false
-    /// }
-    /// ```
-    ///
-    /// However if the expression was inclusive `a <= 3` then this is generated:
-    ///
-    /// ```text
-    /// match ord(a, 3) {
-    ///     Lt | Eq => true,
-    ///     _ =>  false
-    /// }
-    /// ```
-    fn transform_compound_ord_fn(
-        &self,
-        fn_ty: OperatorKind,
-        assigning: bool,
-        lhs: AstNode<'c, Expression<'c>>,
-        rhs: AstNode<'c, Expression<'c>>,
-        operator_location: Span,
-    ) -> AstNode<'c, Expression<'c>> {
-        let location = lhs.span().join(rhs.span());
-
-        // we need to transform the lhs into a reference if the type of function is 'assigning'
-        let lhs = self.transform_expr_into_ref(lhs, assigning);
-        let (lhs_span, rhs_span) = (lhs.span(), rhs.span());
-
-        let fn_call = self.node(Expression::new(ExpressionKind::FunctionCall(
-            FunctionCallExpr {
-                subject: self.make_ident("ord", &operator_location),
-                args: self.node(FunctionCallArgs {
-                    entries: ast_nodes![&self.wall;
-                    self.node_with_span(
-                        FunctionCallArg {
-                            name: None,
-                            value: lhs,
-                        },
-                        lhs_span
-                    ),
-                    self.node_with_span(
-                        FunctionCallArg {
-                            name: None,
-                            value: rhs,
-                        },
-                        rhs_span
-                    )],
-                }),
-            },
-        )));
-
-        let make_constructor_pattern = |symbol: &str, location: Span| {
-            self.node(Pattern::Constructor(ConstructorPattern {
-                name: self.make_access_name_from_str(symbol, location),
-                fields: AstNodes::empty(),
-            }))
-        };
-
-        // each tuple bool variant represents a branch the match statement
-        // should return 'true' on, and all the rest will return false...
-        // the order is (Lt, Eq, Gt)
-        let mut branches = match fn_ty {
-            OperatorKind::LtEq => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: self.node(Pattern::Or(OrPattern {
-                        variants: ast_nodes![&self.wall;
-                        make_constructor_pattern("Lt", location),
-                        make_constructor_pattern("Eq", location),
-                        ],
-                    })),
-                    expr: self.make_bool(true)
-                })]
-            }
-            OperatorKind::GtEq => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: self.node(Pattern::Or(OrPattern {
-                        variants: ast_nodes![&self.wall;
-                        make_constructor_pattern("Gt", location),
-                        make_constructor_pattern("Eq", location),
-                        ],
-                    })),
-                    expr: self.make_bool(true)
-                })]
-            }
-            OperatorKind::Lt => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_constructor_pattern("Lt", location),
-                    expr: self.make_bool(true)
-                })]
-            }
-            OperatorKind::Gt => {
-                ast_nodes![&self.wall; self.node(MatchCase {
-                    pattern: make_constructor_pattern("Gt", location),
-                    expr: self.make_bool(true)
-                })]
-            }
-            _ => unreachable!(),
-        };
-
-        // add the '_' case to the branches to return false on any other
-        // condition
-        branches.nodes.push(
-            self.node(MatchCase {
-                pattern: self.node(Pattern::Ignore(IgnorePattern)),
-                expr: self.make_bool(false),
-            }),
-            &self.wall,
-        );
-
-        self.node(Expression::new(ExpressionKind::Block(BlockExpr(
-            self.node(Block::Match(MatchBlock {
-                subject: fn_call,
-                cases: branches,
-                origin: MatchOrigin::Match,
-            })),
-        ))))
     }
 
     /// Parse an single name or a function call that is applied on the left hand side
     /// expression. Infix calls and name are only separated by infix calls having
     /// parenthesees at the end of the name.
-    pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<AstNode<Expression>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
 
         let start = self.current_location();
@@ -1141,7 +861,12 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 // create the subject of the call
                 let subject = self.node_with_span(
                     Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: self.make_access_name_from_identifier(*id, *id_span),
+                        name: self.node_with_span(
+                            AccessName {
+                                path: ast_nodes![self.node_with_span(*id, *id_span)],
+                            },
+                            *id_span,
+                        ),
                         type_args,
                     })),
                     start.join(self.current_location()),
@@ -1172,9 +897,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// by the following operator, whether it is a colon, comma or a semicolon.
     pub(crate) fn parse_block_or_braced_literal(
         &self,
-        tree: &'stream Row<'stream, Token>,
+        tree: &'stream [Token],
         span: &Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
 
         // handle two special cases for empty map and set literals, if the only token
@@ -1226,7 +951,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
             ));
         }
 
-        let parse_block = |initial_offset: usize| -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+        let parse_block = |initial_offset: usize| -> AstGenResult<AstNode<Expression>> {
             // reset the position and attempt to parse a statement
             gen.offset.set(initial_offset);
 
@@ -1297,7 +1022,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                             self.node_with_span(
                                 Literal::Map(MapLiteral {
-                                    elements: ast_nodes![&self.wall; entry],
+                                    elements: ast_nodes![entry],
                                 }),
                                 *span,
                             ),
@@ -1329,7 +1054,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Ok(self.node_with_span(
                     Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(
                         Block::Body(BodyBlock {
-                            statements: ast_nodes![&self.wall; statement],
+                            statements: ast_nodes![statement],
                             expr: None,
                         }),
                         *span,
@@ -1354,9 +1079,9 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     ///
     pub(crate) fn parse_expression_or_tuple(
         &self,
-        tree: &'stream Row<'stream, Token>,
+        tree: &'stream [Token],
         span: &Span,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, *span);
         let start = self.current_location();
 
@@ -1369,7 +1094,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
                     gen.node_with_joined_span(
                         Literal::Tuple(TupleLiteral {
-                            elements: ast_nodes![&self.wall;],
+                            elements: ast_nodes![],
                         }),
                         &start,
                     ),
@@ -1394,10 +1119,10 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
         // check that the 'name' and 'ty' parameters are set to `None` and that there are no extra tokens
         // that are left within the token tree...
         if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
-            return Ok(entry.into_body().move_out().value);
+            return Ok(entry.into_body().value);
         }
 
-        let mut elements = ast_nodes![&self.wall; entry];
+        let mut elements = ast_nodes![entry];
 
         loop {
             match gen.peek() {
@@ -1409,9 +1134,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                         break;
                     }
 
-                    elements
-                        .nodes
-                        .push(gen.parse_tuple_literal_entry()?, &self.wall)
+                    elements.nodes.push(gen.parse_tuple_literal_entry()?)
                 }
                 Some(token) => {
                     gen.error(AstGenErrorKind::ExpectedExpression, None, Some(token.kind))?
@@ -1429,9 +1152,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     }
 
     /// Parse a function definition argument, which is made of an identifier and a function type.
-    pub(crate) fn parse_function_def_arg(
-        &self,
-    ) -> AstGenResult<'c, AstNode<'c, FunctionDefArg<'c>>> {
+    pub(crate) fn parse_function_def_arg(&self) -> AstGenResult<AstNode<FunctionDefArg>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -1459,7 +1180,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     pub(crate) fn parse_function_definition(
         &self,
         gen: &Self,
-    ) -> AstGenResult<'c, AstNode<'c, Expression<'c>>> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let start = self.current_location();
 
         // parse function definition arguments.
@@ -1494,9 +1215,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
     /// Function to parse a sequence of top-level [Expression]s from a brace-block exhausting all of the
     /// remaining tokens within the block. This function expects that the next token is a [TokenKind::Tree]
     /// and it will consume it producing [Expression]s from it.
-    pub(crate) fn parse_expressions_from_braces(
-        &self,
-    ) -> AstGenResult<'c, AstNodes<'c, Expression<'c>>> {
+    pub(crate) fn parse_expressions_from_braces(&self) -> AstGenResult<AstNodes<Expression>> {
         match self.peek() {
             Some(Token {
                 kind: TokenKind::Tree(Delimiter::Brace, tree_index),
@@ -1516,10 +1235,7 @@ impl<'c, 'stream, 'resolver> AstGen<'c, 'stream, 'resolver> {
                 }
                 gen.verify_is_empty()?;
 
-                Ok(AstNodes::new(
-                    Row::from_vec(expressions, &self.wall),
-                    Some(*span),
-                ))
+                Ok(AstNodes::new(expressions, Some(*span)))
             }
             token => self.error_with_location(
                 AstGenErrorKind::Block,

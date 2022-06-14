@@ -6,7 +6,6 @@ use crate::{
     writer::TypeWithStorage,
 };
 use core::fmt;
-use hash_alloc::collections::row::Row;
 use hash_ast::ident::Identifier;
 use std::{borrow::Borrow, collections::HashSet, iter};
 
@@ -186,22 +185,18 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
         &mut self,
         sub: &Substitution,
         tys: &[TypeId],
-    ) -> TypecheckResult<Row<'c, TypeId>> {
-        let wall = self.global_storage.wall();
-        Row::try_from_iter(tys.iter().map(|&ty| self.apply_sub(sub, ty)), wall)
+    ) -> TypecheckResult<Vec<TypeId>> {
+        tys.iter().map(|&ty| self.apply_sub(sub, ty)).collect()
     }
 
     pub fn apply_sub_to_arg_list_make_row(
         &mut self,
         sub: &Substitution,
         tys: &[(Option<Identifier>, TypeId)],
-    ) -> TypecheckResult<Row<'c, (Option<Identifier>, TypeId)>> {
-        let wall = self.global_storage.wall();
-        Row::try_from_iter(
-            tys.iter()
-                .map(|&(name, ty)| Ok((name, self.apply_sub(sub, ty)?))),
-            wall,
-        )
+    ) -> TypecheckResult<Vec<(Option<Identifier>, TypeId)>> {
+        tys.iter()
+            .map(|&(name, ty)| Ok((name, self.apply_sub(sub, ty)?)))
+            .collect()
     }
 
     pub fn apply_sub_to_list_make_vec(
@@ -221,12 +216,11 @@ impl<'c, 'w, 'ms, 'gs> Unifier<'c, 'w, 'ms, 'gs> {
             }
         }
 
-        let wall = self.global_storage.wall();
         let new_ty_value = self
             .global_storage
             .types
             .get(curr_ty)
-            .try_map_type_ids(|ty_id| self.apply_sub(sub, ty_id), wall)?;
+            .try_map_type_ids(|ty_id| self.apply_sub(sub, ty_id))?;
 
         let created = self.global_storage.types.create(new_ty_value, None);
         Ok(created)
