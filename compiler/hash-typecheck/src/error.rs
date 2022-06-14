@@ -14,6 +14,7 @@ pub enum TcError {
     /// Cannot unify the two types, where the first is the source and the second is the target.
     CannotUnify(TyId, TyId),
     NotATypeFunction(ValueId),
+    CannotUseValueAsTy(ValueId),
     CannotUsePositionalArgAfterNamedArg(Args, usize),
     MismatchingArgParamLength(Args, Params),
     ParamNotFound(Params, Identifier),

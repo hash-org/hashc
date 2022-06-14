@@ -386,10 +386,10 @@ pub enum Value {
     ///
     /// Has a level 1 type.
     Ty(TyId),
-    /// A runtime value.
+    /// A runtime value of a given type.
     ///
     /// Has a level 0 type.
-    Rt,
+    Rt(TyId),
     /// A type function value.
     ///
     /// Has a level N type, where N is the level of the return value of the function.
@@ -422,8 +422,8 @@ pub enum Value {
     ///
     /// Has a level N type, where N is the level of the inner types.
     Merge(Vec<ValueId>),
-    /// Unset value.
-    Unset,
+    /// Unset value, which should be of a given type.
+    Unset(TyId),
 }
 
 /// The basic data structure of a type.

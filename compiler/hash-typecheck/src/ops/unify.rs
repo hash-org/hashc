@@ -14,7 +14,13 @@ use crate::{
         GlobalStorage,
     },
 };
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    ops::{Deref, DerefMut},
+};
+
+use super::building::PrimitiveBuilder;
 
 /// A substitution containing pairs of `(TySubSubject, TyId)` to be applied to a type or types.
 #[derive(Debug, Default, Clone)]
@@ -69,7 +75,7 @@ pub enum ValuesAreEqual {
 
 /// Performs type unification and other related operations.
 pub struct Unifier<'gs> {
-    gs: &'gs GlobalStorage,
+    gs: &'gs mut GlobalStorage,
 }
 
 /// Options that are received by the unifier when unifying types.
@@ -83,7 +89,7 @@ pub enum TySubSubject {
 }
 
 impl<'gs> Unifier<'gs> {
-    pub fn new(gs: &'gs GlobalStorage) -> Self {
+    pub fn new(gs: &'gs mut GlobalStorage) -> Self {
         Self { gs }
     }
 
@@ -157,11 +163,26 @@ impl<'gs> Unifier<'gs> {
         Ok(result)
     }
 
-    fn apply_args_to_params_make_sub(&self, _params: &Params, _args: &Args) -> TcResult<TySub> {
-        todo!()
+    fn apply_args_to_params_make_sub(
+        &mut self,
+        params: &Params,
+        args: &Args,
+        unify_opts: &UnifyTysOpts,
+    ) -> TcResult<TySub> {
+        let pairs = self.pair_args_with_params(params, args)?;
+        let mut subs = TySub::empty();
+
+        for (param, arg) in pairs {
+            // Unify each argument's type with the type of the parameter
+            let arg_ty = self.ty_of_value(arg.value)?;
+            let sub = self.unify_tys(arg_ty, param.ty, unify_opts)?;
+            subs.merge_with(&sub);
+        }
+
+        Ok(subs)
     }
 
-    fn apply_ty_fn(&self, apply_ty_fn: &AppTyFn) -> TcResult<ValueId> {
+    fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<ValueId>> {
         let subject_id = self
             .simplify_value(apply_ty_fn.ty_fn_value)?
             .unwrap_or(apply_ty_fn.ty_fn_value);
@@ -171,14 +192,20 @@ impl<'gs> Unifier<'gs> {
                 todo!()
             }
             Value::AppTyFn(inner_apply_ty_fn) => {
+                let inner_apply_ty_fn = inner_apply_ty_fn.clone();
                 // Recurse
-                let inner_apply_ty_fn_result_id = self.apply_ty_fn(inner_apply_ty_fn)?;
-                match self.gs.value_store.get(inner_apply_ty_fn_result_id) {
-                    Value::TyFn(_) => self.apply_ty_fn(&AppTyFn {
-                        ty_fn_value: inner_apply_ty_fn_result_id,
-                        args: apply_ty_fn.args.clone(),
-                    }),
-                    _ => Err(TcError::NotATypeFunction(subject_id)),
+                let inner_apply_ty_fn_result_id = self.apply_ty_fn(&inner_apply_ty_fn)?;
+                match inner_apply_ty_fn_result_id {
+                    Some(inner_apply_ty_fn_result_id) => {
+                        match self.gs.value_store.get(inner_apply_ty_fn_result_id) {
+                            Value::TyFn(_) => self.apply_ty_fn(&AppTyFn {
+                                ty_fn_value: inner_apply_ty_fn_result_id,
+                                args: apply_ty_fn.args.clone(),
+                            }),
+                            _ => Err(TcError::NotATypeFunction(subject_id)),
+                        }
+                    }
+                    None => Ok(None),
                 }
             }
             _ => Err(TcError::NotATypeFunction(subject_id)),
@@ -189,42 +216,146 @@ impl<'gs> Unifier<'gs> {
     ///
     /// This basically evaluates any [Ty::AppTyFn], and if this is done it returns
     /// `Some(evaluated_ty)`, otherwise returns `None` if no simplification occured.
-    pub fn simplify_ty(&self, ty_id: TyId) -> TcResult<Option<TyId>> {
+    pub fn simplify_ty(&mut self, ty_id: TyId) -> TcResult<Option<TyId>> {
         let ty = self.gs.ty_store.get(ty_id);
-
         match ty {
-            Ty::AppTyFn(_) => todo!(),
-            Ty::TyFn(_) => todo!(),
-            Ty::Trt => todo!(),
-            Ty::Ty(_) => todo!(),
-            Ty::NominalDef(_) => todo!(),
-            Ty::ModDef(_) => todo!(),
-            Ty::Tuple(_) => todo!(),
-            Ty::Fn(_) => todo!(),
-            Ty::Var(_) => todo!(),
-            Ty::Merge(_) => todo!(),
-            Ty::Unresolved(_) => todo!(),
+            Ty::AppTyFn(apply_ty_fn) => {
+                let apply_ty_fn = apply_ty_fn.clone();
+                let result = self.apply_ty_fn(&apply_ty_fn)?;
+                match result {
+                    Some(result) => Some(self.value_as_ty(result)).transpose(),
+                    None => Ok(None),
+                }
+            }
+            Ty::Merge(inner) => {
+                let inner = inner.clone();
+                let inner_tys = inner
+                    .iter()
+                    .map(|&ty| self.simplify_ty(ty))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let builder = PrimitiveBuilder::new(self.gs);
+                if inner_tys.iter().any(|x| x.is_some()) {
+                    Ok(Some(
+                        builder.create_merge_ty(
+                            inner_tys
+                                .iter()
+                                .zip(inner)
+                                .map(|(new, old)| new.unwrap_or(old)),
+                        ),
+                    ))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
         }
     }
 
     /// Simplify the given value.
     ///
     /// Same technicality applies as for [Self::simplify_ty].
-    pub fn simplify_value(&self, _value_id: ValueId) -> TcResult<Option<ValueId>> {
-        // @@Todo eval ty fns
-        Ok(None)
+    pub fn simplify_value(&mut self, value_id: ValueId) -> TcResult<Option<ValueId>> {
+        let value = self.gs.value_store.get(value_id);
+        match value {
+            Value::AppTyFn(apply_ty_fn) => {
+                let apply_ty_fn = apply_ty_fn.clone();
+                let result = self.apply_ty_fn(&apply_ty_fn)?;
+                match result {
+                    Some(result) => Ok(Some(result)),
+                    None => Ok(None),
+                }
+            }
+            Value::Merge(inner) => {
+                let inner = inner.clone();
+                let inner_tys = inner
+                    .iter()
+                    .map(|&ty| self.simplify_value(ty))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let builder = PrimitiveBuilder::new(self.gs);
+                if inner_tys.iter().any(|x| x.is_some()) {
+                    Ok(Some(
+                        builder.create_merge_value(
+                            inner_tys
+                                .iter()
+                                .zip(inner)
+                                .map(|(new, old)| new.unwrap_or(old)),
+                        ),
+                    ))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
+        }
     }
 
     /// Get the type of the given value.
-    pub fn ty_of_value(&self, _value_id: ValueId) -> TcResult<TyId> {
-        todo!()
+    pub fn ty_of_value(&mut self, value_id: ValueId) -> TcResult<TyId> {
+        let value = self.gs.value_store.get(value_id).clone();
+        let builder = PrimitiveBuilder::new(self.gs);
+        Ok(match value {
+            Value::Trt(_) => builder.create_ty_of_trt(),
+            Value::Ty(ty_id) => builder.create_ty_of_ty(),
+            Value::Rt(rt_ty_id) => rt_ty_id,
+            Value::TyFn(ty_fn) => builder.create_ty_fn_ty(
+                ty_fn.general_params.positional().iter().cloned(),
+                ty_fn.general_return_ty,
+            ),
+            // @@Incomplete:
+            Value::AppTyFn(_) => todo!(),
+            Value::ModDef(mod_def_id) => builder.create_mod_def_ty(mod_def_id),
+            Value::NominalDef(nominal_def_id) => builder.create_nominal_ty(nominal_def_id),
+            // @@Incomplete: We need scopes for this:
+            Value::Var(_) => todo!(),
+            Value::Merge(values) => {
+                drop(builder);
+                let inner_tys = values
+                    .iter()
+                    .map(|&value| self.ty_of_value(value))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let builder = PrimitiveBuilder::new(self.gs);
+                builder.create_merge_ty(inner_tys)
+            }
+            Value::Unset(ty_id) => ty_id,
+        })
     }
 
     /// Try to use the value as a type. Only works if the value is
     /// [Value::Ty](crate::storage::primitives::Value) or resolves to such a thing (for example
     /// applied type functions).
-    pub fn value_as_ty(&self, _value_id: ValueId) -> TcResult<TyId> {
-        todo!()
+    pub fn value_as_ty(&mut self, value_id: ValueId) -> TcResult<TyId> {
+        let value = self.gs.value_store.get(value_id).clone();
+        let builder = PrimitiveBuilder::new(self.gs);
+        match value {
+            Value::Ty(ty_id) => Ok(ty_id),
+            Value::AppTyFn(_) => match self.simplify_value(value_id)? {
+                Some(simplified_value_id) => self.value_as_ty(simplified_value_id),
+                None => Err(TcError::CannotUseValueAsTy(value_id)),
+            },
+            Value::Merge(values) => {
+                drop(builder);
+                let inner_tys = values
+                    .iter()
+                    .map(|&value| self.value_as_ty(value))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let builder = PrimitiveBuilder::new(self.gs);
+                Ok(builder.create_merge_ty(inner_tys))
+            }
+            Value::ModDef(mod_def_id) => Ok(builder.create_mod_def_ty(mod_def_id)),
+            Value::NominalDef(nominal_def_id) => Ok(builder.create_nominal_ty(nominal_def_id)),
+            Value::Trt(trt_def_id) => Ok(builder.create_ty_of_ty_with_bound(trt_def_id)),
+            Value::TyFn(ty_fn) => todo!(),
+            Value::Rt(_) => Err(TcError::CannotUseValueAsTy(value_id)),
+            Value::Var(var) => {
+                // @@Correctness What if the variable is not a type?
+                Ok(builder.create_var_ty(var.name))
+            }
+            Value::Unset(_) => {
+                // @@Correctness is this right?
+                Err(TcError::CannotUseValueAsTy(value_id))
+            }
+        }
     }
 
     // Check whether two values are equal.
@@ -238,11 +369,11 @@ impl<'gs> Unifier<'gs> {
         match (a, b) {
             (Value::AppTyFn(_), _) => todo!(),
             (_, Value::AppTyFn(_)) => todo!(),
-            (Value::Unset, _) | (_, Value::Unset) => {
+            (Value::Unset(_), _) | (_, Value::Unset(_)) => {
                 panic!("Trying to compare one or two unset values!")
             }
-            (Value::Rt, Value::Rt) => ValuesAreEqual::Unsure,
-            (Value::Rt, _) | (_, Value::Rt) => ValuesAreEqual::No,
+            (Value::Rt(_), Value::Rt(_)) => todo!(),
+            (Value::Rt(_), _) | (_, Value::Rt(_)) => ValuesAreEqual::No,
             (Value::Trt(id_a), Value::Trt(id_b)) => {
                 if id_a == id_b {
                     ValuesAreEqual::Yes
@@ -303,9 +434,14 @@ impl<'gs> Unifier<'gs> {
 
     // pub fn unify_args(&self, src_args: &Args, target_args: &Args) -> TcResult<TySub> {}
 
-    pub fn unify_tys(&self, src_id: TyId, target_id: TyId, opts: &UnifyTysOpts) -> TcResult<TySub> {
-        let src = self.gs.ty_store.get(src_id);
-        let target = self.gs.ty_store.get(target_id);
+    pub fn unify_tys(
+        &mut self,
+        src_id: TyId,
+        target_id: TyId,
+        opts: &UnifyTysOpts,
+    ) -> TcResult<TySub> {
+        let src = self.gs.ty_store.get(src_id).clone();
+        let target = self.gs.ty_store.get(target_id).clone();
         let cannot_unify = || -> TcResult<TySub> { Err(TcError::CannotUnify(src_id, target_id)) };
 
         // Basically, can src be used where a target is required?
@@ -349,7 +485,7 @@ impl<'gs> Unifier<'gs> {
                 // then the whole thing should succeed.
                 let mut subs = TySub::empty();
                 for inner_target_id in inner_target {
-                    match self.unify_tys(src_id, *inner_target_id, opts) {
+                    match self.unify_tys(src_id, inner_target_id, opts) {
                         Ok(result) => {
                             subs.merge_with(&result);
                             continue;
@@ -371,7 +507,7 @@ impl<'gs> Unifier<'gs> {
                 // then the whole thing should succeed.
                 let mut first_error = None;
                 for inner_src_id in inner_src {
-                    match self.unify_tys(*inner_src_id, target_id, opts) {
+                    match self.unify_tys(inner_src_id, target_id, opts) {
                         Ok(result) => {
                             return Ok(result);
                         }
@@ -391,12 +527,12 @@ impl<'gs> Unifier<'gs> {
             // Traits:
             (Ty::Trt, Ty::Trt) => Ok(TySub::empty()),
             (Ty::Trt, Ty::Unresolved(unresolved)) => Ok(TySub::from_pairs([(
-                TySubSubject::Unresolved(*unresolved),
+                TySubSubject::Unresolved(unresolved),
                 src_id,
             )])),
             (Ty::Trt, _) => cannot_unify(),
             (Ty::Ty(_), Ty::Unresolved(unresolved)) => Ok(TySub::from_pairs([(
-                TySubSubject::Unresolved(*unresolved),
+                TySubSubject::Unresolved(unresolved),
                 src_id,
             )])),
 
@@ -479,8 +615,7 @@ mod tests {
 
         drop(builder);
 
-        let unifier = Unifier::new(&mut gs);
-
+        let mut unifier = Unifier::new(&mut gs);
         let unify_result = unifier.unify_tys(hash_ty_1, hash_ty_2, &UnifyTysOpts {});
         println!("{:?}", unify_result);
     }
