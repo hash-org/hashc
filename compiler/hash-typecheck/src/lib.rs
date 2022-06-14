@@ -41,7 +41,7 @@ impl<'c, 'w> HashTypechecker<'c, 'w> {
     fn check_interactive_statement(
         &mut self,
         interactive_id: InteractiveId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut GlobalStorage<'c, 'w>,
         interactive_state: ScopeStack,
     ) -> (CompilerResult<TypeId>, ScopeStack) {
@@ -75,7 +75,7 @@ impl<'c, 'w> Checker<'c> for HashTypechecker<'c, 'w> {
     fn check_module(
         &mut self,
         module_id: ModuleId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut Self::State,
         _: Self::ModuleState,
     ) -> (CompilerResult<()>, Self::ModuleState) {
@@ -100,7 +100,7 @@ impl<'c, 'w> Checker<'c> for HashTypechecker<'c, 'w> {
     fn check_interactive(
         &mut self,
         interactive_id: InteractiveId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<String>, Self::InteractiveState) {

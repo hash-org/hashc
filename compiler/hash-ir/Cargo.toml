@@ -1,10 +1,11 @@
 [package]
-name = "hash-hir"
+name = "hash-ir"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
 
 [dependencies]
-hash-ast = {path = "../hash-ast" }
 hash-utils = {path = "../hash-utils" }
 hash-alloc = {path = "../hash-alloc" }
+hash-ast = {path = "../hash-ast" }
+hash-source = {path = "../hash-source" }

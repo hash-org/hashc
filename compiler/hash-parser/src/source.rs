@@ -21,8 +21,8 @@ pub enum ParseSource {
     },
 }
 
-impl<'c> ParseSource {
-    pub fn from_module(module_id: ModuleId, sources: &Sources<'c>) -> Self {
+impl ParseSource {
+    pub fn from_module(module_id: ModuleId, sources: &Sources) -> Self {
         let module = sources.get_module(module_id);
         Self::Module {
             module_id,
@@ -31,7 +31,7 @@ impl<'c> ParseSource {
     }
     pub fn from_interactive(
         interactive_id: InteractiveId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         current_dir: PathBuf,
     ) -> Self {
         let interactive = sources.get_interactive_block(interactive_id);
@@ -42,7 +42,7 @@ impl<'c> ParseSource {
         }
     }
 
-    pub fn from_source(source_id: SourceId, sources: &Sources<'c>, current_dir: PathBuf) -> Self {
+    pub fn from_source(source_id: SourceId, sources: &Sources, current_dir: PathBuf) -> Self {
         match source_id {
             SourceId::Interactive(interactive_id) => {
                 Self::from_interactive(interactive_id, sources, current_dir)

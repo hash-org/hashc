@@ -94,6 +94,13 @@ fn main() {
     panic::set_hook(Box::new(panic_handler));
     log::set_logger(&CONSOLE_LOGGER).unwrap_or_else(|_| panic!("Couldn't initiate logger"));
 
+    // Starting the Tracy client is necessary before any invoking any of its APIs
+    #[cfg(feature = "profile-with-tracy")]
+    tracy_client::Client::start();
+
+    // Register main thread with the profiler
+    profiling::register_thread!("Main Thread");
+
     let opts: CompilerOptions = CompilerOptions::parse();
 
     // if debug is specified, we want to log everything that is debug level...
@@ -121,10 +128,11 @@ fn main() {
         })
         .into();
 
+    let parser = HashParser::new();
+
     // Create a castle for allocations in the pipeline
     let castle = Castle::new();
 
-    let parser = HashParser::new(worker_count, &castle);
     let tc_wall = &castle.wall();
     let checker = HashTypechecker::new(tc_wall);
 
@@ -133,11 +141,19 @@ fn main() {
 
     let compiler_settings = match opts.mode {
         // @@Incomplete: We also want to integrate IrGen when we begin working on this
-        Some(SubCmd::AstGen { .. }) => CompilerSettings::new(CompilerMode::AstGen),
+        Some(SubCmd::AstGen { .. }) => CompilerSettings::new(CompilerMode::AstGen, worker_count),
         _ => CompilerSettings::default(),
     };
 
-    let mut compiler = Compiler::new(parser, checker, vm, compiler_settings);
+    // We need at least 2 workers for the parsing loop in order so that the job queue can run
+    // within a worker and any other jobs can run inside another worker or workers.
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(worker_count + 1)
+        .thread_name(|id| format!("compiler-worker-{}", id))
+        .build()
+        .unwrap();
+
+    let mut compiler = Compiler::new(parser, checker, vm, &pool, compiler_settings);
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {

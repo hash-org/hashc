@@ -7,9 +7,6 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::Delimiter;
-use hash_alloc::collections::row::Row;
-use hash_alloc::row;
-use hash_alloc::Wall;
 use hash_ast::ident::Identifier;
 use hash_ast::ident::IDENTIFIER_MAP;
 use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
@@ -277,24 +274,24 @@ impl std::fmt::Display for TokenKind {
 /// [`ToString`] trait and just auto cast into a string, whilst holding a vector of
 /// strings.
 #[derive(Debug)]
-pub struct TokenKindVector<'c>(Row<'c, TokenKind>);
+pub struct TokenKindVector(Vec<TokenKind>);
 
-impl<'c> TokenKindVector<'c> {
+impl TokenKindVector {
     /// Create a new empty [TokenKindVector].
-    pub fn empty(wall: &Wall<'c>) -> Self {
-        Self(row![wall;])
+    pub fn empty() -> Self {
+        Self(vec![])
     }
 
-    pub fn inner(&self) -> &Row<'c, TokenKind> {
+    pub fn inner(&self) -> &Vec<TokenKind> {
         &self.0
     }
 
-    pub fn into_inner(self) -> Row<'c, TokenKind> {
+    pub fn into_inner(self) -> Vec<TokenKind> {
         self.0
     }
 
     /// Create a [TokenKindVector] from a provided row of expected atoms.
-    pub fn from_row(items: Row<'c, TokenKind>) -> Self {
+    pub fn from_row(items: Vec<TokenKind>) -> Self {
         Self(items)
     }
 
@@ -304,29 +301,29 @@ impl<'c> TokenKindVector<'c> {
     }
 
     /// Create a [TokenKindVector] with a single atom.
-    pub fn singleton(wall: &Wall<'c>, atom: TokenKind) -> Self {
-        Self(row![wall; atom])
+    pub fn singleton(kind: TokenKind) -> Self {
+        Self(vec![kind])
     }
 
     #[inline(always)]
-    pub fn begin_visibility(wall: &Wall<'c>) -> Self {
-        Self(row![wall;
+    pub fn begin_visibility() -> Self {
+        Self(vec![
             TokenKind::Keyword(Keyword::Pub),
             TokenKind::Keyword(Keyword::Priv),
         ])
     }
 
     /// Tokens expected when the parser expects a collection of patterns to be present.
-    pub fn begin_pattern_collection(wall: &Wall<'c>) -> Self {
-        Self(row![wall;
+    pub fn begin_pattern_collection() -> Self {
+        Self(vec![
             TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Colon
+            TokenKind::Colon,
         ])
     }
 
     /// Tokens expected when a pattern begins in a match statement.
-    pub fn begin_pattern(wall: &Wall<'c>) -> Self {
-        Self(row![wall;
+    pub fn begin_pattern() -> Self {
+        Self(vec![
             TokenKind::Delimiter(Delimiter::Paren, true),
             TokenKind::Delimiter(Delimiter::Brace, true),
             TokenKind::Delimiter(Delimiter::Bracket, true),

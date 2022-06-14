@@ -4,7 +4,6 @@
 #![feature(cell_update)]
 
 use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
-use hash_alloc::{collections::row::Row, row, Wall};
 use hash_ast::{
     ident::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
     literal::STRING_LITERAL_MAP,
@@ -26,7 +25,7 @@ const EOF_CHAR: char = '\0';
 /// The [Lexer] is a representation of the source in tokens that can be turned into the
 /// AST. The [Lexer] has methods that can parse various token types from the source,
 /// transform the entire contents into a vector of tokens and some useful lexing utilities.
-pub struct Lexer<'w, 'c, 'a> {
+pub struct Lexer<'a> {
     /// Location of the lexer in the current stream.
     offset: Cell<usize>,
 
@@ -42,36 +41,34 @@ pub struct Lexer<'w, 'c, 'a> {
     // @@Cleanup: We could use a delimiter stack to automatically guarantee this?
     previous_delimiter: Cell<Option<char>>,
 
-    /// The castle allocator for the current [Lexer].
-    wall: &'w Wall<'c>,
-
-    token_trees: Row<'w, Row<'w, Token>>,
+    token_trees: Vec<Vec<Token>>,
 }
 
-impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
+impl<'a> Lexer<'a> {
     /// Create a new [Lexer] from the given string input.
-    pub fn new(contents: &'a str, source_id: SourceId, wall: &'w Wall<'c>) -> Self {
+    pub fn new(contents: &'a str, source_id: SourceId) -> Self {
         Lexer {
             offset: Cell::new(0),
             source_id,
             previous_delimiter: Cell::new(None),
             contents,
-            wall,
-            token_trees: row![wall;],
+            token_trees: vec![],
         }
     }
 
     /// Returns a reference to the stored token trees for the current job
-    pub fn into_token_trees(self) -> Row<'w, Row<'w, Token>> {
+    pub fn into_token_trees(self) -> Vec<Vec<Token>> {
         self.token_trees
     }
 
     /// Tokenise the given input stream
-    pub fn tokenise(&mut self) -> Result<Row<'c, Token>, LexerErrorWrapper> {
-        let wall = self.wall;
+    pub fn tokenise(&mut self) -> Result<Vec<Token>, LexerErrorWrapper> {
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        Row::try_from_iter(iter, wall).map_err(|err| LexerErrorWrapper(self.source_id, err))
+        iter.collect::<Result<_, _>>()
+            .map_err(|err| LexerErrorWrapper(self.source_id, err))
+
+        // Row::try_from_iter(iter, wall).map_err(|err| LexerErrorWrapper(self.source_id, err))
     }
 
     /// Returns amount of already consumed symbols.
@@ -96,7 +93,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping over the
         //           characters in the iterator.
-        std::str::from_utf8_unchecked(&self.contents.as_bytes()[offset..])
+        std::str::from_utf8_unchecked(self.contents.as_bytes().get_unchecked(offset..))
     }
 
     /// Returns nth character relative to the current position.
@@ -234,7 +231,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
     /// as an error because it is essentially an un-closed block. This kind of behaviour is desired and avoids
     /// performing complex delimiter depth analysis later on.
     fn eat_token_tree(&mut self, delimiter: Delimiter) -> LexerResult<TokenKind> {
-        let mut children_tokens = row![self.wall];
+        let mut children_tokens = vec![];
         let start = self.offset.get() - 1; // we need to ge the previous location to accurately denote the error...
 
         // we need to reset self.prev here as it might be polluted with previous token trees
@@ -243,7 +240,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         while !self.is_eof() {
             // @@ErrorReporting: Option here doesn't just mean EOF, it could also be that the next token failed to be parsed.
             match self.advance_token()? {
-                Some(token) => children_tokens.push(token, self.wall),
+                Some(token) => children_tokens.push(token),
                 None => break,
             };
         }
@@ -251,7 +248,7 @@ impl<'w, 'c, 'a> Lexer<'w, 'c, 'a> {
         match self.previous_delimiter.get() {
             Some(delim) if delim == delimiter.right() => {
                 // push this to the token_trees and get the current index to use instead...
-                self.token_trees.push(children_tokens, self.wall);
+                self.token_trees.push(children_tokens);
 
                 Ok(TokenKind::Tree(delimiter, self.token_trees.len() - 1))
             }

@@ -36,9 +36,10 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init<'c, P, C, V>(mut compiler: Compiler<P, C, V>) -> CompilerResult<()>
+pub fn init<'c, 'pool, P, C, V>(mut compiler: Compiler<'pool, P, C, V>) -> CompilerResult<()>
 where
-    P: Parser<'c>,
+    'pool: 'c,
+    P: Parser<'pool>,
     C: Checker<'c>,
     V: VirtualMachine<'c>,
 {
@@ -74,13 +75,14 @@ where
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'c, P, C, V>(
+fn execute<'c, 'pool, P, C, V>(
     input: &str,
-    compiler: &mut Compiler<P, C, V>,
+    compiler: &mut Compiler<'pool, P, C, V>,
     mut compiler_state: CompilerState<'c, C, V>,
 ) -> CompilerState<'c, C, V>
 where
-    P: Parser<'c>,
+    'pool: 'c,
+    P: Parser<'pool>,
     C: Checker<'c>,
     V: VirtualMachine<'c>,
 {

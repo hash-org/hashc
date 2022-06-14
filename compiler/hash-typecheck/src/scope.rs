@@ -277,7 +277,7 @@ impl ScopeStack {
 pub fn resolve_compound_symbol(
     scopes: &ScopeStack,
     types: &TypeStorage,
-    symbols: &AccessName<'_>,
+    symbols: &AccessName,
     source_id: SourceId,
 ) -> TypecheckResult<(Identifier, SymbolType)> {
     let mut last_scope = scopes;

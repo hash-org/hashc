@@ -21,11 +21,16 @@ pub type CompilerResult<T> = Result<T, Report>;
 
 /// The [Parser] represents an abstract parser that can parse all aspects of the Hash programming
 /// language.
-pub trait Parser<'c> {
+pub trait Parser<'pool> {
     /// Given a [SourceId], parse the current job and append any parsed modules to the
     /// provided sources parameter. On success, the function returns nothing and on
     /// failure, the stage provides a generated diagnostics [Report].
-    fn parse(&mut self, target: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()>;
+    fn parse(
+        &mut self,
+        target: SourceId,
+        sources: &mut Sources,
+        pool: &'pool rayon::ThreadPool,
+    ) -> CompilerResult<()>;
 }
 
 /// The [Checker] represents an abstract type checker that implements all the specified
@@ -60,10 +65,10 @@ pub trait Checker<'c> {
     /// Given a [InteractiveId], check the interactive statement with the specific rules
     /// that are applied in interactive rules. The function accepts the previous [Checker]
     /// state and previous [Checker::InteractiveState].
-    fn check_interactive(
-        &mut self,
+    fn check_interactive<'pool>(
+        &'pool mut self,
         interactive_id: InteractiveId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut Self::State,
         interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<String>, Self::InteractiveState);
@@ -73,7 +78,7 @@ pub trait Checker<'c> {
     fn check_module(
         &mut self,
         module_id: ModuleId,
-        sources: &Sources<'c>,
+        sources: &Sources,
         state: &mut Self::State,
         module_state: Self::ModuleState,
     ) -> (CompilerResult<()>, Self::ModuleState);
@@ -97,7 +102,7 @@ pub trait VirtualMachine<'c> {
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<P, C, V> {
+pub struct Compiler<'pool, P, C, V> {
     /// The parser stage of the compiler.
     parser: P,
     /// The typechecking stage of the compiler.
@@ -106,6 +111,8 @@ pub struct Compiler<P, C, V> {
     vm: V,
     /// Various settings for the compiler.
     pub settings: CompilerSettings,
+    /// The pipeline shared thread pool.
+    pool: &'pool rayon::ThreadPool,
 }
 
 /// The [CompilerState] holds all the information and state of the compiler instance.
@@ -113,7 +120,7 @@ pub struct Compiler<P, C, V> {
 /// so that incremental executions of the compiler are possible.
 pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
     /// The collected workspace sources for the current job.
-    pub sources: Sources<'c>,
+    pub sources: Sources,
     /// The typechecker state.
     pub checker_state: C::State,
     /// The interactive typechecker state. This mainly differs from the
@@ -126,20 +133,28 @@ pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
     pub vm_state: V::State,
 }
 
-impl<'c, P, C, V> Compiler<P, C, V>
+impl<'c, 'pool, P, C, V> Compiler<'pool, P, C, V>
 where
-    P: Parser<'c>,
+    'pool: 'c,
+    P: Parser<'pool>,
     C: Checker<'c>,
     V: VirtualMachine<'c>,
 {
     /// Create a new instance of a [Compiler] with the provided parser and
     /// typechecker implementations.
-    pub fn new(parser: P, checker: C, vm: V, settings: CompilerSettings) -> Self {
+    pub fn new(
+        parser: P,
+        checker: C,
+        vm: V,
+        pool: &'pool rayon::ThreadPool,
+        settings: CompilerSettings,
+    ) -> Self {
         Self {
             parser,
             checker,
             vm,
             settings,
+            pool,
         }
     }
 
@@ -164,8 +179,8 @@ where
     }
 
     /// Function to invoke a parsing job of a specified [SourceId].
-    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources<'c>) -> CompilerResult<()> {
-        self.parser.parse(id, sources)
+    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources) -> CompilerResult<()> {
+        self.parser.parse(id, sources, self.pool)
     }
 
     /// Run a interactive job with the provided [InteractiveId] pointing to the
@@ -185,6 +200,9 @@ where
             return (Err(err), compiler_state);
         }
 
+        // We want to run a pass that will lower that AST into a form that the typechecker
+        // expects. For more details, read the `hash_lowering::ast` sources.
+
         // Typechecking
         let (result, checker_interactive_state) = self.checker.check_interactive(
             interactive_id,
@@ -192,6 +210,7 @@ where
             &mut compiler_state.checker_state,
             compiler_state.checker_interactive_state,
         );
+
         compiler_state.checker_interactive_state = checker_interactive_state;
         (result, compiler_state)
     }
@@ -207,8 +226,11 @@ where
         // Parsing
         let result = timed(
             || {
-                self.parser
-                    .parse(SourceId::Module(module_id), &mut compiler_state.sources)
+                self.parser.parse(
+                    SourceId::Module(module_id),
+                    &mut compiler_state.sources,
+                    self.pool,
+                )
             },
             log::Level::Debug,
             |elapsed| println!("parse: {:?}", elapsed),
@@ -223,6 +245,9 @@ where
         if matches!(self.settings.mode, CompilerMode::AstGen) {
             return (result, compiler_state);
         }
+
+        // We want to run a pass that will lower that AST into a form that the typechecker
+        // expects. For more details, read the `hash_lowering::ast` sources.
 
         // Typechecking
         timed(

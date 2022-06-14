@@ -16,15 +16,12 @@ counter! {
     method_visibility:,
 }
 
-lazy_static! {
-    static ref IDENTIFIER_STORAGE_CASTLE: Castle = Castle::new();
-}
-
 thread_local! {
     static IDENTIFIER_STORAGE_WALL: Wall<'static> = IDENTIFIER_STORAGE_CASTLE.wall();
 }
 
 lazy_static! {
+    static ref IDENTIFIER_STORAGE_CASTLE: Castle = Castle::new();
     pub static ref IDENTIFIER_MAP: IdentifierMap<'static> = IdentifierMap::new();
     pub static ref CORE_IDENTIFIERS: CoreIdentifiers =
         CoreIdentifiers::from_ident_map(&IDENTIFIER_MAP);
