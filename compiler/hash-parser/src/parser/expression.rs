@@ -5,8 +5,8 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use hash_ast::{ast::*, ast_nodes, literal::STRING_LITERAL_MAP};
-use hash_source::{identifier::Identifier, location::Span};
+use hash_ast::{ast::*, ast_nodes};
+use hash_source::{identifier::Identifier, location::Span, string::STRING_LITERAL_MAP};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};

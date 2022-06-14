@@ -6,6 +6,7 @@ use std::path::Path;
 
 pub mod identifier;
 pub mod location;
+pub mod string;
 
 new_key_type! {
     pub struct ModuleId;
