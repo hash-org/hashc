@@ -3,7 +3,7 @@
 //!
 //! All rights reserved 2021 (c) The Hash Language authors
 
-use hash_ast::ident::Identifier;
+use hash_source::identifier::Identifier;
 use hash_source::location::Span;
 use hash_utils::counter;
 

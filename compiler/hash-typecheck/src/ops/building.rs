@@ -9,7 +9,7 @@ use crate::storage::{
     scope::Scope,
     GlobalStorage,
 };
-use hash_ast::ident::Identifier;
+use hash_source::identifier::Identifier;
 use std::cell::RefCell;
 
 /// Helper to create various primitive constructions (from [crate::storage::primitives]).

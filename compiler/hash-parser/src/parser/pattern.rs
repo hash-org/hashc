@@ -3,8 +3,8 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_ast::{ast::*, ast_nodes, ident::CORE_IDENTIFIERS};
-use hash_source::location::Span;
+use hash_ast::{ast::*, ast_nodes};
+use hash_source::{identifier::CORE_IDENTIFIERS, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use crate::{disable_flag, enable_flag};

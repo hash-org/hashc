@@ -4,11 +4,12 @@
 #![feature(cell_update)]
 
 use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
-use hash_ast::{
-    ident::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
-    literal::STRING_LITERAL_MAP,
+use hash_ast::literal::STRING_LITERAL_MAP;
+use hash_source::{
+    identifier::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
+    location::Span,
+    SourceId,
 };
-use hash_source::{location::Span, SourceId};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use std::{cell::Cell, iter};
 use utils::is_id_start;
