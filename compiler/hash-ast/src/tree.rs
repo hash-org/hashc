@@ -4,11 +4,10 @@
 use std::convert::Infallible;
 use std::iter;
 
+use hash_source::{identifier::IDENTIFIER_MAP, string::STRING_LITERAL_MAP};
 use hash_utils::tree_writing::TreeNode;
 
 use crate::{ast, visitor::walk, visitor::AstVisitor};
-use crate::{ast::Mutability, literal::STRING_LITERAL_MAP};
-use crate::{ast::Visibility, ident::IDENTIFIER_MAP};
 
 /// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
 /// [TreeNode] tree, for visualisation purposes.
@@ -852,8 +851,8 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error> {
         match node.body() {
-            Visibility::Private => Ok(TreeNode::leaf("private")),
-            Visibility::Public => Ok(TreeNode::leaf("public")),
+            ast::Visibility::Private => Ok(TreeNode::leaf("private")),
+            ast::Visibility::Public => Ok(TreeNode::leaf("public")),
         }
     }
 
@@ -864,8 +863,8 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error> {
         match node.body() {
-            Mutability::Mutable => Ok(TreeNode::leaf("mutable")),
-            Mutability::Immutable => Ok(TreeNode::leaf("immutable")),
+            ast::Mutability::Mutable => Ok(TreeNode::leaf("mutable")),
+            ast::Mutability::Immutable => Ok(TreeNode::leaf("immutable")),
         }
     }
 

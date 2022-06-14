@@ -16,11 +16,10 @@ use hash_ast::{
         MatchCase, MatchOrigin, Pattern, TuplePatternEntry, VariableExpr, WhileLoopBlock,
     },
     ast_nodes,
-    ident::IDENTIFIER_MAP,
     visitor::{walk_mut, AstVisitorMut},
 };
 use hash_pipeline::sources::Sources;
-use hash_source::location::Span;
+use hash_source::{identifier::IDENTIFIER_MAP, location::Span};
 use std::convert::Infallible;
 
 pub struct AstLowering;

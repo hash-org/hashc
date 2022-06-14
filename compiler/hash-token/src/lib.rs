@@ -7,10 +7,11 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::Delimiter;
-use hash_ast::ident::Identifier;
-use hash_ast::ident::IDENTIFIER_MAP;
-use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
-use hash_source::location::Span;
+use hash_source::{
+    identifier::{Identifier, IDENTIFIER_MAP},
+    location::Span,
+    string::{StringLiteral, STRING_LITERAL_MAP},
+};
 use keyword::Keyword;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
