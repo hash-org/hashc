@@ -364,6 +364,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-ast-desugaring"
+version = "0.1.0"
+dependencies = [
+ "hash-alloc",
+ "hash-ast",
+ "hash-pipeline",
+ "hash-source",
+ "hash-utils",
+ "rayon",
+]
+
+[[package]]
 name = "hash-error-codes"
 version = "0.1.0"
 
@@ -399,18 +411,6 @@ dependencies = [
  "hash-source",
  "hash-token",
  "thiserror",
-]
-
-[[package]]
-name = "hash-lowering"
-version = "0.1.0"
-dependencies = [
- "hash-alloc",
- "hash-ast",
- "hash-pipeline",
- "hash-source",
- "hash-utils",
- "rayon",
 ]
 
 [[package]]

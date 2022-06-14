@@ -1,5 +1,5 @@
 [package]
-name = "hash-lowering"
+name = "hash-ast-desugaring"
 version = "0.1.0"
 authors = ["The Hash Language authors"]
 edition = "2021"
