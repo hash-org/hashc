@@ -4,12 +4,7 @@
 #![feature(cell_update)]
 
 use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
-use hash_source::{
-    identifier::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
-    location::Span,
-    string::STRING_LITERAL_MAP,
-    SourceId,
-};
+use hash_source::{identifier::CORE_IDENTIFIERS, location::Span, SourceId};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use std::{cell::Cell, iter};
 use utils::is_id_start;
@@ -300,13 +295,7 @@ impl<'a> Lexer<'a> {
             "impl" => TokenKind::Keyword(Keyword::Impl),
             "type" => TokenKind::Keyword(Keyword::Type),
             "_" => TokenKind::Ident(CORE_IDENTIFIERS.underscore),
-            _ => {
-                // create the identifier here from the created map
-                let ident = IDENTIFIER_MAP.create_ident(name);
-
-                // check if this is an actual keyword instead of an ident, and if it is convert the token type...
-                TokenKind::Ident(ident)
-            }
+            _ => TokenKind::Ident(name.into()),
         }
     }
 
@@ -656,8 +645,7 @@ impl<'a> Lexer<'a> {
 
         // Essentially we put the string into the literal map and get an id out which we use for the
         // actual representation in the token
-        let id = STRING_LITERAL_MAP.create_string(&value);
-        Ok(TokenKind::StrLiteral(id))
+        Ok(TokenKind::StrLiteral(value.into()))
     }
 
     /// Consume a line comment after the first following slash, essentially eating
