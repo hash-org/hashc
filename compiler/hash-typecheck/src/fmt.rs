@@ -232,6 +232,9 @@ impl<'gs> TcFormatter<'gs> {
             }) => {
                 write!(f, "{}", name)
             }
+            // @@Future: we can actually print out the location of these definitions, which might
+            // help with debugging.
+            // Perhaps also we can have a flag to print out all the members.
             NominalDef::Struct(_) => {
                 write!(f, "struct(..)")
             }
