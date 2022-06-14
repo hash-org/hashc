@@ -21,35 +21,32 @@ counter! {
 }
 
 impl Display for Identifier {
-    /// Render the identifier when displaying it
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", IDENTIFIER_MAP.get_ident(*self))
     }
 }
 
+// Utility methods for converting from a String to an Identifier and vice versa.
+
 impl From<&str> for Identifier {
-    /// Create an identifier from a string.
     fn from(name: &str) -> Self {
         IDENTIFIER_MAP.create_ident(name)
     }
 }
 
 impl From<Identifier> for &str {
-    /// Convert an identifier into a string, panics if the identifier doesn't exist.
     fn from(ident: Identifier) -> Self {
         IDENTIFIER_MAP.get_ident(ident)
     }
 }
 
 impl From<Identifier> for String {
-    /// Convert an identifier into a string, panics if the identifier doesn't exist.
     fn from(ident: Identifier) -> Self {
         String::from(IDENTIFIER_MAP.get_ident(ident))
     }
 }
 
 impl From<Identifier> for Cow<'static, str> {
-    /// Convert an identifier into a string, panics if the identifier doesn't exist.
     fn from(ident: Identifier) -> Self {
         Cow::from(IDENTIFIER_MAP.get_ident(ident))
     }
@@ -104,7 +101,11 @@ impl<'c> IdentifierMap<'c> {
         } else {
             IDENTIFIER_STORAGE_WALL.with(|wall| {
                 let ident = Identifier::new();
+
+                // We need to copy over the string so that it can be inserted into
+                // the table
                 let ident_str_alloc = BrickString::new(ident_str, wall).into_str();
+
                 self.identifiers.insert(ident_str_alloc, ident);
                 self.reverse_lookup.insert(ident, ident_str_alloc);
                 ident

@@ -26,35 +26,32 @@ counter! {
 }
 
 impl Display for StringLiteral {
-    /// Render the identifier when displaying it
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", STRING_LITERAL_MAP.lookup(*self))
     }
 }
 
+// Utility methods for converting from a String to an StringLiteral and vice versa.
+
 impl From<&str> for StringLiteral {
-    /// Create an identifier from a string.
     fn from(string: &str) -> Self {
         STRING_LITERAL_MAP.create_string(string)
     }
 }
 
 impl From<String> for StringLiteral {
-    /// Create an identifier from a string.
     fn from(string: String) -> Self {
         STRING_LITERAL_MAP.create_string(&string)
     }
 }
 
 impl From<StringLiteral> for &str {
-    /// Convert an identifier into a string, panics if the identifier doesn't exist.
     fn from(string: StringLiteral) -> Self {
         STRING_LITERAL_MAP.lookup(string)
     }
 }
 
 impl From<StringLiteral> for String {
-    /// Convert an identifier into a string, panics if the identifier doesn't exist.
     fn from(string: StringLiteral) -> Self {
         String::from(STRING_LITERAL_MAP.lookup(string))
     }
@@ -74,8 +71,6 @@ impl StringLiteralMap {
             let ident = StringLiteral::new();
 
             // copy over the string so that we can insert it into the reverse lookup table
-            // let wall = STATIC_CASTLE.wall();
-            // let value_copy = BrickString::new(value, &wall);
             let value_copy = Box::leak(value.to_owned().into_boxed_str());
 
             self.reverse_table.insert(value_copy, ident);
