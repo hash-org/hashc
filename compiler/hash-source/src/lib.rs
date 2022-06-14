@@ -4,6 +4,10 @@
 use slotmap::new_key_type;
 use std::path::Path;
 
+pub mod identifier;
+pub mod location;
+pub mod string;
+
 new_key_type! {
     pub struct ModuleId;
 }
@@ -22,5 +26,3 @@ pub trait SourceMap {
     fn path_by_id(&self, source_id: SourceId) -> &Path;
     fn contents_by_id(&self, source_id: SourceId) -> &str;
 }
-
-pub mod location;

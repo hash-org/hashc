@@ -1,6 +1,5 @@
 //! Contains type definitions that the rest of the storage and the general typechecker use.
-use hash_ast::ident::Identifier;
-use hash_source::SourceId;
+use hash_source::{identifier::Identifier, SourceId};
 use slotmap::new_key_type;
 use std::collections::HashMap;
 
