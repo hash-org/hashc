@@ -132,9 +132,13 @@ impl<'gs> TcFormatter<'gs> {
                 self.fmt_ty(f, *ty_id, is_atomic)?;
                 Ok(())
             }
-            Value::Rt => {
+            Value::Rt(ty_id) => {
                 is_atomic.set(true);
-                write!(f, "{{runtime value}}")
+                write!(
+                    f,
+                    "{{runtime value of type {}}}",
+                    ty_id.for_formatting(self.global_storage)
+                )
             }
             Value::TyFn(TyFnValue {
                 name,
@@ -199,12 +203,18 @@ impl<'gs> TcFormatter<'gs> {
                 }
                 Ok(())
             }
-            Value::Unset => {
+            Value::Unset(inner) => {
                 is_atomic.set(true);
-                write!(f, "{{unset}}")
+                write!(
+                    f,
+                    "{{unset value of type {}}}",
+                    inner.for_formatting(self.global_storage)
+                )
             }
-            Value::ModDef(_) => todo!(),
-            Value::NominalDef(_) => todo!(),
+            Value::ModDef(mod_def_id) => self.fmt_mod_def(f, *mod_def_id, is_atomic),
+            Value::NominalDef(nominal_def_id) => {
+                self.fmt_nominal_def(f, *nominal_def_id, is_atomic)
+            }
         }
     }
 

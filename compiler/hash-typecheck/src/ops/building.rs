@@ -2,9 +2,9 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, Members, Mutability, NominalDef,
-        NominalDefId, Param, ParamList, StructDef, StructFields, TrtDef, TrtDefId, TupleTy, Ty,
-        TyFnCase, TyFnTy, TyFnValue, TyId, Value, ValueId, Var, Visibility,
+        AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, Members, ModDefId, Mutability,
+        NominalDef, NominalDefId, Param, ParamList, StructDef, StructFields, TrtDef, TrtDefId,
+        TupleTy, Ty, TyFnCase, TyFnTy, TyFnValue, TyId, Value, ValueId, Var, Visibility,
     },
     scope::Scope,
     GlobalStorage,
@@ -171,6 +171,15 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
         }
     }
 
+    /// Create a public member with the given name, type and unset value.
+    pub fn create_unset_pub_member(
+        &self,
+        name: impl Into<Identifier>,
+        ty: TyId,
+    ) -> Member {
+        self.create_pub_member(name, ty, self.create_unset_value(ty))
+    }
+
     /// Create a public member with the given name, type and value.
     pub fn create_pub_member(
         &self,
@@ -215,6 +224,14 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
             .create(Ty::Merge(tys.into_iter().collect()))
     }
 
+    /// Create a value [Value::Merge] with the given inner values.
+    pub fn create_merge_value(&self, values: impl IntoIterator<Item = ValueId>) -> ValueId {
+        self.gs
+            .borrow_mut()
+            .value_store
+            .create(Value::Merge(values.into_iter().collect()))
+    }
+
     /// Create the void type: [Ty::Tuple] with no members.
     pub fn create_void_ty(&self) -> TyId {
         self.gs.borrow_mut().ty_store.create(Ty::Tuple(TupleTy {
@@ -222,19 +239,19 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
         }))
     }
 
-    /// Create a [Value::Rt].
-    pub fn create_rt_value(&self) -> ValueId {
-        self.gs.borrow_mut().value_store.create(Value::Rt)
+    /// Create a [Value::Rt] of the given type.
+    pub fn create_rt_value(&self, ty_id: TyId) -> ValueId {
+        self.gs.borrow_mut().value_store.create(Value::Rt(ty_id))
     }
 
     /// Create a [Value::Unset].
-    pub fn create_unset_value(&self) -> ValueId {
-        self.gs.borrow_mut().value_store.create(Value::Unset)
+    pub fn create_unset_value(&self, ty_id: TyId) -> ValueId {
+        self.gs.borrow_mut().value_store.create(Value::Unset(ty_id))
     }
 
     /// Create a parameter with the given name and type.
     pub fn create_param(&self, name: impl Into<Identifier>, ty: TyId) -> Param {
-        let value = self.create_unset_value();
+        let value = self.create_unset_value(ty);
         Param {
             name: Some(name.into()),
             ty,
@@ -301,6 +318,22 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
             .create(Value::Trt(trt_def_id));
         self.add_pub_member_to_scope(name, trt_def_ty, trt_def_value);
         trt_def_id
+    }
+
+    /// Create a type function type with the given name, parameters, and return type.
+    pub fn create_mod_def_ty(&self, mod_def_id: ModDefId) -> TyId {
+        self.gs.borrow_mut().ty_store.create(Ty::ModDef(mod_def_id))
+    }
+
+    /// Create a type function type with the given name, parameters, and return type.
+    pub fn create_ty_fn_ty(
+        &self,
+        params: impl IntoIterator<Item = Param>,
+        return_ty: TyId,
+    ) -> TyId {
+        let params = ParamList::new(params.into_iter().collect());
+        let ty_fn = TyFnTy { params, return_ty };
+        self.gs.borrow_mut().ty_store.create(Ty::TyFn(ty_fn))
     }
 
     /// Create a type function value with the given name, parameters, return type and value.
