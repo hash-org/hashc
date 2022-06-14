@@ -18,7 +18,7 @@ pub mod storage;
 pub struct Typechecker;
 
 // @@Incomplete(kontheocharis): Dummy implementation so that the compiler runs:
-impl<'c> Checker<'c> for Typechecker {
+impl Checker<'_> for Typechecker {
     type State = ();
 
     fn make_state(&mut self) -> CompilerResult<Self::State> {
@@ -43,7 +43,7 @@ impl<'c> Checker<'c> for Typechecker {
     fn check_interactive(
         &mut self,
         _interactive_id: hash_source::InteractiveId,
-        _sources: &hash_pipeline::sources::Sources<'c>,
+        _sources: &hash_pipeline::sources::Sources,
         _state: &mut Self::State,
         _interactive_state: Self::InteractiveState,
     ) -> (CompilerResult<String>, Self::InteractiveState) {
@@ -53,7 +53,7 @@ impl<'c> Checker<'c> for Typechecker {
     fn check_module(
         &mut self,
         _module_id: hash_source::ModuleId,
-        _sources: &hash_pipeline::sources::Sources<'c>,
+        _sources: &hash_pipeline::sources::Sources,
         _state: &mut Self::State,
         _module_state: Self::ModuleState,
     ) -> (CompilerResult<()>, Self::ModuleState) {
