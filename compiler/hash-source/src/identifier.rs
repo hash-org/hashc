@@ -7,7 +7,11 @@ use fnv::FnvBuildHasher;
 use hash_alloc::{collections::string::BrickString, Castle, Wall};
 use hash_utils::counter;
 use lazy_static::lazy_static;
-use std::{borrow::Borrow, fmt::Display, thread_local};
+use std::{
+    borrow::{Borrow, Cow},
+    fmt::Display,
+    thread_local,
+};
 
 counter! {
     name: Identifier,
@@ -16,17 +20,35 @@ counter! {
     method_visibility:,
 }
 
-/// Render the identifier when displaying it
 impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", IDENTIFIER_MAP.get_ident(*self))
     }
 }
 
-/// Create an identifier from a string.
+// Utility methods for converting from a String to an Identifier and vice versa.
+
 impl From<&str> for Identifier {
     fn from(name: &str) -> Self {
         IDENTIFIER_MAP.create_ident(name)
+    }
+}
+
+impl From<Identifier> for &str {
+    fn from(ident: Identifier) -> Self {
+        IDENTIFIER_MAP.get_ident(ident)
+    }
+}
+
+impl From<Identifier> for String {
+    fn from(ident: Identifier) -> Self {
+        String::from(IDENTIFIER_MAP.get_ident(ident))
+    }
+}
+
+impl From<Identifier> for Cow<'static, str> {
+    fn from(ident: Identifier) -> Self {
+        Cow::from(IDENTIFIER_MAP.get_ident(ident))
     }
 }
 
@@ -79,7 +101,11 @@ impl<'c> IdentifierMap<'c> {
         } else {
             IDENTIFIER_STORAGE_WALL.with(|wall| {
                 let ident = Identifier::new();
+
+                // We need to copy over the string so that it can be inserted into
+                // the table
                 let ident_str_alloc = BrickString::new(ident_str, wall).into_str();
+
                 self.identifiers.insert(ident_str_alloc, ident);
                 self.reverse_lookup.insert(ident, ident_str_alloc);
                 ident
