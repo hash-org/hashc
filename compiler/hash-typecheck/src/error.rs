@@ -1,7 +1,6 @@
 //! Error-related data structures for errors that occur during typechecking.
-use hash_ast::ident::Identifier;
-
 use crate::storage::primitives::{Args, Params, TyId, ValueId};
+use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;
