@@ -101,8 +101,9 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     }
 
     /// Get a parameter by name.
-    pub fn get_by_name(&self, name: Identifier) -> Option<&ParamType> {
-        self.positional().get(*self.name_map.get(&name)?)
+    pub fn get_by_name(&self, name: Identifier) -> Option<(usize, &ParamType)> {
+        let param_index = *self.name_map.get(&name)?;
+        Some((param_index, self.positional().get(param_index)?))
     }
 }
 
