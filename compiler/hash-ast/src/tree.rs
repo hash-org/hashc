@@ -4,7 +4,6 @@
 use std::convert::Infallible;
 use std::iter;
 
-use hash_source::{identifier::IDENTIFIER_MAP, string::STRING_LITERAL_MAP};
 use hash_utils::tree_writing::TreeNode;
 
 use crate::{ast, visitor::walk, visitor::AstVisitor};
@@ -44,11 +43,7 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled(
-            "import",
-            STRING_LITERAL_MAP.lookup(node.path),
-            "\"",
-        )))
+        Ok(TreeNode::leaf(labelled("import", node.path, "\"")))
     }
 
     type NameRet = TreeNode;
@@ -57,7 +52,7 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
-        Ok(TreeNode::leaf(IDENTIFIER_MAP.get_ident(node.ident)))
+        Ok(TreeNode::leaf(node.ident))
     }
 
     type AccessNameRet = TreeNode;
@@ -69,7 +64,7 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf(
             node.path
                 .iter()
-                .map(|p| IDENTIFIER_MAP.get_ident(*p.body()))
+                .map(|p| (*p.body()).into())
                 .intersperse("::")
                 .collect::<String>(),
         ))
@@ -119,7 +114,7 @@ impl AstVisitor for AstTreeGenerator {
         let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch(
-            labelled("directive", IDENTIFIER_MAP.get_ident(node.name.ident), "\""),
+            labelled("directive", node.name.ident, "\""),
             vec![subject],
         ))
     }
@@ -135,11 +130,7 @@ impl AstVisitor for AstTreeGenerator {
             Ok(TreeNode::branch(
                 "arg",
                 vec![
-                    TreeNode::leaf(labelled(
-                        "named",
-                        IDENTIFIER_MAP.get_ident(name.ident),
-                        "\"",
-                    )),
+                    TreeNode::leaf(labelled("named", name.ident, "\"")),
                     TreeNode::branch(
                         "value",
                         vec![self.visit_expression(ctx, node.value.ast_ref())?],
@@ -584,11 +575,7 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled(
-            "str",
-            STRING_LITERAL_MAP.lookup(node.0),
-            "\"",
-        )))
+        Ok(TreeNode::leaf(labelled("str", node.0, "\"")))
     }
 
     type CharLiteralRet = TreeNode;
@@ -1217,11 +1204,7 @@ impl AstVisitor for AstTreeGenerator {
         _: &Self::Ctx,
         node: ast::AstNodeRef<ast::StrLiteralPattern>,
     ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled(
-            "str",
-            STRING_LITERAL_MAP.lookup(node.0),
-            "\"",
-        )))
+        Ok(TreeNode::leaf(labelled("str", node.0, "\"")))
     }
 
     type CharLiteralPatternRet = TreeNode;

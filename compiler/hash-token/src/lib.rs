@@ -7,11 +7,7 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::Delimiter;
-use hash_source::{
-    identifier::{Identifier, IDENTIFIER_MAP},
-    location::Span,
-    string::{StringLiteral, STRING_LITERAL_MAP},
-};
+use hash_source::{identifier::Identifier, location::Span, string::StringLiteral};
 use keyword::Keyword;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file. The
@@ -54,14 +50,10 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             TokenKind::Ident(ident) => {
-                write!(f, "Ident ({})", IDENTIFIER_MAP.get_ident(*ident))
+                write!(f, "Ident ({})", String::from(*ident))
             }
             TokenKind::StrLiteral(literal) => {
-                write!(
-                    f,
-                    "StringLiteral (\"{}\")",
-                    STRING_LITERAL_MAP.lookup(*literal)
-                )
+                write!(f, "StringLiteral (\"{}\")", String::from(*literal))
             }
             // We want to print the actual character, instead of a potential escape code
             TokenKind::CharLiteral(ch) => {
@@ -205,11 +197,11 @@ impl TokenKind {
             TokenKind::FloatLiteral(num) => format!("`{}`", num),
             TokenKind::CharLiteral(ch) => format!("`{}`", ch),
             TokenKind::StrLiteral(str) => {
-                format!("the string `{}`", STRING_LITERAL_MAP.lookup(*str))
+                format!("the string `{}`", *str)
             }
             TokenKind::Keyword(kwd) => format!("`{}`", kwd),
             TokenKind::Ident(ident) => {
-                format!("the identifier `{}`", IDENTIFIER_MAP.get_ident(*ident))
+                format!("the identifier `{}`", *ident)
             }
             kind => format!("a `{}`", kind),
         }
@@ -254,11 +246,11 @@ impl std::fmt::Display for TokenKind {
             }
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
             TokenKind::StrLiteral(str) => {
-                write!(f, "\"{}\"", STRING_LITERAL_MAP.lookup(*str))
+                write!(f, "\"{}\"", *str)
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),
             TokenKind::Ident(ident) => {
-                write!(f, "{}", IDENTIFIER_MAP.get_ident(*ident))
+                write!(f, "{}", String::from(*ident))
             }
         }
     }

@@ -6,7 +6,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use hash_ast::{ast::*, ast_nodes};
-use hash_source::{identifier::Identifier, location::Span, string::STRING_LITERAL_MAP};
+use hash_source::{identifier::Identifier, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -520,7 +520,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(Token {
                 kind: TokenKind::StrLiteral(str),
                 span,
-            }) => (str, STRING_LITERAL_MAP.lookup(*str), span),
+            }) => (str, *str, span),
             _ => gen.error(AstGenErrorKind::ImportPath, None, None)?,
         };
 
@@ -528,7 +528,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         gen.verify_is_empty()?;
 
         // Attempt to add the module via the resolver
-        let import_path = PathBuf::from_str(path).unwrap_or_else(|err| match err {});
+        let import_path = PathBuf::from_str(path.into()).unwrap_or_else(|err| match err {});
         let resolved_import_path = self
             .resolver
             .parse_import(&import_path, self.source_location(span));
