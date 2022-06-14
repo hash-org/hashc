@@ -12,7 +12,6 @@ lazy_static! {
 }
 
 pub mod ast;
-pub mod literal;
 pub mod operator;
 pub mod tree;
 pub mod visitor;

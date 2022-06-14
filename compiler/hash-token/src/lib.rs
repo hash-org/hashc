@@ -7,10 +7,10 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::Delimiter;
-use hash_ast::literal::{StringLiteral, STRING_LITERAL_MAP};
 use hash_source::{
     identifier::{Identifier, IDENTIFIER_MAP},
     location::Span,
+    string::{StringLiteral, STRING_LITERAL_MAP},
 };
 use keyword::Keyword;
 

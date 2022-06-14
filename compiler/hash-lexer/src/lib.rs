@@ -4,10 +4,10 @@
 #![feature(cell_update)]
 
 use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
-use hash_ast::literal::STRING_LITERAL_MAP;
 use hash_source::{
     identifier::{CORE_IDENTIFIERS, IDENTIFIER_MAP},
     location::Span,
+    string::STRING_LITERAL_MAP,
     SourceId,
 };
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
