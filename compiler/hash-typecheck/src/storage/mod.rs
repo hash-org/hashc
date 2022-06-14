@@ -7,6 +7,8 @@
 //! type definition will be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
 
+use hash_source::SourceId;
+
 use self::{
     core::CoreDefs,
     mods::ModDefStore,
@@ -39,13 +41,12 @@ pub struct GlobalStorage {
     pub nominal_def_store: NominalDefStore,
     pub checked_sources: CheckedSources,
     pub root_scope: Scope,
-    core_defs: Option<CoreDefs>,
 }
 
 impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
     pub fn new() -> Self {
-        let mut gs = Self {
+        Self {
             ty_store: TyStore::new(),
             value_store: ValueStore::new(),
             trt_def_store: TrtDefStore::new(),
@@ -53,28 +54,7 @@ impl GlobalStorage {
             nominal_def_store: NominalDefStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope: Scope::empty(scope::ScopeKind::Constant),
-            core_defs: None,
-        };
-        gs.populate_core_defs();
-        gs
-    }
-
-    /// Populate the core definitions
-    pub fn populate_core_defs(&mut self) {
-        match self.core_defs {
-            Some(_) => {}
-            None => {
-                self.core_defs = Some(CoreDefs::new(self));
-            }
         }
-    }
-
-    /// Get the core definitions
-    ///
-    /// This panics if [Self::populate_core_defs] has not been called yet (---it is called when
-    /// [Self::new] is called).
-    pub fn core_defs(&self) -> &CoreDefs {
-        self.core_defs.as_ref().unwrap()
     }
 }
 
@@ -92,16 +72,30 @@ pub struct LocalStorage {
     pub state: TypecheckState,
 }
 
-/// A reference to the storage, which includes both local and global storage.
-pub struct StorageRef<'gs, 'ls> {
-    pub local_storage: &'ls LocalStorage,
-    pub global_storage: &'gs GlobalStorage,
+impl LocalStorage {
+    /// Create a new, empty [LocalStorage] for the given source.
+    pub fn new(source_id: SourceId) -> Self {
+        Self {
+            state: TypecheckState::new(source_id),
+            scopes: ScopeStack::empty(),
+        }
+    }
 }
 
-/// A mutable reference to the storage, which includes both local and global storage.
-pub struct StorageRefMut<'gs, 'ls> {
+/// A reference to the storage, which includes both local and global storage, as well as core
+/// definitions.
+pub struct StorageRef<'gs, 'ls, 'cd> {
+    pub local_storage: &'ls LocalStorage,
+    pub global_storage: &'gs GlobalStorage,
+    pub core_defs: &'cd CoreDefs,
+}
+
+/// A mutable reference to the storage, which includes both local and global storage, as well as
+/// core definitions.
+pub struct StorageRefMut<'gs, 'ls, 'cd> {
     pub local_storage: &'ls mut LocalStorage,
     pub global_storage: &'gs mut GlobalStorage,
+    pub core_defs: &'cd CoreDefs,
 }
 
 /// Trait that provides convenient accessor methods to various parts of the storage given a path to
@@ -118,7 +112,7 @@ pub trait AccessToStorage {
     }
 
     fn core_defs(&mut self) -> &CoreDefs {
-        self.global_storage().core_defs()
+        self.storages().core_defs
     }
 
     fn ty_store(&self) -> &TyStore {
@@ -208,26 +202,28 @@ pub trait AccessToStorageMut: AccessToStorage {
     }
 }
 
-impl<'gs, 'ls> AccessToStorage for StorageRef<'gs, 'ls> {
+impl<'gs, 'ls, 'cd> AccessToStorage for StorageRef<'gs, 'ls, 'cd> {
     fn storages(&self) -> StorageRef {
         StorageRef { ..*self }
     }
 }
 
-impl<'gs, 'ls> AccessToStorage for StorageRefMut<'gs, 'ls> {
+impl<'gs, 'ls, 'cd> AccessToStorage for StorageRefMut<'gs, 'ls, 'cd> {
     fn storages(&self) -> StorageRef {
         StorageRef {
             global_storage: self.global_storage,
             local_storage: self.local_storage,
+            core_defs: self.core_defs,
         }
     }
 }
 
-impl<'gs, 'ls> AccessToStorageMut for StorageRefMut<'gs, 'ls> {
+impl<'gs, 'ls, 'cd> AccessToStorageMut for StorageRefMut<'gs, 'ls, 'cd> {
     fn storages_mut(&mut self) -> StorageRefMut {
         StorageRefMut {
             global_storage: self.global_storage,
             local_storage: self.local_storage,
+            core_defs: self.core_defs,
         }
     }
 }

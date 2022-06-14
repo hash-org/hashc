@@ -10,14 +10,11 @@ use crate::storage::{
     GlobalStorage,
 };
 use hash_source::identifier::Identifier;
-use std::cell::RefCell;
+use std::{cell::RefCell, ops::Deref};
 
 /// Helper to create various primitive constructions (from [crate::storage::primitives]).
 ///
 /// Optionally adds the constructions to a scope, if given.
-///
-/// *Note*: This builder does *not* use [CoreDefs](crate::storage::core::CoreDefs), so it is safe
-/// to use to construct [CoreDefs](crate::storage::core::CoreDefs).
 pub struct PrimitiveBuilder<'gs, 'sc> {
     // Keep these in RefCells so that calls to [PrimitiveBuilder] can be nested without borrowing
     // issues.
@@ -45,6 +42,11 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
             gs: RefCell::new(gs),
             scope: RefCell::new(Some(scope)),
         }
+    }
+
+    /// Get an immutable reference to the inner global storage.
+    pub fn global_storage(&self) -> impl Deref<Target = &mut GlobalStorage> {
+        self.gs.borrow()
     }
 
     /// Create a type variable with the given name.
