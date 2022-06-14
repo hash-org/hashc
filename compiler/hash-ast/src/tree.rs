@@ -4,11 +4,12 @@
 use std::convert::Infallible;
 use std::iter;
 
+use hash_source::identifier::IDENTIFIER_MAP;
 use hash_utils::tree_writing::TreeNode;
 
+use crate::ast::Visibility;
 use crate::{ast, visitor::walk, visitor::AstVisitor};
 use crate::{ast::Mutability, literal::STRING_LITERAL_MAP};
-use crate::{ast::Visibility, ident::IDENTIFIER_MAP};
 
 /// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
 /// [TreeNode] tree, for visualisation purposes.

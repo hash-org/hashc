@@ -2,8 +2,8 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use crate::ident::Identifier;
 use crate::literal::StringLiteral;
+use hash_source::identifier::Identifier;
 use hash_source::location::Span;
 use hash_utils::counter;
 use replace_with::replace_with_or_abort;

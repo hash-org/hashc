@@ -1,7 +1,8 @@
 //! Contains structures that store information about the scopes in a given module, as well as the
 //! symbols in each scope.
+use hash_source::identifier::Identifier;
+
 use super::primitives::{Member, Members};
-use hash_ast::ident::Identifier;
 
 /// A scope is either a variable scope or a constant scope.
 ///

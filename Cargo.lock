@@ -478,7 +478,12 @@ dependencies = [
 name = "hash-source"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "derive_more",
+ "fnv",
+ "hash-alloc",
+ "hash-utils",
+ "lazy_static",
  "slotmap",
 ]
 

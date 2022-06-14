@@ -3,7 +3,8 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_ast::{ast::*, ident::Identifier};
+use hash_ast::ast::*;
+use hash_source::identifier::Identifier;
 use hash_token::{Token, TokenKind};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
