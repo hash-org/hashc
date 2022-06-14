@@ -8,7 +8,6 @@ mod crash_handler;
 mod logger;
 
 use clap::Parser as ClapParser;
-use hash_alloc::Castle;
 use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_parser::HashParser;
 use hash_pipeline::{
@@ -129,10 +128,6 @@ fn main() {
         .into();
 
     let parser = HashParser::new();
-
-    // Create a castle for allocations in the pipeline
-    let castle = Castle::new();
-
     let checker = Typechecker;
 
     // Create the vm
