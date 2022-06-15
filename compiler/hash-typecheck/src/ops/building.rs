@@ -2,10 +2,10 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessValue, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, ModDefId, Mutability,
-        NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef,
-        StructFields, TrtDef, TrtDefId, TupleTy, Ty, TyFnCase, TyFnTy, TyFnValue, TyId, Value,
-        ValueId, Var, Visibility,
+        AccessTerm, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Level0Term, Level1Term,
+        Level2Term, Level3Term, Member, ModDefId, Mutability, NominalDef, NominalDefId, Param,
+        ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Term, TermId, TrtDef,
+        TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -52,25 +52,23 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.gs.borrow()
     }
 
-    /// Create a type variable with the given name.
+    /// Create a variable with the given name.
     pub fn create_var(&self, var_name: impl Into<Identifier>) -> Var {
-        Var::single(var_name)
+        Var {
+            name: var_name.into(),
+        }
     }
 
-    /// Create a type variable with the given name, in the form of a [Ty::Var].
-    pub fn create_var_ty(&self, var_name: impl Into<Identifier>) -> TyId {
+    /// Create a variable with the given name, in the form of a [Term::Var].
+    pub fn create_var_term(&self, var_name: impl Into<Identifier>) -> TermId {
         let var = self.create_var(var_name);
-        self.gs.borrow_mut().ty_store.create(Ty::Var(var))
+        self.create_term(Term::Var(var))
     }
 
     /// Add the given nominal definition to the scope.
     fn add_nominal_def_to_scope(&self, name: Identifier, def_id: NominalDefId) {
-        let def_ty = self.create_ty_of_ty();
-        let def_value = self
-            .gs
-            .borrow_mut()
-            .value_store
-            .create(Value::NominalDef(def_id));
+        let def_ty = self.create_any_ty_term();
+        let def_value = self.create_term(Term::Level1(Level1Term::NominalDef(def_id)));
         self.add_pub_member_to_scope(name, def_ty, def_value);
     }
 
@@ -164,135 +162,109 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Add a member to the scope, marking it as public.
     ///
     /// All other methods call this one to actually add members to the scope.
-    pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TyId, value: ValueId) {
+    pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
         let member = self.create_pub_member(name, ty, value);
         if let Some(scope) = self.scope.get() {
             self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }
     }
 
-    /// Create a public member with the given name, type and unset value.
-    pub fn create_unset_pub_member(&self, name: impl Into<Identifier>, ty: TyId) -> Member {
-        self.create_pub_member(name, ty, self.create_unset_value(ty))
-    }
-
-    /// Create a [Value::Access] with the given subject and name.
-    pub fn create_access_value(&self, subject_id: ValueId, name: impl Into<Identifier>) -> ValueId {
-        self.gs
-            .borrow_mut()
-            .value_store
-            .create(Value::Access(AccessValue {
-                subject_id,
-                name: name.into(),
-            }))
+    /// Create a [Term::Access] with the given subject and name.
+    pub fn create_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+        self.create_term(Term::Access(AccessTerm {
+            subject_id,
+            name: name.into(),
+        }))
     }
 
     /// Create a public member with the given name, type and value.
     pub fn create_pub_member(
         &self,
         name: impl Into<Identifier>,
-        ty: TyId,
-        value: ValueId,
+        ty: TermId,
+        value: TermId,
     ) -> Member {
         Member {
             name: name.into(),
             ty,
-            value,
+            value: Some(value),
             visibility: Visibility::Public,
             mutability: Mutability::Immutable,
         }
     }
 
-    /// Create a value [Value::Ty(x)] where `x` is the given [TyId].
-    pub fn create_ty_value(&self, ty_id: TyId) -> ValueId {
-        self.gs.borrow_mut().value_store.create(Value::Ty(ty_id))
-    }
-
-    /// Create a value [Value::Trt].
-    pub fn create_ty_of_trt(&self) -> TyId {
-        self.gs.borrow_mut().ty_store.create(Ty::Trt)
-    }
-
-    /// Create a type [Ty::Ty] with no bound.
-    pub fn create_ty_of_ty(&self) -> TyId {
-        self.gs.borrow_mut().ty_store.create(Ty::Ty(None))
-    }
-
-    /// Create a type [Ty::Ty] with the given bound.
-    pub fn create_ty_of_ty_with_bound(&self, bound: TrtDefId) -> TyId {
-        self.gs.borrow_mut().ty_store.create(Ty::Ty(Some(bound)))
-    }
-
-    /// Create a type [Ty::Merge] with the given inner types.
-    pub fn create_merge_ty(&self, tys: impl IntoIterator<Item = TyId>) -> TyId {
-        self.gs
-            .borrow_mut()
-            .ty_store
-            .create(Ty::Merge(tys.into_iter().collect()))
-    }
-
-    /// Create a value [Value::Merge] with the given inner values.
-    pub fn create_merge_value(&self, values: impl IntoIterator<Item = ValueId>) -> ValueId {
-        self.gs
-            .borrow_mut()
-            .value_store
-            .create(Value::Merge(values.into_iter().collect()))
-    }
-
-    /// Create the void type: [Ty::Tuple] with no members.
-    pub fn create_void_ty(&self) -> TyId {
-        self.gs.borrow_mut().ty_store.create(Ty::Tuple(TupleTy {
-            members: ParamList::new(vec![]),
-        }))
-    }
-
-    /// Create a [Value::Rt] of the given type.
-    pub fn create_rt_value(&self, ty_id: TyId) -> ValueId {
-        self.gs.borrow_mut().value_store.create(Value::Rt(ty_id))
-    }
-
-    /// Create a [Value::Unset].
-    pub fn create_unset_value(&self, ty_id: TyId) -> ValueId {
-        self.gs.borrow_mut().value_store.create(Value::Unset(ty_id))
-    }
-
-    /// Create a parameter with the given name and type.
-    pub fn create_param(&self, name: impl Into<Identifier>, ty: TyId) -> Param {
-        let value = self.create_unset_value(ty);
-        Param {
-            name: Some(name.into()),
+    /// Create a public member with the given name, type and unset value.
+    pub fn create_unset_pub_member(&self, name: impl Into<Identifier>, ty: TermId) -> Member {
+        Member {
+            name: name.into(),
             ty,
-            value,
+            value: None,
+            visibility: Visibility::Public,
+            mutability: Mutability::Immutable,
         }
     }
 
-    /// Create a type with the given type value.
-    pub fn create_ty(&self, ty: Ty) -> TyId {
-        self.gs.borrow_mut().ty_store.create(ty)
+    /// Create a term [Level3Term::TrtKind].
+    pub fn create_trt_kind_term(&self) -> TermId {
+        self.create_term(Term::Level3(Level3Term::TrtKind))
     }
 
-    /// Create a [Ty::Fn] with the given parameters and return type.
-    pub fn create_fn_ty(&self, params: impl IntoIterator<Item = Param>, return_ty: TyId) -> TyId {
-        self.gs.borrow_mut().ty_store.create(Ty::Fn(FnTy {
+    /// Create a term [Level2Term::AnyTy].
+    pub fn create_any_ty_term(&self) -> TermId {
+        self.create_term(Term::Level2(Level2Term::AnyTy))
+    }
+
+    /// Create a term [Level2Term::Trt] with the given [TrtDefId].
+    pub fn create_trt_term(&self, trt_def_id: TrtDefId) -> TermId {
+        self.create_term(Term::Level2(Level2Term::Trt(trt_def_id)))
+    }
+
+    /// Create a term [Term::Merge] with the given inner terms.
+    pub fn create_merge_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
+        self.create_term(Term::Merge(terms.into_iter().collect()))
+    }
+
+    /// Create the void type term: [Level1Term::Tuple] with no members.
+    pub fn create_void_ty_term(&self) -> TermId {
+        self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+            members: ParamList::new(vec![]),
+        })))
+    }
+
+    /// Create a [Level0Term::Rt] of the given type.
+    pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
+    }
+
+    /// Create a parameter with the given name and type.
+    pub fn create_param(&self, name: impl Into<Identifier>, ty: TermId) -> Param {
+        Param {
+            name: Some(name.into()),
+            ty,
+            default_value: None,
+        }
+    }
+
+    /// Create a term with the given term value.
+    pub fn create_term(&self, term: Term) -> TermId {
+        self.gs.borrow_mut().term_store.create(term)
+    }
+
+    /// Create a [Level1Term::Fn] term with the given parameters and return type.
+    pub fn create_fn_ty_term(
+        &self,
+        params: impl IntoIterator<Item = Param>,
+        return_ty: TermId,
+    ) -> TermId {
+        self.create_term(Term::Level1(Level1Term::Fn(FnTy {
             params: ParamList::new(params.into_iter().collect()),
             return_ty,
-        }))
+        })))
     }
 
-    /// Create a [Ty::NominalDef] from the given [NominalDefId].
-    pub fn create_nominal_ty(&self, nominal_def_id: NominalDefId) -> TyId {
-        self.gs
-            .borrow_mut()
-            .ty_store
-            .create(Ty::NominalDef(nominal_def_id))
-    }
-
-    /// Create a [Value::NominalDef] from the given [NominalDefId].
-    pub fn create_nominal_value(&self, nominal_def_id: NominalDefId) -> ValueId {
-        self.gs
-            .borrow_mut()
-            .value_store
-            .create(Value::NominalDef(nominal_def_id))
+    /// Create a [Level1Term::NominalDef] from the given [NominalDefId].
+    pub fn create_nominal_def_term(&self, nominal_def_id: NominalDefId) -> TermId {
+        self.create_term(Term::Level1(Level1Term::NominalDef(nominal_def_id)))
     }
 
     /// Create a [Scope], returning a [ScopeId].
@@ -328,45 +300,41 @@ impl<'gs> PrimitiveBuilder<'gs> {
             name: Some(name),
             members: self.create_constant_scope(members),
         });
-        let trt_def_ty = self.create_ty_of_trt();
-        let trt_def_value = self
-            .gs
-            .borrow_mut()
-            .value_store
-            .create(Value::Trt(trt_def_id));
+        let trt_def_ty = self.create_trt_kind_term();
+        let trt_def_value = self.create_trt_term(trt_def_id);
         self.add_pub_member_to_scope(name, trt_def_ty, trt_def_value);
         trt_def_id
     }
 
-    /// Create a type function type with the given name, parameters, and return type.
-    pub fn create_mod_def_ty(&self, mod_def_id: ModDefId) -> TyId {
-        self.gs.borrow_mut().ty_store.create(Ty::ModDef(mod_def_id))
+    /// Create [Level1Term::ModDef] with the given [ModDefId].
+    pub fn create_mod_def_term(&self, mod_def_id: ModDefId) -> TermId {
+        self.create_term(Term::Level1(Level1Term::ModDef(mod_def_id)))
     }
 
-    /// Create a type function type with the given name, parameters, and return type.
-    pub fn create_ty_fn_ty(
+    /// Create a type function type term with the given name, parameters, and return type.
+    pub fn create_ty_fn_ty_term(
         &self,
         params: impl IntoIterator<Item = Param>,
-        return_ty: TyId,
-    ) -> TyId {
+        return_ty: TermId,
+    ) -> TermId {
         let params = ParamList::new(params.into_iter().collect());
         let ty_fn = TyFnTy { params, return_ty };
-        self.gs.borrow_mut().ty_store.create(Ty::TyFn(ty_fn))
+        self.create_term(Term::TyFnTy(ty_fn))
     }
 
-    /// Create a type function value with the given name, parameters, return type and value.
+    /// Create a type function term with the given name, parameters, return type and value.
     ///
     /// This adds the name to the scope.
-    pub fn create_ty_fn_value(
+    pub fn create_ty_fn_term(
         &self,
         name: impl Into<Identifier>,
         params: impl IntoIterator<Item = Param>,
-        return_ty: TyId,
-        return_value: ValueId,
-    ) -> ValueId {
+        return_ty: TermId,
+        return_value: TermId,
+    ) -> TermId {
         let name = name.into();
         let params = ParamList::new(params.into_iter().collect());
-        let ty_fn = TyFnValue {
+        let ty_fn = TyFn {
             name: Some(name),
             general_params: params.clone(),
             general_return_ty: return_ty,
@@ -376,24 +344,17 @@ impl<'gs> PrimitiveBuilder<'gs> {
                 return_value,
             }],
         };
-        let ty_fn_value_id = self.gs.borrow_mut().value_store.create(Value::TyFn(ty_fn));
-        let ty_fn_ty_id = self
-            .gs
-            .borrow_mut()
-            .ty_store
-            .create(Ty::TyFn(TyFnTy { params, return_ty }));
-        self.add_pub_member_to_scope(name, ty_fn_ty_id, ty_fn_value_id);
+        let ty_fn_id = self.create_term(Term::TyFn(ty_fn));
+        let ty_fn_ty_id = self.create_term(Term::TyFnTy(TyFnTy { params, return_ty }));
+        self.add_pub_member_to_scope(name, ty_fn_ty_id, ty_fn_id);
 
-        ty_fn_value_id
+        ty_fn_id
     }
 
     /// Create a type function application, given type function value and arguments.
-    ///
-    /// The `args` must all have values [Value::Ty] or end in it (if they are type functions, for
-    /// example).
     pub fn create_app_ty_fn(
         &self,
-        ty_fn_value_id: ValueId,
+        ty_fn_value_id: TermId,
         args: impl IntoIterator<Item = Arg>,
     ) -> AppTyFn {
         AppTyFn {
@@ -403,7 +364,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create an argument with the given name and value.
-    pub fn create_arg(&self, name: impl Into<Identifier>, value: ValueId) -> Arg {
+    pub fn create_arg(&self, name: impl Into<Identifier>, value: TermId) -> Arg {
         Arg {
             name: Some(name.into()),
             value,
@@ -413,13 +374,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a type function application type, given type function value and arguments.
     ///
     /// This calls [Self::create_app_ty_fn], so its conditions apply here.
-    pub fn create_app_ty_fn_ty(
+    pub fn create_app_ty_fn_term(
         &self,
-        ty_fn_value_id: ValueId,
+        ty_fn_value_id: TermId,
         args: impl IntoIterator<Item = Arg>,
-    ) -> TyId {
+    ) -> TermId {
         let app_ty_fn = self.create_app_ty_fn(ty_fn_value_id, args);
-        self.gs.borrow_mut().ty_store.create(Ty::AppTyFn(app_ty_fn))
+        self.create_term(Term::AppTyFn(app_ty_fn))
     }
 
     /// Release [Self], returning the original [GlobalStorage].

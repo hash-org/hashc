@@ -5,7 +5,7 @@
 //! actually primitives as far as the typechecker is concerned. This includes: integers, floats,
 //! characters, strings, lists, maps, references, etc.
 use super::{
-    primitives::{NominalDefId, TrtDefId, ValueId},
+    primitives::{NominalDefId, TermId, TrtDefId},
     GlobalStorage,
 };
 use crate::ops::building::PrimitiveBuilder;
@@ -14,9 +14,9 @@ use crate::ops::building::PrimitiveBuilder;
 #[derive(Debug, Clone)]
 pub struct CoreDefs {
     pub str_ty: NominalDefId,
-    pub list_ty_fn: ValueId,
-    pub map_ty_fn: ValueId,
-    pub set_ty_fn: ValueId,
+    pub list_ty_fn: TermId,
+    pub map_ty_fn: TermId,
+    pub set_ty_fn: TermId,
     pub i8_ty: NominalDefId,
     pub i16_ty: NominalDefId,
     pub i32_ty: NominalDefId,
@@ -29,8 +29,8 @@ pub struct CoreDefs {
     pub f64_ty: NominalDefId,
     pub char_ty: NominalDefId,
     pub bool_ty: NominalDefId,
-    pub reference_ty_fn: ValueId,
-    pub raw_reference_ty_fn: ValueId,
+    pub reference_ty_fn: TermId,
+    pub raw_reference_ty_fn: TermId,
     pub hash_trt: TrtDefId,
     pub eq_trt: TrtDefId,
 }
@@ -73,23 +73,23 @@ impl CoreDefs {
         let str_ty = builder.create_opaque_struct_def("str");
 
         // Reference types
-        let reference_ty_fn = builder.create_ty_fn_value(
+        let reference_ty_fn = builder.create_ty_fn_term(
             "Ref",
-            [builder.create_param("T", builder.create_ty_of_ty())],
-            builder.create_ty_of_ty(),
-            builder.create_nominal_value(builder.create_nameless_opaque_struct_def()),
+            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
-        let raw_reference_ty_fn = builder.create_ty_fn_value(
+        let raw_reference_ty_fn = builder.create_ty_fn_term(
             "RawRef",
-            [builder.create_param("T", builder.create_ty_of_ty())],
-            builder.create_ty_of_ty(),
-            builder.create_nominal_value(builder.create_nameless_opaque_struct_def()),
+            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
         // Handy shorthand for &Self type
-        let ref_self_ty = builder.create_app_ty_fn_ty(
+        let ref_self_ty = builder.create_app_ty_fn_term(
             reference_ty_fn,
-            [builder.create_arg("T", builder.create_ty_value(builder.create_var_ty("Self")))],
+            [builder.create_arg("T", builder.create_var_term("Self"))],
         );
 
         // Hash and Eq traits
@@ -97,9 +97,9 @@ impl CoreDefs {
             "Hash",
             [builder.create_unset_pub_member(
                 "hash",
-                builder.create_fn_ty(
+                builder.create_fn_ty_term(
                     [builder.create_param("value", ref_self_ty)],
-                    builder.create_nominal_ty(u64_ty),
+                    builder.create_nominal_def_term(u64_ty),
                 ),
             )],
         );
@@ -107,45 +107,45 @@ impl CoreDefs {
             "Eq",
             [builder.create_unset_pub_member(
                 "eq",
-                builder.create_fn_ty(
+                builder.create_fn_ty_term(
                     [
                         builder.create_param("a", ref_self_ty),
                         builder.create_param("b", ref_self_ty),
                     ],
-                    builder.create_nominal_ty(u64_ty),
+                    builder.create_nominal_def_term(u64_ty),
                 ),
             )],
         );
 
         // Collection types
-        let list_ty_fn = builder.create_ty_fn_value(
+        let list_ty_fn = builder.create_ty_fn_term(
             "List",
-            [builder.create_param("T", builder.create_ty_of_ty())],
-            builder.create_ty_of_ty(),
-            builder.create_nominal_value(builder.create_nameless_opaque_struct_def()),
+            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
-        let set_ty_fn = builder.create_ty_fn_value(
+        let set_ty_fn = builder.create_ty_fn_term(
             "Set",
-            [builder.create_param("T", builder.create_ty_of_ty())],
-            builder.create_ty_of_ty(),
-            builder.create_nominal_value(builder.create_nameless_opaque_struct_def()),
+            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
-        let map_ty_fn = builder.create_ty_fn_value(
+        let map_ty_fn = builder.create_ty_fn_term(
             "Map",
             [
                 builder.create_param(
                     "K",
-                    builder.create_merge_ty([
-                        builder.create_ty_of_ty_with_bound(hash_trt),
-                        builder.create_ty_of_ty_with_bound(eq_trt),
+                    builder.create_merge_term([
+                        builder.create_trt_term(hash_trt),
+                        builder.create_trt_term(eq_trt),
                     ]),
                 ),
-                builder.create_param("V", builder.create_ty_of_ty()),
+                builder.create_param("V", builder.create_any_ty_term()),
             ],
-            builder.create_ty_of_ty(),
-            builder.create_nominal_value(builder.create_nameless_opaque_struct_def()),
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
         Self {

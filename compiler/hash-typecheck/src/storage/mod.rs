@@ -16,10 +16,9 @@ use self::{
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
-    state::TypecheckState,
+    state::TcState,
+    terms::TermStore,
     trts::TrtDefStore,
-    tys::TyStore,
-    values::ValueStore,
 };
 
 pub mod core;
@@ -29,16 +28,14 @@ pub mod primitives;
 pub mod scope;
 pub mod sources;
 pub mod state;
+pub mod terms;
 pub mod trts;
-pub mod tys;
-pub mod values;
 
 /// Keeps track of typechecking information across all source files.
 #[derive(Debug)]
 pub struct GlobalStorage {
-    pub ty_store: TyStore,
     pub scope_store: ScopeStore,
-    pub value_store: ValueStore,
+    pub term_store: TermStore,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
@@ -56,8 +53,7 @@ impl GlobalStorage {
         let mut scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
         Self {
-            ty_store: TyStore::new(),
-            value_store: ValueStore::new(),
+            term_store: TermStore::new(),
             scope_store,
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
@@ -80,14 +76,14 @@ pub struct LocalStorage {
     /// All the scopes in a given source.
     pub scopes: ScopeStack,
     /// The state of the typechecker for the given source.
-    pub state: TypecheckState,
+    pub state: TcState,
 }
 
 impl LocalStorage {
     /// Create a new, empty [LocalStorage] for the given source.
     pub fn new(source_id: SourceId, gs: &mut GlobalStorage) -> Self {
         Self {
-            state: TypecheckState::new(source_id),
+            state: TcState::new(source_id),
             scopes: ScopeStack::many([
                 // First the root scope
                 gs.root_scope,
@@ -137,12 +133,8 @@ pub trait AccessToStorage {
         &self.global_storage().scope_store
     }
 
-    fn ty_store(&self) -> &TyStore {
-        &self.global_storage().ty_store
-    }
-
-    fn value_store(&self) -> &ValueStore {
-        &self.global_storage().value_store
+    fn term_store(&self) -> &TermStore {
+        &self.global_storage().term_store
     }
 
     fn nominal_def_store(&self) -> &NominalDefStore {
@@ -165,7 +157,7 @@ pub trait AccessToStorage {
         self.global_storage().root_scope
     }
 
-    fn state(&self) -> &TypecheckState {
+    fn state(&self) -> &TcState {
         &self.local_storage().state
     }
 
@@ -187,16 +179,12 @@ pub trait AccessToStorageMut: AccessToStorage {
         self.storages_mut().local_storage
     }
 
-    fn ty_store_mut(&mut self) -> &mut TyStore {
-        &mut self.global_storage_mut().ty_store
+    fn term_store_mut(&mut self) -> &mut TermStore {
+        &mut self.global_storage_mut().term_store
     }
 
     fn scope_store_mut(&mut self) -> &mut ScopeStore {
         &mut self.global_storage_mut().scope_store
-    }
-
-    fn value_store_mut(&mut self) -> &mut ValueStore {
-        &mut self.global_storage_mut().value_store
     }
 
     fn nominal_def_store_mut(&mut self) -> &mut NominalDefStore {
@@ -215,7 +203,7 @@ pub trait AccessToStorageMut: AccessToStorage {
         &mut self.global_storage_mut().checked_sources
     }
 
-    fn state_mut(&mut self) -> &mut TypecheckState {
+    fn state_mut(&mut self) -> &mut TcState {
         &mut self.local_storage_mut().state
     }
 

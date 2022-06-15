@@ -21,8 +21,8 @@ pub enum Mutability {
 #[derive(Debug, Clone)]
 pub struct Member {
     pub name: Identifier,
-    pub ty: TyId,
-    pub value: ValueId,
+    pub ty: TermId,
+    pub value: Option<TermId>,
     pub visibility: Visibility,
     pub mutability: Mutability,
 }
@@ -127,11 +127,11 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     }
 }
 
-/// An argument
+/// An argument to a parameter.
 #[derive(Debug, Clone, Hash)]
 pub struct Arg {
     pub name: Option<Identifier>,
-    pub value: ValueId,
+    pub value: TermId,
 }
 
 impl GetNameOpt for Arg {
@@ -147,8 +147,8 @@ pub type Args = ParamList<Arg>;
 #[derive(Debug, Clone, Hash)]
 pub struct Param {
     pub name: Option<Identifier>,
-    pub ty: TyId,
-    pub value: ValueId, // Could be Value::Unset
+    pub ty: TermId,
+    pub default_value: Option<TermId>,
 }
 
 impl GetNameOpt for Param {
@@ -160,12 +160,13 @@ impl GetNameOpt for Param {
 /// A list of parameters.
 pub type Params = ParamList<Param>;
 
-/// The origin of a module: was it defined in a `mod` block, an anonymous `impl` block, or an `impl
-/// Trait` block?
+/// The origin of a module: was it defined in a `mod` block, an anonymous `impl` block, or an
+/// `impl Trait` block?
 #[derive(Debug, Clone, Hash)]
 pub enum ModDefOrigin {
-    /// Defined as a trait implementation (for the given trait value).
-    TrtImpl(ValueId),
+    /// Defined as a trait implementation (for the given term that should resolve to a trait
+    /// value).
+    TrtImpl(TermId),
     /// Defined as an anonymous implementation.
     AnonImpl,
     /// Defined as a module (`mod` block).
@@ -244,16 +245,17 @@ pub struct TupleTy {
 #[derive(Debug, Clone)]
 pub struct FnTy {
     pub params: Params,
-    pub return_ty: TyId,
+    pub return_ty: TermId,
 }
 
 /// A type function type.
 ///
-/// A type function is a compile-time function that works on types. Type function return types can
-/// be level 0, level 1 or level 2. It has a general set of "base" parameters and return type.
+/// A type function is a compile-time function that works on types. Type function return values
+/// can be level 0, level 1 or level 2. It has a general set of "base" parameters and return
+/// type.
 ///
-/// These are refined in the `cases` field, which provides conditional values for the return value
-/// of the function, based on what the arguments are.
+/// These are refined in the `cases` field, which provides conditional values for the return
+/// value of the function, based on what the arguments are.
 ///
 /// For example, consider:
 ///
@@ -273,23 +275,23 @@ pub struct FnTy {
 ///
 /// ```ignore
 /// TyFnTy {
-///     general_params = (T: Ty::Ty = Value::Unset),
-///     general_return_ty = Ty::Ty,
+///     general_params = (T: Term::Level2(Ty)),
+///     general_return_ty = Term::Level2(Ty),
 ///     cases = {
-///         (T: Ty::Ty) -> Ty::Ty => Value::NominalDef(DogStructDef),
-///         (T: Ty::Ty(HashTraitDef)) -> Ty::Ty(HashTraitDef) => Value::Merge([
-///             Value::NominalDef(DogStructDef),
-///             Value::Mod(
-///                 origin=TraitImpl(Value::Trt(HashTraitDef)),
+///         (T: Term::Level2(Ty)) -> Term::Level2(Ty) => Term::NominalDef(DogStructDef),
+///         (T: Term::Level2(Ty)(HashTraitDef)) -> Term::Level2(Ty)(HashTraitDef) => Term::Merge([
+///             Term::NominalDef(DogStructDef),
+///             Term::Mod(
+///                 origin=TraitImpl(Term::Trt(HashTraitDef)),
 ///                 members=..
 ///             ),
 ///         ]),
-///         (T: Ty::Merge([Ty::Ty(HashTraitDef), Ty::Ty(EqTraitDef)]))
-///             -> Ty::Ty(FindInHashMapTraitDef) =>
-///             => Value::Merge([
-///                 Value::NominalDef(DogStructDef),
-///                 Value::Mod(
-///                     origin=TraitImpl(Value::Trt(FindInHashMapTraitDef)),
+///         (T: Ty::Merge([Term::Level2(Ty)(HashTraitDef), Term::Level2(Ty)(EqTraitDef)]))
+///             -> Term::Level2(Ty)(FindInHashMapTraitDef) =>
+///             => Term::Merge([
+///                 Term::NominalDef(DogStructDef),
+///                 Term::Mod(
+///                     origin=TraitImpl(Term::Trt(FindInHashMapTraitDef)),
 ///                     members=..
 ///                 ),
 ///             ])
@@ -303,11 +305,11 @@ pub struct FnTy {
 ///
 /// The `general_return_ty` field is always a supertype of the return type of each case.
 #[derive(Debug, Clone)]
-pub struct TyFnValue {
+pub struct TyFn {
     /// An optional name for the type function, if it is directly assigned to a binding.
     pub name: Option<Identifier>,
     pub general_params: Params,
-    pub general_return_ty: TyId,
+    pub general_return_ty: TermId,
     pub cases: Vec<TyFnCase>,
 }
 
@@ -325,55 +327,40 @@ pub struct TyFnValue {
 ///
 /// This translates to a case:
 /// ```ignore
-/// (T: Ty::Ty = Value::NominalDef(strDefId))
-///     -> Ty::AppTyFn(ConvValue (a type fn), [Value::NominalDef(strDefId)])
-///     => Value::Merge([
-///         Value::AppTyFn(DogValue (a type fn), [strDefId]),
-///         Value::Ty(Ty::Mod(
-///             origin=TraitImpl(Value::AppTyFn(ConvValue (a type fn), [strDefId])),
+/// (T: Term::Level2(Ty) = Term::Level1(NominalDef(strDefId)))
+///     -> Term::AppTyFn(ConvValue (a type fn), [Term::Level1(NominalDef(strDefId))])
+///     => Term::Merge([
+///         Term::AppTyFn(DogValue (a type fn), [Term::Level1(NominalDef(strDefId))]),
+///         Term::ModDef(
+///             origin=TraitImpl(Term::AppTyFn(ConvValue (a type fn),
+///             [Term::Level1(NominalDef(strDefId))])),
 ///             members=...
-///         ))
+///         )
 ///     ])
 /// ```
 ///
 /// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
 /// and the type parameters should be able to each unify with the target `general_params`, of the
-/// parent [TyFnValue].
+/// parent [TyFn].
 #[derive(Debug, Clone)]
 pub struct TyFnCase {
     pub params: Params,
-    pub return_ty: TyId,
-    pub return_value: ValueId,
+    pub return_ty: TermId,
+    pub return_value: TermId,
 }
 
 /// Not yet resolved.
 ///
-/// The resolution ID is incremented for each new unresolved type.
+/// The resolution ID is incremented for each new unresolved term.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct UnresolvedTy {
+pub struct UnresolvedTerm {
     pub resolution_id: ResolutionId,
 }
 
-/// A type variable, which is just a name or collection of names (namespace operator accessed).
+/// A variable, which is just a name.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Var {
-    pub names: Vec<Identifier>,
-}
-
-impl Var {
-    /// Create a type variable with a single name.
-    pub fn single(name: impl Into<Identifier>) -> Self {
-        Self {
-            names: vec![name.into()],
-        }
-    }
-
-    /// Create a type variable with N multiple names (the first N-1 of which refer to modules).
-    pub fn compound(names: impl IntoIterator<Item = impl Into<Identifier>>) -> Self {
-        Self {
-            names: names.into_iter().map(|x| x.into()).collect(),
-        }
-    }
+    pub name: Identifier,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -381,14 +368,12 @@ impl Var {
 /// This essentially creates a lambda calculus within the Hash type system, which allows it to
 /// express arbitrary programs.
 ///
-/// When this type is unified with another type, the function is applied by first instantiating its
-/// return value over its type parameters, and then unifying the instantiated type parameters with
-/// the given type arguments of the function (the `ty_args` field).
+/// When this type is unified with another type, the function is applied by first instantiating
+/// its return value over its type parameters, and then unifying the instantiated type parameters
+/// with the given type arguments of the function (the `ty_args` field).
 #[derive(Debug, Clone)]
 pub struct AppTyFn {
-    pub ty_fn_value: ValueId,
-    // @@Reconsider(kontheocharis): should this be something like `TyArgs`? Aren't only types
-    // allowed here? Unclear with type functions.
+    pub ty_fn_value: TermId,
     pub args: Args,
 }
 
@@ -402,13 +387,13 @@ pub struct AppTyFn {
 ///
 /// ```ignore
 /// name: "T",
-/// ty: Ty::TyFn(params = [(name="X", ty=Ty::Ty)], return_ty=Ty::Ty)
-/// value: Value::Unset,
+/// ty: Term::TyFnTy(params = [(name="X", ty=Term::Level2(Ty))], return_ty=Term::Level2(Ty))
+/// value: Term::Unset,
 /// ```
 #[derive(Debug, Clone)]
 pub struct TyFnTy {
     pub params: Params,
-    pub return_ty: TyId,
+    pub return_ty: TermId,
 }
 
 /// An enum variant value, consisting of a [NominalDefId] pointing to an enum, as well as the
@@ -421,132 +406,132 @@ pub struct EnumVariantValue {
     pub variant_name: Identifier,
 }
 
-/// An access value, which is of the form X::Y, where X is a value and Y is an identifier.
+/// An access term, which is of the form X::Y, where X is a term and Y is an identifier.
 ///
 /// Has level N where N is the level of the Y property of X.
 #[derive(Debug, Clone)]
-pub struct AccessValue {
-    pub subject_id: ValueId,
+pub struct AccessTerm {
+    pub subject_id: TermId,
     pub name: Identifier,
 }
 
-/// The basic data structure of a compile-time value, or [Value::Rt] if the value is run-time.
+/// A level 3 term.
+///
+/// Type of: traits, for example: `trait(..)`.
+/// Value of: nothing.
 #[derive(Debug, Clone)]
-pub enum Value {
-    /// A trait value.
-    ///
-    /// Has a level 2 type.
+pub enum Level3Term {
+    /// The type that traits have
+    TrtKind,
+}
+
+/// A level 2 term.
+///
+/// Type of: types, for example: `struct(..)`, `enum(..)`, `mod {..}`, `impl {..}`.
+/// Value of: traits, for example `trait(..)`.
+#[derive(Debug, Clone)]
+pub enum Level2Term {
+    // ---- Level 2 ---- the term that is a return term of trait(..)
+    /// A trait term.
     Trt(TrtDefId),
-    /// A value returned by the `type` keyword.
-    ///
-    /// Has a level 1 type.
-    Ty(TyId),
-    /// A runtime value of a given type.
-    ///
-    /// Has a level 0 type.
-    Rt(TyId),
-    /// A type function value.
-    ///
-    /// Has a level N type, where N is the level of the return value of the function.
-    TyFn(TyFnValue),
-    /// A type function application.
-    ///
-    /// Has a level N type, where N is the level of the resultant application.
-    AppTyFn(AppTyFn),
-    /// A type function application.
-    ///
-    /// Has a level N type, where N is the level of the resultant application.
-    Access(AccessValue),
+    /// Basically a trait term that all types implement, i.e. the trait that is a supertrait to
+    /// all other traits.
+    AnyTy,
+}
+
+/// A level 1 term.
+///
+/// Type of: values, for example: `3`, `"test"`, `[1, 2, 3]`, `Dog(name="Bob")`.
+/// Value of: types, for example `struct(..)`, `enum(..)`, `mod {..}`, `(a: A) -> B` etc.
+#[derive(Debug, Clone)]
+pub enum Level1Term {
     /// Modules or impls.
     ///
     /// Modules and trait implementations, as well as anonymous implementations, are treated as
-    /// types.
+    /// types, but do not have instance values.
     ///
-    /// Information about the origin of each instance of [Value::ModDef] can be found in its
-    /// corresponding [ModDef].
-    ///
-    /// Has a level 1 type.
+    /// Information about the origin of each module definition can be found in its corresponding
+    /// [ModDef] struct.
     ModDef(ModDefId),
+
     /// A nominal type definition, either a struct or an enum.
-    ///
-    /// Has a level 1 type.
     NominalDef(NominalDefId),
-    /// A type-level variable, with some type that is stored in the current scope.
-    ///
-    /// Has a level N type, where N is the level of the type of the variable in the context
-    Var(Var),
-    /// An enum variant, which is either a constant value or a function type.
-    ///
-    /// Has a level 0 type.
-    EnumVariant(EnumVariantValue),
-    /// Merge of multiple values.
-    ///
-    /// Inner types must have the same level.
-    ///
-    /// Has a level N type, where N is the level of the inner types.
-    Merge(Vec<ValueId>),
-    /// Unset value, which should be of a given type.
-    Unset(TyId),
+
+    /// Tuple type.
+    Tuple(TupleTy),
+
+    /// Function type.
+    Fn(FnTy),
 }
 
-/// The basic data structure of a type.
+/// A level 0 term.
+///
+/// Type of: nothing.
+/// Value of: values, for example `3`, `Result::Ok(3)`, etc.
 #[derive(Debug, Clone)]
-pub enum Ty {
-    /// A type function
+pub enum Level0Term {
+    /// A runtime value, has some Level 1 term as type (the inner data).
+    Rt(TermId),
+
+    /// An enum variant, which is either a constant term or a function value.
+    EnumVariant(EnumVariantValue),
+}
+
+/// The basic data structure of a compile-time term.
+#[derive(Debug, Clone)]
+pub enum Term {
+    // ---- Derived ----
+    /// Access a member of a term.
     ///
-    /// Level N, where N is the level of the return type of the type function.
-    TyFn(TyFnTy),
-    /// A type function application.
-    ///
-    /// Level N, where N is the level of the return type of the type function applied to these args.
-    AppTyFn(AppTyFn),
-    /// The type of a trait
-    ///
-    /// Level 2
-    Trt,
-    /// A type, possibly with a trait bound
-    ///
-    /// Level 1
-    Ty(Option<TrtDefId>),
-    /// A nominal type definition, either a struct or an enum.
-    ///
-    /// Level 0
-    NominalDef(NominalDefId),
-    /// A module
-    ModDef(ModDefId),
-    /// Tuple type.
-    ///
-    /// Level 0
-    Tuple(TupleTy),
-    /// Function type.
-    ///
-    /// Level 0
-    Fn(FnTy),
+    /// Is level N, where N is the level of the resultant access.
+    Access(AccessTerm),
+
     /// A type-level variable, with some type that is stored in the current scope.
     ///
-    /// Level N - 1, where N is the level of the type of the variable in the context
+    /// Is level N-1, where N is the level of the type of the variable in the context
     Var(Var),
-    /// Merge of multiple types.
+
+    /// Merge of multiple terms.
     ///
     /// Inner types must have the same level.
     ///
-    /// Level N, where N is the level of the inner types.
-    Merge(Vec<TyId>),
+    /// Is level N, where N is the level of the inner types.
+    Merge(Vec<TermId>),
+
+    /// A type function term.
+    ///
+    /// Is level N, where N is the level of the return term of the function.
+    TyFn(TyFn),
+
+    /// Type function type.
+    ///
+    /// Is level N, where N is the level of the return term of the function.
+    TyFnTy(TyFnTy),
+
+    /// A type function application.
+    ///
+    /// Is level N, where N is the level of the resultant application.
+    AppTyFn(AppTyFn),
+
     /// Not yet resolved.
     ///
-    /// Unknown level.
-    ///
-    /// @@TODO: Maybe unknown types should keep track of their levels and any additional inferred
-    /// info.
-    Unresolved(UnresolvedTy),
+    /// Unknown level (but not 0), to be determined by unification.
+    Unresolved(UnresolvedTerm),
+
+    /// A level 3 term.
+    Level3(Level3Term),
+
+    /// A level 2 term.
+    Level2(Level2Term),
+
+    /// A level 1 term.
+    Level1(Level1Term),
+
+    /// A level 0 term.
+    Level0(Level0Term),
 }
 
 // IDs for all the primitives to be stored on mapped storage.
-
-new_key_type! {
-    /// The ID of a [Ty] stored in [super::tys::TyStore].
-    pub struct TyId;
-}
 
 new_key_type! {
     /// The ID of a [TrtDef] stored in [super::trts::TrtDefStore].
@@ -564,8 +549,8 @@ new_key_type! {
 }
 
 new_key_type! {
-    /// The ID of a [Value] stored in [super::values::ValueStore].
-    pub struct ValueId;
+    /// The ID of a [Term] stored in [super::values::TermStore].
+    pub struct TermId;
 }
 
 new_key_type! {
@@ -573,10 +558,11 @@ new_key_type! {
     pub struct ScopeId;
 }
 
-/// The ID of a [UnresolvedTy], separate from its [TyId], stored in [super::tys::TyStore].
+/// The ID of a [UnresolvedTerm], separate from its [TermId], stored in
+/// [super::terms::TermStore].
 ///
-/// This needs to be separate from [TyId] so that if a type is copied (and new IDs are generated
-/// for its members) the identity of the unknown variables remains the same as in the original
-/// type.
+/// This needs to be separate from [TermId] so that if a type is copied (and new IDs are
+/// generated for its members) the identity of the unknown variables remains the same as in the
+/// original type.
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct ResolutionId(pub(super) usize);
