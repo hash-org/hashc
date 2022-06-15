@@ -331,6 +331,7 @@ dependencies = [
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-source",
  "hash-typecheck",
  "hash-utils",
  "hash-vm",
