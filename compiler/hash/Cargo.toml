@@ -15,13 +15,14 @@ clap = { version = "3.0.0", features = ["derive"] }
 profiling = "1.0.6"
 tracy-client = "0.13.2"
 
-hash-ast = {path = "../hash-ast" }
-hash-utils = {path = "../hash-utils" }
 hash-parser = {path = "../hash-parser" }
 hash-alloc = {path = "../hash-alloc" }
 hash-interactive = {path = "../hash-interactive" } 
 hash-reporting = {path = "../hash-reporting" }
 hash-pipeline = {path = "../hash-pipeline" }
+
+# Various stages that the pipeline interfaces with
+hash-ast-desugaring = { path = "../hash-ast-desugaring" }
 hash-typecheck = {path = "../hash-typecheck" }
 hash-vm = {path = "../hash-vm" }
 hash-source = {path = "../hash-source" }

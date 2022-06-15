@@ -6,8 +6,10 @@ mod command;
 
 use command::InteractiveCommand;
 use hash_pipeline::{
-    settings::CompilerJobParams, sources::InteractiveBlock, Compiler, CompilerState, Parser, Tc,
-    VirtualMachine,
+    settings::CompilerJobParams,
+    sources::InteractiveBlock,
+    traits::{Parser, Tc, VirtualMachine},
+    Compiler, CompilerState,
 };
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_source::SourceId;
