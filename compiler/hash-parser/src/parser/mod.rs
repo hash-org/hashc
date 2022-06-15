@@ -16,7 +16,7 @@ use std::cell::Cell;
 
 use hash_ast::ast::*;
 use hash_source::location::{SourceLocation, Span};
-use hash_token::{Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, Token, TokenKind, TokenKindVector};
 
 use self::error::{AstGenError, AstGenErrorKind};
 use crate::import_resolver::ImportResolver;
@@ -409,6 +409,34 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
+    /// Utility function to parse a brace tree as the next token, if a brace tree
+    /// isn't present, then an error is generated.
+    pub(crate) fn parse_delim_tree(
+        &self,
+        delimiter: Delimiter,
+        error: Option<AstGenErrorKind>,
+    ) -> AstGenResult<Self> {
+        match self.peek() {
+            Some(Token {
+                kind: TokenKind::Tree(inner, tree_index),
+                span,
+            }) if *inner == delimiter => {
+                self.skip_token();
+
+                let tree = self.token_trees.get(*tree_index).unwrap();
+                Ok(self.from_stream(tree, *span))
+            }
+            token => self.error_with_location(
+                error.unwrap_or(AstGenErrorKind::Expected),
+                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
+                    delimiter, true,
+                )])),
+                token.map(|tok| tok.kind),
+                token.map_or_else(|| self.current_location(), |tok| tok.span),
+            )?,
+        }
+    }
+
     /// Parse a [Module] which is simply made of a list of statements
     pub(crate) fn parse_module(&self) -> AstGenResult<AstNode<Module>> {
         let start = self.current_location();
@@ -436,13 +464,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// number of statements, followed by an optional final expression which doesn't
     /// need to be completed by a comma...
     pub(crate) fn parse_expression_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
-        // get the starting position
         let start = self.current_location();
 
-        let block = self.parse_block_from_gen(self, start, None)?;
-
-        // We just need to unwrap the BodyBlock from Block since parse_block_from_gen is generic...
-        match block.into_body() {
+        match self.parse_block_inner()?.into_body() {
             Block::Body(body) => Ok(self.node_with_joined_span(body, &start)),
             _ => unreachable!(),
         }

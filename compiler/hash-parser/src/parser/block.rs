@@ -3,70 +3,44 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use hash_ast::{ast::*, ast_nodes};
-use hash_source::location::Span;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_ast::ast::*;
+use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a block.
+    #[inline]
     pub(crate) fn parse_block(&self) -> AstGenResult<AstNode<Block>> {
-        let (gen, start) = match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                span,
-            }) => {
-                self.skip_token(); // step-along since we matched a block...
-
-                let tree = self.token_trees.get(*tree_index).unwrap();
-
-                (self.from_stream(tree, self.current_location()), *span)
-            }
-            token => self.error_with_location(
-                AstGenErrorKind::Block,
-                None,
-                token.map(|t| t.kind),
-                token.map_or_else(|| self.next_location(), |t| t.span),
-            )?,
-        };
-
-        self.parse_block_from_gen(&gen, start, None)
+        let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
+        gen.parse_block_inner()
     }
 
-    /// Function to parse a block body
-    pub(crate) fn parse_block_from_gen(
-        &self,
-        gen: &Self,
-        start: Span,
-        initial_statement: Option<AstNode<Expression>>,
-    ) -> AstGenResult<AstNode<Block>> {
+    /// Parse a body block that uses itself as the inner generator. This function
+    /// will advance the current generator than expecting that the next token
+    /// is a brace tree.
+    pub(crate) fn parse_block_inner(&self) -> AstGenResult<AstNode<Block>> {
+        let start = self.current_location();
+
         // Append the initial statement if there is one.
-        let mut block = if initial_statement.is_some() {
-            BodyBlock {
-                statements: ast_nodes![initial_statement.unwrap()],
-                expr: None,
-            }
-        } else {
-            BodyBlock {
-                statements: AstNodes::empty(),
-                expr: None,
-            }
+        let mut block = BodyBlock {
+            statements: AstNodes::empty(),
+            expr: None,
         };
 
         // Just return an empty block if we don't get anything
-        if !gen.has_token() {
+        if !self.has_token() {
             return Ok(self.node_with_span(Block::Body(block), start));
         }
 
         // firstly check if the first token signals a beginning of a statement, we can tell
         // this by checking for keywords that must begin a statement...
-        while gen.has_token() {
-            let (has_semi, statement) = gen.parse_top_level_expression(false)?;
+        while self.has_token() {
+            let (has_semi, statement) = self.parse_top_level_expression(false)?;
 
-            match (has_semi, gen.peek()) {
+            match (has_semi, self.peek()) {
                 (true, _) => block.statements.nodes.push(statement),
-                (false, Some(token)) => gen.error(
+                (false, Some(token)) => self.error(
                     AstGenErrorKind::Expected,
                     Some(TokenKindVector::from_row(vec![TokenKind::Semi])),
                     Some(token.kind),
@@ -142,32 +116,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let mut cases = AstNodes::empty();
 
-        // cases are wrapped in a brace tree
-        match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                span,
-            }) => {
-                self.skip_token();
+        let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, *span);
-
-                while gen.has_token() {
-                    cases.nodes.push(gen.parse_match_case()?);
-
-                    gen.parse_token(TokenKind::Semi)?;
-                }
-            }
-            Some(token) => {
-                let atom = token.kind;
-                let expected =
-                    TokenKindVector::from_row(vec![TokenKind::Delimiter(Delimiter::Brace, true)]);
-
-                self.error(AstGenErrorKind::Expected, Some(expected), Some(atom))?
-            }
-            _ => self.unexpected_eof()?,
-        };
+        while gen.has_token() {
+            cases.nodes.push(gen.parse_match_case()?);
+            gen.parse_token(TokenKind::Semi)?;
+        }
 
         Ok(self.node_with_joined_span(
             Block::Match(MatchBlock {
