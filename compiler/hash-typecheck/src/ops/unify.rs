@@ -26,32 +26,32 @@ use super::building::PrimitiveBuilder;
 
 /// A substitution containing pairs of `(TySubSubject, TyId)` to be applied to a type or types.
 #[derive(Debug, Default, Clone)]
-pub struct TySub {
-    data: HashMap<TySubSubject, TyId>,
+pub struct Sub {
+    data: HashMap<SubSubject, ValueId>,
 }
 
-impl TySub {
+impl Sub {
     /// Create an empty substitution.
     pub fn empty() -> Self {
         Self::default()
     }
 
     /// Create a substitution from pairs of `(TySubSubject, TyId)`.
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (TySubSubject, TyId)>) -> Self {
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (SubSubject, ValueId)>) -> Self {
         Self {
             data: pairs.into_iter().collect(),
         }
     }
 
     /// Get the substitution for the given [TySubSubject], if any.
-    pub fn get_sub_for(&self, subject: TySubSubject) -> Option<TyId> {
+    pub fn get_sub_for(&self, subject: SubSubject) -> Option<ValueId> {
         self.data.get(&subject).copied()
     }
 
     /// Merge the substitution with another.
     ///
     /// Modifies `self`.
-    pub fn merge_with(&mut self, _other: &TySub) {
+    pub fn merge_with(&mut self, _other: &Sub) {
         todo!()
     }
 }
@@ -60,7 +60,7 @@ impl TySub {
 /// the same type as B?
 ///
 /// @@Volatile: This might require having access to the storage to check equality of some things..
-impl PartialEq for TySub {
+impl PartialEq for Sub {
     fn eq(&self, other: &Self) -> bool {
         // @@Todo: more sophisticated substitution equivalence
         self.data == other.data
@@ -85,7 +85,7 @@ pub struct UnifyTysOpts {}
 
 /// The subject of a substitution, either a type variable or an unresolved type.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum TySubSubject {
+pub enum SubSubject {
     Var(Var),
     Unresolved(UnresolvedTy),
 }
@@ -174,9 +174,9 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         params: &Params,
         args: &Args,
         unify_opts: &UnifyTysOpts,
-    ) -> TcResult<TySub> {
+    ) -> TcResult<Sub> {
         let pairs = self.pair_args_with_params(params, args)?;
-        let mut subs = TySub::empty();
+        let mut subs = Sub::empty();
 
         for (param, arg) in pairs {
             // Unify each argument's type with the type of the parameter
@@ -489,10 +489,10 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         src_id: TyId,
         target_id: TyId,
         opts: &UnifyTysOpts,
-    ) -> TcResult<TySub> {
+    ) -> TcResult<Sub> {
         let src = self.storage.ty_store().get(src_id).clone();
         let target = self.storage.ty_store().get(target_id).clone();
-        let cannot_unify = || -> TcResult<TySub> { Err(TcError::CannotUnify(src_id, target_id)) };
+        let cannot_unify = || -> TcResult<Sub> { Err(TcError::CannotUnify(src_id, target_id)) };
 
         // Basically, can src be used where a target is required?
         match (src, target) {
@@ -533,7 +533,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             (Ty::Merge(_), Ty::Merge(inner_target)) => {
                 // Try to merge source with each individual type in target. If all succeed,
                 // then the whole thing should succeed.
-                let mut subs = TySub::empty();
+                let mut subs = Sub::empty();
                 for inner_target_id in inner_target {
                     match self.unify_tys(src_id, inner_target_id, opts) {
                         Ok(result) => {
@@ -575,15 +575,15 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             }
 
             // Traits:
-            (Ty::Trt, Ty::Trt) => Ok(TySub::empty()),
-            (Ty::Trt, Ty::Unresolved(unresolved)) => Ok(TySub::from_pairs([(
-                TySubSubject::Unresolved(unresolved),
-                src_id,
+            (Ty::Trt, Ty::Trt) => Ok(Sub::empty()),
+            (Ty::Trt, Ty::Unresolved(unresolved)) => Ok(Sub::from_pairs([(
+                SubSubject::Unresolved(unresolved),
+                self.primitive_builder().create_ty_value(src_id),
             )])),
             (Ty::Trt, _) => cannot_unify(),
-            (Ty::Ty(_), Ty::Unresolved(unresolved)) => Ok(TySub::from_pairs([(
-                TySubSubject::Unresolved(unresolved),
-                src_id,
+            (Ty::Ty(_), Ty::Unresolved(unresolved)) => Ok(Sub::from_pairs([(
+                SubSubject::Unresolved(unresolved),
+                self.primitive_builder().create_ty_value(src_id),
             )])),
 
             // Types:
@@ -592,7 +592,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     Some(target_bound) => {
                         match src_bound {
                             // Trait bounds are the same
-                            Some(src_bound) if src_bound == target_bound => Ok(TySub::empty()),
+                            Some(src_bound) if src_bound == target_bound => Ok(Sub::empty()),
                             Some(_) | None => {
                                 // Missing bound on source required by target
                                 cannot_unify()
@@ -600,7 +600,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                         }
                     }
                     // No bounds on target
-                    None => Ok(TySub::empty()),
+                    None => Ok(Sub::empty()),
                 }
             }
             (Ty::Ty(_), _) => cannot_unify(),
