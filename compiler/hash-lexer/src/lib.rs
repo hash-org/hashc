@@ -294,6 +294,15 @@ impl<'a> Lexer<'a> {
             "mod" => TokenKind::Keyword(Keyword::Mod),
             "impl" => TokenKind::Keyword(Keyword::Impl),
             "type" => TokenKind::Keyword(Keyword::Type),
+            // @@TODO: in the future, we want to make these macros or some similar syntax
+            "map" if self.peek() == '!' => {
+                self.skip();
+                TokenKind::Keyword(Keyword::Map)
+            }
+            "set" if self.peek() == '!' => {
+                self.skip();
+                TokenKind::Keyword(Keyword::Set)
+            }
             "_" => TokenKind::Ident(CORE_IDENTIFIERS.underscore),
             _ => TokenKind::Ident(name.into()),
         }
