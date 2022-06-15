@@ -8,7 +8,7 @@ use command::InteractiveCommand;
 use hash_pipeline::{
     settings::CompilerJobParams,
     sources::InteractiveBlock,
-    traits::{Parser, Tc, VirtualMachine},
+    traits::{Desugar, Parser, Tc, VirtualMachine},
     Compiler, CompilerState,
 };
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
@@ -36,10 +36,11 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init<'c, 'pool, P, C, V>(mut compiler: Compiler<'pool, P, C, V>) -> CompilerResult<()>
+pub fn init<'c, 'pool, P, D, C, V>(mut compiler: Compiler<'pool, P, D, C, V>) -> CompilerResult<()>
 where
     'pool: 'c,
     P: Parser<'pool>,
+    D: Desugar<'pool>,
     C: Tc<'c>,
     V: VirtualMachine<'c>,
 {
@@ -75,14 +76,15 @@ where
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'c, 'pool, P, C, V>(
+fn execute<'c, 'pool, P, D, C, V>(
     input: &str,
-    compiler: &mut Compiler<'pool, P, C, V>,
-    mut compiler_state: CompilerState<'c, C, V>,
-) -> CompilerState<'c, C, V>
+    compiler: &mut Compiler<'pool, P, D, C, V>,
+    mut compiler_state: CompilerState<'c, 'pool, D, C, V>,
+) -> CompilerState<'c, 'pool, D, C, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
+    D: Desugar<'pool>,
     C: Tc<'c>,
     V: VirtualMachine<'c>,
 {

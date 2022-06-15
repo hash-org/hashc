@@ -17,49 +17,90 @@ use hash_ast::{
     ast_nodes,
     visitor::{walk_mut, AstVisitorMut},
 };
-use hash_pipeline::sources::Sources;
-use hash_source::location::Span;
-use std::convert::Infallible;
+use hash_pipeline::{sources::Sources, traits::Desugar, CompilerResult};
+use hash_source::{location::Span, SourceId};
+use std::{collections::HashSet, convert::Infallible};
 
-pub struct AstLowering;
+pub struct AstDesugaring;
 
-/// This function is used to lower all of the AST that is present within
-/// the modules to be compatible with the typechecking stage. This is
-/// essentially a pass that will transform the following structures
-/// into a "simpler" variant:
-///
-/// Any for-loops are transformed into a more simpler "loop" construct
-/// with an inner match case that verifies that the iterator has no
-/// more items that can be consumed.
-///
-/// Any while-loops are also transformed into a simpler loop variant with
-/// an inner match case that matches on the result of the while-loop
-/// "condition" to see if it is "true" or "false". If it is false, then
-/// the loop breaks, otherwise the body of the while-loop is executed.
-///
-/// Any if-statements are transformed into equivalent match cases by using
-/// the "if-guard" pattern to express all of the branches in the if-statement.
-///
-/// This function utilised the pipeline thread pool in order to make the transformations
-/// as parallel as possible. There is a queue that is queues all of the expressions within
-/// each [hash_ast::ast::Module].
-pub fn lower_ast_for_typechecking<'pool, 'c>(sources: &mut Sources, pool: &'pool rayon::ThreadPool)
-where
-    'c: 'pool,
-{
-    // Iterate over all of the modules and add the expressions
-    // to the queue so it can be distributed over the threads
-    pool.scope(|scope| {
-        for (_, module) in sources.iter_mut_modules() {
-            for expr in module.node_mut().contents.iter_mut() {
-                scope.spawn(|_| {
-                    AstLowering
-                        .visit_expression(&(), expr.ast_ref_mut())
+impl<'pool> Desugar<'pool> for AstDesugaring {
+    type State = HashSet<SourceId>;
+
+    fn make_state(&mut self) -> CompilerResult<Self::State> {
+        Ok(HashSet::default())
+    }
+
+    /// This function is used to lower all of the AST that is present within
+    /// the modules to be compatible with the typechecking stage. This is
+    /// essentially a pass that will transform the following structures
+    /// into a "simpler" variant:
+    ///
+    /// Any for-loops are transformed into a more simpler "loop" construct
+    /// with an inner match case that verifies that the iterator has no
+    /// more items that can be consumed.
+    ///
+    /// Any while-loops are also transformed into a simpler loop variant with
+    /// an inner match case that matches on the result of the while-loop
+    /// "condition" to see if it is "true" or "false". If it is false, then
+    /// the loop breaks, otherwise the body of the while-loop is executed.
+    ///
+    /// Any if-statements are transformed into equivalent match cases by using
+    /// the "if-guard" pattern to express all of the branches in the if-statement.
+    ///
+    /// This function utilised the pipeline thread pool in order to make the transformations
+    /// as parallel as possible. There is a queue that is queues all of the expressions within
+    /// each [hash_ast::ast::Module].
+    fn desugar(
+        &mut self,
+        target: SourceId,
+        sources: &mut Sources,
+        state: &mut Self::State,
+        pool: &'pool rayon::ThreadPool,
+    ) -> hash_pipeline::traits::CompilerResult<()> {
+        pool.scope(|scope| {
+            // De-sugar the target if it isn't already de-sugared
+            if !state.contains(&target) {
+                if let SourceId::Interactive(id) = target {
+                    let source = sources.get_interactive_block_mut(id);
+
+                    AstDesugaring
+                        .visit_body_block(&(), source.node_mut())
                         .unwrap()
-                })
+                }
             }
-        }
-    })
+
+            // Iterate over all of the modules and add the expressions
+            // to the queue so it can be distributed over the threads
+            for (id, module) in sources.iter_mut_modules() {
+                // Skip any modules that have already been de-sugared
+                if state.contains(&SourceId::Module(id)) {
+                    continue;
+                }
+
+                // @@Future: So here, it would be nice that the de-sugaring visitor could have a
+                //           context that has access to the pool so that it could just push other jobs into
+                //           the queue rather than only splitting the job by top-level expressions.
+                //           This would work by the visitor pushing expressions into the work queue
+                //           whenever it hits body-blocks that have a list of expressions. This would
+                //           definitely make this process even faster, but it might add overhead to the
+                //           process of adding these items to the queue. However, it might be worth
+                //           investigating this in the future.
+                for expr in module.node_mut().contents.iter_mut() {
+                    scope.spawn(|_| {
+                        AstDesugaring
+                            .visit_expression(&(), expr.ast_ref_mut())
+                            .unwrap()
+                    })
+                }
+            }
+        });
+
+        // Add all of the ids into the cache
+        state.insert(target);
+        state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
+
+        Ok(())
+    }
 }
 
 /// This function is responsible for converting a [ForLoopBlock] into a
@@ -88,7 +129,7 @@ where
 ///
 /// So essentially the for-loop becomes a simple loop with a match block on the given
 /// iterator since for-loops only support iterators.
-fn lower_for_loop_block(node: Block, parent_span: Span) -> Block {
+fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
         Block::For(body) => body,
@@ -225,7 +266,7 @@ fn lower_for_loop_block(node: Block, parent_span: Span) -> Block {
 /// executing is treated like a matchable pattern, and then matched on whether
 /// if it is true or not. If it is true, the body block is executed, otherwise the loop
 /// breaks.
-fn lower_while_loop_block(node: Block, parent_span: Span) -> Block {
+fn desugar_while_loop_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
         Block::While(body) => body,
@@ -297,7 +338,7 @@ fn lower_while_loop_block(node: Block, parent_span: Span) -> Block {
 ///
 /// This function is not responsible for generating the match block, but only
 /// de-sugaring the specific [IfClause] into a [MatchCase].
-fn lower_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
+fn desugar_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
     let branch_span = node.span();
 
     let IfClause { condition, body } = node.into_body();
@@ -380,7 +421,7 @@ fn lower_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
 ///         things with pattern exhaustiveness because then there would be no base case
 ///         branch, thus the exhaustiveness checking would also need to know about
 ///         the omitted else branch.
-fn lower_if_block(node: Block, parent_span: Span) -> Block {
+fn desugar_if_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
         Block::If(body) => body,
@@ -399,7 +440,7 @@ fn lower_if_block(node: Block, parent_span: Span) -> Block {
     let mut clauses = clauses
         .nodes
         .into_iter()
-        .map(lower_if_clause)
+        .map(desugar_if_clause)
         .collect::<Vec<_>>();
 
     // Deal with the `otherwise` case, if there is no otherwise case then we can just
@@ -460,7 +501,7 @@ fn lower_if_block(node: Block, parent_span: Span) -> Block {
     })
 }
 
-impl AstVisitorMut for AstLowering {
+impl AstVisitorMut for AstDesugaring {
     type Ctx = ();
 
     type CollectionContainer<T> = Vec<T>;
@@ -937,13 +978,13 @@ impl AstVisitorMut for AstLowering {
         // Check if this is a for, while, or if block and then apply the appropriate transformations.
         match node.body() {
             Block::For(_) => {
-                node.replace(|old| lower_for_loop_block(old, parent_span));
+                node.replace(|old| desugar_for_loop_block(old, parent_span));
             }
             Block::While(_) => {
-                node.replace(|old| lower_while_loop_block(old, parent_span));
+                node.replace(|old| desugar_while_loop_block(old, parent_span));
             }
             Block::If(_) => {
-                node.replace(|old| lower_if_block(old, parent_span));
+                node.replace(|old| desugar_if_block(old, parent_span));
             }
             _ => {}
         };

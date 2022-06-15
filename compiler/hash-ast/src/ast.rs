@@ -656,6 +656,15 @@ pub enum Visibility {
     Public,
 }
 
+impl Display for Visibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Visibility::Private => write!(f, "private"),
+            Visibility::Public => write!(f, "public"),
+        }
+    }
+}
+
 /// Enum representing whether a [BindingPattern] is declared as being mutable
 /// or immutable.
 #[derive(Debug, PartialEq, Eq)]
@@ -665,6 +674,15 @@ pub enum Mutability {
     /// Declare that the binding cannot be re-assigned or methods that require
     /// mutable access cannot take this binding. This is assumed by default.
     Immutable,
+}
+
+impl Display for Mutability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mutability::Mutable => write!(f, "mutable"),
+            Mutability::Immutable => write!(f, "immutable"),
+        }
+    }
 }
 
 /// A type function, e.g. `<T, U: Conv<U>> => ...`.

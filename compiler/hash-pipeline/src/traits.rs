@@ -25,6 +25,24 @@ pub trait Parser<'pool> {
     ) -> CompilerResult<()>;
 }
 
+/// The [Desugar] represents an abstract parser that can parse all aspects of the Hash programming
+/// language.
+pub trait Desugar<'pool> {
+    type State;
+
+    /// Make [Self::State].
+    fn make_state(&mut self) -> CompilerResult<Self::State>;
+
+    /// Perform a de-sugaring pass on the provided sources.
+    fn desugar(
+        &mut self,
+        target: SourceId,
+        sources: &mut Sources,
+        state: &mut Self::State,
+        pool: &'pool rayon::ThreadPool,
+    ) -> CompilerResult<()>;
+}
+
 /// The [Tc] represents an abstract type checker that implements all the specified
 /// typechecking methods and internally performs some kind of typechecking operations.
 /// The methods [Tc::check_module] and [Tc::check_interactive] will return

@@ -20,7 +20,7 @@ use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::Sources;
-use traits::{Parser, Tc, VirtualMachine};
+use traits::{Desugar, Parser, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Report>;
 
@@ -28,9 +28,11 @@ pub type CompilerResult<T> = Result<T, Report>;
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<'pool, P, C, V> {
+pub struct Compiler<'pool, P, D, C, V> {
     /// The parser stage of the compiler.
     parser: P,
+    /// De-sugar the AST
+    desugarer: D,
     /// The typechecking stage of the compiler.
     checker: C,
     /// The current VM.
@@ -47,21 +49,24 @@ pub struct Compiler<'pool, P, C, V> {
 /// The [CompilerState] holds all the information and state of the compiler instance.
 /// Each stage of the compiler contains a `State` type parameter which the compiler stores
 /// so that incremental executions of the compiler are possible.
-pub struct CompilerState<'c, C: Tc<'c>, V: VirtualMachine<'c>> {
+pub struct CompilerState<'c, 'pool, D: Desugar<'pool>, C: Tc<'c>, V: VirtualMachine<'c>> {
     /// The collected workspace sources for the current job.
     pub sources: Sources,
     /// Any errors that were collected from any stage
     _errors: Vec<Report>,
+    /// The typechecker state.
+    pub ds_state: D::State,
     /// The typechecker state.
     pub tc_state: C::State,
     /// The State of the Virtual machine
     pub vm_state: V::State,
 }
 
-impl<'c, 'pool, P, C, V> Compiler<'pool, P, C, V>
+impl<'c, 'pool, P, D, C, V> Compiler<'pool, P, D, C, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
+    D: Desugar<'pool>,
     C: Tc<'c>,
     V: VirtualMachine<'c>,
 {
@@ -69,6 +74,7 @@ where
     /// typechecker implementations.
     pub fn new(
         parser: P,
+        desugarer: D,
         checker: C,
         vm: V,
         pool: &'pool rayon::ThreadPool,
@@ -76,13 +82,12 @@ where
     ) -> Self {
         Self {
             parser,
-            /// ast-desugaring
+            desugarer,
             /// semantic-analysis
             checker,
-            /// monomorphisation
-            /// lowering
+            /// monomorphisation + lowering
             /// ir
-            /// bytecode generation
+            /// bytecode generation + VM
             vm,
             settings,
             pool,
@@ -93,11 +98,12 @@ where
     /// Create a compiler state to accompany with compiler execution. Internally, this
     /// calls the [Tc] state making functions and saves it into the created
     /// [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, C, V>> {
         let sources = Sources::new();
         // let checker_interactive_state = self.checker.make_interactive_state(&mut checker_state)?;
         // let checker_module_state = self.checker.make_module_state(&mut checker_state)?;
 
+        let ds_state = self.desugarer.make_state()?;
         let tc_state = self.checker.make_state()?;
         let vm_state = self.vm.make_state()?;
 
@@ -105,6 +111,7 @@ where
             sources,
             _errors: vec![],
             tc_state,
+            ds_state,
             vm_state,
         })
     }
@@ -144,6 +151,35 @@ where
         println!("{}", ReportWriter::new(error, sources));
     }
 
+    fn print_sources(&self, sources: &Sources, entry_point: SourceId) {
+        match entry_point {
+            SourceId::Interactive(id) => {
+                // If this is an interactive statement, we want to print the statement that was just parsed.
+                let source = sources.get_interactive_block(id);
+
+                let tree = AstTreeGenerator
+                    .visit_body_block(&(), source.node())
+                    .unwrap();
+
+                println!("{}", TreeWriter::new(&tree));
+            }
+            SourceId::Module(_) => {
+                // If this is a module, we want to print all of the generated modules from the parsing stage
+                for (_, generated_module) in sources.iter_modules() {
+                    let tree = AstTreeGenerator
+                        .visit_module(&(), generated_module.node())
+                        .unwrap();
+
+                    println!(
+                        "Tree for `{}`:\n{}",
+                        adjust_canonicalization(generated_module.path()),
+                        TreeWriter::new(&tree)
+                    );
+                }
+            }
+        }
+    }
+
     /// Function to invoke a parsing job of a specified [SourceId].
     fn parse_source(
         &mut self,
@@ -162,32 +198,35 @@ where
         // We want to loop through all of the generated modules and print
         // the resultant AST
         if job_params.mode == CompilerMode::Parse && job_params.output_stage_result {
-            match entry_point {
-                SourceId::Interactive(id) => {
-                    // If this is an interactive statement, we want to print the statement that was just parsed.
-                    let source = sources.get_interactive_block(id);
+            self.print_sources(sources, entry_point);
+        }
 
-                    let tree = AstTreeGenerator
-                        .visit_body_block(&(), source.node())
-                        .unwrap();
+        Ok(())
+    }
 
-                    println!("{}", TreeWriter::new(&tree));
-                }
-                SourceId::Module(_) => {
-                    // If this is a module, we want to print all of the generated modules from the parsing stage
-                    for (_, generated_module) in sources.iter_modules() {
-                        let tree = AstTreeGenerator
-                            .visit_module(&(), generated_module.node())
-                            .unwrap();
+    /// De-sugaring stage within the pipeline.
+    fn desugar_sources(
+        &mut self,
+        entry_point: SourceId,
+        sources: &mut Sources,
+        desugar_state: &mut D::State,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()> {
+        timed(
+            || {
+                self.desugarer
+                    .desugar(entry_point, sources, desugar_state, self.pool)
+            },
+            log::Level::Debug,
+            |time| {
+                self.metrics.insert(CompilerMode::DeSugar, time);
+            },
+        )?;
 
-                        println!(
-                            "Tree for `{}`:\n{}",
-                            adjust_canonicalization(generated_module.path()),
-                            TreeWriter::new(&tree)
-                        );
-                    }
-                }
-            }
+        // We want to loop through all of the generated modules and print
+        // the resultant AST
+        if job_params.mode == CompilerMode::DeSugar && job_params.output_stage_result {
+            self.print_sources(sources, entry_point);
         }
 
         Ok(())
@@ -247,14 +286,30 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, C, V>,
+        mut compiler_state: CompilerState<'c, 'pool, D, C, V>,
         job_params: CompilerJobParams,
-    ) -> CompilerState<'c, C, V> {
+    ) -> CompilerState<'c, 'pool, D, C, V> {
         let parse_result = self.parse_source(entry_point, &mut compiler_state.sources, &job_params);
 
         // Short circuit if parsing failed or the job specified to stop at parsing
         if parse_result.is_err() || job_params.mode == CompilerMode::Parse {
             if let Err(err) = parse_result {
+                self.report_error(err, &compiler_state.sources);
+            }
+
+            return compiler_state;
+        }
+
+        let desugaring_result = self.desugar_sources(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.ds_state,
+            &job_params,
+        );
+
+        // Short circuit if de-sugaring failed or the job specified to stop at tc
+        if desugaring_result.is_err() || job_params.mode == CompilerMode::DeSugar {
+            if let Err(err) = desugaring_result {
                 self.report_error(err, &compiler_state.sources);
             }
 
