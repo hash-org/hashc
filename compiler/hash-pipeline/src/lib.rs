@@ -10,101 +10,29 @@
 pub mod fs;
 pub mod settings;
 pub mod sources;
+pub mod traits;
 
-use hash_reporting::reporting::Report;
-use hash_source::{InteractiveId, ModuleId, SourceId};
-use hash_utils::timed;
-use settings::{CompilerMode, CompilerSettings};
+use std::{collections::HashMap, time::Duration};
+
+use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
+use hash_reporting::reporting::{Report, ReportWriter};
+use hash_source::SourceId;
+use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
+use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::Sources;
+use traits::{Desugar, Parser, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Report>;
-
-/// The [Parser] represents an abstract parser that can parse all aspects of the Hash programming
-/// language.
-pub trait Parser<'pool> {
-    /// Given a [SourceId], parse the current job and append any parsed modules to the
-    /// provided sources parameter. On success, the function returns nothing and on
-    /// failure, the stage provides a generated diagnostics [Report].
-    fn parse(
-        &mut self,
-        target: SourceId,
-        sources: &mut Sources,
-        pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()>;
-}
-
-/// The [Checker] represents an abstract type checker that implements all the specified
-/// typechecking methods and internally performs some kind of typechecking operations.
-/// The methods [Checker::check_module] and [Checker::check_interactive] will return
-/// a unit on success, or a generated diagnostic error report which can be displayed
-/// and printed by the user of the pipeline. Both functions modify the states of the
-/// checker and return them regardless of error, both states are considered to be the
-/// new states and should be set in the compiler pipeline.
-pub trait Checker<'c> {
-    /// The general [Checker] state. This is implementation specific to the
-    /// typechecker that implements this trait. The pipeline should have no
-    /// dealings with the actual state, except saving it.
-    type State;
-
-    /// Make the general [Checker::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
-    /// The module typechecker state.
-    type ModuleState;
-    fn make_module_state(&mut self, state: &mut Self::State) -> CompilerResult<Self::ModuleState>;
-
-    /// The interactive [Checker] state.
-    type InteractiveState;
-
-    /// Create an interactive [Checker] state.
-    fn make_interactive_state(
-        &mut self,
-        state: &mut Self::State,
-    ) -> CompilerResult<Self::InteractiveState>;
-
-    /// Given a [InteractiveId], check the interactive statement with the specific rules
-    /// that are applied in interactive rules. The function accepts the previous [Checker]
-    /// state and previous [Checker::InteractiveState].
-    fn check_interactive<'pool>(
-        &'pool mut self,
-        interactive_id: InteractiveId,
-        sources: &Sources,
-        state: &mut Self::State,
-        interactive_state: Self::InteractiveState,
-    ) -> (CompilerResult<String>, Self::InteractiveState);
-
-    /// Given a [ModuleId], check the module. The function accepts the previous [Checker]
-    /// state and [Checker::ModuleState]
-    fn check_module(
-        &mut self,
-        module_id: ModuleId,
-        sources: &Sources,
-        state: &mut Self::State,
-        module_state: Self::ModuleState,
-    ) -> (CompilerResult<()>, Self::ModuleState);
-}
-
-/// The virtual machine trait
-pub trait VirtualMachine<'c> {
-    /// The general [VirtualMachine] state. This is implementation specific to the
-    /// VM that implements this trait. The pipeline should have no
-    /// dealings with the actual state, except saving it.
-    type State;
-
-    /// Make the general [VirtualMachine::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
-    /// Run the currently generated VM
-    fn run(&mut self, state: &mut Self::State) -> CompilerResult<()>;
-}
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<'pool, P, C, V> {
+pub struct Compiler<'pool, P, D, C, V> {
     /// The parser stage of the compiler.
     parser: P,
+    /// De-sugar the AST
+    desugarer: D,
     /// The typechecking stage of the compiler.
     checker: C,
     /// The current VM.
@@ -113,37 +41,40 @@ pub struct Compiler<'pool, P, C, V> {
     pub settings: CompilerSettings,
     /// The pipeline shared thread pool.
     pool: &'pool rayon::ThreadPool,
+
+    /// A record of all of the stage metrics
+    metrics: HashMap<CompilerMode, Duration>,
 }
 
 /// The [CompilerState] holds all the information and state of the compiler instance.
 /// Each stage of the compiler contains a `State` type parameter which the compiler stores
 /// so that incremental executions of the compiler are possible.
-pub struct CompilerState<'c, C: Checker<'c>, V: VirtualMachine<'c>> {
+pub struct CompilerState<'c, 'pool, D: Desugar<'pool>, C: Tc<'c>, V: VirtualMachine<'c>> {
     /// The collected workspace sources for the current job.
     pub sources: Sources,
+    /// Any errors that were collected from any stage
+    _errors: Vec<Report>,
     /// The typechecker state.
-    pub checker_state: C::State,
-    /// The interactive typechecker state. This mainly differs from the
-    /// `module_checker_stage` by dealing with scopes slightly differently than module
-    /// scope.
-    pub checker_interactive_state: C::InteractiveState,
-    /// The module checker stage.
-    pub checker_module_state: C::ModuleState,
+    pub ds_state: D::State,
+    /// The typechecker state.
+    pub tc_state: C::State,
     /// The State of the Virtual machine
     pub vm_state: V::State,
 }
 
-impl<'c, 'pool, P, C, V> Compiler<'pool, P, C, V>
+impl<'c, 'pool, P, D, C, V> Compiler<'pool, P, D, C, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
-    C: Checker<'c>,
+    D: Desugar<'pool>,
+    C: Tc<'c>,
     V: VirtualMachine<'c>,
 {
     /// Create a new instance of a [Compiler] with the provided parser and
     /// typechecker implementations.
     pub fn new(
         parser: P,
+        desugarer: D,
         checker: C,
         vm: V,
         pool: &'pool rayon::ThreadPool,
@@ -151,119 +82,261 @@ where
     ) -> Self {
         Self {
             parser,
+            desugarer,
+            /// semantic-analysis
             checker,
+            /// monomorphisation + lowering
+            /// ir
+            /// bytecode generation + VM
             vm,
             settings,
             pool,
+            metrics: HashMap::new(),
         }
     }
 
     /// Create a compiler state to accompany with compiler execution. Internally, this
-    /// calls the [Checker] state making functions and saves it into the created
+    /// calls the [Tc] state making functions and saves it into the created
     /// [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, C, V>> {
         let sources = Sources::new();
-        let mut checker_state = self.checker.make_state()?;
-        let checker_interactive_state = self.checker.make_interactive_state(&mut checker_state)?;
-        let checker_module_state = self.checker.make_module_state(&mut checker_state)?;
+        // let checker_interactive_state = self.checker.make_interactive_state(&mut checker_state)?;
+        // let checker_module_state = self.checker.make_module_state(&mut checker_state)?;
 
+        let ds_state = self.desugarer.make_state()?;
+        let tc_state = self.checker.make_state()?;
         let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
             sources,
-            checker_state,
-            checker_interactive_state,
-            checker_module_state,
+            _errors: vec![],
+            tc_state,
+            ds_state,
             vm_state,
         })
     }
 
+    /// Function to report the collected metrics on the stages within the compiler.
+    fn report_metrics(&self) {
+        let mut total = Duration::new(0, 0);
+
+        // Sort metrics by the declared order
+        let mut timings: Vec<_> = self.metrics.iter().collect();
+        timings.sort_by_key(|entry| entry.0);
+
+        for (stage, duration) in timings {
+            // This shouldn't occur as we don't record this metric in this way
+            if *stage == CompilerMode::Full {
+                continue;
+            }
+            total += *duration;
+
+            println!("{: <9}: {duration:?}", format!("{}", stage));
+        }
+
+        // Now print the total
+        println!("{: <9}: {total:?}", format!("{}", CompilerMode::Full));
+    }
+
+    /// Function to print a returned error from any stage in the pipeline. This function
+    /// also deals with printing metrics if it is specified within the [CompilerSettings].
+    ///
+    /// @@TODO: we want to essentially integrate this with the stages in order to
+    /// collect errors rather than immediately printing them
+    fn report_error(&self, error: Report, sources: &Sources) {
+        if self.settings.display_metrics {
+            self.report_metrics();
+        }
+
+        println!("{}", ReportWriter::new(error, sources));
+    }
+
+    fn print_sources(&self, sources: &Sources, entry_point: SourceId) {
+        match entry_point {
+            SourceId::Interactive(id) => {
+                // If this is an interactive statement, we want to print the statement that was just parsed.
+                let source = sources.get_interactive_block(id);
+
+                let tree = AstTreeGenerator
+                    .visit_body_block(&(), source.node())
+                    .unwrap();
+
+                println!("{}", TreeWriter::new(&tree));
+            }
+            SourceId::Module(_) => {
+                // If this is a module, we want to print all of the generated modules from the parsing stage
+                for (_, generated_module) in sources.iter_modules() {
+                    let tree = AstTreeGenerator
+                        .visit_module(&(), generated_module.node())
+                        .unwrap();
+
+                    println!(
+                        "Tree for `{}`:\n{}",
+                        adjust_canonicalization(generated_module.path()),
+                        TreeWriter::new(&tree)
+                    );
+                }
+            }
+        }
+    }
+
     /// Function to invoke a parsing job of a specified [SourceId].
-    pub fn parse_source(&mut self, id: SourceId, sources: &mut Sources) -> CompilerResult<()> {
-        self.parser.parse(id, sources, self.pool)
-    }
-
-    /// Run a interactive job with the provided [InteractiveId] pointing to the
-    /// interpreted command to execute.
-    pub fn run_interactive(
+    fn parse_source(
         &mut self,
-        interactive_id: InteractiveId,
-        mut compiler_state: CompilerState<'c, C, V>,
-    ) -> (CompilerResult<String>, CompilerState<'c, C, V>) {
-        // Parsing
-        let parse_result = self.parse_source(
-            SourceId::Interactive(interactive_id),
-            &mut compiler_state.sources,
-        );
-
-        if let Err(err) = parse_result {
-            return (Err(err), compiler_state);
-        }
-
-        // We want to run a pass that will lower that AST into a form that the typechecker
-        // expects. For more details, read the `hash_lowering::ast` sources.
-
-        // Typechecking
-        let (result, checker_interactive_state) = self.checker.check_interactive(
-            interactive_id,
-            &compiler_state.sources,
-            &mut compiler_state.checker_state,
-            compiler_state.checker_interactive_state,
-        );
-
-        compiler_state.checker_interactive_state = checker_interactive_state;
-        (result, compiler_state)
-    }
-
-    /// Run a module job with the provided [ModuleId] pointing to the entry point
-    /// of the current job. Typically, the entry point is the first module that's
-    /// passed from commandline arguments.
-    pub fn run_module(
-        &mut self,
-        module_id: ModuleId,
-        mut compiler_state: CompilerState<'c, C, V>,
-    ) -> (CompilerResult<()>, CompilerState<'c, C, V>) {
-        // Parsing
-        let result = timed(
-            || {
-                self.parser.parse(
-                    SourceId::Module(module_id),
-                    &mut compiler_state.sources,
-                    self.pool,
-                )
-            },
+        entry_point: SourceId,
+        sources: &mut Sources,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()> {
+        timed(
+            || self.parser.parse(entry_point, sources, self.pool),
             log::Level::Debug,
-            |elapsed| println!("parse: {:?}", elapsed),
-        );
+            |time| {
+                self.metrics.insert(CompilerMode::Parse, time);
+            },
+        )?;
 
-        if let Err(err) = result {
-            return (Err(err), compiler_state);
+        // We want to loop through all of the generated modules and print
+        // the resultant AST
+        if job_params.mode == CompilerMode::Parse && job_params.output_stage_result {
+            self.print_sources(sources, entry_point);
         }
 
-        // @@Temporary: if the mode is specified as `ast-gen` then we exit early to print the
-        //              generated AST tree
-        if matches!(self.settings.mode, CompilerMode::AstGen) {
-            return (result, compiler_state);
-        }
+        Ok(())
+    }
 
-        // We want to run a pass that will lower that AST into a form that the typechecker
-        // expects. For more details, read the `hash_lowering::ast` sources.
-
-        // Typechecking
+    /// De-sugaring stage within the pipeline.
+    fn desugar_sources(
+        &mut self,
+        entry_point: SourceId,
+        sources: &mut Sources,
+        desugar_state: &mut D::State,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()> {
         timed(
             || {
-                let (result, checker_module_state) = self.checker.check_module(
-                    module_id,
-                    &compiler_state.sources,
-                    &mut compiler_state.checker_state,
-                    compiler_state.checker_module_state,
-                );
-
-                compiler_state.checker_module_state = checker_module_state;
-                (result, compiler_state)
+                self.desugarer
+                    .desugar(entry_point, sources, desugar_state, self.pool)
             },
             log::Level::Debug,
-            |elapsed| println!("typecheck: {:?}", elapsed),
-        )
+            |time| {
+                self.metrics.insert(CompilerMode::DeSugar, time);
+            },
+        )?;
+
+        // We want to loop through all of the generated modules and print
+        // the resultant AST
+        if job_params.mode == CompilerMode::DeSugar && job_params.output_stage_result {
+            self.print_sources(sources, entry_point);
+        }
+
+        Ok(())
+    }
+
+    /// Function to invoke the typechecking stage for the entry point denoted by
+    /// the passed [SourceId].
+    ///
+    /// This function also expects the [CompilerSettings] for the current pass in order
+    /// to determine if it should output the result from the operation. This is only
+    /// relevant when the [SourceId] is interactive as it might be specified that the
+    /// pipeline output the type of the current expression. This directly comes from
+    /// a user using the `:t` mode in the REPL as so:
+    ///
+    /// ```text
+    /// >>> :t foo(3);
+    /// ```
+    fn typecheck_source(
+        &mut self,
+        entry_point: SourceId,
+        sources: &mut Sources,
+        checker_state: &mut C::State,
+        job_params: &CompilerJobParams,
+    ) -> CompilerResult<()> {
+        match entry_point {
+            SourceId::Interactive(id) => {
+                let result = timed(
+                    || self.checker.check_interactive(id, sources, checker_state),
+                    log::Level::Debug,
+                    |time| {
+                        self.metrics.insert(CompilerMode::Typecheck, time);
+                    },
+                )?;
+
+                // So here, we print the result of the type that was inferred from the passed statement
+                if job_params.mode == CompilerMode::Typecheck && job_params.output_stage_result {
+                    println!("= {result}")
+                }
+            }
+            SourceId::Module(id) => {
+                timed(
+                    || self.checker.check_module(id, sources, checker_state),
+                    log::Level::Debug,
+                    |time| {
+                        self.metrics.insert(CompilerMode::Typecheck, time);
+                    },
+                )?;
+            }
+        };
+
+        Ok(())
+    }
+
+    /// Run a particular job within the pipeline. This function handles both cases of either the
+    /// entry point being an [InteractiveId] or a [ModuleId]. The function deals with executing the
+    /// required stages in order as specified by the `job_parameters`
+    pub fn run(
+        &mut self,
+        entry_point: SourceId,
+        mut compiler_state: CompilerState<'c, 'pool, D, C, V>,
+        job_params: CompilerJobParams,
+    ) -> CompilerState<'c, 'pool, D, C, V> {
+        let parse_result = self.parse_source(entry_point, &mut compiler_state.sources, &job_params);
+
+        // Short circuit if parsing failed or the job specified to stop at parsing
+        if parse_result.is_err() || job_params.mode == CompilerMode::Parse {
+            if let Err(err) = parse_result {
+                self.report_error(err, &compiler_state.sources);
+            }
+
+            return compiler_state;
+        }
+
+        let desugaring_result = self.desugar_sources(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.ds_state,
+            &job_params,
+        );
+
+        // Short circuit if de-sugaring failed or the job specified to stop at tc
+        if desugaring_result.is_err() || job_params.mode == CompilerMode::DeSugar {
+            if let Err(err) = desugaring_result {
+                self.report_error(err, &compiler_state.sources);
+            }
+
+            return compiler_state;
+        }
+
+        let tc_result = self.typecheck_source(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.tc_state,
+            &job_params,
+        );
+
+        // Short circuit if tc failed or the job specified to stop at tc
+        if tc_result.is_err() || job_params.mode == CompilerMode::Typecheck {
+            if let Err(err) = tc_result {
+                self.report_error(err, &compiler_state.sources);
+            }
+
+            return compiler_state;
+        }
+
+        // Print compiler stage metrics if specified in the settings.
+        if self.settings.display_metrics {
+            self.report_metrics();
+        }
+
+        compiler_state
     }
 }

@@ -5,14 +5,14 @@
 mod command;
 
 use command::InteractiveCommand;
-use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_pipeline::{
-    sources::InteractiveBlock, Checker, Compiler, CompilerState, Parser, VirtualMachine,
+    settings::CompilerJobParams,
+    sources::InteractiveBlock,
+    traits::{Desugar, Parser, Tc, VirtualMachine},
+    Compiler, CompilerState,
 };
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
-use hash_reporting::reporting::ReportWriter;
 use hash_source::SourceId;
-use hash_utils::tree_writing::TreeWriter;
 use rustyline::{error::ReadlineError, Editor};
 use std::env;
 use std::process::exit;
@@ -36,11 +36,12 @@ pub fn goodbye() {
 
 /// Function that initialises the interactive mode. Setup all the resources required to perform
 /// execution of provided statements and then initiate the REPL.
-pub fn init<'c, 'pool, P, C, V>(mut compiler: Compiler<'pool, P, C, V>) -> CompilerResult<()>
+pub fn init<'c, 'pool, P, D, C, V>(mut compiler: Compiler<'pool, P, D, C, V>) -> CompilerResult<()>
 where
     'pool: 'c,
     P: Parser<'pool>,
-    C: Checker<'c>,
+    D: Desugar<'pool>,
+    C: Tc<'c>,
     V: VirtualMachine<'c>,
 {
     // Display the version on start-up
@@ -75,15 +76,16 @@ where
 }
 
 /// Function to process a single line of input from the REPL instance.
-fn execute<'c, 'pool, P, C, V>(
+fn execute<'c, 'pool, P, D, C, V>(
     input: &str,
-    compiler: &mut Compiler<'pool, P, C, V>,
-    mut compiler_state: CompilerState<'c, C, V>,
-) -> CompilerState<'c, C, V>
+    compiler: &mut Compiler<'pool, P, D, C, V>,
+    mut compiler_state: CompilerState<'c, 'pool, D, C, V>,
+) -> CompilerState<'c, 'pool, D, C, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
-    C: Checker<'c>,
+    D: Desugar<'pool>,
+    C: Tc<'c>,
     V: VirtualMachine<'c>,
 {
     if input.is_empty() {
@@ -104,63 +106,25 @@ where
             }
         }
         Ok(InteractiveCommand::Version) => print_version(),
-        Ok(InteractiveCommand::Type(expr)) => {
+        Ok(
+            ref inner @ (InteractiveCommand::Type(expr)
+            | InteractiveCommand::Display(expr)
+            | InteractiveCommand::Code(expr)),
+        ) => {
+            // Add the interactive block to the state
             let new_interactive_block = InteractiveBlock::new(expr.to_string());
             let interactive_id = compiler_state
                 .sources
                 .add_interactive_block(new_interactive_block);
 
-            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
+            // Compute the mode of the job based on provided arguments via the interactive command
+            let settings: CompilerJobParams = inner.into();
 
-            match result {
-                Ok(value) => {
-                    println!("= {value}");
-                }
-                Err(err) => {
-                    println!("{}", ReportWriter::new(err, &new_state.sources));
-                }
-            }
-            return new_state;
-        }
-        Ok(InteractiveCommand::Display(expr)) => {
-            let new_interactive_block = InteractiveBlock::new(expr.to_string());
-            let interactive_id = compiler_state
-                .sources
-                .add_interactive_block(new_interactive_block);
-
-            let result = compiler.parse_source(
+            let new_state = compiler.run(
                 SourceId::Interactive(interactive_id),
-                &mut compiler_state.sources,
+                compiler_state,
+                settings,
             );
-
-            match result {
-                Ok(()) => {
-                    let block = compiler_state.sources.get_interactive_block(interactive_id);
-                    let tree = AstTreeGenerator
-                        .visit_body_block(&(), block.node())
-                        .unwrap();
-
-                    println!("{}", TreeWriter::new(&tree));
-                }
-                Err(err) => {
-                    println!("{}", ReportWriter::new(err, &compiler_state.sources));
-                }
-            }
-        }
-        Ok(InteractiveCommand::Code(expr)) => {
-            let new_interactive_block = InteractiveBlock::new(expr.to_string());
-            let interactive_id = compiler_state
-                .sources
-                .add_interactive_block(new_interactive_block);
-
-            let (result, new_state) = compiler.run_interactive(interactive_id, compiler_state);
-
-            match result {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("{}", ReportWriter::new(err, &new_state.sources));
-                }
-            }
             return new_state;
         }
         Err(e) => CompilerError::from(e).report(),

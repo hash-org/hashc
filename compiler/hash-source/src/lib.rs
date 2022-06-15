@@ -22,6 +22,13 @@ pub enum SourceId {
     Module(ModuleId),
 }
 
+impl SourceId {
+    /// Check whether the [SourceId] points to a module.
+    pub fn is_module(&self) -> bool {
+        matches!(self, Self::Module(_))
+    }
+}
+
 pub trait SourceMap {
     fn path_by_id(&self, source_id: SourceId) -> &Path;
     fn contents_by_id(&self, source_id: SourceId) -> &str;
