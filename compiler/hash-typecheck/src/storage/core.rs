@@ -6,7 +6,6 @@
 //! characters, strings, lists, maps, references, etc.
 use super::{
     primitives::{NominalDefId, TrtDefId, ValueId},
-    scope::{Scope, ScopeKind},
     GlobalStorage,
 };
 use crate::ops::building::PrimitiveBuilder;
@@ -41,8 +40,9 @@ impl CoreDefs {
     pub fn new(global_storage: &mut GlobalStorage) -> Self {
         // @@Safety: core defs have not been filled in global_storage, don't access
         // global_storage.core_defs()!
-        let mut scope = Scope::empty(ScopeKind::Constant);
-        let builder = PrimitiveBuilder::new_with_scope(global_storage, &mut scope);
+        //
+        // We use the root scope as the population scope, since these are the core definitions.
+        let builder = PrimitiveBuilder::new_with_scope(global_storage, global_storage.root_scope);
 
         // Primitive integers
         let i8_ty = builder.create_opaque_struct_def("i8");
@@ -146,10 +146,6 @@ impl CoreDefs {
             builder.create_ty_of_ty(),
             builder.create_nominal_value(builder.create_nameless_opaque_struct_def()),
         );
-
-        // Set the scope of global storage
-        let (global_storage, _) = builder.release();
-        global_storage.root_scope = scope;
 
         Self {
             str_ty,
