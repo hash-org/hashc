@@ -2,45 +2,47 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, Members, ModDefId, Mutability,
-        NominalDef, NominalDefId, Param, ParamList, StructDef, StructFields, TrtDef, TrtDefId,
-        TupleTy, Ty, TyFnCase, TyFnTy, TyFnValue, TyId, Value, ValueId, Var, Visibility,
+        AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, ModDefId, Mutability, NominalDef,
+        NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, TrtDef,
+        TrtDefId, TupleTy, Ty, TyFnCase, TyFnTy, TyFnValue, TyId, Value, ValueId, Var, Visibility,
     },
-    scope::Scope,
     GlobalStorage,
 };
 use hash_source::identifier::Identifier;
-use std::{cell::RefCell, ops::Deref};
+use std::{
+    cell::{Cell, RefCell},
+    ops::Deref,
+};
 
 /// Helper to create various primitive constructions (from [crate::storage::primitives]).
 ///
 /// Optionally adds the constructions to a scope, if given.
-pub struct PrimitiveBuilder<'gs, 'sc> {
+pub struct PrimitiveBuilder<'gs> {
     // Keep these in RefCells so that calls to [PrimitiveBuilder] can be nested without borrowing
     // issues.
     //
     // *Important*: Should ensure that each method starts and ends the borrow within itself and
     // doesn't call any other methods in between, otherwise it will cause a panic.
     gs: RefCell<&'gs mut GlobalStorage>,
-    scope: RefCell<Option<&'sc mut Scope>>,
+    scope: Cell<Option<ScopeId>>,
 }
 
-impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
+impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a new [PrimitiveBuilder] with a given scope.
     pub fn new(gs: &'gs mut GlobalStorage) -> Self {
         Self {
             gs: RefCell::new(gs),
-            scope: RefCell::new(None),
+            scope: Cell::new(None),
         }
     }
 
     /// Create a new [PrimitiveBuilder] with a given scope.
     ///
     /// This adds every constructed item into the scope with their given names (if any).
-    pub fn new_with_scope(gs: &'gs mut GlobalStorage, scope: &'sc mut Scope) -> Self {
+    pub fn new_with_scope(gs: &'gs mut GlobalStorage, scope: ScopeId) -> Self {
         Self {
             gs: RefCell::new(gs),
-            scope: RefCell::new(Some(scope)),
+            scope: Cell::new(Some(scope)),
         }
     }
 
@@ -51,9 +53,7 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
 
     /// Create a type variable with the given name.
     pub fn create_var(&self, var_name: impl Into<Identifier>) -> Var {
-        Var {
-            name: var_name.into(),
-        }
+        Var::single(var_name)
     }
 
     /// Create a type variable with the given name, in the form of a [Ty::Var].
@@ -165,18 +165,13 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TyId, value: ValueId) {
         let member = self.create_pub_member(name, ty, value);
-        let mut scope = self.scope.borrow_mut();
-        if let Some(ref mut scope) = &mut *scope {
-            scope.members.add(member);
+        if let Some(scope) = self.scope.get() {
+            self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }
     }
 
     /// Create a public member with the given name, type and unset value.
-    pub fn create_unset_pub_member(
-        &self,
-        name: impl Into<Identifier>,
-        ty: TyId,
-    ) -> Member {
+    pub fn create_unset_pub_member(&self, name: impl Into<Identifier>, ty: TyId) -> Member {
         self.create_pub_member(name, ty, self.create_unset_value(ty))
     }
 
@@ -288,11 +283,22 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
             .create(Value::NominalDef(nominal_def_id))
     }
 
+    /// Create a [Scope], returning a [ScopeId].
+    pub fn create_scope(&self, scope: Scope) -> ScopeId {
+        self.gs.borrow_mut().scope_store.create(scope)
+    }
+
+    /// Create a [Scope] of kind [ScopeKind::Constant] from the given members, returning a
+    /// [ScopeId].
+    pub fn create_constant_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
+        self.create_scope(Scope::new(ScopeKind::Constant, members))
+    }
+
     /// Create a trait definition with no name, and the given members.
     pub fn create_nameless_trait_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name: None,
-            members: Members::new(members),
+            members: self.create_constant_scope(members),
         });
         trt_def_id
     }
@@ -308,7 +314,7 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
         let name = trait_name.into();
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name: Some(name),
-            members: Members::new(members),
+            members: self.create_constant_scope(members),
         });
         let trt_def_ty = self.create_ty_of_trt();
         let trt_def_value = self
@@ -404,8 +410,8 @@ impl<'gs, 'sc> PrimitiveBuilder<'gs, 'sc> {
         self.gs.borrow_mut().ty_store.create(Ty::AppTyFn(app_ty_fn))
     }
 
-    /// Release [Self], returning the original [GlobalStorage] and [Scope] reference, if any.
-    pub fn release(self) -> (&'gs mut GlobalStorage, Option<&'sc mut Scope>) {
-        (self.gs.into_inner(), self.scope.into_inner())
+    /// Release [Self], returning the original [GlobalStorage].
+    pub fn release(self) -> &'gs mut GlobalStorage {
+        self.gs.into_inner()
     }
 }

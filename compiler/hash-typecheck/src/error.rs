@@ -19,4 +19,6 @@ pub enum TcError {
     MismatchingArgParamLength(Args, Params),
     ParamNotFound(Params, Identifier),
     ParamGivenTwice(Args, Params, usize),
+    UnresolvedSymbol(Identifier),
+    TryingToNamespaceValue(ValueId),
 }

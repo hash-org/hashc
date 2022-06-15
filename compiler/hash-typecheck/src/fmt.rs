@@ -3,6 +3,7 @@ use crate::storage::{
     primitives::{
         AppTyFn, Args, EnumDef, FnTy, ModDefId, ModDefOrigin, NominalDef, NominalDefId, Params,
         StructDef, TrtDefId, TupleTy, Ty, TyFnTy, TyFnValue, TyId, UnresolvedTy, Value, ValueId,
+        Var,
     },
     GlobalStorage,
 };
@@ -115,6 +116,17 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
+    /// Format the given [Var] with the given formatter.
+    pub fn fmt_var(&self, f: &mut fmt::Formatter, var: &Var) -> fmt::Result {
+        for (i, name) in var.names.iter().enumerate() {
+            write!(f, "{}", name)?;
+            if i != var.names.len() - 1 {
+                write!(f, "::")?;
+            }
+        }
+        Ok(())
+    }
+
     /// Format the [Value] indexed by the given [ValueId] with the given formatter.
     pub fn fmt_value(
         &self,
@@ -177,7 +189,7 @@ impl<'gs> TcFormatter<'gs> {
             }
             Value::Var(var) => {
                 is_atomic.set(true);
-                write!(f, "{}", var.name)
+                self.fmt_var(f, var)
             }
             Value::Merge(values) => {
                 is_atomic.set(false);
@@ -316,7 +328,7 @@ impl<'gs> TcFormatter<'gs> {
             }
             Ty::Var(var) => {
                 is_atomic.set(true);
-                write!(f, "{}", var.name)
+                self.fmt_var(f, var)
             }
             Ty::TyFn(TyFnTy { params, return_ty }) => {
                 is_atomic.set(false);

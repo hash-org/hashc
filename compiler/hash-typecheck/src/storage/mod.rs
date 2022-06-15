@@ -13,7 +13,8 @@ use self::{
     core::CoreDefs,
     mods::ModDefStore,
     nominals::NominalDefStore,
-    scope::{Scope, ScopeStack},
+    primitives::{Scope, ScopeId, ScopeKind},
+    scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
     state::TypecheckState,
     trts::TrtDefStore,
@@ -35,25 +36,33 @@ pub mod values;
 /// Keeps track of typechecking information across all source files.
 pub struct GlobalStorage {
     pub ty_store: TyStore,
+    pub scope_store: ScopeStore,
     pub value_store: ValueStore,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
     pub checked_sources: CheckedSources,
-    pub root_scope: Scope,
+    /// Used to create the first scope when creating a LocalStorage.
+    ///
+    /// This includes all the core language definitions; it shouldn't be directly queried, but
+    /// rather the [LocalStorage] scopes should be queried.
+    pub root_scope: ScopeId,
 }
 
 impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
     pub fn new() -> Self {
+        let mut scope_store = ScopeStore::new();
+        let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
         Self {
             ty_store: TyStore::new(),
             value_store: ValueStore::new(),
+            scope_store,
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             checked_sources: CheckedSources::new(),
-            root_scope: Scope::empty(scope::ScopeKind::Constant),
+            root_scope,
         }
     }
 }
@@ -74,10 +83,15 @@ pub struct LocalStorage {
 
 impl LocalStorage {
     /// Create a new, empty [LocalStorage] for the given source.
-    pub fn new(source_id: SourceId) -> Self {
+    pub fn new(source_id: SourceId, gs: &mut GlobalStorage) -> Self {
         Self {
             state: TypecheckState::new(source_id),
-            scopes: ScopeStack::empty(),
+            scopes: ScopeStack::many([
+                // First the root scope
+                gs.root_scope,
+                // Then the scope for the source
+                gs.scope_store.create(Scope::empty(ScopeKind::Constant)),
+            ]),
         }
     }
 }
@@ -115,6 +129,10 @@ pub trait AccessToStorage {
         self.storages().core_defs
     }
 
+    fn scope_store(&self) -> &ScopeStore {
+        &self.global_storage().scope_store
+    }
+
     fn ty_store(&self) -> &TyStore {
         &self.global_storage().ty_store
     }
@@ -139,8 +157,8 @@ pub trait AccessToStorage {
         &self.global_storage().checked_sources
     }
 
-    fn root_scope(&self) -> &Scope {
-        &self.global_storage().root_scope
+    fn root_scope(&self) -> ScopeId {
+        self.global_storage().root_scope
     }
 
     fn state(&self) -> &TypecheckState {
@@ -169,6 +187,10 @@ pub trait AccessToStorageMut: AccessToStorage {
         &mut self.global_storage_mut().ty_store
     }
 
+    fn scope_store_mut(&mut self) -> &mut ScopeStore {
+        &mut self.global_storage_mut().scope_store
+    }
+
     fn value_store_mut(&mut self) -> &mut ValueStore {
         &mut self.global_storage_mut().value_store
     }
@@ -187,10 +209,6 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn checked_sources_mut(&mut self) -> &mut CheckedSources {
         &mut self.global_storage_mut().checked_sources
-    }
-
-    fn root_scope_mut(&mut self) -> &mut Scope {
-        &mut self.global_storage_mut().root_scope
     }
 
     fn state_mut(&mut self) -> &mut TypecheckState {

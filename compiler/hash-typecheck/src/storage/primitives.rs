@@ -27,23 +27,43 @@ pub struct Member {
     pub mutability: Mutability,
 }
 
-/// Stores a list of members, indexed by the members' names.
-#[derive(Debug, Clone)]
-pub struct Members {
-    members: HashMap<Identifier, Member>,
+/// A scope is either a variable scope or a constant scope.
+///
+/// Examples of variable scopes are:
+/// - Block expression scope
+/// - Function parameter scope
+///
+/// Examples of const scopes are:
+/// - The root scope
+/// - Module block scope
+/// - Trait block scope
+/// - Impl block scope
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopeKind {
+    Variable,
+    Constant,
 }
 
-impl Members {
-    /// Create an empty [Members].
-    pub fn empty() -> Self {
+/// Stores a list of members, indexed by the members' names.
+#[derive(Debug, Clone)]
+pub struct Scope {
+    pub kind: ScopeKind,
+    pub members: HashMap<Identifier, Member>,
+}
+
+impl Scope {
+    /// Create an empty [Scope].
+    pub fn empty(kind: ScopeKind) -> Self {
         Self {
+            kind,
             members: HashMap::new(),
         }
     }
 
-    /// Create a new [Members] from the given members.
-    pub fn new(members: impl IntoIterator<Item = Member>) -> Self {
+    /// Create a new [Scope] from the given members.
+    pub fn new(kind: ScopeKind, members: impl IntoIterator<Item = Member>) -> Self {
         Self {
+            kind,
             members: members
                 .into_iter()
                 .map(|member| (member.name, member))
@@ -160,7 +180,7 @@ pub enum ModDefOrigin {
 pub struct ModDef {
     pub name: Option<Identifier>,
     pub origin: ModDefOrigin,
-    pub members: Members,
+    pub members: ScopeId,
 }
 
 /// The fields of a struct.
@@ -202,7 +222,7 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct TrtDef {
     pub name: Option<Identifier>,
-    pub members: Members,
+    pub members: ScopeId,
 }
 
 /// A nominal definition, which for now is either a struct or an enum.
@@ -334,10 +354,26 @@ pub struct UnresolvedTy {
     pub resolution_id: ResolutionId,
 }
 
-/// A type variable, which is just a name.
-#[derive(Debug, Clone, Hash, Copy, Eq, PartialEq)]
+/// A type variable, which is just a name or collection of names (namespace operator accessed).
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Var {
-    pub name: Identifier,
+    pub names: Vec<Identifier>,
+}
+
+impl Var {
+    /// Create a type variable with a single name.
+    pub fn single(name: impl Into<Identifier>) -> Self {
+        Self {
+            names: vec![name.into()],
+        }
+    }
+
+    /// Create a type variable with N multiple names (the first N-1 of which refer to modules).
+    pub fn compound(names: impl IntoIterator<Item = impl Into<Identifier>>) -> Self {
+        Self {
+            names: names.into_iter().map(|x| x.into()).collect(),
+        }
+    }
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -503,6 +539,11 @@ new_key_type! {
 new_key_type! {
     /// The ID of a [Value] stored in [super::values::ValueStore].
     pub struct ValueId;
+}
+
+new_key_type! {
+    /// The ID of a [Scope] stored in [super::values::ScopeStore].
+    pub struct ScopeId;
 }
 
 /// The ID of a [UnresolvedTy], separate from its [TyId], stored in [super::tys::TyStore].
