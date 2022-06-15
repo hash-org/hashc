@@ -23,24 +23,14 @@ pub enum InteractiveCommand<'i> {
 
 impl From<&InteractiveCommand<'_>> for CompilerJobParams {
     fn from(command: &InteractiveCommand<'_>) -> Self {
-        let mut default = CompilerJobParams::default();
-
         // Here, we don't care about all of the other modes except `Type` and `Display`
         // since these will either be pre-emptively handled by the REPL, or it will execute
         // the full stage.
         match command {
-            InteractiveCommand::Type(_) => {
-                default.mode = CompilerMode::Typecheck;
-                default.output_stage_result = true;
-            }
-            InteractiveCommand::Display(_) => {
-                default.mode = CompilerMode::Parse;
-                default.output_stage_result = true;
-            }
-            _ => {}
-        };
-
-        default
+            InteractiveCommand::Display(_) => CompilerJobParams::new(CompilerMode::Parse, true),
+            InteractiveCommand::Type(_) => CompilerJobParams::new(CompilerMode::Typecheck, true),
+            _ => CompilerJobParams::default(),
+        }
     }
 }
 
