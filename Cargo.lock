@@ -380,12 +380,9 @@ version = "0.1.0"
 name = "hash-interactive"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
- "hash-ast",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
- "hash-utils",
  "rustyline",
 ]
 
