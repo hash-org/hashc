@@ -11,6 +11,7 @@ use super::{
 use crate::ops::building::PrimitiveBuilder;
 
 /// Contains all the core type and trait definitions of the language.
+#[derive(Debug, Clone)]
 pub struct CoreDefs {
     pub str_ty: NominalDefId,
     pub list_ty_fn: ValueId,

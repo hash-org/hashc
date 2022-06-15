@@ -2,9 +2,10 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, ModDefId, Mutability, NominalDef,
-        NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, TrtDef,
-        TrtDefId, TupleTy, Ty, TyFnCase, TyFnTy, TyFnValue, TyId, Value, ValueId, Var, Visibility,
+        AccessValue, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Member, ModDefId, Mutability,
+        NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef,
+        StructFields, TrtDef, TrtDefId, TupleTy, Ty, TyFnCase, TyFnTy, TyFnValue, TyId, Value,
+        ValueId, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -173,6 +174,17 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a public member with the given name, type and unset value.
     pub fn create_unset_pub_member(&self, name: impl Into<Identifier>, ty: TyId) -> Member {
         self.create_pub_member(name, ty, self.create_unset_value(ty))
+    }
+
+    /// Create a [Value::Access] with the given subject and name.
+    pub fn create_access_value(&self, subject_id: ValueId, name: impl Into<Identifier>) -> ValueId {
+        self.gs
+            .borrow_mut()
+            .value_store
+            .create(Value::Access(AccessValue {
+                subject_id,
+                name: name.into(),
+            }))
     }
 
     /// Create a public member with the given name, type and value.

@@ -227,6 +227,9 @@ impl<'gs> TcFormatter<'gs> {
             Value::NominalDef(nominal_def_id) => {
                 self.fmt_nominal_def(f, *nominal_def_id, is_atomic)
             }
+            // @@Todo: fmt for these
+            Value::Access(_) => todo!(),
+            Value::EnumVariant(_) => todo!(),
         }
     }
 

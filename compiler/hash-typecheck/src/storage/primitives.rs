@@ -411,6 +411,25 @@ pub struct TyFnTy {
     pub return_ty: TyId,
 }
 
+/// An enum variant value, consisting of a [NominalDefId] pointing to an enum, as well as the
+/// variant of the enum in the form of an [Identifier].
+///
+/// Has a level 0 type.
+#[derive(Debug, Clone)]
+pub struct EnumVariantValue {
+    pub enum_def_id: NominalDefId,
+    pub variant_name: Identifier,
+}
+
+/// An access value, which is of the form X::Y, where X is a value and Y is an identifier.
+///
+/// Has level N where N is the level of the Y property of X.
+#[derive(Debug, Clone)]
+pub struct AccessValue {
+    pub subject_id: ValueId,
+    pub name: Identifier,
+}
+
 /// The basic data structure of a compile-time value, or [Value::Rt] if the value is run-time.
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -434,6 +453,10 @@ pub enum Value {
     ///
     /// Has a level N type, where N is the level of the resultant application.
     AppTyFn(AppTyFn),
+    /// A type function application.
+    ///
+    /// Has a level N type, where N is the level of the resultant application.
+    Access(AccessValue),
     /// Modules or impls.
     ///
     /// Modules and trait implementations, as well as anonymous implementations, are treated as
@@ -452,6 +475,10 @@ pub enum Value {
     ///
     /// Has a level N type, where N is the level of the type of the variable in the context
     Var(Var),
+    /// An enum variant, which is either a constant value or a function type.
+    ///
+    /// Has a level 0 type.
+    EnumVariant(EnumVariantValue),
     /// Merge of multiple values.
     ///
     /// Inner types must have the same level.
