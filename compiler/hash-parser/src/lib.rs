@@ -13,7 +13,7 @@ use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast;
 use hash_lexer::Lexer;
 use hash_pipeline::sources::{Module, Sources};
-use hash_pipeline::{CompilerResult, Parser};
+use hash_pipeline::{traits::Parser, CompilerResult};
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};

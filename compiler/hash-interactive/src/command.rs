@@ -2,6 +2,7 @@
 //
 // All rights reserved 2022 (c) The Hash Language authors
 
+use hash_pipeline::settings::{CompilerJobParams, CompilerMode};
 use hash_reporting::errors::InteractiveCommandError;
 
 #[derive(Debug, Clone)]
@@ -18,6 +19,19 @@ pub enum InteractiveCommand<'i> {
     Version,
     /// A string representing a statement that will be executed
     Code(&'i str),
+}
+
+impl From<&InteractiveCommand<'_>> for CompilerJobParams {
+    fn from(command: &InteractiveCommand<'_>) -> Self {
+        // Here, we don't care about all of the other modes except `Type` and `Display`
+        // since these will either be pre-emptively handled by the REPL, or it will execute
+        // the full stage.
+        match command {
+            InteractiveCommand::Display(_) => CompilerJobParams::new(CompilerMode::Parse, true),
+            InteractiveCommand::Type(_) => CompilerJobParams::new(CompilerMode::Typecheck, true),
+            _ => CompilerJobParams::default(),
+        }
+    }
 }
 
 struct CommandDelegator<'i> {

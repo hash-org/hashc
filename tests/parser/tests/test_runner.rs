@@ -5,7 +5,7 @@ use std::fs;
 use hash_parser::HashParser;
 use hash_pipeline::{
     sources::{Module, Sources},
-    Parser,
+    traits::Parser,
 };
 use hash_reporting::reporting::{Report, ReportWriter};
 use hash_source::SourceId;
