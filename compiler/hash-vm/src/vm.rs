@@ -4,7 +4,7 @@
 
 use std::cell::Cell;
 
-use hash_pipeline::VirtualMachine;
+use hash_pipeline::traits::VirtualMachine;
 use hash_reporting::reporting::Report;
 
 use crate::{

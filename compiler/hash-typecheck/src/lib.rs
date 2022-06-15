@@ -4,7 +4,7 @@
 //! program that is given as input to the compiler.
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
-use hash_pipeline::{CompilerResult, Tc};
+use hash_pipeline::{traits::Tc, CompilerResult};
 
 pub mod error;
 pub mod fmt;

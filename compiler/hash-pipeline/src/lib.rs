@@ -10,81 +10,19 @@
 pub mod fs;
 pub mod settings;
 pub mod sources;
+pub mod traits;
 
 use std::{collections::HashMap, time::Duration};
 
 use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::reporting::{Report, ReportWriter};
-use hash_source::{InteractiveId, ModuleId, SourceId};
+use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::Sources;
+use traits::{Parser, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Report>;
-
-/// The [Parser] represents an abstract parser that can parse all aspects of the Hash programming
-/// language.
-pub trait Parser<'pool> {
-    /// Given a [SourceId], parse the current job and append any parsed modules to the
-    /// provided sources parameter. On success, the function returns nothing and on
-    /// failure, the stage provides a generated diagnostics [Report].
-    fn parse(
-        &mut self,
-        target: SourceId,
-        sources: &mut Sources,
-        pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()>;
-}
-
-/// The [Checker] represents an abstract type checker that implements all the specified
-/// typechecking methods and internally performs some kind of typechecking operations.
-/// The methods [Checker::check_module] and [Checker::check_interactive] will return
-/// a unit on success, or a generated diagnostic error report which can be displayed
-/// and printed by the user of the pipeline. Both functions modify the states of the
-/// checker and return them regardless of error, both states are considered to be the
-/// new states and should be set in the compiler pipeline.
-pub trait Tc<'c> {
-    /// The general [Checker] state. This is implementation specific to the
-    /// typechecker that implements this trait. The pipeline should have no
-    /// dealings with the actual state, except saving it.
-    type State;
-
-    /// Make the general [Checker::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
-    /// Given a [InteractiveId], check the interactive statement with the specific rules
-    /// that are applied in interactive rules. The function accepts the previous [Checker]
-    /// state and previous [Checker::InteractiveState].
-    fn check_interactive<'pool>(
-        &'pool mut self,
-        interactive_id: InteractiveId,
-        sources: &Sources,
-        state: &mut Self::State,
-    ) -> CompilerResult<String>;
-
-    /// Given a [ModuleId], check the module. The function accepts the previous [Checker]
-    /// state and [Checker::ModuleState]
-    fn check_module(
-        &mut self,
-        module_id: ModuleId,
-        sources: &Sources,
-        state: &mut Self::State,
-    ) -> CompilerResult<()>;
-}
-
-/// The virtual machine trait
-pub trait VirtualMachine<'c> {
-    /// The general [VirtualMachine] state. This is implementation specific to the
-    /// VM that implements this trait. The pipeline should have no
-    /// dealings with the actual state, except saving it.
-    type State;
-
-    /// Make the general [VirtualMachine::State].
-    fn make_state(&mut self) -> CompilerResult<Self::State>;
-
-    /// Run the currently generated VM
-    fn run(&mut self, state: &mut Self::State) -> CompilerResult<()>;
-}
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Compiler] with the specified components. This allows external tinkerers
@@ -153,7 +91,7 @@ where
     }
 
     /// Create a compiler state to accompany with compiler execution. Internally, this
-    /// calls the [Checker] state making functions and saves it into the created
+    /// calls the [Tc] state making functions and saves it into the created
     /// [CompilerState].
     pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, C, V>> {
         let sources = Sources::new();
