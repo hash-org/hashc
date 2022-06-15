@@ -9,6 +9,7 @@ mod crash_handler;
 mod logger;
 
 use clap::Parser as ClapParser;
+use hash_ast_desugaring::AstDesugaring;
 use hash_parser::HashParser;
 use hash_pipeline::{
     fs::resolve_path,
@@ -27,7 +28,7 @@ use std::panic;
 use std::{env, fs};
 
 use crate::{
-    args::{AstGenMode, CheckMode, CompilerOptions, IrGenMode, SubCmd},
+    args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},
     crash_handler::panic_handler,
 };
 
@@ -65,6 +66,7 @@ fn main() {
     // compiler has been specified to run in a specific mode.
     let entry_point = match &opts.mode {
         Some(SubCmd::AstGen(AstGenMode { filename })) => Some(filename.clone()),
+        Some(SubCmd::DeSugar(DeSugarMode { filename })) => Some(filename.clone()),
         Some(SubCmd::IrGen(IrGenMode { filename })) => Some(filename.clone()),
         Some(SubCmd::Check(CheckMode { filename })) => Some(filename.clone()),
         None => opts.filename,
@@ -81,6 +83,7 @@ fn main() {
         .into();
 
     let parser = HashParser::new();
+    let desugarer = AstDesugaring;
     let checker = Typechecker;
 
     // Create the vm
@@ -95,7 +98,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut compiler = Compiler::new(parser, checker, vm, &pool, compiler_settings);
+    let mut compiler = Compiler::new(parser, desugarer, checker, vm, &pool, compiler_settings);
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {
@@ -120,6 +123,9 @@ fn main() {
                 let job_settings = match opts.mode {
                     Some(SubCmd::AstGen { .. }) => {
                         CompilerJobParams::new(CompilerMode::Parse, opts.debug)
+                    }
+                    Some(SubCmd::DeSugar { .. }) => {
+                        CompilerJobParams::new(CompilerMode::DeSugar, opts.debug)
                     }
                     Some(SubCmd::Check { .. }) => {
                         CompilerJobParams::new(CompilerMode::Typecheck, opts.debug)

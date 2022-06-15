@@ -40,8 +40,17 @@ pub(crate) struct CompilerOptions {
 #[derive(ClapParser)]
 pub(crate) enum SubCmd {
     AstGen(AstGenMode),
+    DeSugar(DeSugarMode),
     IrGen(IrGenMode),
     Check(CheckMode),
+}
+
+/// Desugar from given input file
+#[derive(ClapParser)]
+pub(crate) struct DeSugarMode {
+    /// Input filename of the module
+    #[clap(required = true)]
+    pub(crate) filename: String,
 }
 
 /// Generate AST from given input file
@@ -51,6 +60,7 @@ pub(crate) struct AstGenMode {
     #[clap(required = true)]
     pub(crate) filename: String,
 }
+
 /// Generate IR from the given input file
 #[derive(ClapParser)]
 pub(crate) struct IrGenMode {

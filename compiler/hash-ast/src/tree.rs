@@ -698,7 +698,7 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         let walk::LoopBlock(inner) = walk::walk_loop_block(self, ctx, node)?;
-        Ok(TreeNode::branch("loop", inner.children))
+        Ok(TreeNode::branch("loop", vec![inner]))
     }
 
     type ForLoopBlockRet = TreeNode;
@@ -1284,17 +1284,21 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let walk::BindingPattern {
-            name,
-            visibility,
-            mutability,
-        } = walk::walk_binding_pattern(self, ctx, node)?;
+        let walk::BindingPattern { name, .. } = walk::walk_binding_pattern(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "binding",
-            iter::once(TreeNode::leaf(labelled("binding", name.label, "\"")))
-                .chain(visibility.map(|t| TreeNode::branch("visibility", vec![t])))
-                .chain(mutability.map(|t| TreeNode::branch("mutability", vec![t])))
+            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
+                .chain(
+                    node.visibility
+                        .as_ref()
+                        .map(|t| TreeNode::leaf(labelled("visibility", t.body(), "\""))),
+                )
+                .chain(
+                    node.mutability
+                        .as_ref()
+                        .map(|t| TreeNode::leaf(labelled("mutability", t.body(), "\""))),
+                )
                 .collect(),
         ))
     }

@@ -31,6 +31,11 @@ impl InteractiveBlock {
         self.node.as_ref().unwrap().ast_ref()
     }
 
+    /// Get a [AstNodeRefMut] to the inner [ast::BodyBlock]
+    pub fn node_mut(&mut self) -> ast::AstNodeRefMut<ast::BodyBlock> {
+        self.node.as_mut().unwrap().ast_ref_mut()
+    }
+
     pub fn contents(&self) -> &str {
         &self.contents
     }
