@@ -1,16 +1,15 @@
 //! Contains utilities to format types for displaying in error messages and debug output.
 use crate::storage::{
     primitives::{
-        AppTyFn, Args, EnumDef, FnTy, ModDefId, ModDefOrigin, NominalDef, NominalDefId, Params,
-        StructDef, TrtDefId, TupleTy, Ty, TyFnTy, TyFnValue, TyId, UnresolvedTy, Value, ValueId,
-        Var,
+        Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
+        NominalDef, NominalDefId, Params, StructDef, Term, TermId, TrtDefId, UnresolvedTerm,
     },
     GlobalStorage,
 };
 use core::fmt;
 use std::cell::Cell;
 
-/// Contains methods to format types, traits, values etc.
+/// Contains methods to format terms like types, traits, values etc.
 ///
 /// It needs access to [GlobalStorage] in order to resolve nested structures of types/traits/etc.
 ///
@@ -43,7 +42,7 @@ impl<'gs> TcFormatter<'gs> {
                     )?;
                 }
                 None => {
-                    self.fmt_ty(f, param.ty, &Cell::new(false))?;
+                    self.fmt_term(f, param.ty, &Cell::new(false))?;
                 }
             }
             if i != params.positional().len() - 1 {
@@ -67,38 +66,13 @@ impl<'gs> TcFormatter<'gs> {
                     )?;
                 }
                 None => {
-                    self.fmt_value(f, arg.value, &Cell::new(false))?;
+                    self.fmt_term(f, arg.value, &Cell::new(false))?;
                 }
             }
             if i != args.positional().len() - 1 {
                 write!(f, ", ")?;
             }
         }
-
-        Ok(())
-    }
-
-    /// Format the given [AppTyFn] with the given formatter.
-    pub fn fmt_app_ty_fn(&self, f: &mut fmt::Formatter, app_ty_fn: &AppTyFn) -> fmt::Result {
-        let subject_is_atomic = Cell::new(false);
-        let subject_fmt = format!(
-            "{}",
-            app_ty_fn
-                .ty_fn_value
-                .for_formatting_with_atomic_flag(self.global_storage, &subject_is_atomic)
-        );
-
-        if !subject_is_atomic.get() {
-            write!(f, "(")?;
-        }
-        write!(f, "{}", subject_fmt)?;
-        if !subject_is_atomic.get() {
-            write!(f, ")")?;
-        }
-        write!(f, "<")?;
-
-        self.fmt_args(f, &app_ty_fn.args)?;
-        write!(f, ">")?;
 
         Ok(())
     }
@@ -116,35 +90,15 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format the given [Var] with the given formatter.
-    pub fn fmt_var(&self, f: &mut fmt::Formatter, var: &Var) -> fmt::Result {
-        for (i, name) in var.names.iter().enumerate() {
-            write!(f, "{}", name)?;
-            if i != var.names.len() - 1 {
-                write!(f, "::")?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Format the [Value] indexed by the given [ValueId] with the given formatter.
-    pub fn fmt_value(
+    /// Format a level 2 term.
+    pub fn fmt_level0_term(
         &self,
         f: &mut fmt::Formatter,
-        value_id: ValueId,
+        term: &Level0Term,
         is_atomic: &Cell<bool>,
     ) -> fmt::Result {
-        match self.global_storage.value_store.get(value_id) {
-            Value::Trt(trt_def_id) => {
-                is_atomic.set(true);
-                self.fmt_trt_def(f, *trt_def_id)?;
-                Ok(())
-            }
-            Value::Ty(ty_id) => {
-                self.fmt_ty(f, *ty_id, is_atomic)?;
-                Ok(())
-            }
-            Value::Rt(ty_id) => {
+        match term {
+            Level0Term::Rt(ty_id) => {
                 is_atomic.set(true);
                 write!(
                     f,
@@ -152,13 +106,132 @@ impl<'gs> TcFormatter<'gs> {
                     ty_id.for_formatting(self.global_storage)
                 )
             }
-            Value::TyFn(TyFnValue {
-                name,
-                general_params,
-                general_return_ty,
-                cases,
-            }) => {
-                match name {
+            Level0Term::EnumVariant(enum_variant) => {
+                is_atomic.set(true);
+                write!(
+                    f,
+                    "{{enum variant '{}' of {}}}",
+                    enum_variant.variant_name,
+                    enum_variant.enum_def_id.for_formatting(self.global_storage)
+                )
+            }
+        }
+    }
+
+    /// Format a level 1 term.
+    pub fn fmt_level1_term(
+        &self,
+        f: &mut fmt::Formatter,
+        term: &Level1Term,
+        is_atomic: &Cell<bool>,
+    ) -> fmt::Result {
+        match term {
+            Level1Term::ModDef(mod_def_id) => self.fmt_mod_def(f, *mod_def_id, is_atomic),
+            Level1Term::NominalDef(nominal_def_id) => {
+                self.fmt_nominal_def(f, *nominal_def_id, is_atomic)
+            }
+            Level1Term::Tuple(tuple) => {
+                is_atomic.set(true);
+                write!(f, "(")?;
+                self.fmt_params(f, &tuple.members)?;
+                write!(f, ")")?;
+                Ok(())
+            }
+            Level1Term::Fn(fn_term) => {
+                is_atomic.set(false);
+                write!(f, "(")?;
+                self.fmt_params(f, &fn_term.params)?;
+                write!(f, ") -> ")?;
+                self.fmt_term(f, fn_term.return_ty, &Cell::new(false))?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Format a level 2 term.
+    pub fn fmt_level2_term(
+        &self,
+        f: &mut fmt::Formatter,
+        term: &Level2Term,
+        is_atomic: &Cell<bool>,
+    ) -> fmt::Result {
+        is_atomic.set(true);
+        match term {
+            Level2Term::Trt(trt_def_id) => self.fmt_trt_def(f, *trt_def_id),
+            Level2Term::AnyTy => {
+                write!(f, "Type")
+            }
+        }
+    }
+
+    /// Format a level 3 term.
+    pub fn fmt_level3_term(
+        &self,
+        f: &mut fmt::Formatter,
+        term: &Level3Term,
+        is_atomic: &Cell<bool>,
+    ) -> fmt::Result {
+        is_atomic.set(true);
+        match term {
+            Level3Term::TrtKind => write!(f, "Trait"),
+        }
+    }
+
+    /// Format the [Term] indexed by the given [TermId] with the given formatter.
+    pub fn fmt_term(
+        &self,
+        f: &mut fmt::Formatter,
+        term_id: TermId,
+        is_atomic: &Cell<bool>,
+    ) -> fmt::Result {
+        match self.global_storage.term_store.get(term_id) {
+            Term::Access(access_term) => {
+                is_atomic.set(true);
+                let subject_is_atomic = Cell::new(false);
+                let subject_fmt = format!(
+                    "{}",
+                    access_term
+                        .subject_id
+                        .for_formatting_with_atomic_flag(self.global_storage, &subject_is_atomic)
+                );
+                if !subject_is_atomic.get() {
+                    write!(f, "(")?;
+                }
+                write!(f, "{}", subject_fmt)?;
+                if !subject_is_atomic.get() {
+                    write!(f, ")")?;
+                }
+                write!(f, "::{}", access_term.name)?;
+                Ok(())
+            }
+            Term::Var(var) => {
+                write!(f, "{}", var.name)
+            }
+            Term::Merge(terms) => {
+                is_atomic.set(false);
+                for (i, term) in terms.iter().enumerate() {
+                    let term_is_atomic = Cell::new(false);
+                    let term_fmt = format!(
+                        "{}",
+                        term.for_formatting_with_atomic_flag(self.global_storage, &term_is_atomic)
+                    );
+
+                    if !term_is_atomic.get() {
+                        write!(f, "(")?;
+                    }
+                    write!(f, "{}", term_fmt)?;
+                    if !term_is_atomic.get() {
+                        write!(f, ")")?;
+                    }
+
+                    if i != terms.len() - 1 {
+                        write!(f, " ~ ")?;
+                    }
+                }
+                Ok(())
+            }
+            Term::TyFn(ty_fn) => {
+                match ty_fn.name {
                     Some(name) => {
                         is_atomic.set(true);
                         write!(f, "{}", name)?;
@@ -167,14 +240,14 @@ impl<'gs> TcFormatter<'gs> {
                     None => {
                         is_atomic.set(false);
                         write!(f, "<")?;
-                        self.fmt_params(f, general_params)?;
+                        self.fmt_params(f, &ty_fn.general_params)?;
                         write!(f, "> -> ")?;
-                        self.fmt_ty(f, *general_return_ty, &Cell::new(false))?;
+                        self.fmt_term(f, ty_fn.general_return_ty, &Cell::new(false))?;
 
-                        if let Some(case) = cases.first() {
+                        if let Some(case) = ty_fn.cases.first() {
                             write!(f, " => ")?;
                             let is_atomic = Cell::new(false);
-                            self.fmt_value(f, case.return_value, &is_atomic)?;
+                            self.fmt_term(f, case.return_value, &is_atomic)?;
                         }
 
                         // We assume only the first case is the base one
@@ -183,64 +256,57 @@ impl<'gs> TcFormatter<'gs> {
                     }
                 }
             }
-            Value::AppTyFn(app_ty_fn) => {
-                is_atomic.set(true);
-                self.fmt_app_ty_fn(f, app_ty_fn)
-            }
-            Value::Var(var) => {
-                is_atomic.set(true);
-                self.fmt_var(f, var)
-            }
-            Value::Merge(values) => {
+            Term::TyFnTy(ty_fn_ty) => {
                 is_atomic.set(false);
-                for (i, value) in values.iter().enumerate() {
-                    let value_is_atomic = Cell::new(false);
-                    let value_fmt = format!(
-                        "{}",
-                        value
-                            .for_formatting_with_atomic_flag(self.global_storage, &value_is_atomic)
-                    );
-
-                    if !value_is_atomic.get() {
-                        write!(f, "(")?;
-                    }
-                    write!(f, "{}", value_fmt)?;
-                    if !value_is_atomic.get() {
-                        write!(f, ")")?;
-                    }
-
-                    if i != values.len() - 1 {
-                        write!(f, " ~ ")?;
-                    }
-                }
+                write!(f, "<")?;
+                self.fmt_params(f, &ty_fn_ty.params)?;
+                write!(f, "> -> ")?;
+                self.fmt_term(f, ty_fn_ty.return_ty, &Cell::new(false))?;
                 Ok(())
             }
-            Value::Unset(inner) => {
-                is_atomic.set(true);
-                write!(
-                    f,
-                    "{{unset value of type {}}}",
-                    inner.for_formatting(self.global_storage)
-                )
+            Term::AppTyFn(app_ty_fn) => {
+                let subject_is_atomic = Cell::new(false);
+                let subject_fmt = format!(
+                    "{}",
+                    app_ty_fn
+                        .ty_fn_value
+                        .for_formatting_with_atomic_flag(self.global_storage, &subject_is_atomic)
+                );
+
+                if !subject_is_atomic.get() {
+                    write!(f, "(")?;
+                }
+                write!(f, "{}", subject_fmt)?;
+                if !subject_is_atomic.get() {
+                    write!(f, ")")?;
+                }
+                write!(f, "<")?;
+
+                self.fmt_args(f, &app_ty_fn.args)?;
+                write!(f, ">")?;
+
+                Ok(())
             }
-            Value::ModDef(mod_def_id) => self.fmt_mod_def(f, *mod_def_id, is_atomic),
-            Value::NominalDef(nominal_def_id) => {
-                self.fmt_nominal_def(f, *nominal_def_id, is_atomic)
+            Term::Unresolved(unresolved_term) => {
+                write!(f, "{{unresolved({:?})}}", unresolved_term.resolution_id)
             }
-            // @@Todo: fmt for these
-            Value::Access(_) => todo!(),
-            Value::EnumVariant(_) => todo!(),
+            Term::Level3(term) => self.fmt_level3_term(f, term, is_atomic),
+            Term::Level2(term) => self.fmt_level2_term(f, term, is_atomic),
+            Term::Level1(term) => self.fmt_level1_term(f, term, is_atomic),
+            Term::Level0(term) => self.fmt_level0_term(f, term, is_atomic),
         }
     }
 
+    /// Format a [Term::Unresolved], printing its resolution ID.
     pub fn fmt_unresolved(
         &self,
         f: &mut fmt::Formatter,
-        UnresolvedTy { resolution_id }: &UnresolvedTy,
+        UnresolvedTerm { resolution_id }: &UnresolvedTerm,
     ) -> fmt::Result {
         write!(f, "{{unresolved({:?})}}", resolution_id,)
     }
 
+    /// Format a [NominalDef] indexed by the given [NominalDefId].
     pub fn fmt_nominal_def(
         &self,
         f: &mut fmt::Formatter,
@@ -269,6 +335,7 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
+    /// Format a [ModDef](crate::storage::primitives::ModDef) indexed by the given [ModDefId].
     pub fn fmt_mod_def(
         &self,
         f: &mut fmt::Formatter,
@@ -300,96 +367,6 @@ impl<'gs> TcFormatter<'gs> {
                     write!(f, "source(..)")
                 }
             },
-        }
-    }
-
-    /// Format the [Ty] indexed by the given [TyId] with the given formatter.
-    pub fn fmt_ty(
-        &self,
-        f: &mut fmt::Formatter,
-        ty_id: TyId,
-        is_atomic: &Cell<bool>,
-    ) -> fmt::Result {
-        match self.global_storage.ty_store.get(ty_id) {
-            Ty::NominalDef(nominal_def_id) => self.fmt_nominal_def(f, *nominal_def_id, is_atomic),
-            Ty::ModDef(mod_def_id) => self.fmt_mod_def(f, *mod_def_id, is_atomic),
-            Ty::Tuple(TupleTy { members }) => {
-                is_atomic.set(true);
-                write!(f, "(")?;
-                self.fmt_params(f, members)?;
-                write!(f, ")")?;
-
-                Ok(())
-            }
-            Ty::Fn(FnTy { params, return_ty }) => {
-                is_atomic.set(false);
-                write!(f, "(")?;
-                self.fmt_params(f, params)?;
-                write!(f, ") -> ")?;
-                self.fmt_ty(f, *return_ty, &Cell::new(false))?;
-                Ok(())
-            }
-            Ty::Var(var) => {
-                is_atomic.set(true);
-                self.fmt_var(f, var)
-            }
-            Ty::TyFn(TyFnTy { params, return_ty }) => {
-                is_atomic.set(false);
-
-                write!(f, "<")?;
-                self.fmt_params(f, params)?;
-                write!(f, "> -> ")?;
-                self.fmt_ty(f, *return_ty, &Cell::new(false))?;
-
-                Ok(())
-            }
-            Ty::AppTyFn(app_ty_fn) => {
-                is_atomic.set(true);
-                self.fmt_app_ty_fn(f, app_ty_fn)
-            }
-            Ty::Trt => {
-                is_atomic.set(true);
-                write!(f, "Trait")
-            }
-            Ty::Ty(None) => {
-                is_atomic.set(true);
-                write!(f, "Type")
-            }
-            Ty::Ty(Some(bound_trt_def_id)) => {
-                write!(
-                    f,
-                    "{}",
-                    bound_trt_def_id
-                        .for_formatting_with_atomic_flag(self.global_storage, is_atomic)
-                )
-            }
-            Ty::Merge(tys) => {
-                is_atomic.set(false);
-                for (i, ty) in tys.iter().enumerate() {
-                    let ty_is_atomic = Cell::new(false);
-                    let ty_fmt = format!(
-                        "{}",
-                        ty.for_formatting_with_atomic_flag(self.global_storage, &ty_is_atomic)
-                    );
-
-                    if !ty_is_atomic.get() {
-                        write!(f, "(")?;
-                    }
-                    write!(f, "{}", ty_fmt)?;
-                    if !ty_is_atomic.get() {
-                        write!(f, ")")?;
-                    }
-
-                    if i != tys.len() - 1 {
-                        write!(f, " ~ ")?;
-                    }
-                }
-                Ok(())
-            }
-            Ty::Unresolved(unresolved) => {
-                is_atomic.set(true);
-                self.fmt_unresolved(f, unresolved)
-            }
         }
     }
 }
@@ -434,26 +411,16 @@ pub trait PrepareForFormatting: Sized {
     }
 }
 
-impl PrepareForFormatting for ValueId {}
-impl PrepareForFormatting for TyId {}
+impl PrepareForFormatting for TermId {}
 impl PrepareForFormatting for TrtDefId {}
 impl PrepareForFormatting for ModDefId {}
+impl PrepareForFormatting for NominalDefId {}
 
 // Convenience implementations of Display for the types that implement PrepareForFormatting:
 
-impl fmt::Display for ForFormatting<'_, '_, ValueId> {
+impl fmt::Display for ForFormatting<'_, '_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        TcFormatter::new(self.global_storage).fmt_value(
-            f,
-            self.t,
-            self.is_atomic.unwrap_or(&Cell::new(false)),
-        )
-    }
-}
-
-impl fmt::Display for ForFormatting<'_, '_, TyId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        TcFormatter::new(self.global_storage).fmt_ty(
+        TcFormatter::new(self.global_storage).fmt_term(
             f,
             self.t,
             self.is_atomic.unwrap_or(&Cell::new(false)),
@@ -464,5 +431,25 @@ impl fmt::Display for ForFormatting<'_, '_, TyId> {
 impl fmt::Display for ForFormatting<'_, '_, TrtDefId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_trt_def(f, self.t)
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, '_, ModDefId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_mod_def(
+            f,
+            self.t,
+            self.is_atomic.unwrap_or(&Cell::new(false)),
+        )
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, '_, NominalDefId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_nominal_def(
+            f,
+            self.t,
+            self.is_atomic.unwrap_or(&Cell::new(false)),
+        )
     }
 }

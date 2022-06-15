@@ -44,12 +44,14 @@ pub struct ScopeStack {
 }
 
 impl ScopeStack {
+    /// Create a [ScopeStack] from a single scope.
     pub fn singular(scope_id: ScopeId) -> Self {
         Self {
             scopes: vec![scope_id],
         }
     }
 
+    /// Create a [ScopeStack] from a collection of scopes.
     pub fn many(scopes: impl IntoIterator<Item = ScopeId>) -> Self {
         Self {
             scopes: scopes.into_iter().collect(),
