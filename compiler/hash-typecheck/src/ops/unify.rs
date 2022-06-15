@@ -218,6 +218,16 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         }
     }
 
+    /// Simplify the given type, just returning the original if no simplification occured.
+    pub fn potentially_simplify_ty(&mut self, ty_id: TyId) -> TcResult<TyId> {
+        Ok(self.simplify_ty(ty_id)?.unwrap_or(ty_id))
+    }
+
+    /// Simplify the given value, just returning the original if no simplification occured.
+    pub fn potentially_simplify_value(&mut self, value_id: ValueId) -> TcResult<ValueId> {
+        Ok(self.simplify_value(value_id)?.unwrap_or(value_id))
+    }
+
     /// Simplify the given type.
     ///
     /// This basically evaluates any [Ty::AppTyFn], and if this is done it returns
@@ -321,6 +331,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                 self.primitive_builder().create_merge_ty(inner_tys)
             }
             Value::Unset(ty_id) => ty_id,
+            Value::Access(_) => todo!(),
+            Value::EnumVariant(_) => todo!(),
         })
     }
 
@@ -359,6 +371,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                 // @@Correctness is this right?
                 Err(TcError::CannotUseValueAsTy(value_id))
             }
+            Value::Access(_) => todo!(),
+            Value::EnumVariant(_) => todo!(),
         }
     }
 
@@ -433,6 +447,38 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             (Value::Merge(_), Value::NominalDef(_)) => todo!(),
             (Value::Merge(_), Value::Var(_)) => todo!(),
             (Value::Merge(_), Value::Merge(_)) => todo!(),
+            (Value::Trt(_), Value::Access(_)) => todo!(),
+            (Value::Trt(_), Value::EnumVariant(_)) => todo!(),
+            (Value::Ty(_), Value::Access(_)) => todo!(),
+            (Value::Ty(_), Value::EnumVariant(_)) => todo!(),
+            (Value::TyFn(_), Value::Access(_)) => todo!(),
+            (Value::TyFn(_), Value::EnumVariant(_)) => todo!(),
+            (Value::Access(_), Value::Trt(_)) => todo!(),
+            (Value::Access(_), Value::Ty(_)) => todo!(),
+            (Value::Access(_), Value::TyFn(_)) => todo!(),
+            (Value::Access(_), Value::Access(_)) => todo!(),
+            (Value::Access(_), Value::ModDef(_)) => todo!(),
+            (Value::Access(_), Value::NominalDef(_)) => todo!(),
+            (Value::Access(_), Value::Var(_)) => todo!(),
+            (Value::Access(_), Value::EnumVariant(_)) => todo!(),
+            (Value::Access(_), Value::Merge(_)) => todo!(),
+            (Value::ModDef(_), Value::Access(_)) => todo!(),
+            (Value::ModDef(_), Value::EnumVariant(_)) => todo!(),
+            (Value::NominalDef(_), Value::Access(_)) => todo!(),
+            (Value::NominalDef(_), Value::EnumVariant(_)) => todo!(),
+            (Value::Var(_), Value::Access(_)) => todo!(),
+            (Value::Var(_), Value::EnumVariant(_)) => todo!(),
+            (Value::EnumVariant(_), Value::Trt(_)) => todo!(),
+            (Value::EnumVariant(_), Value::Ty(_)) => todo!(),
+            (Value::EnumVariant(_), Value::TyFn(_)) => todo!(),
+            (Value::EnumVariant(_), Value::Access(_)) => todo!(),
+            (Value::EnumVariant(_), Value::ModDef(_)) => todo!(),
+            (Value::EnumVariant(_), Value::NominalDef(_)) => todo!(),
+            (Value::EnumVariant(_), Value::Var(_)) => todo!(),
+            (Value::EnumVariant(_), Value::EnumVariant(_)) => todo!(),
+            (Value::EnumVariant(_), Value::Merge(_)) => todo!(),
+            (Value::Merge(_), Value::Access(_)) => todo!(),
+            (Value::Merge(_), Value::EnumVariant(_)) => todo!(),
         }
     }
 

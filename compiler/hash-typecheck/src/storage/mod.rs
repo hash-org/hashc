@@ -34,6 +34,7 @@ pub mod tys;
 pub mod values;
 
 /// Keeps track of typechecking information across all source files.
+#[derive(Debug)]
 pub struct GlobalStorage {
     pub ty_store: TyStore,
     pub scope_store: ScopeStore,
@@ -74,6 +75,7 @@ impl Default for GlobalStorage {
 }
 
 /// Keeps track of typechecking information specific to a given source file.
+#[derive(Debug)]
 pub struct LocalStorage {
     /// All the scopes in a given source.
     pub scopes: ScopeStack,
@@ -98,6 +100,7 @@ impl LocalStorage {
 
 /// A reference to the storage, which includes both local and global storage, as well as core
 /// definitions.
+#[derive(Debug, Clone, Copy)]
 pub struct StorageRef<'gs, 'ls, 'cd> {
     pub local_storage: &'ls LocalStorage,
     pub global_storage: &'gs GlobalStorage,
@@ -106,6 +109,7 @@ pub struct StorageRef<'gs, 'ls, 'cd> {
 
 /// A mutable reference to the storage, which includes both local and global storage, as well as
 /// core definitions.
+#[derive(Debug)]
 pub struct StorageRefMut<'gs, 'ls, 'cd> {
     pub local_storage: &'ls mut LocalStorage,
     pub global_storage: &'gs mut GlobalStorage,

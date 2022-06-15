@@ -20,5 +20,5 @@ pub enum TcError {
     ParamNotFound(Params, Identifier),
     ParamGivenTwice(Args, Params, usize),
     UnresolvedSymbol(Identifier),
-    TryingToNamespaceValue(ValueId),
+    TryingToNamespaceNonNamespaceable(ValueId),
 }
