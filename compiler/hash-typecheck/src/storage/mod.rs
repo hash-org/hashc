@@ -9,6 +9,8 @@
 
 use hash_source::SourceId;
 
+use crate::ops::{building::PrimitiveBuilder, reader::PrimitiveReader};
+
 use self::{
     core::CoreDefs,
     mods::ModDefStore,
@@ -117,6 +119,11 @@ pub struct StorageRefMut<'gs, 'ls, 'cd> {
 pub trait AccessToStorage {
     fn storages(&self) -> StorageRef;
 
+    /// Create an instance of [PrimitiveReader] from the global storage.
+    fn reader(&self) -> PrimitiveReader {
+        PrimitiveReader::new(self.global_storage())
+    }
+
     fn global_storage(&self) -> &GlobalStorage {
         self.storages().global_storage
     }
@@ -170,6 +177,18 @@ pub trait AccessToStorage {
 /// path to a [StorageRefMut] object.
 pub trait AccessToStorageMut: AccessToStorage {
     fn storages_mut(&mut self) -> StorageRefMut;
+
+    /// Create an instance of [PrimitiveBuilder] from the global storage.
+    fn builder(&mut self) -> PrimitiveBuilder {
+        PrimitiveBuilder::new(self.global_storage_mut())
+    }
+
+    /// Create an instance of [PrimitiveBuilder] from the global storage, with the given scope.
+    ///
+    /// See [PrimitiveBuilder] docs for more information.
+    fn builder_with_scope(&mut self, scope: ScopeId) -> PrimitiveBuilder {
+        PrimitiveBuilder::new_with_scope(self.global_storage_mut(), scope)
+    }
 
     fn global_storage_mut(&mut self) -> &mut GlobalStorage {
         self.storages_mut().global_storage

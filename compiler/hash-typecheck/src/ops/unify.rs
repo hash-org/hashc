@@ -73,11 +73,6 @@ pub enum TermsAreEqual {
     Unsure,
 }
 
-/// Performs type unification and other related operations.
-pub struct Unifier<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
-}
-
 /// Options that are received by the unifier when unifying types.
 pub struct UnifyTysOpts {}
 
@@ -88,13 +83,26 @@ pub enum SubSubject {
     Unresolved(UnresolvedTerm),
 }
 
+/// Performs type unification and other related operations.
+pub struct Unifier<'gs, 'ls, 'cd> {
+    storage: StorageRefMut<'gs, 'ls, 'cd>,
+}
+
+impl<'gs, 'ls, 'cd> AccessToStorage for Unifier<'gs, 'ls, 'cd> {
+    fn storages(&self) -> crate::storage::StorageRef {
+        self.storage.storages()
+    }
+}
+
+impl<'gs, 'ls, 'cd> AccessToStorageMut for Unifier<'gs, 'ls, 'cd> {
+    fn storages_mut(&mut self) -> StorageRefMut {
+        self.storage.storages_mut()
+    }
+}
+
 impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
-    }
-
-    fn primitive_builder(&mut self) -> PrimitiveBuilder {
-        PrimitiveBuilder::new(self.storage.global_storage_mut())
     }
 
     /// Pair the given parameters with the given arguments.
@@ -241,7 +249,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     .collect::<Result<Vec<_>, _>>()?;
                 if inner_tys.iter().any(|x| x.is_some()) {
                     Ok(Some(
-                        self.primitive_builder().create_merge_term(
+                        self.builder().create_merge_term(
                             inner_tys
                                 .iter()
                                 .zip(inner)
