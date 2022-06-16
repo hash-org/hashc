@@ -374,7 +374,9 @@ dependencies = [
 name = "hash-ast-passes"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "hash-ast",
+ "hash-error-codes",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",

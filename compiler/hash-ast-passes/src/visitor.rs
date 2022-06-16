@@ -2,21 +2,62 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use std::convert::Infallible;
+use std::{convert::Infallible, mem};
 
 use hash_ast::visitor::{walk, AstVisitor};
+use hash_source::{
+    location::{SourceLocation, Span},
+    SourceId,
+};
+
+use crate::error::{AnalysisError, AnalysisErrorKind};
 
 #[derive(Default)]
-pub struct AstPasses;
+pub struct SemanticAnalyser {
+    /// Whether the current visitor is within a loop construct.
+    is_in_loop: bool,
+    /// Whether the current visitor is within a function definition.
+    _is_in_function: bool,
+    /// Any collected errors when passing through the tree
+    errors: Vec<AnalysisError>,
+}
 
-impl AstPasses {
+impl SemanticAnalyser {
+    /// Create a new semantic analyser
     pub fn new() -> Self {
-        Self
+        Self {
+            is_in_loop: false,
+            _is_in_function: false,
+            errors: vec![],
+        }
+    }
+
+    /// Append an error to the error queue.
+    pub fn append_error(&mut self, error: AnalysisErrorKind, span: Span, id: SourceId) {
+        self.errors
+            .push(AnalysisError::new(error, SourceLocation::new(span, id)))
+    }
+
+    pub fn errors(self) -> Vec<AnalysisError> {
+        self.errors
     }
 }
 
-impl AstVisitor for AstPasses {
-    type Ctx = ();
+/// The context of the semantic analysis pass
+pub struct SemanticAnalysisContext {
+    /// The current [SourceId] of the pass
+    pub source_id: SourceId,
+}
+
+impl SemanticAnalysisContext {
+    /// Create a new context.
+    pub fn new(source_id: SourceId) -> Self {
+        Self { source_id }
+    }
+}
+
+impl AstVisitor for SemanticAnalyser {
+    type Ctx = SemanticAnalysisContext;
 
     type CollectionContainer<T> = Vec<T>;
 
@@ -521,10 +562,54 @@ impl AstVisitor for AstPasses {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
+        // Swap the values with a new `true` and save the old state.
+        let last_in_loop = mem::replace(&mut self.is_in_loop, true);
+
         let _ = walk::walk_loop_block(self, ctx, node);
+
+        // Reset the value to the old value
+        self.is_in_loop = last_in_loop;
 
         Ok(())
     }
+
+    type BreakStatementRet = ();
+
+    fn visit_break_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
+    ) -> Result<Self::BreakStatementRet, Self::Error> {
+        if !self.is_in_loop {
+            self.append_error(
+                AnalysisErrorKind::UsingBreakOutsideLoop,
+                node.span(),
+                ctx.source_id,
+            );
+        }
+
+        Ok(())
+    }
+
+    type ContinueStatementRet = ();
+
+    fn visit_continue_statement(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
+    ) -> Result<Self::ContinueStatementRet, Self::Error> {
+        if !self.is_in_loop {
+            self.append_error(
+                AnalysisErrorKind::UsingBreakOutsideLoop,
+                node.span(),
+                ctx.source_id,
+            );
+        }
+
+        Ok(())
+    }
+
+    type VisibilityRet = ();
 
     type ForLoopBlockRet = ();
 
@@ -533,8 +618,8 @@ impl AstVisitor for AstPasses {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        // Specifically left empty since this should never fire!
-        Ok(())
+        // @@TODO: make this an error so it can be reported with a span
+        panic!("hit for-block whilst performing semantic analysis");
     }
 
     type WhileLoopBlockRet = ();
@@ -544,8 +629,8 @@ impl AstVisitor for AstPasses {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        // Specifically left empty since this should never fire!
-        Ok(())
+        // @@TODO: make this an error so it can be reported with a span
+        panic!("hit while-block whilst performing semantic analysis");
     }
 
     type IfClauseRet = ();
@@ -555,8 +640,8 @@ impl AstVisitor for AstPasses {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
-        // Specifically left empty since this should never fire!
-        Ok(())
+        // @@TODO: make this an error so it can be reported with a span
+        panic!("hit if-clause whilst performing semantic analysis");
     }
 
     type IfBlockRet = ();
@@ -567,7 +652,8 @@ impl AstVisitor for AstPasses {
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         // Specifically left empty since this should never fire!
-        Ok(())
+        // @@TODO: make this an error so it can be reported with a span
+        panic!("hit if-block whilst performing semantic analysis");
     }
 
     type ModBlockRet = ();
@@ -613,28 +699,6 @@ impl AstVisitor for AstPasses {
         let _ = walk::walk_return_statement(self, ctx, node);
         Ok(())
     }
-
-    type BreakStatementRet = ();
-
-    fn visit_break_statement(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
-    ) -> Result<Self::BreakStatementRet, Self::Error> {
-        Ok(())
-    }
-
-    type ContinueStatementRet = ();
-
-    fn visit_continue_statement(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
-    ) -> Result<Self::ContinueStatementRet, Self::Error> {
-        Ok(())
-    }
-
-    type VisibilityRet = ();
 
     fn visit_visibility_modifier(
         &mut self,
