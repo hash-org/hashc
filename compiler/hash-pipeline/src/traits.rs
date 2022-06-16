@@ -43,6 +43,27 @@ pub trait Desugar<'pool> {
     ) -> CompilerResult<()>;
 }
 
+/// The [SemanticPass] represents a stage within the compiler that performs various
+/// verifications on the generated AST from the [Parser] and the [Desugar] stage. The
+/// details of the checks that this pass performs is available within the `hash-ast-passes`
+/// crate. However, overall the checks that this stage should perform will be detailed within
+/// the specification of the language.
+pub trait SemanticPass<'pool> {
+    type State;
+
+    /// Make [Self::State].
+    fn make_state(&mut self) -> CompilerResult<Self::State>;
+
+    /// Perform a de-sugaring pass on the provided sources.
+    fn perform_pass(
+        &mut self,
+        target: SourceId,
+        sources: &mut Sources,
+        state: &mut Self::State,
+        pool: &'pool rayon::ThreadPool,
+    ) -> Result<(), Vec<Report>>;
+}
+
 /// The [Tc] represents an abstract type checker that implements all the specified
 /// typechecking methods and internally performs some kind of typechecking operations.
 /// The methods [Tc::check_module] and [Tc::check_interactive] will return

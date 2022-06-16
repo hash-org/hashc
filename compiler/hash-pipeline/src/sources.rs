@@ -65,7 +65,11 @@ impl Module {
         &self.path
     }
 
-    pub fn node(&self) -> ast::AstNodeRef<ast::Module> {
+    pub fn node(&self) -> &ast::Module {
+        self.node.as_ref().unwrap()
+    }
+
+    pub fn node_ref(&self) -> ast::AstNodeRef<ast::Module> {
         self.node.as_ref().unwrap().ast_ref()
     }
 

@@ -327,6 +327,7 @@ dependencies = [
  "clap",
  "hash-alloc",
  "hash-ast-desugaring",
+ "hash-ast-passes",
  "hash-interactive",
  "hash-parser",
  "hash-pipeline",
@@ -363,11 +364,20 @@ dependencies = [
 name = "hash-ast-desugaring"
 version = "0.1.0"
 dependencies = [
- "hash-alloc",
  "hash-ast",
  "hash-pipeline",
  "hash-source",
- "hash-utils",
+ "rayon",
+]
+
+[[package]]
+name = "hash-ast-passes"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-pipeline",
+ "hash-reporting",
+ "hash-source",
  "rayon",
 ]
 
