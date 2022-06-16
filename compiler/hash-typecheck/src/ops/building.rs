@@ -2,10 +2,10 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessTerm, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
+        AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
         Level1Term, Level2Term, Level3Term, Member, ModDefId, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Term, TermId, TrtDef,
-        TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, Var, Visibility,
+        Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId,
+        TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -231,6 +231,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
         })))
     }
 
+    /// Create a tuple type term [Level1Term::Tuple].
+    pub fn create_tuple_ty_term(&self, members: impl IntoIterator<Item = Param>) -> TermId {
+        self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+            members: ParamList::new(members.into_iter().collect()),
+        })))
+    }
+
     /// Create a [Level0Term::Rt] of the given type.
     pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
@@ -369,6 +376,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
             args: Args::new(args.into_iter().collect()),
             subject: ty_fn_value_id,
         }
+    }
+
+    /// Create a substitution application term, given a substitution and inner term.
+    pub fn create_app_sub_term(&self, sub: Sub, term: TermId) -> TermId {
+        self.create_term(Term::AppSub(AppSub { sub, term }))
     }
 
     /// Create an argument with the given name and value.
