@@ -2,7 +2,8 @@
 use crate::storage::{
     primitives::{
         Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
-        NominalDef, NominalDefId, Params, StructDef, Term, TermId, TrtDefId, UnresolvedTerm,
+        NominalDef, NominalDefId, Params, StructDef, SubSubject, Term, TermId, TrtDefId,
+        UnresolvedTerm,
     },
     GlobalStorage,
 };
@@ -177,6 +178,22 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
+    pub fn fmt_term_as_single(&self, f: &mut fmt::Formatter, term_id: TermId) -> fmt::Result {
+        let term_is_atomic = Cell::new(false);
+        let term_fmt = format!(
+            "{}",
+            term_id.for_formatting_with_atomic_flag(self.global_storage, &term_is_atomic)
+        );
+        if !term_is_atomic.get() {
+            write!(f, "(")?;
+        }
+        write!(f, "{}", term_fmt)?;
+        if !term_is_atomic.get() {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+
     /// Format the [Term] indexed by the given [TermId] with the given formatter.
     pub fn fmt_term(
         &self,
@@ -187,20 +204,7 @@ impl<'gs> TcFormatter<'gs> {
         match self.global_storage.term_store.get(term_id) {
             Term::Access(access_term) => {
                 is_atomic.set(true);
-                let subject_is_atomic = Cell::new(false);
-                let subject_fmt = format!(
-                    "{}",
-                    access_term
-                        .subject_id
-                        .for_formatting_with_atomic_flag(self.global_storage, &subject_is_atomic)
-                );
-                if !subject_is_atomic.get() {
-                    write!(f, "(")?;
-                }
-                write!(f, "{}", subject_fmt)?;
-                if !subject_is_atomic.get() {
-                    write!(f, ")")?;
-                }
+                self.fmt_term_as_single(f, access_term.subject_id)?;
                 write!(f, "::{}", access_term.name)?;
                 Ok(())
             }
@@ -209,21 +213,8 @@ impl<'gs> TcFormatter<'gs> {
             }
             Term::Merge(terms) => {
                 is_atomic.set(false);
-                for (i, term) in terms.iter().enumerate() {
-                    let term_is_atomic = Cell::new(false);
-                    let term_fmt = format!(
-                        "{}",
-                        term.for_formatting_with_atomic_flag(self.global_storage, &term_is_atomic)
-                    );
-
-                    if !term_is_atomic.get() {
-                        write!(f, "(")?;
-                    }
-                    write!(f, "{}", term_fmt)?;
-                    if !term_is_atomic.get() {
-                        write!(f, ")")?;
-                    }
-
+                for (i, term_id) in terms.iter().enumerate() {
+                    self.fmt_term_as_single(f, *term_id)?;
                     if i != terms.len() - 1 {
                         write!(f, " ~ ")?;
                     }
@@ -265,30 +256,33 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::AppTyFn(app_ty_fn) => {
-                let subject_is_atomic = Cell::new(false);
-                let subject_fmt = format!(
-                    "{}",
-                    app_ty_fn
-                        .ty_fn_value
-                        .for_formatting_with_atomic_flag(self.global_storage, &subject_is_atomic)
-                );
-
-                if !subject_is_atomic.get() {
-                    write!(f, "(")?;
-                }
-                write!(f, "{}", subject_fmt)?;
-                if !subject_is_atomic.get() {
-                    write!(f, ")")?;
-                }
+                self.fmt_term_as_single(f, app_ty_fn.subject)?;
                 write!(f, "<")?;
-
                 self.fmt_args(f, &app_ty_fn.args)?;
                 write!(f, ">")?;
-
                 Ok(())
             }
             Term::Unresolved(unresolved_term) => {
                 write!(f, "{{unresolved({:?})}}", unresolved_term.resolution_id)
+            }
+            Term::AppSub(app_sub) => {
+                write!(f, "[")?;
+                let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
+                for (i, (from, to)) in pairs.iter().enumerate() {
+                    self.fmt_term_as_single(f, *to)?;
+                    write!(f, "/")?;
+                    match from {
+                        SubSubject::Var(var) => write!(f, "{}", var.name)?,
+                        SubSubject::Unresolved(unresolved) => self.fmt_unresolved(f, unresolved)?,
+                    }
+
+                    if i != pairs.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, "]")?;
+                self.fmt_term_as_single(f, app_sub.term)?;
+                Ok(())
             }
             Term::Level3(term) => self.fmt_level3_term(f, term, is_atomic),
             Term::Level2(term) => self.fmt_level2_term(f, term, is_atomic),
@@ -303,7 +297,7 @@ impl<'gs> TcFormatter<'gs> {
         f: &mut fmt::Formatter,
         UnresolvedTerm { resolution_id }: &UnresolvedTerm,
     ) -> fmt::Result {
-        write!(f, "{{unresolved({:?})}}", resolution_id,)
+        write!(f, "U_{}", resolution_id)
     }
 
     /// Format a [NominalDef] indexed by the given [NominalDefId].
