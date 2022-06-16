@@ -5,10 +5,11 @@
 // @@Remove
 #![allow(unused)]
 
+use super::building::PrimitiveBuilder;
 use crate::{
     error::{TcError, TcResult},
     storage::{
-        primitives::{AppTyFn, Arg, Args, Param, Params, Term, TermId, UnresolvedTerm, Var},
+        primitives::{AppTyFn, Arg, Args, Param, Params, Sub, Term, TermId, UnresolvedTerm, Var},
         scope::ScopeStack,
         AccessToStorage, AccessToStorageMut, GlobalStorage, StorageRefMut,
     },
@@ -19,8 +20,6 @@ use std::{
     collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
 };
-
-use super::{building::PrimitiveBuilder, substitute::Sub};
 
 /// Options that are received by the unifier when unifying types.
 pub struct UnifyTysOpts {}

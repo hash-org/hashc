@@ -3,83 +3,14 @@ use crate::{
     error::TcResult,
     storage::{
         primitives::{
-            AppTyFn, Arg, Args, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamList,
-            Params, Term, TermId, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var,
+            AppSub, AppTyFn, Arg, Args, FnTy, Level0Term, Level1Term, Level2Term, Level3Term,
+            Param, ParamList, Params, Sub, Term, TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
+            UnresolvedTerm, Var,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
 use std::collections::HashMap;
-
-/// The subject of a substitution, either a type variable or an unresolved type.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum SubSubject {
-    Var(Var),
-    Unresolved(UnresolvedTerm),
-}
-
-impl From<Var> for SubSubject {
-    fn from(var: Var) -> Self {
-        SubSubject::Var(var)
-    }
-}
-
-impl From<UnresolvedTerm> for SubSubject {
-    fn from(unresolved: UnresolvedTerm) -> Self {
-        SubSubject::Unresolved(unresolved)
-    }
-}
-
-/// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a type or types.
-#[derive(Debug, Default, Clone)]
-pub struct Sub {
-    data: HashMap<SubSubject, TermId>,
-}
-
-impl Sub {
-    /// Create an empty substitution.
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    /// Create a substitution from pairs of `(TySubSubject, TermId)`.
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (SubSubject, TermId)>) -> Self {
-        Self {
-            data: pairs.into_iter().collect(),
-        }
-    }
-
-    /// Get the substitution for the given [SubSubject], if any.
-    pub fn get_sub_for(&self, subject: SubSubject) -> Option<TermId> {
-        self.data.get(&subject).copied()
-    }
-
-    /// Merge the substitution with another.
-    ///
-    /// Modifies `self`.
-    pub fn merge_with(&mut self, _other: &Sub) {
-        todo!()
-    }
-}
-
-/// kkImplements equality of substitutions in terms of functional equality---will applying A produce
-/// the same type as B?
-///
-/// @@Volatile: This might require having access to the storage to check equality of some things..
-impl PartialEq for Sub {
-    fn eq(&self, other: &Self) -> bool {
-        // @@Todo: more sophisticated substitution equivalence
-        self.data == other.data
-    }
-}
-
-/// A judgement as to whether two values are equal, which also might be unclear (for example if
-/// higher order type variables are involved).
-pub enum TermsAreEqual {
-    Yes,
-    No,
-    Unsure,
-}
 
 /// Can perform substitutions (see [Sub]) on terms.
 pub struct Substitutor<'gs, 'ls, 'cd> {
@@ -141,49 +72,92 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
 
     /// Apply the given substitution to the given [Level3Term], producing a new [Level3Term] with
     /// the substituted variables.
-    pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TcResult<Level3Term> {
+    pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TcResult<TermId> {
         match term {
-            Level3Term::TrtKind => Ok(Level3Term::TrtKind),
+            Level3Term::TrtKind => Ok(self
+                .builder()
+                .create_term(Term::Level3(Level3Term::TrtKind))),
         }
     }
 
     /// Apply the given substitution to the given [Level2Term], producing a new [Level2Term] with
     /// the substituted variables.
-    pub fn apply_sub_to_level2_term(
-        &mut self,
-        _sub: &Sub,
-        term: Level2Term,
-    ) -> TcResult<Level2Term> {
+    pub fn apply_sub_to_level2_term(&mut self, sub: &Sub, term: Level2Term) -> TcResult<TermId> {
         match term {
             Level2Term::Trt(_) => {
-                todo!()
+                // Here we add the substitution to the term
+                let builder = self.builder();
+                Ok(builder
+                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level2(term))))
             }
-            Level2Term::AnyTy => todo!(),
+            Level2Term::AnyTy => Ok(self.builder().create_term(Term::Level2(Level2Term::AnyTy))),
         }
     }
 
     /// Apply the given substitution to the given [Level1Term], producing a new [Level1Term] with
     /// the substituted variables.
-    pub fn apply_sub_to_level1_term(
-        &mut self,
-        _sub: &Sub,
-        _term: Level1Term,
-    ) -> TcResult<Level1Term> {
-        todo!()
+    pub fn apply_sub_to_level1_term(&mut self, sub: &Sub, term: Level1Term) -> TcResult<TermId> {
+        match term {
+            Level1Term::ModDef(_) => {
+                // Here we add the substitution to the term
+                let builder = self.builder();
+                Ok(builder
+                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level1(term))))
+            }
+            Level1Term::NominalDef(_) => {
+                // Here we add the substitution to the term
+                let builder = self.builder();
+                Ok(builder
+                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level1(term))))
+            }
+            Level1Term::Tuple(tuple_ty) => {
+                // Apply to all members
+                let subbed_members = self.apply_sub_to_params(sub, &tuple_ty.members)?;
+                Ok(self
+                    .builder()
+                    .create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+                        members: subbed_members,
+                    }))))
+            }
+            Level1Term::Fn(fn_ty) => {
+                // Apply to parameters and return type
+                let subbed_params = self.apply_sub_to_params(sub, &fn_ty.params)?;
+                let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty)?;
+                Ok(self
+                    .builder()
+                    .create_term(Term::Level1(Level1Term::Fn(FnTy {
+                        params: subbed_params,
+                        return_ty: subbed_return_ty,
+                    }))))
+            }
+        }
     }
 
     /// Apply the given substitution to the given [Level0Term], producing a new [Level0Term] with
     /// the substituted variables.
-    pub fn apply_sub_to_level0_term(
-        &mut self,
-        _sub: &Sub,
-        _term: Level0Term,
-    ) -> TcResult<Level0Term> {
-        todo!()
+    pub fn apply_sub_to_level0_term(&mut self, sub: &Sub, term: Level0Term) -> TcResult<TermId> {
+        match term {
+            Level0Term::Rt(ty_term_id) => {
+                // Apply to the type of the runtime value
+                let subbed_ty_term_id = self.apply_sub_to_term(sub, ty_term_id)?;
+                Ok(self.builder().create_rt_term(subbed_ty_term_id))
+            }
+            Level0Term::EnumVariant(_) => {
+                // Here we add the substitution to the term
+                let builder = self.builder();
+                Ok(builder
+                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level0(term))))
+            }
+        }
     }
 
     /// Apply the given substitution to the term indexed by the given [TermId], producing a new
     /// term with the substituted variables.
+    ///
+    /// Sometimes, this will actually create a [Term::AppSub] somewhere inside the term tree, and
+    /// those are the leaf nodes of the substitution application. This will happen with [ModDef],
+    /// [TrtDef], [NominalDef], and [EnumVariant]. This is so that when [Access] is resolved for
+    /// those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TcResult<TermId> {
         // @@Performance: here we copy a lot, maybe there is a way to avoid all this copying by
         // first checking that the variables to be substituted actually exist in the term.
@@ -258,23 +232,25 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
                     None => Ok(term_id),
                 }
             }
+            Term::AppSub(app_sub) => {
+                // Here, we have to substitute all X in * -> X pairs of the substitution, as well
+                // as the subject term itself.
+                let subbed_sub = app_sub
+                    .sub
+                    .pairs()
+                    .map(|(from, to)| Ok((from, self.apply_sub_to_term(sub, to)?)))
+                    .collect::<TcResult<HashMap<_, _>>>()?;
+                let subbed_term = self.apply_sub_to_term(sub, app_sub.term)?;
+                Ok(self.builder().create_term(Term::AppSub(AppSub {
+                    sub: Sub::from_map(subbed_sub),
+                    term: subbed_term,
+                })))
+            }
             // For the definite-level terms, recurse:
-            Term::Level3(term) => {
-                let subbed_term = self.apply_sub_to_level3_term(sub, term)?;
-                Ok(self.builder().create_term(Term::Level3(subbed_term)))
-            }
-            Term::Level2(term) => {
-                let subbed_term = self.apply_sub_to_level2_term(sub, term)?;
-                Ok(self.builder().create_term(Term::Level2(subbed_term)))
-            }
-            Term::Level1(term) => {
-                let subbed_term = self.apply_sub_to_level1_term(sub, term)?;
-                Ok(self.builder().create_term(Term::Level1(subbed_term)))
-            }
-            Term::Level0(term) => {
-                let subbed_term = self.apply_sub_to_level0_term(sub, term)?;
-                Ok(self.builder().create_term(Term::Level0(subbed_term)))
-            }
+            Term::Level3(term) => self.apply_sub_to_level3_term(sub, term),
+            Term::Level2(term) => self.apply_sub_to_level2_term(sub, term),
+            Term::Level1(term) => self.apply_sub_to_level1_term(sub, term),
+            Term::Level0(term) => self.apply_sub_to_level0_term(sub, term),
         }
     }
 }
