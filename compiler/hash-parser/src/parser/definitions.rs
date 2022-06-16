@@ -4,7 +4,7 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_ast::ast::*;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
 use crate::parser::error::TyArgumentKind;
 
@@ -18,27 +18,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Struct)));
 
-        let entries = match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-                span,
-            }) => {
-                self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, *span);
+        let gen = self.parse_delim_tree(
+            Delimiter::Paren,
+            Some(AstGenErrorKind::TypeDefinition(TyArgumentKind::Struct)),
+        )?;
 
-                gen.parse_separated_fn(
-                    || gen.parse_struct_def_entry(),
-                    || gen.parse_token(TokenKind::Comma),
-                )?
-            }
-            token => self.error_with_location(
-                AstGenErrorKind::TypeDefinition(TyArgumentKind::Struct),
-                None,
-                token.map(|t| t.kind),
-                token.map_or_else(|| self.next_location(), |t| t.span),
-            )?,
-        };
+        let entries = gen.parse_separated_fn(
+            || gen.parse_struct_def_entry(),
+            || gen.parse_token(TokenKind::Comma),
+        )?;
 
         Ok(StructDef { entries })
     }
@@ -75,27 +63,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             .current_token()
             .has_kind(TokenKind::Keyword(Keyword::Enum)));
 
-        let entries = match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-                span,
-            }) => {
-                self.skip_token();
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, *span);
+        let gen = self.parse_delim_tree(
+            Delimiter::Paren,
+            Some(AstGenErrorKind::TypeDefinition(TyArgumentKind::Enum)),
+        )?;
 
-                gen.parse_separated_fn(
-                    || gen.parse_enum_def_entry(),
-                    || gen.parse_token(TokenKind::Comma),
-                )?
-            }
-            token => self.error_with_location(
-                AstGenErrorKind::TypeDefinition(TyArgumentKind::Enum),
-                None,
-                token.map(|t| t.kind),
-                token.map_or_else(|| self.next_location(), |t| t.span),
-            )?,
-        };
+        let entries = gen.parse_separated_fn(
+            || gen.parse_enum_def_entry(),
+            || gen.parse_token(TokenKind::Comma),
+        )?;
 
         Ok(EnumDef { entries })
     }
@@ -107,24 +83,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let mut args = AstNodes::empty();
 
-        if let Some(Token {
-            kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-            span,
-        }) = self.peek()
-        {
-            self.skip_token();
-            args.span = Some(*span);
-            let tree = self.token_trees.get(*tree_index).unwrap();
-
-            let gen = self.from_stream(tree, *span);
-            while gen.has_token() {
-                let ty = gen.parse_type()?;
-                args.nodes.push(ty);
-
-                if gen.has_token() {
-                    gen.parse_token(TokenKind::Comma)?;
-                }
-            }
+        if matches!(self.peek(), Some(token) if token.is_paren_tree()) {
+            let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
+            args =
+                gen.parse_separated_fn(|| gen.parse_type(), || gen.parse_token(TokenKind::Comma))?;
         }
 
         Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_span))
