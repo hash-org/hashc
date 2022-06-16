@@ -4,6 +4,7 @@ members = [
   "compiler/hash-alloc",
   "compiler/hash-ast",
   "compiler/hash-ast-desugaring",
+  "compiler/hash-ast-passes",
   "compiler/hash-ir",
   "compiler/hash-interactive",
   "compiler/hash-lexer",
