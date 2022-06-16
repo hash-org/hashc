@@ -2,9 +2,9 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessTerm, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, Level0Term, Level1Term,
-        Level2Term, Level3Term, Member, ModDefId, Mutability, NominalDef, NominalDefId, Param,
-        ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Term, TermId, TrtDef,
+        AccessTerm, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
+        Level1Term, Level2Term, Level3Term, Member, ModDefId, Mutability, NominalDef, NominalDefId,
+        Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Term, TermId, TrtDef,
         TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, Var, Visibility,
     },
     GlobalStorage,
@@ -236,6 +236,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
     }
 
+    /// Create a [ParamList<T>] from the given set of items.
+    pub fn create_param_list<T: GetNameOpt + Clone>(
+        &self,
+        items: impl IntoIterator<Item = T>,
+    ) -> ParamList<T> {
+        ParamList::new(items.into_iter().collect())
+    }
+
     /// Create a parameter with the given name and type.
     pub fn create_param(&self, name: impl Into<Identifier>, ty: TermId) -> Param {
         Param {
@@ -359,7 +367,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ) -> AppTyFn {
         AppTyFn {
             args: Args::new(args.into_iter().collect()),
-            ty_fn_value: ty_fn_value_id,
+            subject: ty_fn_value_id,
         }
     }
 
