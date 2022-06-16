@@ -20,68 +20,10 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use super::building::PrimitiveBuilder;
-
-/// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a type or types.
-#[derive(Debug, Default, Clone)]
-pub struct Sub {
-    data: HashMap<SubSubject, TermId>,
-}
-
-impl Sub {
-    /// Create an empty substitution.
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    /// Create a substitution from pairs of `(TySubSubject, TermId)`.
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (SubSubject, TermId)>) -> Self {
-        Self {
-            data: pairs.into_iter().collect(),
-        }
-    }
-
-    /// Get the substitution for the given [SubSubject], if any.
-    pub fn get_sub_for(&self, subject: SubSubject) -> Option<TermId> {
-        self.data.get(&subject).copied()
-    }
-
-    /// Merge the substitution with another.
-    ///
-    /// Modifies `self`.
-    pub fn merge_with(&mut self, _other: &Sub) {
-        todo!()
-    }
-}
-
-/// Implements equality of substitutions in terms of functional equality---will applying A produce
-/// the same type as B?
-///
-/// @@Volatile: This might require having access to the storage to check equality of some things..
-impl PartialEq for Sub {
-    fn eq(&self, other: &Self) -> bool {
-        // @@Todo: more sophisticated substitution equivalence
-        self.data == other.data
-    }
-}
-
-/// A judgement as to whether two values are equal, which also might be unclear (for example if
-/// higher order type variables are involved).
-pub enum TermsAreEqual {
-    Yes,
-    No,
-    Unsure,
-}
+use super::{building::PrimitiveBuilder, substitute::Sub};
 
 /// Options that are received by the unifier when unifying types.
 pub struct UnifyTysOpts {}
-
-/// The subject of a substitution, either a type variable or an unresolved type.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum SubSubject {
-    Var(Var),
-    Unresolved(UnresolvedTerm),
-}
 
 /// Performs type unification and other related operations.
 pub struct Unifier<'gs, 'ls, 'cd> {
@@ -196,8 +138,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
     fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
         let subject_id = self
-            .simplify_term(apply_ty_fn.ty_fn_value)?
-            .unwrap_or(apply_ty_fn.ty_fn_value);
+            .simplify_term(apply_ty_fn.subject)?
+            .unwrap_or(apply_ty_fn.subject);
         let subject = self.storage.term_store().get(subject_id);
         match subject {
             Term::TyFn(_) => {
@@ -211,7 +153,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     Some(inner_apply_ty_fn_result_id) => {
                         match self.storage.term_store().get(inner_apply_ty_fn_result_id) {
                             Term::TyFn(_) => self.apply_ty_fn(&AppTyFn {
-                                ty_fn_value: inner_apply_ty_fn_result_id,
+                                subject: inner_apply_ty_fn_result_id,
                                 args: apply_ty_fn.args.clone(),
                             }),
                             _ => Err(TcError::NotATypeFunction(subject_id)),

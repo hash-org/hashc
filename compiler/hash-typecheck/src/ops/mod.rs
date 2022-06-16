@@ -5,4 +5,5 @@
 pub mod building;
 pub mod reader;
 pub mod scope;
+pub mod substitute;
 pub mod unify;

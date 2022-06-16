@@ -269,7 +269,7 @@ impl<'gs> TcFormatter<'gs> {
                 let subject_fmt = format!(
                     "{}",
                     app_ty_fn
-                        .ty_fn_value
+                        .subject
                         .for_formatting_with_atomic_flag(self.global_storage, &subject_is_atomic)
                 );
 

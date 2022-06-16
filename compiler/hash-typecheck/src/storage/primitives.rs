@@ -370,10 +370,10 @@ pub struct Var {
 ///
 /// When this type is unified with another type, the function is applied by first instantiating
 /// its return value over its type parameters, and then unifying the instantiated type parameters
-/// with the given type arguments of the function (the `ty_args` field).
+/// with the given type arguments of the function (the `args` field).
 #[derive(Debug, Clone)]
 pub struct AppTyFn {
-    pub ty_fn_value: TermId,
+    pub subject: TermId,
     pub args: Args,
 }
 
