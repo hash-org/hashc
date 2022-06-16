@@ -227,70 +227,44 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// `thin-arrow` (->) after the parentheses. e.g. `(i32) -> str`
     fn parse_function_or_tuple_type(&self) -> AstGenResult<Type> {
         let mut args = AstNodes::empty();
-        let mut gen_has_comma = false;
 
-        // handle the function arguments first by checking for parentheses
-        match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-                span,
-            }) => {
-                self.skip_token();
+        let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
+        args.span = gen.parent_span;
 
-                // update the type argument span...
-                args.span = Some(*span);
-
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, *span);
-
-                match gen.peek() {
-                    // Handle special case where there is only one comma and no following items...
-                    // Special edge case for '(,)' or an empty tuple type...
-                    Some(token) if token.has_kind(TokenKind::Comma) && gen.stream.len() == 1 => {
-                        gen.skip_token();
-                    }
-                    _ => {
-                        args = gen.parse_separated_fn(
-                            || {
-                                let start = gen.current_location();
-
-                                // Here we have to essentially try and parse a identifier. If this is the case and
-                                // then there is a colon present then we have a named field.
-                                let (name, ty) = match gen.peek_second() {
-                                    Some(token) if token.has_kind(TokenKind::Colon) => {
-                                        let ident = gen.parse_name()?;
-                                        gen.skip_token(); // :
-
-                                        (Some(ident), gen.parse_type()?)
-                                    }
-                                    _ => (None, gen.parse_type()?),
-                                };
-
-                                Ok(gen.node_with_joined_span(
-                                    NamedFieldTypeEntry { name, ty },
-                                    &start,
-                                ))
-                            },
-                            || gen.parse_token(TokenKind::Comma),
-                        )?;
-                    }
-                };
-
-                // Here we check that the token tree has a comma at the end to later determine if
-                // this is a `GroupedType` or a `TupleType`...
-                gen_has_comma = !gen.stream.is_empty()
-                    && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
+        match gen.peek() {
+            // Handle special case where there is only one comma and no following items...
+            // Special edge case for '(,)' or an empty tuple type...
+            Some(token) if token.has_kind(TokenKind::Comma) && gen.stream.len() == 1 => {
+                gen.skip_token();
             }
-            Some(token) => self.error(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
-                    Delimiter::Paren,
-                    false,
-                )])),
-                Some(token.kind),
-            )?,
-            None => self.unexpected_eof()?,
+            _ => {
+                args = gen.parse_separated_fn(
+                    || {
+                        let start = gen.current_location();
+
+                        // Here we have to essentially try and parse a identifier. If this is the case and
+                        // then there is a colon present then we have a named field.
+                        let (name, ty) = match gen.peek_second() {
+                            Some(token) if token.has_kind(TokenKind::Colon) => {
+                                let ident = gen.parse_name()?;
+                                gen.skip_token(); // :
+
+                                (Some(ident), gen.parse_type()?)
+                            }
+                            _ => (None, gen.parse_type()?),
+                        };
+
+                        Ok(gen.node_with_joined_span(NamedFieldTypeEntry { name, ty }, &start))
+                    },
+                    || gen.parse_token(TokenKind::Comma),
+                )?;
+            }
         };
+
+        // Here we check that the token tree has a comma at the end to later determine if
+        // this is a `GroupedType` or a `TupleType`...
+        let gen_has_comma =
+            !gen.stream.is_empty() && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
 
         // If there is an arrow '=>', then this must be a function type
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {

@@ -149,7 +149,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 span,
             } => {
                 self.skip_token();
-                return self.parse_tuple_pattern(*tree_index, *span);
+                let tree = self.token_trees.get(*tree_index).unwrap();
+
+                return self.parse_tuple_pattern(tree, *span);
             }
             // Namespace patterns
             Token {
@@ -171,7 +173,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 span,
             } => {
                 self.skip_token();
-                return self.parse_list_pattern(*tree_index, *span);
+                let tree = self.token_trees.get(*tree_index).unwrap();
+
+                return self.parse_list_pattern(tree, *span);
             }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
@@ -261,10 +265,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// of a list of comma separated within a square brackets .e.g `[x, 1, ..]`
     pub(crate) fn parse_list_pattern(
         &self,
-        tree_index: usize,
+        tree: &'stream [Token],
         parent_span: Span,
     ) -> AstGenResult<AstNode<Pattern>> {
-        let tree = self.token_trees.get(tree_index).unwrap();
         let gen = self.from_stream(tree, parent_span);
 
         enable_flag!(gen; spread_patterns_allowed;
@@ -283,11 +286,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// wrapped within parenthesees.
     pub(crate) fn parse_tuple_pattern(
         &self,
-        tree_index: usize,
+        tree: &'stream [Token],
         parent_span: Span,
     ) -> AstGenResult<AstNode<Pattern>> {
-        let tree = self.token_trees.get(tree_index).unwrap();
-
         // check here if the tree length is 1, and the first token is the comma to check if it is an
         // empty tuple pattern...
         if let Some(token) = tree.get(0) {

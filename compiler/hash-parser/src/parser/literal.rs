@@ -5,7 +5,7 @@
 
 use hash_ast::ast::*;
 use hash_source::location::Span;
-use hash_token::{keyword::Keyword, Token, TokenKind, TokenKindVector};
+use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
@@ -46,38 +46,36 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a map literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_map_literal(
-        &self,
-        gen: Self,
-        initial_entry: AstNode<MapLiteralEntry>,
-    ) -> AstGenResult<AstNode<Literal>> {
-        let start = gen.current_location();
-        let mut elements = gen.parse_separated_fn(
+    pub(crate) fn parse_map_literal(&self) -> AstGenResult<AstNode<Literal>> {
+        debug_assert!(self
+            .current_token()
+            .has_kind(TokenKind::Keyword(Keyword::Map)));
+
+        let start = self.current_location();
+        let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
+
+        let elements = gen.parse_separated_fn(
             || gen.parse_map_entry(),
             || gen.parse_token(TokenKind::Comma),
         )?;
-
-        elements.nodes.insert(0, initial_entry);
 
         Ok(self.node_with_joined_span(Literal::Map(MapLiteral { elements }), &start))
     }
 
     /// Parse a set literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_set_literal(
-        &self,
-        gen: Self,
-        initial_entry: AstNode<Expression>,
-    ) -> AstGenResult<AstNode<Literal>> {
-        let start = self.current_location();
+    pub(crate) fn parse_set_literal(&self) -> AstGenResult<AstNode<Literal>> {
+        debug_assert!(self
+            .current_token()
+            .has_kind(TokenKind::Keyword(Keyword::Set)));
 
-        let mut elements = gen.parse_separated_fn(
+        let start = self.current_location();
+        let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
+
+        let elements = gen.parse_separated_fn(
             || gen.parse_expression_with_precedence(0),
             || gen.parse_token(TokenKind::Comma),
         )?;
-
-        // insert the first item into elements
-        elements.nodes.insert(0, initial_entry);
 
         Ok(self.node_with_joined_span(Literal::Set(SetLiteral { elements }), &start))
     }
@@ -153,9 +151,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_array_literal(
         &self,
         tree: &'stream [Token],
-        span: &Span,
+        span: Span,
     ) -> AstGenResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree, *span);
+        let gen = self.from_stream(tree, span);
         let start = gen.current_location();
 
         let mut elements = AstNodes::empty();

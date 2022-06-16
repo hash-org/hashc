@@ -140,6 +140,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Expression::new(ExpressionKind::Type(TypeExpr(self.parse_type()?))),
                 &token.span,
             ),
+            TokenKind::Keyword(Keyword::Set) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                    self.parse_set_literal()?,
+                ))),
+                &token.span,
+            ),
+            TokenKind::Keyword(Keyword::Map) => self.node_with_joined_span(
+                Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+                    self.parse_map_literal()?,
+                ))),
+                &token.span,
+            ),
             // @@Note: This doesn't cover '{' case.
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
@@ -152,6 +164,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     &token.span,
                 )
             }
+            // Body block.
+            TokenKind::Tree(Delimiter::Brace, _) => {
+                // @@Hack: we need to backtrack a single token so that `parse_block` can be used.
+                self.offset.set(self.offset.get() - 1);
+
+                self.node_with_joined_span(
+                    Expression::new(ExpressionKind::Block(BlockExpr(self.parse_block()?))),
+                    &token.span,
+                )
+            }
+            // Non-body blocks
             kind if kind.begins_block() => {
                 let start = self.current_location();
 
@@ -176,17 +199,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             // Import
             TokenKind::Keyword(Keyword::Import) => self.parse_import()?,
-            // Handle tree literals
-            TokenKind::Tree(Delimiter::Brace, tree_index) => {
-                let tree = self.token_trees.get(*tree_index).unwrap();
 
-                self.parse_block_or_braced_literal(tree, &self.current_location())?
-            }
+            // List literal
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                self.parse_array_literal(tree, &self.current_location())?
+                self.parse_array_literal(tree, token.span)?
             }
+
+            // Either tuple, function, or nested expression
             TokenKind::Tree(Delimiter::Paren, tree_index) => {
                 let mut is_func = false;
 
@@ -222,7 +243,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let gen = self.from_stream(tree, token.span);
                         self.parse_function_definition(&gen)?
                     }
-                    false => self.parse_expression_or_tuple(tree, &self.current_location())?,
+                    false => self.parse_expression_or_tuple(tree, self.current_location())?,
                 }
             }
             TokenKind::Keyword(Keyword::Continue) => self.node_with_span(
@@ -493,28 +514,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let pre = self.current_token().span;
         let start = self.current_location();
 
-        let (tree, span) = match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Paren, tree_index),
-                span,
-            }) => {
-                self.skip_token();
-
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                (tree, *span)
-            }
-            Some(token) => self.error(
-                AstGenErrorKind::Expected,
-                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
-                    Delimiter::Paren,
-                    true,
-                )])),
-                Some(token.kind),
-            )?,
-            None => self.unexpected_eof()?,
-        };
-
-        let gen = self.from_stream(tree, span);
+        let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
 
         let (raw, path, span) = match gen.peek() {
             Some(Token {
@@ -892,179 +892,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse either a block, a set, or a map. The function has to parse
-    /// an initial expression and then determine the type of needed parsing
-    /// by the following operator, whether it is a colon, comma or a semicolon.
-    pub(crate) fn parse_block_or_braced_literal(
-        &self,
-        tree: &'stream [Token],
-        span: &Span,
-    ) -> AstGenResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree, *span);
-
-        // handle two special cases for empty map and set literals, if the only token
-        // is a colon, this must be a map literal, or if the only token is a comma it is
-        // an empty set literal.
-        if gen.stream.len() == 1 {
-            match gen.peek().unwrap() {
-                token if token.has_kind(TokenKind::Colon) => {
-                    return Ok(self.node_with_span(
-                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            self.node_with_span(
-                                Literal::Map(MapLiteral {
-                                    elements: AstNodes::empty(),
-                                }),
-                                *span,
-                            ),
-                        ))),
-                        *span,
-                    ))
-                }
-                token if token.has_kind(TokenKind::Comma) => {
-                    return Ok(self.node_with_span(
-                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            self.node_with_span(
-                                Literal::Set(SetLiteral {
-                                    elements: AstNodes::empty(),
-                                }),
-                                *span,
-                            ),
-                        ))),
-                        *span,
-                    ))
-                }
-                _ => (),
-            }
-        }
-
-        // Is this an empty block?
-        if !gen.has_token() {
-            return Ok(self.node_with_span(
-                Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(
-                    Block::Body(BodyBlock {
-                        statements: AstNodes::empty(),
-                        expr: None,
-                    }),
-                    *span,
-                )))),
-                *span,
-            ));
-        }
-
-        let parse_block = |initial_offset: usize| -> AstGenResult<AstNode<Expression>> {
-            // reset the position and attempt to parse a statement
-            gen.offset.set(initial_offset);
-
-            // check here if there is a 'semi', and then convert the expression into a statement.
-            let block = self.parse_block_from_gen(&gen, *span, None)?;
-
-            Ok(self.node_with_span(
-                Expression::new(ExpressionKind::Block(BlockExpr(block))),
-                *span,
-            ))
-        };
-
-        // Here we have to parse the initial expression and then check if there is a specific
-        // separator. We have to check:
-        //
-        // - If an expression is followed by a comma separator, it must be a set literal.
-        //
-        // - If an expression is followed by a ':' (colon), it must be a map literal.
-        //
-        // - Otherwise, it must be a block and we should continue parsing the block from here
-        let initial_offset = gen.offset();
-        let expr = gen.parse_expression();
-
-        match (gen.peek(), expr) {
-            (Some(token), Ok(expr)) if token.has_kind(TokenKind::Comma) => {
-                gen.skip_token(); // ','
-
-                let literal = self.parse_set_literal(gen, expr)?;
-
-                Ok(self.node_with_span(
-                    Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
-                    *span,
-                ))
-            }
-            (Some(token), Ok(expr)) if token.has_kind(TokenKind::Colon) => {
-                gen.skip_token(); // ':'
-
-                // So problem here is that we don't know if it is a map literal or just a
-                // declaration assignment. We can attempt to abort this if we spot that
-                // there is a following '=' or parsing the expression doesn't work...
-                if gen.parse_token_fast(TokenKind::Eq).is_some() {
-                    return parse_block(initial_offset);
-                }
-
-                let start_pos = expr.span();
-                let entry = self.node_with_joined_span(
-                    MapLiteralEntry {
-                        key: expr,
-                        value: gen.parse_expression_with_precedence(0)?,
-                    },
-                    &start_pos,
-                );
-
-                // Peek ahead to check if there is a comma, if there is then we'll parse more map entries,
-                // and pass it into parse_map_literal.
-                match gen.peek() {
-                    Some(token) if token.has_kind(TokenKind::Comma) => {
-                        gen.skip_token();
-
-                        let literal = self.parse_map_literal(gen, entry)?;
-
-                        Ok(self.node_with_span(
-                            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
-                            *span,
-                        ))
-                    }
-                    _ => Ok(self.node_with_span(
-                        Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                            self.node_with_span(
-                                Literal::Map(MapLiteral {
-                                    elements: ast_nodes![entry],
-                                }),
-                                *span,
-                            ),
-                        ))),
-                        *span,
-                    )),
-                }
-            }
-            (Some(_), _) => parse_block(initial_offset),
-            (None, Ok(expr)) => {
-                // This block is just a block with a single expression
-
-                Ok(self.node_with_span(
-                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(
-                        Block::Body(BodyBlock {
-                            statements: AstNodes::empty(),
-                            expr: Some(expr),
-                        }),
-                        *span,
-                    )))),
-                    *span,
-                ))
-            }
-            (None, Err(_)) => {
-                // reset the position and attempt to parse a statement
-                gen.offset.set(initial_offset);
-                let (_, statement) = gen.parse_top_level_expression(false)?;
-
-                Ok(self.node_with_span(
-                    Expression::new(ExpressionKind::Block(BlockExpr(self.node_with_span(
-                        Block::Body(BodyBlock {
-                            statements: ast_nodes![statement],
-                            expr: None,
-                        }),
-                        *span,
-                    )))),
-                    *span,
-                ))
-            }
-        }
-    }
-
     /// Function to either parse an expression that is wrapped in parentheses or a tuple literal. If this
     /// is a tuple literal, the first expression must be followed by a comma separator, after that the comma
     /// after the expression is optional.
@@ -1080,9 +907,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_expression_or_tuple(
         &self,
         tree: &'stream [Token],
-        span: &Span,
+        span: Span,
     ) -> AstGenResult<AstNode<Expression>> {
-        let gen = self.from_stream(tree, *span);
+        let gen = self.from_stream(tree, span);
         let start = self.current_location();
 
         // Handle the case if it is an empty stream, this means that if it failed to
@@ -1216,33 +1043,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// remaining tokens within the block. This function expects that the next token is a [TokenKind::Tree]
     /// and it will consume it producing [Expression]s from it.
     pub(crate) fn parse_expressions_from_braces(&self) -> AstGenResult<AstNodes<Expression>> {
-        match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(Delimiter::Brace, tree_index),
-                span,
-            }) => {
-                self.skip_token();
+        let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
 
-                let tree = self.token_trees.get(*tree_index).unwrap();
-                let gen = self.from_stream(tree, *span);
+        let mut expressions = vec![];
 
-                let mut expressions = vec![];
-
-                // Continue eating the generator until no more tokens are present
-                while gen.has_token() {
-                    let (_, expr) = gen.parse_top_level_expression(true)?;
-                    expressions.push(expr);
-                }
-                gen.verify_is_empty()?;
-
-                Ok(AstNodes::new(expressions, Some(*span)))
-            }
-            token => self.error_with_location(
-                AstGenErrorKind::Block,
-                None,
-                token.map(|t| t.kind),
-                token.map_or_else(|| self.next_location(), |t| t.span),
-            )?,
+        // Continue eating the generator until no more tokens are present
+        while gen.has_token() {
+            let (_, expr) = gen.parse_top_level_expression(true)?;
+            expressions.push(expr);
         }
+        gen.verify_is_empty()?;
+
+        Ok(AstNodes::new(expressions, gen.parent_span))
     }
 }
