@@ -1,121 +1,80 @@
 //! Contains structures that store information about the scopes in a given module, as well as the
 //! symbols in each scope.
-use hash_source::identifier::Identifier;
+use super::primitives::{Scope, ScopeId};
+use slotmap::SlotMap;
 
-use super::primitives::{Member, Members};
-
-/// A scope is either a variable scope or a constant scope.
+/// Stores all the scopes within a typechecking cycle.
 ///
-/// Examples of variable scopes are:
-/// - Block expression scope
-/// - Function parameter scope
-///
-/// Examples of const scopes are:
-/// - The root scope
-/// - Module block scope
-/// - Trait block scope
-/// - Impl block scope
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScopeKind {
-    Variable,
-    Constant,
+/// Scopes are accessed by an ID, of scope [ScopeId].
+#[derive(Debug, Default)]
+pub struct ScopeStore {
+    data: SlotMap<ScopeId, Scope>,
 }
 
-/// Represents a scope, which has a kind as well as a set of members.
-///
-/// If the kind is `Constant`, then all the members have:
-/// - Any `visibility`
-/// - `mutability = Immutable`
-///
-/// If the kind is `Variable`, then all members have:
-/// - `visibility = Private`
-/// - Any `mutability`
-///
-/// @@Future: Maybe we should store the origin of each scope in some place, for better error
-/// messages.
-#[derive(Debug, Clone)]
-pub struct Scope {
-    pub kind: ScopeKind,
-    pub members: Members,
-}
+impl ScopeStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-impl Scope {
-    /// Create an empty [Scope], with no members, and the given [ScopeKind].
-    pub fn empty(kind: ScopeKind) -> Self {
-        Self {
-            kind,
-            members: Members::empty(),
-        }
+    /// Create a scope, returning its assigned [ScopeId].
+    pub fn create(&mut self, ty: Scope) -> ScopeId {
+        self.data.insert(ty)
+    }
+
+    /// Get a scope by [ScopeId].
+    ///
+    /// If the scope is not found, this function will panic. However, this shouldn't happen because
+    /// the only way to acquire a scope is to use [Self::create], and scopes cannot be deleted.
+    pub fn get(&self, ty_id: ScopeId) -> &Scope {
+        self.data.get(ty_id).unwrap()
+    }
+
+    /// Get a scope by [ScopeId], mutably.
+    ///
+    /// If the scope is not found, this function will panic.
+    pub fn get_mut(&mut self, ty_id: ScopeId) -> &mut Scope {
+        self.data.get_mut(ty_id).unwrap()
     }
 }
 
-/// Represents a "nested" set of scopes.
-///
-/// This is dynamically modified during typechecking when the checker enters (push) or exits (pop)
-/// some scope.
-#[derive(Debug, Clone)]
+/// Stores a collection of scopes, used from within [LocalStorage](crate::storage::LocalStorage).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeStack {
-    scopes: Vec<Scope>,
+    scopes: Vec<ScopeId>,
 }
 
 impl ScopeStack {
-    /// Create an empty [ScopeStack].
-    pub fn empty() -> Self {
+    /// Create a [ScopeStack] from a single scope.
+    pub fn singular(scope_id: ScopeId) -> Self {
         Self {
-            scopes: vec![Scope::empty(ScopeKind::Constant)],
+            scopes: vec![scope_id],
         }
     }
 
-    /// Create a [ScopeStack] from the given iterator of scopes.
-    pub fn with_scopes(scopes: impl Iterator<Item = Scope>) -> Self {
-        let mut stack = Self::empty();
-        stack.scopes.extend(scopes);
-        stack
-    }
-
-    /// Resolve a single symbol within the scope stack.
-    pub fn resolve_symbol(&self, symbol: Identifier) -> Option<&Member> {
-        for scope in self.iter_up() {
-            if let Some(member) = scope.members.get(symbol) {
-                return Some(member);
-            }
+    /// Create a [ScopeStack] from a collection of scopes.
+    pub fn many(scopes: impl IntoIterator<Item = ScopeId>) -> Self {
+        Self {
+            scopes: scopes.into_iter().collect(),
         }
-
-        None
     }
 
     /// Append a scope to the stack.
-    pub fn append(&mut self, other: ScopeStack) {
-        self.scopes.extend(other.scopes);
+    pub fn append(&mut self, scope_id: ScopeId) {
+        self.scopes.push(scope_id);
     }
 
-    /// Get the current scope.
-    pub fn current_scope(&self) -> &Scope {
-        self.scopes.last().unwrap()
-    }
-
-    /// Get the current scope (mutable).
-    pub fn current_scope_mut(&mut self) -> &mut Scope {
-        self.scopes.last_mut().unwrap()
-    }
-
-    /// Enter a new empty scope of the given [ScopeKind].
-    pub fn enter_scope(&mut self, kind: ScopeKind) {
-        self.scopes.push(Scope::empty(kind));
+    /// Get the current scope ID.
+    pub fn current_scope(&self) -> ScopeId {
+        *self.scopes.last().unwrap()
     }
 
     /// Iterate up the scopes in the stack.
-    pub fn iter_up(&self) -> impl Iterator<Item = &Scope> {
-        self.scopes.iter().rev()
-    }
-
-    /// Iterate up the scopes in the stack (mutable).
-    pub fn iter_up_mut(&mut self) -> impl Iterator<Item = &mut Scope> {
-        self.scopes.iter_mut().rev()
+    pub fn iter_up(&self) -> impl Iterator<Item = ScopeId> + '_ {
+        self.scopes.iter().copied().rev()
     }
 
     /// Pop the current scope.
-    pub fn pop_scope(&mut self) -> Scope {
+    pub fn pop_scope(&mut self) -> ScopeId {
         // Don't include the first element (root scope).
         if self.scopes.len() <= 1 {
             panic!("Cannot pop root scope")
