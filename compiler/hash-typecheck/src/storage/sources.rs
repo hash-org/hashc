@@ -20,7 +20,7 @@ impl CheckedSources {
     }
 
     /// Get the module type of the given source if it has already been checked.
-    pub fn source_type_id(&mut self, source_id: SourceId) -> Option<ModDefId> {
+    pub fn source_type_id(&self, source_id: SourceId) -> Option<ModDefId> {
         self.data.get(&source_id).copied()
     }
 }

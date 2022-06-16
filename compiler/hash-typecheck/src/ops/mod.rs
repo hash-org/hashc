@@ -3,5 +3,6 @@
 //! Code from this module is to be used while traversing and typing the AST, in order to unify
 //! types and ensure correctness.
 pub mod building;
+pub mod reader;
 pub mod scope;
 pub mod unify;
