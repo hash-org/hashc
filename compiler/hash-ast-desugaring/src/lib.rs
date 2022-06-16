@@ -65,7 +65,10 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
 
                     AstDesugaring
                         .visit_body_block(&(), source.node_mut())
-                        .unwrap()
+                        .unwrap();
+
+                    // We have to add it here since we don't want it be re-passed further down
+                    state.insert(target);
                 }
             }
 
@@ -96,7 +99,6 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
         });
 
         // Add all of the ids into the cache
-        state.insert(target);
         state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
 
         Ok(())
