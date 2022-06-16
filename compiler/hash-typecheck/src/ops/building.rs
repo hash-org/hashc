@@ -47,11 +47,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
-    /// Get an immutable reference to the inner global storage.
-    pub fn global_storage(&self) -> impl Deref<Target = &mut GlobalStorage> {
-        self.gs.borrow()
-    }
-
     /// Create a variable with the given name.
     pub fn create_var(&self, var_name: impl Into<Identifier>) -> Var {
         Var {
@@ -73,7 +68,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a nameless struct with opaque fields.
-    pub fn create_nameless_opaque_struct_def(&self) -> NominalDefId {
+    pub fn create_nameless_opaque_struct_def(
+        &self,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> NominalDefId {
         let def_id = self
             .gs
             .borrow_mut()
@@ -81,6 +79,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             .create(NominalDef::Struct(StructDef {
                 name: None,
                 fields: StructFields::Opaque,
+                bound_vars: bound_vars.into_iter().collect(),
             }));
         def_id
     }
@@ -88,7 +87,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a struct with the given name and opaque fields.
     ///
     /// This adds the name to the scope.
-    pub fn create_opaque_struct_def(&self, struct_name: impl Into<Identifier>) -> NominalDefId {
+    pub fn create_opaque_struct_def(
+        &self,
+        struct_name: impl Into<Identifier>,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self
             .gs
@@ -97,6 +100,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             .create(NominalDef::Struct(StructDef {
                 name: Some(name),
                 fields: StructFields::Opaque,
+                bound_vars: bound_vars.into_iter().collect(),
             }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
@@ -109,6 +113,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         struct_name: impl Into<Identifier>,
         fields: impl IntoIterator<Item = Param>,
+        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self
@@ -118,6 +123,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             .create(NominalDef::Struct(StructDef {
                 name: Some(name),
                 fields: StructFields::Explicit(ParamList::new(fields.into_iter().collect())),
+                bound_vars: bound_vars.into_iter().collect(),
             }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
@@ -142,6 +148,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         enum_name: impl Into<Identifier>,
         variants: impl IntoIterator<Item = EnumVariant>,
+        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = enum_name.into();
         let def_id = self
@@ -154,6 +161,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
                     .into_iter()
                     .map(|variant| (variant.name, variant))
                     .collect(),
+                bound_vars: bound_vars.into_iter().collect(),
             }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
@@ -294,10 +302,15 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a trait definition with no name, and the given members.
-    pub fn create_nameless_trait_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
+    pub fn create_nameless_trait_def(
+        &self,
+        members: impl Iterator<Item = Member>,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> TrtDefId {
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name: None,
             members: self.create_constant_scope(members),
+            bound_vars: bound_vars.into_iter().collect(),
         });
         trt_def_id
     }
@@ -309,11 +322,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         trait_name: impl Into<Identifier>,
         members: impl IntoIterator<Item = Member>,
+        bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
         let name = trait_name.into();
+        let members = self.create_constant_scope(members);
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name: Some(name),
-            members: self.create_constant_scope(members),
+            members,
+            bound_vars: bound_vars.into_iter().collect(),
         });
         let trt_def_ty = self.create_trt_kind_term();
         let trt_def_value = self.create_trt_term(trt_def_id);
@@ -337,20 +353,46 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyFnTy(ty_fn))
     }
 
-    /// Create a type function term with the given name, parameters, return type and value.
+    /// Create a nameless type function term with parameters, return type and value.
     ///
     /// This adds the name to the scope.
-    pub fn create_ty_fn_term(
+    pub fn create_nameless_ty_fn_term(
+        &self,
+        params: impl IntoIterator<Item = Param>,
+        return_ty: TermId,
+        return_value: TermId,
+    ) -> TermId {
+        self.create_ty_fn_term(Option::<Identifier>::None, params, return_ty, return_value)
+    }
+
+    /// Create a named type function term with parameters, return type and value.
+    ///
+    /// This adds the name to the scope.
+    pub fn create_named_ty_fn_term(
         &self,
         name: impl Into<Identifier>,
         params: impl IntoIterator<Item = Param>,
         return_ty: TermId,
         return_value: TermId,
     ) -> TermId {
-        let name = name.into();
+        self.create_ty_fn_term(Some(name), params, return_ty, return_value)
+    }
+
+    /// Create a type function term with the given optional name, parameters, return type and
+    /// value.
+    ///
+    /// This adds the name to the scope.
+    pub fn create_ty_fn_term(
+        &self,
+        name: Option<impl Into<Identifier>>,
+        params: impl IntoIterator<Item = Param>,
+        return_ty: TermId,
+        return_value: TermId,
+    ) -> TermId {
+        let name = name.map(Into::into);
         let params = ParamList::new(params.into_iter().collect());
         let ty_fn = TyFn {
-            name: Some(name),
+            name,
             general_params: params.clone(),
             general_return_ty: return_ty,
             cases: vec![TyFnCase {
@@ -361,26 +403,33 @@ impl<'gs> PrimitiveBuilder<'gs> {
         };
         let ty_fn_id = self.create_term(Term::TyFn(ty_fn));
         let ty_fn_ty_id = self.create_term(Term::TyFnTy(TyFnTy { params, return_ty }));
-        self.add_pub_member_to_scope(name, ty_fn_ty_id, ty_fn_id);
-
+        if let Some(name) = name {
+            self.add_pub_member_to_scope(name, ty_fn_ty_id, ty_fn_id);
+        }
         ty_fn_id
     }
 
     /// Create a type function application, given type function value and arguments.
     pub fn create_app_ty_fn(
         &self,
-        ty_fn_value_id: TermId,
+        subject: TermId,
         args: impl IntoIterator<Item = Arg>,
     ) -> AppTyFn {
         AppTyFn {
             args: Args::new(args.into_iter().collect()),
-            subject: ty_fn_value_id,
+            subject,
         }
     }
 
     /// Create a substitution application term, given a substitution and inner term.
+    ///
+    /// If no elements exist in the substitution, returns the term itself without wrapping it.
     pub fn create_app_sub_term(&self, sub: Sub, term: TermId) -> TermId {
-        self.create_term(Term::AppSub(AppSub { sub, term }))
+        if sub.map().is_empty() {
+            term
+        } else {
+            self.create_term(Term::AppSub(AppSub { sub, term }))
+        }
     }
 
     /// Create an argument with the given name and value.
@@ -396,10 +445,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// This calls [Self::create_app_ty_fn], so its conditions apply here.
     pub fn create_app_ty_fn_term(
         &self,
-        ty_fn_value_id: TermId,
+        subject: TermId,
         args: impl IntoIterator<Item = Arg>,
     ) -> TermId {
-        let app_ty_fn = self.create_app_ty_fn(ty_fn_value_id, args);
+        let app_ty_fn = self.create_app_ty_fn(subject, args);
         self.create_term(Term::AppTyFn(app_ty_fn))
     }
 

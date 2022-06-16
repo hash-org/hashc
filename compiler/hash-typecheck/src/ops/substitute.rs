@@ -5,7 +5,6 @@ use crate::{
         primitives::{
             AppSub, AppTyFn, Arg, Args, FnTy, Level0Term, Level1Term, Level2Term, Level3Term,
             Param, ParamList, Params, Sub, Term, TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
-            UnresolvedTerm, Var,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -84,11 +83,14 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
     /// the substituted variables.
     pub fn apply_sub_to_level2_term(&mut self, sub: &Sub, term: Level2Term) -> TcResult<TermId> {
         match term {
-            Level2Term::Trt(_) => {
-                // Here we add the substitution to the term
+            Level2Term::Trt(trt_def_id) => {
+                // Here we add the substitution to the term using only vars in the trat definition.
+                let trt_def_vars = self.reader().get_trt_def(trt_def_id).bound_vars.clone();
                 let builder = self.builder();
-                Ok(builder
-                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level2(term))))
+                Ok(builder.create_app_sub_term(
+                    sub.select(&trt_def_vars),
+                    builder.create_term(Term::Level2(term)),
+                ))
             }
             Level2Term::AnyTy => Ok(self.builder().create_term(Term::Level2(Level2Term::AnyTy))),
         }
@@ -98,17 +100,28 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
     /// the substituted variables.
     pub fn apply_sub_to_level1_term(&mut self, sub: &Sub, term: Level1Term) -> TcResult<TermId> {
         match term {
-            Level1Term::ModDef(_) => {
-                // Here we add the substitution to the term
+            Level1Term::ModDef(mod_def_id) => {
+                // Here we add the substitution to the term using only vars in the mod definition.
+                let mod_def_vars = self.reader().get_mod_def(mod_def_id).bound_vars.clone();
                 let builder = self.builder();
-                Ok(builder
-                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level1(term))))
+                Ok(builder.create_app_sub_term(
+                    sub.select(&mod_def_vars),
+                    builder.create_term(Term::Level1(term)),
+                ))
             }
-            Level1Term::NominalDef(_) => {
-                // Here we add the substitution to the term
+            Level1Term::NominalDef(nominal_def_id) => {
+                // Here we add the substitution to the term using only vars in the nominal
+                // definition.
+                let nominal_def_vars = self
+                    .reader()
+                    .get_nominal_def(nominal_def_id)
+                    .bound_vars()
+                    .clone();
                 let builder = self.builder();
-                Ok(builder
-                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level1(term))))
+                Ok(builder.create_app_sub_term(
+                    sub.select(&nominal_def_vars),
+                    builder.create_term(Term::Level1(term)),
+                ))
             }
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
@@ -142,11 +155,18 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
                 let subbed_ty_term_id = self.apply_sub_to_term(sub, ty_term_id)?;
                 Ok(self.builder().create_rt_term(subbed_ty_term_id))
             }
-            Level0Term::EnumVariant(_) => {
-                // Here we add the substitution to the term
+            Level0Term::EnumVariant(enum_variant) => {
+                // Here we add the substitution to the term using only vars in the enum definition.
+                let enum_def_vars = self
+                    .reader()
+                    .get_nominal_def(enum_variant.enum_def_id)
+                    .bound_vars()
+                    .clone();
                 let builder = self.builder();
-                Ok(builder
-                    .create_app_sub_term(sub.clone(), builder.create_term(Term::Level0(term))))
+                Ok(builder.create_app_sub_term(
+                    sub.select(&enum_def_vars),
+                    builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
+                ))
             }
         }
     }
@@ -186,17 +206,24 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
             }
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
-                let subbed_general_params = self.apply_sub_to_params(sub, &ty_fn.general_params)?;
+                //
+                // However, we first have to remove all the shadowed variables from the substitution:
+                // If we have T -> str, and <T> => List<T>, we don't wanna get <T> => List<str>
+                // because T is bound in the term, not free.
+                let shadowed_sub = sub.filter(&ty_fn.general_params);
+                let subbed_general_params =
+                    self.apply_sub_to_params(&shadowed_sub, &ty_fn.general_params)?;
                 let subbed_general_return_ty =
-                    self.apply_sub_to_term(sub, ty_fn.general_return_ty)?;
+                    self.apply_sub_to_term(&shadowed_sub, ty_fn.general_return_ty)?;
                 let subbed_cases = ty_fn
                     .cases
                     .into_iter()
                     .map(|case| -> TcResult<_> {
                         Ok(TyFnCase {
-                            params: self.apply_sub_to_params(sub, &case.params)?,
-                            return_ty: self.apply_sub_to_term(sub, case.return_ty)?,
-                            return_value: self.apply_sub_to_term(sub, case.return_value)?,
+                            params: self.apply_sub_to_params(&shadowed_sub, &case.params)?,
+                            return_ty: self.apply_sub_to_term(&shadowed_sub, case.return_ty)?,
+                            return_value: self
+                                .apply_sub_to_term(&shadowed_sub, case.return_value)?,
                         })
                     })
                     .collect::<TcResult<Vec<_>>>()?;
@@ -209,8 +236,10 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
             }
             Term::TyFnTy(ty_fn_ty) => {
                 // Apply the substitution to the parameters and return type.
-                let subbed_params = self.apply_sub_to_params(sub, &ty_fn_ty.params)?;
-                let subbed_return_ty = self.apply_sub_to_term(sub, ty_fn_ty.return_ty)?;
+                // Same rule applies about binding as above.
+                let shadowed_sub = sub.filter(&ty_fn_ty.params);
+                let subbed_params = self.apply_sub_to_params(&shadowed_sub, &ty_fn_ty.params)?;
+                let subbed_return_ty = self.apply_sub_to_term(&shadowed_sub, ty_fn_ty.return_ty)?;
                 Ok(self.builder().create_term(Term::TyFnTy(TyFnTy {
                     params: subbed_params,
                     return_ty: subbed_return_ty,
@@ -252,5 +281,89 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
             Term::Level1(term) => self.apply_sub_to_level1_term(sub, term),
             Term::Level0(term) => self.apply_sub_to_level0_term(sub, term),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        fmt::PrepareForFormatting,
+        storage::{
+            core::CoreDefs, primitives::Sub, AccessToStorage, AccessToStorageMut, GlobalStorage,
+            LocalStorage, StorageRefMut,
+        },
+    };
+    use hash_source::{InteractiveId, SourceId};
+    use slotmap::Key;
+
+    use super::Substitutor;
+
+    #[test]
+    fn test_substitutions() {
+        let mut global_storage = GlobalStorage::new();
+        let mut local_storage = LocalStorage::new(
+            SourceId::Interactive(InteractiveId::null()),
+            &mut global_storage,
+        );
+        let core_defs = CoreDefs::new(&mut global_storage);
+        let mut storage_ref = StorageRefMut {
+            core_defs: &core_defs,
+            global_storage: &mut global_storage,
+            local_storage: &mut local_storage,
+        };
+
+        let builder = storage_ref.builder();
+
+        // Visual testing for now, until term unification is implemented and we can actually write proper tests here:
+
+        let inner = builder.create_nameless_ty_fn_term(
+            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_any_ty_term(),
+            builder.create_app_ty_fn_term(
+                core_defs.set_ty_fn,
+                [builder.create_arg("T", builder.create_var_term("T"))],
+            ),
+        );
+        let target = builder.create_fn_ty_term(
+            [
+                builder.create_param("foo", builder.create_nominal_def_term(core_defs.f32_ty)),
+                builder.create_param(
+                    "bar",
+                    builder.create_app_ty_fn_term(
+                        core_defs.list_ty_fn,
+                        [builder.create_arg("T", inner)],
+                    ),
+                ),
+            ],
+            builder.create_var_term("T"),
+        );
+        drop(builder);
+
+        println!("");
+
+        println!("{}", target.for_formatting(storage_ref.global_storage()));
+
+        let builder = storage_ref.builder();
+        let sub = Sub::from_pairs([(
+            builder.create_var("T"),
+            builder.create_app_ty_fn_term(
+                core_defs.map_ty_fn,
+                [
+                    builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
+                    builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
+                ],
+            ),
+        )]);
+        drop(builder);
+
+        let mut substitutor = Substitutor::new(storage_ref.storages_mut());
+        let subbed_target = substitutor.apply_sub_to_term(&sub, target).unwrap();
+
+        println!(
+            "{}",
+            subbed_target.for_formatting(storage_ref.global_storage())
+        );
+
+        println!("");
     }
 }

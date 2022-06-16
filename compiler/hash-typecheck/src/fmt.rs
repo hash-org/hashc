@@ -266,7 +266,7 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, "{{unresolved({:?})}}", unresolved_term.resolution_id)
             }
             Term::AppSub(app_sub) => {
-                write!(f, "[");
+                write!(f, "[")?;
                 let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
                 for (i, (from, to)) in pairs.iter().enumerate() {
                     self.fmt_term_as_single(f, *to)?;
@@ -280,8 +280,8 @@ impl<'gs> TcFormatter<'gs> {
                         write!(f, ", ")?;
                     }
                 }
-                write!(f, "[");
-                self.fmt_term_as_single(f, app_sub.term);
+                write!(f, "]")?;
+                self.fmt_term_as_single(f, app_sub.term)?;
                 Ok(())
             }
             Term::Level3(term) => self.fmt_level3_term(f, term, is_atomic),
