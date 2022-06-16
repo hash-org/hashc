@@ -61,7 +61,7 @@ pub trait SemanticPass<'pool> {
         sources: &mut Sources,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
-    ) -> CompilerResult<()>;
+    ) -> Result<(), Vec<Report>>;
 }
 
 /// The [Tc] represents an abstract type checker that implements all the specified

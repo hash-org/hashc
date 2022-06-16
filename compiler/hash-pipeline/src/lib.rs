@@ -246,6 +246,32 @@ where
         Ok(())
     }
 
+    /// Semantic pass stage within the pipeline.
+    fn perform_semantic_pass(
+        &mut self,
+        entry_point: SourceId,
+        sources: &mut Sources,
+        semantic_analyser_state: &mut S::State,
+        _job_params: &CompilerJobParams,
+    ) -> Result<(), Vec<Report>> {
+        timed(
+            || {
+                self.semantic_analyser.perform_pass(
+                    entry_point,
+                    sources,
+                    semantic_analyser_state,
+                    self.pool,
+                )
+            },
+            log::Level::Debug,
+            |time| {
+                self.metrics.insert(CompilerMode::SemanticPass, time);
+            },
+        )?;
+
+        Ok(())
+    }
+
     /// Function to invoke the typechecking stage for the entry point denoted by
     /// the passed [SourceId].
     ///
@@ -325,6 +351,24 @@ where
         if desugaring_result.is_err() || job_params.mode == CompilerMode::DeSugar {
             if let Err(err) = desugaring_result {
                 self.report_error(err, &compiler_state.sources);
+            }
+
+            return compiler_state;
+        }
+
+        // Now perform the semantic pass on the sources
+        let sem_pass_result = self.perform_semantic_pass(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.semantic_analysis_state,
+            &job_params,
+        );
+
+        if sem_pass_result.is_err() || job_params.mode == CompilerMode::Typecheck {
+            if let Err(errors) = sem_pass_result {
+                for error in errors.into_iter() {
+                    self.report_error(error, &compiler_state.sources);
+                }
             }
 
             return compiler_state;
