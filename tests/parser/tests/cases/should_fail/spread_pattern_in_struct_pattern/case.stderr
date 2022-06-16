@@ -1,6 +1,0 @@
-error: Failed to parse
- --> $DIR/case.hash:2:13
-1 |   // Spread patterns are disallowed within struct patterns
-2 |   Struct( x,  ...d) := foo();
-  |               ^ here
-  = note: Unexpectedly encountered a `.`. Consider adding either a '(', '{', or '['.

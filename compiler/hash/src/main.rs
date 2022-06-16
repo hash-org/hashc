@@ -10,6 +10,7 @@ mod logger;
 
 use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugaring;
+use hash_ast_passes::visitor::AstPasses;
 use hash_parser::HashParser;
 use hash_pipeline::{
     fs::resolve_path,
@@ -84,6 +85,7 @@ fn main() {
 
     let parser = HashParser::new();
     let desugarer = AstDesugaring;
+    let semnatic_analyser = AstPasses::new();
     let checker = Typechecker;
 
     // Create the vm
@@ -98,7 +100,15 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut compiler = Compiler::new(parser, desugarer, checker, vm, &pool, compiler_settings);
+    let mut compiler = Compiler::new(
+        parser,
+        desugarer,
+        semnatic_analyser,
+        checker,
+        vm,
+        &pool,
+        compiler_settings,
+    );
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {

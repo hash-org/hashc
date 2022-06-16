@@ -20,7 +20,7 @@ use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::Sources;
-use traits::{Desugar, Parser, Tc, VirtualMachine};
+use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Report>;
 
@@ -28,11 +28,13 @@ pub type CompilerResult<T> = Result<T, Report>;
 /// [Compiler] with the specified components. This allows external tinkerers
 /// to add their own implementations of each compiler stage with relative ease
 /// instead of having to scratch their heads.
-pub struct Compiler<'pool, P, D, C, V> {
+pub struct Compiler<'pool, P, D, S, C, V> {
     /// The parser stage of the compiler.
     parser: P,
     /// De-sugar the AST
     desugarer: D,
+    /// Perform semantic analysis on the AST.
+    semantic_analyser: S,
     /// The typechecking stage of the compiler.
     checker: C,
     /// The current VM.
@@ -49,24 +51,34 @@ pub struct Compiler<'pool, P, D, C, V> {
 /// The [CompilerState] holds all the information and state of the compiler instance.
 /// Each stage of the compiler contains a `State` type parameter which the compiler stores
 /// so that incremental executions of the compiler are possible.
-pub struct CompilerState<'c, 'pool, D: Desugar<'pool>, C: Tc<'c>, V: VirtualMachine<'c>> {
+pub struct CompilerState<
+    'c,
+    'pool,
+    D: Desugar<'pool>,
+    S: SemanticPass<'pool>,
+    C: Tc<'c>,
+    V: VirtualMachine<'c>,
+> {
     /// The collected workspace sources for the current job.
     pub sources: Sources,
     /// Any errors that were collected from any stage
     _errors: Vec<Report>,
     /// The typechecker state.
     pub ds_state: D::State,
+    /// The semantic analysis state.
+    pub semantic_analysis_state: S::State,
     /// The typechecker state.
     pub tc_state: C::State,
     /// The State of the Virtual machine
     pub vm_state: V::State,
 }
 
-impl<'c, 'pool, P, D, C, V> Compiler<'pool, P, D, C, V>
+impl<'c, 'pool, P, D, S, C, V> Compiler<'pool, P, D, S, C, V>
 where
     'pool: 'c,
     P: Parser<'pool>,
     D: Desugar<'pool>,
+    S: SemanticPass<'pool>,
     C: Tc<'c>,
     V: VirtualMachine<'c>,
 {
@@ -75,6 +87,7 @@ where
     pub fn new(
         parser: P,
         desugarer: D,
+        semantic_analyser: S,
         checker: C,
         vm: V,
         pool: &'pool rayon::ThreadPool,
@@ -83,11 +96,10 @@ where
         Self {
             parser,
             desugarer,
-            /// semantic-analysis
+            semantic_analyser,
             checker,
             /// monomorphisation + lowering
             /// ir
-            /// bytecode generation + VM
             vm,
             settings,
             pool,
@@ -98,18 +110,20 @@ where
     /// Create a compiler state to accompany with compiler execution. Internally, this
     /// calls the [Tc] state making functions and saves it into the created
     /// [CompilerState].
-    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, C, V>> {
+    pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
         let sources = Sources::new();
         // let checker_interactive_state = self.checker.make_interactive_state(&mut checker_state)?;
         // let checker_module_state = self.checker.make_module_state(&mut checker_state)?;
 
         let ds_state = self.desugarer.make_state()?;
+        let semantic_analysis_state = self.semantic_analyser.make_state()?;
         let tc_state = self.checker.make_state()?;
         let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
             sources,
             _errors: vec![],
+            semantic_analysis_state,
             tc_state,
             ds_state,
             vm_state,
@@ -167,7 +181,7 @@ where
                 // If this is a module, we want to print all of the generated modules from the parsing stage
                 for (_, generated_module) in sources.iter_modules() {
                     let tree = AstTreeGenerator
-                        .visit_module(&(), generated_module.node())
+                        .visit_module(&(), generated_module.node_ref())
                         .unwrap();
 
                     println!(
@@ -232,6 +246,32 @@ where
         Ok(())
     }
 
+    /// Semantic pass stage within the pipeline.
+    fn perform_semantic_pass(
+        &mut self,
+        entry_point: SourceId,
+        sources: &mut Sources,
+        semantic_analyser_state: &mut S::State,
+        _job_params: &CompilerJobParams,
+    ) -> Result<(), Vec<Report>> {
+        timed(
+            || {
+                self.semantic_analyser.perform_pass(
+                    entry_point,
+                    sources,
+                    semantic_analyser_state,
+                    self.pool,
+                )
+            },
+            log::Level::Debug,
+            |time| {
+                self.metrics.insert(CompilerMode::SemanticPass, time);
+            },
+        )?;
+
+        Ok(())
+    }
+
     /// Function to invoke the typechecking stage for the entry point denoted by
     /// the passed [SourceId].
     ///
@@ -286,9 +326,9 @@ where
     pub fn run(
         &mut self,
         entry_point: SourceId,
-        mut compiler_state: CompilerState<'c, 'pool, D, C, V>,
+        mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
-    ) -> CompilerState<'c, 'pool, D, C, V> {
+    ) -> CompilerState<'c, 'pool, D, S, C, V> {
         let parse_result = self.parse_source(entry_point, &mut compiler_state.sources, &job_params);
 
         // Short circuit if parsing failed or the job specified to stop at parsing
@@ -311,6 +351,24 @@ where
         if desugaring_result.is_err() || job_params.mode == CompilerMode::DeSugar {
             if let Err(err) = desugaring_result {
                 self.report_error(err, &compiler_state.sources);
+            }
+
+            return compiler_state;
+        }
+
+        // Now perform the semantic pass on the sources
+        let sem_pass_result = self.perform_semantic_pass(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.semantic_analysis_state,
+            &job_params,
+        );
+
+        if sem_pass_result.is_err() || job_params.mode == CompilerMode::Typecheck {
+            if let Err(errors) = sem_pass_result {
+                for error in errors.into_iter() {
+                    self.report_error(error, &compiler_state.sources);
+                }
             }
 
             return compiler_state;
