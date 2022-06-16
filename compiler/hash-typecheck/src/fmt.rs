@@ -1,9 +1,9 @@
 //! Contains utilities to format types for displaying in error messages and debug output.
 use crate::storage::{
     primitives::{
-        AppSub, Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId,
-        ModDefOrigin, NominalDef, NominalDefId, Params, StructDef, SubSubject, Term, TermId,
-        TrtDefId, UnresolvedTerm,
+        Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
+        NominalDef, NominalDefId, Params, StructDef, SubSubject, Term, TermId, TrtDefId,
+        UnresolvedTerm,
     },
     GlobalStorage,
 };
