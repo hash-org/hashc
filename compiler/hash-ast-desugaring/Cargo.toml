@@ -7,8 +7,6 @@ edition = "2021"
 [dependencies]
 rayon = "1.5.0"
 
-hash-utils = {path = "../hash-utils" }
-hash-alloc = {path = "../hash-alloc" }
 hash-ast = {path = "../hash-ast" }
 hash-source = { path = "../hash-source" }
 hash-pipeline = { path = "../hash-pipeline" }
