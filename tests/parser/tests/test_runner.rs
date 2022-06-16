@@ -106,12 +106,7 @@ fn handle_test(input: TestingInput) {
     } else {
         // Check whether the result fails or not, depending on if the file_path begins with
         // 'should_fail'...
-        assert_eq!(
-            result.is_err(),
-            false,
-            "parsing file failed: {:?}",
-            content_path
-        );
+        assert!(result.is_ok(), "parsing file failed: {:?}", content_path);
     }
 }
 // "case.hash" is the test pattern.

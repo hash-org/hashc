@@ -7,16 +7,18 @@
 //! type definition will be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
 
+use hash_source::SourceId;
+
 use self::{
     core::CoreDefs,
     mods::ModDefStore,
     nominals::NominalDefStore,
-    scope::{Scope, ScopeStack},
+    primitives::{Scope, ScopeId, ScopeKind},
+    scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
-    state::TypecheckState,
+    state::TcState,
+    terms::TermStore,
     trts::TrtDefStore,
-    tys::TyStore,
-    values::ValueStore,
 };
 
 pub mod core;
@@ -26,55 +28,39 @@ pub mod primitives;
 pub mod scope;
 pub mod sources;
 pub mod state;
+pub mod terms;
 pub mod trts;
-pub mod tys;
-pub mod values;
 
 /// Keeps track of typechecking information across all source files.
+#[derive(Debug)]
 pub struct GlobalStorage {
-    pub ty_store: TyStore,
-    pub value_store: ValueStore,
+    pub scope_store: ScopeStore,
+    pub term_store: TermStore,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
     pub checked_sources: CheckedSources,
-    pub root_scope: Scope,
-    core_defs: Option<CoreDefs>,
+    /// Used to create the first scope when creating a LocalStorage.
+    ///
+    /// This includes all the core language definitions; it shouldn't be directly queried, but
+    /// rather the [LocalStorage] scopes should be queried.
+    pub root_scope: ScopeId,
 }
 
 impl GlobalStorage {
     /// Create a new, empty [GlobalStorage].
     pub fn new() -> Self {
-        let mut gs = Self {
-            ty_store: TyStore::new(),
-            value_store: ValueStore::new(),
+        let mut scope_store = ScopeStore::new();
+        let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
+        Self {
+            term_store: TermStore::new(),
+            scope_store,
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             checked_sources: CheckedSources::new(),
-            root_scope: Scope::empty(scope::ScopeKind::Constant),
-            core_defs: None,
-        };
-        gs.populate_core_defs();
-        gs
-    }
-
-    /// Populate the core definitions
-    pub fn populate_core_defs(&mut self) {
-        match self.core_defs {
-            Some(_) => {}
-            None => {
-                self.core_defs = Some(CoreDefs::new(self));
-            }
+            root_scope,
         }
-    }
-
-    /// Get the core definitions
-    ///
-    /// This panics if [Self::populate_core_defs] has not been called yet (---it is called when
-    /// [Self::new] is called).
-    pub fn core_defs(&self) -> &CoreDefs {
-        self.core_defs.as_ref().unwrap()
     }
 }
 
@@ -85,23 +71,45 @@ impl Default for GlobalStorage {
 }
 
 /// Keeps track of typechecking information specific to a given source file.
+#[derive(Debug)]
 pub struct LocalStorage {
     /// All the scopes in a given source.
     pub scopes: ScopeStack,
     /// The state of the typechecker for the given source.
-    pub state: TypecheckState,
+    pub state: TcState,
 }
 
-/// A reference to the storage, which includes both local and global storage.
-pub struct StorageRef<'gs, 'ls> {
+impl LocalStorage {
+    /// Create a new, empty [LocalStorage] for the given source.
+    pub fn new(source_id: SourceId, gs: &mut GlobalStorage) -> Self {
+        Self {
+            state: TcState::new(source_id),
+            scopes: ScopeStack::many([
+                // First the root scope
+                gs.root_scope,
+                // Then the scope for the source
+                gs.scope_store.create(Scope::empty(ScopeKind::Constant)),
+            ]),
+        }
+    }
+}
+
+/// A reference to the storage, which includes both local and global storage, as well as core
+/// definitions.
+#[derive(Debug, Clone, Copy)]
+pub struct StorageRef<'gs, 'ls, 'cd> {
     pub local_storage: &'ls LocalStorage,
     pub global_storage: &'gs GlobalStorage,
+    pub core_defs: &'cd CoreDefs,
 }
 
-/// A mutable reference to the storage, which includes both local and global storage.
-pub struct StorageRefMut<'gs, 'ls> {
+/// A mutable reference to the storage, which includes both local and global storage, as well as
+/// core definitions.
+#[derive(Debug)]
+pub struct StorageRefMut<'gs, 'ls, 'cd> {
     pub local_storage: &'ls mut LocalStorage,
     pub global_storage: &'gs mut GlobalStorage,
+    pub core_defs: &'cd CoreDefs,
 }
 
 /// Trait that provides convenient accessor methods to various parts of the storage given a path to
@@ -118,15 +126,15 @@ pub trait AccessToStorage {
     }
 
     fn core_defs(&mut self) -> &CoreDefs {
-        self.global_storage().core_defs()
+        self.storages().core_defs
     }
 
-    fn ty_store(&self) -> &TyStore {
-        &self.global_storage().ty_store
+    fn scope_store(&self) -> &ScopeStore {
+        &self.global_storage().scope_store
     }
 
-    fn value_store(&self) -> &ValueStore {
-        &self.global_storage().value_store
+    fn term_store(&self) -> &TermStore {
+        &self.global_storage().term_store
     }
 
     fn nominal_def_store(&self) -> &NominalDefStore {
@@ -145,11 +153,11 @@ pub trait AccessToStorage {
         &self.global_storage().checked_sources
     }
 
-    fn root_scope(&self) -> &Scope {
-        &self.global_storage().root_scope
+    fn root_scope(&self) -> ScopeId {
+        self.global_storage().root_scope
     }
 
-    fn state(&self) -> &TypecheckState {
+    fn state(&self) -> &TcState {
         &self.local_storage().state
     }
 
@@ -171,12 +179,12 @@ pub trait AccessToStorageMut: AccessToStorage {
         self.storages_mut().local_storage
     }
 
-    fn ty_store_mut(&mut self) -> &mut TyStore {
-        &mut self.global_storage_mut().ty_store
+    fn term_store_mut(&mut self) -> &mut TermStore {
+        &mut self.global_storage_mut().term_store
     }
 
-    fn value_store_mut(&mut self) -> &mut ValueStore {
-        &mut self.global_storage_mut().value_store
+    fn scope_store_mut(&mut self) -> &mut ScopeStore {
+        &mut self.global_storage_mut().scope_store
     }
 
     fn nominal_def_store_mut(&mut self) -> &mut NominalDefStore {
@@ -195,11 +203,7 @@ pub trait AccessToStorageMut: AccessToStorage {
         &mut self.global_storage_mut().checked_sources
     }
 
-    fn root_scope_mut(&mut self) -> &mut Scope {
-        &mut self.global_storage_mut().root_scope
-    }
-
-    fn state_mut(&mut self) -> &mut TypecheckState {
+    fn state_mut(&mut self) -> &mut TcState {
         &mut self.local_storage_mut().state
     }
 
@@ -208,26 +212,28 @@ pub trait AccessToStorageMut: AccessToStorage {
     }
 }
 
-impl<'gs, 'ls> AccessToStorage for StorageRef<'gs, 'ls> {
+impl<'gs, 'ls, 'cd> AccessToStorage for StorageRef<'gs, 'ls, 'cd> {
     fn storages(&self) -> StorageRef {
         StorageRef { ..*self }
     }
 }
 
-impl<'gs, 'ls> AccessToStorage for StorageRefMut<'gs, 'ls> {
+impl<'gs, 'ls, 'cd> AccessToStorage for StorageRefMut<'gs, 'ls, 'cd> {
     fn storages(&self) -> StorageRef {
         StorageRef {
             global_storage: self.global_storage,
             local_storage: self.local_storage,
+            core_defs: self.core_defs,
         }
     }
 }
 
-impl<'gs, 'ls> AccessToStorageMut for StorageRefMut<'gs, 'ls> {
+impl<'gs, 'ls, 'cd> AccessToStorageMut for StorageRefMut<'gs, 'ls, 'cd> {
     fn storages_mut(&mut self) -> StorageRefMut {
         StorageRefMut {
             global_storage: self.global_storage,
             local_storage: self.local_storage,
+            core_defs: self.core_defs,
         }
     }
 }
