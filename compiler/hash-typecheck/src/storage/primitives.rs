@@ -1,7 +1,10 @@
 //! Contains type definitions that the rest of the storage and the general typechecker use.
 use hash_source::{identifier::Identifier, SourceId};
 use slotmap::new_key_type;
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 /// The visibility of a member of a const scope.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -160,6 +163,11 @@ impl GetNameOpt for Param {
 /// A list of parameters.
 pub type Params = ParamList<Param>;
 
+/// A set of variables which are bound in some scope.
+///
+/// Used to keep track of bound variables in definitions.
+pub type BoundVars = HashSet<Var>;
+
 /// The origin of a module: was it defined in a `mod` block, an anonymous `impl` block, or an
 /// `impl Trait` block?
 #[derive(Debug, Clone, Hash)]
@@ -181,6 +189,7 @@ pub enum ModDefOrigin {
 pub struct ModDef {
     pub name: Option<Identifier>,
     pub origin: ModDefOrigin,
+    pub bound_vars: BoundVars,
     pub members: ScopeId,
 }
 
@@ -200,6 +209,7 @@ pub enum StructFields {
 #[derive(Debug, Clone)]
 pub struct StructDef {
     pub name: Option<Identifier>,
+    pub bound_vars: BoundVars,
     pub fields: StructFields,
 }
 
@@ -216,6 +226,7 @@ pub struct EnumVariant {
 #[derive(Debug, Clone)]
 pub struct EnumDef {
     pub name: Option<Identifier>,
+    pub bound_vars: BoundVars,
     pub variants: HashMap<Identifier, EnumVariant>,
 }
 
@@ -223,6 +234,7 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct TrtDef {
     pub name: Option<Identifier>,
+    pub bound_vars: BoundVars,
     pub members: ScopeId,
 }
 
@@ -231,6 +243,24 @@ pub struct TrtDef {
 pub enum NominalDef {
     Struct(StructDef),
     Enum(EnumDef),
+}
+
+impl NominalDef {
+    /// Get the name of the [NominalDef], if any.
+    pub fn name(&self) -> Option<Identifier> {
+        match self {
+            NominalDef::Struct(def) => def.name,
+            NominalDef::Enum(def) => def.name,
+        }
+    }
+
+    /// Get the bound variables of the [NominalDef].
+    pub fn bound_vars(&self) -> &BoundVars {
+        match self {
+            NominalDef::Struct(def) => &def.bound_vars,
+            NominalDef::Enum(def) => &def.bound_vars,
+        }
+    }
 }
 
 /// A tuple type, containg parameters as members.
@@ -358,7 +388,7 @@ pub struct UnresolvedTerm {
 }
 
 /// A variable, which is just a name.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Var {
     pub name: Identifier,
 }
@@ -370,10 +400,10 @@ pub struct Var {
 ///
 /// When this type is unified with another type, the function is applied by first instantiating
 /// its return value over its type parameters, and then unifying the instantiated type parameters
-/// with the given type arguments of the function (the `ty_args` field).
+/// with the given type arguments of the function (the `args` field).
 #[derive(Debug, Clone)]
 pub struct AppTyFn {
-    pub ty_fn_value: TermId,
+    pub subject: TermId,
     pub args: Args,
 }
 
@@ -477,6 +507,124 @@ pub enum Level0Term {
     EnumVariant(EnumVariantValue),
 }
 
+/// The subject of a substitution, either a variable or an unresolved term.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub enum SubSubject {
+    Var(Var),
+    Unresolved(UnresolvedTerm),
+}
+
+impl From<Var> for SubSubject {
+    fn from(var: Var) -> Self {
+        SubSubject::Var(var)
+    }
+}
+
+impl From<UnresolvedTerm> for SubSubject {
+    fn from(unresolved: UnresolvedTerm) -> Self {
+        SubSubject::Unresolved(unresolved)
+    }
+}
+
+/// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a term.
+#[derive(Debug, Default, Clone)]
+pub struct Sub {
+    data: HashMap<SubSubject, TermId>,
+}
+
+impl Sub {
+    /// Create an empty substitution.
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// Create a substitution from a [HashMap<SubSubject, TermId>].
+    pub fn from_map(map: HashMap<SubSubject, TermId>) -> Self {
+        Self { data: map }
+    }
+
+    /// Create a substitution from pairs of `(SubSubject, TermId)`.
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubSubject>, TermId)>) -> Self {
+        Self {
+            data: pairs
+                .into_iter()
+                .map(|(from, to)| (from.into(), to))
+                .collect(),
+        }
+    }
+
+    /// Get the substitution for the given [SubSubject], if any.
+    pub fn get_sub_for(&self, subject: SubSubject) -> Option<TermId> {
+        self.data.get(&subject).copied()
+    }
+
+    /// Get the pairs `(SubSubject, TermId)` of the substitution as an iterator.
+    pub fn pairs(&self) -> impl Iterator<Item = (SubSubject, TermId)> + '_ {
+        self.data.iter().map(|(&subject, &term)| (subject, term))
+    }
+
+    /// Get the pairs `(SubSubject, TermId)` of the substitution as a map.
+    pub fn map(&self) -> &HashMap<SubSubject, TermId> {
+        &self.data
+    }
+
+    /// Create a new substitution equivalent to this one but selecting only the pairs which are not
+    /// shadowed by the given [Params].
+    pub fn filter(&self, params: &Params) -> Self {
+        Self {
+            data: self
+                .data
+                .iter()
+                .filter_map(|(from, to)| match from {
+                    SubSubject::Var(var) => {
+                        if params.get_by_name(var.name).is_some() {
+                            None
+                        } else {
+                            Some((*from, *to))
+                        }
+                    }
+                    SubSubject::Unresolved(_) => Some((*from, *to)),
+                })
+                .collect(),
+        }
+    }
+
+    /// Create a new substitution equivalent to this one but selecting only the given [BoundVars]
+    /// as subjects.
+    pub fn select(&self, bound_vars: &BoundVars) -> Self {
+        Self {
+            data: self
+                .data
+                .iter()
+                .filter_map(|(from, to)| match from {
+                    SubSubject::Var(var) => {
+                        if bound_vars.contains(var) {
+                            Some((*from, *to))
+                        } else {
+                            None
+                        }
+                    }
+                    SubSubject::Unresolved(_) => None,
+                })
+                .collect(),
+        }
+    }
+
+    /// Merge the substitution with another.
+    ///
+    /// Modifies `self`.
+    pub fn merge_with(&mut self, _other: &Sub) {
+        todo!()
+    }
+}
+
+/// A term as well as a substitution to apply to it.
+#[derive(Debug, Clone)]
+pub struct AppSub {
+    pub sub: Sub,
+    pub term: TermId,
+}
+
 /// The basic data structure of a compile-time term.
 #[derive(Debug, Clone)]
 pub enum Term {
@@ -512,6 +660,11 @@ pub enum Term {
     ///
     /// Is level N, where N is the level of the resultant application.
     AppTyFn(AppTyFn),
+
+    /// Substitution application.
+    ///
+    /// Is level N, where N is the level of the inner term after the substitution has been applied.
+    AppSub(AppSub),
 
     /// Not yet resolved.
     ///
@@ -566,3 +719,9 @@ new_key_type! {
 /// original type.
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct ResolutionId(pub(super) usize);
+
+impl Display for ResolutionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
