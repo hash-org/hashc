@@ -46,44 +46,49 @@ impl CoreDefs {
         let builder = PrimitiveBuilder::new_with_scope(global_storage, global_storage.root_scope);
 
         // Primitive integers
-        let i8_ty = builder.create_opaque_struct_def("i8");
-        let i16_ty = builder.create_opaque_struct_def("i16");
-        let i32_ty = builder.create_opaque_struct_def("i32");
-        let i64_ty = builder.create_opaque_struct_def("i64");
+        let i8_ty = builder.create_opaque_struct_def("i8", []);
+        let i16_ty = builder.create_opaque_struct_def("i16", []);
+        let i32_ty = builder.create_opaque_struct_def("i32", []);
+        let i64_ty = builder.create_opaque_struct_def("i64", []);
 
-        let u8_ty = builder.create_opaque_struct_def("u8");
-        let u16_ty = builder.create_opaque_struct_def("u16");
-        let u32_ty = builder.create_opaque_struct_def("u32");
-        let u64_ty = builder.create_opaque_struct_def("u64");
+        let u8_ty = builder.create_opaque_struct_def("u8", []);
+        let u16_ty = builder.create_opaque_struct_def("u16", []);
+        let u32_ty = builder.create_opaque_struct_def("u32", []);
+        let u64_ty = builder.create_opaque_struct_def("u64", []);
 
-        let f32_ty = builder.create_opaque_struct_def("f32");
-        let f64_ty = builder.create_opaque_struct_def("f64");
+        let f32_ty = builder.create_opaque_struct_def("f32", []);
+        let f64_ty = builder.create_opaque_struct_def("f64", []);
 
         // Char and bool
-        let char_ty = builder.create_opaque_struct_def("char");
+        let char_ty = builder.create_opaque_struct_def("char", []);
         let bool_ty = builder.create_enum_def(
             "bool",
             [
                 builder.create_enum_variant("true", []),
                 builder.create_enum_variant("false", []),
             ],
+            [],
         );
 
         // String
-        let str_ty = builder.create_opaque_struct_def("str");
+        let str_ty = builder.create_opaque_struct_def("str", []);
 
         // Reference types
         let reference_ty_fn = builder.create_ty_fn_term(
-            "Ref",
+            Some("Ref"),
             [builder.create_param("T", builder.create_any_ty_term())],
             builder.create_any_ty_term(),
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
+            builder.create_nominal_def_term(
+                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
+            ),
         );
         let raw_reference_ty_fn = builder.create_ty_fn_term(
-            "RawRef",
+            Some("RawRef"),
             [builder.create_param("T", builder.create_any_ty_term())],
             builder.create_any_ty_term(),
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
+            builder.create_nominal_def_term(
+                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
+            ),
         );
 
         // Handy shorthand for &Self type
@@ -102,6 +107,7 @@ impl CoreDefs {
                     builder.create_nominal_def_term(u64_ty),
                 ),
             )],
+            [],
         );
         let eq_trt = builder.create_trait_def(
             "Eq",
@@ -115,25 +121,30 @@ impl CoreDefs {
                     builder.create_nominal_def_term(u64_ty),
                 ),
             )],
+            [],
         );
 
         // Collection types
         let list_ty_fn = builder.create_ty_fn_term(
-            "List",
+            Some("List"),
             [builder.create_param("T", builder.create_any_ty_term())],
             builder.create_any_ty_term(),
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
+            builder.create_nominal_def_term(
+                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
+            ),
         );
 
         let set_ty_fn = builder.create_ty_fn_term(
-            "Set",
+            Some("Set"),
             [builder.create_param("T", builder.create_any_ty_term())],
             builder.create_any_ty_term(),
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
+            builder.create_nominal_def_term(
+                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
+            ),
         );
 
         let map_ty_fn = builder.create_ty_fn_term(
-            "Map",
+            Some("Map"),
             [
                 builder.create_param(
                     "K",
@@ -145,7 +156,10 @@ impl CoreDefs {
                 builder.create_param("V", builder.create_any_ty_term()),
             ],
             builder.create_any_ty_term(),
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def([
+                builder.create_var("K"),
+                builder.create_var("V"),
+            ])),
         );
 
         Self {
