@@ -27,14 +27,14 @@ impl<'pool> SemanticPass<'pool> for SemanticAnalyser {
 
     /// This will perform a pass on the AST by checking the semantic rules that are within
     /// the language specification. The function will attempt to perform a pass on the
-    /// `target` which happens on the main thread. The target may be either an interactive
+    /// `entry_point` which happens on the main thread. The target may be either an interactive
     /// block or a module. A pass is performed and then remaining modules are processed if they
     /// have not already been processed. This is a sound implementation because it always considers
-    /// the `target` which might not always occur within the modules map. Each time the pipeline
+    /// the `entry_point` which might not always occur within the modules map. Each time the pipeline
     /// runs (in the interactive case), the most recent block is always passed.
     fn perform_pass(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         sources: &mut Sources,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
@@ -43,22 +43,19 @@ impl<'pool> SemanticPass<'pool> for SemanticAnalyser {
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
-            if !state.contains(&target) {
-                if let SourceId::Interactive(id) = target {
+            if !state.contains(&entry_point) {
+                if let SourceId::Interactive(id) = entry_point {
                     let source = sources.get_interactive_block_mut(id);
 
                     // setup a visitor and the context
                     let mut visitor = SemanticAnalyser::new();
-                    let ctx = SemanticAnalysisContext::new(target);
+                    let ctx = SemanticAnalysisContext::new(entry_point);
 
                     visitor.visit_body_block(&ctx, source.node()).unwrap();
                     visitor
                         .errors()
                         .into_iter()
                         .for_each(|err| sender.send(err).unwrap());
-
-                    // We have to add it here since we don't want it be re-passed further down
-                    state.insert(target);
                 }
             }
 
@@ -88,6 +85,7 @@ impl<'pool> SemanticPass<'pool> for SemanticAnalyser {
         });
 
         // Add all of the ids into the cache
+        state.insert(entry_point);
         state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
 
         // Collect all of the errors
