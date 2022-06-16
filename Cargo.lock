@@ -376,6 +376,7 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-pipeline",
+ "hash-reporting",
  "hash-source",
  "rayon",
 ]

@@ -5,10 +5,13 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 #![feature(generic_associated_types)]
 
+mod error;
 pub mod visitor;
 
+use error::SemanticPassError;
 use hash_ast::visitor::AstVisitor;
 use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
+use hash_reporting::reporting::Report;
 use hash_source::SourceId;
 use std::collections::HashSet;
 use visitor::AstPasses;
@@ -46,8 +49,8 @@ impl<'pool> SemanticPass<'pool> for AstPasses {
         sources: &mut Sources,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
-    ) -> hash_pipeline::traits::CompilerResult<()> {
-        pool.scope(|scope| {
+    ) -> Result<(), Vec<Report>> {
+        let errors: Vec<SemanticPassError> = pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
             if !state.contains(&target) {
                 if let SourceId::Interactive(id) = target {
@@ -68,12 +71,18 @@ impl<'pool> SemanticPass<'pool> for AstPasses {
                     scope.spawn(|_| AstPasses.visit_expression(&(), expr.ast_ref()).unwrap())
                 }
             }
+
+            vec![]
         });
 
         // Add all of the ids into the cache
         state.insert(target);
         state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
 
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.into_iter().map(|err| err.into()).collect())
+        }
     }
 }

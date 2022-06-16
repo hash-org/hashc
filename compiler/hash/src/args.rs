@@ -41,8 +41,8 @@ pub(crate) struct CompilerOptions {
 pub(crate) enum SubCmd {
     AstGen(AstGenMode),
     DeSugar(DeSugarMode),
-    IrGen(IrGenMode),
     Check(CheckMode),
+    IrGen(IrGenMode),
 }
 
 /// Desugar from given input file
