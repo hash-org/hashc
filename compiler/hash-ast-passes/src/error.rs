@@ -38,11 +38,11 @@ impl From<AnalysisError> for Report {
 
         match err.kind {
             AnalysisErrorKind::UsingBreakOutsideLoop => {
-                builder.with_message("You can't use a `break` clause outside of a loop.");
+                builder.with_message("You cannot use a `break` clause outside of a loop.");
                 builder.with_error_code(HashErrorCode::UsingBreakOutsideLoop);
             }
             AnalysisErrorKind::UsingContinueOutsideLoop => {
-                builder.with_message("You can't use a `continue` clause outside of a loop.");
+                builder.with_message("You cannot use a `continue` clause outside of a loop.");
                 builder.with_error_code(HashErrorCode::UsingContinueOutsideLoop);
             }
         };
