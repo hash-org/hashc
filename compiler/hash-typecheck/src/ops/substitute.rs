@@ -85,12 +85,12 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
         match term {
             Level2Term::Trt(trt_def_id) => {
                 // Here we add the substitution to the term using only vars in the trat definition.
-                let trt_def_vars = self.reader().get_trt_def(trt_def_id).bound_vars.clone();
+                let reader = self.reader();
+                let trt_def_vars = &reader.get_trt_def(trt_def_id).bound_vars;
+                let selected_sub = sub.select(trt_def_vars);
                 let builder = self.builder();
-                Ok(builder.create_app_sub_term(
-                    sub.select(&trt_def_vars),
-                    builder.create_term(Term::Level2(term)),
-                ))
+                Ok(builder
+                    .create_app_sub_term(selected_sub, builder.create_term(Term::Level2(term))))
             }
             Level2Term::AnyTy => Ok(self.builder().create_term(Term::Level2(Level2Term::AnyTy))),
         }
@@ -102,26 +102,22 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
         match term {
             Level1Term::ModDef(mod_def_id) => {
                 // Here we add the substitution to the term using only vars in the mod definition.
-                let mod_def_vars = self.reader().get_mod_def(mod_def_id).bound_vars.clone();
+                let reader = self.reader();
+                let mod_def_vars = &reader.get_mod_def(mod_def_id).bound_vars;
+                let selected_sub = sub.select(&mod_def_vars);
                 let builder = self.builder();
-                Ok(builder.create_app_sub_term(
-                    sub.select(&mod_def_vars),
-                    builder.create_term(Term::Level1(term)),
-                ))
+                Ok(builder
+                    .create_app_sub_term(selected_sub, builder.create_term(Term::Level1(term))))
             }
             Level1Term::NominalDef(nominal_def_id) => {
                 // Here we add the substitution to the term using only vars in the nominal
                 // definition.
-                let nominal_def_vars = self
-                    .reader()
-                    .get_nominal_def(nominal_def_id)
-                    .bound_vars()
-                    .clone();
+                let reader = self.reader();
+                let nominal_def_vars = reader.get_nominal_def(nominal_def_id).bound_vars();
+                let selected_sub = sub.select(&nominal_def_vars);
                 let builder = self.builder();
-                Ok(builder.create_app_sub_term(
-                    sub.select(&nominal_def_vars),
-                    builder.create_term(Term::Level1(term)),
-                ))
+                Ok(builder
+                    .create_app_sub_term(selected_sub, builder.create_term(Term::Level1(term))))
             }
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
@@ -157,14 +153,14 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
             }
             Level0Term::EnumVariant(enum_variant) => {
                 // Here we add the substitution to the term using only vars in the enum definition.
-                let enum_def_vars = self
-                    .reader()
+                let reader = self.reader();
+                let enum_def_vars = reader
                     .get_nominal_def(enum_variant.enum_def_id)
-                    .bound_vars()
-                    .clone();
+                    .bound_vars();
+                let selected_sub = sub.select(&enum_def_vars);
                 let builder = self.builder();
                 Ok(builder.create_app_sub_term(
-                    sub.select(&enum_def_vars),
+                    selected_sub,
                     builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
                 ))
             }
