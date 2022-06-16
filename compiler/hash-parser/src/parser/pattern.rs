@@ -7,8 +7,6 @@ use hash_ast::{ast::*, ast_nodes};
 use hash_source::{identifier::CORE_IDENTIFIERS, location::Span};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
-use crate::{disable_flag, enable_flag};
-
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
@@ -69,8 +67,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Pattern]. Singular [Pattern]s cannot have any grouped pattern
     /// operators such as a `|`, if guards or any form of compound pattern.
     pub(crate) fn parse_singular_pattern(&self) -> AstGenResult<AstNode<Pattern>> {
-        let spread_patterns_allowed = self.spread_patterns_allowed.get();
-
         let start = self.next_location();
         let token = self
             .peek()
@@ -105,12 +101,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let tree = self.token_trees.get(*tree_index).unwrap();
                         let gen = self.from_stream(tree, *span);
 
-                        disable_flag!(gen; spread_patterns_allowed;
-                            let fields = gen.parse_separated_fn(
-                                || gen.parse_tuple_pattern_entry(),
-                                || gen.parse_token(TokenKind::Comma),
-                            )?
-                        );
+                        let fields = gen.parse_separated_fn(
+                            || gen.parse_tuple_pattern_entry(),
+                            || gen.parse_token(TokenKind::Comma),
+                        )?;
 
                         Pattern::Constructor(ConstructorPattern { name, fields })
                     }
@@ -134,7 +128,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
             // Spread pattern
-            token if spread_patterns_allowed && token.has_kind(TokenKind::Dot) => {
+            token if token.has_kind(TokenKind::Dot) => {
                 Pattern::Spread(self.parse_spread_pattern()?)
             }
 
@@ -159,9 +153,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                disable_flag!(self; spread_patterns_allowed;
-                    let pat = self.parse_namespace_pattern(tree, *span)?
-                );
+                let pat = self.parse_namespace_pattern(tree, *span)?;
 
                 Pattern::Namespace(pat)
             }
@@ -267,9 +259,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let tree = self.token_trees.get(tree_index).unwrap();
         let gen = self.from_stream(tree, parent_span);
 
-        enable_flag!(gen; spread_patterns_allowed;
-            let fields = gen.parse_pattern_collection()?
-        );
+        let fields = gen.parse_pattern_collection()?;
 
         Ok(self.node_with_span(Pattern::List(ListPattern { fields }), parent_span))
     }
@@ -306,14 +296,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // where a pattern is wrapped in parentheses and so we just unwrap it.
         let gen = self.from_stream(tree, parent_span);
 
-        enable_flag!(gen; spread_patterns_allowed;
-            // @@Cleanup: In the case that there is a single pattern and the user writes a `,` does this
-            //            mean that this is still a singular pattern or if it is now treated as a tuple pattern?
-            let mut elements = gen.parse_separated_fn(
-                || gen.parse_tuple_pattern_entry(),
-                || gen.parse_token(TokenKind::Comma),
-            )?
-        );
+        let mut elements = gen.parse_separated_fn(
+            || gen.parse_tuple_pattern_entry(),
+            || gen.parse_token(TokenKind::Comma),
+        )?;
 
         // If there is no associated name with the entry and there is only one entry
         // then we can be sure that it is only a nested entry.

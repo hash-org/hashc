@@ -85,29 +85,6 @@ pub struct AstGen<'stream, 'resolver> {
     /// was made up of multiple expressions with precedence operators.
     is_compound_expr: Cell<bool>,
 
-    /// Flag denoting whether spread patterns are allowed in the current context. This
-    /// is only true if the parser is parsing either `tuple` or `list` patterns.
-    ///
-    // @@Future: It might be simpler just to allow spread patterns to be parsed within
-    //           any `pattern` context and then later report the error at semantic checking.
-    //           This might reduce the number of *silly* parser errors that are generated when
-    //           parsing patterns that aren't supposed to be allowed in other patterns.
-    //
-    //           A good example of one case is:
-    //           ```
-    //           { x, ...y } := ...;
-    //           ```
-    //
-    //           Since `spread` patterns are disallowed within namespace patterns, the parser reports it as an
-    //           error:
-    //           ```
-    //              |
-    //            1 |   { x,  ...d} := foo();
-    //              |         ^ here
-    //              = note: Expected an expression, however received a `.`.
-    //           ```
-    spread_patterns_allowed: Cell<bool>,
-
     /// Instance of an [ImportResolver] to notify the parser of encountered imports.
     resolver: &'resolver ImportResolver,
 }
@@ -126,7 +103,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token_trees,
             parent_span: None,
             is_compound_expr: Cell::new(false),
-            spread_patterns_allowed: Cell::new(false),
             offset: Cell::new(0),
             resolver,
         }
@@ -141,7 +117,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token_trees: self.token_trees,
             offset: Cell::new(0),
             is_compound_expr: self.is_compound_expr.clone(),
-            spread_patterns_allowed: self.spread_patterns_allowed.clone(),
             parent_span: Some(parent_span),
             resolver: self.resolver,
         }
