@@ -598,7 +598,7 @@ impl Sub {
                 .iter()
                 .filter_map(|(from, to)| match from {
                     SubSubject::Var(var) => {
-                        if bound_vars.contains(&var) {
+                        if bound_vars.contains(var) {
                             Some((*from, *to))
                         } else {
                             None

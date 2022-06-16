@@ -10,10 +10,7 @@ use crate::storage::{
     GlobalStorage,
 };
 use hash_source::identifier::Identifier;
-use std::{
-    cell::{Cell, RefCell},
-    ops::Deref,
-};
+use std::cell::{Cell, RefCell};
 
 /// Helper to create various primitive constructions (from [crate::storage::primitives]).
 ///

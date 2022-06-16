@@ -175,8 +175,8 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
     /// term with the substituted variables.
     ///
     /// Sometimes, this will actually create a [Term::AppSub] somewhere inside the term tree, and
-    /// those are the leaf nodes of the substitution application. This will happen with [ModDef],
-    /// [TrtDef], [NominalDef], and [EnumVariant]. This is so that when [Access] is resolved for
+    /// those are the leaf nodes of the substitution application. This will happen with `ModDef`,
+    /// `TrtDef`, `NominalDef`, and `EnumVariant`. This is so that when `Access` is resolved for
     /// those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TcResult<TermId> {
         // @@Performance: here we copy a lot, maybe there is a way to avoid all this copying by
@@ -337,9 +337,8 @@ mod tests {
             ],
             builder.create_var_term("T"),
         );
-        drop(builder);
 
-        println!("");
+        println!();
 
         println!("{}", target.for_formatting(storage_ref.global_storage()));
 
@@ -354,7 +353,6 @@ mod tests {
                 ],
             ),
         )]);
-        drop(builder);
 
         let mut substitutor = Substitutor::new(storage_ref.storages_mut());
         let subbed_target = substitutor.apply_sub_to_term(&sub, target).unwrap();
@@ -364,6 +362,6 @@ mod tests {
             subbed_target.for_formatting(storage_ref.global_storage())
         );
 
-        println!("");
+        println!();
     }
 }
