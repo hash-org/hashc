@@ -23,6 +23,7 @@ hash-pipeline = {path = "../hash-pipeline" }
 
 # Various stages that the pipeline interfaces with
 hash-ast-desugaring = { path = "../hash-ast-desugaring" }
+hash-ast-passes = { path = "../hash-ast-passes" }
 hash-typecheck = {path = "../hash-typecheck" }
 hash-vm = {path = "../hash-vm" }
 hash-source = {path = "../hash-source" }
