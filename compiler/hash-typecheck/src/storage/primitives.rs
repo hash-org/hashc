@@ -118,6 +118,11 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
         &self.params
     }
 
+    /// Turn [Self] into the parameters as a positional vector.
+    pub fn into_positional(self) -> Vec<ParamType> {
+        self.params
+    }
+
     /// Get a parameter by name.
     pub fn get_by_name(&self, name: Identifier) -> Option<(usize, &ParamType)> {
         let param_index = *self.name_map.get(&name)?;
