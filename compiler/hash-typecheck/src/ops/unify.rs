@@ -240,8 +240,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         // })
     }
 
-    /// Convenience method to get a substitutor.
-    fn substitutor(&mut self) -> Substituter {
+    /// Convenience method to get a substituter.
+    fn substituter(&mut self) -> Substituter {
         Substituter::new(self.storages_mut())
     }
 
@@ -256,20 +256,20 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     pub fn unify_subs(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
         let dom_s0: HashSet<_> = s0.domain().collect();
         let dom_s1: HashSet<_> = s1.domain().collect();
-        let mut substitutor = self.substitutor();
+        let mut substituter = self.substituter();
 
         /// First split the domains into three parts: d0, d1, and the intersection (see second
         /// loop)
         let d0: HashSet<_> = dom_s0.difference(&dom_s1).copied().collect();
         let t0 = Sub::from_pairs(
             d0.iter()
-                .map(|&a| (a, substitutor.apply_sub_to_subject(s0, a))),
+                .map(|&a| (a, substituter.apply_sub_to_subject(s0, a))),
         );
 
         let d1: HashSet<_> = dom_s1.difference(&dom_s0).copied().collect();
         let t1 = Sub::from_pairs(
             d1.iter()
-                .map(|&a| (a, substitutor.apply_sub_to_subject(s1, a))),
+                .map(|&a| (a, substituter.apply_sub_to_subject(s1, a))),
         );
 
         // Start with t0 and add terms for d1 one at a time, always producing well formed
@@ -277,8 +277,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         let mut result = t0.clone();
         for (a, t) in t0.pairs() {
             // Remove elements of dom(result) from t, and remove a from result.
-            let subbed_t = substitutor.apply_sub_to_term(&result, t);
-            if substitutor.get_free_vars_in_term(subbed_t).contains(&a) {
+            let subbed_t = substituter.apply_sub_to_term(&result, t);
+            if substituter.get_free_vars_in_term(subbed_t).contains(&a) {
                 // @@ErrorReporting: here we can error with the span for more info.
                 panic!("Unexpected free variable in one of the substitutions being unified (occurs error)");
             }
@@ -289,14 +289,14 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
         // Now deal with the intersection:
         for &b in dom_s0.intersection(&dom_s1) {
-            let mut substitutor = self.substitutor();
-            let subbed0_b = substitutor.apply_sub_to_subject(s0, b);
-            let subbed1_b = substitutor.apply_sub_to_subject(s1, b);
-            let x0 = substitutor.apply_sub_to_term(&result, subbed0_b);
-            let x1 = substitutor.apply_sub_to_term(&result, subbed1_b);
+            let mut substituter = self.substituter();
+            let subbed0_b = substituter.apply_sub_to_subject(s0, b);
+            let subbed1_b = substituter.apply_sub_to_subject(s1, b);
+            let x0 = substituter.apply_sub_to_term(&result, subbed0_b);
+            let x1 = substituter.apply_sub_to_term(&result, subbed1_b);
 
-            if substitutor.get_free_vars_in_term(x0).contains(&b)
-                || substitutor.get_free_vars_in_term(x1).contains(&b)
+            if substituter.get_free_vars_in_term(x0).contains(&b)
+                || substituter.get_free_vars_in_term(x1).contains(&b)
             {
                 panic!("Unexpected free variable in intersection of substitutions being unified (occurs error)");
             }
