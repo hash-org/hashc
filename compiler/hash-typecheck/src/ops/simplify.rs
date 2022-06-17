@@ -3,7 +3,7 @@
 // @@Remove
 #![allow(unused)]
 
-use super::unify::Unifier;
+use super::{substitute::Substituter, unify::Unifier};
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -41,11 +41,16 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         Unifier::new(self.storages_mut())
     }
 
+    /// Convenience method to get a [Substituter].
+    fn substituter(&mut self) -> Substituter {
+        Substituter::new(self.storages_mut())
+    }
+
     /// Resolve the given name in the given [ScopeStack], if found.
     ///
     /// This does not recurse into children members, since the name is just a single identifier
     /// rather than an [AccessTerm](crate::storage::primitives::AccessTerm).
-    fn _resolve_name_in_scopes(&self, name: Identifier, scopes: &ScopeStack) -> Option<Member> {
+    fn resolve_name_in_scopes(&self, name: Identifier, scopes: &ScopeStack) -> Option<Member> {
         let reader = self.reader();
         for scope_id in scopes.iter_up() {
             if let Some(member) = reader.get_scope(scope_id).get(name) {
@@ -55,11 +60,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         None
     }
 
-    /// Apply the given access term structure.
-    fn _apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<Member>> {
-        let _simplified_subject = self.unifier();
-        let subject = self.reader().get_term(access_term.subject_id).clone();
-
+    /// Apply the given access term structure, if possible.
+    fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
+        let simplified_subject = self.potentially_simplify_term(access_term.subject_id)?;
+        let subject = self.reader().get_term(simplified_subject).clone();
         match subject {
             Term::Access(_) => todo!(),
             Term::Var(_) => todo!(),
@@ -78,34 +82,15 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         todo!()
     }
 
-    /// Apply the given type function application structure.
+    /// Apply the given type function application structure, if possible.
     fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
-        let subject_id = self
-            .simplify_term(apply_ty_fn.subject)?
-            .unwrap_or(apply_ty_fn.subject);
-        let subject = self.storage.term_store().get(subject_id);
-        match subject {
+        let simplified_subject_id = self.potentially_simplify_term(apply_ty_fn.subject)?;
+        let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+        match simplified_subject {
             Term::TyFn(_) => {
                 todo!()
             }
-            Term::AppTyFn(inner_apply_ty_fn) => {
-                let inner_apply_ty_fn = inner_apply_ty_fn.clone();
-                // Recurse
-                let inner_apply_ty_fn_result_id = self.apply_ty_fn(&inner_apply_ty_fn)?;
-                match inner_apply_ty_fn_result_id {
-                    Some(inner_apply_ty_fn_result_id) => {
-                        match self.storage.term_store().get(inner_apply_ty_fn_result_id) {
-                            Term::TyFn(_) => self.apply_ty_fn(&AppTyFn {
-                                subject: inner_apply_ty_fn_result_id,
-                                args: apply_ty_fn.args.clone(),
-                            }),
-                            _ => Err(TcError::NotATypeFunction(subject_id)),
-                        }
-                    }
-                    None => Ok(None),
-                }
-            }
-            _ => Err(TcError::NotATypeFunction(subject_id)),
+            _ => Ok(None),
         }
     }
 
@@ -114,25 +99,20 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
 
-    /// Simplify the given term.
-    pub fn simplify_term(&mut self, value_id: TermId) -> TcResult<Option<TermId>> {
-        let value = self.storage.term_store().get(value_id);
+    /// Simplify the given term, if possible.
+    pub fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
+        let value = self.reader().get_term(term_id).clone();
         match value {
-            Term::AppTyFn(apply_ty_fn) => {
-                let apply_ty_fn = apply_ty_fn.clone();
-                let result = self.apply_ty_fn(&apply_ty_fn)?;
-                match result {
-                    Some(result) => Ok(Some(result)),
-                    None => Ok(None),
-                }
-            }
             Term::Merge(inner) => {
+                /// Simplify each element of the merge:
                 let inner = inner.clone();
                 let inner_tys = inner
                     .iter()
                     .map(|&ty| self.simplify_term(ty))
                     .collect::<Result<Vec<_>, _>>()?;
+
                 if inner_tys.iter().any(|x| x.is_some()) {
+                    // If any of them have been simplified, create a new term
                     Ok(Some(
                         self.builder().create_merge_term(
                             inner_tys
@@ -142,10 +122,30 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         ),
                     ))
                 } else {
+                    // No simplification occurred
                     Ok(None)
                 }
             }
-            _ => Ok(None),
+            // Recurse:
+            Term::AppSub(apply_sub) => Ok(Some(
+                /// @@Performance: add Option<_> to the substituter to return terms which don't
+                /// have the variables in them.
+                self.substituter()
+                    .apply_sub_to_term(&apply_sub.sub, apply_sub.term),
+            )),
+            Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
+            Term::Access(access_term) => self.apply_access_term(&access_term),
+            // Cannot simplify:
+            //
+            // @@Future: we might wanna simplify inner terms here?
+            Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::Unresolved(_)
+            | Term::Var(_)
+            | Term::Level3(_)
+            | Term::Level2(_)
+            | Term::Level1(_)
+            | Term::Level0(_) => Ok(None),
         }
     }
 }
