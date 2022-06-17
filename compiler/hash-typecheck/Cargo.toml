@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 slotmap = "1.0"
-dashmap = "4.0"
+dashmap = "5.1"
 
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }
