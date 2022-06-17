@@ -4,44 +4,16 @@
 
 use std::{convert::Infallible, mem};
 
-use hash_ast::visitor::{walk, AstVisitor};
-use hash_source::{
-    location::{SourceLocation, Span},
-    SourceId,
+use hash_ast::{
+    ast::{DestructuringPattern, Pattern, TuplePatternEntry},
+    visitor::{walk, AstVisitor},
 };
+use hash_source::SourceId;
 
-use crate::error::{AnalysisError, AnalysisErrorKind};
-
-#[derive(Default)]
-pub struct SemanticAnalyser {
-    /// Whether the current visitor is within a loop construct.
-    is_in_loop: bool,
-    /// Whether the current visitor is within a function definition.
-    _is_in_function: bool,
-    /// Any collected errors when passing through the tree
-    errors: Vec<AnalysisError>,
-}
-
-impl SemanticAnalyser {
-    /// Create a new semantic analyser
-    pub fn new() -> Self {
-        Self {
-            is_in_loop: false,
-            _is_in_function: false,
-            errors: vec![],
-        }
-    }
-
-    /// Append an error to the error queue.
-    pub fn append_error(&mut self, error: AnalysisErrorKind, span: Span, id: SourceId) {
-        self.errors
-            .push(AnalysisError::new(error, SourceLocation::new(span, id)))
-    }
-
-    pub fn errors(self) -> Vec<AnalysisError> {
-        self.errors
-    }
-}
+use crate::analysis::{
+    error::{AnalysisErrorKind, PatternOrigin},
+    SemanticAnalyser,
+};
 
 /// The context of the semantic analysis pass
 pub struct SemanticAnalysisContext {
@@ -323,6 +295,46 @@ impl AstVisitor for SemanticAnalyser {
         Ok(())
     }
 
+    type TupleTypeRet = ();
+
+    fn visit_tuple_type(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleType>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        Ok(())
+    }
+
+    type ListTypeRet = ();
+
+    fn visit_list_type(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
+    ) -> Result<Self::ListTypeRet, Self::Error> {
+        Ok(())
+    }
+
+    type SetTypeRet = ();
+
+    fn visit_set_type(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
+    ) -> Result<Self::SetTypeRet, Self::Error> {
+        Ok(())
+    }
+
+    type MapTypeRet = ();
+
+    fn visit_map_type(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
+    ) -> Result<Self::MapTypeRet, Self::Error> {
+        Ok(())
+    }
+
     type TypeFunctionParamRet = ();
 
     fn visit_type_function_param(
@@ -600,7 +612,7 @@ impl AstVisitor for SemanticAnalyser {
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.is_in_loop {
             self.append_error(
-                AnalysisErrorKind::UsingBreakOutsideLoop,
+                AnalysisErrorKind::UsingContinueOutsideLoop,
                 node.span(),
                 ctx.source_id,
             );
@@ -853,9 +865,11 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
     ) -> Result<Self::PatternRet, Self::Error> {
+        let _ = walk::walk_pattern(self, ctx, node);
+
         Ok(())
     }
 
@@ -893,11 +907,19 @@ impl AstVisitor for SemanticAnalyser {
 
     type ConstructorPatternRet = ();
 
+    /// This function verifies that constructor patterns adhere to the following rules:
+    ///
+    /// - All named fields must after before any nameless fields.
+    ///
+    /// - Only one spread pattern is ever present within a compound pattern.
     fn visit_constructor_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPattern>,
     ) -> Result<Self::ConstructorPatternRet, Self::Error> {
+        self.check_compound_pattern_rules(ctx, &node.body().fields, PatternOrigin::Constructor);
+
+        let _ = walk::walk_constructor_pattern(self, ctx, node);
         Ok(())
     }
 
@@ -905,9 +927,10 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_namespace_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePattern>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
+        let _ = walk::walk_namespace_pattern(self, ctx, node);
         Ok(())
     }
 
@@ -915,19 +938,44 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_tuple_pattern_entry(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatternEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatternEntry>,
     ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
+        let TuplePatternEntry { name, pattern } = node.body();
+
+        // Spread patterns are always disallowed within a named field entry
+        if name.is_some() && matches!(pattern.body(), Pattern::Spread(_)) {
+            self.append_error(
+                AnalysisErrorKind::IllegalSpreadPatternUse {
+                    origin: PatternOrigin::NamedField,
+                },
+                pattern.span(),
+                ctx.source_id,
+            );
+        } else {
+            // We only need to walk the children if it hasn't error'd yet
+            let _ = walk::walk_tuple_pattern_entry(self, ctx, node);
+        }
+
         Ok(())
     }
 
     type TuplePatternRet = ();
 
+    /// This function verifies that tuple patterns adhere to the following rules:
+    ///
+    /// - All named fields must after before any nameless fields.
+    ///
+    /// - Only one spread pattern is ever present within a compound pattern.
     fn visit_tuple_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
+        self.check_compound_pattern_rules(ctx, &node.body().fields, PatternOrigin::Tuple);
+
+        // Continue walking the tree
+        let _ = walk::walk_tuple_pattern(self, ctx, node);
         Ok(())
     }
 
@@ -935,49 +983,13 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_list_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPattern>,
     ) -> Result<Self::ListPatternRet, Self::Error> {
-        Ok(())
-    }
+        self.check_list_pattern(ctx, &node.body().fields);
 
-    type TupleTypeRet = ();
-
-    fn visit_tuple_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleType>,
-    ) -> Result<Self::TupleTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type ListTypeRet = ();
-
-    fn visit_list_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
-    ) -> Result<Self::ListTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type SetTypeRet = ();
-
-    fn visit_set_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
-    ) -> Result<Self::SetTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type MapTypeRet = ();
-
-    fn visit_map_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
-    ) -> Result<Self::MapTypeRet, Self::Error> {
+        // Continue walking the tree
+        let _ = walk::walk_list_pattern(self, ctx, node);
         Ok(())
     }
 
@@ -1045,9 +1057,10 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_or_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPattern>,
     ) -> Result<Self::OrPatternRet, Self::Error> {
+        let _ = walk::walk_or_pattern(self, ctx, node);
         Ok(())
     }
 
@@ -1096,9 +1109,25 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_destructuring_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPattern>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
+        let DestructuringPattern { pattern, .. } = node.body();
+
+        // Spread patterns are always disallowed within a named field entry
+        if matches!(pattern.body(), Pattern::Spread(_)) {
+            self.append_error(
+                AnalysisErrorKind::IllegalSpreadPatternUse {
+                    origin: PatternOrigin::Namespace,
+                },
+                pattern.span(),
+                ctx.source_id,
+            );
+        } else {
+            // We only need to walk the children if it hasn't error'd yet
+            let _ = walk::walk_destructuring_pattern(self, ctx, node);
+        }
+
         Ok(())
     }
 
