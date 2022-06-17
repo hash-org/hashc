@@ -207,22 +207,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     let nominal_def = reader.get_nominal_def(nominal_def_id);
                     match nominal_def {
                         NominalDef::Struct(struct_def) => {
-                            // Struct type access results in the type of the term (given that it is
-                            // a namespace operation)
-                            does_not_support_prop_access()?;
-                            match &struct_def.fields {
-                                StructFields::Explicit(fields) => {
-                                    match fields.get_by_name(access_term.name) {
-                                        Some((_, field)) => {
-                                            // Field found, now return its type as the result:
-                                            Ok(Some(field.ty))
-                                        }
-                                        None => name_not_found(),
-                                    }
-                                }
-                                // Opaque structs have no fields:
-                                StructFields::Opaque => name_not_found(),
-                            }
+                            // Struct type access is not valid.
+                            does_not_support_access()
                         }
                         NominalDef::Enum(enum_def) => {
                             // Enum type access results in the runtime value of the variant
@@ -242,28 +228,37 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         }
                     }
                 }
-                // Tuples:
-                Level1Term::Tuple(tuple_ty) => {
-                    // Return the type of the member with the given name:
-                    match tuple_ty.members.get_by_name(access_term.name) {
-                        Some((_, member)) => Ok(Some(member.ty)),
-                        None => name_not_found(),
-                    }
-                }
+                Level1Term::Tuple(tuple_ty) => does_not_support_access(),
                 Level1Term::Fn(_) => does_not_support_access(),
             },
             Term::Level0(level0_term) => match level0_term {
                 // Runtime values:
                 Level0Term::Rt(ty_term_id) => {
                     does_not_support_ns_access();
-                    // If a property access is given, try to access `ty_term_id` with a namespace
-                    // operator, and if that works (returning X) then it should resolve to Rt(X).
+                    // If a property access is given, first try to access `ty_term_id` with a namespace
+                    // operator, to resolve "method calls":
                     let ty_access_result = self.apply_access_term(&AccessTerm {
                         subject_id: ty_term_id,
                         name: access_term.name,
                         op: AccessOp::Namespace,
                     })?;
-                    Ok(ty_access_result.map(|result| self.builder().create_rt_term(result)))
+                    match ty_access_result {
+                        Some(ty_access_result) => {
+                            // Here we need to check the level of the term:
+                            //
+                            // If it is Level0, we need to ensure it is a function type, and if so call it with the self parameter.
+                            //
+                            // Otherwise, this is invalid.
+
+                            todo!()
+                        }
+                        None => {
+                            // Instead of giving up here, we can instead try to access the property
+                            // of the type of the ty_access_result, and then see if the result is level 1.
+                            // If it is, we can surround it in a Rt(..) and return it.
+                            todo!()
+                        }
+                    }
                 }
                 // Enum variants:
                 Level0Term::EnumVariant(enum_variant) => {
