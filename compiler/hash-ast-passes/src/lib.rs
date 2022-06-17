@@ -71,7 +71,26 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     continue;
                 }
 
-                for expr in module.node().contents.iter() {
+                let mut visitor = SemanticAnalyser::new();
+                let ctx = SemanticAnalysisContext::new(SourceId::Module(id));
+
+                // Check that all of the root scope statements are only declarations
+                let errors = visitor.visit_module(&ctx, module.node_ref()).unwrap();
+
+                // We need to send the errors from the module too
+                if !errors.is_empty() {
+                    visitor
+                        .errors()
+                        .into_iter()
+                        .for_each(|err| sender.send(err).unwrap());
+                }
+
+                for (index, expr) in module.node().contents.iter().enumerate() {
+                    // Skip any statements that we're deemed to be errors.
+                    if errors.contains(&index) {
+                        continue;
+                    }
+
                     let sender = sender.clone();
 
                     scope.spawn(move |_| {

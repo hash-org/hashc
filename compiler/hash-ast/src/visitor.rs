@@ -2039,24 +2039,24 @@ pub mod walk {
         })
     }
 
-    pub struct ModBlock<V: AstVisitor>(pub V::BlockRet);
+    pub struct ModBlock<V: AstVisitor>(pub V::BodyBlockRet);
 
     pub fn walk_mod_block<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::ModBlock>,
     ) -> Result<ModBlock<V>, V::Error> {
-        Ok(ModBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
+        Ok(ModBlock(visitor.visit_body_block(ctx, node.0.ast_ref())?))
     }
 
-    pub struct ImplBlock<V: AstVisitor>(pub V::BlockRet);
+    pub struct ImplBlock<V: AstVisitor>(pub V::BodyBlockRet);
 
     pub fn walk_impl_block<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::ImplBlock>,
     ) -> Result<ImplBlock<V>, V::Error> {
-        Ok(ImplBlock(visitor.visit_block(ctx, node.0.ast_ref())?))
+        Ok(ImplBlock(visitor.visit_body_block(ctx, node.0.ast_ref())?))
     }
 
     pub struct IfClause<V: AstVisitor> {
@@ -3873,24 +3873,28 @@ pub mod walk_mut {
         })
     }
 
-    pub struct ModBlock<V: AstVisitorMut>(pub V::BlockRet);
+    pub struct ModBlock<V: AstVisitorMut>(pub V::BodyBlockRet);
 
     pub fn walk_mod_block<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::ModBlock>,
     ) -> Result<ModBlock<V>, V::Error> {
-        Ok(ModBlock(visitor.visit_block(ctx, node.0.ast_ref_mut())?))
+        Ok(ModBlock(
+            visitor.visit_body_block(ctx, node.0.ast_ref_mut())?,
+        ))
     }
 
-    pub struct ImplBlock<V: AstVisitorMut>(pub V::BlockRet);
+    pub struct ImplBlock<V: AstVisitorMut>(pub V::BodyBlockRet);
 
     pub fn walk_impl_block<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::ImplBlock>,
     ) -> Result<ImplBlock<V>, V::Error> {
-        Ok(ImplBlock(visitor.visit_block(ctx, node.0.ast_ref_mut())?))
+        Ok(ImplBlock(
+            visitor.visit_body_block(ctx, node.0.ast_ref_mut())?,
+        ))
     }
 
     pub struct IfClause<V: AstVisitorMut> {
