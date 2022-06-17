@@ -279,6 +279,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             // Remove elements of dom(result) from t, and remove a from result.
             let subbed_t = substitutor.apply_sub_to_term(&result, t);
             if substitutor.get_free_vars_in_term(subbed_t).contains(&a) {
+                // @@ErrorReporting: here we can error with the span for more info.
                 panic!("Unexpected free variable in one of the substitutions being unified (occurs error)");
             }
 
