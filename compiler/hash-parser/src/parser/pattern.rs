@@ -318,7 +318,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an entry within a tuple pattern which might contain an optional [Name] node.
     pub(crate) fn parse_tuple_pattern_entry(&self) -> AstGenResult<AstNode<TuplePatternEntry>> {
-        let start = self.current_location();
+        let start = self.next_location();
 
         let (name, pattern) = match self.peek() {
             Some(Token {
