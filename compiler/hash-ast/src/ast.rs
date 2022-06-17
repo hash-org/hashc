@@ -1040,10 +1040,10 @@ pub struct IfBlock {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ModBlock(pub AstNode<Block>);
+pub struct ModBlock(pub AstNode<BodyBlock>);
 
 #[derive(Debug, PartialEq)]
-pub struct ImplBlock(pub AstNode<Block>);
+pub struct ImplBlock(pub AstNode<BodyBlock>);
 
 /// A block.
 #[derive(Debug, PartialEq)]
