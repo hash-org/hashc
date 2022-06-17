@@ -9,3 +9,4 @@ pub mod simplify;
 pub mod substitute;
 pub mod typing;
 pub mod unify;
+pub mod validate;
