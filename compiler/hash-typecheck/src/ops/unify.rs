@@ -3,7 +3,7 @@ use super::AccessToOpsMut;
 use crate::{
     error::TcResult,
     storage::{
-        primitives::{Sub, TermId},
+        primitives::{Args, Params, Sub, TermId},
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -96,7 +96,13 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         Ok(result)
     }
 
-    /// Unify the given parameters with the given arguments, by first getting the type
+    /// Unify the given parameters with the given arguments.
+    ///
+    /// This is done by first getting the type of each argument, and unifying with the type of each
+    /// parameter. Then, a substitution is created from each parameter to each argument value.
+    pub fn unify_params_with_args(&mut self, _params: &Params, _args: &Args) -> TcResult<Sub> {
+        todo!()
+    }
 
     /// Unify the two given terms, producing a substitution.
     ///

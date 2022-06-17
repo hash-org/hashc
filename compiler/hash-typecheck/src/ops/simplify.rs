@@ -15,6 +15,7 @@ use crate::{
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
+use hash_pipeline::traits::Tc;
 use hash_source::identifier::Identifier;
 
 /// Can resolve the type of a given term, as another term.
@@ -91,12 +92,43 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
         match simplified_subject {
             Term::TyFn(ty_fn) => {
+                /// Keep track of encountered errors so that if no cases match,
+                //we can return all of them.
+                let mut errors = vec![];
+                let mut results = vec![];
+
                 // Assuming the term is valid, try to match each of the cases:
                 for case in &ty_fn.cases {
-                    let param_arg_pairs = pair_args_with_params(&case.params, &apply_ty_fn.args)?;
+                    match self
+                        .unifier()
+                        .unify_params_with_args(&case.params, &apply_ty_fn.args)
+                    {
+                        Ok(sub) => {
+                            // Successful, add the return value to result,
+                            // subbed with the substitution, and continue:
+                            results.push(
+                                self.substituter()
+                                    .apply_sub_to_term(&sub, case.return_value),
+                            );
+                        }
+                        Err(err) => {
+                            // Unsuccessful, push the error to the errors and continue:
+                            errors.push(err);
+                        }
+                    }
                 }
 
-                todo!()
+                if results.is_empty() {
+                    // If we have no results, we have to return an error:
+                    Err(TcError::InvalidTypeFunctionApplication {
+                        type_fn: simplified_subject_id,
+                        args: apply_ty_fn.args.clone(),
+                        unification_errors: errors,
+                    })
+                } else {
+                    // Otherwise, merge the results
+                    Ok(Some(self.builder().create_term(Term::Merge(results))))
+                }
             }
             _ => Ok(None),
         }
@@ -112,6 +144,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let value = self.reader().get_term(term_id).clone();
         match value {
             Term::Merge(inner) => {
+                /// @@Todo: here we can also collapse degenerate elements
+
                 /// Simplify each element of the merge:
                 let inner = inner;
                 let inner_tys = inner

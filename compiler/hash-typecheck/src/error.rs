@@ -21,4 +21,9 @@ pub enum TcError {
     ParamGivenTwice(Args, Params, usize),
     UnresolvedSymbol(Identifier),
     TryingToNamespaceNonNamespaceable(TermId),
+    InvalidTypeFunctionApplication {
+        type_fn: TermId,
+        args: Args,
+        unification_errors: Vec<TcError>,
+    },
 }
