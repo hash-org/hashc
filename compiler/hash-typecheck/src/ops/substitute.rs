@@ -168,8 +168,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     ///
     /// Sometimes, this will actually create a [Term::AppSub] somewhere inside the term tree, and
     /// those are the leaf nodes of the substitution application. This will happen with `ModDef`,
-    /// `TrtDef`, `NominalDef`, and `EnumVariant`. This is so that when `Access` is resolved for
-    /// those types, the substitution is carried forward into the member term.
+    /// `TrtDef`, `NominalDef`, and `EnumVariant`. This is so that when `AccessTerm` is resolved
+    /// for those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
         // @@Performance: here we copy a lot, maybe there is a way to avoid all this copying by
         // first checking that the variables to be substituted actually exist in the term.
@@ -184,7 +184,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::Access(access) => {
                 // Just apply the substitution to the subject:
                 let subbed_subject_id = self.apply_sub_to_term(sub, access.subject_id);
-                self.builder().create_access(subbed_subject_id, access.name)
+                self.builder()
+                    .create_ns_access(subbed_subject_id, access.name)
             }
             Term::Merge(terms) => {
                 // Apply the substitution to each element of the merge.

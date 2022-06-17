@@ -2,11 +2,11 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
-        Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId, ModDefOrigin, Mutability,
-        NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef,
-        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy,
-        UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt,
+        Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId, ModDefOrigin,
+        Mutability, NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind,
+        StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase,
+        TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -229,11 +229,21 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
-    /// Create a [Term::Access] with the given subject and name.
-    pub fn create_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+    /// Create a [Term::Access] with the given subject and name, and namespace operator.
+    pub fn create_ns_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
             subject_id,
             name: name.into(),
+            op: AccessOp::Namespace,
+        }))
+    }
+
+    /// Create a [Term::Access] with the given subject and name, and property operator.
+    pub fn create_prop_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+        self.create_term(Term::Access(AccessTerm {
+            subject_id,
+            name: name.into(),
+            op: AccessOp::Property,
         }))
     }
 
