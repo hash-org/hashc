@@ -106,7 +106,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         //
         // @@Todo: infer type variables here:
         match self.validator().term_is_fn_ty(accessed_ty)? {
-            Some(fn_ty) if fn_ty.params.positional().len() > 0 => {
+            Some(fn_ty) if !fn_ty.params.positional().is_empty() => {
                 // Unify the first parameter type with the subject:
                 let sub = self
                     .unifier()
