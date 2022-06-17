@@ -1,25 +1,13 @@
 //! Utilities related to type unification and substitution.
-//!
-//! @@Incomplete(kontheocharis): this module is currently under construction.
-
-// @@Remove
-#![allow(unused)]
-
-use super::{building::PrimitiveBuilder, substitute::Substituter};
+use super::substitute::Substituter;
 use crate::{
-    error::{TcError, TcResult},
+    error::TcResult,
     storage::{
-        primitives::{AppTyFn, Arg, Args, Param, Params, Sub, Term, TermId, UnresolvedTerm, Var},
-        scope::ScopeStack,
-        AccessToStorage, AccessToStorageMut, GlobalStorage, StorageRefMut,
+        primitives::{Sub, TermId},
+        AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    ops::{Deref, DerefMut},
-};
+use std::collections::HashSet;
 
 /// Options that are received by the unifier when unifying types.
 pub struct UnifyTysOpts {}
@@ -46,200 +34,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
-    /// Pair the given parameters with the given arguments.
-    ///
-    /// This does not perform any typechecking, it simply matches parameters and arguments by
-    /// position or name.
-    fn pair_args_with_params<'p, 'a>(
-        &self,
-        params: &'p Params,
-        args: &'a Args,
-    ) -> TcResult<Vec<(&'p Param, &'a Arg)>> {
-        let mut result = vec![];
-
-        // Keep track of used params to ensure no parameter is given twice.
-        let mut params_used = HashSet::new();
-
-        // @@Incomplete: handle default args
-
-        // Ensure the length of params and args is the same
-        if params.positional().len() != args.positional().len() {
-            return Err(TcError::MismatchingArgParamLength(
-                args.clone(),
-                params.clone(),
-            ));
-        }
-
-        // Keep track of the first non-positional argument
-        let mut done_positional = false;
-        for (i, arg) in args.positional().iter().enumerate() {
-            match arg.name {
-                Some(arg_name) => {
-                    // Named argument
-                    done_positional = true;
-                    match params.get_by_name(arg_name) {
-                        Some((param_i, param)) => {
-                            if params_used.contains(&i) {
-                                // Ensure not already used
-                                return Err(TcError::ParamGivenTwice(
-                                    args.clone(),
-                                    params.clone(),
-                                    param_i,
-                                ));
-                            } else {
-                                params_used.insert(param_i);
-                                result.push((param, arg));
-                            }
-                        }
-                        None => return Err(TcError::ParamNotFound(params.clone(), arg_name)),
-                    }
-                }
-                None => {
-                    // Positional argument
-                    if done_positional {
-                        // Using positional args after named args is an error
-                        return Err(TcError::CannotUsePositionalArgAfterNamedArg(
-                            args.clone(),
-                            i,
-                        ));
-                    } else if params_used.contains(&i) {
-                        // Ensure not already used
-                        return Err(TcError::ParamGivenTwice(args.clone(), params.clone(), i));
-                    } else {
-                        params_used.insert(i);
-                        result.push((params.positional().get(i).unwrap(), arg));
-                    }
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    fn apply_args_to_params_make_sub(
-        &mut self,
-        _params: &Params,
-        _args: &Args,
-        _unify_opts: &UnifyTysOpts,
-    ) -> TcResult<Sub> {
-        todo!()
-        // let pairs = self.pair_args_with_params(params, args)?;
-        // let mut subs = Sub::empty();
-
-        // for (param, arg) in pairs {
-        //     // Unify each argument's type with the type of the parameter
-        //     let arg_ty = self.ty_of_term(arg.value)?;
-        //     let sub = self.unify_tys(arg_ty, param.ty, unify_opts)?;
-        //     subs.merge_with(&sub);
-        // }
-
-        // Ok(subs)
-    }
-
-    fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
-        let subject_id = self
-            .simplify_term(apply_ty_fn.subject)?
-            .unwrap_or(apply_ty_fn.subject);
-        let subject = self.storage.term_store().get(subject_id);
-        match subject {
-            Term::TyFn(_) => {
-                todo!()
-            }
-            Term::AppTyFn(inner_apply_ty_fn) => {
-                let inner_apply_ty_fn = inner_apply_ty_fn.clone();
-                // Recurse
-                let inner_apply_ty_fn_result_id = self.apply_ty_fn(&inner_apply_ty_fn)?;
-                match inner_apply_ty_fn_result_id {
-                    Some(inner_apply_ty_fn_result_id) => {
-                        match self.storage.term_store().get(inner_apply_ty_fn_result_id) {
-                            Term::TyFn(_) => self.apply_ty_fn(&AppTyFn {
-                                subject: inner_apply_ty_fn_result_id,
-                                args: apply_ty_fn.args.clone(),
-                            }),
-                            _ => Err(TcError::NotATypeFunction(subject_id)),
-                        }
-                    }
-                    None => Ok(None),
-                }
-            }
-            _ => Err(TcError::NotATypeFunction(subject_id)),
-        }
-    }
-
-    /// Simplify the given term, just returning the original if no simplification occured.
-    pub fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
-        Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
-    }
-
-    /// Simplify the given term.
-    pub fn simplify_term(&mut self, value_id: TermId) -> TcResult<Option<TermId>> {
-        let value = self.storage.term_store().get(value_id);
-        match value {
-            Term::AppTyFn(apply_ty_fn) => {
-                let apply_ty_fn = apply_ty_fn.clone();
-                let result = self.apply_ty_fn(&apply_ty_fn)?;
-                match result {
-                    Some(result) => Ok(Some(result)),
-                    None => Ok(None),
-                }
-            }
-            Term::Merge(inner) => {
-                let inner = inner.clone();
-                let inner_tys = inner
-                    .iter()
-                    .map(|&ty| self.simplify_term(ty))
-                    .collect::<Result<Vec<_>, _>>()?;
-                if inner_tys.iter().any(|x| x.is_some()) {
-                    Ok(Some(
-                        self.builder().create_merge_term(
-                            inner_tys
-                                .iter()
-                                .zip(inner)
-                                .map(|(new, old)| new.unwrap_or(old)),
-                        ),
-                    ))
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => Ok(None),
-        }
-    }
-
-    /// Get the type of the given term, as another term.
-    pub fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
-        todo!()
-        // let value = self.storage.value_store().get(value_id).clone();
-        // Ok(match value {
-        //     Term::Trt(_) => self.primitive_builder().create_trt_kind(),
-        //     Term::Ty(ty_id) => self.primitive_builder().create_ty_of_ty(),
-        //     Term::Rt(rt_ty_id) => rt_ty_id,
-        //     Term::TyFn(ty_fn) => self.primitive_builder().create_ty_fn_ty(
-        //         ty_fn.general_params.positional().iter().cloned(),
-        //         ty_fn.general_return_ty,
-        //     ),
-        //     // @@Incomplete:
-        //     Term::AppTyFn(_) => todo!(),
-        //     Term::ModDef(mod_def_id) => self.primitive_builder().create_mod_def_ty(mod_def_id),
-        //     Term::NominalDef(nominal_def_id) => {
-        //         self.primitive_builder().create_nominal_ty(nominal_def_id)
-        //     }
-        //     // @@Incomplete: We need scopes for this:
-        //     Term::Var(_) => todo!(),
-        //     Term::Merge(values) => {
-        //         let inner_tys = values
-        //             .iter()
-        //             .map(|&value| self.ty_of_term(value))
-        //             .collect::<Result<Vec<_>, _>>()?;
-
-        //         self.primitive_builder().create_merge_ty(inner_tys)
-        //     }
-        //     Term::Unset(ty_id) => ty_id,
-        //     Term::Access(_) => todo!(),
-        //     Term::EnumVariant(_) => todo!(),
-        // })
-    }
-
     /// Convenience method to get a substituter.
     fn substituter(&mut self) -> Substituter {
         Substituter::new(self.storages_mut())
@@ -258,8 +52,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         let dom_s1: HashSet<_> = s1.domain().collect();
         let mut substituter = self.substituter();
 
-        /// First split the domains into three parts: d0, d1, and the intersection (see second
-        /// loop)
+        // First split the domains into three parts: d0, d1, and the intersection (see second loop)
         let d0: HashSet<_> = dom_s0.difference(&dom_s1).copied().collect();
         let t0 = Sub::from_pairs(
             d0.iter()
@@ -267,7 +60,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         );
 
         let d1: HashSet<_> = dom_s1.difference(&dom_s0).copied().collect();
-        let t1 = Sub::from_pairs(
+        let _t1 = Sub::from_pairs(
             d1.iter()
                 .map(|&a| (a, substituter.apply_sub_to_subject(s1, a))),
         );
@@ -308,7 +101,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         Ok(result)
     }
 
-    pub fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
+    pub fn unify_terms(&mut self, _src_id: TermId, _target_id: TermId) -> TcResult<Sub> {
         todo!()
         // let src = self.storage.ty_store().get(src_id).clone();
         // let target = self.storage.ty_store().get(target_id).clone();
@@ -468,12 +261,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Unifier, UnifyTysOpts};
-    use crate::{
-        ops::building::PrimitiveBuilder,
-        storage::{core::CoreDefs, GlobalStorage},
-    };
-
     #[test]
     fn unify_test() {
         // let mut gs = GlobalStorage::new();

@@ -7,21 +7,21 @@ use std::{
 };
 
 /// The visibility of a member of a const scope.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Visibility {
     Public,
     Private,
 }
 
 /// The mutability of a variable in a scope.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Mutability {
     Mutable,
     Immutable,
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Member {
     pub name: Identifier,
     pub ty: TermId,
@@ -74,19 +74,14 @@ impl Scope {
         }
     }
 
-    /// Add a member by name.
+    /// Add a member to the scope, overwriting any existing member with the same name.
     pub fn add(&mut self, member: Member) {
         self.members.insert(member.name, member);
     }
 
     /// Get a member by name.
-    pub fn get(&self, member_name: Identifier) -> Option<&Member> {
-        self.members.get(&member_name)
-    }
-
-    /// Get a member by name, mutably.
-    pub fn get_mut(&mut self, member_name: Identifier) -> Option<&mut Member> {
-        self.members.get_mut(&member_name)
+    pub fn get(&self, member_name: Identifier) -> Option<Member> {
+        self.members.get(&member_name).copied()
     }
 }
 
@@ -436,6 +431,19 @@ pub struct EnumVariantValue {
     pub variant_name: Identifier,
 }
 
+/// The operator used to perform a member access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessOp {
+    /// The :: accessor (namespace operator).
+    ///
+    /// Works for modules, traits, enums.
+    Namespace,
+    /// The . accessor (property operator).
+    ///
+    /// Works for structs, tuples.
+    Property,
+}
+
 /// An access term, which is of the form X::Y, where X is a term and Y is an identifier.
 ///
 /// Has level N where N is the level of the Y property of X.
@@ -443,6 +451,7 @@ pub struct EnumVariantValue {
 pub struct AccessTerm {
     pub subject_id: TermId,
     pub name: Identifier,
+    pub op: AccessOp,
 }
 
 /// A level 3 term.
