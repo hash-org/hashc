@@ -8,6 +8,8 @@ use crate::storage::{
 };
 use std::collections::{HashMap, HashSet};
 
+use super::{AccessToOps, AccessToOpsMut};
+
 /// Can perform substitutions (see [Sub]) on terms.
 pub struct Substituter<'gs, 'ls, 'cd> {
     storage: StorageRefMut<'gs, 'ls, 'cd>,
@@ -499,6 +501,7 @@ mod tests {
     use super::Substituter;
     use crate::{
         fmt::PrepareForFormatting,
+        ops::AccessToOpsMut,
         storage::{
             core::CoreDefs,
             primitives::{ModDefOrigin, Sub},

@@ -3,7 +3,10 @@
 // @@Remove
 #![allow(unused)]
 
-use super::{substitute::Substituter, unify::Unifier};
+use super::{
+    params::pair_args_with_params, substitute::Substituter, unify::Unifier, AccessToOps,
+    AccessToOpsMut,
+};
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -87,7 +90,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let simplified_subject_id = self.potentially_simplify_term(apply_ty_fn.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
         match simplified_subject {
-            Term::TyFn(_) => {
+            Term::TyFn(ty_fn) => {
+                // Assuming the term is valid, try to match each of the cases:
+                for case in &ty_fn.cases {
+                    let param_arg_pairs = pair_args_with_params(&case.params, &apply_ty_fn.args)?;
+                }
+
                 todo!()
             }
             _ => Ok(None),
@@ -105,7 +113,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         match value {
             Term::Merge(inner) => {
                 /// Simplify each element of the merge:
-                let inner = inner.clone();
+                let inner = inner;
                 let inner_tys = inner
                     .iter()
                     .map(|&ty| self.simplify_term(ty))

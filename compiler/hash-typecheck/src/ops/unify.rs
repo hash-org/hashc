@@ -1,5 +1,5 @@
 //! Utilities related to type unification and substitution.
-use super::substitute::Substituter;
+use super::AccessToOpsMut;
 use crate::{
     error::TcResult,
     storage::{
@@ -32,11 +32,6 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Unifier<'gs, 'ls, 'cd> {
 impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
-    }
-
-    /// Convenience method to get a substituter.
-    fn substituter(&mut self) -> Substituter {
-        Substituter::new(self.storages_mut())
     }
 
     /// Unify two substitutions to produce another substitution.
@@ -101,6 +96,11 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         Ok(result)
     }
 
+    /// Unify the given parameters with the given arguments, by first getting the type
+
+    /// Unify the two given terms, producing a substitution.
+    ///
+    /// The relation between src and target is that src must be a subtype (or eq) of target.
     pub fn unify_terms(&mut self, _src_id: TermId, _target_id: TermId) -> TcResult<Sub> {
         todo!()
         // let src = self.storage.ty_store().get(src_id).clone();
