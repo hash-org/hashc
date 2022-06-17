@@ -2,11 +2,11 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt,
-        Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId, ModDefOrigin,
-        Mutability, NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind,
-        StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase,
-        TyFnTy, UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, EnumVariantValue,
+        FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId,
+        ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId,
+        ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn,
+        TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -179,6 +179,18 @@ impl<'gs> PrimitiveBuilder<'gs> {
             }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
+    }
+
+    /// Create an enum variant value term ([Level0Term::EnumVariant]).
+    pub fn create_enum_variant_value_term(
+        &self,
+        variant_name: impl Into<Identifier>,
+        enum_def_id: NominalDefId,
+    ) -> TermId {
+        self.create_term(Term::Level0(Level0Term::EnumVariant(EnumVariantValue {
+            variant_name: variant_name.into(),
+            enum_def_id,
+        })))
     }
 
     /// Create an enum variant.

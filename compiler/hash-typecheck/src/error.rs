@@ -27,6 +27,10 @@ pub enum TcError {
         name: Identifier,
         value: TermId,
     },
+    UnsupportedNamespaceAccess {
+        name: Identifier,
+        value: TermId,
+    },
     UnsupportedPropertyAccess {
         name: Identifier,
         value: TermId,
