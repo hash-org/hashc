@@ -242,6 +242,8 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
                 }))
             }
             Term::AppSub(app_sub) => {
+                // @@Reconsider: do we not want to unify substitutions here?
+                //
                 // Here, we have to substitute all X in * -> X pairs of the substitution, as well
                 // as the subject term itself.
                 let subbed_sub = app_sub
