@@ -290,11 +290,13 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
                     }
                 }
+                Level0Term::FnLit(_) => does_not_support_access(),
             },
+            // @@Todo: infer type vars:
+            Term::TyFn(_) => does_not_support_access(),
+            Term::TyFnTy(_) => does_not_support_access(),
             Term::Access(_) => todo!(),
             Term::Var(_) => todo!(),
-            Term::TyFn(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
             Term::AppTyFn(_) => todo!(),
             Term::Unresolved(_) => todo!(),
         }
@@ -409,7 +411,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::TyFn(_)
             | Term::TyFnTy(_)
             | Term::Unresolved(_)
-            | Term::Var(_)
+            | Term::Var(_) // @@Todo: Here, look in the scopes.
             | Term::Level3(_)
             | Term::Level2(_)
             | Term::Level1(_)
