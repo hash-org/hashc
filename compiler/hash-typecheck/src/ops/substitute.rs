@@ -499,8 +499,9 @@ mod tests {
     use crate::{
         fmt::PrepareForFormatting,
         storage::{
-            core::CoreDefs, primitives::Sub, AccessToStorage, AccessToStorageMut, GlobalStorage,
-            LocalStorage, StorageRefMut,
+            core::CoreDefs,
+            primitives::{ModDefOrigin, Sub},
+            AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
         },
     };
     use hash_source::{InteractiveId, SourceId};
@@ -523,6 +524,11 @@ mod tests {
         let builder = storage_ref.builder();
 
         // Visual testing for now, until term unification is implemented and we can actually write proper tests here:
+        let hash_impl = builder.create_nameless_mod_def(
+            ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
+            builder.create_constant_scope([]),
+            [],
+        );
 
         let inner = builder.create_nameless_ty_fn_term(
             [builder.create_param("T", builder.create_any_ty_term())],
@@ -531,7 +537,7 @@ mod tests {
                 core_defs.set_ty_fn,
                 [
                     builder.create_arg("T", builder.create_var_term("T")),
-                    builder.create_arg("X", builder.create_unresolved_term()),
+                    builder.create_arg("X", builder.create_mod_def_term(hash_impl)),
                 ],
             ),
         );
