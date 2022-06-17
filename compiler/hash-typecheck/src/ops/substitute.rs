@@ -9,23 +9,23 @@ use crate::storage::{
 use std::collections::{HashMap, HashSet};
 
 /// Can perform substitutions (see [Sub]) on terms.
-pub struct Substitutor<'gs, 'ls, 'cd> {
+pub struct Substituter<'gs, 'ls, 'cd> {
     storage: StorageRefMut<'gs, 'ls, 'cd>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Substitutor<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd> AccessToStorage for Substituter<'gs, 'ls, 'cd> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Substitutor<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd> AccessToStorageMut for Substituter<'gs, 'ls, 'cd> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
     }
@@ -76,7 +76,7 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
     pub fn apply_sub_to_level2_term(&mut self, sub: &Sub, term: Level2Term) -> TermId {
         match term {
             Level2Term::Trt(trt_def_id) => {
-                // Here we add the substitution to the term using only vars in the trat definition.
+                // Here we add the substitution to the term using only vars in the trait definition.
                 let reader = self.reader();
                 let trt_def_vars = &reader.get_trt_def(trt_def_id).bound_vars;
                 let selected_sub = sub.select(trt_def_vars);
@@ -495,6 +495,7 @@ impl<'gs, 'ls, 'cd> Substitutor<'gs, 'ls, 'cd> {
 
 #[cfg(test)]
 mod tests {
+    use super::Substituter;
     use crate::{
         fmt::PrepareForFormatting,
         storage::{
@@ -504,8 +505,6 @@ mod tests {
     };
     use hash_source::{InteractiveId, SourceId};
     use slotmap::Key;
-
-    use super::Substitutor;
 
     #[test]
     fn test_substitutions() {
@@ -530,21 +529,27 @@ mod tests {
             builder.create_any_ty_term(),
             builder.create_app_ty_fn_term(
                 core_defs.set_ty_fn,
-                [builder.create_arg("T", builder.create_var_term("T"))],
+                [
+                    builder.create_arg("T", builder.create_var_term("T")),
+                    builder.create_arg("X", builder.create_unresolved_term()),
+                ],
             ),
         );
-        let target = builder.create_fn_ty_term(
-            [
-                builder.create_param("foo", builder.create_nominal_def_term(core_defs.f32_ty)),
-                builder.create_param(
-                    "bar",
-                    builder.create_app_ty_fn_term(
-                        core_defs.list_ty_fn,
-                        [builder.create_arg("T", inner)],
+        let target = builder.create_ty_fn_ty_term(
+            [builder.create_param("U", builder.create_any_ty_term())],
+            builder.create_fn_ty_term(
+                [
+                    builder.create_param("foo", builder.create_unresolved_term()),
+                    builder.create_param(
+                        "bar",
+                        builder.create_app_ty_fn_term(
+                            core_defs.list_ty_fn,
+                            [builder.create_arg("T", inner)],
+                        ),
                     ),
-                ),
-            ],
-            builder.create_var_term("T"),
+                ],
+                builder.create_var_term("T"),
+            ),
         );
 
         println!();
@@ -563,13 +568,41 @@ mod tests {
             ),
         )]);
 
-        let mut substitutor = Substitutor::new(storage_ref.storages_mut());
-        let subbed_target = substitutor.apply_sub_to_term(&sub, target);
+        let mut substituter = Substituter::new(storage_ref.storages_mut());
+        let subbed_target = substituter.apply_sub_to_term(&sub, target);
+
+        let target_free_vars = substituter.get_free_vars_in_term(target);
+        let inner_free_vars = substituter.get_free_vars_in_term(inner);
+
+        let target_free_vars_list: Vec<_> = target_free_vars
+            .into_iter()
+            .map(|x| storage_ref.builder().create_term(x.into()))
+            .collect();
+
+        let inner_free_vars_list: Vec<_> = inner_free_vars
+            .into_iter()
+            .map(|x| storage_ref.builder().create_term(x.into()))
+            .collect();
 
         println!(
             "{}",
             subbed_target.for_formatting(storage_ref.global_storage())
         );
+
+        print!("\nTarget free vars:\n");
+        for target_free_var in &target_free_vars_list {
+            println!(
+                "{}",
+                target_free_var.for_formatting(storage_ref.global_storage())
+            );
+        }
+        print!("\nInner free vars:\n");
+        for inner_free_var in &inner_free_vars_list {
+            println!(
+                "{}",
+                inner_free_var.for_formatting(storage_ref.global_storage())
+            );
+        }
 
         println!();
     }
