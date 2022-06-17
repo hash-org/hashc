@@ -441,9 +441,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_expression_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
         let start = self.current_location();
 
-        match self.parse_block_inner()?.into_body() {
-            Block::Body(body) => Ok(self.node_with_joined_span(body, &start)),
-            _ => unreachable!(),
-        }
+        let body = self.parse_body_block_inner()?;
+        Ok(self.node_with_joined_span(body, &start))
     }
 }

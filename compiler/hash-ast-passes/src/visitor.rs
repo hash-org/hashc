@@ -2,7 +2,7 @@
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
-use std::{convert::Infallible, mem};
+use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{DestructuringPattern, Pattern, TuplePatternEntry},
@@ -11,7 +11,7 @@ use hash_ast::{
 use hash_source::SourceId;
 
 use crate::analysis::{
-    error::{AnalysisErrorKind, PatternOrigin},
+    error::{AnalysisErrorKind, BlockOrigin, PatternOrigin},
     SemanticAnalyser,
 };
 
@@ -682,7 +682,7 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        let _ = walk::walk_mod_block(self, ctx, node);
+        self.check_constant_body_block(ctx, &node.body().0, BlockOrigin::Mod);
         Ok(())
     }
 
@@ -693,7 +693,7 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let _ = walk::walk_impl_block(self, ctx, node);
+        self.check_constant_body_block(ctx, &node.body().0, BlockOrigin::Impl);
         Ok(())
     }
 
@@ -1146,14 +1146,16 @@ impl AstVisitor for SemanticAnalyser {
         Ok(())
     }
 
-    type ModuleRet = ();
+    type ModuleRet = HashSet<usize>;
 
     fn visit_module(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let _ = walk::walk_module(self, ctx, node);
-        Ok(())
+        let error_indices =
+            self.check_statements_are_declarative(ctx, &node.contents, BlockOrigin::Root);
+
+        Ok(error_indices)
     }
 }

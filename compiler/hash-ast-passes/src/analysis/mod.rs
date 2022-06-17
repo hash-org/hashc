@@ -5,6 +5,7 @@ use hash_source::{
 
 use self::error::{AnalysisError, AnalysisErrorKind};
 
+mod block;
 pub(super) mod error;
 mod pat;
 
