@@ -518,7 +518,14 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error> {
+        // Swap the values with a new `true` and save the old state.
+        let last_in_function = mem::replace(&mut self.is_in_function, true);
+
         let _ = walk::walk_function_def(self, ctx, node);
+
+        // Reset the value to the old value
+        self.is_in_function = last_in_function;
+
         Ok(())
     }
 
@@ -708,6 +715,14 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
+        if !self.is_in_function {
+            self.append_error(
+                AnalysisErrorKind::UsingReturnOutsideOfFunction,
+                node.span(),
+                ctx.source_id,
+            );
+        }
+
         let _ = walk::walk_return_statement(self, ctx, node);
         Ok(())
     }
