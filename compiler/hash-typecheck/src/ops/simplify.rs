@@ -10,7 +10,10 @@ use super::{
 use crate::{
     error::{TcError, TcResult},
     storage::{
-        primitives::{AccessTerm, AppTyFn, Member, Term, TermId},
+        primitives::{
+            AccessOp, AccessTerm, AppTyFn, Level1Term, Level2Term, Level3Term, Member, ScopeId,
+            Term, TermId,
+        },
         scope::ScopeStack,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -18,7 +21,7 @@ use crate::{
 use hash_pipeline::traits::Tc;
 use hash_source::identifier::Identifier;
 
-/// Can resolve the type of a given term, as another term.
+/// Can perform simplification on terms.
 pub struct Simplifier<'gs, 'ls, 'cd> {
     storage: StorageRefMut<'gs, 'ls, 'cd>,
 }
@@ -50,40 +53,119 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         Substituter::new(self.storages_mut())
     }
 
-    /// Resolve the given name in the given [ScopeStack], if found.
+    /// Resolve the given name in the scope with the given [ScopeId], originating from the given value.
     ///
-    /// This does not recurse into children members, since the name is just a single identifier
-    /// rather than an [AccessTerm](crate::storage::primitives::AccessTerm).
-    fn resolve_name_in_scopes(&self, name: Identifier, scopes: &ScopeStack) -> Option<Member> {
-        let reader = self.reader();
-        for scope_id in scopes.iter_up() {
-            if let Some(member) = reader.get_scope(scope_id).get(name) {
-                return Some(member);
+    /// Returns [Some] if the member can be resolved with a value, [None] if it cannot because it
+    /// has no value yet.
+    fn resolve_name_in_scope(
+        &self,
+        name: Identifier,
+        scope: ScopeId,
+        value: TermId,
+    ) -> TcResult<Option<TermId>> {
+        match self.reader().get_scope(scope).get(name) {
+            Some(member) => {
+                match member.value {
+                    // Member found and has value, return it!
+                    Some(value) => Ok(Some(value)),
+                    // Cannot simplify yet, because the member does not have a defined value:
+                    None => Ok(None),
+                }
+            }
+            None => {
+                // Member not found!
+                Err(TcError::UnresolvedNameInValue { name, value })
             }
         }
-        None
     }
 
     /// Apply the given access term structure, if possible.
     fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
-        let simplified_subject = self.potentially_simplify_term(access_term.subject_id)?;
-        let subject = self.reader().get_term(simplified_subject).clone();
-        match subject {
+        let simplified_subject_id = self.potentially_simplify_term(access_term.subject_id)?;
+        let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+        match simplified_subject {
+            Term::Merge(terms) => {
+                // Apply the access to each result. If there are multiple results, it means there
+                // is an ambiguity which should be reported.
+                let results: Vec<_> = terms
+                    .iter()
+                    .filter_map(|item| {
+                        let item_access_term = AccessTerm {
+                            subject_id: *item,
+                            ..*access_term
+                        };
+                        self.apply_access_term(&item_access_term).transpose()
+                    })
+                    .collect::<TcResult<_>>()?;
+
+                match results.as_slice() {
+                    // Got no results, which means that the application did not result in any
+                    // changed terms:
+                    [] => Ok(None),
+                    // We only got a single result, so we can use it:
+                    [single_result] => Ok(Some(*single_result)),
+                    // Got multiple results, which is ambiguous:
+                    _ => Err(TcError::AmbiguousAccess {
+                        access: access_term.clone(),
+                    }),
+                }
+            }
+            Term::AppSub(app_sub) => {
+                // Apply the access on the subject:
+                let inner_applied_term = self.apply_access_term(&AccessTerm {
+                    subject_id: app_sub.term,
+                    ..*access_term
+                })?;
+                match inner_applied_term {
+                    Some(inner_applied_term) => {
+                        // Successful access operation, apply the substitution on the result:
+                        Ok(Some(
+                            self.substituter()
+                                .apply_sub_to_term(&app_sub.sub, inner_applied_term),
+                        ))
+                    }
+                    None => Ok(None), // Access resulted in no change
+                }
+            }
+            Term::Level2(level2_term) => match level2_term {
+                // Get the member of a trait:
+                Level2Term::Trt(trt_def_id) => match access_term.op {
+                    // Only namespace operator is allowed for traits:
+                    AccessOp::Namespace => {
+                        let trt_def_scope = self.reader().get_trt_def(trt_def_id).members;
+                        self.resolve_name_in_scope(
+                            access_term.name,
+                            trt_def_scope,
+                            access_term.subject_id,
+                        )
+                    }
+                    // If the property operator is used, return an error:
+                    AccessOp::Property => Err(TcError::UnsupportedPropertyAccess {
+                        name: access_term.name,
+                        value: access_term.subject_id,
+                    }),
+                },
+                // Cannot access members of `Type`:
+                Level2Term::AnyTy => Err(TcError::UnsupportedAccess {
+                    name: access_term.name,
+                    value: access_term.subject_id,
+                }),
+            },
+            Term::Level1(level1_term) => match level1_term {
+                Level1Term::ModDef(_) => todo!(),
+                Level1Term::NominalDef(_) => todo!(),
+                Level1Term::Tuple(_) => todo!(),
+                Level1Term::Fn(_) => todo!(),
+            },
+            Term::Level0(_) => todo!(),
             Term::Access(_) => todo!(),
             Term::Var(_) => todo!(),
-            Term::Merge(_) => todo!(),
             Term::TyFn(_) => todo!(),
             Term::TyFnTy(_) => todo!(),
             Term::AppTyFn(_) => todo!(),
-            Term::AppSub(_) => todo!(),
             Term::Unresolved(_) => todo!(),
             Term::Level3(_) => todo!(),
-            Term::Level2(_) => todo!(),
-            Term::Level1(_) => todo!(),
-            Term::Level0(_) => todo!(),
         }
-
-        todo!()
     }
 
     /// Apply the given type function application structure, if possible.
@@ -92,8 +174,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
         match simplified_subject {
             Term::TyFn(ty_fn) => {
-                /// Keep track of encountered errors so that if no cases match,
-                //we can return all of them.
+                // Keep track of encountered errors so that if no cases match, we can return all of
+                // them.
                 let mut errors = vec![];
                 let mut results = vec![];
 
@@ -104,8 +186,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         .unify_params_with_args(&case.params, &apply_ty_fn.args)
                     {
                         Ok(sub) => {
-                            // Successful, add the return value to result,
-                            // subbed with the substitution, and continue:
+                            // Successful, add the return value to result, subbed with the
+                            // substitution, and continue:
                             results.push(
                                 self.substituter()
                                     .apply_sub_to_term(&sub, case.return_value),
@@ -130,7 +212,17 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     Ok(Some(self.builder().create_term(Term::Merge(results))))
                 }
             }
-            _ => Ok(None),
+            Term::Access(_) => todo!(),
+            Term::Var(_) => todo!(),
+            Term::Merge(_) => todo!(),
+            Term::TyFnTy(_) => todo!(),
+            Term::AppTyFn(_) => todo!(),
+            Term::AppSub(_) => todo!(),
+            Term::Unresolved(_) => todo!(),
+            Term::Level3(_) => todo!(),
+            Term::Level2(_) => todo!(),
+            Term::Level1(_) => todo!(),
+            Term::Level0(_) => todo!(),
         }
     }
 
@@ -144,9 +236,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let value = self.reader().get_term(term_id).clone();
         match value {
             Term::Merge(inner) => {
-                /// @@Todo: here we can also collapse degenerate elements
+                // @@Enhancement: here we can also collapse degenerate elements
 
-                /// Simplify each element of the merge:
+                // Simplify each element of the merge:
                 let inner = inner;
                 let inner_tys = inner
                     .iter()
@@ -168,18 +260,15 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     Ok(None)
                 }
             }
-            // Recurse:
             Term::AppSub(apply_sub) => Ok(Some(
-                /// @@Performance: add Option<_> to the substituter to return terms which don't
-                /// have the variables in them.
+                // @@Performance: add Option<_> to the substituter to return
+                // terms which don't have the variables in them.
                 self.substituter()
                     .apply_sub_to_term(&apply_sub.sub, apply_sub.term),
             )),
             Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
-            // Cannot simplify:
-            //
-            // @@Future: we might wanna simplify inner terms here?
+            // Cannot simplify, however we want to ensure they are valid:
             Term::TyFn(_)
             | Term::TyFnTy(_)
             | Term::Unresolved(_)
@@ -187,7 +276,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             | Term::Level3(_)
             | Term::Level2(_)
             | Term::Level1(_)
-            | Term::Level0(_) => Ok(None),
+            | Term::Level0(_) => todo!(),
         }
     }
 }
