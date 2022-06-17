@@ -1,7 +1,10 @@
 //! Contains utilities to validate terms.
 use crate::{
     error::TcResult,
-    storage::{primitives::TermId, AccessToStorage, AccessToStorageMut, StorageRefMut},
+    storage::{
+        primitives::{FnTy, TermId},
+        AccessToStorage, AccessToStorageMut, StorageRefMut,
+    },
 };
 
 /// Represents the level of a term.
@@ -50,6 +53,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Determine the level of the given term.
     pub fn get_level_of_term(&mut self, _term_id: TermId) -> TcResult<TermLevel> {
+        todo!()
+    }
+
+    /// Determine if the given term is a function type, and if so return it.
+    pub fn term_is_fn_ty(&mut self, _term_id: TermId) -> TcResult<Option<FnTy>> {
         todo!()
     }
 }

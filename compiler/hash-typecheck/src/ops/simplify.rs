@@ -3,8 +3,8 @@
 // @@Remove
 #![allow(unused)]
 use super::{
-    params::pair_args_with_params, substitute::Substituter, unify::Unifier, AccessToOps,
-    AccessToOpsMut,
+    params::pair_args_with_params, substitute::Substituter, unify::Unifier, validate::TermLevel,
+    AccessToOps, AccessToOpsMut,
 };
 use crate::{
     error::{TcError, TcResult},
@@ -244,18 +244,40 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     })?;
                     match ty_access_result {
                         Some(ty_access_result) => {
-                            // Here we need to check the level of the term:
+                            // Here we need to ensure the result is a function type, and if so call
+                            // it with the self parameter:
                             //
-                            // If it is Level0, we need to ensure it is a function type, and if so call it with the self parameter.
-                            //
-                            // Otherwise, this is invalid.
+                            // @@Todo: instantiate type variables here:
+                            match self.validator().term_is_fn_ty(ty_access_result)? {
+                                Some(fn_ty) if fn_ty.params.positional().len() > 0 => {
+                                    // Unify the first parameter type with the subject:
+                                    let sub = self
+                                        .unifier()
+                                        .unify_terms(ty_term_id, fn_ty.params.positional()[0].ty)?;
 
-                            todo!()
+                                    // Apply the substitution on the parameters and return type:
+                                    let subbed_params =
+                                        self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
+                                    let subbed_return_ty =
+                                        self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
+
+                                    // Return the substituted type without the first parameter:
+                                    Ok(Some(self.builder().create_fn_ty_term(
+                                        subbed_params.into_positional().into_iter().skip(1),
+                                        fn_ty.return_ty,
+                                    )))
+                                }
+                                _ => {
+                                    // Invalid:
+                                    todo!()
+                                }
+                            }
                         }
                         None => {
                             // Instead of giving up here, we can instead try to access the property
-                            // of the type of the ty_access_result, and then see if the result is level 1.
-                            // If it is, we can surround it in a Rt(..) and return it.
+                            // of the type of the ty_access_result, and then see if the result is
+                            // level 1. If it is, we can surround it in a Rt(..) and perform the
+                            // same transformation as above.
                             todo!()
                         }
                     }
