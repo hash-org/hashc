@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
-dashmap = "4.0"
+dashmap = "5.1"
 fnv = "1.0.7"
 slotmap = "1.0"
 derive_more = "0.99"
