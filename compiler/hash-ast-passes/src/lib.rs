@@ -5,19 +5,23 @@
 //! All rights reserved 2022 (c) The Hash Language authors
 #![feature(generic_associated_types)]
 
-mod error;
+pub mod analysis;
 pub mod visitor;
 
+use crate::analysis::error::AnalysisError;
+use crate::analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
-use error::AnalysisError;
+
 use hash_ast::visitor::AstVisitor;
 use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
 use hash_reporting::reporting::Report;
 use hash_source::SourceId;
 use std::collections::HashSet;
-use visitor::{SemanticAnalyser, SemanticAnalysisContext};
+use visitor::SemanticAnalysisContext;
 
-impl<'pool> SemanticPass<'pool> for SemanticAnalyser {
+pub struct HashSemanticAnalysis;
+
+impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
     /// A store representing modules that have already been analysed in the current pipeline.
     type State = HashSet<SourceId>;
 

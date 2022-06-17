@@ -10,7 +10,7 @@ mod logger;
 
 use clap::Parser as ClapParser;
 use hash_ast_desugaring::AstDesugaring;
-use hash_ast_passes::visitor::SemanticAnalyser;
+use hash_ast_passes::HashSemanticAnalysis;
 use hash_parser::HashParser;
 use hash_pipeline::{
     fs::resolve_path,
@@ -83,9 +83,10 @@ fn main() {
         })
         .into();
 
+    // @@Naming: think about naming here!
     let parser = HashParser::new();
     let desugarer = AstDesugaring;
-    let semnatic_analyser = SemanticAnalyser::new();
+    let semnatic_analyser = HashSemanticAnalysis;
     let checker = Typechecker;
 
     // Create the vm
