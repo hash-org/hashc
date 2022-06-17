@@ -572,6 +572,15 @@ pub struct TuplePattern {
     pub fields: AstNodes<TuplePatternEntry>,
 }
 
+impl TuplePattern {
+    /// Function used to check if the pattern is nameless or not. If the pattern
+    /// has at least one member that contains a `name` field, then it is considered
+    /// to be named.
+    pub fn is_nameless_pat(&self) -> bool {
+        !self.fields.iter().any(|pat| pat.body().name.is_some())
+    }
+}
+
 /// A list pattern, e.g. `[x, 1, ..]`
 #[derive(Debug, PartialEq)]
 pub struct ListPattern {
