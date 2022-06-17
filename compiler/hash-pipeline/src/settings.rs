@@ -57,7 +57,7 @@ impl Display for CompilerMode {
         match self {
             CompilerMode::Parse => write!(f, "parsing"),
             CompilerMode::DeSugar => write!(f, "de-sugaring"),
-            CompilerMode::SemanticPass => write!(f, "de-sugaring"),
+            CompilerMode::SemanticPass => write!(f, "semantic"),
             CompilerMode::Typecheck => write!(f, "typecheck"),
             CompilerMode::Lower => write!(f, "lowering"),
             CompilerMode::IrGen => write!(f, "ir"),

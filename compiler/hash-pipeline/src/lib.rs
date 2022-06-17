@@ -149,7 +149,7 @@ where
         }
 
         // Now print the total
-        println!("{: <9}: {total:?}", format!("{}", CompilerMode::Full));
+        println!("{: <9}: {total:?}\n", format!("{}", CompilerMode::Full));
     }
 
     /// Function to print a returned error from any stage in the pipeline. This function
@@ -157,8 +157,8 @@ where
     ///
     /// @@TODO: we want to essentially integrate this with the stages in order to
     /// collect errors rather than immediately printing them
-    fn report_error(&self, error: Report, sources: &Sources) {
-        if self.settings.display_metrics {
+    fn report_error(&self, error: Report, sources: &Sources, report_metrics: bool) {
+        if report_metrics && self.settings.display_metrics {
             self.report_metrics();
         }
 
@@ -334,7 +334,7 @@ where
         // Short circuit if parsing failed or the job specified to stop at parsing
         if parse_result.is_err() || job_params.mode == CompilerMode::Parse {
             if let Err(err) = parse_result {
-                self.report_error(err, &compiler_state.sources);
+                self.report_error(err, &compiler_state.sources, true);
             }
 
             return compiler_state;
@@ -350,7 +350,7 @@ where
         // Short circuit if de-sugaring failed or the job specified to stop at tc
         if desugaring_result.is_err() || job_params.mode == CompilerMode::DeSugar {
             if let Err(err) = desugaring_result {
-                self.report_error(err, &compiler_state.sources);
+                self.report_error(err, &compiler_state.sources, true);
             }
 
             return compiler_state;
@@ -366,8 +366,13 @@ where
 
         if sem_pass_result.is_err() || job_params.mode == CompilerMode::Typecheck {
             if let Err(errors) = sem_pass_result {
+                // we only want to report metrics once!
+                if self.settings.display_metrics {
+                    self.report_metrics();
+                }
+
                 for error in errors.into_iter() {
-                    self.report_error(error, &compiler_state.sources);
+                    self.report_error(error, &compiler_state.sources, false);
                 }
             }
 
@@ -384,7 +389,7 @@ where
         // Short circuit if tc failed or the job specified to stop at tc
         if tc_result.is_err() || job_params.mode == CompilerMode::Typecheck {
             if let Err(err) = tc_result {
-                self.report_error(err, &compiler_state.sources);
+                self.report_error(err, &compiler_state.sources, true);
             }
 
             return compiler_state;
