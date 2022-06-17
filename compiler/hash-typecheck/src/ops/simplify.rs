@@ -88,6 +88,50 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
+    /// Convert an accessed type (or any other type for that matter) along with a subject type, into a method call type.
+    ///
+    /// This is done by first ensuring that the accessed type is a function type. Then the first
+    /// argument of the function type (self) is unified with the subject type. If that succeeds, a
+    /// method function type is created, which is the same as the resolved function type without
+    /// the first parameter (with the substitution from the unification applied).
+    fn turn_accessed_ty_and_subject_ty_into_method_ty(
+        &mut self,
+        accessed_ty: TermId,
+        subject_ty: TermId,
+        initial_subject_term: TermId,
+        initial_property_name: Identifier,
+    ) -> TcResult<TermId> {
+        // Here we need to ensure the result is a function type, and if so call
+        // it with the self parameter:
+        //
+        // @@Todo: infer type variables here:
+        match self.validator().term_is_fn_ty(accessed_ty)? {
+            Some(fn_ty) if fn_ty.params.positional().len() > 0 => {
+                // Unify the first parameter type with the subject:
+                let sub = self
+                    .unifier()
+                    .unify_terms(subject_ty, fn_ty.params.positional()[0].ty)?;
+
+                // Apply the substitution on the parameters and return type:
+                let subbed_params = self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
+                let subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
+
+                // Return the substituted type without the first parameter:
+                Ok(self.builder().create_fn_ty_term(
+                    subbed_params.into_positional().into_iter().skip(1),
+                    fn_ty.return_ty,
+                ))
+            }
+            _ => {
+                // Invalid because it is not a method:
+                Err(TcError::InvalidPropertyAccessOfNonMethod {
+                    subject: initial_subject_term,
+                    property: initial_property_name,
+                })
+            }
+        }
+    }
+
     /// Apply the given access term structure, if possible.
     fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject_id)?;
@@ -177,13 +221,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 Level2Term::Trt(trt_def_id) => {
                     does_not_support_prop_access()?;
 
-                    // Resolve the member in the trait scope:
+                    // Resolve the type of the member in the trait scope:
                     let trt_def_scope = self.reader().get_trt_def(trt_def_id).members;
-                    self.resolve_name_in_scope(
+                    self.resolve_name_member_in_scope(
                         access_term.name,
                         trt_def_scope,
                         access_term.subject_id,
                     )
+                    .map(|member| Some(member.ty))
                 }
                 // Cannot access members of the `Type` trait:
                 Level2Term::AnyTy => does_not_support_access(),
@@ -244,41 +289,47 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     })?;
                     match ty_access_result {
                         Some(ty_access_result) => {
-                            // Here we need to ensure the result is a function type, and if so call
-                            // it with the self parameter:
-                            //
-                            // @@Todo: instantiate type variables here:
-                            match self.validator().term_is_fn_ty(ty_access_result)? {
-                                Some(fn_ty) if fn_ty.params.positional().len() > 0 => {
-                                    // Unify the first parameter type with the subject:
-                                    let sub = self
-                                        .unifier()
-                                        .unify_terms(ty_term_id, fn_ty.params.positional()[0].ty)?;
-
-                                    // Apply the substitution on the parameters and return type:
-                                    let subbed_params =
-                                        self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
-                                    let subbed_return_ty =
-                                        self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
-
-                                    // Return the substituted type without the first parameter:
-                                    Ok(Some(self.builder().create_fn_ty_term(
-                                        subbed_params.into_positional().into_iter().skip(1),
-                                        fn_ty.return_ty,
-                                    )))
-                                }
-                                _ => {
-                                    // Invalid:
-                                    todo!()
-                                }
-                            }
+                            // To get the function type, we need to get the type of the result.
+                            let ty_of_ty_access_result =
+                                self.typer().ty_of_term(ty_access_result)?;
+                            // Then we can try turn this into a method call
+                            Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                                ty_of_ty_access_result,
+                                ty_term_id,
+                                access_term.subject_id,
+                                access_term.name,
+                            ))
+                            .transpose()
                         }
                         None => {
                             // Instead of giving up here, we can instead try to access the property
                             // of the type of the ty_access_result, and then see if the result is
                             // level 1. If it is, we can surround it in a Rt(..) and perform the
                             // same transformation as above.
-                            todo!()
+                            //
+                            // This is possible because traits will return the type of their
+                            // members when accessing members.
+                            let ty_of_ty_term_id = self.typer().ty_of_term(ty_term_id)?;
+                            let accessed_result = self.apply_access_term(&AccessTerm {
+                                subject_id: ty_of_ty_term_id,
+                                name: access_term.name,
+                                op: AccessOp::Namespace,
+                            })?;
+
+                            match accessed_result {
+                                Some(accessed_result) => {
+                                    // Now we can try turn this into a method call
+                                    Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                                        accessed_result,
+                                        ty_term_id,
+                                        access_term.subject_id,
+                                        access_term.name,
+                                    ))
+                                    .transpose()
+                                }
+                                // We can't really do much at this point
+                                None => Ok(None),
+                            }
                         }
                     }
                 }
@@ -312,10 +363,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // @@Todo: infer type vars:
             Term::TyFn(_) => does_not_support_access(),
             Term::TyFnTy(_) => does_not_support_access(),
-            Term::Access(_) => todo!(),
-            Term::Var(_) => todo!(),
-            Term::AppTyFn(_) => todo!(),
-            Term::Unresolved(_) => todo!(),
+            // @@Enhancement: maybe we can allow this and add it to some hints context of the
+            // variable.
+            Term::Unresolved(_) => does_not_support_access(),
+            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) | Term::Unresolved(_) => {
+                // @@Todo: here we need to ensure that this access is valid by getting the type of
+                // the term and checking that such a property exists.
+                Ok(None)
+            }
         }
     }
 
@@ -368,17 +423,21 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     Ok(Some(self.builder().create_term(Term::Merge(results))))
                 }
             }
-            Term::Access(_) => todo!(),
-            Term::Var(_) => todo!(),
-            Term::Merge(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
-            Term::AppTyFn(_) => todo!(),
             Term::AppSub(_) => todo!(),
             Term::Unresolved(_) => todo!(),
-            Term::Level3(_) => todo!(),
-            Term::Level2(_) => todo!(),
-            Term::Level1(_) => todo!(),
-            Term::Level0(_) => todo!(),
+            Term::Merge(_)
+            | Term::Access(_)
+            | Term::Var(_)
+            | Term::TyFnTy(_)
+            | Term::AppTyFn(_)
+            | Term::Level3(_)
+            | Term::Level2(_)
+            | Term::Level1(_)
+            | Term::Level0(_) => {
+                // @@Todo: here we need to ensure that this application is valid by getting the type of
+                // the term and checking that it is a type function type.
+                Ok(None)
+            }
         }
     }
 
@@ -424,11 +483,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             )),
             Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
+            Term::Var(_) => {
+                // Here, we have to look in the scopes:
+                todo!()
+            }
             // Cannot simplify:
             Term::TyFn(_)
             | Term::TyFnTy(_)
             | Term::Unresolved(_)
-            | Term::Var(_) // @@Todo: Here, look in the scopes.
             | Term::Level3(_)
             | Term::Level2(_)
             | Term::Level1(_)

@@ -43,4 +43,8 @@ pub enum TcError {
     AmbiguousAccess {
         access: AccessTerm,
     },
+    InvalidPropertyAccessOfNonMethod {
+        subject: TermId,
+        property: Identifier,
+    },
 }
