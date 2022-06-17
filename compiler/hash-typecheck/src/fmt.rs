@@ -262,9 +262,7 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, ">")?;
                 Ok(())
             }
-            Term::Unresolved(unresolved_term) => {
-                write!(f, "{{unresolved({:?})}}", unresolved_term.resolution_id)
-            }
+            Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, unresolved_term),
             Term::AppSub(app_sub) => {
                 write!(f, "[")?;
                 let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
@@ -336,27 +334,31 @@ impl<'gs> TcFormatter<'gs> {
         mod_def_id: ModDefId,
         is_atomic: &Cell<bool>,
     ) -> fmt::Result {
-        is_atomic.set(true);
         let mod_def = self.global_storage.mod_def_store.get(mod_def_id);
         match mod_def.name {
             Some(name) => {
+                is_atomic.set(true);
                 write!(f, "{}", name)
             }
             None => match mod_def.origin {
                 ModDefOrigin::TrtImpl(trt_def_id) => {
+                    is_atomic.set(false);
                     write!(
                         f,
-                        "impl[{}](..)",
+                        "impl {} {{..}}",
                         trt_def_id.for_formatting(self.global_storage)
                     )
                 }
                 ModDefOrigin::AnonImpl => {
-                    write!(f, "impl(..)")
+                    is_atomic.set(false);
+                    write!(f, "impl {{..}}")
                 }
                 ModDefOrigin::Mod => {
-                    write!(f, "mod(..)")
+                    is_atomic.set(false);
+                    write!(f, "mod {{..}}")
                 }
                 ModDefOrigin::Source(_) => {
+                    is_atomic.set(true);
                     // @@TODO: show the source path
                     write!(f, "source(..)")
                 }
