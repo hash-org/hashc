@@ -503,6 +503,13 @@ pub enum Level1Term {
     Fn(FnTy),
 }
 
+/// Represents a function literal, with a function type, as well as a return value.
+#[derive(Debug, Clone)]
+pub struct FnLit {
+    pub fn_ty: TermId,
+    pub return_value: TermId,
+}
+
 /// A level 0 term.
 ///
 /// Type of: nothing.
@@ -511,6 +518,9 @@ pub enum Level1Term {
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),
+
+    /// A function literal.
+    FnLit(FnLit),
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),

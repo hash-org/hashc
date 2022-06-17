@@ -3,10 +3,10 @@
 use crate::storage::{
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, EnumVariantValue,
-        FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId,
-        ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId,
-        ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn,
-        TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        FnLit, FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef,
+        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, Scope,
+        ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy,
+        TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -323,6 +323,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Level0Term::Rt] of the given type.
     pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
+    }
+
+    /// Create a [Level0Term::FnLit] of the given function type and return value.
+    pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::FnLit(FnLit {
+            fn_ty,
+            return_value,
+        })))
     }
 
     /// Create a [ParamList<T>] from the given set of items.

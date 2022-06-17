@@ -153,6 +153,13 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                     builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
                 )
             }
+            Level0Term::FnLit(fn_lit) => {
+                // Apply to the function type and return value
+                let subbed_fn_ty = self.apply_sub_to_term(sub, fn_lit.fn_ty);
+                let subbed_return_value = self.apply_sub_to_term(sub, fn_lit.return_value);
+                self.builder()
+                    .create_fn_lit_term(subbed_fn_ty, subbed_return_value)
+            }
         }
     }
 
@@ -321,6 +328,11 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 // Forward to the nominal enum definition
                 let enum_def = Level1Term::NominalDef(enum_variant.enum_def_id);
                 self.add_free_vars_in_level1_term_to_set(&enum_def, result);
+            }
+            Level0Term::FnLit(fn_lit) => {
+                // Forward to fn type and return value
+                self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
+                self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
             }
         }
     }
