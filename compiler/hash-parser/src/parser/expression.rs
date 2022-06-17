@@ -152,7 +152,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 ))),
                 &token.span,
             ),
-            // @@Note: This doesn't cover '{' case.
             TokenKind::Keyword(Keyword::Impl)
                 if self.peek().map_or(false, |tok| !tok.is_brace_tree()) =>
             {
@@ -185,10 +184,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         .node_with_joined_span(Block::Loop(LoopBlock(self.parse_block()?)), &start),
                     TokenKind::Keyword(Keyword::If) => self.parse_if_block()?,
                     TokenKind::Keyword(Keyword::Match) => self.parse_match_block()?,
-                    TokenKind::Keyword(Keyword::Mod) => self
-                        .node_with_joined_span(Block::Mod(ModBlock(self.parse_block()?)), &start),
-                    TokenKind::Keyword(Keyword::Impl) => self
-                        .node_with_joined_span(Block::Impl(ImplBlock(self.parse_block()?)), &start),
+                    TokenKind::Keyword(Keyword::Mod) => self.node_with_joined_span(
+                        Block::Mod(ModBlock(self.parse_body_block()?)),
+                        &start,
+                    ),
+                    TokenKind::Keyword(Keyword::Impl) => self.node_with_joined_span(
+                        Block::Impl(ImplBlock(self.parse_body_block()?)),
+                        &start,
+                    ),
                     _ => unreachable!(),
                 };
 

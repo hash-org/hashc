@@ -5,6 +5,7 @@ use hash_source::{
 
 use self::error::{AnalysisError, AnalysisErrorKind};
 
+mod block;
 pub(super) mod error;
 mod pat;
 
@@ -13,7 +14,7 @@ pub struct SemanticAnalyser {
     /// Whether the current visitor is within a loop construct.
     pub(super) is_in_loop: bool,
     /// Whether the current visitor is within a function definition.
-    pub(super) _is_in_function: bool,
+    pub(super) is_in_function: bool,
     /// Any collected errors when passing through the tree
     pub(super) errors: Vec<AnalysisError>,
 }
@@ -23,7 +24,7 @@ impl SemanticAnalyser {
     pub fn new() -> Self {
         Self {
             is_in_loop: false,
-            _is_in_function: false,
+            is_in_function: false,
             errors: vec![],
         }
     }

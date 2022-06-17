@@ -11,8 +11,6 @@ use std::cell::Cell;
 /// should be in the traverse module?
 #[derive(Debug)]
 pub struct TcState {
-    /// Whether or not the typecheker is in a `loop` AST block.
-    pub in_loop: Cell<bool>,
     /// Whether the current function has returned explicitly at least once.
     pub ret_once: Cell<bool>,
     /// The return type of the function being currently checked (if any).
@@ -27,7 +25,6 @@ impl TcState {
     /// Create an empty [TcState] for the given source.
     pub fn new(current_source: SourceId) -> Self {
         Self {
-            in_loop: Cell::new(false),
             ret_once: Cell::new(false),
             func_ret_ty: Cell::new(None),
             current_source: Cell::new(current_source),

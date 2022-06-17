@@ -31,6 +31,14 @@ pub(crate) enum AnalysisErrorKind {
     UsingBreakOutsideLoop,
     /// When a `continue` expression is found outside of a loop.
     UsingContinueOutsideLoop,
+    /// When a `return` statement is found outside of a function or in scope that doesn't relate
+    /// to the function.
+    UsingReturnOutsideOfFunction,
+    /// When there is a non-declarative expression in either the root scope (module) or in a
+    /// `impl` / `mod` block.
+    NonDeclarativeExpression {
+        origin: BlockOrigin,
+    },
     /// When multiple spread patterns `...` are present within a list pattern
     MultipleSpreadPatterns {
         /// Where the use of the pattern originated from
@@ -78,6 +86,33 @@ impl Display for PatternOrigin {
     }
 }
 
+/// Denotes where an error occurred from which type of block. This is useful
+/// when giving more context about errors such as [AnalysisErrorKind::NonDeclarativeExpression]
+/// occur from.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum BlockOrigin {
+    Root,
+    Mod,
+    Impl,
+}
+
+impl BlockOrigin {
+    /// Convert the [BlockOrigin] into a string which can be used for displaying
+    /// within error messages.
+    fn to_str(self) -> &'static str {
+        match self {
+            BlockOrigin::Root | BlockOrigin::Mod => "module",
+            BlockOrigin::Impl => "impl",
+        }
+    }
+}
+
+impl Display for BlockOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str())
+    }
+}
+
 impl From<AnalysisError> for Report {
     fn from(err: AnalysisError) -> Self {
         let mut builder = ReportBuilder::new();
@@ -99,6 +134,16 @@ impl From<AnalysisError> for Report {
 
                 builder
                     .with_message("You cannot use a `continue` clause outside of a loop")
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        err.location,
+                        "here",
+                    )));
+            }
+            AnalysisErrorKind::UsingReturnOutsideOfFunction => {
+                builder.with_error_code(HashErrorCode::UsingReturnOutsideFunction);
+
+                builder
+                    .with_message("You cannot use a `return` expression outside of a function")
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
                         "here",
@@ -132,6 +177,17 @@ impl From<AnalysisError> for Report {
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                     err.location,
                     "Un-named fields cannot appear after named fields",
+                )));
+            }
+            AnalysisErrorKind::NonDeclarativeExpression { origin } => {
+                builder.with_message(format!(
+                    "Non-declarative expressions are not allowed in `{}` pattern",
+                    origin
+                ));
+
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    err.location,
+                    "Not allowed here",
                 )));
             }
         };

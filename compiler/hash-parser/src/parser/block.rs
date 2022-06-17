@@ -13,15 +13,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     #[inline]
     pub(crate) fn parse_block(&self) -> AstGenResult<AstNode<Block>> {
         let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
-        gen.parse_block_inner()
+
+        Ok(self.node_with_span(
+            Block::Body(gen.parse_body_block_inner()?),
+            self.current_location(),
+        ))
+    }
+
+    /// Helper function to simply parse a body block without wrapping it in
+    /// [Block].
+    #[inline]
+    pub(crate) fn parse_body_block(&self) -> AstGenResult<AstNode<BodyBlock>> {
+        let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
+
+        Ok(self.node_with_span(gen.parse_body_block_inner()?, self.current_location()))
     }
 
     /// Parse a body block that uses itself as the inner generator. This function
     /// will advance the current generator than expecting that the next token
     /// is a brace tree.
-    pub(crate) fn parse_block_inner(&self) -> AstGenResult<AstNode<Block>> {
-        let start = self.current_location();
-
+    pub(crate) fn parse_body_block_inner(&self) -> AstGenResult<BodyBlock> {
         // Append the initial statement if there is one.
         let mut block = BodyBlock {
             statements: AstNodes::empty(),
@@ -30,7 +41,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Just return an empty block if we don't get anything
         if !self.has_token() {
-            return Ok(self.node_with_span(Block::Body(block), start));
+            return Ok(block);
         }
 
         // firstly check if the first token signals a beginning of a statement, we can tell
@@ -49,7 +60,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(self.node_with_joined_span(Block::Body(block), &start))
+        Ok(block)
     }
 
     /// Parse a `for` loop block.
