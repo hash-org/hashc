@@ -5,7 +5,7 @@
 // @@Remove
 #![allow(unused)]
 
-use super::{building::PrimitiveBuilder, substitute::Substitutor};
+use super::{building::PrimitiveBuilder, substitute::Substituter};
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -241,8 +241,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     }
 
     /// Convenience method to get a substitutor.
-    fn substitutor(&mut self) -> Substitutor {
-        Substitutor::new(self.storages_mut())
+    fn substitutor(&mut self) -> Substituter {
+        Substituter::new(self.storages_mut())
     }
 
     /// Unify two substitutions to produce another substitution.

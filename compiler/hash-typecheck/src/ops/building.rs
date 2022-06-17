@@ -5,7 +5,7 @@ use crate::storage::{
         AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
         Level1Term, Level2Term, Level3Term, Member, ModDefId, Mutability, NominalDef, NominalDefId,
         Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId,
-        TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, Var, Visibility,
+        TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -416,6 +416,17 @@ impl<'gs> PrimitiveBuilder<'gs> {
             args: Args::new(args.into_iter().collect()),
             subject,
         }
+    }
+
+    /// Create a new unresolved term value, of type [Term::Unresolved].
+    pub fn create_unresolved(&self) -> UnresolvedTerm {
+        let resolution_id = self.gs.borrow().term_store.new_resolution_id();
+        UnresolvedTerm { resolution_id }
+    }
+
+    /// Create a new unresolved term, of type [Term::Unresolved].
+    pub fn create_unresolved_term(&self) -> TermId {
+        self.create_term(Term::Unresolved(self.create_unresolved()))
     }
 
     /// Create a substitution application term, given a substitution and inner term.
