@@ -31,6 +31,9 @@ pub(crate) enum AnalysisErrorKind {
     UsingBreakOutsideLoop,
     /// When a `continue` expression is found outside of a loop.
     UsingContinueOutsideLoop,
+    /// When a `return` statement is found outside of a function or in scope that doesn't relate
+    /// to the function.
+    UsingReturnOutsideOfFunction,
     /// When multiple spread patterns `...` are present within a list pattern
     MultipleSpreadPatterns {
         /// Where the use of the pattern originated from
@@ -99,6 +102,16 @@ impl From<AnalysisError> for Report {
 
                 builder
                     .with_message("You cannot use a `continue` clause outside of a loop")
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        err.location,
+                        "here",
+                    )));
+            }
+            AnalysisErrorKind::UsingReturnOutsideOfFunction => {
+                builder.with_error_code(HashErrorCode::UsingReturnOutsideFunction);
+
+                builder
+                    .with_message("You cannot use a `return` expression outside of a function")
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
                         "here",
