@@ -19,7 +19,7 @@ pub trait Parser<'pool> {
     /// failure, the stage provides a generated diagnostics [Report].
     fn parse(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         sources: &mut Sources,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()>;
@@ -36,7 +36,7 @@ pub trait Desugar<'pool> {
     /// Perform a de-sugaring pass on the provided sources.
     fn desugar(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         sources: &mut Sources,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
@@ -57,7 +57,7 @@ pub trait SemanticPass<'pool> {
     /// Perform a de-sugaring pass on the provided sources.
     fn perform_pass(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         sources: &mut Sources,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,

@@ -52,20 +52,20 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
     /// each [hash_ast::ast::Module].
     fn desugar(
         &mut self,
-        target: SourceId,
+        entry_point: SourceId,
         sources: &mut Sources,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
-            if !state.contains(&target) {
-                if let SourceId::Interactive(id) = target {
+            if !state.contains(&entry_point) {
+                if let SourceId::Interactive(id) = entry_point {
                     let source = sources.get_interactive_block_mut(id);
 
                     AstDesugaring
                         .visit_body_block(&(), source.node_mut())
-                        .unwrap()
+                        .unwrap();
                 }
             }
 
@@ -96,7 +96,7 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
         });
 
         // Add all of the ids into the cache
-        state.insert(target);
+        state.insert(entry_point);
         state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
 
         Ok(())
