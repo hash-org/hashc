@@ -171,6 +171,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             })
         };
 
+        // @@CodeQuality: split this huge match into functions for definite-level terms:
         match simplified_subject {
             Term::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means there
