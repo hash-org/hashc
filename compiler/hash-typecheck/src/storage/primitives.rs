@@ -170,7 +170,7 @@ pub type BoundVars = HashSet<Var>;
 
 /// The origin of a module: was it defined in a `mod` block, an anonymous `impl` block, or an
 /// `impl Trait` block?
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Copy, Hash)]
 pub enum ModDefOrigin {
     /// Defined as a trait implementation (for the given term that should resolve to a trait
     /// value).
