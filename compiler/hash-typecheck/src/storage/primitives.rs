@@ -526,6 +526,15 @@ impl From<UnresolvedTerm> for SubSubject {
     }
 }
 
+impl From<SubSubject> for Term {
+    fn from(subject: SubSubject) -> Self {
+        match subject {
+            SubSubject::Var(var) => Term::Var(var),
+            SubSubject::Unresolved(unresolved) => Term::Unresolved(unresolved),
+        }
+    }
+}
+
 /// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a term.
 #[derive(Debug, Default, Clone)]
 pub struct Sub {
@@ -558,6 +567,16 @@ impl Sub {
         self.data.get(&subject).copied()
     }
 
+    /// Get all the subjects (i.e. the domain) of the substitution as an iterator.
+    pub fn domain(&self) -> impl Iterator<Item = SubSubject> + '_ {
+        self.data.keys().copied()
+    }
+
+    /// Get all the targets (i.e. the range) of the substitution as an iterator.
+    pub fn range(&self) -> impl Iterator<Item = TermId> + '_ {
+        self.data.values().copied()
+    }
+
     /// Get the pairs `(SubSubject, TermId)` of the substitution as an iterator.
     pub fn pairs(&self) -> impl Iterator<Item = (SubSubject, TermId)> + '_ {
         self.data.iter().map(|(&subject, &term)| (subject, term))
@@ -566,6 +585,19 @@ impl Sub {
     /// Get the pairs `(SubSubject, TermId)` of the substitution as a map.
     pub fn map(&self) -> &HashMap<SubSubject, TermId> {
         &self.data
+    }
+
+    /// Add the given pair `subject -> term` to the substitution.
+    pub fn add_pair(&mut self, subject: SubSubject, term: TermId) {
+        self.data.insert(subject, term);
+    }
+
+    /// Extend the substitution with pairs from the given one.
+    ///
+    /// This is a naive implementation which does not perform any unification. For substitution
+    /// unification, see the `crate::ops::unify` module.
+    pub fn extend(&mut self, other: &Sub) {
+        self.data.extend(other.pairs());
     }
 
     /// Create a new substitution equivalent to this one but selecting only the pairs which are not
@@ -608,13 +640,6 @@ impl Sub {
                 })
                 .collect(),
         }
-    }
-
-    /// Merge the substitution with another.
-    ///
-    /// Modifies `self`.
-    pub fn merge_with(&mut self, _other: &Sub) {
-        todo!()
     }
 }
 

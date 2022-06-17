@@ -5,7 +5,7 @@
 // @@Remove
 #![allow(unused)]
 
-use super::building::PrimitiveBuilder;
+use super::{building::PrimitiveBuilder, substitute::Substitutor};
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -118,21 +118,22 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
     fn apply_args_to_params_make_sub(
         &mut self,
-        params: &Params,
-        args: &Args,
-        unify_opts: &UnifyTysOpts,
+        _params: &Params,
+        _args: &Args,
+        _unify_opts: &UnifyTysOpts,
     ) -> TcResult<Sub> {
-        let pairs = self.pair_args_with_params(params, args)?;
-        let mut subs = Sub::empty();
+        todo!()
+        // let pairs = self.pair_args_with_params(params, args)?;
+        // let mut subs = Sub::empty();
 
-        for (param, arg) in pairs {
-            // Unify each argument's type with the type of the parameter
-            let arg_ty = self.ty_of_term(arg.value)?;
-            let sub = self.unify_tys(arg_ty, param.ty, unify_opts)?;
-            subs.merge_with(&sub);
-        }
+        // for (param, arg) in pairs {
+        //     // Unify each argument's type with the type of the parameter
+        //     let arg_ty = self.ty_of_term(arg.value)?;
+        //     let sub = self.unify_tys(arg_ty, param.ty, unify_opts)?;
+        //     subs.merge_with(&sub);
+        // }
 
-        Ok(subs)
+        // Ok(subs)
     }
 
     fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
@@ -239,14 +240,74 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         // })
     }
 
-    // pub fn unify_args(&self, src_args: &Args, target_args: &Args) -> TcResult<TySub> {}
+    /// Convenience method to get a substitutor.
+    fn substitutor(&mut self) -> Substitutor {
+        Substitutor::new(self.storages_mut())
+    }
 
-    pub fn unify_tys(
-        &mut self,
-        src_id: TermId,
-        target_id: TermId,
-        opts: &UnifyTysOpts,
-    ) -> TcResult<Sub> {
+    /// Unify two substitutions to produce another substitution.
+    ///
+    /// The resultant substitution contains all the information of the two source substitutions,
+    /// without any common free variables in their domains.
+    ///
+    /// This implements the algorithm outlined in the paper:
+    /// <https://www.researchgate.net/publication/221600544_On_the_Unification_of_Substitutions_in_Type_Interfaces>
+    ///
+    pub fn unify_subs(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
+        let dom_s0: HashSet<_> = s0.domain().collect();
+        let dom_s1: HashSet<_> = s1.domain().collect();
+        let mut substitutor = self.substitutor();
+
+        /// First split the domains into three parts: d0, d1, and the intersection (see second
+        /// loop)
+        let d0: HashSet<_> = dom_s0.difference(&dom_s1).copied().collect();
+        let t0 = Sub::from_pairs(
+            d0.iter()
+                .map(|&a| (a, substitutor.apply_sub_to_subject(s0, a))),
+        );
+
+        let d1: HashSet<_> = dom_s1.difference(&dom_s0).copied().collect();
+        let t1 = Sub::from_pairs(
+            d1.iter()
+                .map(|&a| (a, substitutor.apply_sub_to_subject(s1, a))),
+        );
+
+        // Start with t0 and add terms for d1 one at a time, always producing well formed
+        // substitutions
+        let mut result = t0.clone();
+        for (a, t) in t0.pairs() {
+            // Remove elements of dom(result) from t, and remove a from result.
+            let subbed_t = substitutor.apply_sub_to_term(&result, t);
+            if substitutor.get_free_vars_in_term(subbed_t).contains(&a) {
+                panic!("Unexpected free variable in one of the substitutions being unified (occurs error)");
+            }
+
+            result.add_pair(a, subbed_t);
+        }
+        // result is now the unifier for t0 and t1
+
+        // Now deal with the intersection:
+        for &b in dom_s0.intersection(&dom_s1) {
+            let mut substitutor = self.substitutor();
+            let subbed0_b = substitutor.apply_sub_to_subject(s0, b);
+            let subbed1_b = substitutor.apply_sub_to_subject(s1, b);
+            let x0 = substitutor.apply_sub_to_term(&result, subbed0_b);
+            let x1 = substitutor.apply_sub_to_term(&result, subbed1_b);
+
+            if substitutor.get_free_vars_in_term(x0).contains(&b)
+                || substitutor.get_free_vars_in_term(x1).contains(&b)
+            {
+                panic!("Unexpected free variable in intersection of substitutions being unified (occurs error)");
+            }
+
+            let v = self.unify_terms(x0, x1)?;
+            result.extend(&v);
+        }
+
+        Ok(result)
+    }
+
+    pub fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
         todo!()
         // let src = self.storage.ty_store().get(src_id).clone();
         // let target = self.storage.ty_store().get(target_id).clone();
