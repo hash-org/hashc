@@ -3,9 +3,10 @@
 use crate::storage::{
     primitives::{
         AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
-        Level1Term, Level2Term, Level3Term, Member, ModDefId, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId,
-        TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId, ModDefOrigin, Mutability,
+        NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef,
+        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy,
+        UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -62,6 +63,60 @@ impl<'gs> PrimitiveBuilder<'gs> {
         let def_ty = self.create_any_ty_term();
         let def_value = self.create_term(Term::Level1(Level1Term::NominalDef(def_id)));
         self.add_pub_member_to_scope(name, def_ty, def_value);
+    }
+
+    /// Add the given module definition to the scope.
+    fn add_mod_def_to_scope(&self, name: Identifier, def_id: ModDefId, origin: ModDefOrigin) {
+        let def_ty = match origin {
+            ModDefOrigin::TrtImpl(trt_id) => trt_id,
+            _ => self.create_any_ty_term(),
+        };
+        let def_value = self.create_term(Term::Level1(Level1Term::ModDef(def_id)));
+        self.add_pub_member_to_scope(name, def_ty, def_value);
+    }
+
+    /// Create a named module definition with the given name, members, and origin.
+    ///
+    /// This adds the name to the scope.
+    pub fn create_named_mod_def(
+        &self,
+        name: impl Into<Identifier>,
+        origin: ModDefOrigin,
+        members: ScopeId,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> ModDefId {
+        self.create_mod_def(Some(name), origin, members, bound_vars)
+    }
+
+    /// Create a nameless module definition with the given members, and origin.
+    pub fn create_nameless_mod_def(
+        &self,
+        origin: ModDefOrigin,
+        members: ScopeId,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> ModDefId {
+        self.create_mod_def(Option::<Identifier>::None, origin, members, bound_vars)
+    }
+
+    /// Create a module definition with the given optional name, members, and origin.
+    pub fn create_mod_def(
+        &self,
+        name: Option<impl Into<Identifier>>,
+        origin: ModDefOrigin,
+        members: ScopeId,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> ModDefId {
+        let name = name.map(Into::into);
+        let def_id = self.gs.borrow_mut().mod_def_store.create(ModDef {
+            name,
+            members,
+            origin,
+            bound_vars: bound_vars.into_iter().collect(),
+        });
+        if let Some(name) = name {
+            self.add_mod_def_to_scope(name, def_id, origin);
+        }
+        def_id
     }
 
     /// Create a nameless struct with opaque fields.
