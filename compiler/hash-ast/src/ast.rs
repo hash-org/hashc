@@ -656,7 +656,7 @@ pub enum Pattern {
 
 /// Enum representing whether a declaration is public or private
 /// within module scope.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Visibility {
     /// The binding is private to outer scopes. This is assumed by default.
     Private,
@@ -676,7 +676,7 @@ impl Display for Visibility {
 
 /// Enum representing whether a [BindingPattern] is declared as being mutable
 /// or immutable.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mutability {
     /// Declare that the binding can be re-assigned.
     Mutable,

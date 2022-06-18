@@ -18,7 +18,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &self,
         semi_required: bool,
     ) -> AstGenResult<(bool, AstNode<Expression>)> {
-        let start = self.current_location();
+        let start = self.next_location();
 
         // So here we want to check that the next token(s) could make up a singular pattern which
         // is then followed by a `:` to denote that this is a declaration.
