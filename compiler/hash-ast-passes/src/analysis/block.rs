@@ -5,8 +5,6 @@ use hash_ast::{
     visitor::AstVisitor,
 };
 
-use crate::visitor::SemanticAnalysisContext;
-
 use super::{
     error::{AnalysisErrorKind, BlockOrigin},
     SemanticAnalyser,
@@ -19,7 +17,6 @@ impl SemanticAnalyser {
     /// so that the caller can later 'skip' these statements when performing further checks.
     pub(crate) fn check_statements_are_declarative(
         &mut self,
-        ctx: &SemanticAnalysisContext,
         statements: &AstNodes<Expression>,
         origin: BlockOrigin,
     ) -> HashSet<usize> {
@@ -33,7 +30,6 @@ impl SemanticAnalyser {
                 self.append_error(
                     AnalysisErrorKind::NonDeclarativeExpression { origin },
                     statement.span(),
-                    ctx.source_id,
                 );
 
                 error_indices.insert(index);
@@ -49,21 +45,16 @@ impl SemanticAnalyser {
     /// - All members must be only declarative
     ///
     /// - No member can declare themselves to be `mutable`
-    pub(crate) fn check_constant_body_block(
-        &mut self,
-        ctx: &SemanticAnalysisContext,
-        body: &BodyBlock,
-        origin: BlockOrigin,
-    ) {
+    pub(crate) fn check_constant_body_block(&mut self, body: &BodyBlock, origin: BlockOrigin) {
         assert!(body.expr.is_none());
 
-        let errors = self.check_statements_are_declarative(ctx, &body.statements, origin);
+        let errors = self.check_statements_are_declarative(&body.statements, origin);
 
         // We have to manually walk this block because we want to skip any erroneous
         // statements.
         for (index, statement) in body.statements.iter().enumerate() {
             if errors.contains(&index) {
-                self.visit_expression(ctx, statement.ast_ref()).unwrap();
+                self.visit_expression(&(), statement.ast_ref()).unwrap();
             }
         }
     }

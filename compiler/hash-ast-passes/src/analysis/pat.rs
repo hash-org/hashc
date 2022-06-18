@@ -1,7 +1,5 @@
 use hash_ast::ast::{AstNodes, Pattern, TuplePatternEntry};
 
-use crate::visitor::SemanticAnalysisContext;
-
 use super::{
     error::{AnalysisErrorKind, PatternOrigin},
     SemanticAnalyser,
@@ -10,7 +8,6 @@ use super::{
 impl SemanticAnalyser {
     pub(crate) fn check_compound_pattern_rules(
         &mut self,
-        ctx: &SemanticAnalysisContext,
         fields: &AstNodes<TuplePatternEntry>,
         origin: PatternOrigin,
     ) {
@@ -31,7 +28,6 @@ impl SemanticAnalyser {
                     self.append_error(
                         AnalysisErrorKind::AmbiguousPatternFieldOrder { origin },
                         field.span(),
-                        ctx.source_id,
                     );
                 }
             }
@@ -46,7 +42,6 @@ impl SemanticAnalyser {
                             origin: PatternOrigin::Constructor,
                         },
                         field.span(),
-                        ctx.source_id,
                     );
                 }
 
@@ -68,11 +63,7 @@ impl SemanticAnalyser {
     ///
     /// Which parts does the `x` spread pattern capture? It's clear that this is ambiguous and should
     /// be disallowed within the list patten.
-    pub(crate) fn check_list_pattern(
-        &mut self,
-        ctx: &SemanticAnalysisContext,
-        fields: &AstNodes<Pattern>,
-    ) {
+    pub(crate) fn check_list_pattern(&mut self, fields: &AstNodes<Pattern>) {
         // @@TODO: Rather than use a boolean, we should use a reference to the pattern
         //         so that we can report an auxiliary span of where the initial use of the
         //         pattern occurs.
@@ -86,7 +77,6 @@ impl SemanticAnalyser {
                             origin: PatternOrigin::List,
                         },
                         field.span(),
-                        ctx.source_id,
                     );
                 } else {
                     seen_spread_pattern = true;

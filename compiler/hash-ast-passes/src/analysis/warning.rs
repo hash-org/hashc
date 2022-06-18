@@ -43,7 +43,7 @@ impl From<AnalysisWarning> for Report {
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,
-                        "A constant expression in a body block that has no side-effects is useless",
+                        "A constant expression in a body block that has no side-effects is redundant",
                     )));
             }
         }
