@@ -8,6 +8,7 @@ use super::{
 };
 use crate::{
     error::{TcError, TcResult},
+    fmt::PrepareForFormatting,
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, Args, FnLit, FnTy, Level0Term, Level1Term,
@@ -60,8 +61,8 @@ fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
 // Helper for [Simplifier::apply_access_term] erroring for things that only support property access:
 fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
     match access_term.op {
-        AccessOp::Namespace => Ok(()),
-        AccessOp::Property => Err(TcError::UnsupportedNamespaceAccess {
+        AccessOp::Property => Ok(()),
+        AccessOp::Namespace => Err(TcError::UnsupportedNamespaceAccess {
             name: access_term.name,
             value: access_term.subject,
         }),
@@ -191,6 +192,16 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let result = self.access_struct_or_tuple_field(app_sub.term, field_name)?;
                 Ok(result.map(|result| self.substituter().apply_sub_to_term(&app_sub.sub, result)))
             }
+            Term::Merge(terms) => {
+                // Try this for each term:
+                for term in terms.clone() {
+                    match self.access_struct_or_tuple_field(term, field_name)? {
+                        Some(result) => return Ok(Some(result)),
+                        None => continue,
+                    }
+                }
+                Ok(None)
+            }
             Term::Level1(level1_term) => {
                 // If it is a struct or a tuple, and the name is resolved in the fields, return the (runtime)
                 // value of the field.
@@ -242,8 +253,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     subject: *ty_term_id,
                     name: access_term.name,
                     op: AccessOp::Namespace,
-                })?;
-                if let Some(ty_access_result) = ty_access_result {
+                });
+                if let Ok(Some(ty_access_result)) = ty_access_result {
                     // To get the function type, we need to get the type of the result.
                     let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
                     // Then we can try turn this into a method call
@@ -416,9 +427,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                             subject: *item,
                             ..*access_term
                         };
-                        self.apply_access_term(&item_access_term).transpose()
+                        self.apply_access_term(&item_access_term).ok().flatten()
                     })
-                    .collect::<TcResult<_>>()?;
+                    .collect();
 
                 match results.as_slice() {
                     // Got no results, which means that the application did not result in any
@@ -837,5 +848,84 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Level1(term) => self.simplify_level1_term(&term),
             Term::Level0(term) => self.simplify_level0_term(&term),
         }
+    }
+}
+
+#[cfg(test)]
+mod test_super {
+    use hash_source::{InteractiveId, SourceId};
+    use slotmap::Key;
+
+    use crate::{
+        fmt::PrepareForFormatting,
+        storage::{core::CoreDefs, primitives::ModDefOrigin, GlobalStorage, LocalStorage},
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_simplify() {
+        let mut global_storage = GlobalStorage::new();
+        let mut local_storage = LocalStorage::new(
+            SourceId::Interactive(InteractiveId::null()),
+            &mut global_storage,
+        );
+        let core_defs = CoreDefs::new(&mut global_storage);
+        let mut storage_ref = StorageRefMut {
+            core_defs: &core_defs,
+            global_storage: &mut global_storage,
+            local_storage: &mut local_storage,
+        };
+
+        let builder = storage_ref.builder();
+
+        // Handy shorthand for &Self type
+        let ref_self_ty = builder.create_app_ty_fn_term(
+            core_defs.reference_ty_fn,
+            [builder.create_arg("T", builder.create_var_term("Self"))],
+        );
+
+        let hash_impl = builder.create_nameless_mod_def(
+            ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
+            builder.create_constant_scope([builder.create_pub_member(
+                "hash",
+                builder.create_fn_ty_term(
+                    [builder.create_param("value", ref_self_ty)],
+                    builder.create_nominal_def_term(core_defs.u64_ty),
+                ),
+                builder.create_fn_lit_term(
+                    builder.create_fn_ty_term(
+                        [builder.create_param("value", ref_self_ty)],
+                        builder.create_nominal_def_term(core_defs.u64_ty),
+                    ),
+                    builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
+                ),
+            )]),
+            [],
+        );
+
+        let dog_def = builder.create_struct_def(
+            "Dog",
+            [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
+            [],
+        );
+        let dog = builder.create_merge_term([
+            builder.create_nominal_def_term(dog_def),
+            builder.create_mod_def_term(hash_impl),
+        ]);
+
+        let dog_instance = builder.create_rt_term(dog);
+
+        let dog_hash = builder.create_ns_access(dog, "hash");
+        let dog_hash_simplified = storage_ref
+            .simplifier()
+            .potentially_simplify_term(dog_hash)
+            .unwrap();
+
+        println!("{}", dog_hash.for_formatting(storage_ref.global_storage()));
+        println!(
+            "{}",
+            dog_hash_simplified.for_formatting(storage_ref.global_storage())
+        );
     }
 }
