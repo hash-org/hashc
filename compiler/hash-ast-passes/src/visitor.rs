@@ -5,13 +5,14 @@
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
-    ast::{DestructuringPattern, Pattern, TuplePatternEntry},
+    ast::{DestructuringPattern, ExpressionKind, LiteralExpr, Pattern, TuplePatternEntry},
     visitor::{walk, AstVisitor},
 };
 use hash_source::SourceId;
 
 use crate::analysis::{
     error::{AnalysisErrorKind, BlockOrigin, PatternOrigin},
+    warning::AnalysisWarningKind,
     SemanticAnalyser,
 };
 
@@ -704,6 +705,21 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
+        // Iterate over the statements in a body block to check if there are any 'useless'
+        // expressions... a literal that is constant of made of other constant literals
+        for statement in node.statements.iter() {
+            match statement.kind() {
+                ExpressionKind::LiteralExpr(LiteralExpr(lit)) if lit.body().is_constant() => {
+                    self.append_warning(
+                        AnalysisWarningKind::UselessExpression,
+                        statement.span(),
+                        ctx.source_id,
+                    );
+                }
+                _ => {}
+            }
+        }
+
         let _ = walk::walk_body_block(self, ctx, node);
         Ok(())
     }

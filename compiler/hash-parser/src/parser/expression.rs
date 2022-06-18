@@ -207,7 +207,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                self.parse_array_literal(tree, token.span)?
+                self.parse_list_literal(tree, token.span)?
             }
 
             // Either tuple, function, or nested expression

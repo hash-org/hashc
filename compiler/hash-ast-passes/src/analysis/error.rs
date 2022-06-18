@@ -25,7 +25,7 @@ impl AnalysisError {
     }
 }
 
-/// The kind of [AnalyserError] that can occur.
+/// The kind of [AnalysisError] that can occur.
 pub(crate) enum AnalysisErrorKind {
     /// When a `break` expression is found outside of a loop.
     UsingBreakOutsideLoop,
