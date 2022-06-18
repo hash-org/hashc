@@ -15,7 +15,6 @@ pub enum TcError {
     CannotUnify(TermId, TermId),
     NotATypeFunction(TermId),
     CannotUseValueAsTy(TermId),
-    CannotUsePositionalArgAfterNamedArg(Args, usize),
     MismatchingArgParamLength(Args, Params),
     ParamNotFound(Params, Identifier),
     ParamGivenTwice(Args, Params, usize),
