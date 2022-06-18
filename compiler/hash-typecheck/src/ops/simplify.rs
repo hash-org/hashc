@@ -211,7 +211,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     }
                 }
                 // Otherwise return none.
-                return Ok(None);
+                Ok(None)
             }
             _ => Ok(None),
         }
