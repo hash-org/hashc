@@ -37,6 +37,46 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd> {
     }
 }
 
+// Helper for [Simplifier::apply_access_term] erroring for things that do not support accessing:
+fn does_not_support_access<T>(access_term: &AccessTerm) -> TcResult<T> {
+    Err(TcError::UnsupportedPropertyAccess {
+        name: access_term.name,
+        value: access_term.subject_id,
+    })
+}
+
+// Helper for [Simplifier::apply_access_term] erroring for things that only support namespace access:
+fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
+    match access_term.op {
+        AccessOp::Namespace => Ok(()),
+        AccessOp::Property => Err(TcError::UnsupportedPropertyAccess {
+            name: access_term.name,
+            value: access_term.subject_id,
+        }),
+    }
+}
+
+// Helper for [Simplifier::apply_access_term] erroring for things that only support property access:
+fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
+    match access_term.op {
+        AccessOp::Namespace => Ok(()),
+        AccessOp::Property => Err(TcError::UnsupportedNamespaceAccess {
+            name: access_term.name,
+            value: access_term.subject_id,
+        }),
+    }
+}
+
+// Helper for [Simplifier::apply_access_term] erroring for name not found in value:
+fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
+    {
+        Err(TcError::UnresolvedNameInValue {
+            name: access_term.name,
+            value: access_term.subject_id,
+        })
+    }
+}
+
 impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
@@ -132,44 +172,185 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
+    /// Apply the given access, comprising of a name and an operator, to the given [Level0Term], if
+    /// possible, originating from the given [AccessTerm].
+    fn apply_access_to_level0_term(
+        &mut self,
+        term: &Level0Term,
+        access_term: &AccessTerm,
+    ) -> TcResult<Option<TermId>> {
+        match term {
+            // Runtime values:
+            Level0Term::Rt(ty_term_id) => {
+                does_not_support_ns_access(access_term)?;
+                // If a property access is given, first try to access `ty_term_id` with a namespace
+                // operator, to resolve "method calls":
+                let ty_access_result = self.apply_access_term(&AccessTerm {
+                    subject_id: *ty_term_id,
+                    name: access_term.name,
+                    op: AccessOp::Namespace,
+                })?;
+                match ty_access_result {
+                    Some(ty_access_result) => {
+                        // To get the function type, we need to get the type of the result.
+                        let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
+                        // Then we can try turn this into a method call
+                        Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                            ty_of_ty_access_result,
+                            *ty_term_id,
+                            access_term.subject_id,
+                            access_term.name,
+                        ))
+                        .transpose()
+                    }
+                    None => {
+                        // Instead of giving up here, we can instead try to access the property
+                        // of the type of the ty_access_result, and then see if the result is
+                        // level 1. If it is, we can perform the same transformation as above.
+                        //
+                        // This is possible because traits will return the type of their
+                        // members when accessing members.
+                        let ty_of_ty_term_id = self.typer().ty_of_term(*ty_term_id)?;
+                        let accessed_result = self.apply_access_term(&AccessTerm {
+                            subject_id: ty_of_ty_term_id,
+                            name: access_term.name,
+                            op: AccessOp::Namespace,
+                        })?;
+
+                        match accessed_result {
+                            Some(accessed_result) => {
+                                // Now we can try turn this into a method call
+                                Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                                    accessed_result,
+                                    *ty_term_id,
+                                    access_term.subject_id,
+                                    access_term.name,
+                                ))
+                                .transpose()
+                            }
+                            // We can't really do much at this point
+                            None => Ok(None),
+                        }
+                    }
+                }
+            }
+            // Enum variants:
+            Level0Term::EnumVariant(enum_variant) => {
+                does_not_support_ns_access(access_term)?;
+                // Try to resolve the field in the variant:
+                let reader = self.reader();
+                let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
+                match nominal_def {
+                    NominalDef::Enum(enum_def) => {
+                        let fields = &enum_def
+                            .variants
+                            .get(&enum_variant.variant_name)
+                            .expect("Enum variant name not found in def!")
+                            .fields;
+                        match fields.get_by_name(access_term.name) {
+                            Some((_, field)) => {
+                                // Field found, now return a Rt(X) of the field type X as the result.
+                                let field_ty = field.ty;
+                                Ok(Some(self.builder().create_rt_term(field_ty)))
+                            }
+                            None => name_not_found(access_term),
+                        }
+                    }
+                    NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
+                }
+            }
+            Level0Term::FnLit(_) => does_not_support_access(access_term),
+        }
+    }
+
+    /// Apply the given access, comprising of a name and an operator, to the given [Level1Term], if
+    /// possible, originating from the given [AccessTerm].
+    fn apply_access_to_level1_term(
+        &mut self,
+        term: &Level1Term,
+        access_term: &AccessTerm,
+    ) -> TcResult<Option<TermId>> {
+        match term {
+            // Modules:
+            Level1Term::ModDef(mod_def_id) => {
+                does_not_support_prop_access(access_term)?;
+
+                // Resolve the member in the module scope:
+                let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
+                self.resolve_name_in_scope(access_term.name, mod_def_scope, access_term.subject_id)
+            }
+            // Nominals:
+            Level1Term::NominalDef(nominal_def_id) => {
+                let reader = self.reader();
+                let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                match nominal_def {
+                    NominalDef::Struct(struct_def) => {
+                        // Struct type access is not valid.
+                        does_not_support_access(access_term)
+                    }
+                    NominalDef::Enum(enum_def) => {
+                        // Enum type access results in the runtime value of the variant
+                        // (namespace operation).
+                        does_not_support_prop_access(access_term)?;
+                        match enum_def.variants.get(&access_term.name) {
+                            Some(enum_variant) => {
+                                /// Return a term that refers to the variant (level 0)
+                                let name = enum_variant.name;
+                                Ok(Some(
+                                    self.builder()
+                                        .create_enum_variant_value_term(name, *nominal_def_id),
+                                ))
+                            }
+                            None => name_not_found(access_term),
+                        }
+                    }
+                }
+            }
+            Level1Term::Tuple(tuple_ty) => does_not_support_access(access_term),
+            Level1Term::Fn(_) => does_not_support_access(access_term),
+        }
+    }
+
+    /// Apply the given access, comprising of a name and an operator, to the given [Level2Term], if
+    /// possible, originating from the given [AccessTerm].
+    fn apply_access_to_level2_term(
+        &mut self,
+        term: &Level2Term,
+        access_term: &AccessTerm,
+    ) -> TcResult<Option<TermId>> {
+        match term {
+            // Traits:
+            Level2Term::Trt(trt_def_id) => {
+                does_not_support_prop_access(access_term)?;
+
+                // Resolve the type of the member in the trait scope:
+                let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
+                self.resolve_name_member_in_scope(
+                    access_term.name,
+                    trt_def_scope,
+                    access_term.subject_id,
+                )
+                .map(|member| Some(member.ty))
+            }
+            // Cannot access members of the `Type` trait:
+            Level2Term::AnyTy => does_not_support_access(access_term),
+        }
+    }
+
+    /// Apply the given access, comprising of a name and an operator, to the given [Level3Term], if
+    /// possible, originating from the given [AccessTerm].
+    fn apply_access_to_level3_term(
+        &mut self,
+        term: &Level3Term,
+        access_term: &AccessTerm,
+    ) -> TcResult<Option<TermId>> {
+        does_not_support_access(access_term)
+    }
+
     /// Apply the given access term structure, if possible.
     fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject_id)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
-
-        // Helper for things that do not support accessing:
-        let does_not_support_access = || -> TcResult<Option<TermId>> {
-            Err(TcError::UnsupportedPropertyAccess {
-                name: access_term.name,
-                value: access_term.subject_id,
-            })
-        };
-
-        // Helper for things that only support namespace access:
-        let does_not_support_prop_access = || match access_term.op {
-            AccessOp::Namespace => Ok(()),
-            AccessOp::Property => Err(TcError::UnsupportedPropertyAccess {
-                name: access_term.name,
-                value: access_term.subject_id,
-            }),
-        };
-
-        // Helper for things that only support property access:
-        let does_not_support_ns_access = || match access_term.op {
-            AccessOp::Namespace => Ok(()),
-            AccessOp::Property => Err(TcError::UnsupportedNamespaceAccess {
-                name: access_term.name,
-                value: access_term.subject_id,
-            }),
-        };
-
-        // Helper for name not found in value:
-        let name_not_found = || {
-            Err(TcError::UnresolvedNameInValue {
-                name: access_term.name,
-                value: simplified_subject_id,
-            })
-        };
 
         // @@CodeQuality: split this huge match into functions for definite-level terms:
         match simplified_subject {
@@ -216,157 +397,24 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     None => Ok(None), // Access resulted in no change
                 }
             }
-            Term::Level3(_) => does_not_support_access(),
-            Term::Level2(level2_term) => match level2_term {
-                // Traits:
-                Level2Term::Trt(trt_def_id) => {
-                    does_not_support_prop_access()?;
-
-                    // Resolve the type of the member in the trait scope:
-                    let trt_def_scope = self.reader().get_trt_def(trt_def_id).members;
-                    self.resolve_name_member_in_scope(
-                        access_term.name,
-                        trt_def_scope,
-                        access_term.subject_id,
-                    )
-                    .map(|member| Some(member.ty))
-                }
-                // Cannot access members of the `Type` trait:
-                Level2Term::AnyTy => does_not_support_access(),
-            },
-            Term::Level1(level1_term) => match level1_term {
-                // Modules:
-                Level1Term::ModDef(mod_def_id) => {
-                    does_not_support_prop_access()?;
-
-                    // Resolve the member in the module scope:
-                    let mod_def_scope = self.reader().get_mod_def(mod_def_id).members;
-                    self.resolve_name_in_scope(
-                        access_term.name,
-                        mod_def_scope,
-                        access_term.subject_id,
-                    )
-                }
-                // Nominals:
-                Level1Term::NominalDef(nominal_def_id) => {
-                    let reader = self.reader();
-                    let nominal_def = reader.get_nominal_def(nominal_def_id);
-                    match nominal_def {
-                        NominalDef::Struct(struct_def) => {
-                            // Struct type access is not valid.
-                            does_not_support_access()
-                        }
-                        NominalDef::Enum(enum_def) => {
-                            // Enum type access results in the runtime value of the variant
-                            // (namespace operation).
-                            does_not_support_prop_access()?;
-                            match enum_def.variants.get(&access_term.name) {
-                                Some(enum_variant) => {
-                                    /// Return a term that refers to the variant (level 0)
-                                    let name = enum_variant.name;
-                                    Ok(Some(
-                                        self.builder()
-                                            .create_enum_variant_value_term(name, nominal_def_id),
-                                    ))
-                                }
-                                None => name_not_found(),
-                            }
-                        }
-                    }
-                }
-                Level1Term::Tuple(tuple_ty) => does_not_support_access(),
-                Level1Term::Fn(_) => does_not_support_access(),
-            },
-            Term::Level0(level0_term) => match level0_term {
-                // Runtime values:
-                Level0Term::Rt(ty_term_id) => {
-                    does_not_support_ns_access();
-                    // If a property access is given, first try to access `ty_term_id` with a namespace
-                    // operator, to resolve "method calls":
-                    let ty_access_result = self.apply_access_term(&AccessTerm {
-                        subject_id: ty_term_id,
-                        name: access_term.name,
-                        op: AccessOp::Namespace,
-                    })?;
-                    match ty_access_result {
-                        Some(ty_access_result) => {
-                            // To get the function type, we need to get the type of the result.
-                            let ty_of_ty_access_result =
-                                self.typer().ty_of_term(ty_access_result)?;
-                            // Then we can try turn this into a method call
-                            Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
-                                ty_of_ty_access_result,
-                                ty_term_id,
-                                access_term.subject_id,
-                                access_term.name,
-                            ))
-                            .transpose()
-                        }
-                        None => {
-                            // Instead of giving up here, we can instead try to access the property
-                            // of the type of the ty_access_result, and then see if the result is
-                            // level 1. If it is, we can surround it in a Rt(..) and perform the
-                            // same transformation as above.
-                            //
-                            // This is possible because traits will return the type of their
-                            // members when accessing members.
-                            let ty_of_ty_term_id = self.typer().ty_of_term(ty_term_id)?;
-                            let accessed_result = self.apply_access_term(&AccessTerm {
-                                subject_id: ty_of_ty_term_id,
-                                name: access_term.name,
-                                op: AccessOp::Namespace,
-                            })?;
-
-                            match accessed_result {
-                                Some(accessed_result) => {
-                                    // Now we can try turn this into a method call
-                                    Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
-                                        accessed_result,
-                                        ty_term_id,
-                                        access_term.subject_id,
-                                        access_term.name,
-                                    ))
-                                    .transpose()
-                                }
-                                // We can't really do much at this point
-                                None => Ok(None),
-                            }
-                        }
-                    }
-                }
-                // Enum variants:
-                Level0Term::EnumVariant(enum_variant) => {
-                    does_not_support_ns_access();
-                    // Try to resolve the field in the variant:
-                    let reader = self.reader();
-                    let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
-                    match nominal_def {
-                        NominalDef::Enum(enum_def) => {
-                            let fields = &enum_def
-                                .variants
-                                .get(&enum_variant.variant_name)
-                                .expect("Enum variant name not found in def!")
-                                .fields;
-                            match fields.get_by_name(access_term.name) {
-                                Some((_, field)) => {
-                                    // Field found, now return a Rt(X) of the field type X as the result.
-                                    let field_ty = field.ty;
-                                    Ok(Some(self.builder().create_rt_term(field_ty)))
-                                }
-                                None => name_not_found(),
-                            }
-                        }
-                        NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
-                    }
-                }
-                Level0Term::FnLit(_) => does_not_support_access(),
-            },
+            Term::Level3(level3_term) => {
+                self.apply_access_to_level3_term(&level3_term, access_term)
+            }
+            Term::Level2(level2_term) => {
+                self.apply_access_to_level2_term(&level2_term, access_term)
+            }
+            Term::Level1(level1_term) => {
+                self.apply_access_to_level1_term(&level1_term, access_term)
+            }
+            Term::Level0(level0_term) => {
+                self.apply_access_to_level0_term(&level0_term, access_term)
+            }
             // @@Todo: infer type vars:
-            Term::TyFn(_) => does_not_support_access(),
-            Term::TyFnTy(_) => does_not_support_access(),
+            Term::TyFn(_) => does_not_support_access(access_term),
+            Term::TyFnTy(_) => does_not_support_access(access_term),
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
-            Term::Unresolved(_) => does_not_support_access(),
+            Term::Unresolved(_) => does_not_support_access(access_term),
             Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) | Term::Unresolved(_) => {
                 // @@Todo: here we need to ensure that this access is valid by getting the type of
                 // the term and checking that such a property exists.
