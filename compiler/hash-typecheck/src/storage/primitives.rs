@@ -7,21 +7,21 @@ use std::{
 };
 
 /// The visibility of a member of a const scope.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Visibility {
     Public,
     Private,
 }
 
 /// The mutability of a variable in a scope.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Mutability {
     Mutable,
     Immutable,
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Member {
     pub name: Identifier,
     pub ty: TermId,
@@ -74,19 +74,14 @@ impl Scope {
         }
     }
 
-    /// Add a member by name.
+    /// Add a member to the scope, overwriting any existing member with the same name.
     pub fn add(&mut self, member: Member) {
         self.members.insert(member.name, member);
     }
 
     /// Get a member by name.
-    pub fn get(&self, member_name: Identifier) -> Option<&Member> {
-        self.members.get(&member_name)
-    }
-
-    /// Get a member by name, mutably.
-    pub fn get_mut(&mut self, member_name: Identifier) -> Option<&mut Member> {
-        self.members.get_mut(&member_name)
+    pub fn get(&self, member_name: Identifier) -> Option<Member> {
+        self.members.get(&member_name).copied()
     }
 }
 
@@ -123,10 +118,22 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
         &self.params
     }
 
+    /// Turn [Self] into the parameters as a positional vector.
+    pub fn into_positional(self) -> Vec<ParamType> {
+        self.params
+    }
+
     /// Get a parameter by name.
     pub fn get_by_name(&self, name: Identifier) -> Option<(usize, &ParamType)> {
         let param_index = *self.name_map.get(&name)?;
         Some((param_index, self.positional().get(param_index)?))
+    }
+}
+
+/// Build a [ParamList] from an iterator of [ParamType].
+impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamType> {
+    fn from_iter<T: IntoIterator<Item = ParamType>>(iter: T) -> Self {
+        Self::new(iter.into_iter().collect())
     }
 }
 
@@ -263,7 +270,7 @@ impl NominalDef {
     }
 }
 
-/// A tuple type, containg parameters as members.
+/// A tuple type, containing parameters as members.
 #[derive(Debug, Clone)]
 pub struct TupleTy {
     pub members: Params,
@@ -436,6 +443,19 @@ pub struct EnumVariantValue {
     pub variant_name: Identifier,
 }
 
+/// The operator used to perform a member access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessOp {
+    /// The :: accessor (namespace operator).
+    ///
+    /// Works for modules, traits, enums.
+    Namespace,
+    /// The . accessor (property operator).
+    ///
+    /// Works for structs, tuples.
+    Property,
+}
+
 /// An access term, which is of the form X::Y, where X is a term and Y is an identifier.
 ///
 /// Has level N where N is the level of the Y property of X.
@@ -443,6 +463,7 @@ pub struct EnumVariantValue {
 pub struct AccessTerm {
     pub subject_id: TermId,
     pub name: Identifier,
+    pub op: AccessOp,
 }
 
 /// A level 3 term.
@@ -494,6 +515,13 @@ pub enum Level1Term {
     Fn(FnTy),
 }
 
+/// Represents a function literal, with a function type, as well as a return value.
+#[derive(Debug, Clone)]
+pub struct FnLit {
+    pub fn_ty: TermId,
+    pub return_value: TermId,
+}
+
 /// A level 0 term.
 ///
 /// Type of: nothing.
@@ -502,6 +530,9 @@ pub enum Level1Term {
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),
+
+    /// A function literal.
+    FnLit(FnLit),
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),

@@ -2,11 +2,11 @@
 //! the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, FnTy, GetNameOpt, Level0Term,
-        Level1Term, Level2Term, Level3Term, Member, ModDef, ModDefId, ModDefOrigin, Mutability,
-        NominalDef, NominalDefId, Param, ParamList, Scope, ScopeId, ScopeKind, StructDef,
-        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy,
-        UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, EnumVariantValue,
+        FnLit, FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef,
+        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, Scope,
+        ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy,
+        TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -181,6 +181,18 @@ impl<'gs> PrimitiveBuilder<'gs> {
         def_id
     }
 
+    /// Create an enum variant value term ([Level0Term::EnumVariant]).
+    pub fn create_enum_variant_value_term(
+        &self,
+        variant_name: impl Into<Identifier>,
+        enum_def_id: NominalDefId,
+    ) -> TermId {
+        self.create_term(Term::Level0(Level0Term::EnumVariant(EnumVariantValue {
+            variant_name: variant_name.into(),
+            enum_def_id,
+        })))
+    }
+
     /// Create an enum variant.
     pub fn create_enum_variant(
         &self,
@@ -229,11 +241,21 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
-    /// Create a [Term::Access] with the given subject and name.
-    pub fn create_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+    /// Create a [Term::Access] with the given subject and name, and namespace operator.
+    pub fn create_ns_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
             subject_id,
             name: name.into(),
+            op: AccessOp::Namespace,
+        }))
+    }
+
+    /// Create a [Term::Access] with the given subject and name, and property operator.
+    pub fn create_prop_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
+        self.create_term(Term::Access(AccessTerm {
+            subject_id,
+            name: name.into(),
+            op: AccessOp::Property,
         }))
     }
 
@@ -301,6 +323,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Level0Term::Rt] of the given type.
     pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
+    }
+
+    /// Create a [Level0Term::FnLit] of the given function type and return value.
+    pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::FnLit(FnLit {
+            fn_ty,
+            return_value,
+        })))
     }
 
     /// Create a [ParamList<T>] from the given set of items.
