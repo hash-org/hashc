@@ -130,6 +130,13 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     }
 }
 
+/// Build a [ParamList] from an iterator of [ParamType].
+impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamType> {
+    fn from_iter<T: IntoIterator<Item = ParamType>>(iter: T) -> Self {
+        Self::new(iter.into_iter().collect())
+    }
+}
+
 /// An argument to a parameter.
 #[derive(Debug, Clone, Hash)]
 pub struct Arg {
@@ -263,7 +270,7 @@ impl NominalDef {
     }
 }
 
-/// A tuple type, containg parameters as members.
+/// A tuple type, containing parameters as members.
 #[derive(Debug, Clone)]
 pub struct TupleTy {
     pub members: Params,
