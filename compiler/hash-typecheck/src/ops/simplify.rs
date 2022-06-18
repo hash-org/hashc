@@ -10,8 +10,9 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            AccessOp, AccessTerm, AppTyFn, Level0Term, Level1Term, Level2Term, Level3Term, Member,
-            NominalDef, ScopeId, StructFields, Term, TermId,
+            AccessOp, AccessTerm, AppTyFn, Arg, Args, FnLit, FnTy, Level0Term, Level1Term,
+            Level2Term, Level3Term, Member, NominalDef, Param, Params, ScopeId, StructFields, Term,
+            TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
         },
         scope::ScopeStack,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -352,7 +353,6 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject_id)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
 
-        // @@CodeQuality: split this huge match into functions for definite-level terms:
         match simplified_subject {
             Term::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means there
@@ -472,8 +472,20 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     Ok(Some(self.builder().create_term(Term::Merge(results))))
                 }
             }
-            Term::AppSub(_) => todo!(),
-            Term::Unresolved(_) => todo!(),
+            Term::AppSub(_) => {
+                // We should never have this happen, because any type functions should have been
+                // simplified already:
+                Err(TcError::UnsupportedTypeFunctionApplication {
+                    subject_id: simplified_subject_id,
+                })
+            }
+            Term::Unresolved(_) => {
+                // We don't know the type of this, so we refuse it.
+                // @@Enhancement: here we can unify the unresolved term with a type function term ?
+                Err(TcError::UnsupportedTypeFunctionApplication {
+                    subject_id: simplified_subject_id,
+                })
+            }
             Term::Merge(_)
             | Term::Access(_)
             | Term::Var(_)
@@ -495,19 +507,161 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
 
+    /// Simplify the given [Level0Term], if possible.
+    pub fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
+        match term {
+            // For Rt(..), try to simplify the inner term:
+            Level0Term::Rt(inner) => Ok(self
+                .simplify_term(*inner)?
+                .map(|result| self.builder().create_rt_term(result))),
+            Level0Term::FnLit(fn_lit) => {
+                // For FnLit(..), simplify the inner terms:
+                let simplified_fn_ty = self.simplify_term(fn_lit.fn_ty)?;
+                let simplified_return_value = self.simplify_term(fn_lit.return_value)?;
+                match (simplified_fn_ty, simplified_return_value) {
+                    (None, None) => Ok(None),
+                    _ => Ok(Some(self.builder().create_term(Term::Level0(
+                        Level0Term::FnLit(FnLit {
+                            fn_ty: simplified_fn_ty.unwrap_or(fn_lit.fn_ty),
+                            return_value: simplified_return_value.unwrap_or(fn_lit.return_value),
+                        }),
+                    )))),
+                }
+            }
+            Level0Term::EnumVariant(_) => Ok(None),
+        }
+    }
+
+    /// Simplify the given [Level1Term], if possible.
+    pub fn simplify_level1_term(&mut self, term: &Level1Term) -> TcResult<Option<TermId>> {
+        match term {
+            Level1Term::ModDef(_) | Level1Term::NominalDef(_) => Ok(None),
+            Level1Term::Tuple(tuple_ty) => {
+                // Simplify each inner type
+                let simplified_members = self.simplify_params(&tuple_ty.members)?;
+                Ok(simplified_members.map(|simplified_members| {
+                    self.builder()
+                        .create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+                            members: simplified_members,
+                        })))
+                }))
+            }
+            Level1Term::Fn(fn_ty) => {
+                // Simplify params and return type, and if either was simplified, return a new
+                // simplified type.
+                let simplified_params = self.simplify_params(&fn_ty.params)?;
+                let simplified_return_ty = self.simplify_term(fn_ty.return_ty)?;
+                match (&simplified_params, simplified_return_ty) {
+                    (None, None) => Ok(None),
+                    _ => Ok(Some(self.builder().create_term(Term::Level1(
+                        Level1Term::Fn(FnTy {
+                            params: simplified_params.unwrap_or_else(|| fn_ty.params.clone()),
+                            return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
+                        }),
+                    )))),
+                }
+            }
+        }
+    }
+
+    /// Simplify the given [Level2Term], if possible.
+    pub fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
+        match term {
+            Level2Term::Trt(_) | Level2Term::AnyTy => Ok(None),
+        }
+    }
+
+    /// Simplify the given [Level3Term], if possible.
+    pub fn simplify_level3_term(&mut self, term: &Level3Term) -> TcResult<Option<TermId>> {
+        match term {
+            Level3Term::TrtKind => Ok(None),
+        }
+    }
+
+    /// Simplify the given [Args], if possible.
+    pub fn simplify_args(&mut self, args: &Args) -> TcResult<Option<Args>> {
+        // Simplify values:
+        let mut simplified_once = false;
+        let result = args
+            .positional()
+            .iter()
+            .map(|arg| {
+                Ok(Arg {
+                    name: arg.name,
+                    value: self
+                        .simplify_term(arg.value)?
+                        .map(|result| {
+                            simplified_once = true;
+                            result
+                        })
+                        .unwrap_or(arg.value),
+                })
+            })
+            .collect::<TcResult<_>>()?;
+
+        // Only return the new args if we simplified them:
+        if simplified_once {
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Simplify the given [Params], if possible.
+    pub fn simplify_params(&mut self, params: &Params) -> TcResult<Option<Params>> {
+        // Simplify types and default values:
+        let mut simplified_once = false;
+        let result = params
+            .positional()
+            .iter()
+            .map(|param| {
+                Ok(Param {
+                    name: param.name,
+                    // Type:
+                    ty: self
+                        .simplify_term(param.ty)?
+                        .map(|result| {
+                            simplified_once = true;
+                            result
+                        })
+                        .unwrap_or(param.ty),
+                    // Default value:
+                    default_value: param
+                        .default_value
+                        .map(|default_value| {
+                            Ok(self
+                                .simplify_term(default_value)?
+                                .map(|result| {
+                                    simplified_once = true;
+                                    result
+                                })
+                                .unwrap_or(default_value))
+                        })
+                        .transpose()?,
+                })
+            })
+            .collect::<TcResult<_>>()?;
+
+        // Only return the new params if we simplified them:
+        if simplified_once {
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Simplify the given term, if possible.
     pub fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
         let value = self.reader().get_term(term_id).clone();
         match value {
             Term::Merge(inner) => {
-                // @@Enhancement: here we can also collapse degenerate elements
-
                 // Simplify each element of the merge:
                 let inner = inner;
                 let inner_tys = inner
                     .iter()
                     .map(|&ty| self.simplify_term(ty))
                     .collect::<Result<Vec<_>, _>>()?;
+                // @@Enhancement: here we can also collapse degenerate elements
 
                 if inner_tys.iter().any(|x| x.is_some()) {
                     // If any of them have been simplified, create a new term
@@ -532,18 +686,96 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             )),
             Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
-            Term::Var(_) => {
+            Term::Var(var) => {
                 // Here, we have to look in the scopes:
-                todo!()
+                for scope_id in self.scopes().iter_up() {
+                    match self.reader().get_scope(scope_id).get(var.name) {
+                        // Found in this scope, return the value if found, otherwise cannot be
+                        // simplified.
+                        Some(result) => return Ok(result.value),
+                        // Continue to the next (higher) scope:
+                        None => continue,
+                    }
+                }
+                // Variable was not found, error:
+                Err(TcError::UnresolvedVariable { name: var.name })
             }
-            // Cannot simplify:
-            Term::TyFn(_)
-            | Term::TyFnTy(_)
-            | Term::Unresolved(_)
-            | Term::Level3(_)
-            | Term::Level2(_)
-            | Term::Level1(_)
-            | Term::Level0(_) => Ok(None),
+            Term::TyFn(ty_fn) => {
+                // Simplify each constituent of the type function, and if any are successfully
+                // simplified, the whole thing can be simplified:
+
+                // Simplify general params and return
+                let simplified_general_params = self.simplify_params(&ty_fn.general_params)?;
+                let simplified_general_return_ty = self.simplify_term(ty_fn.general_return_ty)?;
+
+                // Simplify each of the cases
+                let simplified_cases: Vec<_> = ty_fn
+                    .cases
+                    .iter()
+                    .map(|case| {
+                        let simplified_params = self.simplify_params(&case.params)?;
+                        let simplified_return_ty = self.simplify_term(case.return_ty)?;
+                        let simplified_return_value = self.simplify_term(case.return_value)?;
+                        // A case is simplified if any of its constituents is simplified:
+                        match (
+                            &simplified_params,
+                            simplified_return_ty,
+                            simplified_return_value,
+                        ) {
+                            (None, None, None) => Ok(None),
+                            _ => Ok(Some(TyFnCase {
+                                params: simplified_params.unwrap_or_else(|| case.params.clone()),
+                                return_ty: simplified_return_ty.unwrap_or(case.return_ty),
+                                return_value: simplified_return_value.unwrap_or(case.return_value),
+                            })),
+                        }
+                    })
+                    .collect::<TcResult<_>>()?;
+
+                // A type function is simplified if any of its constituents is simplified:
+                match (&simplified_general_params, simplified_general_return_ty) {
+                    // No simplification occurred:
+                    (None, None) if simplified_cases.iter().all(|x| x.is_none()) => Ok(None),
+                    // Otherwise, build the simplified type function:
+                    _ => Ok(Some(
+                        self.builder().create_term(Term::TyFn(TyFn {
+                            name: ty_fn.name,
+                            general_params: simplified_general_params
+                                .unwrap_or(ty_fn.general_params),
+                            general_return_ty: simplified_general_return_ty
+                                .unwrap_or(ty_fn.general_return_ty),
+                            cases: simplified_cases
+                                .into_iter()
+                                .zip(ty_fn.cases.into_iter())
+                                .map(|(simplified_case, old_case)| {
+                                    simplified_case.unwrap_or(old_case)
+                                })
+                                .collect(),
+                        })),
+                    )),
+                }
+            }
+            Term::TyFnTy(ty_fn_ty) => {
+                // Simplify params and return, and if either is simplified, the whole term is simplified.
+                let simplified_params = self.simplify_params(&ty_fn_ty.params)?;
+                let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
+                match (&simplified_params, simplified_return_ty) {
+                    (None, None) => Ok(None),
+                    _ => Ok(Some(self.builder().create_term(Term::TyFnTy(TyFnTy {
+                        params: simplified_params.unwrap_or(ty_fn_ty.params),
+                        return_ty: simplified_return_ty.unwrap_or(ty_fn_ty.return_ty),
+                    })))),
+                }
+            }
+            Term::Unresolved(_) => {
+                // Cannot do anything here:
+                Ok(None)
+            }
+            // Recurse for definite-level terms:
+            Term::Level3(term) => self.simplify_level3_term(&term),
+            Term::Level2(term) => self.simplify_level2_term(&term),
+            Term::Level1(term) => self.simplify_level1_term(&term),
+            Term::Level0(term) => self.simplify_level0_term(&term),
         }
     }
 }

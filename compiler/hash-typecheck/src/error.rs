@@ -23,6 +23,9 @@ pub enum TcError {
         name: Identifier,
         value: TermId,
     },
+    UnresolvedVariable {
+        name: Identifier,
+    },
     UnsupportedAccess {
         name: Identifier,
         value: TermId,
@@ -39,6 +42,9 @@ pub enum TcError {
         type_fn: TermId,
         args: Args,
         unification_errors: Vec<TcError>,
+    },
+    UnsupportedTypeFunctionApplication {
+        subject_id: TermId,
     },
     AmbiguousAccess {
         access: AccessTerm,
