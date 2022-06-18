@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, mem};
 
 use hash_ast::{
     ast::{AstNodes, BodyBlock, Expression, ExpressionKind},
@@ -13,7 +13,10 @@ use super::{
 };
 
 impl SemanticAnalyser {
-    /// This function will verify that all of the given expressions are declarations.
+    /// This function will verify that all of the given expressions are declarations. Additionally,
+    /// the function checks that all of the declarations within the scope do not attempt to
+    /// declare the binding to be `mutable` as this is disallowed.
+    ///
     /// During the checking process, the function also collects the indices of
     /// the erroneous statements in the provided [AstNodes<Expression>]. This is
     /// so that the caller can later 'skip' these statements when performing further checks.
@@ -59,6 +62,9 @@ impl SemanticAnalyser {
 
         let errors = self.check_statements_are_declarative(ctx, &body.statements, origin);
 
+        // We need to set the block to being whatever the origin is set to!
+        let old_block_origin = mem::replace(&mut self.current_block, origin);
+
         // We have to manually walk this block because we want to skip any erroneous
         // statements.
         for (index, statement) in body.statements.iter().enumerate() {
@@ -66,5 +72,7 @@ impl SemanticAnalyser {
                 self.visit_expression(ctx, statement.ast_ref()).unwrap();
             }
         }
+
+        self.current_block = old_block_origin;
     }
 }
