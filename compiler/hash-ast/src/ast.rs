@@ -515,6 +515,37 @@ pub enum Literal {
     Tuple(TupleLiteral),
 }
 
+impl Literal {
+    /// This function is used to determine if the current literal tree only
+    /// contains constants. Constants are other literals that are not subject
+    /// to change, e.g. a number like `5` or a string `hello`. This function implements
+    /// short circuiting behaviour and thus should check if the literal is constant
+    /// in the minimal time possible.
+    pub fn is_constant(&self) -> bool {
+        let is_expr_literal_and_const = |expr: &AstNode<Expression>| -> bool {
+            match expr.kind() {
+                ExpressionKind::LiteralExpr(LiteralExpr(lit)) => lit.is_constant(),
+                _ => false,
+            }
+        };
+
+        // Recurse over the literals for `set`, `map` and `tuple to see if they are constant.
+        match self {
+            Literal::List(ListLiteral { elements }) | Literal::Set(SetLiteral { elements }) => {
+                !elements.iter().any(|expr| !is_expr_literal_and_const(expr))
+            }
+            Literal::Tuple(TupleLiteral { elements }) => !elements
+                .iter()
+                .any(|entry| !is_expr_literal_and_const(&entry.body().value)),
+            Literal::Map(MapLiteral { elements }) => !elements.iter().any(|entry| {
+                !is_expr_literal_and_const(&entry.body().key)
+                    || !is_expr_literal_and_const(&entry.body().value)
+            }),
+            _ => true,
+        }
+    }
+}
+
 /// An alternative pattern, e.g. `Red | Blue`.
 #[derive(Debug, PartialEq)]
 pub struct OrPattern {
