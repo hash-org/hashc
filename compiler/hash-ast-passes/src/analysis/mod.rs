@@ -11,9 +11,9 @@ use self::{
 };
 
 mod block;
-pub(super) mod error;
+pub(crate) mod error;
 mod pat;
-pub(super) mod warning;
+pub(crate) mod warning;
 
 /// Enum representing any generated message that can be emitted by the
 /// [SemanticAnalyser].
@@ -31,44 +31,45 @@ impl From<AnalysisMessage> for Report {
     }
 }
 
-#[derive(Default)]
 pub struct SemanticAnalyser {
     /// Whether the current visitor is within a loop construct.
-    pub(super) is_in_loop: bool,
+    pub(crate) is_in_loop: bool,
     /// Whether the current visitor is within a function definition.
-    pub(super) is_in_function: bool,
+    pub(crate) is_in_function: bool,
     /// Any collected errors when passing through the tree.
-    pub(super) errors: Vec<AnalysisError>,
+    pub(crate) errors: Vec<AnalysisError>,
     /// Any collected warning that were found during the walk.
-    pub(super) warnings: Vec<AnalysisWarning>,
+    pub(crate) warnings: Vec<AnalysisWarning>,
+    /// The current id of the source that is being passed.
+    pub(crate) source_id: SourceId,
 }
 
 impl SemanticAnalyser {
     /// Create a new semantic analyser
-    pub fn new() -> Self {
+    pub fn new(source_id: SourceId) -> Self {
         Self {
             is_in_loop: false,
             is_in_function: false,
             errors: vec![],
             warnings: vec![],
+            source_id,
         }
     }
 
     /// Append an error to the error queue.
-    pub(crate) fn append_error(&mut self, error: AnalysisErrorKind, span: Span, id: SourceId) {
-        self.errors
-            .push(AnalysisError::new(error, SourceLocation::new(span, id)))
+    pub(crate) fn append_error(&mut self, error: AnalysisErrorKind, span: Span) {
+        self.errors.push(AnalysisError::new(
+            error,
+            SourceLocation::new(span, self.source_id),
+        ))
     }
 
     /// Append an warning to the warning queue.
-    pub(crate) fn append_warning(
-        &mut self,
-        warning: AnalysisWarningKind,
-        span: Span,
-        id: SourceId,
-    ) {
-        self.warnings
-            .push(AnalysisWarning::new(warning, SourceLocation::new(span, id)))
+    pub(crate) fn append_warning(&mut self, warning: AnalysisWarningKind, span: Span) {
+        self.warnings.push(AnalysisWarning::new(
+            warning,
+            SourceLocation::new(span, self.source_id),
+        ))
     }
 
     /// Given a [Sender], send all of the generated warnings and messaged into the sender.

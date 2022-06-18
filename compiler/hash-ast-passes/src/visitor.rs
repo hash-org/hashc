@@ -8,7 +8,6 @@ use hash_ast::{
     ast::{DestructuringPattern, ExpressionKind, LiteralExpr, Pattern, TuplePatternEntry},
     visitor::{walk, AstVisitor},
 };
-use hash_source::SourceId;
 
 use crate::analysis::{
     error::{AnalysisErrorKind, BlockOrigin, PatternOrigin},
@@ -16,21 +15,8 @@ use crate::analysis::{
     SemanticAnalyser,
 };
 
-/// The context of the semantic analysis pass
-pub struct SemanticAnalysisContext {
-    /// The current [SourceId] of the pass
-    pub source_id: SourceId,
-}
-
-impl SemanticAnalysisContext {
-    /// Create a new context.
-    pub fn new(source_id: SourceId) -> Self {
-        Self { source_id }
-    }
-}
-
 impl AstVisitor for SemanticAnalyser {
-    type Ctx = SemanticAnalysisContext;
+    type Ctx = ();
 
     type CollectionContainer<T> = Vec<T>;
 
@@ -597,15 +583,11 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_break_statement(
         &mut self,
-        ctx: &Self::Ctx,
+        _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         if !self.is_in_loop {
-            self.append_error(
-                AnalysisErrorKind::UsingBreakOutsideLoop,
-                node.span(),
-                ctx.source_id,
-            );
+            self.append_error(AnalysisErrorKind::UsingBreakOutsideLoop, node.span());
         }
 
         Ok(())
@@ -615,15 +597,11 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_continue_statement(
         &mut self,
-        ctx: &Self::Ctx,
+        _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         if !self.is_in_loop {
-            self.append_error(
-                AnalysisErrorKind::UsingContinueOutsideLoop,
-                node.span(),
-                ctx.source_id,
-            );
+            self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node.span());
         }
 
         Ok(())
@@ -680,10 +658,10 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_mod_block(
         &mut self,
-        ctx: &Self::Ctx,
+        _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        self.check_constant_body_block(ctx, &node.body().0, BlockOrigin::Mod);
+        self.check_constant_body_block(&node.body().0, BlockOrigin::Mod);
         Ok(())
     }
 
@@ -691,10 +669,10 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_impl_block(
         &mut self,
-        ctx: &Self::Ctx,
+        _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        self.check_constant_body_block(ctx, &node.body().0, BlockOrigin::Impl);
+        self.check_constant_body_block(&node.body().0, BlockOrigin::Impl);
         Ok(())
     }
 
@@ -710,11 +688,7 @@ impl AstVisitor for SemanticAnalyser {
         for statement in node.statements.iter() {
             match statement.kind() {
                 ExpressionKind::LiteralExpr(LiteralExpr(lit)) if lit.body().is_constant() => {
-                    self.append_warning(
-                        AnalysisWarningKind::UselessExpression,
-                        statement.span(),
-                        ctx.source_id,
-                    );
+                    self.append_warning(AnalysisWarningKind::UselessExpression, statement.span());
                 }
                 _ => {}
             }
@@ -732,11 +706,7 @@ impl AstVisitor for SemanticAnalyser {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
         if !self.is_in_function {
-            self.append_error(
-                AnalysisErrorKind::UsingReturnOutsideOfFunction,
-                node.span(),
-                ctx.source_id,
-            );
+            self.append_error(AnalysisErrorKind::UsingReturnOutsideOfFunction, node.span());
         }
 
         let _ = walk::walk_return_statement(self, ctx, node);
@@ -948,7 +918,7 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPattern>,
     ) -> Result<Self::ConstructorPatternRet, Self::Error> {
-        self.check_compound_pattern_rules(ctx, &node.body().fields, PatternOrigin::Constructor);
+        self.check_compound_pattern_rules(&node.body().fields, PatternOrigin::Constructor);
 
         let _ = walk::walk_constructor_pattern(self, ctx, node);
         Ok(())
@@ -981,7 +951,6 @@ impl AstVisitor for SemanticAnalyser {
                     origin: PatternOrigin::NamedField,
                 },
                 pattern.span(),
-                ctx.source_id,
             );
         } else {
             // We only need to walk the children if it hasn't error'd yet
@@ -1003,7 +972,7 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
-        self.check_compound_pattern_rules(ctx, &node.body().fields, PatternOrigin::Tuple);
+        self.check_compound_pattern_rules(&node.body().fields, PatternOrigin::Tuple);
 
         // Continue walking the tree
         let _ = walk::walk_tuple_pattern(self, ctx, node);
@@ -1017,7 +986,7 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPattern>,
     ) -> Result<Self::ListPatternRet, Self::Error> {
-        self.check_list_pattern(ctx, &node.body().fields);
+        self.check_list_pattern(&node.body().fields);
 
         // Continue walking the tree
         let _ = walk::walk_list_pattern(self, ctx, node);
@@ -1152,7 +1121,6 @@ impl AstVisitor for SemanticAnalyser {
                     origin: PatternOrigin::Namespace,
                 },
                 pattern.span(),
-                ctx.source_id,
             );
         } else {
             // We only need to walk the children if it hasn't error'd yet
@@ -1166,11 +1134,11 @@ impl AstVisitor for SemanticAnalyser {
 
     fn visit_module(
         &mut self,
-        ctx: &Self::Ctx,
+        _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let error_indices =
-            self.check_statements_are_declarative(ctx, &node.contents, BlockOrigin::Root);
+            self.check_statements_are_declarative(&node.contents, BlockOrigin::Root);
 
         Ok(error_indices)
     }
