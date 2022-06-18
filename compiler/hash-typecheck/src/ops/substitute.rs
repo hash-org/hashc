@@ -8,6 +8,8 @@ use crate::storage::{
 };
 use std::collections::{HashMap, HashSet};
 
+use super::{AccessToOps, AccessToOpsMut};
+
 /// Can perform substitutions (see [Sub]) on terms.
 pub struct Substituter<'gs, 'ls, 'cd> {
     storage: StorageRefMut<'gs, 'ls, 'cd>,
@@ -151,6 +153,13 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                     builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
                 )
             }
+            Level0Term::FnLit(fn_lit) => {
+                // Apply to the function type and return value
+                let subbed_fn_ty = self.apply_sub_to_term(sub, fn_lit.fn_ty);
+                let subbed_return_value = self.apply_sub_to_term(sub, fn_lit.return_value);
+                self.builder()
+                    .create_fn_lit_term(subbed_fn_ty, subbed_return_value)
+            }
         }
     }
 
@@ -168,8 +177,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     ///
     /// Sometimes, this will actually create a [Term::AppSub] somewhere inside the term tree, and
     /// those are the leaf nodes of the substitution application. This will happen with `ModDef`,
-    /// `TrtDef`, `NominalDef`, and `EnumVariant`. This is so that when `Access` is resolved for
-    /// those types, the substitution is carried forward into the member term.
+    /// `TrtDef`, `NominalDef`, and `EnumVariant`. This is so that when `AccessTerm` is resolved
+    /// for those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
         // @@Performance: here we copy a lot, maybe there is a way to avoid all this copying by
         // first checking that the variables to be substituted actually exist in the term.
@@ -184,7 +193,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::Access(access) => {
                 // Just apply the substitution to the subject:
                 let subbed_subject_id = self.apply_sub_to_term(sub, access.subject_id);
-                self.builder().create_access(subbed_subject_id, access.name)
+                self.builder()
+                    .create_ns_access(subbed_subject_id, access.name)
             }
             Term::Merge(terms) => {
                 // Apply the substitution to each element of the merge.
@@ -318,6 +328,11 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 // Forward to the nominal enum definition
                 let enum_def = Level1Term::NominalDef(enum_variant.enum_def_id);
                 self.add_free_vars_in_level1_term_to_set(&enum_def, result);
+            }
+            Level0Term::FnLit(fn_lit) => {
+                // Forward to fn type and return value
+                self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
+                self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
             }
         }
     }
@@ -498,6 +513,7 @@ mod tests {
     use super::Substituter;
     use crate::{
         fmt::PrepareForFormatting,
+        ops::AccessToOpsMut,
         storage::{
             core::CoreDefs,
             primitives::{ModDefOrigin, Sub},

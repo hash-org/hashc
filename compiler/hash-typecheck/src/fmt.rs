@@ -107,6 +107,14 @@ impl<'gs> TcFormatter<'gs> {
                     ty_id.for_formatting(self.global_storage)
                 )
             }
+            Level0Term::FnLit(fn_lit) => {
+                is_atomic.set(true);
+                write!(
+                    f,
+                    "{{function literal of type {}}}",
+                    fn_lit.fn_ty.for_formatting(self.global_storage)
+                )
+            }
             Level0Term::EnumVariant(enum_variant) => {
                 is_atomic.set(true);
                 write!(
