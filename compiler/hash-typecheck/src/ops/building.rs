@@ -244,7 +244,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Term::Access] with the given subject and name, and namespace operator.
     pub fn create_ns_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
-            subject_id,
+            subject: subject_id,
             name: name.into(),
             op: AccessOp::Namespace,
         }))
@@ -253,7 +253,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Term::Access] with the given subject and name, and property operator.
     pub fn create_prop_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
-            subject_id,
+            subject: subject_id,
             name: name.into(),
             op: AccessOp::Property,
         }))
@@ -400,7 +400,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a trait definition with the given name, and members.
     ///
     /// This adds the name to the scope.
-    pub fn create_trait_def(
+    pub fn create_trt_def(
         &self,
         trait_name: impl Into<Identifier>,
         members: impl IntoIterator<Item = Member>,

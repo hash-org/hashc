@@ -3,14 +3,16 @@
 //! Code from this module is to be used while traversing and typing the AST, in order to unify
 //! types and ensure correctness.
 use self::{
-    building::PrimitiveBuilder, reader::PrimitiveReader, substitute::Substituter, typing::Typer,
-    unify::Unifier, validate::Validator,
+    building::PrimitiveBuilder, reader::PrimitiveReader, scope::ScopeResolver,
+    simplify::Simplifier, substitute::Substituter, typing::Typer, unify::Unifier,
+    validate::Validator,
 };
 use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
 
 pub mod building;
 pub mod params;
 pub mod reader;
+pub mod scope;
 pub mod simplify;
 pub mod substitute;
 pub mod typing;
@@ -23,6 +25,11 @@ pub trait AccessToOps: AccessToStorage {
     /// Create an instance ofa [PrimitiveReader].
     fn reader(&self) -> PrimitiveReader {
         PrimitiveReader::new(self.global_storage())
+    }
+
+    /// Create an instance of [ScopeResolver].
+    fn scope_resolver(&self) -> ScopeResolver {
+        ScopeResolver::new(self.storages())
     }
 }
 
@@ -56,6 +63,11 @@ pub trait AccessToOpsMut: AccessToStorageMut {
     /// Create an instance of [Typer].
     fn typer(&mut self) -> Typer {
         Typer::new(self.storages_mut())
+    }
+
+    /// Create an instance of [Simplifier].
+    fn simplifier(&mut self) -> Simplifier {
+        Simplifier::new(self.storages_mut())
     }
 
     /// Create an instance of [Validator].

@@ -212,7 +212,7 @@ impl<'gs> TcFormatter<'gs> {
         match self.global_storage.term_store.get(term_id) {
             Term::Access(access_term) => {
                 is_atomic.set(true);
-                self.fmt_term_as_single(f, access_term.subject_id)?;
+                self.fmt_term_as_single(f, access_term.subject)?;
                 write!(f, "::{}", access_term.name)?;
                 Ok(())
             }

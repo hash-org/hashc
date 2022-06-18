@@ -3,8 +3,8 @@
 // @@Remove
 #![allow(unused)]
 use super::{
-    params::pair_args_with_params, substitute::Substituter, unify::Unifier, validate::TermLevel,
-    AccessToOps, AccessToOpsMut,
+    building::PrimitiveBuilder, params::pair_args_with_params, substitute::Substituter,
+    unify::Unifier, validate::TermLevel, AccessToOps, AccessToOpsMut,
 };
 use crate::{
     error::{TcError, TcResult},
@@ -42,7 +42,7 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd> {
 fn does_not_support_access<T>(access_term: &AccessTerm) -> TcResult<T> {
     Err(TcError::UnsupportedPropertyAccess {
         name: access_term.name,
-        value: access_term.subject_id,
+        value: access_term.subject,
     })
 }
 
@@ -52,7 +52,7 @@ fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
         AccessOp::Namespace => Ok(()),
         AccessOp::Property => Err(TcError::UnsupportedPropertyAccess {
             name: access_term.name,
-            value: access_term.subject_id,
+            value: access_term.subject,
         }),
     }
 }
@@ -63,7 +63,7 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
         AccessOp::Namespace => Ok(()),
         AccessOp::Property => Err(TcError::UnsupportedNamespaceAccess {
             name: access_term.name,
-            value: access_term.subject_id,
+            value: access_term.subject,
         }),
     }
 }
@@ -73,7 +73,7 @@ fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
     {
         Err(TcError::UnresolvedNameInValue {
             name: access_term.name,
-            value: access_term.subject_id,
+            value: access_term.subject,
         })
     }
 }
@@ -173,6 +173,50 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
+    /// Try to access the given `field_name` as a field on the given term, which is the inner type
+    /// of a runtime term. Returns `Some(X)` if found, where X is the runtime term of the result,
+    /// or `None` if not found.
+    fn access_struct_or_tuple_field(
+        &mut self,
+        rt_term_ty_id: TermId,
+        field_name: Identifier,
+    ) -> TcResult<Option<TermId>> {
+        let reader = self.reader();
+        let term = reader.get_term(rt_term_ty_id);
+        match term {
+            Term::AppSub(app_sub) => {
+                // If a substitution needs to be applied first, then apply it on the result of the
+                // inner recursion:
+                let app_sub = app_sub.clone();
+                let result = self.access_struct_or_tuple_field(app_sub.term, field_name)?;
+                Ok(result.map(|result| self.substituter().apply_sub_to_term(&app_sub.sub, result)))
+            }
+            Term::Level1(level1_term) => {
+                // If it is a struct or a tuple, and the name is resolved in the fields, return the (runtime)
+                // value of the field.
+                if let Level1Term::NominalDef(nominal_def_id) = level1_term {
+                    let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                    if let NominalDef::Struct(struct_def) = nominal_def {
+                        if let StructFields::Explicit(fields) = &struct_def.fields {
+                            if let Some((_, param)) = fields.get_by_name(field_name) {
+                                let param_ty = param.ty;
+                                return Ok(Some(self.builder().create_rt_term(param_ty)));
+                            }
+                        }
+                    }
+                } else if let Level1Term::Tuple(tuple_ty) = level1_term {
+                    if let Some((_, param)) = tuple_ty.members.get_by_name(field_name) {
+                        let param_ty = param.ty;
+                        return Ok(Some(self.builder().create_rt_term(param_ty)));
+                    }
+                }
+                // Otherwise return none.
+                return Ok(None);
+            }
+            _ => Ok(None),
+        }
+    }
+
     /// Apply the given access, comprising of a name and an operator, to the given [Level0Term], if
     /// possible, originating from the given [AccessTerm].
     fn apply_access_to_level0_term(
@@ -184,55 +228,63 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // Runtime values:
             Level0Term::Rt(ty_term_id) => {
                 does_not_support_ns_access(access_term)?;
+
+                // First, check if the value is a struct instance, in which case we are accessing one of its members:
+                if let Some(access_result) =
+                    self.access_struct_or_tuple_field(*ty_term_id, access_term.name)?
+                {
+                    return Ok(Some(access_result));
+                }
+
                 // If a property access is given, first try to access `ty_term_id` with a namespace
                 // operator, to resolve "method calls":
                 let ty_access_result = self.apply_access_term(&AccessTerm {
-                    subject_id: *ty_term_id,
+                    subject: *ty_term_id,
                     name: access_term.name,
                     op: AccessOp::Namespace,
                 })?;
-                match ty_access_result {
-                    Some(ty_access_result) => {
-                        // To get the function type, we need to get the type of the result.
-                        let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
-                        // Then we can try turn this into a method call
+                if let Some(ty_access_result) = ty_access_result {
+                    // To get the function type, we need to get the type of the result.
+                    let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
+                    // Then we can try turn this into a method call
+                    return Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                        ty_of_ty_access_result,
+                        *ty_term_id,
+                        access_term.subject,
+                        access_term.name,
+                    ))
+                    .transpose();
+                }
+
+                // Instead of giving up here, we can instead try to access the property
+                // of the type of the ty_access_result, and then see if the result is
+                // level 1. If it is, we can perform the same transformation as above.
+                //
+                // This is possible because traits will return the type of their
+                // members when accessing members.
+                let ty_of_ty_term_id = self.typer().ty_of_term(*ty_term_id)?;
+                let accessed_result = self.apply_access_term(&AccessTerm {
+                    subject: ty_of_ty_term_id,
+                    name: access_term.name,
+                    op: AccessOp::Namespace,
+                })?;
+
+                match accessed_result {
+                    Some(accessed_result) => {
+                        // Now we can try turn this into a method call
                         Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
-                            ty_of_ty_access_result,
+                            accessed_result,
                             *ty_term_id,
-                            access_term.subject_id,
+                            access_term.subject,
                             access_term.name,
                         ))
                         .transpose()
                     }
-                    None => {
-                        // Instead of giving up here, we can instead try to access the property
-                        // of the type of the ty_access_result, and then see if the result is
-                        // level 1. If it is, we can perform the same transformation as above.
-                        //
-                        // This is possible because traits will return the type of their
-                        // members when accessing members.
-                        let ty_of_ty_term_id = self.typer().ty_of_term(*ty_term_id)?;
-                        let accessed_result = self.apply_access_term(&AccessTerm {
-                            subject_id: ty_of_ty_term_id,
-                            name: access_term.name,
-                            op: AccessOp::Namespace,
-                        })?;
-
-                        match accessed_result {
-                            Some(accessed_result) => {
-                                // Now we can try turn this into a method call
-                                Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
-                                    accessed_result,
-                                    *ty_term_id,
-                                    access_term.subject_id,
-                                    access_term.name,
-                                ))
-                                .transpose()
-                            }
-                            // We can't really do much at this point
-                            None => Ok(None),
-                        }
-                    }
+                    // If none of this worked, then the property wasn't found:
+                    None => Err(TcError::UnresolvedNameInValue {
+                        name: access_term.name,
+                        value: access_term.subject,
+                    }),
                 }
             }
             // Enum variants:
@@ -278,7 +330,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Resolve the member in the module scope:
                 let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
-                self.resolve_name_in_scope(access_term.name, mod_def_scope, access_term.subject_id)
+                self.resolve_name_in_scope(access_term.name, mod_def_scope, access_term.subject)
             }
             // Nominals:
             Level1Term::NominalDef(nominal_def_id) => {
@@ -329,7 +381,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 self.resolve_name_member_in_scope(
                     access_term.name,
                     trt_def_scope,
-                    access_term.subject_id,
+                    access_term.subject,
                 )
                 .map(|member| Some(member.ty))
             }
@@ -350,7 +402,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
     /// Apply the given access term structure, if possible.
     fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
-        let simplified_subject_id = self.potentially_simplify_term(access_term.subject_id)?;
+        let simplified_subject_id = self.potentially_simplify_term(access_term.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
 
         match simplified_subject {
@@ -361,7 +413,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     .iter()
                     .filter_map(|item| {
                         let item_access_term = AccessTerm {
-                            subject_id: *item,
+                            subject: *item,
                             ..*access_term
                         };
                         self.apply_access_term(&item_access_term).transpose()
@@ -383,7 +435,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::AppSub(app_sub) => {
                 // Apply the access on the subject:
                 let inner_applied_term = self.apply_access_term(&AccessTerm {
-                    subject_id: app_sub.term,
+                    subject: app_sub.term,
                     ..*access_term
                 })?;
                 match inner_applied_term {
@@ -416,8 +468,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
             Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) | Term::Unresolved(_) => {
-                // @@Todo: here we need to ensure that this access is valid by getting the type of
-                // the term and checking that such a property exists.
+                // We cannot perform any accessing here:
                 Ok(None)
             }
         }
@@ -486,17 +537,27 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     subject_id: simplified_subject_id,
                 })
             }
-            Term::Merge(_)
-            | Term::Access(_)
-            | Term::Var(_)
-            | Term::TyFnTy(_)
-            | Term::AppTyFn(_)
-            | Term::Level3(_)
-            | Term::Level2(_)
-            | Term::Level1(_)
-            | Term::Level0(_) => {
-                // @@Todo: here we need to ensure that this application is valid by getting the type of
-                // the term and checking that it is a type function type.
+            Term::Merge(_) => {
+                // Cannot apply a merge:
+                // @@Enhancement: this could be allowed in the future.
+                Err(TcError::UnsupportedTypeFunctionApplication {
+                    subject_id: simplified_subject_id,
+                })
+            }
+            Term::TyFnTy(_) => {
+                // Cannot apply a type function type:
+                Err(TcError::UnsupportedTypeFunctionApplication {
+                    subject_id: simplified_subject_id,
+                })
+            }
+            Term::Level3(_) | Term::Level2(_) | Term::Level1(_) | Term::Level0(_) => {
+                // Cannot apply a definite-level term:
+                Err(TcError::UnsupportedTypeFunctionApplication {
+                    subject_id: simplified_subject_id,
+                })
+            }
+            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
+                // We cannot perform any more simplification:
                 Ok(None)
             }
         }
@@ -651,7 +712,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given term, if possible.
+    ///
+    /// This does not perform all validity checks, some are performed by [Typer], and all are by [Validator].
     pub fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
+        // @@Performance: we can cache the result of the simplification in a hashmap.
         let value = self.reader().get_term(term_id).clone();
         match value {
             Term::Merge(inner) => {
@@ -686,20 +750,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             )),
             Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
-            Term::Var(var) => {
-                // Here, we have to look in the scopes:
-                for scope_id in self.scopes().iter_up() {
-                    match self.reader().get_scope(scope_id).get(var.name) {
-                        // Found in this scope, return the value if found, otherwise cannot be
-                        // simplified.
-                        Some(result) => return Ok(result.value),
-                        // Continue to the next (higher) scope:
-                        None => continue,
-                    }
-                }
-                // Variable was not found, error:
-                Err(TcError::UnresolvedVariable { name: var.name })
-            }
+            // Resolve the variable to its value, and if it is None it means it can't be simplified
+            // because it is unset:
+            Term::Var(var) => Ok(self
+                .scope_resolver()
+                .resolve_name_in_scopes(var.name)?
+                .value),
             Term::TyFn(ty_fn) => {
                 // Simplify each constituent of the type function, and if any are successfully
                 // simplified, the whole thing can be simplified:
