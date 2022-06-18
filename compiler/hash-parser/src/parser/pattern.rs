@@ -456,7 +456,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 Some(Token {
                     kind: TokenKind::Keyword(Keyword::Mut),
                     ..
-                }) => match self.peek_nth(3) {
+                }) => match self.peek_nth(2) {
                     Some(Token {
                         kind: TokenKind::Ident(_),
                         ..
