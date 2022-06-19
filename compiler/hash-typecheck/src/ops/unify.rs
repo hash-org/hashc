@@ -250,11 +250,12 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             (Term::AppSub(src_app_sub), Term::AppSub(target_app_sub))
                 if self
                     .validator()
-                    .subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub)? =>
+                    .subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
             {
                 // Unify inner, then unify the resultant substitution with the ones given here:
                 let inner_sub = self.unify_terms(src_app_sub.term, target_app_sub.term)?;
-                self.unify_subs(&src_app_sub.sub, &inner_sub)
+                let unified_app_subs = self.unify_subs(&src_app_sub.sub, &target_app_sub.sub)?;
+                self.unify_subs(&unified_app_subs, &inner_sub)
             }
             (Term::AppSub(_), _) | (_, Term::AppSub(_)) => {
                 // Otherwise they don't unify (since we start with simplified terms)
