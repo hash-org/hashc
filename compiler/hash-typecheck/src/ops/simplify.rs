@@ -339,9 +339,20 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Level1Term::ModDef(mod_def_id) => {
                 does_not_support_prop_access(access_term)?;
 
-                // Resolve the member in the module scope:
+                // Get the scope of the module.
                 let mod_def_scope = self.reader().get_mod_def(*mod_def_id).members;
-                self.resolve_name_in_scope(access_term.name, mod_def_scope, access_term.subject)
+
+                // Add it to the local storage scope
+                self.scopes_mut().append(mod_def_scope);
+
+                // Resolve the name:
+                let name_var = self.builder().create_var_term(access_term.name);
+                let result = self.simplifier().simplify_term(name_var)?;
+
+                // Pop back the scope
+                self.scopes_mut().pop_scope();
+
+                Ok(result)
             }
             // Nominals:
             Level1Term::NominalDef(nominal_def_id) => {
@@ -387,14 +398,20 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Level2Term::Trt(trt_def_id) => {
                 does_not_support_prop_access(access_term)?;
 
-                // Resolve the type of the member in the trait scope:
+                // Get the scope of the trait.
                 let trt_def_scope = self.reader().get_trt_def(*trt_def_id).members;
-                self.resolve_name_member_in_scope(
-                    access_term.name,
-                    trt_def_scope,
-                    access_term.subject,
-                )
-                .map(|member| Some(member.ty))
+
+                // Add it to the local storage scope
+                self.scopes_mut().append(trt_def_scope);
+
+                // Resolve the type of the name:
+                let name_var = self.builder().create_var_term(access_term.name);
+                let result = self.typer().ty_of_term(name_var)?;
+
+                // Pop back the scope
+                self.scopes_mut().pop_scope();
+
+                Ok(Some(result))
             }
             // Cannot access members of the `Type` trait:
             Level2Term::AnyTy => does_not_support_access(access_term),
@@ -763,10 +780,19 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Access(access_term) => self.apply_access_term(&access_term),
             // Resolve the variable to its value, and if it is None it means it can't be simplified
             // because it is unset:
-            Term::Var(var) => Ok(self
-                .scope_resolver()
-                .resolve_name_in_scopes(var.name)?
-                .value),
+            Term::Var(var) => {
+                // First resolve the name:
+                let maybe_resolved_term_id = self
+                    .scope_resolver()
+                    .resolve_name_in_scopes(var.name)?
+                    .value;
+                // Try to simplify it
+                if let Some(resolved_term_id) = maybe_resolved_term_id {
+                    Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
+                } else {
+                    Ok(None)
+                }
+            }
             Term::TyFn(ty_fn) => {
                 // Simplify each constituent of the type function, and if any are successfully
                 // simplified, the whole thing can be simplified:
@@ -863,14 +889,19 @@ mod test_super {
 
     use super::*;
 
-    #[test]
-    fn test_simplify() {
+    fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
         let mut global_storage = GlobalStorage::new();
         let mut local_storage = LocalStorage::new(
             SourceId::Interactive(InteractiveId::null()),
             &mut global_storage,
         );
         let core_defs = CoreDefs::new(&mut global_storage);
+        (global_storage, local_storage, core_defs)
+    }
+
+    #[test]
+    fn test_simplify() {
+        let (mut global_storage, mut local_storage, core_defs) = get_storages();
         let mut storage_ref = StorageRefMut {
             core_defs: &core_defs,
             global_storage: &mut global_storage,
@@ -884,31 +915,38 @@ mod test_super {
             core_defs.reference_ty_fn,
             [builder.create_arg("T", builder.create_var_term("Self"))],
         );
-
-        let hash_impl = builder.create_nameless_mod_def(
-            ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
-            builder.create_constant_scope([builder.create_pub_member(
-                "hash",
-                builder.create_fn_ty_term(
-                    [builder.create_param("value", ref_self_ty)],
-                    builder.create_nominal_def_term(core_defs.u64_ty),
-                ),
-                builder.create_fn_lit_term(
-                    builder.create_fn_ty_term(
-                        [builder.create_param("value", ref_self_ty)],
-                        builder.create_nominal_def_term(core_defs.u64_ty),
-                    ),
-                    builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
-                ),
-            )]),
-            [],
-        );
-
         let dog_def = builder.create_struct_def(
             "Dog",
             [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
             [],
         );
+
+        let hash_impl = builder.create_nameless_mod_def(
+            ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
+            builder.create_constant_scope([
+                builder.create_pub_member(
+                    "Self",
+                    builder.create_any_ty_term(),
+                    builder.create_nominal_def_term(dog_def),
+                ),
+                builder.create_pub_member(
+                    "hash",
+                    builder.create_fn_ty_term(
+                        [builder.create_param("value", builder.create_var_term("Self"))],
+                        builder.create_nominal_def_term(core_defs.u64_ty),
+                    ),
+                    builder.create_fn_lit_term(
+                        builder.create_fn_ty_term(
+                            [builder.create_param("value", builder.create_var_term("Self"))],
+                            builder.create_nominal_def_term(core_defs.u64_ty),
+                        ),
+                        builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
+                    ),
+                ),
+            ]),
+            [],
+        );
+
         let dog = builder.create_merge_term([
             builder.create_nominal_def_term(dog_def),
             builder.create_mod_def_term(hash_impl),
@@ -916,10 +954,20 @@ mod test_super {
 
         let dog_instance = builder.create_rt_term(dog);
 
-        let dog_hash = builder.create_ns_access(dog, "hash");
+        let dog_hash = builder.create_prop_access(dog_instance, "hash");
         let dog_hash_simplified = storage_ref
             .simplifier()
             .potentially_simplify_term(dog_hash)
+            .map_err(|err| match err {
+                TcError::CannotUnify { src, target } => {
+                    format!(
+                        "Cannot unify {} with {}",
+                        src.for_formatting(storage_ref.global_storage()),
+                        target.for_formatting(storage_ref.global_storage()),
+                    )
+                }
+                _ => format!("{:?}", err),
+            })
             .unwrap();
 
         println!("{}", dog_hash.for_formatting(storage_ref.global_storage()));
