@@ -7,7 +7,7 @@ use hash_source::{InteractiveId, ModuleId, SourceId};
 
 use crate::sources::Sources;
 
-pub type CompilerResult<T> = Result<T, Report>;
+pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
 /// The [Parser] represents an abstract parser that can parse all aspects of the Hash programming
 /// language.

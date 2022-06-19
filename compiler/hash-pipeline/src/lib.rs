@@ -19,7 +19,7 @@ use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::Sources;
 use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
 
-pub type CompilerResult<T> = Result<T, Report>;
+pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Compiler] with the specified components. This allows external tinkerers
@@ -58,8 +58,8 @@ pub struct CompilerState<
 > {
     /// The collected workspace sources for the current job.
     pub sources: Sources,
-    /// Any errors that were collected from any stage
-    _errors: Vec<Report>,
+    /// Any diagnostics that were collected from any stage
+    diagnostics: Vec<Report>,
     /// The typechecker state.
     pub ds_state: D::State,
     /// The semantic analysis state.
@@ -119,7 +119,7 @@ where
 
         Ok(CompilerState {
             sources,
-            _errors: vec![],
+            diagnostics: vec![],
             semantic_analysis_state,
             tc_state,
             ds_state,
@@ -135,6 +135,8 @@ where
         let mut timings: Vec<_> = self.metrics.iter().collect();
         timings.sort_by_key(|entry| entry.0);
 
+        log::info!("compiler pipeline timings:");
+
         for (stage, duration) in timings {
             // This shouldn't occur as we don't record this metric in this way
             if *stage == CompilerMode::Full {
@@ -142,26 +144,16 @@ where
             }
             total += *duration;
 
-            println!("{: <9}: {duration:?}", format!("{}", stage));
+            println!("{: <12}: {duration:?}", format!("{}", stage));
         }
 
         // Now print the total
-        println!("{: <9}: {total:?}\n", format!("{}", CompilerMode::Full));
+        println!("{: <12}: {total:?}\n", format!("{}", CompilerMode::Full));
     }
 
-    /// Function to print a returned error from any stage in the pipeline. This function
-    /// also deals with printing metrics if it is specified within the [CompilerSettings].
-    ///
-    /// @@TODO: we want to essentially integrate this with the stages in order to
-    /// collect errors rather than immediately printing them
-    fn report_error(&self, error: Report, sources: &Sources, report_metrics: bool) {
-        if report_metrics && self.settings.display_metrics {
-            self.report_metrics();
-        }
 
-        println!("{}", ReportWriter::new(error, sources));
-    }
-
+    /// Utility function used by AST like stages in order to print the 
+    /// current [Sources]. 
     fn print_sources(&self, sources: &Sources, entry_point: SourceId) {
         match entry_point {
             SourceId::Interactive(id) => {
@@ -317,79 +309,112 @@ where
         Ok(())
     }
 
+    /// Helper function in order to check if the pipeline needs to terminate after 
+    /// any stage on the condition that the [CompilerJobParams] specify that this 
+    /// is the last stage, or if the previous stage had generated any errors that 
+    /// are fatal and an abort is necessary.
+    fn maybe_terminate(
+        &self,
+        result: CompilerResult<()>,
+        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, V>,
+        job_params: &CompilerJobParams,
+        // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored within the compiler state
+        current_stage: CompilerMode,
+    ) -> Result<(), ()> {
+        if let Err(diagnostics) = result {
+            compiler_state.diagnostics.extend(diagnostics.into_iter());
+
+            // Some diagnostics might not be errors and all just warnings, in this situation, we
+            // don't have to terminate execution
+            if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
+                return Err(());
+            }
+        }
+
+        // Terminate the pipeline if we have reached the stage regardless of error state
+        if job_params.mode == current_stage {
+            return Err(());
+        }
+
+        Ok(())
+    }
+
     /// Run a particular job within the pipeline. This function handles both cases of either the
     /// entry point being an [InteractiveId] or a [ModuleId]. The function deals with executing the
     /// required stages in order as specified by the `job_parameters`
+    fn run_pipeline(
+        &mut self,
+        entry_point: SourceId,
+        compiler_state: &mut CompilerState<'c, 'pool, D, S, C, V>,
+        job_params: CompilerJobParams,
+    ) -> Result<(), ()> {
+        let result = self.parse_source(entry_point, &mut compiler_state.sources, &job_params);
+        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Parse)?;
+
+        let result = self.desugar_sources(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.ds_state,
+            &job_params,
+        );
+        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::DeSugar)?;
+
+        // Now perform the semantic pass on the sources
+        let result = self.perform_semantic_pass(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.semantic_analysis_state,
+            &job_params,
+        );
+        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Typecheck)?;
+
+        let result = self.typecheck_source(
+            entry_point,
+            &mut compiler_state.sources,
+            &mut compiler_state.tc_state,
+            &job_params,
+        );
+        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Typecheck)?;
+
+        Ok(())
+    }
+
+    /// Run a job within the compiler pipeline with the provided state, entry
+    /// point and the specified job parameters.
     pub fn run(
         &mut self,
         entry_point: SourceId,
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, V> {
-        let parse_result = self.parse_source(entry_point, &mut compiler_state.sources, &job_params);
+        let result = self.run_pipeline(entry_point, &mut compiler_state, job_params);
 
-        // Short circuit if parsing failed or the job specified to stop at parsing
-        if parse_result.is_err() || job_params.mode == CompilerMode::Parse {
-            if let Err(err) = parse_result {
-                self.report_error(err, &compiler_state.sources, true);
-            }
+        // we can print the diagnostics here
+        if !compiler_state.diagnostics.is_empty() || result.is_err() {
+            let mut err_count = 0;
+            let mut warn_count = 0;
 
-            return compiler_state;
-        }
-
-        let desugaring_result = self.desugar_sources(
-            entry_point,
-            &mut compiler_state.sources,
-            &mut compiler_state.ds_state,
-            &job_params,
-        );
-
-        // Short circuit if de-sugaring failed or the job specified to stop at tc
-        if desugaring_result.is_err() || job_params.mode == CompilerMode::DeSugar {
-            if let Err(err) = desugaring_result {
-                self.report_error(err, &compiler_state.sources, true);
-            }
-
-            return compiler_state;
-        }
-
-        // Now perform the semantic pass on the sources
-        let sem_pass_result = self.perform_semantic_pass(
-            entry_point,
-            &mut compiler_state.sources,
-            &mut compiler_state.semantic_analysis_state,
-            &job_params,
-        );
-
-        if sem_pass_result.is_err() || job_params.mode == CompilerMode::Typecheck {
-            if let Err(errors) = sem_pass_result {
-                // we only want to report metrics once!
-                if self.settings.display_metrics {
-                    self.report_metrics();
+            // @@Copying: Ideally, we would not want to copy here!
+            for diagnostic in compiler_state.diagnostics.clone().into_iter() {
+                if diagnostic.is_error() {
+                    err_count += 1;
                 }
 
-                for error in errors.into_iter() {
-                    self.report_error(error, &compiler_state.sources, false);
+                if diagnostic.is_warning() {
+                    warn_count += 1;
                 }
+
+                println!("{}", ReportWriter::new(diagnostic, &compiler_state.sources));
             }
 
-            return compiler_state;
-        }
-
-        let tc_result = self.typecheck_source(
-            entry_point,
-            &mut compiler_state.sources,
-            &mut compiler_state.tc_state,
-            &job_params,
-        );
-
-        // Short circuit if tc failed or the job specified to stop at tc
-        if tc_result.is_err() || job_params.mode == CompilerMode::Typecheck {
-            if let Err(err) = tc_result {
-                self.report_error(err, &compiler_state.sources, true);
+            // @@Hack: to prevent the compiler from printing this message when the pipeline
+            //         when it was instructed to terminate before all of the stages. For example,
+            //         if the compiler is just checking the source, then it will terminate early.
+            if err_count != 0 || warn_count != 0 {
+                log::info!(
+                    "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."
+                );
             }
-
-            return compiler_state;
         }
 
         // Print compiler stage metrics if specified in the settings.

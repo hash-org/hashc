@@ -349,6 +349,18 @@ pub struct Report {
     pub contents: Vec<ReportElement>,
 }
 
+impl Report {
+    /// Check if the report denotes an occurred error.
+    pub fn is_error(&self) -> bool {
+        self.kind == ReportKind::Error
+    }
+
+    /// Check if the report denotes an occurred warning.
+    pub fn is_warning(&self) -> bool {
+        self.kind == ReportKind::Warning
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ReportBuilder {
     kind: Option<ReportKind>,
