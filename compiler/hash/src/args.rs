@@ -1,6 +1,4 @@
 //! Hash Compiler arguments management.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 use clap::Parser as ClapParser;
 

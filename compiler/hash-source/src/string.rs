@@ -1,6 +1,4 @@
-//! Hash AST string literal storage utilities and wrappers.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler string literal storage utilities and wrappers.
 use std::fmt::Display;
 
 use fnv::FnvBuildHasher;

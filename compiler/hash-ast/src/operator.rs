@@ -1,6 +1,4 @@
-//! Hash compiler AST operator abstract representations.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler AST operator abstract representations.
 
 /// Struct representing an operator with a kind and a flag
 /// denoting whether the operator is re-assigning the left

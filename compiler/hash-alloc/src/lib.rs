@@ -1,6 +1,5 @@
 //! Arena allocator implementation for use within the Hash compiler sources.
 //!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 pub mod brick;
 pub mod collections;

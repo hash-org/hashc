@@ -1,4 +1,4 @@
-//! The Hash typecheker.
+//! The Hash typechecker.
 //!
 //! This brings light to the world by ensuring the correctness of the crude and dangerous Hash
 //! program that is given as input to the compiler.

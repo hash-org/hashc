@@ -1,8 +1,5 @@
-//! Hash compiler AST generation sources. This file contains the sources to the logic
+//! Hash Compiler AST generation sources. This file contains the sources to the logic
 //! that transforms tokens into an AST.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
-
 use hash_ast::ast::*;
 use hash_source::identifier::Identifier;
 use hash_token::{Token, TokenKind};

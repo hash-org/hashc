@@ -1,7 +1,6 @@
 //! Hash semantic analyser definitions. This file holds the [SemanticAnalyser] definition
 //! with some shared functions to append diagnostics to the analyser.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 use crossbeam_channel::Sender;
 use hash_source::{
     location::{SourceLocation, Span},

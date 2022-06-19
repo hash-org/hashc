@@ -1,4 +1,6 @@
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash utilities for printing various data structures that might be used for
+//! debugging purposes or for creating human readable error messages when reporting
+//! errors.
 use std::fmt;
 
 /// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds

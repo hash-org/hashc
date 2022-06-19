@@ -3,9 +3,6 @@
 //
 // Module: "num"
 // Description: Numerical and mathematical standard library functions.
-//
-// All rights reserved 2021 (c) The Hash Language authors
-//
 
 // PI
 pub pi: float = 3.141592653589793;

@@ -1,7 +1,4 @@
-//! Hash Compiler token keyword definitions
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
-
+//! Hash Compiler token keyword definitions.
 use std::fmt;
 use strum_macros::AsRefStr;
 

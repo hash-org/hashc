@@ -1,7 +1,5 @@
 //! Hash Compiler Intermediate Representation (IR) crate. This module is still under
 //! construction and is subject to change.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
 
 use hash_source::identifier::Identifier;
 use hash_source::location::Span;
