@@ -151,9 +151,8 @@ where
         println!("{: <12}: {total:?}\n", format!("{}", CompilerMode::Full));
     }
 
-
-    /// Utility function used by AST like stages in order to print the 
-    /// current [Sources]. 
+    /// Utility function used by AST like stages in order to print the
+    /// current [Sources].
     fn print_sources(&self, sources: &Sources, entry_point: SourceId) {
         match entry_point {
             SourceId::Interactive(id) => {
@@ -309,9 +308,9 @@ where
         Ok(())
     }
 
-    /// Helper function in order to check if the pipeline needs to terminate after 
-    /// any stage on the condition that the [CompilerJobParams] specify that this 
-    /// is the last stage, or if the previous stage had generated any errors that 
+    /// Helper function in order to check if the pipeline needs to terminate after
+    /// any stage on the condition that the [CompilerJobParams] specify that this
+    /// is the last stage, or if the previous stage had generated any errors that
     /// are fatal and an abort is necessary.
     fn maybe_terminate(
         &self,
