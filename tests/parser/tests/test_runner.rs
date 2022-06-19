@@ -31,7 +31,7 @@ lazy_static! {
 /// entry within the case.
 fn handle_failure_case(
     input: TestingInput,
-    result: Result<(), Report>,
+    result: Result<(), Vec<Report>>,
     sources: Sources,
 ) -> std::io::Result<()> {
     let content_path = input.path.join("case.hash");
@@ -43,11 +43,15 @@ fn handle_failure_case(
         content_path
     );
 
-    let report = result.unwrap_err();
-    let report_contents = format!("{}", ReportWriter::new(report, &sources));
+    let diagnostics = result.unwrap_err();
+    let contents = diagnostics
+        .into_iter()
+        .map(|report| format!("{}", ReportWriter::new(report, &sources)))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     // Remove any ANSI escape codes generated from the reporting...
-    let report_contents = ANSI_REGEX.replace_all(report_contents.as_str(), "");
+    let report_contents = ANSI_REGEX.replace_all(contents.as_str(), "");
 
     // Replace the directory by `$DIR`
     let dir_regex = Regex::new(input.path.as_path().to_str().unwrap()).unwrap();
