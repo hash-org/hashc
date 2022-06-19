@@ -389,13 +389,13 @@ pub struct TyFnCase {
 /// Not yet resolved.
 ///
 /// The resolution ID is incremented for each new unresolved term.
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct UnresolvedTerm {
     pub resolution_id: ResolutionId,
 }
 
 /// A variable, which is just a name.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Var {
     pub name: Identifier,
 }
@@ -539,7 +539,7 @@ pub enum Level0Term {
 }
 
 /// The subject of a substitution, either a variable or an unresolved term.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum SubSubject {
     Var(Var),
     Unresolved(UnresolvedTerm),
