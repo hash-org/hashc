@@ -6,7 +6,7 @@ use hash_source::{
 };
 
 use self::{
-    error::{AnalysisError, AnalysisErrorKind},
+    error::{AnalysisError, AnalysisErrorKind, BlockOrigin},
     warning::{AnalysisWarning, AnalysisWarningKind},
 };
 
@@ -42,6 +42,8 @@ pub struct SemanticAnalyser {
     pub(crate) warnings: Vec<AnalysisWarning>,
     /// The current id of the source that is being passed.
     pub(crate) source_id: SourceId,
+    /// The current scope of the traversal, representing which block the analyser is walking.
+    pub(crate) current_block: BlockOrigin,
 }
 
 impl SemanticAnalyser {
@@ -53,7 +55,15 @@ impl SemanticAnalyser {
             errors: vec![],
             warnings: vec![],
             source_id,
+            current_block: BlockOrigin::Root,
         }
+    }
+
+    /// Function to check whether the current traversal state is within a constant block.
+    /// This means that the [BlockOrigin] is currently not set to [BlockOrigin::Body].
+    #[inline]
+    pub(crate) fn is_in_constant_block(&self) -> bool {
+        !matches!(self.current_block, BlockOrigin::Body)
     }
 
     /// Append an error to the error queue.

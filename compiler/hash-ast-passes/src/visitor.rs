@@ -5,7 +5,10 @@
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
-    ast::{DestructuringPattern, ExpressionKind, LiteralExpr, Pattern, TuplePatternEntry},
+    ast::{
+        BindingPattern, DestructuringPattern, ExpressionKind, LiteralExpr, Mutability, Pattern,
+        TuplePatternEntry,
+    },
     visitor::{walk, AstVisitor},
 };
 
@@ -607,8 +610,6 @@ impl AstVisitor for SemanticAnalyser {
         Ok(())
     }
 
-    type VisibilityRet = ();
-
     type ForLoopBlockRet = ();
 
     fn visit_for_loop_block(
@@ -694,7 +695,12 @@ impl AstVisitor for SemanticAnalyser {
             }
         }
 
+        let old_block_origin = mem::replace(&mut self.current_block, BlockOrigin::Body);
+
         let _ = walk::walk_body_block(self, ctx, node);
+
+        self.current_block = old_block_origin;
+
         Ok(())
     }
 
@@ -712,6 +718,8 @@ impl AstVisitor for SemanticAnalyser {
         let _ = walk::walk_return_statement(self, ctx, node);
         Ok(())
     }
+
+    type VisibilityRet = ();
 
     fn visit_visibility_modifier(
         &mut self,
@@ -1080,8 +1088,34 @@ impl AstVisitor for SemanticAnalyser {
     fn visit_binding_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
+        let BindingPattern {
+            mutability,
+            visibility,
+            ..
+        } = node.body();
+
+        // If the pattern is present in a declaration that is within a constant block, it
+        // it not allowed to be declared to be mutable. If we are not in a constant scope, then
+        // we should check if binding contains a visibility modifier which is disallowed within
+        // body blocks.
+        if self.is_in_constant_block() {
+            if let Some(node) = mutability {
+                if *node.body() == Mutability::Mutable {
+                    self.append_error(AnalysisErrorKind::IllegalBindingMutability, node.span());
+                }
+            }
+        } else if let Some(node) = visibility {
+            self.append_error(
+                AnalysisErrorKind::IllegalBindingVisibilityModifier {
+                    modifier: *node.body(),
+                    origin: self.current_block,
+                },
+                node.span(),
+            );
+        }
+
         Ok(())
     }
 
