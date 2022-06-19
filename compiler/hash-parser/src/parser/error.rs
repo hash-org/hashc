@@ -4,8 +4,9 @@ use std::io;
 use derive_more::Constructor;
 use hash_lexer::error::LexerErrorWrapper;
 use hash_pipeline::fs::ImportError;
-use hash_reporting::reporting::{
-    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
+use hash_reporting::{
+    builder::ReportBuilder,
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::location::SourceLocation;
 use hash_token::{TokenKind, TokenKindVector};

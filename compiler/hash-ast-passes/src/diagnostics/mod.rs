@@ -1,7 +1,7 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
-use hash_reporting::reporting::Report;
+use hash_reporting::report::Report;
 use std::fmt::Display;
 
 pub(crate) mod error;

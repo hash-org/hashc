@@ -1,6 +1,7 @@
 //! Hash Compiler filesystem utility functions.
-use hash_reporting::reporting::{
-    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
+use hash_reporting::{
+    builder::ReportBuilder,
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::location::SourceLocation;
 use std::{

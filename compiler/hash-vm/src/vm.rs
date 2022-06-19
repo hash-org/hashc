@@ -3,7 +3,7 @@
 use std::cell::Cell;
 
 use hash_pipeline::traits::VirtualMachine;
-use hash_reporting::reporting::Report;
+use hash_reporting::report::Report;
 
 use crate::{
     bytecode::Instruction,
