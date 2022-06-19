@@ -1,8 +1,6 @@
 //! Hash Compiler pipeline traits. This file contains implementable interfaces that
 //! are used by the pipeline to run various stages that transform the provided sources
 //! into runnable/executable code.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_reporting::reporting::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};

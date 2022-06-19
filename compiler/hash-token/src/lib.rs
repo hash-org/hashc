@@ -1,8 +1,5 @@
-//! File describing all the variants of Tokens that can be present within a
-//! Hash source file.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
-
+//! Hash Compiler token definitions that are used by the lexer when lexing
+//! the input sources.
 pub mod delimiter;
 pub mod keyword;
 

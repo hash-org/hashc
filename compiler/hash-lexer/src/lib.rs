@@ -1,6 +1,5 @@
 //! Hash Compiler Lexer crate.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 #![feature(cell_update)]
 
 use error::{LexerError, LexerErrorKind, LexerErrorWrapper, LexerResult};
@@ -356,7 +355,7 @@ impl<'a> Lexer<'a> {
             // an identifier. This enables for infix calls on integer literals in the form of '2.pow(...)'
             // If we don't check this here, it leads to the tokeniser being too greedy and eating the
             // 'dot' without reason. Admittedly, this is a slight ambiguity in the language syntax, but
-            // there isn't currently a clear way to resolve this ambiguity. - Alex. 07 Sep 2021
+            // there isn't currently a clear way to resolve this ambiguity.
             '.' if !is_id_start(self.peek_second()) => {
                 self.skip();
 

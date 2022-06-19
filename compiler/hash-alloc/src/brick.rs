@@ -1,6 +1,4 @@
 //! Contains a [`Box`]-like implementation for allocating values within a [`Wall`].
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 use crate::Wall;
 use core::fmt;

@@ -4,9 +4,6 @@
 // Module: "io"
 // Description: IO internals and function signatures that can be 
 // used during a program.
-//
-// All rights reserved 2021 (c) The Hash Language authors
-//
 
 
 // Error type for all I/O operations.

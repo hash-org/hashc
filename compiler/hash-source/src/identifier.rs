@@ -1,6 +1,4 @@
 //! Hash AST identifier storage utilities and wrappers.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 use dashmap::DashMap;
 
 use fnv::FnvBuildHasher;

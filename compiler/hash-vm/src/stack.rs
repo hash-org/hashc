@@ -1,7 +1,4 @@
-//! Hash compiler virtual machine stack implementation.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
-
+//! Hash Compiler VM stack implementation.
 use crate::error::{RuntimeError, RuntimeResult, StackAccessKind};
 
 /// The [Stack] represents temporary storage for a current function scope

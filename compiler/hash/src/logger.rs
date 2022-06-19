@@ -1,3 +1,4 @@
+//! Hash main crate logging utilities
 use hash_reporting::highlight::{highlight, Colour, Modifier};
 use log::{Level, Metadata, Record};
 

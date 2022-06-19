@@ -1,10 +1,7 @@
-//! Hash compiler virtual machine bytecode/instruction set.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
-
+//! Hash Compiler VM bytecode/instruction set.
 use crate::register::Register;
 
-/// The Hash Virtual Machine instruction set.
+/// The VM instruction set.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {
     /// Pop 8bit cell off the stack

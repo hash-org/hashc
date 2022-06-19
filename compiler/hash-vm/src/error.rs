@@ -1,3 +1,4 @@
+//! Hash Compiler VM error data structures and utilities.
 use std::fmt;
 
 use hash_reporting::reporting::{Report, ReportKind};

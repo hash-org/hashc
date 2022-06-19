@@ -1,6 +1,4 @@
-//! File describing token delimiters.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler token delimiter definitions.
 
 /// A [Delimiter] is a [super::TokenKind] is used to denote a separation or a nested token
 /// tree. The [Delimiter] does not contain the `<...>` because this conflicts with the

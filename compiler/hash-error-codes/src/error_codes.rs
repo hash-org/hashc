@@ -1,6 +1,5 @@
 //! Hash Error code definitions.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 error_codes! {
     TypeMismatch = 1,
     UsingBreakOutsideLoop = 2,

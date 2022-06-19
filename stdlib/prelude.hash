@@ -5,9 +5,6 @@
 // Description: Critical runtime module that is imported into any Hash
 // runtime by default. This module defines all the bindings between the
 // compiler interals and the program runtime.
-//
-// All rights reserved 2021 (c) The Hash Language authors
-//
 
 // Output a line to standard output
 print := (msg: str) -> void => intrinsic_print(msg);

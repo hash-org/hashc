@@ -3,9 +3,6 @@
 //
 // Module: "list"
 // Description: Standard list utilities 
-//
-// All rights reserved 2021 (c) The Hash Language authors
-//
 
 // swap two elements within an array
 swap := <A> => (arr: [A], a: usize, b: usize) -> void => {

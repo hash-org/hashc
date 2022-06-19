@@ -1,6 +1,5 @@
 //! AST visualisation utilities.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 use std::convert::Infallible;
 use std::iter;
 

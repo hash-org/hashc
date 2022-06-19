@@ -1,6 +1,5 @@
-//! Hash compiler timing and profiling utilities.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler timing and profiling utilities.
+
 pub mod path;
 pub mod printing;
 pub mod testing;

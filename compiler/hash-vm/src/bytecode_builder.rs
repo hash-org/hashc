@@ -1,11 +1,9 @@
-//! Hash compiler virtual machine crate.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
-
+//! Hash Compiler VM bytecode building module. This module
+//! holds utilities and data structures to generate bytecode and store
+//! it in the format that the VM expects. This module
+//! might be used by a backend to convert from the Hash IR into
+//! bytecode.
 use crate::bytecode::Instruction;
-
-// @@TODO: here we want to implement some kind of trait that's defined in HIR so that essentially we can build
-//       the bytecode from the produces HIR.
 
 #[derive(Debug, Default)]
 pub struct BytecodeBuilder {

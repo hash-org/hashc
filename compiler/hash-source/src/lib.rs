@@ -1,6 +1,4 @@
-//! Hash compiler source location definitions.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler source location definitions.
 use slotmap::new_key_type;
 use std::path::Path;
 
