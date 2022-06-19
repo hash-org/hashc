@@ -1,3 +1,7 @@
+//! Hash semantic analysis module for validating various constructs relating to
+//! blocks within the AST.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 use std::{collections::HashSet, mem};
 
 use hash_ast::{
@@ -5,10 +9,9 @@ use hash_ast::{
     visitor::AstVisitor,
 };
 
-use super::{
-    error::{AnalysisErrorKind, BlockOrigin},
-    SemanticAnalyser,
-};
+use crate::diagnostics::{error::AnalysisErrorKind, BlockOrigin};
+
+use super::SemanticAnalyser;
 
 impl SemanticAnalyser {
     /// This function will verify that all of the given expressions are declarations. Additionally,

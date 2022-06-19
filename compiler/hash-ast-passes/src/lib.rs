@@ -6,12 +6,13 @@
 #![feature(generic_associated_types)]
 
 pub mod analysis;
+pub(crate) mod diagnostics;
 pub mod visitor;
 
-use analysis::AnalysisMessage;
 use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 
+use diagnostics::Diagnostic;
 use hash_ast::visitor::AstVisitor;
 use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
 use hash_reporting::reporting::Report;
@@ -42,7 +43,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>> {
-        let (sender, receiver) = unbounded::<AnalysisMessage>();
+        let (sender, receiver) = unbounded::<Diagnostic>();
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
