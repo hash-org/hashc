@@ -147,14 +147,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse an array literal.
-    pub(crate) fn parse_array_literal(
+    /// Parse an list literal from a given token tree.
+    pub(crate) fn parse_list_literal(
         &self,
         tree: &'stream [Token],
         span: Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
-        let start = gen.current_location();
 
         let mut elements = AstNodes::empty();
 
@@ -179,11 +178,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(gen.node_with_joined_span(
+        Ok(gen.node_with_span(
             Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
-                gen.node_with_joined_span(Literal::List(ListLiteral { elements }), &start),
+                gen.node_with_span(Literal::List(ListLiteral { elements }), span),
             ))),
-            &start,
+            span,
         ))
     }
 }
