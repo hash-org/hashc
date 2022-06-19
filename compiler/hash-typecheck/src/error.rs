@@ -16,6 +16,10 @@ pub enum TcError {
         src: TermId,
         target: TermId,
     },
+    CannotUnifyParams {
+        src_params: Params,
+        target_params: Params,
+    },
     NotATypeFunction {
         term: TermId,
     },
@@ -34,6 +38,10 @@ pub enum TcError {
         args: Args,
         params: Params,
         param_index_given_twice: usize,
+    },
+    CannotUsePositionalArgAfterNamedArg {
+        args: Args,
+        problematic_arg_index: usize,
     },
     UnresolvedNameInValue {
         name: Identifier,
