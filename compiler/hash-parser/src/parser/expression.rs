@@ -440,14 +440,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         //
                         // `foo.bar(baz)` transpiles to `bar(foo, baz)`
                         //
-                        ExpressionKind::FunctionCall(FunctionCallExpr { subject, mut args }) => {
+                        ExpressionKind::ConstructorCall(ConstructorCallExpr {
+                            subject,
+                            mut args,
+                        }) => {
                             let span = lhs_expr.span();
 
                             // insert lhs_expr first...
                             args.entries.nodes.insert(
                                 0,
                                 self.node_with_span(
-                                    FunctionCallArg {
+                                    ConstructorCallArg {
                                         name: None,
                                         value: lhs_expr,
                                     },
@@ -456,10 +459,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             );
 
                             lhs_expr = self.node_with_joined_span(
-                                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
-                                    subject,
-                                    args,
-                                })),
+                                Expression::new(ExpressionKind::ConstructorCall(
+                                    ConstructorCallExpr { subject, args },
+                                )),
                                 &start,
                             );
                         }
@@ -495,7 +497,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.skip_token();
 
                     let tree = self.token_trees.get(*tree_index).unwrap();
-                    lhs_expr = self.parse_function_call(lhs_expr, tree, self.current_location())?;
+                    lhs_expr =
+                        self.parse_constructor_call(lhs_expr, tree, self.current_location())?;
                 }
                 _ => break,
             }
@@ -558,9 +561,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse a function call which requires that the [AccessName] is pre-parsed and passed
+    /// Parse a [FunctionCall] which requires that the [AccessName] is pre-parsed and passed
     /// into the function which deals with the call arguments.
-    pub(crate) fn parse_function_call(
+    pub(crate) fn parse_constructor_call(
         &self,
         subject: AstNode<Expression>,
         tree: &'stream [Token],
@@ -568,14 +571,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
         let mut args = self.node_with_span(
-            FunctionCallArgs {
+            ConstructorCallArgs {
                 entries: AstNodes::empty(),
             },
             span,
         );
 
         while gen.has_token() {
-            let start = gen.current_location();
+            let start = gen.next_location();
 
             // here we trying to check if this argument is in form of just an expression or if there is a
             // name being assigned here...
@@ -603,7 +606,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             args.entries
                 .nodes
-                .push(gen.node_with_span(FunctionCallArg { name, value }, start));
+                .push(gen.node_with_span(ConstructorCallArg { name, value }, start));
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
@@ -623,7 +626,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let span = subject.span();
 
         Ok(gen.node_with_joined_span(
-            Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+            Expression::new(ExpressionKind::ConstructorCall(ConstructorCallExpr {
                 subject,
                 args,
             })),
@@ -886,7 +889,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
                         // of expressions separated by commas as arguments to the call.
                         let tree = self.token_trees.get(*tree_index).unwrap();
-                        self.parse_function_call(subject, tree, *span)
+                        self.parse_constructor_call(subject, tree, *span)
                     }
                     _ => Ok(subject),
                 }

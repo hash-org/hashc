@@ -1219,7 +1219,7 @@ pub struct FunctionDef {
 
 /// Function call argument.
 #[derive(Debug, PartialEq)]
-pub struct FunctionCallArg {
+pub struct ConstructorCallArg {
     /// Optional name for the function argument, e.g `f(x = 3);`.
     pub name: Option<AstNode<Name>>,
     /// Each argument of the function call, as an expression.
@@ -1228,17 +1228,18 @@ pub struct FunctionCallArg {
 
 /// Function call arguments.
 #[derive(Debug, PartialEq)]
-pub struct FunctionCallArgs {
-    pub entries: AstNodes<FunctionCallArg>,
+pub struct ConstructorCallArgs {
+    pub entries: AstNodes<ConstructorCallArg>,
 }
 
-/// A function call expression.
+/// A constructor call expression. This can either be a function
+/// call, a struct instantiation or a enum variant instantiation.
 #[derive(Debug, PartialEq)]
-pub struct FunctionCallExpr {
+pub struct ConstructorCallExpr {
     /// An expression which evaluates to a function value.
     pub subject: AstNode<Expression>,
-    /// Arguments to the function, in the form of [FunctionCallArgs].
-    pub args: AstNode<FunctionCallArgs>,
+    /// Arguments to the function, in the form of [ConstructorCallArgs].
+    pub args: AstNode<ConstructorCallArgs>,
 }
 
 /// An directive expression.
@@ -1354,7 +1355,7 @@ pub struct IndexExpression {
 /// The kind of an expression.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind {
-    FunctionCall(FunctionCallExpr),
+    ConstructorCall(ConstructorCallExpr),
     Directive(DirectiveExpr),
     Declaration(Declaration),
     Variable(VariableExpr),
