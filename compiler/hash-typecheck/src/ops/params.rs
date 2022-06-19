@@ -60,9 +60,11 @@ pub fn pair_args_with_params<'p, 'a>(
             None => {
                 // Positional argument
                 if done_positional {
-                    // Using positional args after named args is an error that should have been
-                    // caught at semantic analysis.
-                    panic!("Found positional arguments after named args, should have been caught during semantic analysis.")
+                    // Using positional args after named args is an error
+                    return Err(TcError::CannotUsePositionalArgAfterNamedArg {
+                        args: args.clone(),
+                        problematic_arg_index: i,
+                    });
                 } else if params_used.contains(&i) {
                     // Ensure not already used
                     return Err(TcError::ParamGivenTwice {

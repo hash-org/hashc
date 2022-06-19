@@ -1,5 +1,5 @@
 //! Utilities related to type unification and substitution.
-use super::{AccessToOps, AccessToOpsMut};
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -97,18 +97,52 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     ///
     /// This is done by first getting the type of each argument, and unifying with the type of each
     /// parameter. Then, a substitution is created from each parameter to each argument value.
-    pub fn unify_params_with_args(&mut self, _params: &Params, _args: &Args) -> TcResult<Sub> {
-        todo!()
-    }
-
-    /// Unify the two given argument lists, by argument-wise unifying terms.
-    pub fn unify_args(&mut self, _src_args: &Args, _target_args: &Args) -> TcResult<Sub> {
-        todo!()
+    pub fn unify_params_with_args(&mut self, params: &Params, args: &Args) -> TcResult<Sub> {
+        let pairs = pair_args_with_params(params, args)?;
+        let mut cumulative_sub = Sub::empty();
+        for (param, arg) in pairs.into_iter() {
+            let ty_of_arg = self.typer().ty_of_term(arg.value)?;
+            let sub = self.unify_terms(ty_of_arg, param.ty)?;
+            cumulative_sub = self.unify_subs(&cumulative_sub, &sub)?;
+        }
+        Ok(cumulative_sub)
     }
 
     /// Unify the two given parameter lists, by parameter-wise unifying terms.
-    pub fn unify_params(&mut self, _src_params: &Params, _target_params: &Params) -> TcResult<Sub> {
-        todo!()
+    pub fn unify_params(&mut self, src_params: &Params, target_params: &Params) -> TcResult<Sub> {
+        let cannot_unify = || {
+            Err(TcError::CannotUnifyParams {
+                src_params: src_params.clone(),
+                target_params: target_params.clone(),
+            })
+        };
+
+        // Ensure the parameter lengths match
+        if src_params.positional().len() != target_params.positional().len() {
+            return cannot_unify();
+        }
+
+        // For each parameter, ensure it is the same:
+        // @@Todo: handle default values.
+        let mut cumulative_sub = Sub::empty();
+        let pairs = src_params
+            .positional()
+            .iter()
+            .zip(target_params.positional());
+        for (src_param, target_param) in pairs {
+            // Names match
+            if src_param.name != target_param.name {
+                return cannot_unify();
+            }
+            // Types match
+            let ty_sub = self.unify_terms(src_param.ty, target_param.ty)?;
+
+            // Add to cumulative substitution
+            cumulative_sub = self.unify_subs(&cumulative_sub, &ty_sub)?;
+        }
+
+        // Return the cumulative substitution of all the parameter types:
+        Ok(cumulative_sub)
     }
 
     /// Unify the two given terms, producing a substitution.
@@ -237,19 +271,40 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
             // Type function application:
             (Term::AppTyFn(src_app_ty_fn), Term::AppTyFn(target_app_ty_fn)) => {
-                // Unify the subject, and unify the arguments:
                 // This case would be hit if the subject is a variable, for example.
+
+                // Unify the subjects to ensure they are compatible:
                 let subject_sub =
                     self.unify_terms(src_app_ty_fn.subject, target_app_ty_fn.subject)?;
 
-                // Here we have to unify both ways, because of potential invariance:
-                // @@Future: find a way to specify variance on type function arguments.
-                let args_sub1 = self.unify_args(&src_app_ty_fn.args, &target_app_ty_fn.args)?;
-                let args_sub2 = self.unify_args(&target_app_ty_fn.args, &src_app_ty_fn.args)?;
+                // Get the type of the subject and ensure it is a type function type:
+                let subject = self
+                    .substituter()
+                    // Here we use the target's subject but it shouldn't matter.
+                    .apply_sub_to_term(&subject_sub, target_app_ty_fn.subject);
 
-                // Unify all the created substitutions
-                let args_unified_sub = self.unify_subs(&args_sub1, &args_sub2)?;
-                self.unify_subs(&args_unified_sub, &subject_sub)
+                let subject_ty_id = self.typer().ty_of_term(subject)?;
+                let reader = self.reader();
+                let subject_ty = reader.get_term(subject_ty_id);
+                match subject_ty {
+                    Term::TyFnTy(ty_fn_ty) => {
+                        let ty_fn_ty = ty_fn_ty.clone();
+
+                        // Match the type function params with each (src,target)-arguments.
+                        let args_src_sub =
+                            self.unify_params_with_args(&ty_fn_ty.params, &src_app_ty_fn.args)?;
+                        let args_target_sub =
+                            self.unify_params_with_args(&ty_fn_ty.params, &target_app_ty_fn.args)?;
+
+                        // Unify all the created substitutions
+                        let args_unified_sub = self.unify_subs(&args_src_sub, &args_target_sub)?;
+                        self.unify_subs(&args_unified_sub, &subject_sub)
+                    }
+                    // If the subject is not a function type then application is invalid:
+                    _ => Err(TcError::UnsupportedTypeFunctionApplication {
+                        subject_id: subject,
+                    }),
+                }
             }
             (Term::AppTyFn(_), _) | (_, Term::AppTyFn(_)) => {
                 // Any other type function application (asymmetric) doesn't unify
@@ -261,7 +316,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                 // Unify params and return:
 
                 // Params need to be unified inversely.
-                // @@Todo: figure out exact variance rules.
+                // @@Correctness: figure out exact variance rules.
                 let params_sub =
                     self.unify_params(&target_ty_fn_ty.params, &src_ty_fn_ty.params)?;
                 let return_sub =
