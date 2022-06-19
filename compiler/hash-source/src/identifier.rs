@@ -7,7 +7,7 @@ use hash_utils::counter;
 use lazy_static::lazy_static;
 use std::{
     borrow::{Borrow, Cow},
-    fmt::Display,
+    fmt::{Debug, Display},
     thread_local,
 };
 
@@ -16,11 +16,20 @@ counter! {
     counter_name: IDENTIFIER_COUNTER,
     visibility: pub,
     method_visibility:,
+    derives: (Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
 }
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", IDENTIFIER_MAP.get_ident(*self))
+    }
+}
+
+impl Debug for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Identifier")
+            .field(&IDENTIFIER_MAP.get_ident(*self).to_owned())
+            .finish()
     }
 }
 

@@ -15,10 +15,11 @@ macro_rules! counter {
         counter_name: $counter_name:ident,
         visibility: $visibility:vis,
         method_visibility: $method_visibility:vis,
+        derives: ($($derive:ident),*),
     ) => {
         static $counter_name: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
-        #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+        #[derive($($derive),*)]
         $visibility struct $name(pub u32);
 
         impl $name {
@@ -41,6 +42,20 @@ macro_rules! counter {
             fn from(counter: $name) -> u32 {
                 counter.0
             }
+        }
+    };
+    (
+        name: $name:ident,
+        counter_name: $counter_name:ident,
+        visibility: $visibility:vis,
+        method_visibility: $method_visibility:vis,
+    ) => {
+        counter! {
+            name: $name,
+            counter_name: $counter_name,
+            visibility: $visibility,
+            method_visibility: $method_visibility,
+            derives: (Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd),
         }
     };
 }
