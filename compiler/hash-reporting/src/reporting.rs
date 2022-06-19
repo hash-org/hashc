@@ -1,6 +1,4 @@
 //! Hash Compiler error and warning reporting module.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 use crate::highlight::{highlight, Colour, Modifier};
 use core::fmt;
 use hash_error_codes::error_codes::HashErrorCode;

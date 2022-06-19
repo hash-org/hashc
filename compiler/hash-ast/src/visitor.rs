@@ -1,6 +1,5 @@
 //! Visitor implementation for [crate::ast] nodes.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 use crate::ast;
 use std::convert::Infallible;
 

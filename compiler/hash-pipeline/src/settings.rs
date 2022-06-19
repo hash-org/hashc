@@ -1,9 +1,6 @@
 //! Hash Compiler pipeline implementation. This file contains various structures and
 //! utilities representing settings and configurations that can be applied to the
 //! Compiler pipeline.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
-
 use std::fmt::Display;
 
 /// Various settings that are present on the compiler pipeline when initially launching.

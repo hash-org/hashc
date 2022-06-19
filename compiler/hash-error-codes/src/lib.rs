@@ -1,6 +1,4 @@
 //! Hash Error code library file.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 /// Error code macro is used to generate the [HashErrorCode] macro.
 macro_rules! error_codes {

@@ -1,10 +1,10 @@
-//! Contains structures to track information about the current state of the typecheker while
+//! Contains structures to track information about the current state of the typechecker while
 //! traversing the AST.
 use super::primitives::TermId;
 use hash_source::SourceId;
 use std::cell::Cell;
 
-/// Keeps track of various information about the current state of the typecheker while traversing
+/// Keeps track of various information about the current state of the typechecker while traversing
 /// and checking the AST.
 ///
 /// @@Volatile: this will probably change a lot when the AST traversing is implemented, maybe it

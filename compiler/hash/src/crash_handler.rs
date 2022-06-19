@@ -1,7 +1,4 @@
-//! Hash compiler crash handler
-//
-// All rights reserved 2022 (c) The Hash Language authors
-
+//! Hash Compiler crash handler
 use backtrace::Backtrace;
 use std::panic::PanicInfo;
 use std::process::exit;

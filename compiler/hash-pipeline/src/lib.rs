@@ -4,9 +4,6 @@
 //! implementations of the parser or typechecker and just use a common trait
 //! interface that can be used. This file also has definitions for how to access
 //! sources whether module or interactive.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
-
 pub mod fs;
 pub mod settings;
 pub mod sources;

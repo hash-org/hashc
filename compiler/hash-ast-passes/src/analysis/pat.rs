@@ -1,7 +1,6 @@
 //! Hash semantic analysis module for validating various constructs relating to
 //! patterns within the AST.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 use hash_ast::ast::{AstNodes, Pattern, TuplePatternEntry};
 
 use crate::diagnostics::{error::AnalysisErrorKind, PatternOrigin};

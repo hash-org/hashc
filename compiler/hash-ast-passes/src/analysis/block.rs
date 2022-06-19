@@ -1,7 +1,6 @@
 //! Hash semantic analysis module for validating various constructs relating to
 //! blocks within the AST.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+
 use std::{collections::HashSet, mem};
 
 use hash_ast::{

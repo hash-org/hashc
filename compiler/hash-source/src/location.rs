@@ -1,6 +1,4 @@
-//! Frontend-agnostic token/input locations utilities and definitions.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler source locations utilities and definitions.
 use crate::SourceId;
 use derive_more::Constructor;
 use std::{convert::TryInto, fmt};
