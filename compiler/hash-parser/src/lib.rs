@@ -12,6 +12,7 @@ use hash_ast::ast;
 use hash_lexer::Lexer;
 use hash_pipeline::sources::{Module, Sources};
 use hash_pipeline::{traits::Parser, CompilerResult};
+use hash_reporting::reporting::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};
@@ -183,12 +184,14 @@ impl<'pool> Parser<'pool> for HashParser {
         sources: &mut Sources,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
-        let current_dir = env::current_dir().map_err(ParseError::from)?;
+        let current_dir = env::current_dir()
+            .map_err(ParseError::from)
+            .map_err(|err| vec![Report::from(err)])?;
         let errors = self.parse_main(sources, target, current_dir, pool);
 
         // @@Todo: merge errors
         match errors.into_iter().next() {
-            Some(err) => Err(err.into()),
+            Some(err) => Err(vec![err.into()]),
             None => Ok(()),
         }
     }
