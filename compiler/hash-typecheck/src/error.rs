@@ -12,12 +12,29 @@ pub type TcResult<T> = Result<T, TcError>;
 #[derive(Debug, Clone)]
 pub enum TcError {
     /// Cannot unify the two terms, where the first is the source and the second is the target.
-    CannotUnify(TermId, TermId),
-    NotATypeFunction(TermId),
-    CannotUseValueAsTy(TermId),
-    MismatchingArgParamLength(Args, Params),
-    ParamNotFound(Params, Identifier),
-    ParamGivenTwice(Args, Params, usize),
+    CannotUnify {
+        src: TermId,
+        target: TermId,
+    },
+    NotATypeFunction {
+        term: TermId,
+    },
+    CannotUseValueAsTy {
+        value: TermId,
+    },
+    MismatchingArgParamLength {
+        args: Args,
+        params: Params,
+    },
+    ParamNotFound {
+        field1: Params,
+        field2: Identifier,
+    },
+    ParamGivenTwice {
+        args: Args,
+        params: Params,
+        param_index_given_twice: usize,
+    },
     UnresolvedNameInValue {
         name: Identifier,
         value: TermId,
