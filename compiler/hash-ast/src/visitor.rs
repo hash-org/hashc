@@ -96,26 +96,26 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error>;
 
-    type FunctionCallArgRet;
-    fn visit_function_call_arg(
+    type ConstructorCallArgRet;
+    fn visit_constructor_call_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArg>,
-    ) -> Result<Self::FunctionCallArgRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ConstructorCallArg>,
+    ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
 
-    type FunctionCallArgsRet;
-    fn visit_function_call_args(
+    type ConstructorCallArgsRet;
+    fn visit_constructor_call_args(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArgs>,
-    ) -> Result<Self::FunctionCallArgsRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ConstructorCallArgs>,
+    ) -> Result<Self::ConstructorCallArgsRet, Self::Error>;
 
-    type FunctionCallExprRet;
-    fn visit_function_call_expr(
+    type ConstructorCallExprRet;
+    fn visit_constructor_call_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallExpr>,
-    ) -> Result<Self::FunctionCallExprRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
+    ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
     type PropertyAccessExprRet;
     fn visit_property_access_expr(
@@ -800,26 +800,26 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error>;
 
-    type FunctionCallArgRet;
-    fn visit_function_call_arg(
+    type ConstructorCallArgRet;
+    fn visit_constructor_call_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FunctionCallArg>,
-    ) -> Result<Self::FunctionCallArgRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ConstructorCallArg>,
+    ) -> Result<Self::ConstructorCallArgRet, Self::Error>;
 
-    type FunctionCallArgsRet;
-    fn visit_function_call_args(
+    type ConstructorCallArgsRet;
+    fn visit_constructor_call_args(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FunctionCallArgs>,
-    ) -> Result<Self::FunctionCallArgsRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ConstructorCallArgs>,
+    ) -> Result<Self::ConstructorCallArgsRet, Self::Error>;
 
-    type FunctionCallExprRet;
-    fn visit_function_call_expr(
+    type ConstructorCallExprRet;
+    fn visit_constructor_call_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FunctionCallExpr>,
-    ) -> Result<Self::FunctionCallExprRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ConstructorCallExpr>,
+    ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
     type PropertyAccessExprRet;
     fn visit_property_access_expr(
@@ -1483,7 +1483,7 @@ pub mod walk {
     }
 
     pub enum Expression<V: AstVisitor> {
-        FunctionCall(V::FunctionCallExprRet),
+        ConstructorCall(V::ConstructorCallExprRet),
         Directive(V::DirectiveExprRet),
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
@@ -1519,8 +1519,8 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Expression>,
     ) -> Result<Expression<V>, V::Error> {
         Ok(match node.kind() {
-            ast::ExpressionKind::FunctionCall(inner) => Expression::FunctionCall(
-                visitor.visit_function_call_expr(ctx, node.with_body(inner))?,
+            ast::ExpressionKind::ConstructorCall(inner) => Expression::ConstructorCall(
+                visitor.visit_constructor_call_expr(ctx, node.with_body(inner))?,
             ),
             ast::ExpressionKind::Type(inner) => {
                 Expression::Type(visitor.visit_type_expr(ctx, node.with_body(inner))?)
@@ -1613,7 +1613,7 @@ pub mod walk {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitor<
-            FunctionCallExprRet = Ret,
+            ConstructorCallExprRet = Ret,
             DirectiveExprRet = Ret,
             DeclarationRet = Ret,
             MergeDeclarationRet = Ret,
@@ -1644,7 +1644,7 @@ pub mod walk {
         >,
     {
         Ok(match walk_expression(visitor, ctx, node)? {
-            Expression::FunctionCall(r) => r,
+            Expression::ConstructorCall(r) => r,
             Expression::Directive(r) => r,
             Expression::Declaration(r) => r,
             Expression::MergeDeclaration(r) => r,
@@ -1712,17 +1712,17 @@ pub mod walk {
         })
     }
 
-    pub struct FunctionCallArg<V: AstVisitor> {
+    pub struct ConstructorCallArg<V: AstVisitor> {
         pub name: Option<V::NameRet>,
         pub value: V::ExpressionRet,
     }
 
-    pub fn walk_function_call_arg<V: AstVisitor>(
+    pub fn walk_constructor_call_arg<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArg>,
-    ) -> Result<FunctionCallArg<V>, V::Error> {
-        Ok(FunctionCallArg {
+        node: ast::AstNodeRef<ast::ConstructorCallArg>,
+    ) -> Result<ConstructorCallArg<V>, V::Error> {
+        Ok(ConstructorCallArg {
             name: node
                 .name
                 .as_ref()
@@ -1732,38 +1732,38 @@ pub mod walk {
         })
     }
 
-    pub struct FunctionCallArgs<V: AstVisitor> {
-        pub entries: V::CollectionContainer<V::FunctionCallArgRet>,
+    pub struct ConstructorCallArgs<V: AstVisitor> {
+        pub entries: V::CollectionContainer<V::ConstructorCallArgRet>,
     }
 
-    pub fn walk_function_call_args<V: AstVisitor>(
+    pub fn walk_constructor_call_args<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArgs>,
-    ) -> Result<FunctionCallArgs<V>, V::Error> {
-        Ok(FunctionCallArgs {
+        node: ast::AstNodeRef<ast::ConstructorCallArgs>,
+    ) -> Result<ConstructorCallArgs<V>, V::Error> {
+        Ok(ConstructorCallArgs {
             entries: V::try_collect_items(
                 ctx,
                 node.entries
                     .iter()
-                    .map(|e| visitor.visit_function_call_arg(ctx, e.ast_ref())),
+                    .map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref())),
             )?,
         })
     }
 
     pub struct FunctionCallExpr<V: AstVisitor> {
         pub subject: V::ExpressionRet,
-        pub args: V::FunctionCallArgsRet,
+        pub args: V::ConstructorCallArgsRet,
     }
 
-    pub fn walk_function_call_expr<V: AstVisitor>(
+    pub fn walk_constructor_call_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallExpr>,
+        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
     ) -> Result<FunctionCallExpr<V>, V::Error> {
         Ok(FunctionCallExpr {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
-            args: visitor.visit_function_call_args(ctx, node.args.ast_ref())?,
+            args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref())?,
         })
     }
 
@@ -3305,7 +3305,7 @@ pub mod walk_mut {
     }
 
     pub enum Expression<V: AstVisitorMut> {
-        FunctionCall(V::FunctionCallExprRet),
+        FunctionCall(V::ConstructorCallExprRet),
         Directive(V::DirectiveExprRet),
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
@@ -3344,8 +3344,8 @@ pub mod walk_mut {
         let id = node.id;
 
         Ok(match &mut node.kind {
-            ast::ExpressionKind::FunctionCall(inner) => Expression::FunctionCall(
-                visitor.visit_function_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
+            ast::ExpressionKind::ConstructorCall(inner) => Expression::FunctionCall(
+                visitor.visit_constructor_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
             ast::ExpressionKind::Type(inner) => {
                 Expression::Type(visitor.visit_type_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
@@ -3438,7 +3438,7 @@ pub mod walk_mut {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitorMut<
-            FunctionCallExprRet = Ret,
+            ConstructorCallExprRet = Ret,
             DirectiveExprRet = Ret,
             DeclarationRet = Ret,
             MergeDeclarationRet = Ret,
@@ -3537,17 +3537,17 @@ pub mod walk_mut {
         })
     }
 
-    pub struct FunctionCallArg<V: AstVisitorMut> {
+    pub struct ConstructorCallArg<V: AstVisitorMut> {
         pub name: Option<V::NameRet>,
         pub value: V::ExpressionRet,
     }
 
-    pub fn walk_function_call_arg<V: AstVisitorMut>(
+    pub fn walk_constructor_call_arg<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::FunctionCallArg>,
-    ) -> Result<FunctionCallArg<V>, V::Error> {
-        Ok(FunctionCallArg {
+        mut node: ast::AstNodeRefMut<ast::ConstructorCallArg>,
+    ) -> Result<ConstructorCallArg<V>, V::Error> {
+        Ok(ConstructorCallArg {
             name: node
                 .name
                 .as_mut()
@@ -3557,38 +3557,38 @@ pub mod walk_mut {
         })
     }
 
-    pub struct FunctionCallArgs<V: AstVisitorMut> {
-        pub entries: V::CollectionContainer<V::FunctionCallArgRet>,
+    pub struct ConstructorCallArgs<V: AstVisitorMut> {
+        pub entries: V::CollectionContainer<V::ConstructorCallArgRet>,
     }
 
-    pub fn walk_function_call_args<V: AstVisitorMut>(
+    pub fn walk_constructor_call_args<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::FunctionCallArgs>,
-    ) -> Result<FunctionCallArgs<V>, V::Error> {
-        Ok(FunctionCallArgs {
+        mut node: ast::AstNodeRefMut<ast::ConstructorCallArgs>,
+    ) -> Result<ConstructorCallArgs<V>, V::Error> {
+        Ok(ConstructorCallArgs {
             entries: V::try_collect_items(
                 ctx,
                 node.entries
                     .iter_mut()
-                    .map(|e| visitor.visit_function_call_arg(ctx, e.ast_ref_mut())),
+                    .map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref_mut())),
             )?,
         })
     }
 
     pub struct FunctionCallExpr<V: AstVisitorMut> {
         pub subject: V::ExpressionRet,
-        pub args: V::FunctionCallArgsRet,
+        pub args: V::ConstructorCallArgsRet,
     }
 
-    pub fn walk_function_call_expr<V: AstVisitorMut>(
+    pub fn walk_constructor_call_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::FunctionCallExpr>,
+        mut node: ast::AstNodeRefMut<ast::ConstructorCallExpr>,
     ) -> Result<FunctionCallExpr<V>, V::Error> {
         Ok(FunctionCallExpr {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
-            args: visitor.visit_function_call_args(ctx, node.args.ast_ref_mut())?,
+            args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref_mut())?,
         })
     }
 

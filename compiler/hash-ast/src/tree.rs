@@ -119,13 +119,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type FunctionCallArgRet = TreeNode;
+    type ConstructorCallArgRet = TreeNode;
 
-    fn visit_function_call_arg(
+    fn visit_constructor_call_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArg>,
-    ) -> Result<Self::FunctionCallArgRet, Self::Error> {
+        node: ast::AstNodeRef<ast::ConstructorCallArg>,
+    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
         if let Some(name) = &node.name {
             Ok(TreeNode::branch(
                 "arg",
@@ -142,29 +142,29 @@ impl AstVisitor for AstTreeGenerator {
         }
     }
 
-    type FunctionCallArgsRet = TreeNode;
-    fn visit_function_call_args(
+    type ConstructorCallArgsRet = TreeNode;
+    fn visit_constructor_call_args(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallArgs>,
-    ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
+        node: ast::AstNodeRef<ast::ConstructorCallArgs>,
+    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
         Ok(TreeNode::branch(
             "args",
-            walk::walk_function_call_args(self, ctx, node)?
+            walk::walk_constructor_call_args(self, ctx, node)?
                 .entries
                 .into_iter()
                 .collect(),
         ))
     }
 
-    type FunctionCallExprRet = TreeNode;
-    fn visit_function_call_expr(
+    type ConstructorCallExprRet = TreeNode;
+    fn visit_constructor_call_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionCallExpr>,
-    ) -> Result<Self::FunctionCallExprRet, Self::Error> {
+        node: ast::AstNodeRef<ast::ConstructorCallExpr>,
+    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
         let walk::FunctionCallExpr { subject, args } =
-            walk::walk_function_call_expr(self, ctx, node)?;
+            walk::walk_constructor_call_expr(self, ctx, node)?;
 
         let children = if !node.args.entries.is_empty() {
             vec![TreeNode::branch("subject", vec![subject]), args]
@@ -172,7 +172,7 @@ impl AstVisitor for AstTreeGenerator {
             vec![TreeNode::branch("subject", vec![subject])]
         };
 
-        Ok(TreeNode::branch("function_call", children))
+        Ok(TreeNode::branch("constructor", children))
     }
 
     type PropertyAccessExprRet = TreeNode;
@@ -442,7 +442,7 @@ impl AstVisitor for AstTreeGenerator {
             walk::walk_type_function_call(self, ctx, node)?;
 
         Ok(TreeNode::branch(
-            "function_call",
+            "type_function_call",
             vec![
                 TreeNode::branch("subject", vec![subject]),
                 TreeNode::branch("arguments", args),

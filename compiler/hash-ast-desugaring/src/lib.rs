@@ -9,10 +9,11 @@
 use hash_ast::{
     ast::{
         AccessName, AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral,
-        BoolLiteralPattern, BreakStatement, ConstructorPattern, Expression, ExpressionKind,
-        ForLoopBlock, FunctionCallArg, FunctionCallArgs, FunctionCallExpr, IfBlock, IfClause,
-        IfPattern, IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock, MatchBlock,
-        MatchCase, MatchOrigin, Pattern, TuplePatternEntry, VariableExpr, WhileLoopBlock,
+        BoolLiteralPattern, BreakStatement, ConstructorCallArg, ConstructorCallArgs,
+        ConstructorCallExpr, ConstructorPattern, Expression, ExpressionKind, ForLoopBlock, IfBlock,
+        IfClause, IfPattern, IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock,
+        MatchBlock, MatchCase, MatchOrigin, Pattern, TuplePatternEntry, VariableExpr,
+        WhileLoopBlock,
     },
     ast_nodes,
     visitor::{walk_mut, AstVisitorMut},
@@ -207,7 +208,7 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
     Block::Loop(LoopBlock(AstNode::new(
         Block::Match(MatchBlock {
             subject: AstNode::new(
-                Expression::new(ExpressionKind::FunctionCall(FunctionCallExpr {
+                Expression::new(ExpressionKind::ConstructorCall(ConstructorCallExpr {
                     subject: AstNode::new(
                         Expression::new(ExpressionKind::Variable(VariableExpr {
                             name: make_access_name("next"),
@@ -216,9 +217,9 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
                         iter_span,
                     ),
                     args: AstNode::new(
-                        FunctionCallArgs {
+                        ConstructorCallArgs {
                             entries: ast_nodes![AstNode::new(
-                                FunctionCallArg {
+                                ConstructorCallArg {
                                     name: None,
                                     value: iterator,
                                 },
@@ -607,36 +608,36 @@ impl AstVisitorMut for AstDesugaring {
         Ok(())
     }
 
-    type FunctionCallArgRet = ();
+    type ConstructorCallArgRet = ();
 
-    fn visit_function_call_arg(
+    fn visit_constructor_call_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArg>,
-    ) -> Result<Self::FunctionCallArgRet, Self::Error> {
-        let _ = walk_mut::walk_function_call_arg(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorCallArg>,
+    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
+        let _ = walk_mut::walk_constructor_call_arg(self, ctx, node);
         Ok(())
     }
 
-    type FunctionCallArgsRet = ();
+    type ConstructorCallArgsRet = ();
 
-    fn visit_function_call_args(
+    fn visit_constructor_call_args(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallArgs>,
-    ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
-        let _ = walk_mut::walk_function_call_args(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorCallArgs>,
+    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
+        let _ = walk_mut::walk_constructor_call_args(self, ctx, node);
         Ok(())
     }
 
-    type FunctionCallExprRet = ();
+    type ConstructorCallExprRet = ();
 
-    fn visit_function_call_expr(
+    fn visit_constructor_call_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionCallExpr>,
-    ) -> Result<Self::FunctionCallExprRet, Self::Error> {
-        let _ = walk_mut::walk_function_call_expr(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ConstructorCallExpr>,
+    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
+        let _ = walk_mut::walk_constructor_call_expr(self, ctx, node);
         Ok(())
     }
 
