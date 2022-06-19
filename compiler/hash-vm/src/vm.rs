@@ -920,6 +920,6 @@ impl VirtualMachine<'_> for Interpreter {
     }
 
     fn run(&mut self, _state: &mut Self::State) -> hash_pipeline::CompilerResult<()> {
-        self.run().map_err(Report::from)
+        self.run().map_err(|err| vec![Report::from(err)])
     }
 }
