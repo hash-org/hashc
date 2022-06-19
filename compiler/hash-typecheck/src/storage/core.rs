@@ -98,7 +98,7 @@ impl CoreDefs {
         );
 
         // Hash and Eq traits
-        let hash_trt = builder.create_trait_def(
+        let hash_trt = builder.create_trt_def(
             "Hash",
             [builder.create_unset_pub_member(
                 "hash",
@@ -109,7 +109,7 @@ impl CoreDefs {
             )],
             [],
         );
-        let eq_trt = builder.create_trait_def(
+        let eq_trt = builder.create_trt_def(
             "Eq",
             [builder.create_unset_pub_member(
                 "eq",

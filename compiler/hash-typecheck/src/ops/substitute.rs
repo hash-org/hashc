@@ -192,7 +192,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             // Recursive cases:
             Term::Access(access) => {
                 // Just apply the substitution to the subject:
-                let subbed_subject_id = self.apply_sub_to_term(sub, access.subject_id);
+                let subbed_subject_id = self.apply_sub_to_term(sub, access.subject);
                 self.builder()
                     .create_ns_access(subbed_subject_id, access.name)
             }
@@ -432,7 +432,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             }
             Term::Access(term) => {
                 // Just the free vars in the subject:
-                self.add_free_vars_in_term_to_set(term.subject_id, result);
+                self.add_free_vars_in_term_to_set(term.subject, result);
             }
             Term::Merge(terms) => {
                 // Free vars in each term:

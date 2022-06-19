@@ -461,7 +461,7 @@ pub enum AccessOp {
 /// Has level N where N is the level of the Y property of X.
 #[derive(Debug, Clone)]
 pub struct AccessTerm {
-    pub subject_id: TermId,
+    pub subject: TermId,
     pub name: Identifier,
     pub op: AccessOp,
 }
