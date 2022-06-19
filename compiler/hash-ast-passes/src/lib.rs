@@ -8,8 +8,8 @@
 pub mod analysis;
 pub mod visitor;
 
-use crate::analysis::error::AnalysisError;
-use crate::analysis::SemanticAnalyser;
+use analysis::AnalysisMessage;
+use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 
 use hash_ast::visitor::AstVisitor;
@@ -17,7 +17,6 @@ use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
 use hash_reporting::reporting::Report;
 use hash_source::SourceId;
 use std::collections::HashSet;
-use visitor::SemanticAnalysisContext;
 
 pub struct HashSemanticAnalysis;
 
@@ -43,7 +42,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>> {
-        let (sender, receiver) = unbounded::<AnalysisError>();
+        let (sender, receiver) = unbounded::<AnalysisMessage>();
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
@@ -52,14 +51,10 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     let source = sources.get_interactive_block_mut(id);
 
                     // setup a visitor and the context
-                    let mut visitor = SemanticAnalyser::new();
-                    let ctx = SemanticAnalysisContext::new(entry_point);
+                    let mut visitor = SemanticAnalyser::new(entry_point);
 
-                    visitor.visit_body_block(&ctx, source.node()).unwrap();
-                    visitor
-                        .errors()
-                        .into_iter()
-                        .for_each(|err| sender.send(err).unwrap());
+                    visitor.visit_body_block(&(), source.node()).unwrap();
+                    visitor.send_generated_messages(&sender);
                 }
             }
 
@@ -71,19 +66,13 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     continue;
                 }
 
-                let mut visitor = SemanticAnalyser::new();
-                let ctx = SemanticAnalysisContext::new(SourceId::Module(id));
+                let mut visitor = SemanticAnalyser::new(SourceId::Module(id));
 
                 // Check that all of the root scope statements are only declarations
-                let errors = visitor.visit_module(&ctx, module.node_ref()).unwrap();
+                let errors = visitor.visit_module(&(), module.node_ref()).unwrap();
 
                 // We need to send the errors from the module too
-                if !errors.is_empty() {
-                    visitor
-                        .errors()
-                        .into_iter()
-                        .for_each(|err| sender.send(err).unwrap());
-                }
+                visitor.send_generated_messages(&sender);
 
                 for (index, expr) in module.node().contents.iter().enumerate() {
                     // Skip any statements that we're deemed to be errors.
@@ -94,14 +83,10 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     let sender = sender.clone();
 
                     scope.spawn(move |_| {
-                        let mut visitor = SemanticAnalyser::new();
-                        let ctx = SemanticAnalysisContext::new(SourceId::Module(id));
+                        let mut visitor = SemanticAnalyser::new(SourceId::Module(id));
 
-                        visitor.visit_expression(&ctx, expr.ast_ref()).unwrap();
-                        visitor
-                            .errors()
-                            .into_iter()
-                            .for_each(|err| sender.send(err).unwrap());
+                        visitor.visit_expression(&(), expr.ast_ref()).unwrap();
+                        visitor.send_generated_messages(&sender);
                     });
                 }
             }
@@ -113,12 +98,12 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
 
         // Collect all of the errors
         drop(sender);
-        let errors = receiver.into_iter().collect::<Vec<_>>();
+        let messages = receiver.into_iter().collect::<Vec<_>>();
 
-        if errors.is_empty() {
+        if messages.is_empty() {
             Ok(())
         } else {
-            Err(errors.into_iter().map(|err| err.into()).collect())
+            Err(messages.into_iter().map(|message| message.into()).collect())
         }
     }
 }
