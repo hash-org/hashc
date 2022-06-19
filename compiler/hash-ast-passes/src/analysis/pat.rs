@@ -1,9 +1,12 @@
+//! Hash semantic analysis module for validating various constructs relating to
+//! patterns within the AST.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 use hash_ast::ast::{AstNodes, Pattern, TuplePatternEntry};
 
-use super::{
-    error::{AnalysisErrorKind, PatternOrigin},
-    SemanticAnalyser,
-};
+use crate::diagnostics::{error::AnalysisErrorKind, PatternOrigin};
+
+use super::SemanticAnalyser;
 
 impl SemanticAnalyser {
     pub(crate) fn check_compound_pattern_rules(

@@ -1,35 +1,21 @@
+//! Hash semantic analyser definitions. This file holds the [SemanticAnalyser] definition
+//! with some shared functions to append diagnostics to the analyser.
+//!
+//! All rights reserved 2022 (c) The Hash Language authors
 use crossbeam_channel::Sender;
-use hash_reporting::reporting::Report;
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId,
 };
 
-use self::{
-    error::{AnalysisError, AnalysisErrorKind, BlockOrigin},
+use crate::diagnostics::{
+    error::{AnalysisError, AnalysisErrorKind},
     warning::{AnalysisWarning, AnalysisWarningKind},
+    BlockOrigin, Diagnostic,
 };
 
 mod block;
-pub(crate) mod error;
 mod pat;
-pub(crate) mod warning;
-
-/// Enum representing any generated message that can be emitted by the
-/// [SemanticAnalyser].
-pub(crate) enum AnalysisMessage {
-    Warning(AnalysisWarning),
-    Error(AnalysisError),
-}
-
-impl From<AnalysisMessage> for Report {
-    fn from(message: AnalysisMessage) -> Self {
-        match message {
-            AnalysisMessage::Warning(warning) => warning.into(),
-            AnalysisMessage::Error(err) => err.into(),
-        }
-    }
-}
 
 pub struct SemanticAnalyser {
     /// Whether the current visitor is within a loop construct.
@@ -83,13 +69,13 @@ impl SemanticAnalyser {
     }
 
     /// Given a [Sender], send all of the generated warnings and messaged into the sender.
-    pub(crate) fn send_generated_messages(self, sender: &Sender<AnalysisMessage>) {
+    pub(crate) fn send_generated_messages(self, sender: &Sender<Diagnostic>) {
         self.errors
             .into_iter()
-            .for_each(|err| sender.send(AnalysisMessage::Error(err)).unwrap());
+            .for_each(|err| sender.send(Diagnostic::Error(err)).unwrap());
 
         self.warnings
             .into_iter()
-            .for_each(|warning| sender.send(AnalysisMessage::Warning(warning)).unwrap());
+            .for_each(|warning| sender.send(Diagnostic::Warning(warning)).unwrap());
     }
 }

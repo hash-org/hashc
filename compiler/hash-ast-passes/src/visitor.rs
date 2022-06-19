@@ -1,4 +1,7 @@
-//! Visitor pattern for the semantic analysis stage.
+//! Visitor pattern for the semantic analysis stage. This file implements
+//! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During traversal, the
+//! visitor calls various functions that are defined on the analyser to perform
+//! a variety of semantic checks.
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
@@ -12,10 +15,11 @@ use hash_ast::{
     visitor::{walk, AstVisitor},
 };
 
-use crate::analysis::{
-    error::{AnalysisErrorKind, BlockOrigin, PatternOrigin},
-    warning::AnalysisWarningKind,
-    SemanticAnalyser,
+use crate::{
+    analysis::SemanticAnalyser,
+    diagnostics::{
+        error::AnalysisErrorKind, warning::AnalysisWarningKind, BlockOrigin, PatternOrigin,
+    },
 };
 
 impl AstVisitor for SemanticAnalyser {
