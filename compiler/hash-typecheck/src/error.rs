@@ -1,5 +1,5 @@
 //! Error-related data structures for errors that occur during typechecking.
-use crate::storage::primitives::{Args, Params, TermId};
+use crate::storage::primitives::{AccessTerm, Args, Params, TermId};
 use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
@@ -15,10 +15,41 @@ pub enum TcError {
     CannotUnify(TermId, TermId),
     NotATypeFunction(TermId),
     CannotUseValueAsTy(TermId),
-    CannotUsePositionalArgAfterNamedArg(Args, usize),
     MismatchingArgParamLength(Args, Params),
     ParamNotFound(Params, Identifier),
     ParamGivenTwice(Args, Params, usize),
-    UnresolvedSymbol(Identifier),
-    TryingToNamespaceNonNamespaceable(TermId),
+    UnresolvedNameInValue {
+        name: Identifier,
+        value: TermId,
+    },
+    UnresolvedVariable {
+        name: Identifier,
+    },
+    UnsupportedAccess {
+        name: Identifier,
+        value: TermId,
+    },
+    UnsupportedNamespaceAccess {
+        name: Identifier,
+        value: TermId,
+    },
+    UnsupportedPropertyAccess {
+        name: Identifier,
+        value: TermId,
+    },
+    InvalidTypeFunctionApplication {
+        type_fn: TermId,
+        args: Args,
+        unification_errors: Vec<TcError>,
+    },
+    UnsupportedTypeFunctionApplication {
+        subject_id: TermId,
+    },
+    AmbiguousAccess {
+        access: AccessTerm,
+    },
+    InvalidPropertyAccessOfNonMethod {
+        subject: TermId,
+        property: Identifier,
+    },
 }
