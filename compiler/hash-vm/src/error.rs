@@ -1,7 +1,7 @@
 //! Hash Compiler VM error data structures and utilities.
 use std::fmt;
 
-use hash_reporting::reporting::{Report, ReportKind};
+use hash_reporting::report::{Report, ReportKind};
 
 #[derive(Debug)]
 pub enum StackAccessKind {

@@ -14,7 +14,7 @@ use crossbeam_channel::unbounded;
 use diagnostics::Diagnostic;
 use hash_ast::visitor::AstVisitor;
 use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
-use hash_reporting::reporting::Report;
+use hash_reporting::report::Report;
 use hash_source::SourceId;
 use std::collections::HashSet;
 

@@ -12,7 +12,7 @@ use hash_ast::ast;
 use hash_lexer::Lexer;
 use hash_pipeline::sources::{Module, Sources};
 use hash_pipeline::{traits::Parser, CompilerResult};
-use hash_reporting::reporting::Report;
+use hash_reporting::report::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};
