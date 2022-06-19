@@ -473,60 +473,7 @@ impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
 
 #[cfg(test)]
 mod tests {
-    // use std::path::PathBuf;
-
-    // use hash_alloc::{row, Castle};
-    // use hash_ast::{ast, location::Location, module::ModuleBuilder};
-
     use super::*;
-
-    // #[test]
-    // fn reporting_test() {
-    //     let castle = Castle::new();
-    //     let wall = castle.wall();
-
-    //     let builder = ModuleBuilder::new();
-
-    //     let path = PathBuf::from("./../../stdlib/prelude.hash");
-    //     let contents = std::fs::read_to_string(&path).unwrap();
-    //     let test_idx = builder.reserve_index();
-
-    //     builder.add_contents(test_idx, path, contents);
-    //     builder.add_module_at(
-    //         test_idx,
-    //         ast::AstNode::new(
-    //             ast::Module {
-    //                 contents: row![&wall],
-    //             },
-    //             Location::pos(0),
-    //             &wall,
-    //         ),
-    //     );
-
-    //     let modules = builder.build();
-
-    //     let report = ReportBuilder::new()
-    //         .with_message("Bro what you wrote here is wrong.")
-    //         .with_kind(ReportKind::Error)
-    //         .with_error_code(ErrorCode::Parsing)
-    //         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-    //             SourceLocation {
-    //                 location: Location::span(10223, 10224),
-    //                 module_index: test_idx,
-    //             },
-    //             "don't be crazy.",
-    //         )))
-    //         .add_element(ReportElement::Note(ReportNote::new(
-    //             "note",
-    //             "You really are a dummy.",
-    //         )))
-    //         .build()
-    //         .unwrap();
-
-    //     let report_writer = ReportWriter::new(report, &modules);
-
-    //     println!("{}", report_writer);
-    // }
 
     #[test]
     fn offset_test() {
