@@ -1,4 +1,7 @@
-//! Visitor pattern for the semantic analysis stage.
+//! Visitor pattern for the semantic analysis stage. This file implements
+//! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During traversal, the
+//! visitor calls various functions that are defined on the analyser to perform
+//! a variety of semantic checks.
 //!
 //! All rights reserved 2022 (c) The Hash Language authors
 
@@ -12,10 +15,11 @@ use hash_ast::{
     visitor::{walk, AstVisitor},
 };
 
-use crate::analysis::{
-    error::{AnalysisErrorKind, BlockOrigin, PatternOrigin},
-    warning::AnalysisWarningKind,
-    SemanticAnalyser,
+use crate::{
+    analysis::SemanticAnalyser,
+    diagnostics::{
+        error::AnalysisErrorKind, warning::AnalysisWarningKind, BlockOrigin, PatternOrigin,
+    },
 };
 
 impl AstVisitor for SemanticAnalyser {
@@ -124,36 +128,39 @@ impl AstVisitor for SemanticAnalyser {
         Ok(())
     }
 
-    type FunctionCallArgRet = ();
+    type ConstructorCallArgRet = ();
 
-    fn visit_function_call_arg(
+    fn visit_constructor_call_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionCallArg>,
-    ) -> Result<Self::FunctionCallArgRet, Self::Error> {
-        let _ = walk::walk_function_call_arg(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
+    ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
+        let _ = walk::walk_constructor_call_arg(self, ctx, node);
         Ok(())
     }
 
-    type FunctionCallArgsRet = ();
+    type ConstructorCallArgsRet = ();
 
-    fn visit_function_call_args(
+    fn visit_constructor_call_args(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionCallArgs>,
-    ) -> Result<Self::FunctionCallArgsRet, Self::Error> {
-        let _ = walk::walk_function_call_args(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArgs>,
+    ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
+        // Here we don't validate ordering of arguments because this is done later
+        // at typechecking when we can give more context about the problem (if there is one).
+
+        let _ = walk::walk_constructor_call_args(self, ctx, node);
         Ok(())
     }
 
-    type FunctionCallExprRet = ();
+    type ConstructorCallExprRet = ();
 
-    fn visit_function_call_expr(
+    fn visit_constructor_call_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionCallExpr>,
-    ) -> Result<Self::FunctionCallExprRet, Self::Error> {
-        let _ = walk::walk_function_call_expr(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallExpr>,
+    ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
+        let _ = walk::walk_constructor_call_expr(self, ctx, node);
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-//! Hash AST semantic passes warning definitions.
+//! Hash AST semantic analysis warning diagnostic definitions.
 //!
 //! All rights reserved 2022 (c) The Hash Language authors.
 
