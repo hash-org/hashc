@@ -1,6 +1,4 @@
 //! Hash AST semantic analysis error diagnostic definitions.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors.
 
 use hash_ast::ast::Visibility;
 use hash_error_codes::error_codes::HashErrorCode;

@@ -6,7 +6,6 @@
 //! variable will be in [LocalStorage] because it is only accessible from one file, whereas a
 //! type definition will be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
-
 use self::{
     core::CoreDefs,
     mods::ModDefStore,

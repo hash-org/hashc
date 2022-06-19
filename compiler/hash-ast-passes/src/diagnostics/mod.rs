@@ -1,6 +1,4 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors.
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
 use hash_reporting::reporting::Report;

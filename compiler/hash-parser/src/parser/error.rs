@@ -1,7 +1,4 @@
-//! Hash compiler parser error data types.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
-
+//! Hash Compiler parser error utilities.
 use std::io;
 
 use derive_more::Constructor;

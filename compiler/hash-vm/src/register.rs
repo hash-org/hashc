@@ -1,6 +1,4 @@
-//! Hash compiler virtual machine Register API.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! Hash Compiler VM register related logic.
 
 /// Register type, we reserve the last 3 [Register] indices (by convention) to
 /// store the stack pointer, instruction pointer and the base pointer.

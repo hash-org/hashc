@@ -1,10 +1,8 @@
-//! Hash compiler virtual machine crate.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! Hash Compiler VM heap definitions.
 #![allow(dead_code)]
 use std::iter;
 
-/// The Heap of the Hash Virtual Machine.
+/// The Heap of the VM.
 #[derive(Debug)]
 pub struct Heap {
     values: Vec<u8>,

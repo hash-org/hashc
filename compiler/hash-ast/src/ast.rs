@@ -1,6 +1,4 @@
 //! Frontend-agnostic Hash AST (abstract syntax tree) type definitions.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 use hash_source::location::Span;
 use hash_source::{identifier::Identifier, string::StringLiteral};

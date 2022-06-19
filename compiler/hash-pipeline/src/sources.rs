@@ -1,7 +1,5 @@
 //! Hash Compiler sources map and interfaces for accessing and storing
 //! job sources.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 use hash_ast::ast;
 use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
 use slotmap::{

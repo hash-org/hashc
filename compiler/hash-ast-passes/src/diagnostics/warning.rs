@@ -1,6 +1,4 @@
 //! Hash AST semantic analysis warning diagnostic definitions.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors.
 
 use hash_reporting::reporting::{
     Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,

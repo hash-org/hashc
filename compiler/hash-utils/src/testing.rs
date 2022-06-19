@@ -1,4 +1,3 @@
-//! All rights reserved 2022 (c) The Hash Language authors
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]

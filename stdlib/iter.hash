@@ -4,8 +4,7 @@
 // Module: "iter"
 // Description:
 //
-// All rights reserved 2021 (c) The Hash Language authors
-//
+// Iterator primitives
 
 // Collect into some type C
 Collect := <I, C> => trait {

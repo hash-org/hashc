@@ -1,6 +1,5 @@
-//! Hash compiler path utilities.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler path utilities.
+
 use std::path::Path;
 
 #[cfg(not(target_os = "windows"))]

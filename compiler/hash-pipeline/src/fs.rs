@@ -1,6 +1,4 @@
-//! Hash Compiler filesystem utility functions
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler filesystem utility functions.
 use hash_reporting::reporting::{
     Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
 };

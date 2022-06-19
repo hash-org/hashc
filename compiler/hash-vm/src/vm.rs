@@ -1,6 +1,4 @@
-//! Hash compiler virtual machine crate.
-//!
-//! All rights reserved 2021 (c) The Hash Language authors
+//! Hash Compiler virtual machine implementation and bytecode runner.
 
 use std::cell::Cell;
 

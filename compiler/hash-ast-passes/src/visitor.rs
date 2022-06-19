@@ -2,8 +2,6 @@
 //! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During traversal, the
 //! visitor calls various functions that are defined on the analyser to perform
 //! a variety of semantic checks.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 
 use std::{collections::HashSet, convert::Infallible, mem};
 

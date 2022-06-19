@@ -1,6 +1,4 @@
-//! Hash compiler parser error data types.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
+//! Hash Compiler parser error data types.
 
 use derive_more::Constructor;
 use hash_source::{location::Span, SourceId};

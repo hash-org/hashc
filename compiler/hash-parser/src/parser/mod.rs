@@ -1,7 +1,5 @@
-//! Hash compiler AST generation sources. This file contains the sources to the logic
+//! Hash Compiler AST generation sources. This file contains the sources to the logic
 //! that transforms tokens into an AST.
-//!
-//! All rights reserved 2022 (c) The Hash Language authors
 mod block;
 mod definitions;
 pub mod error;

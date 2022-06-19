@@ -1,3 +1,5 @@
+//! Hash Compiler parser sources. This module contains logic for parsing
+//! operators from the provided token source.
 use hash_ast::ast::*;
 use hash_token::{keyword::Keyword, TokenKind};
 

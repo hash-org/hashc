@@ -1,6 +1,4 @@
-//! Hash interactive mode commands
-//
-// All rights reserved 2022 (c) The Hash Language authors
+//! Hash interactive mode commands.
 
 use hash_pipeline::settings::{CompilerJobParams, CompilerMode};
 use hash_reporting::errors::InteractiveCommandError;
