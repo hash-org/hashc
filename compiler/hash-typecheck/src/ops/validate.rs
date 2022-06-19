@@ -2,7 +2,7 @@
 use crate::{
     error::TcResult,
     storage::{
-        primitives::{FnTy, Level1Term, ModDefId, NominalDefId, Term, TermId, TrtDefId},
+        primitives::{FnTy, Level1Term, ModDefId, NominalDefId, Sub, Term, TermId, TrtDefId},
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -166,5 +166,12 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty.clone())),
             _ => Ok(None),
         }
+    }
+
+    /// Determine if the two given substitutions are equivalent.
+    ///
+    /// That is, if for any term X, they produce the same result when applied to X
+    pub fn subs_are_equivalent(&mut self, _s0: &Sub, _s1: &Sub) -> TcResult<bool> {
+        todo!()
     }
 }

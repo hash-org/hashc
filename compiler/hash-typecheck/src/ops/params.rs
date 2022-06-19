@@ -22,10 +22,10 @@ pub fn pair_args_with_params<'p, 'a>(
 
     // Ensure the length of params and args is the same
     if params.positional().len() != args.positional().len() {
-        return Err(TcError::MismatchingArgParamLength(
-            args.clone(),
-            params.clone(),
-        ));
+        return Err(TcError::MismatchingArgParamLength {
+            args: args.clone(),
+            params: params.clone(),
+        });
     }
 
     // Keep track of the first non-positional argument
@@ -39,17 +39,22 @@ pub fn pair_args_with_params<'p, 'a>(
                     Some((param_i, param)) => {
                         if params_used.contains(&i) {
                             // Ensure not already used
-                            return Err(TcError::ParamGivenTwice(
-                                args.clone(),
-                                params.clone(),
-                                param_i,
-                            ));
+                            return Err(TcError::ParamGivenTwice {
+                                args: args.clone(),
+                                params: params.clone(),
+                                param_index_given_twice: param_i,
+                            });
                         } else {
                             params_used.insert(param_i);
                             result.push((param, arg));
                         }
                     }
-                    None => return Err(TcError::ParamNotFound(params.clone(), arg_name)),
+                    None => {
+                        return Err(TcError::ParamNotFound {
+                            field1: params.clone(),
+                            field2: arg_name,
+                        })
+                    }
                 }
             }
             None => {
@@ -60,7 +65,11 @@ pub fn pair_args_with_params<'p, 'a>(
                     panic!("Found positional arguments after named args, should have been caught during semantic analysis.")
                 } else if params_used.contains(&i) {
                     // Ensure not already used
-                    return Err(TcError::ParamGivenTwice(args.clone(), params.clone(), i));
+                    return Err(TcError::ParamGivenTwice {
+                        args: args.clone(),
+                        params: params.clone(),
+                        param_index_given_twice: i,
+                    });
                 } else {
                     params_used.insert(i);
                     result.push((params.positional().get(i).unwrap(), arg));
