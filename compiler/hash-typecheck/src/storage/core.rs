@@ -91,36 +91,38 @@ impl CoreDefs {
             ),
         );
 
-        // Handy shorthand for &Self type
-        let ref_self_ty = builder.create_app_ty_fn_term(
-            reference_ty_fn,
-            [builder.create_arg("T", builder.create_var_term("Self"))],
-        );
+        // @@Incomplete: these traits should take ref self, not self.
 
         // Hash and Eq traits
         let hash_trt = builder.create_trt_def(
             "Hash",
-            [builder.create_unset_pub_member(
-                "hash",
-                builder.create_fn_ty_term(
-                    [builder.create_param("value", ref_self_ty)],
-                    builder.create_nominal_def_term(u64_ty),
+            [
+                builder.create_unset_pub_member("Self", builder.create_any_ty_term()),
+                builder.create_unset_pub_member(
+                    "hash",
+                    builder.create_fn_ty_term(
+                        [builder.create_param("value", builder.create_var_term("Self"))],
+                        builder.create_nominal_def_term(u64_ty),
+                    ),
                 ),
-            )],
+            ],
             [],
         );
         let eq_trt = builder.create_trt_def(
             "Eq",
-            [builder.create_unset_pub_member(
-                "eq",
-                builder.create_fn_ty_term(
-                    [
-                        builder.create_param("a", ref_self_ty),
-                        builder.create_param("b", ref_self_ty),
-                    ],
-                    builder.create_nominal_def_term(u64_ty),
+            [
+                builder.create_unset_pub_member("Self", builder.create_any_ty_term()),
+                builder.create_unset_pub_member(
+                    "eq",
+                    builder.create_fn_ty_term(
+                        [
+                            builder.create_param("a", builder.create_var_term("Self")),
+                            builder.create_param("b", builder.create_var_term("Self")),
+                        ],
+                        builder.create_nominal_def_term(u64_ty),
+                    ),
                 ),
-            )],
+            ],
             [],
         );
 
