@@ -1,6 +1,6 @@
 //! Contains utilities to validate terms.
 use crate::{
-    error::TcResult,
+    error::{TcError, TcResult},
     storage::{
         primitives::{FnTy, Level1Term, ModDefId, NominalDefId, Sub, Term, TermId, TrtDefId},
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -98,14 +98,20 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     self.validate_term(term)?;
                 }
 
-                // Ensure all elements of the merge are not type functions, and are of the same
-                // level (either level 1 or level 2, if they are level 1 then there should only be
-                // one nominal definition).
-                let mut _first_term: Option<TermLevel> = None;
-                for term in terms.iter().copied() {
+                // Ensure all elements of the merge are either Level 2, or all Level 1.
+                // Furthermore, if they are level 1, they should only have zero or one nominal
+                // definition attached.
+                enum MergeKind {
+                    Unknown,
+                    Level2,
+                    Level1 { nominal_attached: Option<TermId> },
+                }
+                let mut merge_kind = MergeKind::Unknown;
+                for term_id in terms.iter().copied() {
                     let reader = self.reader();
-                    let term = reader.get_term(term);
+                    let term = reader.get_term(term_id);
                     match term {
+                        Term::Level2(_) => todo!(),
                         Term::Access(_) => todo!(),
                         Term::Var(_) => todo!(),
                         Term::Merge(_) => todo!(),
@@ -115,9 +121,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         Term::AppSub(_) => todo!(),
                         Term::Unresolved(_) => todo!(),
                         Term::Level3(_) => todo!(),
-                        Term::Level2(_) => todo!(),
                         Term::Level1(_) => todo!(),
                         Term::Level0(_) => todo!(),
+                        _ => return Err(TcError::InvalidElementOfMerge { term: term_id }),
                     }
                 }
 
