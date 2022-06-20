@@ -312,7 +312,6 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     )?;
                 }
 
-                // If both checks succeeded, merge is OK!
                 Ok(result)
             }
 
@@ -342,9 +341,10 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         .unify_terms(case.return_ty, general_return_validation.term_ty_id)?;
                 }
 
-                // All checks succeeded, type function is OK!
                 Ok(result)
             }
+
+            // Level 1 terms:
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
@@ -353,37 +353,52 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
                     // Ensure each parameter is runtime instantiable:
                     for param in tuple_ty.members.positional() {
-                        if !(self.term_is_runtime_instantiable(param.ty)?) {
-                            return Err(TcError::TermIsNotRuntimeInstantiable { term: param.ty });
-                        }
+                        self.ensure_term_is_runtime_instantiable(param.ty)?;
                     }
                     Ok(result)
                 }
-                Level1Term::Fn(_fn_ty) => {
+                Level1Term::Fn(fn_ty) => {
                     // Validate parameters and return type
-                    todo!()
+                    let fn_ty = fn_ty.clone();
+                    self.validate_params(&fn_ty.params)?;
+                    self.validate_term(fn_ty.return_ty)?;
+
+                    // Ensure each parameter and return type are runtime instantiable:
+                    for param in fn_ty.params.positional() {
+                        self.ensure_term_is_runtime_instantiable(param.ty)?;
+                    }
+                    self.ensure_term_is_runtime_instantiable(fn_ty.return_ty)?;
+
+                    Ok(result)
                 }
                 Level1Term::ModDef(_) | Level1Term::NominalDef(_) => {
-                    // Nothing to do
+                    // Nothing to do, should have already been validated on creation.
                     Ok(result)
                 }
             },
-            Term::Level0(_) => {
-                // Validate the inner type and ensure it is level 1
-                todo!()
-            }
-            Term::Level2(_)
-            | Term::Level3(_)
-            | Term::Access(_)
-            | Term::Var(_)
-            | Term::AppSub(_)
-            | Term::TyFnTy(_)
-            | Term::AppTyFn(_)
-            | Term::Root
-            | Term::Unresolved(_) => {
+
+            // Level 0 terms:
+            Term::Level0(_) => todo!(),
+
+            Term::Access(_) => todo!(),
+            Term::AppSub(_) => todo!(),
+            Term::TyFnTy(_) => todo!(),
+            Term::AppTyFn(_) => todo!(),
+            Term::Level2(_) | Term::Level3(_) | Term::Var(_) | Term::Root | Term::Unresolved(_) => {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
             }
+        }
+    }
+
+    /// Ensure that the given term is runtime instantiable.
+    ///
+    /// Internally uses [Self::term_is_runtime_instantiable], check its docs for info.
+    pub fn ensure_term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<()> {
+        if !(self.term_is_runtime_instantiable(term_id)?) {
+            Err(TcError::TermIsNotRuntimeInstantiable { term: term_id })
+        } else {
+            Ok(())
         }
     }
 
