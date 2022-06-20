@@ -94,32 +94,34 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::Merge(terms) => {
                 // First, validate each term:
                 let terms = terms.clone();
-                let term_validations: Vec<_> = terms
-                    .iter()
-                    .copied()
-                    .map(|term| self.validate_term(term))
-                    .collect::<TcResult<_>>()?;
-
-                // Merge all the terms:
-                let terms_ty_id = self.builder().create_merge_term(
-                    term_validations
-                        .iter()
-                        .map(|validation| validation.term_ty_id),
-                );
-                let simplified_terms_id = self.builder().create_merge_term(
-                    term_validations
-                        .iter()
-                        .map(|validation| validation.simplified_term_id),
-                );
+                for term in terms.iter().copied() {
+                    self.validate_term(term)?;
+                }
 
                 // Ensure all elements of the merge are not type functions, and are of the same
                 // level (either level 1 or level 2, if they are level 1 then there should only be
                 // one nominal definition).
+                let mut _first_term: Option<TermLevel> = None;
+                for term in terms.iter().copied() {
+                    let reader = self.reader();
+                    let term = reader.get_term(term);
+                    match term {
+                        Term::Access(_) => todo!(),
+                        Term::Var(_) => todo!(),
+                        Term::Merge(_) => todo!(),
+                        Term::TyFn(_) => todo!(),
+                        Term::TyFnTy(_) => todo!(),
+                        Term::AppTyFn(_) => todo!(),
+                        Term::AppSub(_) => todo!(),
+                        Term::Unresolved(_) => todo!(),
+                        Term::Level3(_) => todo!(),
+                        Term::Level2(_) => todo!(),
+                        Term::Level1(_) => todo!(),
+                        Term::Level0(_) => todo!(),
+                    }
+                }
 
-                Ok(TermValidation {
-                    term_ty_id: terms_ty_id,
-                    simplified_term_id: simplified_terms_id,
-                })
+                Ok(result)
             }
             Term::TyFn(_) => {
                 // Validate each member.

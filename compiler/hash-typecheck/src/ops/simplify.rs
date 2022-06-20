@@ -750,23 +750,47 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         match value {
             Term::Merge(inner) => {
                 // Simplify each element of the merge:
+
+                // Keep track of if any terms have been simplified.
+                let mut simplified_once = false;
                 let inner = inner;
-                let inner_tys = inner
+                let inner_simplified = inner
                     .iter()
-                    .map(|&ty| self.simplify_term(ty))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .copied()
+                    .map(|term_id| {
+                        // Simplify the current term:
+                        let simplified_term_id =
+                            self.simplify_term(term_id)?.map(|simplified_term_id| {
+                                simplified_once = true;
+                                simplified_term_id
+                            });
+
+                        // Check if the simplified term is a merge, and if so flatten it:
+                        let reader = self.reader();
+                        let simplified_term =
+                            reader.get_term(simplified_term_id.unwrap_or(term_id));
+                        match simplified_term {
+                            // It is a merge, flatten it (this also means the merge has been
+                            // simplified):
+                            Term::Merge(terms) => {
+                                simplified_once = true;
+                                Ok(terms.clone())
+                            }
+                            // Not a merge, just return a single-element vector:
+                            _ => Ok(vec![simplified_term_id.unwrap_or(term_id)]),
+                        }
+                    })
+                    .try_fold(vec![], |mut all_terms, nested_terms| {
+                        // Combine all the nested terms
+                        all_terms.extend(nested_terms?);
+                        Ok(all_terms)
+                    })?;
+
                 // @@Enhancement: here we can also collapse degenerate elements
 
-                if inner_tys.iter().any(|x| x.is_some()) {
+                if simplified_once {
                     // If any of them have been simplified, create a new term
-                    Ok(Some(
-                        self.builder().create_merge_term(
-                            inner_tys
-                                .iter()
-                                .zip(inner)
-                                .map(|(new, old)| new.unwrap_or(old)),
-                        ),
-                    ))
+                    Ok(Some(self.builder().create_merge_term(inner_simplified)))
                 } else {
                     // No simplification occurred
                     Ok(None)
