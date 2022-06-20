@@ -1,8 +1,13 @@
 //! Contains utilities to validate terms.
+
+
+
 use crate::{
     error::{TcError, TcResult},
     storage::{
-        primitives::{FnTy, Level1Term, ModDefId, NominalDefId, Sub, Term, TermId, TrtDefId},
+        primitives::{
+            FnTy, Level1Term, Level2Term, ModDefId, NominalDefId, Sub, Term, TermId, TrtDefId,
+        },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -43,6 +48,13 @@ pub struct TermValidation {
     pub term_ty_id: TermId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MergeKind {
+    Unknown,
+    Level2,
+    Level1 { nominal_attached: Option<TermId> },
+}
+
 impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
@@ -66,6 +78,164 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         // Ensure all members have level 1 types/level 0 default values and the default values are
         // of the given type.
         todo!()
+    }
+
+    /// Ensure the element `merge_element_term_id` of the merge with the given `merge_term_id` is
+    /// either level 2 (along with the merge being all level 2), or level 1 (along with the merge
+    /// being all level 1). Furthermore, if it is level 1, the merge should only have zero or one
+    /// nominal definition attached.
+    fn validate_merge_element(
+        &mut self,
+        merge_kind: &mut MergeKind,
+        merge_term_id: TermId,
+        merge_element_term_id: TermId,
+    ) -> TcResult<()> {
+        let reader = self.reader();
+        let merge_element_term = reader.get_term(merge_element_term_id);
+
+        // Error helper:
+        let invalid_merge_element = || -> TcResult<()> {
+            Err(TcError::InvalidElementOfMerge {
+                term: merge_element_term_id,
+            })
+        };
+
+        // Helper to ensure that a merge is level 2
+        let mut ensure_merge_is_level2 = || {
+            match merge_kind {
+                MergeKind::Unknown => {
+                    // Now we know that the merge should be level 2
+                    *merge_kind = MergeKind::Level2;
+                    Ok(())
+                }
+                MergeKind::Level2 => {
+                    // Merge is already level 2, all good:
+                    Ok(())
+                }
+                MergeKind::Level1 {
+                    nominal_attached: _,
+                } => {
+                    // Merge was already specified to be level 1, error!
+                    Err(TcError::MergeShouldBeLevel2 {
+                        merge_term: merge_term_id,
+                        offending_term: merge_element_term_id,
+                    })
+                }
+            }
+        };
+
+        // Ensure the level of the term is valid:
+        match merge_element_term {
+            Term::Access(_) => todo!(),
+            Term::Var(_) => todo!(),
+            Term::TyFn(_) => todo!(),
+            Term::TyFnTy(_) => todo!(),
+            // Type function application:
+            // This should have already been simplified, so we only accept it if its type is level
+            // 3 and the merge is level 2, which means it is a level 2 term. If its type is level
+            // 2, we cannot be sure it won't have a duplicate nominal definition so we cannot
+            // accept it.
+            Term::AppTyFn(_) => {
+                let ty_id_of_term = self.typer().ty_of_term(merge_element_term_id)?;
+                let reader = self.reader();
+                let ty_of_term = reader.get_term(ty_id_of_term);
+                match ty_of_term {
+                    Term::Level3(_) => {
+                        // If the type of the term is level 3, then we know that the merge should be level 2:
+                        ensure_merge_is_level2()
+                    }
+                    _ => {
+                        // @@ErrorReporting: we could add a more descriptive message here.
+                        invalid_merge_element()
+                    }
+                }
+            }
+            Term::AppSub(app_sub) => {
+                // Ensure the inner one is valid, substitution doesn't matter:
+                self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
+            }
+            // Unclear if this fits the requirements, so we reject it:
+            Term::Unresolved(_) => {
+                // @@ErrorReporting: we could hint to add more type annotations.
+                invalid_merge_element()
+            }
+            // Level 3 terms are not allowed:
+            Term::Level3(_) => invalid_merge_element(),
+            // Level 2 terms are allowed:
+            Term::Level2(level2_term) => match level2_term {
+                Level2Term::Trt(_) | Level2Term::AnyTy => ensure_merge_is_level2(),
+            },
+            // Level 1 terms are allowed:
+            Term::Level1(level1_term) => match level1_term {
+                // Modules:
+                Level1Term::ModDef(_) => match merge_kind {
+                    MergeKind::Unknown => {
+                        // Now we know that the merge should be level 1
+                        *merge_kind = MergeKind::Level1 {
+                            nominal_attached: None,
+                        };
+                        Ok(())
+                    }
+                    MergeKind::Level2 => {
+                        // Merge was already specified to be level 2, error!
+                        Err(TcError::MergeShouldBeLevel1 {
+                            merge_term: merge_term_id,
+                            offending_term: merge_element_term_id,
+                        })
+                    }
+                    MergeKind::Level1 {
+                        nominal_attached: _,
+                    } => {
+                        // Merge is level 1; independently of whether a nominal is
+                        // attached, this is fine.
+                        Ok(())
+                    }
+                },
+                // Nominals:
+                Level1Term::NominalDef(_) => match merge_kind {
+                    MergeKind::Unknown
+                    | MergeKind::Level1 {
+                        nominal_attached: None,
+                    } => {
+                        // Merge is either unknown, or level 1 without a nominal; we attach the nominal.
+                        *merge_kind = MergeKind::Level1 {
+                            nominal_attached: Some(merge_element_term_id),
+                        };
+                        Ok(())
+                    }
+                    MergeKind::Level2 => {
+                        // Merge was already specified to be level 2, error!
+                        Err(TcError::MergeShouldBeLevel1 {
+                            merge_term: merge_term_id,
+                            offending_term: merge_element_term_id,
+                        })
+                    }
+                    MergeKind::Level1 {
+                        nominal_attached: Some(nominal_term_id),
+                    } => {
+                        // A nominal has already been attached, error!
+                        Err(TcError::MergeShouldOnlyContainOneNominal {
+                            merge_term: merge_term_id,
+                            nominal_term: *nominal_term_id,
+                            second_nominal_term: merge_element_term_id,
+                        })
+                    }
+                },
+                // Cannot attach a tuple to a merge
+                // @@Design: can we possibly allow this?
+                Level1Term::Tuple(_) => invalid_merge_element(),
+                // Cannot attach a function type to a merge
+                Level1Term::Fn(_) => invalid_merge_element(),
+            },
+            // Level 0 elements are not allowed
+            Term::Level0(_) => invalid_merge_element(),
+            // Root is not allowed
+            Term::Root => invalid_merge_element(),
+            // This should have been flattened already:
+            Term::Merge(_) => {
+                unreachable!("Merge term should have already been flattened")
+            }
+        }
     }
 
     /// Validate the given term for correctness.
@@ -98,35 +268,18 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     self.validate_term(term)?;
                 }
 
-                // Ensure all elements of the merge are either Level 2, or all Level 1.
-                // Furthermore, if they are level 1, they should only have zero or one nominal
-                // definition attached.
-                enum MergeKind {
-                    Unknown,
-                    _Level2,
-                    _Level1 { nominal_attached: Option<TermId> },
-                }
-                let _merge_kind = MergeKind::Unknown;
-                for term_id in terms.iter().copied() {
-                    let reader = self.reader();
-                    let term = reader.get_term(term_id);
-                    match term {
-                        Term::Level2(_) => todo!(),
-                        Term::Access(_) => todo!(),
-                        Term::Var(_) => todo!(),
-                        Term::Merge(_) => todo!(),
-                        Term::TyFn(_) => todo!(),
-                        Term::TyFnTy(_) => todo!(),
-                        Term::AppTyFn(_) => todo!(),
-                        Term::AppSub(_) => todo!(),
-                        Term::Unresolved(_) => todo!(),
-                        Term::Level3(_) => todo!(),
-                        Term::Level1(_) => todo!(),
-                        Term::Level0(_) => todo!(),
-                        _ => return Err(TcError::InvalidElementOfMerge { term: term_id }),
-                    }
+                // Validate the level of each term against the merge restrictions (see
+                // [Self::validate_merge_element] docs).
+                let mut merge_kind = MergeKind::Unknown;
+                for merge_element_term_id in terms.iter().copied() {
+                    self.validate_merge_element(
+                        &mut merge_kind,
+                        simplified_term_id,
+                        merge_element_term_id,
+                    )?;
                 }
 
+                // If both checks succeeded, merge is OK!
                 Ok(result)
             }
             Term::TyFn(_) => {
