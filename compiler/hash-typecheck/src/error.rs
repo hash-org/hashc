@@ -75,6 +75,14 @@ pub enum TcError {
         nominal_term: TermId,
         second_nominal_term: TermId,
     },
+    MergeShouldBeLevel1 {
+        merge_term: TermId,
+        offending_term: TermId,
+    },
+    MergeShouldBeLevel2 {
+        merge_term: TermId,
+        offending_term: TermId,
+    },
     UnsupportedTypeFunctionApplication {
         subject_id: TermId,
     },
