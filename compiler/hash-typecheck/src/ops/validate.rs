@@ -3,8 +3,8 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            FnTy, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub, Term, TermId,
-            TrtDefId,
+            FnTy, Level0Term, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub, Term,
+            TermId, TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -378,7 +378,24 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             },
 
             // Level 0 terms:
-            Term::Level0(_) => todo!(),
+            Term::Level0(level0_term) => match level0_term {
+                Level0Term::Rt(rt_inner_term) => {
+                    // Validate the inner term, and ensure it is runtime instantiable:
+                    let rt_inner_term = *rt_inner_term;
+                    self.validate_term(rt_inner_term)?;
+                    self.ensure_term_is_runtime_instantiable(rt_inner_term)?;
+                    Ok(result)
+                }
+                Level0Term::FnLit(_) => {
+                    // Validate constituents, and ensure that the function's return type unifies
+                    // with the type of the return value:
+                    todo!()
+                }
+                Level0Term::EnumVariant(_) => {
+                    // Ensure the variant exists
+                    todo!()
+                }
+            },
 
             Term::Access(_) => todo!(),
             Term::AppSub(_) => todo!(),
