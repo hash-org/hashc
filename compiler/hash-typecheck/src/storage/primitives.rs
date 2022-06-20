@@ -738,6 +738,10 @@ pub enum Term {
 
     /// A level 0 term.
     Level0(Level0Term),
+
+    /// The only level 4 term, which is the "endpoint" of the typing hierarchy. This is the type of
+    /// "TraitKind" and "TyFnTy".
+    Root,
 }
 
 // IDs for all the primitives to be stored on mapped storage.

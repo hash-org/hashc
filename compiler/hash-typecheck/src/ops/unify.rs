@@ -427,6 +427,10 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     _ => cannot_unify(),
                 }
             }
+
+            // Root unifies with root and nothing else:
+            (Term::Root, Term::Root) => Ok(Sub::empty()),
+            (_, Term::Root) | (Term::Root, _) => cannot_unify(),
         }
     }
 }

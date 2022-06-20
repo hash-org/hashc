@@ -188,6 +188,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             // Leaves:
             Term::Var(var) => self.apply_sub_to_subject(sub, var.into()),
             Term::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
+            Term::Root => term_id,
 
             // Recursive cases:
             Term::Access(access) => {
@@ -495,6 +496,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::Level0(term) => {
                 self.add_free_vars_in_level0_term_to_set(term, result);
             }
+            // No vars:
+            Term::Root => {}
         }
     }
 
