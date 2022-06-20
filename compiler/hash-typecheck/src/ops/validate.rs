@@ -1,10 +1,10 @@
 //! Contains utilities to validate terms.
-
 use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            FnTy, Level1Term, Level2Term, ModDefId, NominalDefId, Sub, Term, TermId, TrtDefId,
+            FnTy, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub, Term, TermId,
+            TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -238,6 +238,17 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
+    /// Validate the given parameters, by validating their types and values.
+    pub fn validate_params(&mut self, params: &Params) -> TcResult<()> {
+        for param in params.positional() {
+            self.validate_term(param.ty)?;
+            if let Some(default_value) = param.default_value {
+                self.validate_term(default_value)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Validate the given term for correctness.
     ///
     /// Returns the simplified term, along with its type, which are computed during the validation.
@@ -261,6 +272,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         // @@PotentiallyIncomplete: there might are a few more checks we need to perform here, but
         // this is not yet evident.
         match term {
+            // Merge:
             Term::Merge(terms) => {
                 // First, validate each term:
                 let terms = terms.clone();
@@ -282,10 +294,35 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // If both checks succeeded, merge is OK!
                 Ok(result)
             }
-            Term::TyFn(_) => {
-                // Validate each member.
-                // Ensure the return value of each case is a subtype of the general return type.
-                todo!()
+
+            // Type function:
+            Term::TyFn(ty_fn) => {
+                // Validate params and return type.
+                let ty_fn = ty_fn.clone();
+                self.validate_params(&ty_fn.general_params)?;
+                let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
+
+                // Validate each case:
+                for case in &ty_fn.cases {
+                    self.validate_params(&case.params)?;
+                    self.validate_term(case.return_ty)?;
+                    self.validate_term(case.return_value)?;
+
+                    // Ensure that the return type can be unified with the type of the return value:
+                    // @@Safety: should be already simplified from above the match.
+                    let return_value_ty = self.typer().ty_of_simplified_term(term_id)?;
+                    let _ = self
+                        .unifier()
+                        .unify_terms(case.return_ty, return_value_ty)?;
+
+                    // Ensure the return value of each case is a subtype of the general return type.
+                    let _ = self
+                        .unifier()
+                        .unify_terms(case.return_ty, general_return_validation.term_ty_id)?;
+                }
+
+                // All checks succeeded, type function is OK!
+                Ok(result)
             }
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(_) => {
