@@ -103,10 +103,10 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // definition attached.
                 enum MergeKind {
                     Unknown,
-                    Level2,
-                    Level1 { nominal_attached: Option<TermId> },
+                    _Level2,
+                    _Level1 { nominal_attached: Option<TermId> },
                 }
-                let mut merge_kind = MergeKind::Unknown;
+                let _merge_kind = MergeKind::Unknown;
                 for term_id in terms.iter().copied() {
                     let reader = self.reader();
                     let term = reader.get_term(term_id);
