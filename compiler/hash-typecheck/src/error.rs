@@ -67,6 +67,14 @@ pub enum TcError {
         args: Args,
         unification_errors: Vec<TcError>,
     },
+    InvalidElementOfMerge {
+        term: TermId,
+    },
+    MergeShouldOnlyContainOneNominal {
+        merge_term: TermId,
+        nominal_term: TermId,
+        second_nominal_term: TermId,
+    },
     UnsupportedTypeFunctionApplication {
         subject_id: TermId,
     },
