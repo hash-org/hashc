@@ -83,6 +83,9 @@ pub enum TcError {
         merge_term: TermId,
         offending_term: TermId,
     },
+    TermIsNotRuntimeInstantiable {
+        term: TermId,
+    },
     UnsupportedTypeFunctionApplication {
         subject_id: TermId,
     },
