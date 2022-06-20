@@ -286,6 +286,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
+    /// Create a [Term::Root].
+    pub fn create_root_term(&self) -> TermId {
+        self.create_term(Term::Root)
+    }
+
     /// Create a term [Level3Term::TrtKind].
     pub fn create_trt_kind_term(&self) -> TermId {
         self.create_term(Term::Level3(Level3Term::TrtKind))

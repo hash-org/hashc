@@ -492,6 +492,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // @@Todo: infer type vars:
             Term::TyFn(_) => does_not_support_access(access_term),
             Term::TyFnTy(_) => does_not_support_access(access_term),
+            Term::Root => does_not_support_access(access_term),
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
@@ -506,6 +507,13 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(apply_ty_fn.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+
+        // Helper for errors:
+        let cannot_apply = || -> TcResult<Option<TermId>> {
+            Err(TcError::UnsupportedTypeFunctionApplication {
+                subject_id: simplified_subject_id,
+            })
+        };
         match simplified_subject {
             Term::TyFn(ty_fn) => {
                 // Keep track of encountered errors so that if no cases match, we can return all of
@@ -556,35 +564,29 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::AppSub(_) => {
                 // We should never have this happen, because any type functions should have been
                 // simplified already:
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
                 // @@Enhancement: here we can unify the unresolved term with a type function term ?
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Merge(_) => {
                 // Cannot apply a merge:
                 // @@Enhancement: this could be allowed in the future.
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
+            }
+            Term::Root => {
+                // Cannot apply root:
+                cannot_apply()
             }
             Term::TyFnTy(_) => {
                 // Cannot apply a type function type:
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Level3(_) | Term::Level2(_) | Term::Level1(_) | Term::Level0(_) => {
                 // Cannot apply a definite-level term:
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
                 // We cannot perform any more simplification:
@@ -899,6 +901,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Level2(term) => self.simplify_level2_term(&term),
             Term::Level1(term) => self.simplify_level1_term(&term),
             Term::Level0(term) => self.simplify_level0_term(&term),
+            // Root cannot be simplified:
+            Term::Root => Ok(None),
         }
     }
 }

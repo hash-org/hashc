@@ -159,6 +159,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             | Term::AppSub(_)
             | Term::TyFnTy(_)
             | Term::AppTyFn(_)
+            | Term::Root
             | Term::Unresolved(_) => {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
@@ -190,6 +191,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::Level2(_) => todo!(),
             Term::Level1(_) => todo!(),
             Term::Level0(_) => todo!(),
+            Term::Root => todo!(),
         }
     }
 

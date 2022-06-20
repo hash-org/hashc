@@ -217,6 +217,7 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::Var(var) => {
+                is_atomic.set(true);
                 write!(f, "{}", var.name)
             }
             Term::Merge(terms) => {
@@ -264,6 +265,7 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::AppTyFn(app_ty_fn) => {
+                is_atomic.set(true);
                 self.fmt_term_as_single(f, app_ty_fn.subject)?;
                 write!(f, "<")?;
                 self.fmt_args(f, &app_ty_fn.args)?;
@@ -272,6 +274,7 @@ impl<'gs> TcFormatter<'gs> {
             }
             Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, unresolved_term),
             Term::AppSub(app_sub) => {
+                is_atomic.set(true);
                 write!(f, "[")?;
                 let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
                 for (i, (from, to)) in pairs.iter().enumerate() {
@@ -294,6 +297,10 @@ impl<'gs> TcFormatter<'gs> {
             Term::Level2(term) => self.fmt_level2_term(f, term, is_atomic),
             Term::Level1(term) => self.fmt_level1_term(f, term, is_atomic),
             Term::Level0(term) => self.fmt_level0_term(f, term, is_atomic),
+            Term::Root => {
+                is_atomic.set(true);
+                write!(f, "Root")
+            }
         }
     }
 
