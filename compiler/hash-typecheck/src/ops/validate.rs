@@ -100,17 +100,16 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             })
         };
 
-        // Helper to ensure that a merge is level 2
-        let mut ensure_merge_is_level2 = || {
-            match merge_kind {
+        // Helper to ensure that a merge is level 2, returns the updated MergeKind.
+        let ensure_merge_is_level2 = || -> TcResult<MergeKind> {
+            match *merge_kind {
                 MergeKind::Unknown => {
                     // Now we know that the merge should be level 2
-                    *merge_kind = MergeKind::Level2;
-                    Ok(())
+                    Ok(MergeKind::Level2)
                 }
                 MergeKind::Level2 => {
                     // Merge is already level 2, all good:
-                    Ok(())
+                    Ok(*merge_kind)
                 }
                 MergeKind::Level1 {
                     nominal_attached: _,
@@ -119,6 +118,60 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     Err(TcError::MergeShouldBeLevel2 {
                         merge_term: merge_term_id,
                         offending_term: merge_element_term_id,
+                    })
+                }
+            }
+        };
+
+        // Helper to ensure that a merge is level 1, returns the updated MergeKind.
+        let ensure_merge_is_level1 = |checking_nominal: Option<TermId>| -> TcResult<MergeKind> {
+            match (*merge_kind, checking_nominal) {
+                (MergeKind::Unknown, _) => {
+                    // Now we know that the merge should be level 1
+                    Ok(MergeKind::Level1 {
+                        nominal_attached: checking_nominal,
+                    })
+                }
+                (MergeKind::Level2, _) => {
+                    // Merge was already specified to be level 2, error!
+                    Err(TcError::MergeShouldBeLevel1 {
+                        merge_term: merge_term_id,
+                        offending_term: merge_element_term_id,
+                    })
+                }
+                (
+                    MergeKind::Level1 {
+                        nominal_attached: _,
+                    },
+                    None,
+                ) => {
+                    // Merge is level 1; independently of whether a nominal is
+                    // attached, this is fine because we are not checking a nominal.
+                    Ok(*merge_kind)
+                }
+                (
+                    MergeKind::Level1 {
+                        nominal_attached: None,
+                    },
+                    Some(checking_nominal),
+                ) => {
+                    // Merge is level 1 without a nominal and we are checking a nominal; we attach
+                    // the nominal.
+                    Ok(MergeKind::Level1 {
+                        nominal_attached: Some(checking_nominal),
+                    })
+                }
+                (
+                    MergeKind::Level1 {
+                        nominal_attached: Some(nominal_term_id),
+                    },
+                    Some(checking_nominal),
+                ) => {
+                    // A nominal has already been attached, error!
+                    Err(TcError::MergeShouldOnlyContainOneNominal {
+                        merge_term: merge_term_id,
+                        nominal_term: nominal_term_id,
+                        second_nominal_term: checking_nominal,
                     })
                 }
             }
@@ -142,7 +195,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 match ty_of_term {
                     Term::Level3(_) => {
                         // If the type of the term is level 3, then we know that the merge should be level 2:
-                        ensure_merge_is_level2()
+                        *merge_kind = ensure_merge_is_level2()?;
+                        Ok(())
                     }
                     _ => {
                         // @@ErrorReporting: we could add a more descriptive message here.
@@ -163,64 +217,25 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
             Term::Level2(level2_term) => match level2_term {
-                Level2Term::Trt(_) | Level2Term::AnyTy => ensure_merge_is_level2(),
+                Level2Term::Trt(_) | Level2Term::AnyTy => {
+                    *merge_kind = ensure_merge_is_level2()?;
+                    Ok(())
+                }
             },
             // Level 1 terms are allowed:
             Term::Level1(level1_term) => match level1_term {
                 // Modules:
-                Level1Term::ModDef(_) => match merge_kind {
-                    MergeKind::Unknown => {
-                        // Now we know that the merge should be level 1
-                        *merge_kind = MergeKind::Level1 {
-                            nominal_attached: None,
-                        };
-                        Ok(())
-                    }
-                    MergeKind::Level2 => {
-                        // Merge was already specified to be level 2, error!
-                        Err(TcError::MergeShouldBeLevel1 {
-                            merge_term: merge_term_id,
-                            offending_term: merge_element_term_id,
-                        })
-                    }
-                    MergeKind::Level1 {
-                        nominal_attached: _,
-                    } => {
-                        // Merge is level 1; independently of whether a nominal is
-                        // attached, this is fine.
-                        Ok(())
-                    }
-                },
+                Level1Term::ModDef(_) => {
+                    // Not checking a nominal:
+                    *merge_kind = ensure_merge_is_level1(None)?;
+                    Ok(())
+                }
                 // Nominals:
-                Level1Term::NominalDef(_) => match merge_kind {
-                    MergeKind::Unknown
-                    | MergeKind::Level1 {
-                        nominal_attached: None,
-                    } => {
-                        // Merge is either unknown, or level 1 without a nominal; we attach the nominal.
-                        *merge_kind = MergeKind::Level1 {
-                            nominal_attached: Some(merge_element_term_id),
-                        };
-                        Ok(())
-                    }
-                    MergeKind::Level2 => {
-                        // Merge was already specified to be level 2, error!
-                        Err(TcError::MergeShouldBeLevel1 {
-                            merge_term: merge_term_id,
-                            offending_term: merge_element_term_id,
-                        })
-                    }
-                    MergeKind::Level1 {
-                        nominal_attached: Some(nominal_term_id),
-                    } => {
-                        // A nominal has already been attached, error!
-                        Err(TcError::MergeShouldOnlyContainOneNominal {
-                            merge_term: merge_term_id,
-                            nominal_term: *nominal_term_id,
-                            second_nominal_term: merge_element_term_id,
-                        })
-                    }
-                },
+                Level1Term::NominalDef(_) => {
+                    // Checking a nominal:
+                    *merge_kind = ensure_merge_is_level1(Some(merge_element_term_id))?;
+                    Ok(())
+                }
                 // Cannot attach a tuple to a merge
                 // @@Design: can we possibly allow this?
                 Level1Term::Tuple(_) => invalid_merge_element(),
@@ -239,11 +254,17 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     }
 
     /// Validate the given parameters, by validating their types and values.
+    ///
+    /// **Note**: Requires that the parameters have already been simplified.
     pub fn validate_params(&mut self, params: &Params) -> TcResult<()> {
         for param in params.positional() {
             self.validate_term(param.ty)?;
             if let Some(default_value) = param.default_value {
                 self.validate_term(default_value)?;
+
+                // Ensure the default value's type can be unified with the given type of the parameter:
+                let ty_of_default_value = self.typer().ty_of_simplified_term(default_value)?;
+                let _ = self.unifier().unify_terms(ty_of_default_value, param.ty)?;
             }
         }
         Ok(())
@@ -325,11 +346,20 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 Ok(result)
             }
             Term::Level1(level1_term) => match level1_term {
-                Level1Term::Tuple(_) => {
+                Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
-                    todo!()
+                    let tuple_ty = tuple_ty.clone();
+                    self.validate_params(&tuple_ty.members)?;
+
+                    // Ensure each parameter is runtime instantiable:
+                    for param in tuple_ty.members.positional() {
+                        if !(self.term_is_runtime_instantiable(param.ty)?) {
+                            return Err(TcError::TermIsNotRuntimeInstantiable { term: param.ty });
+                        }
+                    }
+                    Ok(result)
                 }
-                Level1Term::Fn(_) => {
+                Level1Term::Fn(_fn_ty) => {
                     // Validate parameters and return type
                     todo!()
                 }
@@ -355,6 +385,15 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 Ok(result)
             }
         }
+    }
+
+    /// Determine whether the given term is runtime instantiable, i.e. a level 1 term that can be
+    /// wrapped in an Rt(..).
+    ///
+    /// This is the condition for the term to be able to be used within tuple types, function
+    /// types, structs and enums.
+    pub fn term_is_runtime_instantiable(&mut self, _term_id: TermId) -> TcResult<bool> {
+        todo!()
     }
 
     /// Determine whether the given term is constant, i.e. has no side effects.
