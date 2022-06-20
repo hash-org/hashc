@@ -697,7 +697,7 @@ pub enum Term {
 
     /// Merge of multiple terms.
     ///
-    /// Inner types must have the same level.
+    /// Inner types must have the same level. Merging is also idempotent, associative, and commutative.
     ///
     /// Is level N, where N is the level of the inner types.
     Merge(Vec<TermId>),

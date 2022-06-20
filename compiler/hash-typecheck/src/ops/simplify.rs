@@ -514,6 +514,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let mut results = vec![];
 
                 // First, ensure they unify with general params:
+                //
+                // @@Correctness: do we need to apply this sub anywhere?
                 let _ = self
                     .unifier()
                     .unify_params_with_args(&ty_fn.general_params, &apply_ty_fn.args)?;

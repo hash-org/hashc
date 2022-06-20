@@ -50,16 +50,21 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Validate the module definition of the given [ModDefId]
     pub fn validate_mod_def(&mut self, _mod_def_id: ModDefId) -> TcResult<()> {
+        // Ensure if it is a trait impl it implements all the trait members.
         todo!()
     }
 
     /// Validate the trait definition of the given [TrtDefId]
     pub fn validate_trt_def(&mut self, _trt_def_id: TrtDefId) -> TcResult<()> {
+        // Ensure Self exists?
+        // @@Design: do we allow traits without self?
         todo!()
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
     pub fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
+        // Ensure all members have level 1 types/level 0 default values and the default values are
+        // of the given type.
         todo!()
     }
 
@@ -85,13 +90,36 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         let term = reader.get_term(simplified_term_id);
         // @@PotentiallyIncomplete: there might are a few more checks we need to perform here, but
         // this is not yet evident.
-        //
-        // @@Todo: actually implement these checks:
         match term {
-            Term::Merge(_) => {
-                // Validate each inner term.
-                // Ensure all elements of the merge are not type functions, and are of the same level.
-                todo!()
+            Term::Merge(terms) => {
+                // First, validate each term:
+                let terms = terms.clone();
+                let term_validations: Vec<_> = terms
+                    .iter()
+                    .copied()
+                    .map(|term| self.validate_term(term))
+                    .collect::<TcResult<_>>()?;
+
+                // Merge all the terms:
+                let terms_ty_id = self.builder().create_merge_term(
+                    term_validations
+                        .iter()
+                        .map(|validation| validation.term_ty_id),
+                );
+                let simplified_terms_id = self.builder().create_merge_term(
+                    term_validations
+                        .iter()
+                        .map(|validation| validation.simplified_term_id),
+                );
+
+                // Ensure all elements of the merge are not type functions, and are of the same
+                // level (either level 1 or level 2, if they are level 1 then there should only be
+                // one nominal definition).
+
+                Ok(TermValidation {
+                    term_ty_id: terms_ty_id,
+                    simplified_term_id: simplified_terms_id,
+                })
             }
             Term::TyFn(_) => {
                 // Validate each member.
