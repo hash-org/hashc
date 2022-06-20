@@ -697,7 +697,7 @@ pub enum Term {
 
     /// Merge of multiple terms.
     ///
-    /// Inner types must have the same level.
+    /// Inner types must have the same level. Merging is also idempotent, associative, and commutative.
     ///
     /// Is level N, where N is the level of the inner types.
     Merge(Vec<TermId>),
@@ -738,6 +738,10 @@ pub enum Term {
 
     /// A level 0 term.
     Level0(Level0Term),
+
+    /// The only level 4 term, which is the "endpoint" of the typing hierarchy. This is the type of
+    /// "TraitKind" and "TyFnTy".
+    Root,
 }
 
 // IDs for all the primitives to be stored on mapped storage.

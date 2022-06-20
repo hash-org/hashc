@@ -1,6 +1,6 @@
 //! Contains utilities to validate terms.
 use crate::{
-    error::TcResult,
+    error::{TcError, TcResult},
     storage::{
         primitives::{FnTy, Level1Term, ModDefId, NominalDefId, Sub, Term, TermId, TrtDefId},
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -50,16 +50,21 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Validate the module definition of the given [ModDefId]
     pub fn validate_mod_def(&mut self, _mod_def_id: ModDefId) -> TcResult<()> {
+        // Ensure if it is a trait impl it implements all the trait members.
         todo!()
     }
 
     /// Validate the trait definition of the given [TrtDefId]
     pub fn validate_trt_def(&mut self, _trt_def_id: TrtDefId) -> TcResult<()> {
+        // Ensure Self exists?
+        // @@Design: do we allow traits without self?
         todo!()
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
     pub fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
+        // Ensure all members have level 1 types/level 0 default values and the default values are
+        // of the given type.
         todo!()
     }
 
@@ -85,13 +90,44 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         let term = reader.get_term(simplified_term_id);
         // @@PotentiallyIncomplete: there might are a few more checks we need to perform here, but
         // this is not yet evident.
-        //
-        // @@Todo: actually implement these checks:
         match term {
-            Term::Merge(_) => {
-                // Validate each inner term.
-                // Ensure all elements of the merge are not type functions, and are of the same level.
-                todo!()
+            Term::Merge(terms) => {
+                // First, validate each term:
+                let terms = terms.clone();
+                for term in terms.iter().copied() {
+                    self.validate_term(term)?;
+                }
+
+                // Ensure all elements of the merge are either Level 2, or all Level 1.
+                // Furthermore, if they are level 1, they should only have zero or one nominal
+                // definition attached.
+                enum MergeKind {
+                    Unknown,
+                    _Level2,
+                    _Level1 { nominal_attached: Option<TermId> },
+                }
+                let _merge_kind = MergeKind::Unknown;
+                for term_id in terms.iter().copied() {
+                    let reader = self.reader();
+                    let term = reader.get_term(term_id);
+                    match term {
+                        Term::Level2(_) => todo!(),
+                        Term::Access(_) => todo!(),
+                        Term::Var(_) => todo!(),
+                        Term::Merge(_) => todo!(),
+                        Term::TyFn(_) => todo!(),
+                        Term::TyFnTy(_) => todo!(),
+                        Term::AppTyFn(_) => todo!(),
+                        Term::AppSub(_) => todo!(),
+                        Term::Unresolved(_) => todo!(),
+                        Term::Level3(_) => todo!(),
+                        Term::Level1(_) => todo!(),
+                        Term::Level0(_) => todo!(),
+                        _ => return Err(TcError::InvalidElementOfMerge { term: term_id }),
+                    }
+                }
+
+                Ok(result)
             }
             Term::TyFn(_) => {
                 // Validate each member.
@@ -123,6 +159,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             | Term::AppSub(_)
             | Term::TyFnTy(_)
             | Term::AppTyFn(_)
+            | Term::Root
             | Term::Unresolved(_) => {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
@@ -154,6 +191,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::Level2(_) => todo!(),
             Term::Level1(_) => todo!(),
             Term::Level0(_) => todo!(),
+            Term::Root => todo!(),
         }
     }
 

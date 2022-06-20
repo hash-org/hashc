@@ -89,9 +89,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                 }
             }
             Term::TyFnTy(_) => {
-                // The type of a type function is just TraitKind.
-                // @@Correctness: is this always consistent?
-                Ok(self.builder().create_trt_kind_term())
+                // The type of a type function type is Root
+                Ok(self.builder().create_root_term())
             }
             Term::Var(var) => {
                 // The type of a variable can be found by looking at the scopes to its declaration:
@@ -125,8 +124,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             }
             Term::Level3(level3_term) => match level3_term {
                 Level3Term::TrtKind => {
-                    // The type of TraitKind, is once again TraitKind
-                    Ok(self.builder().create_trt_kind_term())
+                    // The type of TraitKind, is Root
+                    Ok(self.builder().create_root_term())
                 }
             },
             Term::Level2(level2_term) => match level2_term {
@@ -172,6 +171,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                     }
                 }
             }
+            // The type of root is root
+            Term::Root => Ok(self.builder().create_root_term()),
         }
     }
 }

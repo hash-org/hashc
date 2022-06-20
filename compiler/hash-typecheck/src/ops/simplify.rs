@@ -492,6 +492,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // @@Todo: infer type vars:
             Term::TyFn(_) => does_not_support_access(access_term),
             Term::TyFnTy(_) => does_not_support_access(access_term),
+            Term::Root => does_not_support_access(access_term),
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
@@ -506,6 +507,13 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(apply_ty_fn.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+
+        // Helper for errors:
+        let cannot_apply = || -> TcResult<Option<TermId>> {
+            Err(TcError::UnsupportedTypeFunctionApplication {
+                subject_id: simplified_subject_id,
+            })
+        };
         match simplified_subject {
             Term::TyFn(ty_fn) => {
                 // Keep track of encountered errors so that if no cases match, we can return all of
@@ -514,6 +522,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let mut results = vec![];
 
                 // First, ensure they unify with general params:
+                //
+                // @@Correctness: do we need to apply this sub anywhere?
                 let _ = self
                     .unifier()
                     .unify_params_with_args(&ty_fn.general_params, &apply_ty_fn.args)?;
@@ -554,35 +564,29 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::AppSub(_) => {
                 // We should never have this happen, because any type functions should have been
                 // simplified already:
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
                 // @@Enhancement: here we can unify the unresolved term with a type function term ?
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Merge(_) => {
                 // Cannot apply a merge:
                 // @@Enhancement: this could be allowed in the future.
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
+            }
+            Term::Root => {
+                // Cannot apply root:
+                cannot_apply()
             }
             Term::TyFnTy(_) => {
                 // Cannot apply a type function type:
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Level3(_) | Term::Level2(_) | Term::Level1(_) | Term::Level0(_) => {
                 // Cannot apply a definite-level term:
-                Err(TcError::UnsupportedTypeFunctionApplication {
-                    subject_id: simplified_subject_id,
-                })
+                cannot_apply()
             }
             Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
                 // We cannot perform any more simplification:
@@ -748,23 +752,47 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         match value {
             Term::Merge(inner) => {
                 // Simplify each element of the merge:
+
+                // Keep track of if any terms have been simplified.
+                let mut simplified_once = false;
                 let inner = inner;
-                let inner_tys = inner
+                let inner_simplified = inner
                     .iter()
-                    .map(|&ty| self.simplify_term(ty))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .copied()
+                    .map(|term_id| {
+                        // Simplify the current term:
+                        let simplified_term_id =
+                            self.simplify_term(term_id)?.map(|simplified_term_id| {
+                                simplified_once = true;
+                                simplified_term_id
+                            });
+
+                        // Check if the simplified term is a merge, and if so flatten it:
+                        let reader = self.reader();
+                        let simplified_term =
+                            reader.get_term(simplified_term_id.unwrap_or(term_id));
+                        match simplified_term {
+                            // It is a merge, flatten it (this also means the merge has been
+                            // simplified):
+                            Term::Merge(terms) => {
+                                simplified_once = true;
+                                Ok(terms.clone())
+                            }
+                            // Not a merge, just return a single-element vector:
+                            _ => Ok(vec![simplified_term_id.unwrap_or(term_id)]),
+                        }
+                    })
+                    .try_fold(vec![], |mut all_terms, nested_terms| {
+                        // Combine all the nested terms
+                        all_terms.extend(nested_terms?);
+                        Ok(all_terms)
+                    })?;
+
                 // @@Enhancement: here we can also collapse degenerate elements
 
-                if inner_tys.iter().any(|x| x.is_some()) {
+                if simplified_once {
                     // If any of them have been simplified, create a new term
-                    Ok(Some(
-                        self.builder().create_merge_term(
-                            inner_tys
-                                .iter()
-                                .zip(inner)
-                                .map(|(new, old)| new.unwrap_or(old)),
-                        ),
-                    ))
+                    Ok(Some(self.builder().create_merge_term(inner_simplified)))
                 } else {
                     // No simplification occurred
                     Ok(None)
@@ -873,6 +901,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Level2(term) => self.simplify_level2_term(&term),
             Term::Level1(term) => self.simplify_level1_term(&term),
             Term::Level0(term) => self.simplify_level0_term(&term),
+            // Root cannot be simplified:
+            Term::Root => Ok(None),
         }
     }
 }
