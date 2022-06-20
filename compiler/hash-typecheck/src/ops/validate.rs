@@ -1,7 +1,5 @@
 //! Contains utilities to validate terms.
 
-
-
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -48,6 +46,8 @@ pub struct TermValidation {
     pub term_ty_id: TermId,
 }
 
+/// Helper type for [Validator::validate_merge_element], to keep track of the kind of the merge
+/// (whether it is level 2, level 1, or not known yet).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MergeKind {
     Unknown,
