@@ -7,7 +7,7 @@ use hash_pipeline::{
     sources::{Module, Sources},
     traits::Parser,
 };
-use hash_reporting::reporting::{Report, ReportWriter};
+use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::SourceId;
 use hash_utils::testing::TestingInput;
 use hash_utils_testing_macros::generate_tests;

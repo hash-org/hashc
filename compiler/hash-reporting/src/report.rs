@@ -13,13 +13,13 @@ use crate::{
     writer::{offset_col_row, ReportCodeBlockInfo, ERROR_MARKING_CHAR},
 };
 
-/// Enumeration describing the kind of [Report]; either being a warning, info or a
+/// Enumeration describing the kind of [Report]; either being a warning, info or an
 /// error.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ReportKind {
     /// The report is an error.
     Error,
-    /// The report is an informational diagnostic(likely for internal purposes).
+    /// The report is an informational diagnostic (likely for internal purposes).
     Info,
     /// The report is a warning.
     Warning,
@@ -134,9 +134,9 @@ impl ReportCodeBlock {
 
                 let location = self.source_location.span;
 
-                let (start_col, start_row) = offset_col_row(location.start(), source);
-                let (end_col, end_row) = offset_col_row(location.end(), source);
-                let (_, last_row) = offset_col_row(source.len(), source);
+                let (start_col, start_row) = offset_col_row(location.start(), source, true);
+                let (end_col, end_row) = offset_col_row(location.end(), source, false);
+                let (_, last_row) = offset_col_row(source.len(), source, false);
 
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
                 let indent_width = (start_row.saturating_sub(top_buf) + 1)
