@@ -1,28 +1,34 @@
-//! Hash Compiler error and warning reporting module.
-use crate::highlight::{highlight, Colour, Modifier};
-use core::fmt;
-use hash_error_codes::error_codes::HashErrorCode;
-use hash_source::{location::SourceLocation, SourceMap};
-use hash_utils::path::adjust_canonicalization;
 use std::{
     cell::Cell,
+    fmt,
     iter::{once, repeat},
 };
 
-const ERROR_MARKING_CHAR: &str = "^";
+use hash_error_codes::error_codes::HashErrorCode;
+use hash_source::{location::SourceLocation, SourceMap};
+use hash_utils::path::adjust_canonicalization;
 
-/// Enumeration describing the type of report; either being a warning, info or a
+use crate::{
+    highlight::{highlight, Colour, Modifier},
+    writer::{offset_col_row, ReportCodeBlockInfo, ERROR_MARKING_CHAR},
+};
+
+/// Enumeration describing the kind of [Report]; either being a warning, info or an
 /// error.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ReportKind {
+    /// The report is an error.
     Error,
+    /// The report is an informational diagnostic (likely for internal purposes).
     Info,
+    /// The report is a warning.
     Warning,
+    // @@TODO: Add `Internal` variant: This is an internal compiler error.
 }
 
 impl ReportKind {
     /// Get the [Colour] of the label associated with the [ReportKind].
-    fn as_colour(&self) -> Colour {
+    pub(crate) fn as_colour(&self) -> Colour {
         match self {
             ReportKind::Error => Colour::Red,
             ReportKind::Info => Colour::Blue,
@@ -31,7 +37,7 @@ impl ReportKind {
     }
 
     /// Get the string label associated with the [ReportKind].
-    fn message(&self) -> &'static str {
+    pub(crate) fn message(&self) -> &'static str {
         match self {
             ReportKind::Error => "error",
             ReportKind::Info => "info",
@@ -49,9 +55,14 @@ impl fmt::Display for ReportKind {
         )
     }
 }
+
+/// The kind of [ReportNote], this is primarily used for rendering the label of the
+/// [ReportNote].
 #[derive(Debug, Clone)]
 pub enum ReportNoteKind {
+    /// A help message or a suggestion.
     Help,
+    /// Additional information about the diagnostic.
     Note,
 }
 
@@ -100,54 +111,7 @@ impl ReportNote {
 pub struct ReportCodeBlock {
     pub source_location: SourceLocation,
     pub code_message: String,
-    info: Cell<Option<ReportCodeBlockInfo>>,
-}
-
-/// A data type representing a comment/message on a specific span in a code block.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ReportCodeBlockInfo {
-    /// How many characters should be used for line numbers on the side.
-    pub indent_width: usize,
-    /// The beginning column of the code block.
-    pub start_col: usize,
-    /// The beginning row of the code block.
-    pub start_row: usize,
-    /// The end column of the code block.
-    pub end_col: usize,
-    /// The end row of the code block.
-    pub end_row: usize,
-}
-
-/// Function to compute a row and column number from a given source string
-/// and an offset within the source. This will take into account the number
-/// of encountered newlines and characters per line in order to compute
-/// precise row and column numbers of the span.
-fn offset_col_row(offset: usize, source: &str) -> (usize, usize) {
-    let source_lines = source.split('\n');
-
-    let mut bytes_skipped = 0;
-    let mut total_lines: usize = 0;
-    let mut last_line_len = 0;
-
-    let mut line_index = None;
-    for (line_idx, line) in source_lines.enumerate() {
-        // One byte for the newline
-        let skip_width = line.len() + 1;
-
-        if (bytes_skipped..=bytes_skipped + skip_width).contains(&offset) {
-            line_index = Some((offset - bytes_skipped, line_idx));
-            break;
-        }
-
-        bytes_skipped += skip_width;
-        total_lines += 1;
-        last_line_len = line.len();
-    }
-
-    line_index.unwrap_or((
-        last_line_len.saturating_sub(1),
-        total_lines.saturating_sub(1),
-    ))
+    pub(crate) info: Cell<Option<ReportCodeBlockInfo>>,
 }
 
 impl ReportCodeBlock {
@@ -161,7 +125,7 @@ impl ReportCodeBlock {
     }
 
     // Get the indent widths of this code block as (outer, inner).
-    fn info<T: SourceMap>(&self, modules: &T) -> ReportCodeBlockInfo {
+    pub(crate) fn info<T: SourceMap>(&self, modules: &T) -> ReportCodeBlockInfo {
         match self.info.get() {
             Some(info) => info,
             None => {
@@ -170,9 +134,9 @@ impl ReportCodeBlock {
 
                 let location = self.source_location.span;
 
-                let (start_col, start_row) = offset_col_row(location.start(), source);
-                let (end_col, end_row) = offset_col_row(location.end(), source);
-                let (_, last_row) = offset_col_row(source.len(), source);
+                let (start_col, start_row) = offset_col_row(location.start(), source, true);
+                let (end_col, end_row) = offset_col_row(location.end(), source, false);
+                let (_, last_row) = offset_col_row(source.len(), source, false);
 
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
                 let indent_width = (start_row.saturating_sub(top_buf) + 1)
@@ -252,10 +216,11 @@ impl ReportCodeBlock {
                 index + 1,
                 pad_width = longest_indent_width
             );
+
             writeln!(
                 f,
                 "{} {}   {}",
-                if (start_row..=end_row).contains(&index) {
+                if (start_row..=end_row).contains(&index) && !line.is_empty() {
                     highlight(report_kind.as_colour(), &index_str)
                 } else {
                     index_str
@@ -318,7 +283,7 @@ pub enum ReportElement {
 }
 
 impl ReportElement {
-    fn render<T: SourceMap>(
+    pub(crate) fn render<T: SourceMap>(
         &self,
         f: &mut fmt::Formatter,
         modules: &T,
@@ -358,184 +323,5 @@ impl Report {
     /// Check if the report denotes an occurred warning.
     pub fn is_warning(&self) -> bool {
         self.kind == ReportKind::Warning
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct ReportBuilder {
-    kind: Option<ReportKind>,
-    message: Option<String>,
-    error_code: Option<HashErrorCode>,
-    contents: Vec<ReportElement>,
-}
-
-/// A [Report] builder trait.
-impl ReportBuilder {
-    /// Initialise a new [ReportBuilder].
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add a general message to the [Report].
-    pub fn with_message(&mut self, message: impl ToString) -> &mut Self {
-        self.message = Some(message.to_string());
-        self
-    }
-
-    /// Add a general kind to the [Report].
-    pub fn with_kind(&mut self, kind: ReportKind) -> &mut Self {
-        self.kind = Some(kind);
-        self
-    }
-
-    /// Add an associated [HashErrorCode] to the [Report].
-    pub fn with_error_code(&mut self, error_code: HashErrorCode) -> &mut Self {
-        self.error_code = Some(error_code);
-        self
-    }
-
-    /// Add a [ReportElement] to the report.
-    pub fn add_element(&mut self, element: ReportElement) -> &mut Self {
-        self.contents.push(element);
-        self
-    }
-
-    /// Create a [Report] from the [ReportBuilder].
-    pub fn build(&mut self) -> Report {
-        Report {
-            kind: self.kind.take().unwrap(),
-            message: self.message.take().unwrap(),
-            error_code: self.error_code.take(),
-            contents: std::mem::take(&mut self.contents),
-        }
-    }
-}
-
-/// General data type for displaying [Report]s. This is needed due to the
-/// [Report] rendering process needing access to the program modules to get
-/// access to the source code.
-pub struct ReportWriter<'m, T: SourceMap> {
-    report: Report,
-    sources: &'m T,
-}
-
-impl<'m, T: SourceMap> ReportWriter<'m, T> {
-    pub fn new(report: Report, sources: &'m T) -> Self {
-        Self { report, sources }
-    }
-}
-
-impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Add the optional error code to the general message...
-        let error_code_fmt = match self.report.error_code {
-            Some(error_code) => highlight(
-                self.report.kind.as_colour() | Modifier::Bold,
-                format!("[{:0>4}]", error_code.to_num()),
-            ),
-            None => String::new(),
-        };
-
-        // Add the general note about the report...
-        writeln!(
-            f,
-            "{}{}: {}",
-            self.report.kind,
-            error_code_fmt,
-            highlight(Modifier::Bold, &self.report.message),
-        )?;
-
-        let longest_indent_width =
-            self.report
-                .contents
-                .iter()
-                .fold(0, |longest_indent_width, element| match element {
-                    ReportElement::CodeBlock(code_block) => code_block
-                        .info(self.sources)
-                        .indent_width
-                        .max(longest_indent_width),
-                    ReportElement::Note(_) => longest_indent_width,
-                });
-
-        let mut iter = self.report.contents.iter().peekable();
-
-        while let Some(note) = iter.next() {
-            note.render(f, self.sources, longest_indent_width, self.report.kind)?;
-
-            if matches!(iter.peek(), Some(ReportElement::CodeBlock(_))) {
-                writeln!(f)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    // use std::path::PathBuf;
-
-    // use hash_alloc::{row, Castle};
-    // use hash_ast::{ast, location::Location, module::ModuleBuilder};
-
-    use super::*;
-
-    // #[test]
-    // fn reporting_test() {
-    //     let castle = Castle::new();
-    //     let wall = castle.wall();
-
-    //     let builder = ModuleBuilder::new();
-
-    //     let path = PathBuf::from("./../../stdlib/prelude.hash");
-    //     let contents = std::fs::read_to_string(&path).unwrap();
-    //     let test_idx = builder.reserve_index();
-
-    //     builder.add_contents(test_idx, path, contents);
-    //     builder.add_module_at(
-    //         test_idx,
-    //         ast::AstNode::new(
-    //             ast::Module {
-    //                 contents: row![&wall],
-    //             },
-    //             Location::pos(0),
-    //             &wall,
-    //         ),
-    //     );
-
-    //     let modules = builder.build();
-
-    //     let report = ReportBuilder::new()
-    //         .with_message("Bro what you wrote here is wrong.")
-    //         .with_kind(ReportKind::Error)
-    //         .with_error_code(ErrorCode::Parsing)
-    //         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-    //             SourceLocation {
-    //                 location: Location::span(10223, 10224),
-    //                 module_index: test_idx,
-    //             },
-    //             "don't be crazy.",
-    //         )))
-    //         .add_element(ReportElement::Note(ReportNote::new(
-    //             "note",
-    //             "You really are a dummy.",
-    //         )))
-    //         .build()
-    //         .unwrap();
-
-    //     let report_writer = ReportWriter::new(report, &modules);
-
-    //     println!("{}", report_writer);
-    // }
-
-    #[test]
-    fn offset_test() {
-        let contents = "Hello, world!\nGoodbye, world, it has been fun.";
-
-        let (col, row) = offset_col_row(contents.len() - 1, contents);
-        assert_eq!((col, row), (31, 1));
-
-        let (col, row) = offset_col_row(contents.len() + 3, contents);
-        assert_eq!((col, row), (31, 1));
     }
 }

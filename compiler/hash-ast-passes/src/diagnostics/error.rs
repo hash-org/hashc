@@ -2,8 +2,9 @@
 
 use hash_ast::ast::Visibility;
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_reporting::reporting::{
-    Report, ReportBuilder, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind,
+use hash_reporting::{
+    builder::ReportBuilder,
+    report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
 use hash_source::location::SourceLocation;
 

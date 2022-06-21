@@ -12,7 +12,7 @@ pub mod traits;
 use std::{collections::HashMap, time::Duration};
 
 use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
-use hash_reporting::reporting::{Report, ReportWriter};
+use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
