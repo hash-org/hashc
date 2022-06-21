@@ -437,7 +437,7 @@ pub struct TyFnTy {
 /// variant of the enum in the form of an [Identifier].
 ///
 /// Has a level 0 type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct EnumVariantValue {
     pub enum_def_id: NominalDefId,
     pub variant_name: Identifier,
@@ -516,7 +516,7 @@ pub enum Level1Term {
 }
 
 /// Represents a function literal, with a function type, as well as a return value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FnLit {
     pub fn_ty: TermId,
     pub return_value: TermId,
