@@ -386,14 +386,38 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     self.ensure_term_is_runtime_instantiable(rt_inner_term)?;
                     Ok(result)
                 }
-                Level0Term::FnLit(_) => {
-                    // Validate constituents, and ensure that the function's return type unifies
-                    // with the type of the return value:
-                    todo!()
+                Level0Term::FnLit(fn_lit) => {
+                    // Ensure the inner type is a function type, and get it:
+                    let fn_lit = *fn_lit;
+                    match self.term_is_fn_ty(fn_lit.fn_ty)? {
+                        Some(fn_ty) => {
+                            // Validate constituents:
+                            let fn_ty = fn_ty;
+                            self.validate_params(&fn_ty.params)?;
+                            let fn_return_ty_validation = self.validate_term(fn_ty.return_ty)?;
+                            let fn_return_value_validation =
+                                self.validate_term(fn_lit.return_value)?;
+
+                            // Ensure the return type of the function unifies with the type of the return
+                            // value:
+                            let _ = self.unifier().unify_terms(
+                                fn_return_value_validation.term_ty_id,
+                                fn_return_ty_validation.simplified_term_id,
+                            );
+
+                            // @@Correctness: should we not apply the above substitution somewhere?
+                            Ok(result)
+                        }
+                        // This isn't a user error, it is a compiler error:
+                        None => panic!("Found non-function type in function literal term!"),
+                    }
                 }
                 Level0Term::EnumVariant(_) => {
-                    // Ensure the variant exists
-                    todo!()
+                    // This should already be validated during simplification because the way enum
+                    // variants get created is by simplification on access. And access
+                    // simplification always checks the enum exists and contains the given variant
+                    // name.
+                    Ok(result)
                 }
             },
 
