@@ -15,7 +15,7 @@ use hash_pipeline::{
     sources::Module,
     Compiler,
 };
-use hash_reporting::{errors::CompilerError, reporting::ReportWriter};
+use hash_reporting::{errors::CompilerError, writer::ReportWriter};
 use hash_source::SourceId;
 use hash_typecheck::Typechecker;
 use hash_vm::vm::{Interpreter, InterpreterOptions};

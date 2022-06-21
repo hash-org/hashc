@@ -2,7 +2,7 @@
 //! are used by the pipeline to run various stages that transform the provided sources
 //! into runnable/executable code.
 
-use hash_reporting::reporting::Report;
+use hash_reporting::report::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 
 use crate::sources::Sources;
