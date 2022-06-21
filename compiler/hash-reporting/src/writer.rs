@@ -29,7 +29,11 @@ pub struct ReportCodeBlockInfo {
 /// and an offset within the source. This will take into account the number
 /// of encountered newlines and characters per line in order to compute
 /// precise row and column numbers of the span.
-pub(crate) fn offset_col_row(offset: usize, source: &str) -> (usize, usize) {
+pub(crate) fn offset_col_row(
+    offset: usize,
+    source: &str,
+    non_inclusive: bool,
+) -> (/* col: */ usize, /* row: */ usize) {
     let source_lines = source.split('\n');
 
     let mut bytes_skipped = 0;
@@ -41,7 +45,16 @@ pub(crate) fn offset_col_row(offset: usize, source: &str) -> (usize, usize) {
         // One byte for the newline
         let skip_width = line.len() + 1;
 
-        if (bytes_skipped..=bytes_skipped + skip_width).contains(&offset) {
+        // Here, we don't want an inclusive range because we don't want to get the last byte because
+        // that will always point to the newline character and this isn't necessary to be included
+        // when selecting a span for printing.
+        let range = if non_inclusive {
+            bytes_skipped..bytes_skipped + skip_width
+        } else {
+            bytes_skipped..bytes_skipped + skip_width + 1
+        };
+
+        if range.contains(&offset) {
             line_index = Some((offset - bytes_skipped, line_idx));
             break;
         }
@@ -125,10 +138,10 @@ mod tests {
     fn offset_test() {
         let contents = "Hello, world!\nGoodbye, world, it has been fun.";
 
-        let (col, row) = offset_col_row(contents.len() - 1, contents);
+        let (col, row) = offset_col_row(contents.len() - 1, contents, false);
         assert_eq!((col, row), (31, 1));
 
-        let (col, row) = offset_col_row(contents.len() + 3, contents);
+        let (col, row) = offset_col_row(contents.len() + 3, contents, false);
         assert_eq!((col, row), (31, 1));
     }
 }
