@@ -3,8 +3,8 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            FnTy, Level0Term, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub, Term,
-            TermId, TrtDefId,
+            Args, FnTy, Level0Term, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub,
+            Term, TermId, TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -270,6 +270,16 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         Ok(())
     }
 
+    /// Validate the given arguments, by validating their values.
+    ///
+    /// **Note**: Requires that the arguments have already been simplified.
+    pub fn validate_args(&mut self, args: &Args) -> TcResult<()> {
+        for arg in args.positional() {
+            self.validate_term(arg.value)?;
+        }
+        Ok(())
+    }
+
     /// Validate the given term for correctness.
     ///
     /// Returns the simplified term, along with its type, which are computed during the validation.
@@ -290,8 +300,6 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         };
 
         let term = reader.get_term(simplified_term_id);
-        // @@PotentiallyIncomplete: there might are a few more checks we need to perform here, but
-        // this is not yet evident.
         match term {
             // Merge:
             Term::Merge(terms) => {
@@ -322,8 +330,13 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 self.validate_params(&ty_fn.general_params)?;
                 let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
 
+                // @@Todo: We should also validate the type of the type function, for including the
+                // additional check of parameter type term levels (they cannot have <= level 1
+                // terms as types).
+
                 // Validate each case:
                 for case in &ty_fn.cases {
+                    // @@Todo: we also need to ensure the params are a subtype of the general params.
                     self.validate_params(&case.params)?;
                     self.validate_term(case.return_ty)?;
                     self.validate_term(case.return_value)?;
@@ -416,15 +429,47 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // This should already be validated during simplification because the way enum
                     // variants get created is by simplification on access. And access
                     // simplification always checks the enum exists and contains the given variant
-                    // name.
+                    // name. Furthermore, there are no inner terms to validate.
                     Ok(result)
                 }
             },
 
-            Term::Access(_) => todo!(),
-            Term::AppSub(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
-            Term::AppTyFn(_) => todo!(),
+            // Access
+            Term::Access(access_term) => {
+                // Validate the inner term; the access should already be valid since it passed the
+                // typing stage.
+                self.validate_term(access_term.subject)?;
+                Ok(result)
+            }
+
+            // Substitution application:
+            Term::AppSub(app_sub) => {
+                // @@Correctness: do we need to perform any sort of substitution validity check?
+                // maybe to try unify the substitution with itself to ensure it does not contradict
+                // itself? For example, if it contains cycles `T0 -> T1, T1 -> T0`.
+                //
+                // For now, we just validate the inner term:
+                self.validate_term(app_sub.term)?;
+                Ok(result)
+            }
+
+            // Type function type:
+            Term::TyFnTy(_ty_fn_ty) => {
+                // We just validate the params and return type; furthermore we ensure each
+                // parameter is at least level 2.
+                todo!()
+            }
+
+            // Type function application:
+            Term::AppTyFn(app_ty_fn) => {
+                // Since this could be typed, it means the application is valid in terms of
+                // unification of type function params with the arguments. Thus, all we need to do
+                // is validate individually the term and the arguments:
+                let app_ty_fn = app_ty_fn.clone();
+                self.validate_term(app_ty_fn.subject)?;
+                self.validate_args(&app_ty_fn.args)?;
+                Ok(result)
+            }
             Term::Level2(_) | Term::Level3(_) | Term::Var(_) | Term::Root | Term::Unresolved(_) => {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
