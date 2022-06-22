@@ -179,16 +179,12 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Ensure the level of the term is valid:
         match merge_element_term {
-            Term::Access(_) => todo!(),
-            Term::Var(_) => todo!(),
-            Term::TyFn(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
-            // Type function application:
-            // This should have already been simplified, so we only accept it if its type is level
-            // 3 and the merge is level 2, which means it is a level 2 term. If its type is level
+            // Type function application, access, or variable:
+            // These should have already been simplified, so we only accept them if their type is level
+            // 3 and the merge is level 2, which means it is a level 2 term. Their type is level
             // 2, we cannot be sure it won't have a duplicate nominal definition so we cannot
             // accept it.
-            Term::AppTyFn(_) => {
+            Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => {
                 let ty_id_of_term = self.typer().ty_of_term(merge_element_term_id)?;
                 let reader = self.reader();
                 let ty_of_term = reader.get_term(ty_id_of_term);
@@ -242,7 +238,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // Cannot attach a function type to a merge
                 Level1Term::Fn(_) => invalid_merge_element(),
             },
-            // Level 0 elements are not allowed
+            // Type functions are not allowed
+            Term::TyFn(_) | Term::TyFnTy(_) => invalid_merge_element(),
+            // Runtime terms are not allowed
             Term::Level0(_) => invalid_merge_element(),
             // Root is not allowed
             Term::Root => invalid_merge_element(),
@@ -330,16 +328,22 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 self.validate_params(&ty_fn.general_params)?;
                 let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
 
-                // @@Todo: We should also validate the type of the type function, for including the
-                // additional check of parameter type term levels (they cannot have <= level 1
-                // terms as types).
+                // We also validate the type of the type function, for including the
+                // additional check of parameter type term levels:
+                let _ = self.validate_term(result.term_ty_id)?;
 
                 // Validate each case:
                 for case in &ty_fn.cases {
-                    // @@Todo: we also need to ensure the params are a subtype of the general params.
                     self.validate_params(&case.params)?;
                     self.validate_term(case.return_ty)?;
                     self.validate_term(case.return_value)?;
+
+                    // Ensure the params are a subtype of the general params
+                    // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
+                    // the message.
+                    let _ = self
+                        .unifier()
+                        .unify_params(&case.params, &ty_fn.general_params)?;
 
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
@@ -469,6 +473,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     }
                 }
 
+                // @@Todo: Ensure the return type can be used as a type function return type:
+
                 Ok(result)
             }
 
@@ -509,17 +515,41 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         todo!()
     }
 
-    /// Determine whether the given term is constant, i.e. has no side effects.
+    /// Determine if the given term can be used as the return value of a type function.
     ///
-    /// This is the condition for the term to be able to be used as the return type of a type
-    /// function, or to be used in global scope.
-    pub fn term_is_constant(&mut self, term_id: TermId) -> TcResult<bool> {
-        // Make sure the term is valid first:
-        self.validate_term(term_id)?;
-        let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
+    /// This includes constant level 0 terms, level 1 terms, level 2 terms, and other type
+    /// functions.
+    ///
+    /// *Note*: assumes the term has been simplified and validated.
+    pub fn term_can_be_used_as_ty_fn_return_value(&mut self, term_id: TermId) -> TcResult<bool> {
         let reader = self.reader();
-        let term = reader.get_term(simplified_term_id);
-        // @@Todo: actually implement this:
+        let term = reader.get_term(term_id);
+        match term {
+            Term::Access(_) => todo!(),
+            Term::Var(_) => todo!(),
+            Term::Merge(_) => todo!(),
+            Term::TyFn(_) => todo!(),
+            Term::TyFnTy(_) => todo!(),
+            Term::AppTyFn(_) => todo!(),
+            Term::AppSub(_) => todo!(),
+            Term::Unresolved(_) => todo!(),
+            Term::Level3(_) => todo!(),
+            Term::Level2(_) => todo!(),
+            Term::Level1(_) => todo!(),
+            Term::Level0(_) => todo!(),
+            Term::Root => todo!(),
+        }
+    }
+
+    /// Determine if the given term can be used as the return type of a type function.
+    ///
+    /// There are also additional restrictions on the kind of *value* that can be used for a type
+    /// function return, which are covered by [Self::term_can_be_used_as_ty_fn_return_value].
+    ///
+    /// *Note*: assumes the term has been simplified and validated.
+    pub fn term_can_be_used_as_ty_fn_return_ty(&mut self, term_id: TermId) -> TcResult<bool> {
+        let reader = self.reader();
+        let term = reader.get_term(term_id);
         match term {
             Term::Access(_) => todo!(),
             Term::Var(_) => todo!(),
