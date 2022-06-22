@@ -70,6 +70,9 @@ pub enum TcError {
     InvalidElementOfMerge {
         term: TermId,
     },
+    InvalidTypeFunctionParameterType {
+        param_ty: TermId,
+    },
     MergeShouldOnlyContainOneNominal {
         merge_term: TermId,
         nominal_term: TermId,
