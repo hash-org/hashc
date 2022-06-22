@@ -454,10 +454,22 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
 
             // Type function type:
-            Term::TyFnTy(_ty_fn_ty) => {
-                // We just validate the params and return type; furthermore we ensure each
-                // parameter is at least level 2.
-                todo!()
+            Term::TyFnTy(ty_fn_ty) => {
+                // Validate the params and return type:
+                let ty_fn_ty = ty_fn_ty.clone();
+                self.validate_params(&ty_fn_ty.params)?;
+                let _ = self.validate_term(ty_fn_ty.return_ty);
+
+                // Ensure each parameter's type can be used as a type function parameter type:
+                for param in ty_fn_ty.params.positional() {
+                    if !(self.term_can_be_used_as_ty_fn_param_ty(param.ty)?) {
+                        return Err(TcError::InvalidTypeFunctionParameterType {
+                            param_ty: param.ty,
+                        });
+                    }
+                }
+
+                Ok(result)
             }
 
             // Type function application:
@@ -523,6 +535,16 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::Level0(_) => todo!(),
             Term::Root => todo!(),
         }
+    }
+
+    /// Determine if the given term can be used as the parameter type of a type function.
+    ///
+    /// This extends to level 2, as well as type function types returning level 2 terms.
+    /// **Note**: assumes the term has been simplified.
+    ///
+    /// @@Extension: we could allow level 3 terms as parameters too (TraitKind).
+    pub fn term_can_be_used_as_ty_fn_param_ty(&mut self, _term_id: TermId) -> TcResult<bool> {
+        todo!()
     }
 
     /// Determine if the given term is a function type, and if so return it.
