@@ -73,6 +73,12 @@ pub enum TcError {
     InvalidTypeFunctionParameterType {
         param_ty: TermId,
     },
+    InvalidTypeFunctionReturnType {
+        return_ty: TermId,
+    },
+    InvalidTypeFunctionReturnValue {
+        return_value: TermId,
+    },
     MergeShouldOnlyContainOneNominal {
         merge_term: TermId,
         nominal_term: TermId,

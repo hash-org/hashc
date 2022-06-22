@@ -321,46 +321,6 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 Ok(result)
             }
 
-            // Type function:
-            Term::TyFn(ty_fn) => {
-                // Validate params and return type.
-                let ty_fn = ty_fn.clone();
-                self.validate_params(&ty_fn.general_params)?;
-                let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
-
-                // We also validate the type of the type function, for including the
-                // additional check of parameter type term levels:
-                let _ = self.validate_term(result.term_ty_id)?;
-
-                // Validate each case:
-                for case in &ty_fn.cases {
-                    self.validate_params(&case.params)?;
-                    self.validate_term(case.return_ty)?;
-                    self.validate_term(case.return_value)?;
-
-                    // Ensure the params are a subtype of the general params
-                    // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
-                    // the message.
-                    let _ = self
-                        .unifier()
-                        .unify_params(&case.params, &ty_fn.general_params)?;
-
-                    // Ensure that the return type can be unified with the type of the return value:
-                    // @@Safety: should be already simplified from above the match.
-                    let return_value_ty = self.typer().ty_of_simplified_term(term_id)?;
-                    let _ = self
-                        .unifier()
-                        .unify_terms(case.return_ty, return_value_ty)?;
-
-                    // Ensure the return value of each case is a subtype of the general return type.
-                    let _ = self
-                        .unifier()
-                        .unify_terms(case.return_ty, general_return_validation.term_ty_id)?;
-                }
-
-                Ok(result)
-            }
-
             // Level 1 terms:
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
@@ -473,7 +433,59 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     }
                 }
 
-                // @@Todo: Ensure the return type can be used as a type function return type:
+                // Ensure the return type can be used as a type function return type:
+                if !(self.term_can_be_used_as_ty_fn_return_ty(ty_fn_ty.return_ty)?) {
+                    return Err(TcError::InvalidTypeFunctionParameterType {
+                        param_ty: ty_fn_ty.return_ty,
+                    });
+                }
+
+                Ok(result)
+            }
+
+            // Type function:
+            Term::TyFn(ty_fn) => {
+                // Validate params and return type.
+                let ty_fn = ty_fn.clone();
+                self.validate_params(&ty_fn.general_params)?;
+                let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
+
+                // We also validate the type of the type function, for including the
+                // additional check of parameter type term levels:
+                let _ = self.validate_term(result.term_ty_id)?;
+
+                // Validate each case:
+                for case in &ty_fn.cases {
+                    self.validate_params(&case.params)?;
+                    self.validate_term(case.return_ty)?;
+                    self.validate_term(case.return_value)?;
+
+                    // Ensure the params are a subtype of the general params
+                    // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
+                    // the message.
+                    let _ = self
+                        .unifier()
+                        .unify_params(&case.params, &ty_fn.general_params)?;
+
+                    // Ensure that the return type can be unified with the type of the return value:
+                    // @@Safety: should be already simplified from above the match.
+                    let return_value_ty = self.typer().ty_of_simplified_term(term_id)?;
+                    let _ = self
+                        .unifier()
+                        .unify_terms(case.return_ty, return_value_ty)?;
+
+                    // Ensure the return value of each case is a subtype of the general return type.
+                    let _ = self
+                        .unifier()
+                        .unify_terms(case.return_ty, general_return_validation.term_ty_id)?;
+
+                    // Ensure the return value can be used as a type function return value:
+                    if !(self.term_can_be_used_as_ty_fn_return_value(case.return_value)?) {
+                        return Err(TcError::InvalidTypeFunctionReturnValue {
+                            return_value: case.return_value,
+                        });
+                    }
+                }
 
                 Ok(result)
             }
