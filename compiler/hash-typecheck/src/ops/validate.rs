@@ -523,8 +523,19 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     ///
     /// This is the condition for the term to be able to be used within tuple types, function
     /// types, structs and enums.
-    pub fn term_is_runtime_instantiable(&mut self, _term_id: TermId) -> TcResult<bool> {
-        todo!()
+    ///
+    /// *Note*: assumes the term has been simplified and validated.
+    pub fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
+        // Ensure that the type of the term unifies with "RuntimeInstantiable":
+        let ty_id_of_term = self.typer().ty_of_simplified_term(term_id)?;
+        let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
+        let rt_instantiable = self.builder().create_trt_term(rt_instantiable_def);
+        match self.unifier().unify_terms(ty_id_of_term, rt_instantiable) {
+            Ok(_) => Ok(true),
+            // We only return Ok(false) if the error is that the terms do not unify:
+            Err(TcError::CannotUnify { src: _, target: _ }) => Ok(false),
+            Err(err) => Err(err),
+        }
     }
 
     /// Determine if the given term can be used as the return value of a type function.
