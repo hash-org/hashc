@@ -88,6 +88,9 @@ pub enum TcError {
         merge_term: TermId,
         offending_term: TermId,
     },
+    NeedMoreTypeAnnotationsToResolve {
+        term_to_resolve: TermId,
+    },
     MergeShouldBeLevel2 {
         merge_term: TermId,
         offending_term: TermId,
