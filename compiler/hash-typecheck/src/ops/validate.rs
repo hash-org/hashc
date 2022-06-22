@@ -545,22 +545,34 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     ///
     /// *Note*: assumes the term has been simplified and validated.
     pub fn term_can_be_used_as_ty_fn_return_value(&mut self, term_id: TermId) -> TcResult<bool> {
+        // First ensure its type can be used as a return type:
+        let term_ty_id = self.typer().ty_of_simplified_term(term_id)?;
+        if !(self.term_can_be_used_as_ty_fn_return_ty(term_ty_id)?) {
+            return Ok(false);
+        }
+        // If it passes the check, we just need to make sure that if it is a level 0 function, it
+        // is a function literal.
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
-            Term::Access(_) => todo!(),
-            Term::Var(_) => todo!(),
-            Term::Merge(_) => todo!(),
-            Term::TyFn(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
-            Term::AppTyFn(_) => todo!(),
-            Term::AppSub(_) => todo!(),
-            Term::Unresolved(_) => todo!(),
-            Term::Level3(_) => todo!(),
-            Term::Level2(_) => todo!(),
-            Term::Level1(_) => todo!(),
-            Term::Level0(_) => todo!(),
-            Term::Root => todo!(),
+            Term::Level0(level0_term) => {
+                match level0_term {
+                    Level0Term::Rt(_) => {
+                        // Not any runtime value can be used here because it might produce side-effects.
+                        Ok(false)
+                    }
+                    Level0Term::FnLit(_) => {
+                        // Function literals do not produce side effects, so they are Ok.
+                        Ok(true)
+                    }
+                    Level0Term::EnumVariant(_) => {
+                        // @@PotentiallyAllow: Enum variants also do not produce side effects, so
+                        // why wouldn't they be allowed? Is there a use case for this?
+                        Ok(false)
+                    }
+                }
+            }
+            _ => Ok(true),
         }
     }
 
@@ -574,19 +586,47 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
-            Term::Access(_) => todo!(),
-            Term::Var(_) => todo!(),
-            Term::Merge(_) => todo!(),
-            Term::TyFn(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
-            Term::AppTyFn(_) => todo!(),
-            Term::AppSub(_) => todo!(),
-            Term::Unresolved(_) => todo!(),
-            Term::Level3(_) => todo!(),
-            Term::Level2(_) => todo!(),
-            Term::Level1(_) => todo!(),
-            Term::Level0(_) => todo!(),
-            Term::Root => todo!(),
+            // These have not been resolved, for now we don't allow them.
+            // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
+            // Otherwise we could at least provide a better error message.
+            Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::Merge(terms) => {
+                // Valid if each element is okay to be used as the return type:
+                let terms = terms.clone();
+                for term in terms {
+                    if !(self.term_can_be_used_as_ty_fn_return_ty(term)?) {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Term::Level0(_) | Term::TyFn(_) => {
+                // This should never happen
+                unreachable!("Found type function definition or level 0 term in type position!")
+            }
+            Term::TyFnTy(_) => {
+                // All good, basically curried type function:
+                Ok(true)
+            }
+            Term::AppSub(app_sub) => {
+                // Check the inner type:
+                self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
+            }
+            Term::Unresolved(_) => {
+                // More type annotations are needed
+                Err(TcError::NeedMoreTypeAnnotationsToResolve {
+                    term_to_resolve: term_id,
+                })
+            }
+            // All level 2 and 3 terms are ok to use as return types
+            Term::Level2(_) | Term::Level3(_) => Ok(true),
+            // All level 1 terms are ok to use as return types, but their values have some
+            // constraints (see `Self::term_can_be_used_as_ty_fn_return_value` function above)
+            Term::Level1(_) => Ok(true),
+            Term::Root => {
+                // This should be okay, for example if we are returning some TyFnTy value.
+                Ok(true)
+            }
         }
     }
 
@@ -596,8 +636,51 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// **Note**: assumes the term has been simplified.
     ///
     /// @@Extension: we could allow level 3 terms as parameters too (TraitKind).
-    pub fn term_can_be_used_as_ty_fn_param_ty(&mut self, _term_id: TermId) -> TcResult<bool> {
-        todo!()
+    pub fn term_can_be_used_as_ty_fn_param_ty(&mut self, term_id: TermId) -> TcResult<bool> {
+        let reader = self.reader();
+        let term = reader.get_term(term_id);
+        match term {
+            // These have not been resolved, for now we don't allow them.
+            // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
+            // Otherwise we could at least provide a better error message.
+            Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::Merge(terms) => {
+                // Valid if each element is okay to be used as a parameter type:
+                let terms = terms.clone();
+                for term in terms {
+                    if !(self.term_can_be_used_as_ty_fn_param_ty(term)?) {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Term::Level0(_) | Term::TyFn(_) => {
+                // This should never happen
+                unreachable!("Found type function definition or level 0 term in type position!")
+            }
+            Term::TyFnTy(ty_fn_ty) => {
+                // Type function types are okay to use if their return types can be used here:
+                self.term_can_be_used_as_ty_fn_param_ty(ty_fn_ty.return_ty)
+            }
+            Term::AppSub(app_sub) => {
+                // Check the inner type:
+                self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
+            }
+            Term::Unresolved(_) => {
+                // More type annotations are needed
+                Err(TcError::NeedMoreTypeAnnotationsToResolve {
+                    term_to_resolve: term_id,
+                })
+            }
+            // All level 2 and 3 terms are ok to use as parameter types
+            Term::Level2(_) | Term::Level3(_) => Ok(true),
+            // Level 1 terms are not ok (because their instances are runtime)
+            Term::Level1(_) => Ok(false),
+            Term::Root => {
+                // @@PotentiallyUnnecessary: is there some use case to allow this?
+                Ok(false)
+            }
+        }
     }
 
     /// Determine if the given term is a function type, and if so return it.
