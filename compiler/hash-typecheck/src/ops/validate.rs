@@ -205,10 +205,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
             }
             // Unclear if this fits the requirements, so we reject it:
-            Term::Unresolved(_) => {
-                // @@ErrorReporting: we could hint to add more type annotations.
-                invalid_merge_element()
-            }
+            Term::Unresolved(_) => Err(TcError::NeedMoreTypeAnnotationsToResolve {
+                term_to_resolve: merge_element_term_id,
+            }),
             // Level 3 terms are not allowed:
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
