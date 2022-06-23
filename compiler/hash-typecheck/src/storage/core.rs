@@ -33,6 +33,7 @@ pub struct CoreDefs {
     pub raw_reference_ty_fn: TermId,
     pub hash_trt: TrtDefId,
     pub eq_trt: TrtDefId,
+    pub runtime_instantiable_trt: TrtDefId,
 }
 
 impl CoreDefs {
@@ -126,6 +127,9 @@ impl CoreDefs {
             [],
         );
 
+        // Marker trait for types that are runtime instantiable
+        let runtime_instantiable_trt = builder.create_trt_def("RuntimeInstantiable", [], []);
+
         // Collection types
         let list_ty_fn = builder.create_ty_fn_term(
             Some("List"),
@@ -185,6 +189,7 @@ impl CoreDefs {
             raw_reference_ty_fn,
             hash_trt,
             eq_trt,
+            runtime_instantiable_trt,
         }
     }
 }

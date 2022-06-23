@@ -70,10 +70,33 @@ pub enum TcError {
     InvalidElementOfMerge {
         term: TermId,
     },
+    InvalidTypeFunctionParameterType {
+        param_ty: TermId,
+    },
+    InvalidTypeFunctionReturnType {
+        return_ty: TermId,
+    },
+    InvalidTypeFunctionReturnValue {
+        return_value: TermId,
+    },
     MergeShouldOnlyContainOneNominal {
         merge_term: TermId,
         nominal_term: TermId,
         second_nominal_term: TermId,
+    },
+    MergeShouldBeLevel1 {
+        merge_term: TermId,
+        offending_term: TermId,
+    },
+    NeedMoreTypeAnnotationsToResolve {
+        term_to_resolve: TermId,
+    },
+    MergeShouldBeLevel2 {
+        merge_term: TermId,
+        offending_term: TermId,
+    },
+    TermIsNotRuntimeInstantiable {
+        term: TermId,
     },
     UnsupportedTypeFunctionApplication {
         subject_id: TermId,

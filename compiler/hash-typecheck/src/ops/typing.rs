@@ -149,8 +149,9 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                     }
                 }
                 Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
-                    // The type of any nominal def, function type, or tuple type, is just "Type":
-                    Ok(self.builder().create_any_ty_term())
+                    // The type of any nominal def, function type, or tuple type, is "RuntimeInstantiable":
+                    let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
+                    Ok(self.builder().create_trt_term(rt_instantiable_def))
                 }
             },
             Term::Level0(level0_term) => {
