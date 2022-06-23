@@ -523,16 +523,11 @@ mod tests {
             AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
         },
     };
-    use hash_source::{InteractiveId, SourceId};
-    use slotmap::Key;
 
     #[test]
     fn test_substitutions() {
         let mut global_storage = GlobalStorage::new();
-        let mut local_storage = LocalStorage::new(
-            SourceId::Interactive(InteractiveId::null()),
-            &mut global_storage,
-        );
+        let mut local_storage = LocalStorage::new(&mut global_storage);
         let core_defs = CoreDefs::new(&mut global_storage);
         let mut storage_ref = StorageRefMut {
             core_defs: &core_defs,

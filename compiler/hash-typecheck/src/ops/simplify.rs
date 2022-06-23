@@ -921,10 +921,7 @@ mod test_super {
 
     fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
         let mut global_storage = GlobalStorage::new();
-        let mut local_storage = LocalStorage::new(
-            SourceId::Interactive(InteractiveId::null()),
-            &mut global_storage,
-        );
+        let mut local_storage = LocalStorage::new(&mut global_storage);
         let core_defs = CoreDefs::new(&mut global_storage);
         (global_storage, local_storage, core_defs)
     }
