@@ -51,8 +51,8 @@ pub fn pair_args_with_params<'p, 'a>(
                     }
                     None => {
                         return Err(TcError::ParamNotFound {
-                            field1: params.clone(),
-                            field2: arg_name,
+                            params: params.clone(),
+                            name: arg_name,
                         })
                     }
                 }
