@@ -281,22 +281,23 @@ where
     ) -> CompilerResult<()> {
         match entry_point {
             SourceId::Interactive(id) => {
-                let result = timed(
-                    || self.checker.check_interactive(id, sources, checker_state),
+                timed(
+                    || {
+                        self.checker
+                            .check_interactive(id, sources, checker_state, job_params)
+                    },
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
                     },
                 )?;
-
-                // So here, we print the result of the type that was inferred from the passed statement
-                if job_params.mode == CompilerMode::Typecheck && job_params.output_stage_result {
-                    println!("= {result}")
-                }
             }
             SourceId::Module(id) => {
                 timed(
-                    || self.checker.check_module(id, sources, checker_state),
+                    || {
+                        self.checker
+                            .check_module(id, sources, checker_state, job_params)
+                    },
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);

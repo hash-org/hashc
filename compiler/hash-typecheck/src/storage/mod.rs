@@ -13,11 +13,9 @@ use self::{
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
-    state::TcState,
     terms::TermStore,
     trts::TrtDefStore,
 };
-use hash_source::SourceId;
 
 pub mod core;
 pub mod mods;
@@ -25,7 +23,6 @@ pub mod nominals;
 pub mod primitives;
 pub mod scope;
 pub mod sources;
-pub mod state;
 pub mod terms;
 pub mod trts;
 
@@ -73,15 +70,12 @@ impl Default for GlobalStorage {
 pub struct LocalStorage {
     /// All the scopes in a given source.
     pub scopes: ScopeStack,
-    /// The state of the typechecker for the given source.
-    pub state: TcState,
 }
 
 impl LocalStorage {
     /// Create a new, empty [LocalStorage] for the given source.
-    pub fn new(source_id: SourceId, gs: &mut GlobalStorage) -> Self {
+    pub fn new(gs: &mut GlobalStorage) -> Self {
         Self {
-            state: TcState::new(source_id),
             scopes: ScopeStack::many([
                 // First the root scope
                 gs.root_scope,
@@ -155,10 +149,6 @@ pub trait AccessToStorage {
         self.global_storage().root_scope
     }
 
-    fn state(&self) -> &TcState {
-        &self.local_storage().state
-    }
-
     fn scopes(&self) -> &ScopeStack {
         &self.local_storage().scopes
     }
@@ -199,10 +189,6 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn checked_sources_mut(&mut self) -> &mut CheckedSources {
         &mut self.global_storage_mut().checked_sources
-    }
-
-    fn state_mut(&mut self) -> &mut TcState {
-        &mut self.local_storage_mut().state
     }
 
     fn scopes_mut(&mut self) -> &mut ScopeStack {
