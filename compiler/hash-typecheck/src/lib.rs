@@ -4,57 +4,123 @@
 //! program that is given as input to the compiler.
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
+
+#![feature(generic_associated_types)]
+
 use hash_pipeline::{traits::Tc, CompilerResult};
+use reporting::TcErrorWithStorage;
+use storage::{
+    core::CoreDefs, AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
+};
+use traverse::TcVisitor;
 
 pub mod error;
 pub mod fmt;
-pub mod infer;
 pub mod ops;
+pub mod reporting;
 pub mod storage;
+pub mod traverse;
 
 /// The entry point of the typechecker.
-///
-/// @@Incomplete(kontheocharis): for now a no-op.
-pub struct Typechecker;
+pub struct TcImpl;
 
-// @@Incomplete(kontheocharis): Dummy implementation so that the compiler runs:
-impl Tc<'_> for Typechecker {
-    type State = ();
+/// Contains global typechecker state, used for the [Tc] implementation below.
+#[derive(Debug)]
+pub struct TcState {
+    pub global_storage: GlobalStorage,
+    pub core_defs: CoreDefs,
+    pub prev_local_storage: LocalStorage,
+}
+
+impl TcState {
+    /// Create a new [TcState].
+    pub fn new() -> Self {
+        let mut global_storage = GlobalStorage::new();
+        let core_defs = CoreDefs::new(&mut global_storage);
+        let local_storage = LocalStorage::new(&mut global_storage);
+        Self {
+            global_storage,
+            core_defs,
+            prev_local_storage: local_storage,
+        }
+    }
+}
+
+impl Default for TcState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Tc<'_> for TcImpl {
+    type State = TcState;
 
     fn make_state(&mut self) -> CompilerResult<Self::State> {
-        Ok(())
+        Ok(TcState::new())
     }
-
-    // type ModuleState = ();
-
-    // fn make_module_state(&mut self, _state: &mut Self::State) -> CompilerResult<Self::ModuleState> {
-    //     Ok(())
-    // }
-
-    // type InteractiveState = ();
-
-    // fn make_interactive_state(
-    //     &mut self,
-    //     _state: &mut Self::State,
-    // ) -> CompilerResult<Self::InteractiveState> {
-    //     Ok(())
-    // }
 
     fn check_interactive(
         &mut self,
-        _interactive_id: hash_source::InteractiveId,
-        _sources: &hash_pipeline::sources::Sources,
-        _state: &mut Self::State,
-    ) -> CompilerResult<String> {
-        Ok("Typechecking not implemented".to_string())
+        interactive_id: hash_source::InteractiveId,
+        sources: &hash_pipeline::sources::Sources,
+        state: &mut Self::State,
+        _job_params: &hash_pipeline::settings::CompilerJobParams,
+    ) -> CompilerResult<()> {
+        // Instantiate a visitor with the source and visit the source, using the previous local
+        // storage.
+        let mut storage = StorageRefMut {
+            global_storage: &mut state.global_storage,
+            core_defs: &state.core_defs,
+            local_storage: &mut state.prev_local_storage,
+        };
+        let mut tc_visitor = TcVisitor::new_in_source(
+            storage.storages_mut(),
+            hash_source::SourceId::Interactive(interactive_id),
+            sources,
+        );
+        match tc_visitor.visit_source() {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                // Turn the error into a report:
+                let err_with_storage = TcErrorWithStorage {
+                    error,
+                    storage: storage.storages(),
+                };
+                Err(err_with_storage.into())
+            }
+        }
     }
 
     fn check_module(
         &mut self,
-        _module_id: hash_source::ModuleId,
-        _sources: &hash_pipeline::sources::Sources,
-        _state: &mut Self::State,
+        module_id: hash_source::ModuleId,
+        sources: &hash_pipeline::sources::Sources,
+        state: &mut Self::State,
+        _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
-        Ok(())
+        // Instantiate a visitor with the source and visit the source, using a new local
+        // storage.
+        let mut local_storage = LocalStorage::new(&mut state.global_storage);
+        let mut storage = StorageRefMut {
+            global_storage: &mut state.global_storage,
+            core_defs: &state.core_defs,
+            local_storage: &mut local_storage,
+        };
+        let mut tc_visitor = TcVisitor::new_in_source(
+            storage.storages_mut(),
+            hash_source::SourceId::Module(module_id),
+            sources,
+        );
+        match tc_visitor.visit_source() {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                // Turn the error into a report:
+                let err_with_storage = TcErrorWithStorage {
+                    error,
+                    storage: storage.storages(),
+                };
+                Err(err_with_storage.into())
+            }
+        }
     }
 }
