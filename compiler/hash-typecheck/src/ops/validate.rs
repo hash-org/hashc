@@ -60,7 +60,6 @@ enum MergeKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(unused)] // @@Todo: remove
 enum SelfMode {
-    NotAllowed,
     Allowed,
     Required,
 }
@@ -78,7 +77,6 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         &mut self,
         scope_id: ScopeId,
         allow_uninitialised: bool,
-        _self_mode: SelfMode,
     ) -> TcResult<()> {
         // @@Design: when do we insert each member into the scope? As we go or all at
         // once? For now, we insert as we go.
@@ -228,7 +226,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Validate all members:
         // Bound vars should already be in scope.
-        self.validate_constant_scope(mod_def_members, false, SelfMode::Allowed)?;
+        self.validate_constant_scope(mod_def_members, false)?;
 
         // Ensure if it is a trait impl it implements all the trait members.
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
@@ -248,7 +246,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         // @@Design: do we allow traits without self?
         let reader = self.reader();
         let trt_def = reader.get_trt_def(trt_def_id);
-        self.validate_constant_scope(trt_def.members, true, SelfMode::Required)
+        self.validate_constant_scope(trt_def.members, true)
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
