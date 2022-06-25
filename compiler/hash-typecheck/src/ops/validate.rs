@@ -1,16 +1,16 @@
 //! Contains utilities to validate terms.
+use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            Args, FnTy, Level0Term, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub,
-            Term, TermId, TrtDefId,
+            Args, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
+            Mutability, NominalDefId, Params, Scope, ScopeId, ScopeKind, Sub, Term, TermId,
+            TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-
-use super::{AccessToOps, AccessToOpsMut};
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,22 +55,198 @@ enum MergeKind {
     Level1 { nominal_attached: Option<TermId> },
 }
 
+/// Helper type for [Validator::validate_constant_scope], to determine in what
+/// capacity the `Self` member should be existing in the scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(unused)] // @@Todo: remove
+enum SelfMode {
+    Allowed,
+    Required,
+}
+
 impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
     }
 
-    /// Validate the module definition of the given [ModDefId]
-    pub fn validate_mod_def(&mut self, _mod_def_id: ModDefId) -> TcResult<()> {
+    /// Validate the members of the given constant scope.
+    ///
+    /// Allows uninitialised members in the scope if `allow_uninitialised` is
+    /// true.
+    fn validate_constant_scope(
+        &mut self,
+        scope_id: ScopeId,
+        allow_uninitialised: bool,
+    ) -> TcResult<()> {
+        // @@Design: when do we insert each member into the scope? As we go or all at
+        // once? For now, we insert as we go.
+
+        // Enter the progressive scope:
+        let progressive_scope = Scope::new(ScopeKind::Constant, []);
+        let progressive_scope_id = self.scope_store_mut().create(progressive_scope);
+        self.scopes_mut().append(progressive_scope_id);
+
+        // @@Performance: sad that we have to clone here:
+        let scope = self.reader().get_scope(scope_id).clone();
+        for member in scope.iter() {
+            // This should have been checked in semantic analysis:
+            assert!(
+                member.mutability != Mutability::Mutable,
+                "Found mutable member in constant scope!"
+            );
+
+            // Add the member to the progressive scope so that this and next members can
+            // access it.
+            self.scope_store_mut().get_mut(progressive_scope_id).add(member);
+
+            // Validate the member:
+            match member.data {
+                MemberData::Uninitialised { ty } if !allow_uninitialised => {
+                    return Err(TcError::UninitialisedMemberNotAllowed { member_ty: ty });
+                }
+                MemberData::Uninitialised { ty } => {
+                    // Validate only the type
+                    self.validate_term(ty)?;
+                }
+                MemberData::InitialisedWithTy { ty, value } => {
+                    // Validate the term, the type, and unify them.
+                    let TermValidation { term_ty_id, .. } = self.validate_term(value)?;
+                    let TermValidation { simplified_term_id: simplified_ty_id, .. } =
+                        self.validate_term(ty)?;
+                    let _ = self.unifier().unify_terms(term_ty_id, simplified_ty_id)?;
+                }
+                MemberData::InitialisedWithInferredTy { value } => {
+                    // Validate the term, and the type
+                    let TermValidation { term_ty_id, .. } = self.validate_term(value)?;
+                    // @@PotentiallyRedundant: is this necessary? shouldn't this be an invariant
+                    // already?
+                    self.validate_term(term_ty_id)?;
+                }
+            }
+
+            // @@Incomplete: here we also need to ensure that the member does
+            // not directly access itself (i.e. `a := a`).
+        }
+
+        // Leave the progressive scope:
+        let popped_scope = self.scopes_mut().pop_scope();
+        assert!(popped_scope == progressive_scope_id);
+
+        Ok(())
+    }
+
+    /// Ensure that the given `scope` implements the trait at the given
+    /// `trt_def_term_id`, after applying the given substitution to the
+    /// trait.
+    ///
+    /// This also validates that `trt_def_term_id` is a (validated) trait
+    /// definition.
+    ///
+    /// Assumes that `scope` has already been validated.
+    fn ensure_scope_implements_trait(
+        &mut self,
+        trt_def_term_id: TermId,
+        trt_sub: &Sub,
+        scope_originating_term_id: TermId,
+        scope_id: ScopeId,
+    ) -> TcResult<()> {
+        let scope = self.reader().get_scope(scope_id).clone();
+
+        // Simplify the term and ensure it is a trait
+        let simplified_trt_def_term_id =
+            self.simplifier().potentially_simplify_term(trt_def_term_id)?;
+        let reader = self.reader();
+        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id);
+
+        // Ensure the term leads to a trait definition:
+        match simplified_trt_def_term {
+            Term::AppSub(app_sub) => {
+                let app_sub = app_sub.clone();
+                // Recurse to inner term
+                let unified_sub = self.unifier().unify_subs(trt_sub, &app_sub.sub)?;
+                self.ensure_scope_implements_trait(
+                    app_sub.term,
+                    &unified_sub,
+                    scope_originating_term_id,
+                    scope_id,
+                )
+            }
+            Term::Level2(Level2Term::Trt(trt_def_id)) => {
+                let trt_def_id = *trt_def_id;
+                let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
+                // @@Performance: cloning :((
+                let trt_def_members = self.reader().get_scope(trt_def_members).clone();
+
+                // Ensure all members have been implemented:
+                for trt_member in trt_def_members.iter() {
+                    let trt_member_data = self.typer().infer_member_data(trt_member.data)?;
+
+                    if let Some(scope_member) = scope.get(trt_member.name) {
+                        // Infer the type of the scope member:
+                        let scope_member_data =
+                            self.typer().infer_member_data(scope_member.data)?;
+
+                        // Apply the substitution to the trait member first:
+                        let trt_member_ty_subbed =
+                            self.substituter().apply_sub_to_term(trt_sub, trt_member_data.ty);
+
+                        // Unify the types of the scope member and the substituted trait member:
+                        let _ =
+                            self.unifier().unify_terms(scope_member_data.ty, trt_member_ty_subbed);
+                    } else {
+                        return Err(TcError::TraitImplementationMissingMember {
+                            trt_def_term_id,
+                            trt_impl_term_id: scope_originating_term_id,
+                            trt_def_missing_member_term_id: trt_member_data.ty,
+                        });
+                    }
+                }
+
+                // @@Design: do we want to block the implementation of members
+                // that are not in the trait definition?
+                Ok(())
+            }
+            _ => Err(TcError::CannotImplementNonTrait {
+                supposed_trait_term: simplified_trt_def_term_id,
+            }),
+        }
+    }
+
+    /// Validate the module definition of the given [ModDefId], defined in
+    /// `originating_term_id`.
+    pub fn validate_mod_def(
+        &mut self,
+        mod_def_id: ModDefId,
+        originating_term_id: TermId,
+    ) -> TcResult<()> {
+        let reader = self.reader();
+        let mod_def = reader.get_mod_def(mod_def_id);
+        let mod_def_members = mod_def.members;
+        let mod_def_origin = mod_def.origin;
+
+        // Validate all members:
+        // Bound vars should already be in scope.
+        self.validate_constant_scope(mod_def_members, false)?;
+
         // Ensure if it is a trait impl it implements all the trait members.
-        todo!()
+        if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
+            self.ensure_scope_implements_trait(
+                trt_def_term_id,
+                &Sub::empty(),
+                originating_term_id,
+                mod_def_members,
+            )?;
+        }
+
+        Ok(())
     }
 
     /// Validate the trait definition of the given [TrtDefId]
-    pub fn validate_trt_def(&mut self, _trt_def_id: TrtDefId) -> TcResult<()> {
-        // Ensure Self exists?
+    pub fn validate_trt_def(&mut self, trt_def_id: TrtDefId) -> TcResult<()> {
         // @@Design: do we allow traits without self?
-        todo!()
+        let reader = self.reader();
+        let trt_def = reader.get_trt_def(trt_def_id);
+        self.validate_constant_scope(trt_def.members, true)
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
@@ -201,6 +377,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             },
             // Level 1 terms are allowed:
             Term::Level1(level1_term) => match level1_term {
+                // @@Incomplete: shouldn't we also check that the `Self` property is compatible with
+                // the other elements?
+
                 // Modules:
                 Level1Term::ModDef(_) => {
                     // Not checking a nominal:

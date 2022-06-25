@@ -70,4 +70,18 @@ pub enum TcError {
     AmbiguousAccess { access: AccessTerm },
     /// The given access operation does not resolve to a method.
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
+    /// The given member requires an initialisation in the current scope.
+    /// @@ErrorReporting: add span of member.
+    UninitialisedMemberNotAllowed { member_ty: TermId },
+    /// Cannot implement something that isn't a trait.
+    CannotImplementNonTrait { supposed_trait_term: TermId },
+    /// The trait implementation `trt_impl_term_id` is missing the member
+    /// `trt_def_missing_member_id` from the trait `trt_def_term_id`.
+    TraitImplementationMissingMember {
+        trt_impl_term_id: TermId,
+        trt_def_term_id: TermId,
+        // @@ErrorReporting: Ideally we want to be able to identify whole members rather than just
+        // "terms".
+        trt_def_missing_member_term_id: TermId,
+    },
 }

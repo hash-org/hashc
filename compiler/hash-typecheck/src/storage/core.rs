@@ -97,8 +97,8 @@ impl CoreDefs {
         let hash_trt = builder.create_trt_def(
             "Hash",
             [
-                builder.create_unset_pub_member("Self", builder.create_any_ty_term()),
-                builder.create_unset_pub_member(
+                builder.create_uninitialised_pub_member("Self", builder.create_any_ty_term()),
+                builder.create_uninitialised_pub_member(
                     "hash",
                     builder.create_fn_ty_term(
                         [builder.create_param("value", builder.create_var_term("Self"))],
@@ -111,8 +111,8 @@ impl CoreDefs {
         let eq_trt = builder.create_trt_def(
             "Eq",
             [
-                builder.create_unset_pub_member("Self", builder.create_any_ty_term()),
-                builder.create_unset_pub_member(
+                builder.create_uninitialised_pub_member("Self", builder.create_any_ty_term()),
+                builder.create_uninitialised_pub_member(
                     "eq",
                     builder.create_fn_ty_term(
                         [
