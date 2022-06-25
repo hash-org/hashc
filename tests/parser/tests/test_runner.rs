@@ -37,11 +37,7 @@ fn handle_failure_case(
     let content_path = input.path.join("case.hash");
 
     // Verify that the parser failed to parse this file
-    assert!(
-        result.is_err(),
-        "parsing file: {:?} did not fail",
-        content_path
-    );
+    assert!(result.is_err(), "parsing file: {:?} did not fail", content_path);
 
     let diagnostics = result.unwrap_err();
     let contents = diagnostics
@@ -55,9 +51,7 @@ fn handle_failure_case(
 
     // Replace the directory by `$DIR`
     let dir_regex = Regex::new(input.path.as_path().to_str().unwrap()).unwrap();
-    let report_contents = dir_regex
-        .replace_all(report_contents.as_ref(), r"$$DIR")
-        .to_string();
+    let report_contents = dir_regex.replace_all(report_contents.as_ref(), r"$$DIR").to_string();
 
     // We want to load the `.stderr` file and verify that the contents of the
     // file match to the created report. If the `.stderr` file does not exist

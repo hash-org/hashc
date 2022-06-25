@@ -27,9 +27,7 @@ impl Display for Identifier {
 
 impl Debug for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Identifier")
-            .field(&IDENTIFIER_MAP.get_ident(*self).to_owned())
-            .finish()
+        f.debug_tuple("Identifier").field(&IDENTIFIER_MAP.get_ident(*self).to_owned()).finish()
     }
 }
 
@@ -87,19 +85,14 @@ pub struct CoreIdentifiers {
 impl CoreIdentifiers {
     /// Create the core identifiers inside the given [IdentifierMap].
     pub fn from_ident_map(ident_map: &IdentifierMap) -> Self {
-        Self {
-            underscore: ident_map.create_ident("_"),
-        }
+        Self { underscore: ident_map.create_ident("_") }
     }
 }
 
 impl<'c> IdentifierMap<'c> {
     /// Function to create a new identifier map instance.
     pub fn new() -> Self {
-        IdentifierMap {
-            identifiers: DashMap::default(),
-            reverse_lookup: DashMap::default(),
-        }
+        IdentifierMap { identifiers: DashMap::default(), reverse_lookup: DashMap::default() }
     }
 
     /// Function to create an identifier in the identifier map.
@@ -128,8 +121,6 @@ impl<'c> IdentifierMap<'c> {
     }
 
     pub fn get_path(&self, path: impl Iterator<Item = impl Borrow<Identifier>>) -> String {
-        path.map(|ident| self.get_ident(*ident.borrow()))
-            .collect::<Vec<&'_ str>>()
-            .join("::")
+        path.map(|ident| self.get_ident(*ident.borrow())).collect::<Vec<&'_ str>>().join("::")
     }
 }

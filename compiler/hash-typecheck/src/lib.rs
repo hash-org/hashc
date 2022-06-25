@@ -38,11 +38,7 @@ impl TcState {
         let mut global_storage = GlobalStorage::new();
         let core_defs = CoreDefs::new(&mut global_storage);
         let local_storage = LocalStorage::new(&mut global_storage);
-        Self {
-            global_storage,
-            core_defs,
-            prev_local_storage: local_storage,
-        }
+        Self { global_storage, core_defs, prev_local_storage: local_storage }
     }
 }
 
@@ -82,10 +78,7 @@ impl Tc<'_> for TcImpl {
             Ok(_) => Ok(()),
             Err(error) => {
                 // Turn the error into a report:
-                let err_with_storage = TcErrorWithStorage {
-                    error,
-                    storage: storage.storages(),
-                };
+                let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
                 Err(err_with_storage.into())
             }
         }
@@ -115,10 +108,7 @@ impl Tc<'_> for TcImpl {
             Ok(_) => Ok(()),
             Err(error) => {
                 // Turn the error into a report:
-                let err_with_storage = TcErrorWithStorage {
-                    error,
-                    storage: storage.storages(),
-                };
+                let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
                 Err(err_with_storage.into())
             }
         }

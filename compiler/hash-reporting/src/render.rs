@@ -65,10 +65,7 @@ pub(crate) fn offset_col_row(offset: usize, source: &str, non_inclusive: bool) -
         };
 
         if range.contains(&offset) {
-            line_index = Some(ColRowOffset {
-                col: offset - bytes_skipped,
-                row: line_idx,
-            });
+            line_index = Some(ColRowOffset { col: offset - bytes_skipped, row: line_idx });
             break;
         }
 
@@ -120,15 +117,11 @@ impl ReportCodeBlock {
                 let source = modules.contents_by_id(source_id);
 
                 // Compute offset rows and columns from the provided span
-                let ColRowOffset {
-                    col: start_col,
-                    row: start_row,
-                } = offset_col_row(span.start(), source, true);
+                let ColRowOffset { col: start_col, row: start_row } =
+                    offset_col_row(span.start(), source, true);
 
-                let ColRowOffset {
-                    col: end_col,
-                    row: end_row,
-                } = offset_col_row(span.end(), source, false);
+                let ColRowOffset { col: end_col, row: end_row } =
+                    offset_col_row(span.end(), source, false);
 
                 let ColRowOffset { row: last_row, .. } =
                     offset_col_row(source.len(), source, false);
@@ -143,13 +136,8 @@ impl ReportCodeBlock {
                     .chars()
                     .count();
 
-                let info = ReportCodeBlockInfo {
-                    indent_width,
-                    start_col,
-                    start_row,
-                    end_col,
-                    end_row,
-                };
+                let info =
+                    ReportCodeBlockInfo { indent_width, start_col, start_row, end_col, end_row };
 
                 self.info.replace(Some(info));
                 info
@@ -167,9 +155,7 @@ impl ReportCodeBlock {
         let source_id = self.source_location.source_id;
         let source = modules.contents_by_id(source_id);
 
-        let ReportCodeBlockInfo {
-            start_row, end_row, ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, .. } = self.info(modules);
 
         let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
@@ -204,21 +190,11 @@ impl ReportCodeBlock {
     ) -> fmt::Result {
         let error_view = self.get_source_view(modules);
 
-        let ReportCodeBlockInfo {
-            start_row,
-            end_row,
-            start_col,
-            end_col,
-            ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
 
         // Print each selected line with the line number
         for (index, line) in error_view {
-            let index_str = format!(
-                "{:>pad_width$}",
-                index + 1,
-                pad_width = longest_indent_width
-            );
+            let index_str = format!("{:>pad_width$}", index + 1, pad_width = longest_indent_width);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)
@@ -226,13 +202,7 @@ impl ReportCodeBlock {
                 index_str
             };
 
-            writeln!(
-                f,
-                "{} {}   {}",
-                line_number,
-                highlight(Colour::Blue, "|"),
-                line
-            )?;
+            writeln!(f, "{} {}   {}", line_number, highlight(Colour::Blue, "|"), line)?;
 
             if (start_row..=end_row).contains(&index) && !line.is_empty() {
                 let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER)
@@ -303,13 +273,7 @@ impl ReportCodeBlock {
     ) -> fmt::Result {
         let error_view = self.get_source_view(modules);
 
-        let ReportCodeBlockInfo {
-            start_row,
-            end_row,
-            start_col,
-            end_col,
-            ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
 
         // So here, we want to iterate over all of the line and on the starting line, we
         // want to draw an arrow from the left hand-side up until the beginning
@@ -318,11 +282,7 @@ impl ReportCodeBlock {
         // below the final line we want to draw an arrow leading up until
         // the end of the span.
         for (index, line) in error_view {
-            let index_str = format!(
-                "{:>pad_width$}",
-                index + 1,
-                pad_width = longest_indent_width
-            );
+            let index_str = format!("{:>pad_width$}", index + 1, pad_width = longest_indent_width);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)
@@ -352,10 +312,8 @@ impl ReportCodeBlock {
             // If this is th first row of the diagnostic span, then we want to draw an arrow
             // leading up to it
             if index == start_row {
-                let arrow: String = repeat('_')
-                    .take(start_col + 2)
-                    .chain(once(BLOCK_DIAGNOSTIC_MARKER))
-                    .collect();
+                let arrow: String =
+                    repeat('_').take(start_col + 2).chain(once(BLOCK_DIAGNOSTIC_MARKER)).collect();
 
                 writeln!(
                     f,
@@ -398,12 +356,7 @@ impl ReportCodeBlock {
         report_kind: ReportKind,
     ) -> fmt::Result {
         let source_id = self.source_location.source_id;
-        let ReportCodeBlockInfo {
-            start_row,
-            end_row,
-            start_col,
-            ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, start_col, .. } = self.info(modules);
 
         // Print the filename of the code block...
         writeln!(

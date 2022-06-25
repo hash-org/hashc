@@ -11,18 +11,12 @@ pub struct TreeNode {
 impl TreeNode {
     /// Create a leaf node with the given label.
     pub fn leaf(label: impl Into<Cow<'static, str>>) -> Self {
-        Self {
-            label: label.into(),
-            children: vec![],
-        }
+        Self { label: label.into(), children: vec![] }
     }
 
     /// Create a branch node with the given children.
     pub fn branch(label: impl Into<Cow<'static, str>>, children: Vec<TreeNode>) -> Self {
-        Self {
-            label: label.into(),
-            children,
-        }
+        Self { label: label.into(), children }
     }
 }
 
@@ -56,10 +50,7 @@ impl TreeWriterConfig {
     /// Draw trees using Unicode box drawing characters and longer child
     /// prefixes.
     pub fn unicode_long() -> Self {
-        Self {
-            child_prefix: "──".into(),
-            ..Self::unicode()
-        }
+        Self { child_prefix: "──".into(), ..Self::unicode() }
     }
 
     /// Draw trees using ASCII characters.
@@ -109,11 +100,7 @@ impl<'t, 'cfg> TreeWriter<'t, 'cfg> {
     /// Create a new [TreeWriter] with the given [TreeNode] and configuration
     /// [TreeWriterConfig].
     pub fn new_with_config(tree: &'t TreeNode, config: TreeWriterConfig) -> Self {
-        Self {
-            tree,
-            pad: String::new(),
-            config: Cow::Owned(config),
-        }
+        Self { tree, pad: String::new(), config: Cow::Owned(config) }
     }
 
     fn is_last(&self, child_index: usize) -> bool {
@@ -130,18 +117,9 @@ impl<'t, 'cfg> TreeWriter<'t, 'cfg> {
         let extra_pad =
             iter::repeat(self.config.pad).take(self.config.child_prefix.chars().count());
 
-        let new_pad = self
-            .pad
-            .chars()
-            .chain(vertical_line_or_pad)
-            .chain(extra_pad)
-            .collect();
+        let new_pad = self.pad.chars().chain(vertical_line_or_pad).chain(extra_pad).collect();
 
-        TreeWriter {
-            tree: child,
-            pad: new_pad,
-            config: Cow::Borrowed(self.config.as_ref()),
-        }
+        TreeWriter { tree: child, pad: new_pad, config: Cow::Borrowed(self.config.as_ref()) }
     }
 }
 
@@ -158,11 +136,7 @@ impl fmt::Display for TreeWriter<'_, '_> {
 
             let child_writer = self.next_depth(child, index);
 
-            write!(
-                f,
-                "{}{}{}{}",
-                self.pad, pipe_char, self.config.child_prefix, child_writer,
-            )?;
+            write!(f, "{}{}{}{}", self.pad, pipe_char, self.config.child_prefix, child_writer,)?;
         }
 
         Ok(())

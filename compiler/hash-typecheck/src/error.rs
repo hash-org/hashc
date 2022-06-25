@@ -11,10 +11,7 @@ pub enum TcError {
     /// Cannot unify the two terms.
     CannotUnify { src: TermId, target: TermId },
     /// Cannot unify the two parameter lists.
-    CannotUnifyParams {
-        src_params: Params,
-        target_params: Params,
-    },
+    CannotUnifyParams { src_params: Params, target_params: Params },
     /// The given term should be a type function but it isn't.
     NotATypeFunction { term: TermId },
     /// The given value cannot be used as a type.
@@ -26,16 +23,9 @@ pub enum TcError {
     ParamNotFound { params: Params, name: Identifier },
     /// There is a parameter (at the index `param_index_given_twice`) which is
     /// specified twice in the given argument list.
-    ParamGivenTwice {
-        args: Args,
-        params: Params,
-        param_index_given_twice: usize,
-    },
+    ParamGivenTwice { args: Args, params: Params, param_index_given_twice: usize },
     /// It is invalid to use a positional argument after a named argument.
-    CannotUsePositionalArgAfterNamedArg {
-        args: Args,
-        problematic_arg_index: usize,
-    },
+    CannotUsePositionalArgAfterNamedArg { args: Args, problematic_arg_index: usize },
     /// The given name cannot be resolved in the given value.
     UnresolvedNameInValue { name: Identifier, value: TermId },
     /// The given variable cannot be resolved in the current context.
@@ -49,11 +39,7 @@ pub enum TcError {
     UnsupportedPropertyAccess { name: Identifier, value: TermId },
     /// The given type function cannot be applied to the given arguments, due to
     /// the given errors.
-    InvalidTypeFunctionApplication {
-        type_fn: TermId,
-        args: Args,
-        unification_errors: Vec<TcError>,
-    },
+    InvalidTypeFunctionApplication { type_fn: TermId, args: Args, unification_errors: Vec<TcError> },
     /// The given term cannot be used in a merge operation.
     InvalidElementOfMerge { term: TermId },
     /// The given term cannot be used as a type function parameter type.
@@ -70,15 +56,9 @@ pub enum TcError {
         second_nominal_term: TermId,
     },
     /// The given merge term should contain only level 1 terms.
-    MergeShouldBeLevel1 {
-        merge_term: TermId,
-        offending_term: TermId,
-    },
+    MergeShouldBeLevel1 { merge_term: TermId, offending_term: TermId },
     /// The given merge term should contain only level 2 terms.
-    MergeShouldBeLevel2 {
-        merge_term: TermId,
-        offending_term: TermId,
-    },
+    MergeShouldBeLevel2 { merge_term: TermId, offending_term: TermId },
     /// More type annotations are needed to resolve the given term.
     NeedMoreTypeAnnotationsToResolve { term_to_resolve: TermId },
     /// The given term cannot be instantiated at runtime.
@@ -89,8 +69,5 @@ pub enum TcError {
     /// The given access operation results in more than one result.
     AmbiguousAccess { access: AccessTerm },
     /// The given access operation does not resolve to a method.
-    InvalidPropertyAccessOfNonMethod {
-        subject: TermId,
-        property: Identifier,
-    },
+    InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
 }

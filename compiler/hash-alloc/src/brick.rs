@@ -24,9 +24,7 @@ impl<'c, T> Brick<'c, T> {
     /// Create a new `Brick` within the given [`Wall`], containing the given
     /// value.
     pub fn new(value: T, wall: &Wall<'c>) -> Self {
-        Self {
-            data: wall.alloc_value(value),
-        }
+        Self { data: wall.alloc_value(value) }
     }
 
     /// Move the value inside this `Brick` out, consuming the brick.

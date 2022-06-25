@@ -11,9 +11,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is
     /// followed by parenthesees with inner struct fields defined.
     pub fn parse_struct_def(&self) -> AstGenResult<StructDef> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Struct)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
         let gen = self.parse_delim_tree(
             Delimiter::Paren,
@@ -56,9 +54,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
     /// followed by parenthesees with inner enum fields defined.
     pub fn parse_enum_def(&self) -> AstGenResult<EnumDef> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Enum)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
 
         let gen = self.parse_delim_tree(
             Delimiter::Paren,
@@ -118,10 +114,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 token => self.error_with_location(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![
-                        TokenKind::Comma,
-                        TokenKind::Gt,
-                    ])),
+                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
                     token.map(|t| t.kind),
                     token.map_or_else(|| self.next_location(), |t| t.span),
                 )?,
@@ -139,11 +132,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(TypeFunctionDef {
-            args,
-            return_ty,
-            expr,
-        })
+        Ok(TypeFunctionDef { args, return_ty, expr })
     }
 
     // Parse a [TypeFunctionDefArg] which consists the name of the argument and then
@@ -154,10 +143,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
-        let ty = self
-            .parse_token_fast(TokenKind::Colon)
-            .map(|_| self.parse_type())
-            .transpose()?;
+        let ty = self.parse_token_fast(TokenKind::Colon).map(|_| self.parse_type()).transpose()?;
 
         Ok(self.node_with_joined_span(TypeFunctionDefArg { name, ty }, &start))
     }
@@ -165,12 +151,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
     /// `trait` that contains definitions or attach expressions to a trait.
     pub fn parse_trait_def(&self) -> AstGenResult<TraitDef> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Trait)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        Ok(TraitDef {
-            members: self.parse_expressions_from_braces()?,
-        })
+        Ok(TraitDef { members: self.parse_expressions_from_braces()? })
     }
 }

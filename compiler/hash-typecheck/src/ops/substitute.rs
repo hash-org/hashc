@@ -38,10 +38,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         let new_args = args
             .positional()
             .iter()
-            .map(|arg| Arg {
-                name: arg.name,
-                value: self.apply_sub_to_term(sub, arg.value),
-            })
+            .map(|arg| Arg { name: arg.name, value: self.apply_sub_to_term(sub, arg.value) })
             .collect::<Vec<_>>();
         ParamList::new(new_args)
     }
@@ -55,9 +52,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             .map(|param| Param {
                 name: param.name,
                 ty: self.apply_sub_to_term(sub, param.ty),
-                default_value: param
-                    .default_value
-                    .map(|value| self.apply_sub_to_term(sub, value)),
+                default_value: param.default_value.map(|value| self.apply_sub_to_term(sub, value)),
             })
             .collect::<Vec<_>>();
         ParamList::new(new_params)
@@ -67,9 +62,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     /// [Level3Term] with the substituted variables.
     pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TermId {
         match term {
-            Level3Term::TrtKind => self
-                .builder()
-                .create_term(Term::Level3(Level3Term::TrtKind)),
+            Level3Term::TrtKind => self.builder().create_term(Term::Level3(Level3Term::TrtKind)),
         }
     }
 
@@ -115,20 +108,18 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
                 let subbed_members = self.apply_sub_to_params(sub, &tuple_ty.members);
-                self.builder()
-                    .create_term(Term::Level1(Level1Term::Tuple(TupleTy {
-                        members: subbed_members,
-                    })))
+                self.builder().create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+                    members: subbed_members,
+                })))
             }
             Level1Term::Fn(fn_ty) => {
                 // Apply to parameters and return type
                 let subbed_params = self.apply_sub_to_params(sub, &fn_ty.params);
                 let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty);
-                self.builder()
-                    .create_term(Term::Level1(Level1Term::Fn(FnTy {
-                        params: subbed_params,
-                        return_ty: subbed_return_ty,
-                    })))
+                self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
+                    params: subbed_params,
+                    return_ty: subbed_return_ty,
+                })))
             }
         }
     }
@@ -146,9 +137,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 // Here we add the substitution to the term using only vars in the enum
                 // definition.
                 let reader = self.reader();
-                let enum_def_vars = reader
-                    .get_nominal_def(enum_variant.enum_def_id)
-                    .bound_vars();
+                let enum_def_vars = reader.get_nominal_def(enum_variant.enum_def_id).bound_vars();
                 let selected_sub = sub.select(enum_def_vars);
                 let builder = self.builder();
                 builder.create_app_sub_term(
@@ -160,8 +149,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 // Apply to the function type and return value
                 let subbed_fn_ty = self.apply_sub_to_term(sub, fn_lit.fn_ty);
                 let subbed_return_value = self.apply_sub_to_term(sub, fn_lit.return_value);
-                self.builder()
-                    .create_fn_lit_term(subbed_fn_ty, subbed_return_value)
+                self.builder().create_fn_lit_term(subbed_fn_ty, subbed_return_value)
             }
         }
     }
@@ -199,8 +187,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::Access(access) => {
                 // Just apply the substitution to the subject:
                 let subbed_subject_id = self.apply_sub_to_term(sub, access.subject);
-                self.builder()
-                    .create_ns_access(subbed_subject_id, access.name)
+                self.builder().create_ns_access(subbed_subject_id, access.name)
             }
             Term::Merge(terms) => {
                 // Apply the substitution to each element of the merge.
@@ -621,24 +608,15 @@ mod tests {
             .map(|x| storage_ref.builder().create_term(x.into()))
             .collect();
 
-        println!(
-            "{}",
-            subbed_target.for_formatting(storage_ref.global_storage())
-        );
+        println!("{}", subbed_target.for_formatting(storage_ref.global_storage()));
 
         print!("\nTarget free vars:\n");
         for target_free_var in &target_free_vars_list {
-            println!(
-                "{}",
-                target_free_var.for_formatting(storage_ref.global_storage())
-            );
+            println!("{}", target_free_var.for_formatting(storage_ref.global_storage()));
         }
         print!("\nInner free vars:\n");
         for inner_free_var in &inner_free_vars_list {
-            println!(
-                "{}",
-                inner_free_var.for_formatting(storage_ref.global_storage())
-            );
+            println!("{}", inner_free_var.for_formatting(storage_ref.global_storage()));
         }
 
         println!();

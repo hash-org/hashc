@@ -42,19 +42,13 @@ const ROW_REALLOC_MULT_DIV: (usize, usize) = (2, 1);
 impl<'c, T> Row<'c, T> {
     /// Create a new [`Row`] with zero length and capacity.
     pub fn new() -> Self {
-        Self {
-            data: &mut [],
-            length: 0,
-        }
+        Self { data: &mut [], length: 0 }
     }
 
     /// Create a new `Row` within the given [`Wall`] with zero length and a
     /// given capacity.
     pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
-        Self {
-            data: wall.alloc_uninit_slice(initial_capacity),
-            length: 0,
-        }
+        Self { data: wall.alloc_uninit_slice(initial_capacity), length: 0 }
     }
 
     /// Get the current capacity of the `Row`.
@@ -70,10 +64,7 @@ impl<'c, T> Row<'c, T> {
     /// - Panics if `new_capacity` is greater than [`isize::MAX`].
     /// - Panics if `new_capacity` is less than the current length of the `Row`.
     pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
-        assert!(
-            new_capacity <= isize::MAX as usize,
-            "Reallocation target capacity is too large"
-        );
+        assert!(new_capacity <= isize::MAX as usize, "Reallocation target capacity is too large");
 
         assert!(
             new_capacity >= self.len(),
@@ -146,9 +137,7 @@ impl<'c, T> Row<'c, T> {
         // ##Safety: value has been initialised because it was within (0..self.len()).
         //
         // We give responsibility of dropping to the caller.
-        Some(ManuallyDrop::into_inner(unsafe {
-            last_element.assume_init()
-        }))
+        Some(ManuallyDrop::into_inner(unsafe { last_element.assume_init() }))
     }
 
     /// Insert an element at a given index inside the `Row`.

@@ -390,8 +390,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_b(l1, &r1.wrapping_div(r2).to_be_bytes());
+                        self.registers.set_register_b(l1, &r1.wrapping_div(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -406,8 +405,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_b(l1, &r1.wrapping_mul(r2).to_be_bytes());
+                        self.registers.set_register_b(l1, &r1.wrapping_mul(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -422,8 +420,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_2b(l1, &r1.wrapping_mul(r2).to_be_bytes());
+                        self.registers.set_register_2b(l1, &r1.wrapping_mul(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -438,8 +435,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_2b(l1, &r1.wrapping_mul(r2).to_be_bytes());
+                        self.registers.set_register_2b(l1, &r1.wrapping_mul(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -454,8 +450,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_4b(l1, &r1.wrapping_div(r2).to_be_bytes());
+                        self.registers.set_register_4b(l1, &r1.wrapping_div(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -470,8 +465,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_4b(l1, &r1.wrapping_mul(r2).to_be_bytes());
+                        self.registers.set_register_4b(l1, &r1.wrapping_mul(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -486,8 +480,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_8b(l1, &r1.wrapping_div(r2).to_be_bytes());
+                        self.registers.set_register_8b(l1, &r1.wrapping_div(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -502,8 +495,7 @@ impl Interpreter {
                         self.flags.overflow.set(false);
                     }
                     None => {
-                        self.registers
-                            .set_register_8b(l1, &r1.wrapping_mul(r2).to_be_bytes());
+                        self.registers.set_register_8b(l1, &r1.wrapping_mul(r2).to_be_bytes());
                         self.flags.overflow.set(true);
                     }
                 }
@@ -664,15 +656,13 @@ impl Interpreter {
                 let r1 = self.registers.get_register_f32(l1);
                 let r2 = self.registers.get_register_f32(l2);
 
-                self.registers
-                    .set_register_4b(l1, &r1.powf(r2).to_be_bytes());
+                self.registers.set_register_4b(l1, &r1.powf(r2).to_be_bytes());
             }
             Instruction::PowF64 { l1, l2 } => {
                 let r1 = self.registers.get_register_f64(l1);
                 let r2 = self.registers.get_register_f64(l2);
 
-                self.registers
-                    .set_register_8b(l1, &r1.powf(r2).to_be_bytes());
+                self.registers.set_register_8b(l1, &r1.powf(r2).to_be_bytes());
             }
             Instruction::Shl8 { l1, l2 } => {
                 let r1 = self.registers.get_register8(l1);
@@ -816,18 +806,11 @@ impl Interpreter {
             Instruction::Call { func } => {
                 // Save the ip onto the stack
                 self.stack.push64(
-                    &self
-                        .registers
-                        .get_register64(Register::INSTRUCTION_POINTER)
-                        .to_be_bytes(),
+                    &self.registers.get_register64(Register::INSTRUCTION_POINTER).to_be_bytes(),
                 )?;
                 // Save the bp onto the stack
-                self.stack.push64(
-                    &self
-                        .registers
-                        .get_register64(Register::BASE_POINTER)
-                        .to_be_bytes(),
-                )?;
+                self.stack
+                    .push64(&self.registers.get_register64(Register::BASE_POINTER).to_be_bytes())?;
 
                 // Set the new bp as the stack pointer
                 self.registers.set_register64(
@@ -868,16 +851,12 @@ impl Interpreter {
 
     /// Gets the current instruction pointer of the VM.
     pub fn get_instruction_pointer(&self) -> usize {
-        self.registers
-            .get_register64(Register::INSTRUCTION_POINTER)
-            .try_into()
-            .unwrap()
+        self.registers.get_register64(Register::INSTRUCTION_POINTER).try_into().unwrap()
     }
 
     /// Sets the current instruction pointer of the VM.
     pub fn set_instruction_pointer(&mut self, value: usize) {
-        self.registers
-            .set_register64(Register::INSTRUCTION_POINTER, value.try_into().unwrap());
+        self.registers.set_register64(Register::INSTRUCTION_POINTER, value.try_into().unwrap());
     }
 
     pub fn set_program(&mut self, program: Vec<Instruction>) {

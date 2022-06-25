@@ -40,11 +40,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         source_id: SourceId,
         sources: &'src Sources,
     ) -> Self {
-        TcVisitor {
-            storage,
-            source_id,
-            sources,
-        }
+        TcVisitor { storage, source_id, sources }
     }
 
     /// Visits the source passed in as an argument to [Self::new], and returns

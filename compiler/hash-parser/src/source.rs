@@ -23,10 +23,7 @@ pub enum ParseSource {
 impl ParseSource {
     pub fn from_module(module_id: ModuleId, sources: &Sources) -> Self {
         let module = sources.get_module(module_id);
-        Self::Module {
-            module_id,
-            resolved_path: module.path().to_owned(),
-        }
+        Self::Module { module_id, resolved_path: module.path().to_owned() }
     }
     pub fn from_interactive(
         interactive_id: InteractiveId,
@@ -52,20 +49,19 @@ impl ParseSource {
 
     pub fn contents(&self) -> Result<Cow<str>, ParseError> {
         match self {
-            ParseSource::Module { resolved_path, .. } => Ok(Cow::Owned(
-                fs::read_to_string(&resolved_path).map_err(|_| {
+            ParseSource::Module { resolved_path, .. } => {
+                Ok(Cow::Owned(fs::read_to_string(&resolved_path).map_err(|_| {
                     let path = resolved_path.to_string_lossy();
                     ParseError::Import(ImportError {
                         src: None,
                         message: format!("Cannot read file: {}", path),
                         filename: resolved_path.to_owned(),
                     })
-                })?,
-            )),
-            ParseSource::Interactive {
-                interactive_contents,
-                ..
-            } => Ok(Cow::Borrowed(interactive_contents.as_str())),
+                })?))
+            }
+            ParseSource::Interactive { interactive_contents, .. } => {
+                Ok(Cow::Borrowed(interactive_contents.as_str()))
+            }
         }
     }
 

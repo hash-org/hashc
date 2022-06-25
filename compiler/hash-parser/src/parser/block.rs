@@ -11,10 +11,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_block(&self) -> AstGenResult<AstNode<Block>> {
         let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
 
-        Ok(self.node_with_span(
-            Block::Body(gen.parse_body_block_inner()?),
-            self.current_location(),
-        ))
+        Ok(self.node_with_span(Block::Body(gen.parse_body_block_inner()?), self.current_location()))
     }
 
     /// Helper function to simply parse a body block without wrapping it in
@@ -31,10 +28,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// next token is a brace tree.
     pub(crate) fn parse_body_block_inner(&self) -> AstGenResult<BodyBlock> {
         // Append the initial statement if there is one.
-        let mut block = BodyBlock {
-            statements: AstNodes::empty(),
-            expr: None,
-        };
+        let mut block = BodyBlock { statements: AstNodes::empty(), expr: None };
 
         // Just return an empty block if we don't get anything
         if !self.has_token() {
@@ -62,9 +56,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a `for` loop block.
     pub(crate) fn parse_for_loop(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::For)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::For)));
 
         let start = self.current_location();
 
@@ -76,21 +68,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let iterator = self.parse_expression_with_precedence(0)?;
         let body = self.parse_block()?;
 
-        Ok(self.node_with_joined_span(
-            Block::For(ForLoopBlock {
-                pattern,
-                iterator,
-                body,
-            }),
-            &start,
-        ))
+        Ok(self.node_with_joined_span(Block::For(ForLoopBlock { pattern, iterator, body }), &start))
     }
 
     /// Parse a `while` loop block.
     pub(crate) fn parse_while_loop(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::While)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::While)));
 
         let start = self.current_location();
 
@@ -115,9 +98,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a match block statement, which is composed of a subject and an
     /// arbitrary number of match cases that are surrounded in braces.
     pub(crate) fn parse_match_block(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Match)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Match)));
 
         let start = self.current_location();
         let subject = self.parse_expression_with_precedence(0)?;
@@ -132,11 +113,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(self.node_with_joined_span(
-            Block::Match(MatchBlock {
-                subject,
-                cases,
-                origin: MatchOrigin::Match,
-            }),
+            Block::Match(MatchBlock { subject, cases, origin: MatchOrigin::Match }),
             &start,
         ))
     }
@@ -162,10 +139,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// therefore we need to know the outcome of all branches for
     /// typechecking.
     pub(crate) fn parse_if_block(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(matches!(
-            self.current_token().kind,
-            TokenKind::Keyword(Keyword::If)
-        ));
+        debug_assert!(matches!(self.current_token().kind, TokenKind::Keyword(Keyword::If)));
 
         let start = self.current_location();
 

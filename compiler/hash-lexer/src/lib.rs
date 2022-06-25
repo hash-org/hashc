@@ -61,8 +61,7 @@ impl<'a> Lexer<'a> {
     pub fn tokenise(&mut self) -> Result<Vec<Token>, LexerErrorWrapper> {
         let iter = std::iter::from_fn(|| self.advance_token().transpose());
 
-        iter.collect::<Result<_, _>>()
-            .map_err(|err| LexerErrorWrapper(self.source_id, err))
+        iter.collect::<Result<_, _>>().map_err(|err| LexerErrorWrapper(self.source_id, err))
 
         // Row::try_from_iter(iter, wall).map_err(|err|
         // LexerErrorWrapper(self.source_id, err))
@@ -358,9 +357,8 @@ impl<'a> Lexer<'a> {
         }
 
         // @@Performance: could avoid allocating the string here?
-        let pre_digits = iter::once(prev)
-            .chain(self.eat_decimal_digits(10).chars())
-            .filter(|c| *c != '_');
+        let pre_digits =
+            iter::once(prev).chain(self.eat_decimal_digits(10).chars()).filter(|c| *c != '_');
 
         // peek next to check if this is an actual float literal...
         match self.peek() {
@@ -419,11 +417,7 @@ impl<'a> Lexer<'a> {
 
                 // if an exponent was specified, as in it is non-zero, we need to apply the
                 // exponent to the float literal.
-                let value = if exp != 0 {
-                    value * 10f64.powi(exp)
-                } else {
-                    value
-                };
+                let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
                 Ok(TokenKind::FloatLiteral(value))
             }

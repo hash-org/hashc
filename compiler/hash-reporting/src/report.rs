@@ -57,11 +57,7 @@ impl ReportKind {
 
 impl fmt::Display for ReportKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            highlight(self.as_colour() | Modifier::Bold, self.message())
-        )
+        write!(f, "{}", highlight(self.as_colour() | Modifier::Bold, self.message()))
     }
 }
 
@@ -94,10 +90,7 @@ pub struct ReportNote {
 
 impl ReportNote {
     pub fn new(label: ReportNoteKind, message: impl ToString) -> Self {
-        Self {
-            label,
-            message: message.to_string(),
-        }
+        Self { label, message: message.to_string() }
     }
 }
 
@@ -114,11 +107,7 @@ pub struct ReportCodeBlock {
 impl ReportCodeBlock {
     /// Create a new [ReportCodeBlock] from a [SourceLocation] and a message.
     pub fn new(source_location: SourceLocation, code_message: impl ToString) -> Self {
-        Self {
-            source_location,
-            code_message: code_message.to_string(),
-            info: Cell::new(None),
-        }
+        Self { source_location, code_message: code_message.to_string(), info: Cell::new(None) }
     }
 }
 

@@ -40,11 +40,7 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
 
         // Print backtrace and thread name if available
         if let Some(name) = thread::current().name() {
-            let _ = writeln!(
-                &mut stdout,
-                "Backtrace for thread \"{}\":\n{:?}",
-                name, backtrace
-            );
+            let _ = writeln!(&mut stdout, "Backtrace for thread \"{}\":\n{:?}", name, backtrace);
         } else {
             let _ = writeln!(&mut stdout, "Backtrace:\n{:?}", backtrace);
         }

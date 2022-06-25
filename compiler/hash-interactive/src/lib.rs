@@ -115,19 +115,15 @@ where
         ) => {
             // Add the interactive block to the state
             let new_interactive_block = InteractiveBlock::new(expr.to_string());
-            let interactive_id = compiler_state
-                .sources
-                .add_interactive_block(new_interactive_block);
+            let interactive_id =
+                compiler_state.sources.add_interactive_block(new_interactive_block);
 
             // Compute the mode of the job based on provided arguments via the interactive
             // command
             let settings: CompilerJobParams = inner.into();
 
-            let new_state = compiler.run(
-                SourceId::Interactive(interactive_id),
-                compiler_state,
-                settings,
-            );
+            let new_state =
+                compiler.run(SourceId::Interactive(interactive_id), compiler_state, settings);
             return new_state;
         }
         Err(e) => CompilerError::from(e).report(),

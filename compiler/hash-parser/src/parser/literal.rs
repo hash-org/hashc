@@ -45,17 +45,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a map literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
     pub(crate) fn parse_map_literal(&self) -> AstGenResult<AstNode<Literal>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Map)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Map)));
 
         let start = self.current_location();
         let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
-        let elements = gen.parse_separated_fn(
-            || gen.parse_map_entry(),
-            || gen.parse_token(TokenKind::Comma),
-        )?;
+        let elements =
+            gen.parse_separated_fn(|| gen.parse_map_entry(), || gen.parse_token(TokenKind::Comma))?;
 
         Ok(self.node_with_joined_span(Literal::Map(MapLiteral { elements }), &start))
     }
@@ -63,9 +59,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a set literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
     pub(crate) fn parse_set_literal(&self) -> AstGenResult<AstNode<Literal>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Set)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Set)));
 
         let start = self.current_location();
         let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
@@ -86,13 +80,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Determine if this might have a tuple field name and optional type
         let entry = if let Some(name) = self.peek_resultant_fn(|| self.parse_name()) {
             // Here we can identify if we need to backtrack and just parse an expression...
-            if !matches!(
-                self.peek(),
-                Some(Token {
-                    kind: TokenKind::Colon | TokenKind::Eq,
-                    ..
-                })
-            ) {
+            if !matches!(self.peek(), Some(Token { kind: TokenKind::Colon | TokenKind::Eq, .. })) {
                 self.offset.set(offset);
                 None
             } else {

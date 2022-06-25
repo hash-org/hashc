@@ -82,12 +82,7 @@ fn read_dir(
         let entry = entry?;
         let path = entry.path();
 
-        let entry_snake_name = path
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_case(Case::Snake);
+        let entry_snake_name = path.file_stem().unwrap().to_str().unwrap().to_case(Case::Snake);
         let snake_name: String = base_name
             .into_iter()
             .chain(iter::once(entry_snake_name.as_str()))
@@ -166,13 +161,7 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     let call_site = Span::call_site();
 
     let file_path = fs::canonicalize(
-        call_site
-            .source_file()
-            .path()
-            .parent()
-            .unwrap()
-            .to_owned()
-            .join(test_path),
+        call_site.source_file().path().parent().unwrap().to_owned().join(test_path),
     )
     .unwrap();
 

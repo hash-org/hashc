@@ -76,9 +76,7 @@ impl SemanticAnalyser {
             if matches!(field.body(), Pattern::Spread(_)) {
                 if seen_spread_pattern {
                     self.append_error(
-                        AnalysisErrorKind::MultipleSpreadPatterns {
-                            origin: PatternOrigin::List,
-                        },
+                        AnalysisErrorKind::MultipleSpreadPatterns { origin: PatternOrigin::List },
                         field.span(),
                     );
                 } else {

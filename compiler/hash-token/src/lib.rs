@@ -301,19 +301,13 @@ impl TokenKindVector {
 
     #[inline(always)]
     pub fn begin_visibility() -> Self {
-        Self(vec![
-            TokenKind::Keyword(Keyword::Pub),
-            TokenKind::Keyword(Keyword::Priv),
-        ])
+        Self(vec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
     }
 
     /// Tokens expected when the parser expects a collection of patterns to be
     /// present.
     pub fn begin_pattern_collection() -> Self {
-        Self(vec![
-            TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Colon,
-        ])
+        Self(vec![TokenKind::Delimiter(Delimiter::Paren, true), TokenKind::Colon])
     }
 
     /// Tokens expected when a pattern begins in a match statement.

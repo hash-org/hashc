@@ -41,16 +41,12 @@ impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
         )?;
 
         let longest_indent_width =
-            self.report
-                .contents
-                .iter()
-                .fold(0, |longest_indent_width, element| match element {
-                    ReportElement::CodeBlock(code_block) => code_block
-                        .info(self.sources)
-                        .indent_width
-                        .max(longest_indent_width),
-                    ReportElement::Note(_) => longest_indent_width,
-                });
+            self.report.contents.iter().fold(0, |longest_indent_width, element| match element {
+                ReportElement::CodeBlock(code_block) => {
+                    code_block.info(self.sources).indent_width.max(longest_indent_width)
+                }
+                ReportElement::Note(_) => longest_indent_width,
+            });
 
         let mut iter = self.report.contents.iter().peekable();
 
