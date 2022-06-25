@@ -1,16 +1,12 @@
 //! Contains functionality to simplify terms into more concrete terms.
-
-// @@Remove
-#![allow(unused)]
-
 use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, Args, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, Member, NominalDef, Param, Params, ScopeId, StructFields, Term,
-            TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
+            Level2Term, Level3Term, NominalDef, Param, Params, StructFields, Term, TermId, TupleTy,
+            TyFn, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -85,44 +81,6 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     /// Convenience method to get a [Substituter].
     fn substituter(&mut self) -> Substituter {
         Substituter::new(self.storages_mut())
-    }
-
-    /// Resolve the given name in the scope with the given [ScopeId],
-    /// originating from the given value.
-    ///
-    /// Returns the resolved member, or errors if no such member was found.
-    fn resolve_name_member_in_scope(
-        &self,
-        name: Identifier,
-        scope: ScopeId,
-        value: TermId,
-    ) -> TcResult<Member> {
-        match self.reader().get_scope(scope).get(name) {
-            Some(member) => Ok(member),
-            None => {
-                // Member not found!
-                Err(TcError::UnresolvedNameInValue { name, value })
-            }
-        }
-    }
-
-    /// Resolve the given name in the scope with the given [ScopeId],
-    /// originating from the given value.
-    ///
-    /// Returns [Some] if the member can be resolved with a value, [None] if it
-    /// cannot because it has no value yet.
-    fn resolve_name_in_scope(
-        &self,
-        name: Identifier,
-        scope: ScopeId,
-        value: TermId,
-    ) -> TcResult<Option<TermId>> {
-        match self.resolve_name_member_in_scope(name, scope, value)?.data.value() {
-            // Member found and has value, return it!
-            Some(value) => Ok(Some(value)),
-            // Cannot simplify yet, because the member does not have a defined value:
-            None => Ok(None),
-        }
     }
 
     /// Convert an accessed type (or any other type for that matter) along with
@@ -490,7 +448,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) | Term::Unresolved(_) => {
+            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
