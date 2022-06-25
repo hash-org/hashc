@@ -21,12 +21,39 @@ pub enum Mutability {
     Immutable,
 }
 
+/// A member declaration either containing only a type, only a value, or both.
+#[derive(Copy, Clone, Debug)]
+pub enum MemberData {
+    Uninitialised { ty: TermId },
+    InitialisedWithTy { ty: TermId, value: TermId },
+    InitialisedWithInferredTy { value: TermId },
+}
+
+impl MemberData {
+    /// Get the type of the member, if it exists.
+    pub fn ty(&self) -> Option<TermId> {
+        match self {
+            MemberData::Uninitialised { ty } => Some(*ty),
+            MemberData::InitialisedWithTy { ty, .. } => Some(*ty),
+            MemberData::InitialisedWithInferredTy { .. } => None,
+        }
+    }
+
+    /// Get the value of the member, if it exists.
+    pub fn value(&self) -> Option<TermId> {
+        match self {
+            MemberData::Uninitialised { .. } => None,
+            MemberData::InitialisedWithTy { value, .. } => Some(*value),
+            MemberData::InitialisedWithInferredTy { value } => Some(*value),
+        }
+    }
+}
+
 /// A member of a scope, i.e. a variable or a type definition.
 #[derive(Debug, Clone, Copy)]
 pub struct Member {
     pub name: Identifier,
-    pub ty: TermId,
-    pub value: Option<TermId>,
+    pub data: MemberData,
     pub visibility: Visibility,
     pub mutability: Mutability,
 }
@@ -49,32 +76,47 @@ pub enum ScopeKind {
 }
 
 /// Stores a list of members, indexed by the members' names.
+///
+/// Keeps insertion order.
 #[derive(Debug, Clone)]
 pub struct Scope {
     pub kind: ScopeKind,
-    pub members: HashMap<Identifier, Member>,
+    pub members: Vec<Member>,
+    pub member_names: HashMap<Identifier, usize>,
 }
 
 impl Scope {
     /// Create an empty [Scope].
     pub fn empty(kind: ScopeKind) -> Self {
-        Self { kind, members: HashMap::new() }
+        Self { kind, members: Vec::new(), member_names: HashMap::new() }
     }
 
     /// Create a new [Scope] from the given members.
     pub fn new(kind: ScopeKind, members: impl IntoIterator<Item = Member>) -> Self {
-        Self { kind, members: members.into_iter().map(|member| (member.name, member)).collect() }
+        let members: Vec<_> = members.into_iter().collect();
+        let member_names = members.iter().enumerate().map(|(i, member)| (member.name, i)).collect();
+        Self { kind, members, member_names }
     }
 
     /// Add a member to the scope, overwriting any existing member with the same
     /// name.
     pub fn add(&mut self, member: Member) {
-        self.members.insert(member.name, member);
+        // Remove existing members:
+        if let Some(&i) = self.member_names.get(&member.name) {
+            self.members.remove(i);
+        }
+        self.members.push(member);
+        self.member_names.insert(member.name, self.members.len() - 1);
     }
 
     /// Get a member by name.
     pub fn get(&self, member_name: Identifier) -> Option<Member> {
-        self.members.get(&member_name).copied()
+        Some(self.members[self.member_names.get(&member_name).copied()?])
+    }
+
+    /// Iterate through all the members in insertion order (oldest first).
+    pub fn iter(&self) -> impl Iterator<Item = Member> + '_ {
+        self.members.iter().copied()
     }
 }
 
