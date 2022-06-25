@@ -63,9 +63,7 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
 // Helper for [Simplifier::apply_access_term] erroring for name not found in
 // value:
 fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
-    {
-        Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
-    }
+    Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
 }
 
 impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
