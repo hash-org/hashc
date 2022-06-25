@@ -31,9 +31,7 @@ impl<'c> BrickString<'c> {
     /// Create an empty `BrickString` within the given [`Wall`] with a given
     /// capacity.
     pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
-        Self {
-            inner: Row::with_capacity(initial_capacity, wall),
-        }
+        Self { inner: Row::with_capacity(initial_capacity, wall) }
     }
 
     /// Get the current capacity of the `Row`.

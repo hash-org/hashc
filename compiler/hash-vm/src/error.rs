@@ -20,11 +20,7 @@ impl fmt::Display for StackAccessKind {
 
 #[derive(Debug)]
 pub enum RuntimeError {
-    StackViolationAccess {
-        kind: StackAccessKind,
-        size: u8,
-        total: usize,
-    },
+    StackViolationAccess { kind: StackAccessKind, size: u8, total: usize },
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;

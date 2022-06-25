@@ -109,10 +109,7 @@ impl From<AstGenError> for ParseError {
             AstGenErrorKind::Keyword => {
                 let keyword = err.received.unwrap();
 
-                format!(
-                    "Encountered an unexpected keyword {}",
-                    keyword.as_error_string()
-                )
+                format!("Encountered an unexpected keyword {}", keyword.as_error_string())
             }
             AstGenErrorKind::Expected => match &err.received {
                 Some(kind) => format!("Unexpectedly encountered {}", kind.as_error_string()),
@@ -131,10 +128,7 @@ impl From<AstGenError> for ParseError {
             AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
             AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator".to_string(),
             AstGenErrorKind::TypeDefinition(ty) => {
-                format!(
-                    "Expected {} definition entries here which begin with a '('",
-                    ty
-                )
+                format!("Expected {} definition entries here which begin with a '('", ty)
             }
             AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
                 "Expected value assignment after type annotation within named tuple".to_string()
@@ -191,10 +185,7 @@ impl From<AstGenError> for ParseError {
             }
         }
 
-        Self::Parsing {
-            message: base_message,
-            src: Some(err.span),
-        }
+        Self::Parsing { message: base_message, src: Some(err.span) }
     }
 }
 
@@ -203,10 +194,7 @@ impl From<AstGenError> for ParseError {
 pub enum ParseError {
     Import(ImportError),
     IO(io::Error),
-    Parsing {
-        message: String,
-        src: Option<SourceLocation>,
-    },
+    Parsing { message: String, src: Option<SourceLocation> },
 }
 
 impl From<io::Error> for ParseError {
@@ -224,16 +212,11 @@ impl From<ParseError> for Report {
 impl ParseError {
     pub fn create_report(self) -> Report {
         let mut builder = ReportBuilder::new();
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message("Failed to parse");
+        builder.with_kind(ReportKind::Error).with_message("Failed to parse");
 
         match self {
             ParseError::Import(import_error) => return import_error.create_report(),
-            ParseError::Parsing {
-                message,
-                src: Some(src),
-            } => {
+            ParseError::Parsing { message, src: Some(src) } => {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -267,10 +250,7 @@ impl From<LexerErrorWrapper> for ParseError {
     fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
-            src: Some(SourceLocation {
-                span: err.span,
-                source_id,
-            }),
+            src: Some(SourceLocation { span: err.span, source_id }),
         }
     }
 }

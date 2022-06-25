@@ -44,9 +44,7 @@ impl<'i> CommandDelegator<'i> {
 
     fn with_arg(&self, f: impl FnOnce(&'i str) -> InteractiveResult<'i>) -> InteractiveResult<'i> {
         match self.arg {
-            "" => Err(InteractiveCommandError::ArgumentMismatchError(
-                self.command.to_string(),
-            )),
+            "" => Err(InteractiveCommandError::ArgumentMismatchError(self.command.to_string())),
             arg => f(arg),
         }
     }
@@ -54,9 +52,7 @@ impl<'i> CommandDelegator<'i> {
     fn without_arg(&self, command: InteractiveCommand<'i>) -> InteractiveResult<'i> {
         match self.arg {
             "" => Ok(command),
-            _ => Err(InteractiveCommandError::ZeroArguments(
-                self.command.to_string(),
-            )),
+            _ => Err(InteractiveCommandError::ZeroArguments(self.command.to_string())),
         }
     }
 }
@@ -71,10 +67,7 @@ impl InteractiveCommand<'_> {
         }
 
         // get the index of the first white space character
-        let index = input
-            .trim_start()
-            .find(char::is_whitespace)
-            .unwrap_or(input.len());
+        let index = input.trim_start().find(char::is_whitespace).unwrap_or(input.len());
         let (command, rest) = input.split_at(index);
 
         let d = CommandDelegator::new(command, rest);
@@ -84,9 +77,7 @@ impl InteractiveCommand<'_> {
             ":v" => d.without_arg(InteractiveCommand::Version),
             ":t" => d.with_arg(|arg| Ok(InteractiveCommand::Type(arg))),
             ":d" => d.with_arg(|arg| Ok(InteractiveCommand::Display(arg))),
-            _ => Err(InteractiveCommandError::UnrecognisedCommand(
-                command.to_string(),
-            )),
+            _ => Err(InteractiveCommandError::UnrecognisedCommand(command.to_string())),
         }
     }
 }

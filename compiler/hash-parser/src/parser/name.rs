@@ -10,10 +10,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Name] from the current token stream.
     pub fn parse_name(&self) -> AstGenResult<AstNode<Name>> {
         match self.next_token() {
-            Some(Token {
-                kind: TokenKind::Ident(ident),
-                span,
-            }) => Ok(self.node_with_span(Name { ident: *ident }, *span)),
+            Some(Token { kind: TokenKind::Ident(ident), span }) => {
+                Ok(self.node_with_span(Name { ident: *ident }, *span))
+            }
             _ => self.error(AstGenErrorKind::ExpectedIdentifier, None, None),
         }
     }
@@ -39,10 +38,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             self.skip_token(); // :
 
                             match self.peek() {
-                                Some(Token {
-                                    kind: TokenKind::Ident(id),
-                                    span,
-                                }) => {
+                                Some(Token { kind: TokenKind::Ident(id), span }) => {
                                     self.skip_token();
                                     path.push(self.node_with_span(*id, *span));
                                 }
@@ -62,11 +58,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let location = start.join(self.current_location());
 
-        Ok(self.node_with_span(
-            AccessName {
-                path: AstNodes::new(path, Some(location)),
-            },
-            location,
-        ))
+        Ok(self.node_with_span(AccessName { path: AstNodes::new(path, Some(location)) }, location))
     }
 }

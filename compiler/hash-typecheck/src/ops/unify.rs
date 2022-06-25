@@ -52,10 +52,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         // First split the domains into three parts: d0, d1 (not directly needed), and
         // the intersection (see second loop)
         let d0: HashSet<_> = dom_s0.difference(&dom_s1).copied().collect();
-        let t0 = Sub::from_pairs(
-            d0.iter()
-                .map(|&a| (a, substituter.apply_sub_to_subject(s0, a))),
-        );
+        let t0 = Sub::from_pairs(d0.iter().map(|&a| (a, substituter.apply_sub_to_subject(s0, a))));
 
         // Start with t0 and add terms for d1 one at a time, always producing well
         // formed substitutions
@@ -126,10 +123,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         // For each parameter, ensure it is the same:
         // @@Todo: handle default values.
         let mut cumulative_sub = Sub::empty();
-        let pairs = src_params
-            .positional()
-            .iter()
-            .zip(target_params.positional());
+        let pairs = src_params.positional().iter().zip(target_params.positional());
         for (src_param, target_param) in pairs {
             // Names match
             if src_param.name != target_param.name {
@@ -163,12 +157,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         let simplified_target = self.reader().get_term(simplified_target_id).clone();
 
         // Helper to return a unification error
-        let cannot_unify = || {
-            Err(TcError::CannotUnify {
-                src: src_id,
-                target: target_id,
-            })
-        };
+        let cannot_unify = || Err(TcError::CannotUnify { src: src_id, target: target_id });
 
         match (simplified_src, simplified_target) {
             // Unresolved
@@ -251,9 +240,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
             // Apply substitution:
             (Term::AppSub(src_app_sub), Term::AppSub(target_app_sub))
-                if self
-                    .validator()
-                    .subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
+                if self.validator().subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
             {
                 // Unify inner, then unify the resultant substitution with the ones given here:
                 let inner_sub = self.unify_terms(src_app_sub.term, target_app_sub.term)?;
@@ -305,9 +292,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                         self.unify_subs(&args_unified_sub, &subject_sub)
                     }
                     // If the subject is not a function type then application is invalid:
-                    _ => Err(TcError::UnsupportedTypeFunctionApplication {
-                        subject_id: subject,
-                    }),
+                    _ => Err(TcError::UnsupportedTypeFunctionApplication { subject_id: subject }),
                 }
             }
             (Term::AppTyFn(_), _) | (_, Term::AppTyFn(_)) => {

@@ -27,10 +27,7 @@ impl BitOr<Modifier> for Colour {
     type Output = Decoration;
 
     fn bitor(self, rhs: Modifier) -> Self::Output {
-        Decoration {
-            colour: self,
-            modifier: rhs,
-        }
+        Decoration { colour: self, modifier: rhs }
     }
 }
 
@@ -40,10 +37,7 @@ impl BitOr<Colour> for Modifier {
     type Output = Decoration;
 
     fn bitor(self, rhs: Colour) -> Self::Output {
-        Decoration {
-            colour: rhs,
-            modifier: self,
-        }
+        Decoration { colour: rhs, modifier: self }
     }
 }
 
@@ -95,11 +89,7 @@ pub struct Decoration {
 /// the Colour modifier and then the text modifier.
 impl Highlighter for Decoration {
     fn escape_code(&self) -> String {
-        self.colour
-            .escape_code()
-            .chars()
-            .chain(self.modifier.escape_code().chars())
-            .collect()
+        self.colour.escape_code().chars().chain(self.modifier.escape_code().chars()).collect()
     }
 }
 

@@ -97,15 +97,8 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut compiler = Compiler::new(
-        parser,
-        desugarer,
-        semnatic_analyser,
-        checker,
-        vm,
-        &pool,
-        compiler_settings,
-    );
+    let mut compiler =
+        Compiler::new(parser, desugarer, semnatic_analyser, checker, vm, &pool, compiler_settings);
     let mut compiler_state = compiler.create_state().unwrap();
 
     execute(|| {
@@ -116,10 +109,7 @@ fn main() {
                 let filename = resolve_path(fs::canonicalize(&path)?, current_dir, None);
 
                 if let Err(err) = filename {
-                    println!(
-                        "{}",
-                        ReportWriter::new(err.create_report(), &compiler_state.sources)
-                    );
+                    println!("{}", ReportWriter::new(err.create_report(), &compiler_state.sources));
 
                     return Ok(());
                 };

@@ -57,9 +57,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                 match access_term.op {
                     // Only namespace is allowed by this point:
                     AccessOp::Namespace => {
-                        let ty_access_term = self
-                            .builder()
-                            .create_ns_access(ty_id_of_subject, access_term.name);
+                        let ty_access_term =
+                            self.builder().create_ns_access(ty_id_of_subject, access_term.name);
                         self.simplifier().potentially_simplify_term(ty_access_term)
                     }
                     AccessOp::Property => {
@@ -81,9 +80,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                             .unifier()
                             .unify_params_with_args(&ty_fn_ty.params, &app_ty_fn.args)?;
                         // Apply the substitution to the return type and use it as the result:
-                        Ok(self
-                            .substituter()
-                            .apply_sub_to_term(&sub, ty_fn_ty.return_ty))
+                        Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
                     }
                     _ => Err(TcError::UnsupportedTypeFunctionApplication {
                         subject_id: app_ty_fn.subject,
@@ -108,19 +105,15 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             }
             Term::Merge(terms) => {
                 // The type of a merge is a merge of the inner terms:
-                let tys_of_terms: Vec<_> = terms
-                    .iter()
-                    .map(|term| self.ty_of_term(*term))
-                    .collect::<TcResult<_>>()?;
+                let tys_of_terms: Vec<_> =
+                    terms.iter().map(|term| self.ty_of_term(*term)).collect::<TcResult<_>>()?;
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
             Term::AppSub(app_sub) => {
                 // The type of an AppSub is the type of the subject, with the substitution
                 // applied:
                 let ty_of_subject = self.ty_of_term(app_sub.term)?;
-                Ok(self
-                    .substituter()
-                    .apply_sub_to_term(&app_sub.sub, ty_of_subject))
+                Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
             }
             Term::Unresolved(_) => {
                 // The type of an unresolved variable is unresolved:
@@ -171,9 +164,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                     }
                     Level0Term::EnumVariant(enum_variant) => {
                         // The type of an enum variant is the enum
-                        Ok(self
-                            .builder()
-                            .create_nominal_def_term(enum_variant.enum_def_id))
+                        Ok(self.builder().create_nominal_def_term(enum_variant.enum_def_id))
                     }
                 }
             }

@@ -67,9 +67,7 @@ pub struct Wall<'c> {
 
 impl std::fmt::Debug for Wall<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Wall")
-            .field("castle", &self.castle)
-            .finish()
+        f.debug_struct("Wall").field("castle", &self.castle).finish()
     }
 }
 
@@ -112,8 +110,7 @@ impl<'c> Wall<'c> {
     /// Despite the fact that `MaybeUninit` implies `ManuallyDrop`, Rust does
     /// not yet provide a stable way of in-place dropping a `MaybeUninit` (until [#63567](https://github.com/rust-lang/rust/issues/63567) lands).
     pub fn alloc_uninit_slice<T>(&self, len: usize) -> &'c mut [MaybeUninit<ManuallyDrop<T>>] {
-        self.member
-            .alloc_slice_fill_with(len, |_| MaybeUninit::uninit())
+        self.member.alloc_slice_fill_with(len, |_| MaybeUninit::uninit())
     }
 }
 
@@ -152,11 +149,8 @@ mod test {
             c: [Color; 3],
         }
 
-        const COMPLEX_VALUE: MyComplexStruct = MyComplexStruct {
-            a: 43,
-            b: 'R',
-            c: [Color::Red, Color::Green, Color::Blue],
-        };
+        const COMPLEX_VALUE: MyComplexStruct =
+            MyComplexStruct { a: 43, b: 'R', c: [Color::Red, Color::Green, Color::Blue] };
 
         let castle = Castle::new();
         let wall = castle.wall();
@@ -181,9 +175,8 @@ mod test {
             *v = MaybeUninit::new(ManuallyDrop::new(i.pow(2)));
         }
 
-        let mut values_eq = (0..ARRAY_SIZE)
-            .map(|i| ManuallyDrop::new(i.pow(2)))
-            .collect::<Vec<_>>();
+        let mut values_eq =
+            (0..ARRAY_SIZE).map(|i| ManuallyDrop::new(i.pow(2))).collect::<Vec<_>>();
 
         assert_eq!(
             unsafe {

@@ -23,9 +23,7 @@ pub struct ImportError {
 impl ImportError {
     pub fn create_report(&self) -> Report {
         let mut builder = ReportBuilder::new();
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message("Failed to import");
+        builder.with_kind(ReportKind::Error).with_message("Failed to import");
 
         if let Some(src) = self.src {
             builder

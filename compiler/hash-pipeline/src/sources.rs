@@ -19,10 +19,7 @@ pub struct InteractiveBlock {
 
 impl InteractiveBlock {
     pub fn new(contents: String) -> Self {
-        Self {
-            contents,
-            node: None,
-        }
+        Self { contents, node: None }
     }
 
     pub fn node(&self) -> ast::AstNodeRef<ast::BodyBlock> {
@@ -52,11 +49,7 @@ pub struct Module {
 
 impl Module {
     pub fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-            contents: None,
-            node: None,
-        }
+        Self { path, contents: None, node: None }
     }
 
     pub fn path(&self) -> &Path {
@@ -188,10 +181,7 @@ impl Sources {
     }
 
     pub fn add_dependency(&mut self, source_id: SourceId, dependency: ModuleId) {
-        self.dependencies
-            .entry(source_id)
-            .or_insert_with(HashSet::new)
-            .insert(dependency);
+        self.dependencies.entry(source_id).or_insert_with(HashSet::new).insert(dependency);
     }
 }
 

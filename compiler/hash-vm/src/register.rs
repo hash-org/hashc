@@ -28,9 +28,7 @@ pub struct RegisterSet {
 
 impl Default for RegisterSet {
     fn default() -> Self {
-        Self {
-            registers: [[0; 8]; 256],
-        }
+        Self { registers: [[0; 8]; 256] }
     }
 }
 

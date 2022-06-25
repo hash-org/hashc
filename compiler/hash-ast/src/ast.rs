@@ -36,11 +36,7 @@ impl<T> PartialEq for AstNode<T> {
 impl<T> AstNode<T> {
     /// Create a new node with a given body and location.
     pub fn new(body: T, span: Span) -> Self {
-        Self {
-            body: Box::new(body),
-            span,
-            id: AstNodeId::new(),
-        }
+        Self { body: Box::new(body), span, id: AstNodeId::new() }
     }
 
     /// Get a reference to the body contained within this node.
@@ -69,30 +65,18 @@ impl<T> AstNode<T> {
 
     /// Create an [AstNodeRef] from this [AstNode].
     pub fn ast_ref(&self) -> AstNodeRef<T> {
-        AstNodeRef {
-            body: self.body.as_ref(),
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRef { body: self.body.as_ref(), span: self.span, id: self.id }
     }
 
     /// Create an [AstNodeRefMut] from this [AstNode].
     pub fn ast_ref_mut(&mut self) -> AstNodeRefMut<T> {
-        AstNodeRefMut {
-            body: self.body.as_mut(),
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRefMut { body: self.body.as_mut(), span: self.span, id: self.id }
     }
 
     /// Create an [AstNodeRef] by providing a body and copying over the
     /// [Span] and [AstNodeId] that belong to this [AstNode].
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
-        AstNodeRef {
-            body,
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRef { body, span: self.span, id: self.id }
     }
 }
 
@@ -109,11 +93,7 @@ pub struct AstNodeRef<'t, T> {
 
 impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
-        Self {
-            body: self.body,
-            span: self.span,
-            id: self.id,
-        }
+        Self { body: self.body, span: self.span, id: self.id }
     }
 }
 
@@ -126,11 +106,7 @@ impl<'t, T> AstNodeRef<'t, T> {
     }
 
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
-        AstNodeRef {
-            body,
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRef { body, span: self.span, id: self.id }
     }
 
     /// Get the [Span] of this node in the input.
@@ -170,11 +146,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     }
 
     pub fn with_body<'u, U>(&self, body: &'u mut U) -> AstNodeRefMut<'u, U> {
-        AstNodeRefMut {
-            body,
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRefMut { body, span: self.span, id: self.id }
     }
 
     /// Function to replace the body of the node with a newly generated body
@@ -232,10 +204,7 @@ macro_rules! ast_nodes {
 
 impl<T> AstNodes<T> {
     pub fn empty() -> Self {
-        Self {
-            nodes: vec![],
-            span: None,
-        }
+        Self { nodes: vec![], span: None }
     }
 
     pub fn new(nodes: Vec<AstNode<T>>, span: Option<Span>) -> Self {
@@ -251,8 +220,7 @@ impl<T> AstNodes<T> {
     }
 
     pub fn span(&self) -> Option<Span> {
-        self.span
-            .or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
+        self.span.or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
     }
 }
 
@@ -299,17 +267,11 @@ pub struct AccessName {
 
 impl AccessName {
     pub fn path(&self) -> Vec<Identifier> {
-        self.path
-            .iter()
-            .map(|part| *part.body())
-            .collect::<Vec<_>>()
+        self.path.iter().map(|part| *part.body()).collect::<Vec<_>>()
     }
 
     pub fn path_with_locations(&self) -> Vec<(Identifier, Span)> {
-        self.path
-            .iter()
-            .map(|part| (*part.body(), part.span()))
-            .collect::<Vec<_>>()
+        self.path.iter().map(|part| (*part.body(), part.span())).collect::<Vec<_>>()
     }
 }
 
@@ -537,9 +499,9 @@ impl Literal {
             Literal::List(ListLiteral { elements }) | Literal::Set(SetLiteral { elements }) => {
                 !elements.iter().any(|expr| !is_expr_literal_and_const(expr))
             }
-            Literal::Tuple(TupleLiteral { elements }) => !elements
-                .iter()
-                .any(|entry| !is_expr_literal_and_const(&entry.body().value)),
+            Literal::Tuple(TupleLiteral { elements }) => {
+                !elements.iter().any(|entry| !is_expr_literal_and_const(&entry.body().value))
+            }
             Literal::Map(MapLiteral { elements }) => !elements.iter().any(|entry| {
                 !is_expr_literal_and_const(&entry.body().key)
                     || !is_expr_literal_and_const(&entry.body().value)

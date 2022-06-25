@@ -126,10 +126,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Function to create a [SourceLocation] from a [Span] by using the
     /// provided resolver
     pub(crate) fn source_location(&self, span: &Span) -> SourceLocation {
-        SourceLocation {
-            span: *span,
-            source_id: self.resolver.current_source_id(),
-        }
+        SourceLocation { span: *span, source_id: self.resolver.current_source_id() }
     }
 
     /// Get the current offset of where the stream is at.
@@ -187,11 +184,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// passed the size of the stream, e.g tring to get the current token
     /// after reaching the end of the stream.
     pub(crate) fn current_token(&self) -> &Token {
-        let offset = if self.offset.get() > 0 {
-            self.offset.get() - 1
-        } else {
-            0
-        };
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
 
         self.stream.get(offset).unwrap()
     }
@@ -211,11 +204,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             return self.parent_span.unwrap_or_default();
         }
 
-        let offset = if self.offset.get() > 0 {
-            self.offset.get() - 1
-        } else {
-            0
-        };
+        let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
 
         match self.stream.get(offset) {
             Some(token) => token.span,
@@ -363,10 +352,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(AstNodes::new(
-            args,
-            Some(start.join(self.current_location())),
-        ))
+        Ok(AstNodes::new(args, Some(start.join(self.current_location()))))
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
@@ -405,10 +391,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         error: Option<AstGenErrorKind>,
     ) -> AstGenResult<Self> {
         match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(inner, tree_index),
-                span,
-            }) if *inner == delimiter => {
+            Some(Token { kind: TokenKind::Tree(inner, tree_index), span })
+                if *inner == delimiter =>
+            {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
@@ -416,9 +401,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.error_with_location(
                 error.unwrap_or(AstGenErrorKind::Expected),
-                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
-                    delimiter, true,
-                )])),
+                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(delimiter, true)])),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_location(), |tok| tok.span),
             )?,
@@ -431,19 +414,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut contents = vec![];
 
         while self.has_token() {
-            contents.push(
-                self.parse_top_level_expression(true)
-                    .map(|(_, statement)| statement)?,
-            );
+            contents.push(self.parse_top_level_expression(true).map(|(_, statement)| statement)?);
         }
 
         let span = start.join(self.current_location());
-        Ok(self.node_with_span(
-            Module {
-                contents: AstNodes::new(contents, Some(span)),
-            },
-            span,
-        ))
+        Ok(self.node_with_span(Module { contents: AstNodes::new(contents, Some(span)) }, span))
     }
 
     /// This function is used to exclusively parse a interactive block which

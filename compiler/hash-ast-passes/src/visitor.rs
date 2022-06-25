@@ -963,9 +963,7 @@ impl AstVisitor for SemanticAnalyser {
         // Spread patterns are always disallowed within a named field entry
         if name.is_some() && matches!(pattern.body(), Pattern::Spread(_)) {
             self.append_error(
-                AnalysisErrorKind::IllegalSpreadPatternUse {
-                    origin: PatternOrigin::NamedField,
-                },
+                AnalysisErrorKind::IllegalSpreadPatternUse { origin: PatternOrigin::NamedField },
                 pattern.span(),
             );
         } else {
@@ -1099,11 +1097,7 @@ impl AstVisitor for SemanticAnalyser {
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let BindingPattern {
-            mutability,
-            visibility,
-            ..
-        } = node.body();
+        let BindingPattern { mutability, visibility, .. } = node.body();
 
         // If the pattern is present in a declaration that is within a constant block,
         // it it not allowed to be declared to be mutable. If we are not in a
@@ -1160,9 +1154,7 @@ impl AstVisitor for SemanticAnalyser {
         // Spread patterns are always disallowed within a named field entry
         if matches!(pattern.body(), Pattern::Spread(_)) {
             self.append_error(
-                AnalysisErrorKind::IllegalSpreadPatternUse {
-                    origin: PatternOrigin::Namespace,
-                },
+                AnalysisErrorKind::IllegalSpreadPatternUse { origin: PatternOrigin::Namespace },
                 pattern.span(),
             );
         } else {

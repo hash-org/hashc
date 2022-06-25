@@ -16,11 +16,7 @@ pub struct ImportResolver {
 
 impl ImportResolver {
     pub fn new(source_id: SourceId, root_dir: PathBuf, sender: Sender<ParserAction>) -> Self {
-        Self {
-            root_dir,
-            sender,
-            source_id,
-        }
+        Self { root_dir, sender, source_id }
     }
 
     pub fn current_source_id(&self) -> SourceId {

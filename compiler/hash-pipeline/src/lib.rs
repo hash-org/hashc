@@ -164,9 +164,7 @@ where
                 // just parsed.
                 let source = sources.get_interactive_block(id);
 
-                let tree = AstTreeGenerator
-                    .visit_body_block(&(), source.node())
-                    .unwrap();
+                let tree = AstTreeGenerator.visit_body_block(&(), source.node()).unwrap();
 
                 println!("{}", TreeWriter::new(&tree));
             }
@@ -174,9 +172,8 @@ where
                 // If this is a module, we want to print all of the generated modules from the
                 // parsing stage
                 for (_, generated_module) in sources.iter_modules() {
-                    let tree = AstTreeGenerator
-                        .visit_module(&(), generated_module.node_ref())
-                        .unwrap();
+                    let tree =
+                        AstTreeGenerator.visit_module(&(), generated_module.node_ref()).unwrap();
 
                     println!(
                         "Tree for `{}`:\n{}",
@@ -221,10 +218,7 @@ where
         job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         timed(
-            || {
-                self.desugarer
-                    .desugar(entry_point, sources, desugar_state, self.pool)
-            },
+            || self.desugarer.desugar(entry_point, sources, desugar_state, self.pool),
             log::Level::Debug,
             |time| {
                 self.metrics.insert(CompilerMode::DeSugar, time);
@@ -289,10 +283,7 @@ where
         match entry_point {
             SourceId::Interactive(id) => {
                 timed(
-                    || {
-                        self.checker
-                            .check_interactive(id, sources, checker_state, job_params)
-                    },
+                    || self.checker.check_interactive(id, sources, checker_state, job_params),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -301,10 +292,7 @@ where
             }
             SourceId::Module(id) => {
                 timed(
-                    || {
-                        self.checker
-                            .check_module(id, sources, checker_state, job_params)
-                    },
+                    || self.checker.check_module(id, sources, checker_state, job_params),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);

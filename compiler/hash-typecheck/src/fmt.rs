@@ -38,12 +38,7 @@ impl<'gs> TcFormatter<'gs> {
         for (i, param) in params.positional().iter().enumerate() {
             match param.name {
                 Some(param_name) => {
-                    write!(
-                        f,
-                        "{}: {}",
-                        param_name,
-                        param.ty.for_formatting(self.global_storage)
-                    )?;
+                    write!(f, "{}: {}", param_name, param.ty.for_formatting(self.global_storage))?;
                 }
                 None => {
                     self.fmt_term(f, param.ty, &Cell::new(false))?;
@@ -62,12 +57,7 @@ impl<'gs> TcFormatter<'gs> {
         for (i, arg) in args.positional().iter().enumerate() {
             match arg.name {
                 Some(arg_name) => {
-                    write!(
-                        f,
-                        "{} = {}",
-                        arg_name,
-                        arg.value.for_formatting(self.global_storage)
-                    )?;
+                    write!(f, "{} = {}", arg_name, arg.value.for_formatting(self.global_storage))?;
                 }
                 None => {
                     self.fmt_term(f, arg.value, &Cell::new(false))?;
@@ -104,11 +94,7 @@ impl<'gs> TcFormatter<'gs> {
         match term {
             Level0Term::Rt(ty_id) => {
                 is_atomic.set(true);
-                write!(
-                    f,
-                    "{{runtime value of type {}}}",
-                    ty_id.for_formatting(self.global_storage)
-                )
+                write!(f, "{{runtime value of type {}}}", ty_id.for_formatting(self.global_storage))
             }
             Level0Term::FnLit(fn_lit) => {
                 is_atomic.set(true);
@@ -326,12 +312,8 @@ impl<'gs> TcFormatter<'gs> {
     ) -> fmt::Result {
         is_atomic.set(true);
         match self.global_storage.nominal_def_store.get(nominal_def_id) {
-            NominalDef::Struct(StructDef {
-                name: Some(name), ..
-            })
-            | NominalDef::Enum(EnumDef {
-                name: Some(name), ..
-            }) => {
+            NominalDef::Struct(StructDef { name: Some(name), .. })
+            | NominalDef::Enum(EnumDef { name: Some(name), .. }) => {
                 write!(f, "{}", name)
             }
             // @@Future: we can actually print out the location of these definitions, which might
@@ -363,11 +345,7 @@ impl<'gs> TcFormatter<'gs> {
             None => match mod_def.origin {
                 ModDefOrigin::TrtImpl(trt_def_id) => {
                     is_atomic.set(false);
-                    write!(
-                        f,
-                        "impl {} {{..}}",
-                        trt_def_id.for_formatting(self.global_storage)
-                    )
+                    write!(f, "impl {} {{..}}", trt_def_id.for_formatting(self.global_storage))
                 }
                 ModDefOrigin::AnonImpl => {
                     is_atomic.set(false);
@@ -405,11 +383,7 @@ pub trait PrepareForFormatting: Sized {
         self,
         global_storage: &'gs GlobalStorage,
     ) -> ForFormatting<'gs, '_, Self> {
-        ForFormatting {
-            t: self,
-            global_storage,
-            is_atomic: None,
-        }
+        ForFormatting { t: self, global_storage, is_atomic: None }
     }
 
     /// Create a `ForFormatting<T>` given a `T`, and provide an out parameter
@@ -419,11 +393,7 @@ pub trait PrepareForFormatting: Sized {
         global_storage: &'gs GlobalStorage,
         is_atomic: &'a Cell<bool>,
     ) -> ForFormatting<'gs, 'a, Self> {
-        ForFormatting {
-            t: self,
-            global_storage,
-            is_atomic: Some(is_atomic),
-        }
+        ForFormatting { t: self, global_storage, is_atomic: Some(is_atomic) }
     }
 }
 

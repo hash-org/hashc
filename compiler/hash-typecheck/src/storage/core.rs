@@ -66,10 +66,7 @@ impl CoreDefs {
         let char_ty = builder.create_opaque_struct_def("char", []);
         let bool_ty = builder.create_enum_def(
             "bool",
-            [
-                builder.create_enum_variant("true", []),
-                builder.create_enum_variant("false", []),
-            ],
+            [builder.create_enum_variant("true", []), builder.create_enum_variant("false", [])],
             [],
         );
 

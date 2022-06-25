@@ -96,9 +96,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Error helper:
         let invalid_merge_element = || -> TcResult<()> {
-            Err(TcError::InvalidElementOfMerge {
-                term: merge_element_term_id,
-            })
+            Err(TcError::InvalidElementOfMerge { term: merge_element_term_id })
         };
 
         // Helper to ensure that a merge is level 2, returns the updated MergeKind.
@@ -112,9 +110,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // Merge is already level 2, all good:
                     Ok(*merge_kind)
                 }
-                MergeKind::Level1 {
-                    nominal_attached: _,
-                } => {
+                MergeKind::Level1 { nominal_attached: _ } => {
                     // Merge was already specified to be level 1, error!
                     Err(TcError::MergeShouldBeLevel2 {
                         merge_term: merge_term_id,
@@ -129,9 +125,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             match (*merge_kind, checking_nominal) {
                 (MergeKind::Unknown, _) => {
                     // Now we know that the merge should be level 1
-                    Ok(MergeKind::Level1 {
-                        nominal_attached: checking_nominal,
-                    })
+                    Ok(MergeKind::Level1 { nominal_attached: checking_nominal })
                 }
                 (MergeKind::Level2, _) => {
                     // Merge was already specified to be level 2, error!
@@ -140,32 +134,18 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         offending_term: merge_element_term_id,
                     })
                 }
-                (
-                    MergeKind::Level1 {
-                        nominal_attached: _,
-                    },
-                    None,
-                ) => {
+                (MergeKind::Level1 { nominal_attached: _ }, None) => {
                     // Merge is level 1; independently of whether a nominal is
                     // attached, this is fine because we are not checking a nominal.
                     Ok(*merge_kind)
                 }
-                (
-                    MergeKind::Level1 {
-                        nominal_attached: None,
-                    },
-                    Some(checking_nominal),
-                ) => {
+                (MergeKind::Level1 { nominal_attached: None }, Some(checking_nominal)) => {
                     // Merge is level 1 without a nominal and we are checking a nominal; we attach
                     // the nominal.
-                    Ok(MergeKind::Level1 {
-                        nominal_attached: Some(checking_nominal),
-                    })
+                    Ok(MergeKind::Level1 { nominal_attached: Some(checking_nominal) })
                 }
                 (
-                    MergeKind::Level1 {
-                        nominal_attached: Some(nominal_term_id),
-                    },
+                    MergeKind::Level1 { nominal_attached: Some(nominal_term_id) },
                     Some(checking_nominal),
                 ) => {
                     // A nominal has already been attached, error!
@@ -295,10 +275,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         let reader = self.reader();
 
         // Prepare the result of the validation:
-        let result = TermValidation {
-            simplified_term_id,
-            term_ty_id,
-        };
+        let result = TermValidation { simplified_term_id, term_ty_id };
 
         let term = reader.get_term(simplified_term_id);
         match term {
@@ -467,16 +444,12 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // Ensure the params are a subtype of the general params
                     // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
                     // the message.
-                    let _ = self
-                        .unifier()
-                        .unify_params(&case.params, &ty_fn.general_params)?;
+                    let _ = self.unifier().unify_params(&case.params, &ty_fn.general_params)?;
 
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
                     let return_value_ty = self.typer().ty_of_simplified_term(term_id)?;
-                    let _ = self
-                        .unifier()
-                        .unify_terms(case.return_ty, return_value_ty)?;
+                    let _ = self.unifier().unify_terms(case.return_ty, return_value_ty)?;
 
                     // Ensure the return value of each case is a subtype of the general return type.
                     let _ = self
@@ -623,9 +596,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve {
-                    term_to_resolve: term_id,
-                })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
             }
             // All level 2 and 3 terms are ok to use as return types
             Term::Level2(_) | Term::Level3(_) => Ok(true),
@@ -678,9 +649,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve {
-                    term_to_resolve: term_id,
-                })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
             }
             // All level 2 and 3 terms are ok to use as parameter types
             Term::Level2(_) | Term::Level3(_) => Ok(true),
@@ -726,14 +695,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
 
             // Unify bidirectionally
-            if self
-                .unifier()
-                .unify_terms(s0_element.1, s1_element.1)
-                .is_err()
-                || self
-                    .unifier()
-                    .unify_terms(s1_element.1, s0_element.1)
-                    .is_err()
+            if self.unifier().unify_terms(s0_element.1, s1_element.1).is_err()
+                || self.unifier().unify_terms(s1_element.1, s0_element.1).is_err()
             {
                 return false;
             }

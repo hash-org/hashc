@@ -36,12 +36,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// `parse_type` function carry context from one call to the other.
     fn parse_singular_type(&self) -> AstGenResult<AstNode<Type>> {
         let token = self.peek().ok_or_else(|| {
-            self.make_error(
-                AstGenErrorKind::ExpectedType,
-                None,
-                None,
-                Some(self.next_location()),
-            )
+            self.make_error(AstGenErrorKind::ExpectedType, None, None, Some(self.next_location()))
         })?;
 
         let start = token.span;
@@ -59,11 +54,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
                     .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
 
-                Type::Ref(RefType {
-                    inner: self.parse_type()?,
-                    kind,
-                    mutability,
-                })
+                Type::Ref(RefType { inner: self.parse_type()?, kind, mutability })
             }
             TokenKind::Ident(id) => {
                 self.skip_token();
@@ -89,10 +80,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let value_ty = gen.parse_type()?;
                         gen.verify_is_empty()?;
 
-                        Type::Map(MapType {
-                            key: key_ty,
-                            value: value_ty,
-                        })
+                        Type::Map(MapType { key: key_ty, value: value_ty })
                     }
                     None => Type::Set(SetType { inner: key_ty }),
                     Some(_) => gen.expected_eof()?,
@@ -164,14 +152,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // `=`, which will then should contain a type setting.
             let name = match (self.peek(), self.peek_second()) {
                 (
-                    Some(Token {
-                        kind: TokenKind::Ident(_),
-                        ..
-                    }),
-                    Some(Token {
-                        kind: TokenKind::Eq,
-                        ..
-                    }),
+                    Some(Token { kind: TokenKind::Ident(_), .. }),
+                    Some(Token { kind: TokenKind::Eq, .. }),
                 ) => {
                     let name = self.parse_name()?;
                     self.skip_token(); // '='
@@ -187,9 +169,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             // Here, we want to use either a joined span between the name or just the span
             // of the parsed type
-            let arg_span = name
-                .as_ref()
-                .map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
+            let arg_span =
+                name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
 
             type_args.push(self.node_with_span(NamedFieldTypeEntry { name, ty }, arg_span));
 
@@ -204,10 +185,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![
-                        TokenKind::Comma,
-                        TokenKind::Gt,
-                    ])),
+                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,
@@ -216,10 +194,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // Update the location of the type bound to reflect the '<' and '>' tokens...
         // type_args.set_span(start.join(self.current_location()));
-        Ok(AstNodes::new(
-            type_args,
-            Some(start.join(self.current_location())),
-        ))
+        Ok(AstNodes::new(type_args, Some(start.join(self.current_location()))))
     }
 
     /// Parses a [Type::Fn] which involves a parenthesis token tree with some
@@ -272,10 +247,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(Type::Fn(FnType {
-                    args,
-                    return_ty: self.parse_type()?,
-                }))
+                Ok(Type::Fn(FnType { args, return_ty: self.parse_type()? }))
             }
             None => {
                 // If there is only one entry in the args, and the last token in the entry is
@@ -296,13 +268,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     fn parse_type_function(&self) -> AstGenResult<Type> {
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
-        debug_assert!(matches!(
-            self.next_token(),
-            Some(Token {
-                kind: TokenKind::Lt,
-                ..
-            })
-        ));
+        debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
 
         self.skip_token();
         let mut arg_span = self.current_location();
@@ -323,14 +289,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 None => None,
             };
 
-            args.push(self.node_with_span(
-                TypeFunctionParam {
-                    name,
-                    bound,
-                    default,
-                },
-                span,
-            ));
+            args.push(self.node_with_span(TypeFunctionParam { name, bound, default }, span));
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
@@ -345,10 +304,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
                 Some(token) => self.error(
                     AstGenErrorKind::Expected,
-                    Some(TokenKindVector::from_row(vec![
-                        TokenKind::Comma,
-                        TokenKind::Gt,
-                    ])),
+                    Some(TokenKindVector::from_row(vec![TokenKind::Comma, TokenKind::Gt])),
                     Some(token.kind),
                 )?,
                 None => self.unexpected_eof()?,

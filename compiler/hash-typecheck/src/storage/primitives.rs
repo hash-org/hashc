@@ -58,21 +58,12 @@ pub struct Scope {
 impl Scope {
     /// Create an empty [Scope].
     pub fn empty(kind: ScopeKind) -> Self {
-        Self {
-            kind,
-            members: HashMap::new(),
-        }
+        Self { kind, members: HashMap::new() }
     }
 
     /// Create a new [Scope] from the given members.
     pub fn new(kind: ScopeKind, members: impl IntoIterator<Item = Member>) -> Self {
-        Self {
-            kind,
-            members: members
-                .into_iter()
-                .map(|member| (member.name, member))
-                .collect(),
-        }
+        Self { kind, members: members.into_iter().map(|member| (member.name, member)).collect() }
     }
 
     /// Add a member to the scope, overwriting any existing member with the same
@@ -595,12 +586,7 @@ impl Sub {
 
     /// Create a substitution from pairs of `(SubSubject, TermId)`.
     pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubSubject>, TermId)>) -> Self {
-        Self {
-            data: pairs
-                .into_iter()
-                .map(|(from, to)| (from.into(), to))
-                .collect(),
-        }
+        Self { data: pairs.into_iter().map(|(from, to)| (from.into(), to)).collect() }
     }
 
     /// Get the substitution for the given [SubSubject], if any.

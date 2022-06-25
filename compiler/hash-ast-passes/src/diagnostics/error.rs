@@ -57,10 +57,7 @@ pub(crate) enum AnalysisErrorKind {
     IllegalBindingMutability,
     /// When bindings declare themselves to be `pub` or `priv` within
     /// non-constant blocks like function bodies.
-    IllegalBindingVisibilityModifier {
-        modifier: Visibility,
-        origin: BlockOrigin,
-    },
+    IllegalBindingVisibilityModifier { modifier: Visibility, origin: BlockOrigin },
 }
 
 impl From<AnalysisError> for Report {
@@ -72,22 +69,16 @@ impl From<AnalysisError> for Report {
             AnalysisErrorKind::UsingBreakOutsideLoop => {
                 builder.with_error_code(HashErrorCode::UsingBreakOutsideLoop);
 
-                builder
-                    .with_message("use of a `break` clause outside of a loop")
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
+                builder.with_message("use of a `break` clause outside of a loop").add_element(
+                    ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
+                );
             }
             AnalysisErrorKind::UsingContinueOutsideLoop => {
                 builder.with_error_code(HashErrorCode::UsingContinueOutsideLoop);
 
-                builder
-                    .with_message("use of a `continue` clause outside of a loop")
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
+                builder.with_message("use of a `continue` clause outside of a loop").add_element(
+                    ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
+                );
             }
             AnalysisErrorKind::UsingReturnOutsideOfFunction => {
                 builder.with_error_code(HashErrorCode::UsingReturnOutsideFunction);
@@ -162,10 +153,7 @@ impl From<AnalysisError> for Report {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
-                        format!(
-                            "{} blocks cannot have `{}` explicit visibility",
-                            origin, modifier
-                        ),
+                        format!("{} blocks cannot have `{}` explicit visibility", origin, modifier),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,

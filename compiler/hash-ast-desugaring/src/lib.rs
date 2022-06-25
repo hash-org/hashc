@@ -63,9 +63,7 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
                 if let SourceId::Interactive(id) = entry_point {
                     let source = sources.get_interactive_block_mut(id);
 
-                    AstDesugaring
-                        .visit_body_block(&(), source.node_mut())
-                        .unwrap();
+                    AstDesugaring.visit_body_block(&(), source.node_mut()).unwrap();
                 }
             }
 
@@ -86,11 +84,8 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
                 // process of adding these items to the queue. However, it might be worth
                 // investigating this in the future.
                 for expr in module.node_mut().contents.iter_mut() {
-                    scope.spawn(|_| {
-                        AstDesugaring
-                            .visit_expression(&(), expr.ast_ref_mut())
-                            .unwrap()
-                    })
+                    scope
+                        .spawn(|_| AstDesugaring.visit_expression(&(), expr.ast_ref_mut()).unwrap())
                 }
             }
         });
@@ -133,26 +128,17 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
         Block::For(body) => body,
-        block => panic!(
-            "Expected for-loop within for-loop lowering, got {}",
-            block.as_str()
-        ),
+        block => panic!("Expected for-loop within for-loop lowering, got {}", block.as_str()),
     };
 
-    let ForLoopBlock {
-        pattern,
-        iterator,
-        body,
-    } = block;
+    let ForLoopBlock { pattern, iterator, body } = block;
 
     let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
 
     let make_access_name = |label: &str| -> AstNode<AccessName> {
         // Create the identifier within the map...
         AstNode::new(
-            AccessName {
-                path: ast_nodes![AstNode::new(label.into(), iter_span)],
-            },
+            AccessName { path: ast_nodes![AstNode::new(label.into(), iter_span)] },
             iter_span,
         )
     };
@@ -161,13 +147,7 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
     let pattern = AstNode::new(
         Pattern::Constructor(ConstructorPattern {
             name: make_access_name("Some"),
-            fields: ast_nodes![AstNode::new(
-                TuplePatternEntry {
-                    name: None,
-                    pattern
-                },
-                pat_span
-            )],
+            fields: ast_nodes![AstNode::new(TuplePatternEntry { name: None, pattern }, pat_span)],
         }),
         pat_span,
     );
@@ -218,10 +198,7 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
                     args: AstNode::new(
                         ConstructorCallArgs {
                             entries: ast_nodes![AstNode::new(
-                                ConstructorCallArg {
-                                    name: None,
-                                    value: iterator,
-                                },
+                                ConstructorCallArg { name: None, value: iterator },
                                 iter_span
                             )],
                         },
@@ -270,10 +247,7 @@ fn desugar_while_loop_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
         Block::While(body) => body,
-        block => panic!(
-            "Expected while-block within while-block lowering, got {}",
-            block.as_str()
-        ),
+        block => panic!("Expected while-block within while-block lowering, got {}", block.as_str()),
     };
 
     let WhileLoopBlock { condition, body } = block;
@@ -353,10 +327,7 @@ fn desugar_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
                 }),
                 branch_span,
             ),
-            expr: AstNode::new(
-                Expression::new(ExpressionKind::Block(BlockExpr(body))),
-                body_span,
-            ),
+            expr: AstNode::new(Expression::new(ExpressionKind::Block(BlockExpr(body))), body_span),
         },
         branch_span,
     )
@@ -427,10 +398,7 @@ fn desugar_if_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
         Block::If(body) => body,
-        block => panic!(
-            "Expected if-block within if-block lowering, got {}",
-            block.as_str()
-        ),
+        block => panic!("Expected if-block within if-block lowering, got {}", block.as_str()),
     };
 
     // We don't case about 'clauses' because we can use the visitor to transform
@@ -439,11 +407,7 @@ fn desugar_if_block(node: Block, parent_span: Span) -> Block {
     let clauses_span = clauses.span();
 
     // Iterate over the clauses and transform them
-    let mut clauses = clauses
-        .nodes
-        .into_iter()
-        .map(desugar_if_clause)
-        .collect::<Vec<_>>();
+    let mut clauses = clauses.nodes.into_iter().map(desugar_if_clause).collect::<Vec<_>>();
 
     // Deal with the `otherwise` case, if there is no otherwise case then we can
     // just push an ignore branch and the body of the else block, otherwise it
@@ -473,10 +437,7 @@ fn desugar_if_block(node: Block, parent_span: Span) -> Block {
                 pattern: AstNode::new(Pattern::Ignore(IgnorePattern), parent_span),
                 expr: AstNode::new(
                     Expression::new(ExpressionKind::Block(BlockExpr(AstNode::new(
-                        Block::Body(BodyBlock {
-                            statements: AstNodes::empty(),
-                            expr: None,
-                        }),
+                        Block::Body(BodyBlock { statements: AstNodes::empty(), expr: None }),
                         parent_span,
                     )))),
                     parent_span,
