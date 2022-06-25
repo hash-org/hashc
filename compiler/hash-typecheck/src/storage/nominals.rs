@@ -1,4 +1,5 @@
-//! Contains structures to keep track of nominal type definitions and information relating to them.
+//! Contains structures to keep track of nominal type definitions and
+//! information relating to them.
 use slotmap::SlotMap;
 
 use super::primitives::{NominalDef, NominalDefId};
@@ -21,9 +22,10 @@ impl NominalDefStore {
 
     /// Get a nominal type definition by [NominalDefId].
     ///
-    /// If the nominal type definition is not found, this function will panic. However, this
-    /// shouldn't happen because the only way to acquire a nominal type definition is to use
-    /// [Self::create], and nominal type definitions cannot be deleted.
+    /// If the nominal type definition is not found, this function will panic.
+    /// However, this shouldn't happen because the only way to acquire a
+    /// nominal type definition is to use [Self::create], and nominal type
+    /// definitions cannot be deleted.
     pub fn get(&self, nominal_def_id: NominalDefId) -> &NominalDef {
         self.data.get(nominal_def_id).unwrap()
     }

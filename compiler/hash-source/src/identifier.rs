@@ -70,15 +70,16 @@ lazy_static! {
         CoreIdentifiers::from_ident_map(&IDENTIFIER_MAP);
 }
 
-/// Struct representing a globally accessible identifier map. The struct contains a identifier
-/// map and another map for reverse lookups.
+/// Struct representing a globally accessible identifier map. The struct
+/// contains a identifier map and another map for reverse lookups.
 #[derive(Debug, Default)]
 pub struct IdentifierMap<'c> {
     identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
     reverse_lookup: DashMap<Identifier, &'c str, FnvBuildHasher>,
 }
 
-/// Holds some default identifiers in order to avoid map lookups when e.g. generating the AST.
+/// Holds some default identifiers in order to avoid map lookups when e.g.
+/// generating the AST.
 pub struct CoreIdentifiers {
     pub underscore: Identifier,
 }
@@ -120,7 +121,8 @@ impl<'c> IdentifierMap<'c> {
         }
     }
 
-    /// Function to lookup an identifier by an [Identifier] value in the identifier map.
+    /// Function to lookup an identifier by an [Identifier] value in the
+    /// identifier map.
     pub fn get_ident(&self, ident: Identifier) -> &'c str {
         self.reverse_lookup.get(&ident).unwrap().value()
     }

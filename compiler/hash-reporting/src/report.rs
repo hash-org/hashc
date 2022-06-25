@@ -5,7 +5,8 @@ use crate::highlight::{highlight, Colour, Modifier};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::location::SourceLocation;
 
-/// A data type representing a comment/message on a specific span in a code block.
+/// A data type representing a comment/message on a specific span in a code
+/// block.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ReportCodeBlockInfo {
     /// How many characters should be used for line numbers on the side.
@@ -20,13 +21,14 @@ pub struct ReportCodeBlockInfo {
     pub end_row: usize,
 }
 
-/// Enumeration describing the kind of [Report]; either being a warning, info or an
-/// error.
+/// Enumeration describing the kind of [Report]; either being a warning, info or
+/// an error.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ReportKind {
     /// The report is an error.
     Error,
-    /// The report is an informational diagnostic (likely for internal purposes).
+    /// The report is an informational diagnostic (likely for internal
+    /// purposes).
     Info,
     /// The report is a warning.
     Warning,
@@ -63,8 +65,8 @@ impl fmt::Display for ReportKind {
     }
 }
 
-/// The kind of [ReportNote], this is primarily used for rendering the label of the
-/// [ReportNote].
+/// The kind of [ReportNote], this is primarily used for rendering the label of
+/// the [ReportNote].
 #[derive(Debug, Clone)]
 pub enum ReportNoteKind {
     /// A help message or a suggestion.
@@ -82,7 +84,8 @@ impl fmt::Display for ReportNoteKind {
     }
 }
 
-/// Data type representing a report note which consists of a label and the message.
+/// Data type representing a report note which consists of a label and the
+/// message.
 #[derive(Debug, Clone)]
 pub struct ReportNote {
     pub label: ReportNoteKind,
@@ -98,9 +101,9 @@ impl ReportNote {
     }
 }
 
-/// Data structure representing an associated block of code with a report. The type
-/// contains the span of the block, the message associated with a block and optional
-/// [ReportCodeBlockInfo] which adds a message pointed to a code item.
+/// Data structure representing an associated block of code with a report. The
+/// type contains the span of the block, the message associated with a block and
+/// optional [ReportCodeBlockInfo] which adds a message pointed to a code item.
 #[derive(Debug, Clone)]
 pub struct ReportCodeBlock {
     pub source_location: SourceLocation,
@@ -119,16 +122,17 @@ impl ReportCodeBlock {
     }
 }
 
-/// Enumeration representing types of components of a [Report]. A [Report] can be made of
-/// either [ReportCodeBlock]s or [ReportNote]s.
+/// Enumeration representing types of components of a [Report]. A [Report] can
+/// be made of either [ReportCodeBlock]s or [ReportNote]s.
 #[derive(Debug, Clone)]
 pub enum ReportElement {
     CodeBlock(ReportCodeBlock),
     Note(ReportNote),
 }
 
-/// The report data type represents the entire report which might contain many [ReportElement]s. The
-/// report also contains a general [ReportKind] and a general message.
+/// The report data type represents the entire report which might contain many
+/// [ReportElement]s. The report also contains a general [ReportKind] and a
+/// general message.
 #[derive(Debug, Clone)]
 pub struct Report {
     /// The general kind of the report.
@@ -137,8 +141,8 @@ pub struct Report {
     pub message: String,
     /// An optional associated general error code with the report.
     pub error_code: Option<HashErrorCode>,
-    /// A vector of additional [ReportElement]s in order to add additional context
-    /// to errors.
+    /// A vector of additional [ReportElement]s in order to add additional
+    /// context to errors.
     pub contents: Vec<ReportElement>,
 }
 

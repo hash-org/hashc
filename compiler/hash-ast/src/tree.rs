@@ -1,18 +1,20 @@
 //! AST visualisation utilities.
 
-use std::convert::Infallible;
-use std::iter;
+use std::{convert::Infallible, iter};
 
 use hash_utils::tree_writing::TreeNode;
 
-use crate::{ast, visitor::walk, visitor::AstVisitor};
+use crate::{
+    ast,
+    visitor::{walk, AstVisitor},
+};
 
-/// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
-/// [TreeNode] tree, for visualisation purposes.
+/// Struct implementing [AstVisitor], for the purpose of transforming the AST
+/// tree into a [TreeNode] tree, for visualisation purposes.
 pub struct AstTreeGenerator;
 
-/// Easy way to format a [TreeNode] label with a main label as well as short contents, and a
-/// quoting string.
+/// Easy way to format a [TreeNode] label with a main label as well as short
+/// contents, and a quoting string.
 fn labelled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
     format!(
         "{} {}{}{}",
@@ -1032,7 +1034,11 @@ impl AstVisitor for AstTreeGenerator {
         let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
             labelled("variant", name.label, "\""),
-            if args.is_empty() { vec![] } else { vec![TreeNode::branch("args", args)] },
+            if args.is_empty() {
+                vec![]
+            } else {
+                vec![TreeNode::branch("args", args)]
+            },
         ))
     }
 
@@ -1138,8 +1144,12 @@ impl AstVisitor for AstTreeGenerator {
             "enum",
             iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
                 .chain(
-                    (if args.is_empty() { None } else { Some(TreeNode::branch("args", args)) })
-                        .into_iter(),
+                    (if args.is_empty() {
+                        None
+                    } else {
+                        Some(TreeNode::branch("args", args))
+                    })
+                    .into_iter(),
                 )
                 .collect(),
         ))

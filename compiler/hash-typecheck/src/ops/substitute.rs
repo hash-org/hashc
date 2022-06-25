@@ -32,8 +32,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
-    /// Apply the given substitution to the given arguments, producing a new set of arguments
-    /// with the substituted variables.
+    /// Apply the given substitution to the given arguments, producing a new set
+    /// of arguments with the substituted variables.
     pub fn apply_sub_to_args(&mut self, sub: &Sub, args: &Args) -> Args {
         let new_args = args
             .positional()
@@ -46,8 +46,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         ParamList::new(new_args)
     }
 
-    /// Apply the given substitution to the given parameters, producing a new set of parameters
-    /// with the substituted variables.
+    /// Apply the given substitution to the given parameters, producing a new
+    /// set of parameters with the substituted variables.
     pub fn apply_sub_to_params(&mut self, sub: &Sub, params: &Params) -> Params {
         let new_params = params
             .positional()
@@ -63,8 +63,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         ParamList::new(new_params)
     }
 
-    /// Apply the given substitution to the given [Level3Term], producing a new [Level3Term] with
-    /// the substituted variables.
+    /// Apply the given substitution to the given [Level3Term], producing a new
+    /// [Level3Term] with the substituted variables.
     pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TermId {
         match term {
             Level3Term::TrtKind => self
@@ -73,12 +73,13 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given substitution to the given [Level2Term], producing a new [Level2Term] with
-    /// the substituted variables.
+    /// Apply the given substitution to the given [Level2Term], producing a new
+    /// [Level2Term] with the substituted variables.
     pub fn apply_sub_to_level2_term(&mut self, sub: &Sub, term: Level2Term) -> TermId {
         match term {
             Level2Term::Trt(trt_def_id) => {
-                // Here we add the substitution to the term using only vars in the trait definition.
+                // Here we add the substitution to the term using only vars in the trait
+                // definition.
                 let reader = self.reader();
                 let trt_def_vars = &reader.get_trt_def(trt_def_id).bound_vars;
                 let selected_sub = sub.select(trt_def_vars);
@@ -89,12 +90,13 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given substitution to the given [Level1Term], producing a new [Level1Term] with
-    /// the substituted variables.
+    /// Apply the given substitution to the given [Level1Term], producing a new
+    /// [Level1Term] with the substituted variables.
     pub fn apply_sub_to_level1_term(&mut self, sub: &Sub, term: Level1Term) -> TermId {
         match term {
             Level1Term::ModDef(mod_def_id) => {
-                // Here we add the substitution to the term using only vars in the mod definition.
+                // Here we add the substitution to the term using only vars in the mod
+                // definition.
                 let reader = self.reader();
                 let mod_def_vars = &reader.get_mod_def(mod_def_id).bound_vars;
                 let selected_sub = sub.select(mod_def_vars);
@@ -131,8 +133,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given substitution to the given [Level0Term], producing a new [Level0Term] with
-    /// the substituted variables.
+    /// Apply the given substitution to the given [Level0Term], producing a new
+    /// [Level0Term] with the substituted variables.
     pub fn apply_sub_to_level0_term(&mut self, sub: &Sub, term: Level0Term) -> TermId {
         match term {
             Level0Term::Rt(ty_term_id) => {
@@ -141,7 +143,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 self.builder().create_rt_term(subbed_ty_term_id)
             }
             Level0Term::EnumVariant(enum_variant) => {
-                // Here we add the substitution to the term using only vars in the enum definition.
+                // Here we add the substitution to the term using only vars in the enum
+                // definition.
                 let reader = self.reader();
                 let enum_def_vars = reader
                     .get_nominal_def(enum_variant.enum_def_id)
@@ -163,8 +166,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given substitution to the given [SubSubject], producing a new term with the
-    /// substituted result.
+    /// Apply the given substitution to the given [SubSubject], producing a new
+    /// term with the substituted result.
     pub fn apply_sub_to_subject(&mut self, sub: &Sub, subject: SubSubject) -> TermId {
         match sub.get_sub_for(subject) {
             Some(subbed_term_id) => subbed_term_id,
@@ -172,16 +175,18 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given substitution to the term indexed by the given [TermId], producing a new
-    /// term with the substituted variables.
+    /// Apply the given substitution to the term indexed by the given [TermId],
+    /// producing a new term with the substituted variables.
     ///
-    /// Sometimes, this will actually create a [Term::AppSub] somewhere inside the term tree, and
-    /// those are the leaf nodes of the substitution application. This will happen with `ModDef`,
-    /// `TrtDef`, `NominalDef`, and `EnumVariant`. This is so that when `AccessTerm` is resolved
-    /// for those types, the substitution is carried forward into the member term.
+    /// Sometimes, this will actually create a [Term::AppSub] somewhere inside
+    /// the term tree, and those are the leaf nodes of the substitution
+    /// application. This will happen with `ModDef`, `TrtDef`, `NominalDef`,
+    /// and `EnumVariant`. This is so that when `AccessTerm` is resolved for
+    /// those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
-        // @@Performance: here we copy a lot, maybe there is a way to avoid all this copying by
-        // first checking that the variables to be substituted actually exist in the term.
+        // @@Performance: here we copy a lot, maybe there is a way to avoid all this
+        // copying by first checking that the variables to be substituted
+        // actually exist in the term.
 
         let term = self.reader().get_term(term_id).clone();
         match term {
@@ -208,9 +213,10 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
                 //
-                // However, we first have to remove all the shadowed variables from the substitution:
-                // If we have T -> str, and <T> => List<T>, we don't wanna get <T> => List<str>
-                // because T is bound in the term, not free.
+                // However, we first have to remove all the shadowed variables from the
+                // substitution: If we have T -> str, and <T> => List<T>, we
+                // don't wanna get <T> => List<str> because T is bound in the
+                // term, not free.
                 let shadowed_sub = sub.filter(&ty_fn.general_params);
                 let subbed_general_params =
                     self.apply_sub_to_params(&shadowed_sub, &ty_fn.general_params);
@@ -255,8 +261,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::AppSub(app_sub) => {
                 // @@Correctness: do we not want to unify substitutions here?
                 //
-                // Here, we have to substitute all X in * -> X pairs of the substitution, as well
-                // as the subject term itself.
+                // Here, we have to substitute all X in * -> X pairs of the substitution, as
+                // well as the subject term itself.
                 let subbed_sub = app_sub
                     .sub
                     .pairs()
@@ -276,7 +282,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Add the free variables in the parameter default values and types to the given [HashSet].
+    /// Add the free variables in the parameter default values and types to the
+    /// given [HashSet].
     pub fn add_free_vars_in_params_to_set(
         &self,
         params: &Params,
@@ -291,8 +298,9 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Remove the free variables that exist in the given params as names, from the given
-    /// [HashSet], and add the free variables in the default values and types.
+    /// Remove the free variables that exist in the given params as names, from
+    /// the given [HashSet], and add the free variables in the default
+    /// values and types.
     ///
     /// This is to be used for type functions.
     pub fn add_and_remove_free_vars_in_params_from_set(
@@ -310,14 +318,16 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Add the free variables that exist in the given args, to the given [HashSet].
+    /// Add the free variables that exist in the given args, to the given
+    /// [HashSet].
     pub fn add_free_vars_in_args_to_set(&self, args: &Args, result: &mut HashSet<SubSubject>) {
         for arg in args.positional() {
             self.add_free_vars_in_term_to_set(arg.value, result);
         }
     }
 
-    /// Add the free variables that exist in the given [Level0Term], to the given [HashSet].
+    /// Add the free variables that exist in the given [Level0Term], to the
+    /// given [HashSet].
     pub fn add_free_vars_in_level0_term_to_set(
         &self,
         term: &Level0Term,
@@ -338,7 +348,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Add the free variables that exist in the given [Level1Term], to the given [HashSet].
+    /// Add the free variables that exist in the given [Level1Term], to the
+    /// given [HashSet].
     pub fn add_free_vars_in_level1_term_to_set(
         &self,
         term: &Level1Term,
@@ -346,8 +357,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     ) {
         match term {
             Level1Term::ModDef(mod_def_id) => {
-                // Add the bound vars of the module (they are not bound because they are not behind
-                // a type function anymore).
+                // Add the bound vars of the module (they are not bound because they are not
+                // behind a type function anymore).
                 result.extend(
                     self.reader()
                         .get_mod_def(*mod_def_id)
@@ -358,8 +369,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 )
             }
             Level1Term::NominalDef(nominal_def_id) => {
-                // Add the bound vars of the nominal definition (they are not bound because they are not behind
-                // a type function anymore).
+                // Add the bound vars of the nominal definition (they are not bound because they
+                // are not behind a type function anymore).
                 result.extend(
                     self.reader()
                         .get_nominal_def(*nominal_def_id)
@@ -381,7 +392,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Add the free variables that exist in the given [Level2Term], to the given [HashSet].
+    /// Add the free variables that exist in the given [Level2Term], to the
+    /// given [HashSet].
     pub fn add_free_vars_in_level2_term_to_set(
         &self,
         term: &Level2Term,
@@ -389,8 +401,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     ) {
         match term {
             Level2Term::Trt(trt_def_id) => {
-                // Add the bound vars of the trait definition (they are not bound because they are not behind
-                // a type function anymore).
+                // Add the bound vars of the trait definition (they are not bound because they
+                // are not behind a type function anymore).
                 result.extend(
                     self.reader()
                         .get_trt_def(*trt_def_id)
@@ -404,7 +416,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Add the free variables that exist in the given [Level3Term], to the given [HashSet].
+    /// Add the free variables that exist in the given [Level3Term], to the
+    /// given [HashSet].
     pub fn add_free_vars_in_level3_term_to_set(
         &self,
         term: &Level3Term,
@@ -415,9 +428,11 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Add the free variables that exist in the given term, to the given [HashSet].
+    /// Add the free variables that exist in the given term, to the given
+    /// [HashSet].
     ///
-    /// Free variables are either `Var` or `Unresolved`, and this function collects both.
+    /// Free variables are either `Var` or `Unresolved`, and this function
+    /// collects both.
     pub fn add_free_vars_in_term_to_set(&self, term_id: TermId, result: &mut HashSet<SubSubject>) {
         let reader = self.reader();
         let term = reader.get_term(term_id);
@@ -503,7 +518,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
 
     /// Get the set of free variables that exist in the given term.
     ///
-    /// Free variables are either `Var` or `Unresolved`, and this function collects both.
+    /// Free variables are either `Var` or `Unresolved`, and this function
+    /// collects both.
     pub fn get_free_vars_in_term(&self, term_id: TermId) -> HashSet<SubSubject> {
         let mut result = HashSet::new();
         self.add_free_vars_in_term_to_set(term_id, &mut result);
@@ -537,7 +553,8 @@ mod tests {
 
         let builder = storage_ref.builder();
 
-        // Visual testing for now, until term unification is implemented and we can actually write proper tests here:
+        // Visual testing for now, until term unification is implemented and we can
+        // actually write proper tests here:
         let hash_impl = builder.create_nameless_mod_def(
             ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
             builder.create_constant_scope([]),

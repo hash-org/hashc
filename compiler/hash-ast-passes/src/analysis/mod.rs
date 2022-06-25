@@ -1,5 +1,5 @@
-//! Hash semantic analyser definitions. This file holds the [SemanticAnalyser] definition
-//! with some shared functions to append diagnostics to the analyser.
+//! Hash semantic analyser definitions. This file holds the [SemanticAnalyser]
+//! definition with some shared functions to append diagnostics to the analyser.
 
 use crossbeam_channel::Sender;
 use hash_source::{
@@ -27,7 +27,8 @@ pub struct SemanticAnalyser {
     pub(crate) warnings: Vec<AnalysisWarning>,
     /// The current id of the source that is being passed.
     pub(crate) source_id: SourceId,
-    /// The current scope of the traversal, representing which block the analyser is walking.
+    /// The current scope of the traversal, representing which block the
+    /// analyser is walking.
     pub(crate) current_block: BlockOrigin,
 }
 
@@ -44,8 +45,9 @@ impl SemanticAnalyser {
         }
     }
 
-    /// Function to check whether the current traversal state is within a constant block.
-    /// This means that the [BlockOrigin] is currently not set to [BlockOrigin::Body].
+    /// Function to check whether the current traversal state is within a
+    /// constant block. This means that the [BlockOrigin] is currently not
+    /// set to [BlockOrigin::Body].
     #[inline]
     pub(crate) fn is_in_constant_block(&self) -> bool {
         !matches!(self.current_block, BlockOrigin::Body)
@@ -67,7 +69,8 @@ impl SemanticAnalyser {
         ))
     }
 
-    /// Given a [Sender], send all of the generated warnings and messaged into the sender.
+    /// Given a [Sender], send all of the generated warnings and messaged into
+    /// the sender.
     pub(crate) fn send_generated_messages(self, sender: &Sender<Diagnostic>) {
         self.errors
             .into_iter()

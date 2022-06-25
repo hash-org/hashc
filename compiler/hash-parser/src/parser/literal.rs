@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
@@ -7,8 +7,9 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, Token
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Convert the current token (provided it is a primitive literal) into a [ExpressionKind::LiteralExpr]
-    /// by simply matching on the type of the expr.
+    /// Convert the current token (provided it is a primitive literal) into a
+    /// [ExpressionKind::LiteralExpr] by simply matching on the type of the
+    /// expr.
     pub(crate) fn parse_literal(&self) -> AstNode<Expression> {
         let token = self.current_token();
         let literal = self.node_with_span(
@@ -163,8 +164,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     gen.skip_token();
                 }
                 Some(token) => {
-                    // if we haven't exhausted the whole token stream, then report this as a unexpected
-                    // token error
+                    // if we haven't exhausted the whole token stream, then report this as a
+                    // unexpected token error
                     return gen.error(
                         AstGenErrorKind::Expected,
                         Some(TokenKindVector::singleton(TokenKind::Comma)),

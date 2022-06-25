@@ -1,7 +1,7 @@
 //! Visitor pattern for the semantic analysis stage. This file implements
-//! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During traversal, the
-//! visitor calls various functions that are defined on the analyser to perform
-//! a variety of semantic checks.
+//! the [AstVisitor] pattern on the AST for [SemanticAnalyser]. During
+//! traversal, the visitor calls various functions that are defined on the
+//! analyser to perform a variety of semantic checks.
 
 use std::{collections::HashSet, convert::Infallible, mem};
 
@@ -145,7 +145,8 @@ impl AstVisitor for SemanticAnalyser {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArgs>,
     ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
         // Here we don't validate ordering of arguments because this is done later
-        // at typechecking when we can give more context about the problem (if there is one).
+        // at typechecking when we can give more context about the problem (if there is
+        // one).
 
         let _ = walk::walk_constructor_call_args(self, ctx, node);
         Ok(())
@@ -689,8 +690,9 @@ impl AstVisitor for SemanticAnalyser {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BodyBlock>,
     ) -> Result<Self::BodyBlockRet, Self::Error> {
-        // Iterate over the statements in a body block to check if there are any 'useless'
-        // expressions... a literal that is constant of made of other constant literals
+        // Iterate over the statements in a body block to check if there are any
+        // 'useless' expressions... a literal that is constant of made of other
+        // constant literals
         for statement in node.statements.iter() {
             match statement.kind() {
                 ExpressionKind::LiteralExpr(LiteralExpr(lit)) if lit.body().is_constant() => {
@@ -921,7 +923,8 @@ impl AstVisitor for SemanticAnalyser {
 
     type ConstructorPatternRet = ();
 
-    /// This function verifies that constructor patterns adhere to the following rules:
+    /// This function verifies that constructor patterns adhere to the following
+    /// rules:
     ///
     /// - All named fields must after before any nameless fields.
     ///
@@ -975,7 +978,8 @@ impl AstVisitor for SemanticAnalyser {
 
     type TuplePatternRet = ();
 
-    /// This function verifies that tuple patterns adhere to the following rules:
+    /// This function verifies that tuple patterns adhere to the following
+    /// rules:
     ///
     /// - All named fields must after before any nameless fields.
     ///
@@ -1101,10 +1105,10 @@ impl AstVisitor for SemanticAnalyser {
             ..
         } = node.body();
 
-        // If the pattern is present in a declaration that is within a constant block, it
-        // it not allowed to be declared to be mutable. If we are not in a constant scope, then
-        // we should check if binding contains a visibility modifier which is disallowed within
-        // body blocks.
+        // If the pattern is present in a declaration that is within a constant block,
+        // it it not allowed to be declared to be mutable. If we are not in a
+        // constant scope, then we should check if binding contains a visibility
+        // modifier which is disallowed within body blocks.
         if self.is_in_constant_block() {
             if let Some(node) = mutability {
                 if *node.body() == Mutability::Mutable {

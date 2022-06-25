@@ -1,4 +1,5 @@
-//! Contains type definitions that the rest of the storage and the general typechecker use.
+//! Contains type definitions that the rest of the storage and the general
+//! typechecker use.
 use hash_source::{identifier::Identifier, SourceId};
 use slotmap::new_key_type;
 use std::{
@@ -74,7 +75,8 @@ impl Scope {
         }
     }
 
-    /// Add a member to the scope, overwriting any existing member with the same name.
+    /// Add a member to the scope, overwriting any existing member with the same
+    /// name.
     pub fn add(&mut self, member: Member) {
         self.members.insert(member.name, member);
     }
@@ -85,8 +87,8 @@ impl Scope {
     }
 }
 
-/// Trait to be implemented by primitives which contain a `name` field that is an
-/// optional identifier.
+/// Trait to be implemented by primitives which contain a `name` field that is
+/// an optional identifier.
 pub trait GetNameOpt {
     /// Get the name of [Self], which should be an [Option<Identifier>].
     fn get_name_opt(&self) -> Option<Identifier>;
@@ -153,7 +155,8 @@ impl GetNameOpt for Arg {
 /// A list of arguments.
 pub type Args = ParamList<Arg>;
 
-/// A parameter, declaring a potentially named variable with a given type and default value.
+/// A parameter, declaring a potentially named variable with a given type and
+/// default value.
 #[derive(Debug, Clone, Hash)]
 pub struct Param {
     pub name: Option<Identifier>,
@@ -175,12 +178,12 @@ pub type Params = ParamList<Param>;
 /// Used to keep track of bound variables in definitions.
 pub type BoundVars = HashSet<Var>;
 
-/// The origin of a module: was it defined in a `mod` block, an anonymous `impl` block, or an
-/// `impl Trait` block?
+/// The origin of a module: was it defined in a `mod` block, an anonymous `impl`
+/// block, or an `impl Trait` block?
 #[derive(Debug, Clone, Copy, Hash)]
 pub enum ModDefOrigin {
-    /// Defined as a trait implementation (for the given term that should resolve to a trait
-    /// value).
+    /// Defined as a trait implementation (for the given term that should
+    /// resolve to a trait value).
     TrtImpl(TermId),
     /// Defined as an anonymous implementation.
     AnonImpl,
@@ -190,8 +193,8 @@ pub enum ModDefOrigin {
     Source(SourceId),
 }
 
-/// A module definition, which is of a given origin, has a binding name, and contains some constant
-/// members.
+/// A module definition, which is of a given origin, has a binding name, and
+/// contains some constant members.
 #[derive(Debug, Clone)]
 pub struct ModDef {
     pub name: Option<Identifier>,
@@ -207,8 +210,8 @@ pub enum StructFields {
     Explicit(Params),
     /// The struct does not have any accessible parameters.
     ///
-    /// This is used for core language definitions that will be filled in later in the compiler
-    /// pipeline.
+    /// This is used for core language definitions that will be filled in later
+    /// in the compiler pipeline.
     Opaque,
 }
 
@@ -287,12 +290,12 @@ pub struct FnTy {
 
 /// A type function type.
 ///
-/// A type function is a compile-time function that works on types. Type function return values
-/// can be level 0, level 1 or level 2. It has a general set of "base" parameters and return
-/// type.
+/// A type function is a compile-time function that works on types. Type
+/// function return values can be level 0, level 1 or level 2. It has a general
+/// set of "base" parameters and return type.
 ///
-/// These are refined in the `cases` field, which provides conditional values for the return
-/// value of the function, based on what the arguments are.
+/// These are refined in the `cases` field, which provides conditional values
+/// for the return value of the function, based on what the arguments are.
 ///
 /// For example, consider:
 ///
@@ -336,25 +339,27 @@ pub struct FnTy {
 /// }
 /// ```
 ///
-/// At any point, the resolved type of `Dog<T>` is the merged type of the return type of each case
-/// which matches `T`. In other words, cases are not short-circuiting; they are all evaluated and
-/// then combined.
+/// At any point, the resolved type of `Dog<T>` is the merged type of the return
+/// type of each case which matches `T`. In other words, cases are not
+/// short-circuiting; they are all evaluated and then combined.
 ///
-/// The `general_return_ty` field is always a supertype of the return type of each case.
+/// The `general_return_ty` field is always a supertype of the return type of
+/// each case.
 #[derive(Debug, Clone)]
 pub struct TyFn {
-    /// An optional name for the type function, if it is directly assigned to a binding.
+    /// An optional name for the type function, if it is directly assigned to a
+    /// binding.
     pub name: Option<Identifier>,
     pub general_params: Params,
     pub general_return_ty: TermId,
     pub cases: Vec<TyFnCase>,
 }
 
-/// Represents a case in a type function, for some subset of its `general_params`, to some specific
-/// return type and refined return value.
+/// Represents a case in a type function, for some subset of its
+/// `general_params`, to some specific return type and refined return value.
 ///
-/// The `value` property of each [Param] in the `params` field represents types which have been
-/// set, for example:
+/// The `value` property of each [Param] in the `params` field represents types
+/// which have been set, for example:
 ///
 /// ```ignore
 /// Dog<str> ~= impl Conv<str> {
@@ -376,9 +381,9 @@ pub struct TyFn {
 ///     ])
 /// ```
 ///
-/// The case's `return_ty` must always be able to unify with the target `general_return_ty`,
-/// and the type parameters should be able to each unify with the target `general_params`, of the
-/// parent [TyFn].
+/// The case's `return_ty` must always be able to unify with the target
+/// `general_return_ty`, and the type parameters should be able to each unify
+/// with the target `general_params`, of the parent [TyFn].
 #[derive(Debug, Clone)]
 pub struct TyFnCase {
     pub params: Params,
@@ -402,12 +407,13 @@ pub struct Var {
 
 /// The action of applying a set of arguments to a type function.
 ///
-/// This essentially creates a lambda calculus within the Hash type system, which allows it to
-/// express arbitrary programs.
+/// This essentially creates a lambda calculus within the Hash type system,
+/// which allows it to express arbitrary programs.
 ///
-/// When this type is unified with another type, the function is applied by first instantiating
-/// its return value over its type parameters, and then unifying the instantiated type parameters
-/// with the given type arguments of the function (the `args` field).
+/// When this type is unified with another type, the function is applied by
+/// first instantiating its return value over its type parameters, and then
+/// unifying the instantiated type parameters with the given type arguments of
+/// the function (the `args` field).
 #[derive(Debug, Clone)]
 pub struct AppTyFn {
     pub subject: TermId,
@@ -433,8 +439,8 @@ pub struct TyFnTy {
     pub return_ty: TermId,
 }
 
-/// An enum variant value, consisting of a [NominalDefId] pointing to an enum, as well as the
-/// variant of the enum in the form of an [Identifier].
+/// An enum variant value, consisting of a [NominalDefId] pointing to an enum,
+/// as well as the variant of the enum in the form of an [Identifier].
 ///
 /// Has a level 0 type.
 #[derive(Debug, Clone, Copy)]
@@ -456,7 +462,8 @@ pub enum AccessOp {
     Property,
 }
 
-/// An access term, which is of the form X::Y, where X is a term and Y is an identifier.
+/// An access term, which is of the form X::Y, where X is a term and Y is an
+/// identifier.
 ///
 /// Has level N where N is the level of the Y property of X.
 #[derive(Debug, Clone)]
@@ -478,31 +485,32 @@ pub enum Level3Term {
 
 /// A level 2 term.
 ///
-/// Type of: types, for example: `struct(..)`, `enum(..)`, `mod {..}`, `impl {..}`.
-/// Value of: traits, for example `trait(..)`.
+/// Type of: types, for example: `struct(..)`, `enum(..)`, `mod {..}`, `impl
+/// {..}`. Value of: traits, for example `trait(..)`.
 #[derive(Debug, Clone)]
 pub enum Level2Term {
     // ---- Level 2 ---- the term that is a return term of trait(..)
     /// A trait term.
     Trt(TrtDefId),
-    /// Basically a trait term that all types implement, i.e. the trait that is a supertrait to
-    /// all other traits.
+    /// Basically a trait term that all types implement, i.e. the trait that is
+    /// a supertrait to all other traits.
     AnyTy,
 }
 
 /// A level 1 term.
 ///
 /// Type of: values, for example: `3`, `"test"`, `[1, 2, 3]`, `Dog(name="Bob")`.
-/// Value of: types, for example `struct(..)`, `enum(..)`, `mod {..}`, `(a: A) -> B` etc.
+/// Value of: types, for example `struct(..)`, `enum(..)`, `mod {..}`, `(a: A)
+/// -> B` etc.
 #[derive(Debug, Clone)]
 pub enum Level1Term {
     /// Modules or impls.
     ///
-    /// Modules and trait implementations, as well as anonymous implementations, are treated as
-    /// types, but do not have instance values.
+    /// Modules and trait implementations, as well as anonymous implementations,
+    /// are treated as types, but do not have instance values.
     ///
-    /// Information about the origin of each module definition can be found in its corresponding
-    /// [ModDef] struct.
+    /// Information about the origin of each module definition can be found in
+    /// its corresponding [ModDef] struct.
     ModDef(ModDefId),
 
     /// A nominal type definition, either a struct or an enum.
@@ -515,7 +523,8 @@ pub enum Level1Term {
     Fn(FnTy),
 }
 
-/// Represents a function literal, with a function type, as well as a return value.
+/// Represents a function literal, with a function type, as well as a return
+/// value.
 #[derive(Debug, Clone, Copy)]
 pub struct FnLit {
     pub fn_ty: TermId,
@@ -566,7 +575,8 @@ impl From<SubSubject> for Term {
     }
 }
 
-/// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a term.
+/// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a
+/// term.
 #[derive(Debug, Default, Clone)]
 pub struct Sub {
     data: HashMap<SubSubject, TermId>,
@@ -598,7 +608,8 @@ impl Sub {
         self.data.get(&subject).copied()
     }
 
-    /// Get all the subjects (i.e. the domain) of the substitution as an iterator.
+    /// Get all the subjects (i.e. the domain) of the substitution as an
+    /// iterator.
     pub fn domain(&self) -> impl Iterator<Item = SubSubject> + '_ {
         self.data.keys().copied()
     }
@@ -625,14 +636,14 @@ impl Sub {
 
     /// Extend the substitution with pairs from the given one.
     ///
-    /// This is a naive implementation which does not perform any unification. For substitution
-    /// unification, see the `crate::ops::unify` module.
+    /// This is a naive implementation which does not perform any unification.
+    /// For substitution unification, see the `crate::ops::unify` module.
     pub fn extend(&mut self, other: &Sub) {
         self.data.extend(other.pairs());
     }
 
-    /// Create a new substitution equivalent to this one but selecting only the pairs which are not
-    /// shadowed by the given [Params].
+    /// Create a new substitution equivalent to this one but selecting only the
+    /// pairs which are not shadowed by the given [Params].
     pub fn filter(&self, params: &Params) -> Self {
         Self {
             data: self
@@ -652,8 +663,8 @@ impl Sub {
         }
     }
 
-    /// Create a new substitution equivalent to this one but selecting only the given [BoundVars]
-    /// as subjects.
+    /// Create a new substitution equivalent to this one but selecting only the
+    /// given [BoundVars] as subjects.
     pub fn select(&self, bound_vars: &BoundVars) -> Self {
         Self {
             data: self
@@ -690,14 +701,17 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant access.
     Access(AccessTerm),
 
-    /// A type-level variable, with some type that is stored in the current scope.
+    /// A type-level variable, with some type that is stored in the current
+    /// scope.
     ///
-    /// Is level N-1, where N is the level of the type of the variable in the context
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
     Var(Var),
 
     /// Merge of multiple terms.
     ///
-    /// Inner types must have the same level. Merging is also idempotent, associative, and commutative.
+    /// Inner types must have the same level. Merging is also idempotent,
+    /// associative, and commutative.
     ///
     /// Is level N, where N is the level of the inner types.
     Merge(Vec<TermId>),
@@ -719,7 +733,8 @@ pub enum Term {
 
     /// Substitution application.
     ///
-    /// Is level N, where N is the level of the inner term after the substitution has been applied.
+    /// Is level N, where N is the level of the inner term after the
+    /// substitution has been applied.
     AppSub(AppSub),
 
     /// Not yet resolved.
@@ -739,8 +754,8 @@ pub enum Term {
     /// A level 0 term.
     Level0(Level0Term),
 
-    /// The only level 4 term, which is the "endpoint" of the typing hierarchy. This is the type of
-    /// "TraitKind" and "TyFnTy".
+    /// The only level 4 term, which is the "endpoint" of the typing hierarchy.
+    /// This is the type of "TraitKind" and "TyFnTy".
     Root,
 }
 
@@ -774,9 +789,9 @@ new_key_type! {
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in
 /// [super::terms::TermStore].
 ///
-/// This needs to be separate from [TermId] so that if a type is copied (and new IDs are
-/// generated for its members) the identity of the unknown variables remains the same as in the
-/// original type.
+/// This needs to be separate from [TermId] so that if a type is copied (and new
+/// IDs are generated for its members) the identity of the unknown variables
+/// remains the same as in the original type.
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct ResolutionId(pub(super) usize);
 

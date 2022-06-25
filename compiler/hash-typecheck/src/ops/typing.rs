@@ -35,16 +35,18 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
 
     /// Get the type of the given term, as another term.
     ///
-    /// First simplifies the term. If you already know you have a simplified term, you can use
-    /// [Self::ty_of_simplified_term].
+    /// First simplifies the term. If you already know you have a simplified
+    /// term, you can use [Self::ty_of_simplified_term].
     pub fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         self.ty_of_simplified_term(simplified_term_id)
     }
 
-    /// Get the type of the given term, given that it is simplified, as another term.
+    /// Get the type of the given term, given that it is simplified, as another
+    /// term.
     ///
-    /// **Warning**: This might produce unexpected behaviour if the term is not simplified.
+    /// **Warning**: This might produce unexpected behaviour if the term is not
+    /// simplified.
     pub fn ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let term = self.reader().get_term(term_id).clone();
         match term {
@@ -93,7 +95,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                 Ok(self.builder().create_root_term())
             }
             Term::Var(var) => {
-                // The type of a variable can be found by looking at the scopes to its declaration:
+                // The type of a variable can be found by looking at the scopes to its
+                // declaration:
                 Ok(self.scope_resolver().resolve_name_in_scopes(var.name)?.ty)
             }
             Term::TyFn(ty_fn) => {
@@ -112,7 +115,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
             Term::AppSub(app_sub) => {
-                // The type of an AppSub is the type of the subject, with the substitution applied:
+                // The type of an AppSub is the type of the subject, with the substitution
+                // applied:
                 let ty_of_subject = self.ty_of_term(app_sub.term)?;
                 Ok(self
                     .substituter()
@@ -149,7 +153,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                     }
                 }
                 Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
-                    // The type of any nominal def, function type, or tuple type, is "RuntimeInstantiable":
+                    // The type of any nominal def, function type, or tuple type, is
+                    // "RuntimeInstantiable":
                     let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
                     Ok(self.builder().create_trt_term(rt_instantiable_def))
                 }

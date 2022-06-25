@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use hash_ast::{ast::*, ast_nodes};
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
@@ -7,7 +7,8 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Type]. This includes all forms of a [Type]. This function
-    /// does not deal with any kind of [Type] annotation or [TypeFunctionDef] syntax.
+    /// does not deal with any kind of [Type] annotation or [TypeFunctionDef]
+    /// syntax.
     pub(crate) fn parse_type(&self) -> AstGenResult<AstNode<Type>> {
         let start = self.current_location();
         let initial_ty = self.parse_singular_type()?;
@@ -30,9 +31,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(initial_ty)
     }
 
-    /// Parse a [Type]. This includes only singular forms of a type. This means that [Type::Merged]
-    /// variant is not handled because it makes the `parse_type` function carry context from one call to
-    /// the other.
+    /// Parse a [Type]. This includes only singular forms of a type. This means
+    /// that [Type::Merged] variant is not handled because it makes the
+    /// `parse_type` function carry context from one call to the other.
     fn parse_singular_type(&self) -> AstGenResult<AstNode<Type>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(
@@ -123,9 +124,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         };
 
-        // We allow for a `TypeFunctionCall` definition to occur if the function is preceded with either
-        // a `Named` or `Grouped` type. If either of these variants is followed by a `<`, this means that
-        // this has to be a type function call and therefore we no longer allow for any other variants to be
+        // We allow for a `TypeFunctionCall` definition to occur if the function is
+        // preceded with either a `Named` or `Grouped` type. If either of these
+        // variants is followed by a `<`, this means that this has to be a type
+        // function call and therefore we no longer allow for any other variants to be
         // present
         let ty = if matches!(ty, Type::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
             Type::TypeFunctionCall(TypeFunctionCall {
@@ -139,10 +141,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(ty, &start))
     }
 
-    /// This parses some type arguments after an [AccessName], however due to the nature of the
-    /// language grammar, since the [TokenKind] could be a [`TokenKind::Lt`] or `<`, it could
-    /// also be a comparison rather than the beginning of a type argument. Therefore, we have to
-    /// lookahead to see if there is another type followed by either a comma (which locks the
+    /// This parses some type arguments after an [AccessName], however due to
+    /// the nature of the language grammar, since the [TokenKind] could be a
+    /// [`TokenKind::Lt`] or `<`, it could also be a comparison rather than
+    /// the beginning of a type argument. Therefore, we have to lookahead to
+    /// see if there is another type followed by either a comma (which locks the
     /// `type_args`) or a closing [`TokenKind::Gt`].
     pub(crate) fn parse_type_args(
         &self,
@@ -157,8 +160,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut type_args = vec![];
 
         loop {
-            // The name part of the `NamedFieldTypeEntry` is an identifier followed by an `=`, which
-            // will then should contain a type setting.
+            // The name part of the `NamedFieldTypeEntry` is an identifier followed by an
+            // `=`, which will then should contain a type setting.
             let name = match (self.peek(), self.peek_second()) {
                 (
                     Some(Token {
@@ -178,12 +181,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 _ => None,
             };
 
-            // Either way, even if the name is not specified, we still want to parse a name here
-            // and hard-error if we don't encounter a type.
+            // Either way, even if the name is not specified, we still want to parse a name
+            // here and hard-error if we don't encounter a type.
             let ty = self.parse_type()?;
 
-            // Here, we want to use either a joined span between the name or just the span of the
-            // parsed type
+            // Here, we want to use either a joined span between the name or just the span
+            // of the parsed type
             let arg_span = name
                 .as_ref()
                 .map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
@@ -219,9 +222,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parses a [Type::Fn] which involves a parenthesis token tree with some arbitrary
-    /// number of comma separated types followed by a return [Type] that is preceded by an
-    /// `thin-arrow` (->) after the parentheses. e.g. `(i32) -> str`
+    /// Parses a [Type::Fn] which involves a parenthesis token tree with some
+    /// arbitrary number of comma separated types followed by a return
+    /// [Type] that is preceded by an `thin-arrow` (->) after the
+    /// parentheses. e.g. `(i32) -> str`
     fn parse_function_or_tuple_type(&self) -> AstGenResult<Type> {
         let mut args = AstNodes::empty();
 
@@ -239,8 +243,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     || {
                         let start = gen.current_location();
 
-                        // Here we have to essentially try and parse a identifier. If this is the case and
-                        // then there is a colon present then we have a named field.
+                        // Here we have to essentially try and parse a identifier. If this is the
+                        // case and then there is a colon present then we
+                        // have a named field.
                         let (name, ty) = match gen.peek_second() {
                             Some(token) if token.has_kind(TokenKind::Colon) => {
                                 let ident = gen.parse_name()?;
@@ -258,8 +263,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         };
 
-        // Here we check that the token tree has a comma at the end to later determine if
-        // this is a `GroupedType` or a `TupleType`...
+        // Here we check that the token tree has a comma at the end to later determine
+        // if this is a `GroupedType` or a `TupleType`...
         let gen_has_comma =
             !gen.stream.is_empty() && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
 
@@ -273,8 +278,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }))
             }
             None => {
-                // If there is only one entry in the args, and the last token in the entry is not a comma
-                // then we can just return the inner type
+                // If there is only one entry in the args, and the last token in the entry is
+                // not a comma then we can just return the inner type
                 if gen_has_comma && args.len() == 1 && args[0].name.is_none() {
                     let field = args.nodes.pop().unwrap().into_body();
                     return Ok(field.ty.into_body());
@@ -285,11 +290,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parses a [Type::TypeFunction] with the pre-condition that the initial subject type is parsed
-    /// and passed into the function. This function only deals with the argument part of the function.
+    /// Parses a [Type::TypeFunction] with the pre-condition that the initial
+    /// subject type is parsed and passed into the function. This function
+    /// only deals with the argument part of the function.
     fn parse_type_function(&self) -> AstGenResult<Type> {
-        // Since this is only called from `parse_singular_type` we know that this should only
-        // be fired when the next token is a an `<`
+        // Since this is only called from `parse_singular_type` we know that this should
+        // only be fired when the next token is a an `<`
         debug_assert!(matches!(
             self.next_token(),
             Some(Token {

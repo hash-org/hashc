@@ -38,27 +38,27 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
     /// Unify two substitutions to produce another substitution.
     ///
-    /// The resultant substitution contains all the information of the two source substitutions,
-    /// without any common free variables in their domains.
+    /// The resultant substitution contains all the information of the two
+    /// source substitutions, without any common free variables in their
+    /// domains.
     ///
     /// This implements the algorithm outlined in the paper:
     /// <https://www.researchgate.net/publication/221600544_On_the_Unification_of_Substitutions_in_Type_Interfaces>
-    ///
     pub fn unify_subs(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
         let dom_s0: HashSet<_> = s0.domain().collect();
         let dom_s1: HashSet<_> = s1.domain().collect();
         let mut substituter = self.substituter();
 
-        // First split the domains into three parts: d0, d1 (not directly needed), and the
-        // intersection (see second loop)
+        // First split the domains into three parts: d0, d1 (not directly needed), and
+        // the intersection (see second loop)
         let d0: HashSet<_> = dom_s0.difference(&dom_s1).copied().collect();
         let t0 = Sub::from_pairs(
             d0.iter()
                 .map(|&a| (a, substituter.apply_sub_to_subject(s0, a))),
         );
 
-        // Start with t0 and add terms for d1 one at a time, always producing well formed
-        // substitutions
+        // Start with t0 and add terms for d1 one at a time, always producing well
+        // formed substitutions
         let mut result = t0.clone();
         for (a, t) in t0.pairs() {
             // Remove elements of dom(result) from t, and remove a from result.
@@ -95,8 +95,9 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
     /// Unify the given parameters with the given arguments.
     ///
-    /// This is done by first getting the type of each argument, and unifying with the type of each
-    /// parameter. Then, a substitution is created from each parameter to each argument value.
+    /// This is done by first getting the type of each argument, and unifying
+    /// with the type of each parameter. Then, a substitution is created
+    /// from each parameter to each argument value.
     pub fn unify_params_with_args(&mut self, params: &Params, args: &Args) -> TcResult<Sub> {
         let pairs = pair_args_with_params(params, args)?;
         let mut cumulative_sub = Sub::empty();
@@ -147,7 +148,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
     /// Unify the two given terms, producing a substitution.
     ///
-    /// The relation between src and target is that src must be a subtype (or eq) of target.
+    /// The relation between src and target is that src must be a subtype (or
+    /// eq) of target.
     pub fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
         // Shortcut: terms have the same ID:
         if src_id == target_id {
@@ -203,8 +205,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                 }
             }
             (Term::Merge(inner_src), _) => {
-                // Try to merge each individual term in source, with target. If any one succeeds,
-                // then the whole thing should succeed.
+                // Try to merge each individual term in source, with target. If any one
+                // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
                 for inner_src_id in inner_src {
                     match self.unify_terms(inner_src_id, target_id) {
@@ -232,7 +234,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                 self.unify_terms(src_access.subject, target_access.subject)
             }
             (Term::Access(_), _) | (_, Term::Access(_)) => {
-                // Since these cannot be simplified further, we don't know if they can be unified:
+                // Since these cannot be simplified further, we don't know if they can be
+                // unified:
                 cannot_unify()
             }
 
@@ -264,8 +267,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
             // Type functions:
             (Term::TyFn(_), _) | (_, Term::TyFn(_)) => {
-                // For now, type functions never unify, because unifying them would require a lot
-                // of work to match each of the cases.
+                // For now, type functions never unify, because unifying them would require a
+                // lot of work to match each of the cases.
                 //  @@Enhancement: in principle this is possible, though unclear if useful.
                 cannot_unify()
             }

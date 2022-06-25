@@ -1,9 +1,10 @@
-//! Hash Compiler pipeline implementation. The pipeline is a abstract representation
-//! of the compiler flow managing the compiling steps like parsing, typechecking, optimisation
-//! passes, etc. The pipeline is used to abstract away the idea of depending on specific
-//! implementations of the parser or typechecker and just use a common trait
-//! interface that can be used. This file also has definitions for how to access
-//! sources whether module or interactive.
+//! Hash Compiler pipeline implementation. The pipeline is a abstract
+//! representation of the compiler flow managing the compiling steps like
+//! parsing, typechecking, optimisation passes, etc. The pipeline is used to
+//! abstract away the idea of depending on specific implementations of the
+//! parser or typechecker and just use a common trait interface that can be
+//! used. This file also has definitions for how to access sources whether
+//! module or interactive.
 pub mod fs;
 pub mod settings;
 pub mod sources;
@@ -45,9 +46,10 @@ pub struct Compiler<'pool, P, D, S, C, V> {
     metrics: HashMap<CompilerMode, Duration>,
 }
 
-/// The [CompilerState] holds all the information and state of the compiler instance.
-/// Each stage of the compiler contains a `State` type parameter which the compiler stores
-/// so that incremental executions of the compiler are possible.
+/// The [CompilerState] holds all the information and state of the compiler
+/// instance. Each stage of the compiler contains a `State` type parameter which
+/// the compiler stores so that incremental executions of the compiler are
+/// possible.
 pub struct CompilerState<
     'c,
     'pool,
@@ -104,13 +106,14 @@ where
         }
     }
 
-    /// Create a compiler state to accompany with compiler execution. Internally, this
-    /// calls the [Tc] state making functions and saves it into the created
-    /// [CompilerState].
+    /// Create a compiler state to accompany with compiler execution.
+    /// Internally, this calls the [Tc] state making functions and saves it
+    /// into the created [CompilerState].
     pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
         let sources = Sources::new();
-        // let checker_interactive_state = self.checker.make_interactive_state(&mut checker_state)?;
-        // let checker_module_state = self.checker.make_module_state(&mut checker_state)?;
+        // let checker_interactive_state = self.checker.make_interactive_state(&mut
+        // checker_state)?; let checker_module_state =
+        // self.checker.make_module_state(&mut checker_state)?;
 
         let ds_state = self.desugarer.make_state()?;
         let semantic_analysis_state = self.semantic_analyser.make_state()?;
@@ -127,7 +130,8 @@ where
         })
     }
 
-    /// Function to report the collected metrics on the stages within the compiler.
+    /// Function to report the collected metrics on the stages within the
+    /// compiler.
     fn report_metrics(&self) {
         let mut total = Duration::new(0, 0);
 
@@ -156,7 +160,8 @@ where
     fn print_sources(&self, sources: &Sources, entry_point: SourceId) {
         match entry_point {
             SourceId::Interactive(id) => {
-                // If this is an interactive statement, we want to print the statement that was just parsed.
+                // If this is an interactive statement, we want to print the statement that was
+                // just parsed.
                 let source = sources.get_interactive_block(id);
 
                 let tree = AstTreeGenerator
@@ -166,7 +171,8 @@ where
                 println!("{}", TreeWriter::new(&tree));
             }
             SourceId::Module(_) => {
-                // If this is a module, we want to print all of the generated modules from the parsing stage
+                // If this is a module, we want to print all of the generated modules from the
+                // parsing stage
                 for (_, generated_module) in sources.iter_modules() {
                     let tree = AstTreeGenerator
                         .visit_module(&(), generated_module.node_ref())
@@ -263,11 +269,12 @@ where
     /// Function to invoke the typechecking stage for the entry point denoted by
     /// the passed [SourceId].
     ///
-    /// This function also expects the [CompilerSettings] for the current pass in order
-    /// to determine if it should output the result from the operation. This is only
-    /// relevant when the [SourceId] is interactive as it might be specified that the
-    /// pipeline output the type of the current expression. This directly comes from
-    /// a user using the `:t` mode in the REPL as so:
+    /// This function also expects the [CompilerSettings] for the current pass
+    /// in order to determine if it should output the result from the
+    /// operation. This is only relevant when the [SourceId] is interactive
+    /// as it might be specified that the pipeline output the type of the
+    /// current expression. This directly comes from a user using the `:t`
+    /// mode in the REPL as so:
     ///
     /// ```text
     /// >>> :t foo(3);
@@ -309,23 +316,24 @@ where
         Ok(())
     }
 
-    /// Helper function in order to check if the pipeline needs to terminate after
-    /// any stage on the condition that the [CompilerJobParams] specify that this
-    /// is the last stage, or if the previous stage had generated any errors that
-    /// are fatal and an abort is necessary.
+    /// Helper function in order to check if the pipeline needs to terminate
+    /// after any stage on the condition that the [CompilerJobParams]
+    /// specify that this is the last stage, or if the previous stage had
+    /// generated any errors that are fatal and an abort is necessary.
     fn maybe_terminate(
         &self,
         result: CompilerResult<()>,
         compiler_state: &mut CompilerState<'c, 'pool, D, S, C, V>,
         job_params: &CompilerJobParams,
-        // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored within the compiler state
+        // @@TODO(feds01): remove this parameter, it would be ideal that this parameter is stored
+        // within the compiler state
         current_stage: CompilerMode,
     ) -> Result<(), ()> {
         if let Err(diagnostics) = result {
             compiler_state.diagnostics.extend(diagnostics.into_iter());
 
-            // Some diagnostics might not be errors and all just warnings, in this situation, we
-            // don't have to terminate execution
+            // Some diagnostics might not be errors and all just warnings, in this
+            // situation, we don't have to terminate execution
             if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
                 return Err(());
             }
@@ -339,9 +347,10 @@ where
         Ok(())
     }
 
-    /// Run a particular job within the pipeline. This function handles both cases of either the
-    /// entry point being an [InteractiveId] or a [ModuleId]. The function deals with executing the
-    /// required stages in order as specified by the `job_parameters`
+    /// Run a particular job within the pipeline. This function handles both
+    /// cases of either the entry point being an [InteractiveId] or a
+    /// [ModuleId]. The function deals with executing the required stages in
+    /// order as specified by the `job_parameters`
     fn run_pipeline(
         &mut self,
         entry_point: SourceId,
@@ -408,8 +417,8 @@ where
             }
 
             // @@Hack: to prevent the compiler from printing this message when the pipeline
-            //         when it was instructed to terminate before all of the stages. For example,
-            //         if the compiler is just checking the source, then it will terminate early.
+            // when it was instructed to terminate before all of the stages. For example, if
+            // the compiler is just checking the source, then it will terminate early.
             if err_count != 0 || warn_count != 0 {
                 log::info!(
                     "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."

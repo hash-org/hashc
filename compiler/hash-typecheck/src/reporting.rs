@@ -1,4 +1,5 @@
-//! Contains utilities to convert a [crate::error::TcError] into a [hash_reporting::report::Report].
+//! Contains utilities to convert a [crate::error::TcError] into a
+//! [hash_reporting::report::Report].
 use crate::{
     error::TcError,
     storage::{AccessToStorage, StorageRef},

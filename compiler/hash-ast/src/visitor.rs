@@ -5,23 +5,26 @@ use std::convert::Infallible;
 
 /// The main visitor trait for [crate::ast] nodes.
 ///
-/// This contains a method for each AST structure, as well as a dedicated return type for it.
-/// These can be implemented using the functions defined in [walk] that can traverse the children
-/// of each node.
+/// This contains a method for each AST structure, as well as a dedicated return
+/// type for it. These can be implemented using the functions defined in [walk]
+/// that can traverse the children of each node.
 pub trait AstVisitor: Sized {
-    /// Context type immutably passed to each visitor method for separating mutable from immutable context.
+    /// Context type immutably passed to each visitor method for separating
+    /// mutable from immutable context.
     type Ctx;
 
     /// What container to use to collect multiple children, used by [walk].
     type CollectionContainer<T>: Sized;
 
-    /// Try collect an iterator of results into a container specified by [Self::CollectionContainer].
+    /// Try collect an iterator of results into a container specified by
+    /// [Self::CollectionContainer].
     fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
         ctx: &Self::Ctx,
         items: I,
     ) -> Result<Self::CollectionContainer<T>, E>;
 
-    /// Collect an iterator of items into a container specified by [Self::CollectionContainer].
+    /// Collect an iterator of items into a container specified by
+    /// [Self::CollectionContainer].
     fn collect_items<T, E, I: Iterator<Item = T>>(
         ctx: &Self::Ctx,
         items: I,
@@ -713,19 +716,22 @@ pub trait AstVisitor: Sized {
 }
 
 pub trait AstVisitorMut: Sized {
-    /// Context type immutably passed to each visitor method for separating mutable from immutable context.
+    /// Context type immutably passed to each visitor method for separating
+    /// mutable from immutable context.
     type Ctx;
 
     /// What container to use to collect multiple children, used by [walk].
     type CollectionContainer<T>: Sized;
 
-    /// Try collect an iterator of results into a container specified by [Self::CollectionContainer].
+    /// Try collect an iterator of results into a container specified by
+    /// [Self::CollectionContainer].
     fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
         ctx: &Self::Ctx,
         items: I,
     ) -> Result<Self::CollectionContainer<T>, E>;
 
-    /// Collect an iterator of items into a container specified by [Self::CollectionContainer].
+    /// Collect an iterator of items into a container specified by
+    /// [Self::CollectionContainer].
     fn collect_items<T, E, I: Iterator<Item = T>>(
         ctx: &Self::Ctx,
         items: I,
@@ -1416,17 +1422,18 @@ pub trait AstVisitorMut: Sized {
     ) -> Result<Self::ModuleRet, Self::Error>;
 }
 
-/// Contains helper functions and structures to traverse AST nodes using a given visitor.
+/// Contains helper functions and structures to traverse AST nodes using a given
+/// visitor.
 ///
-/// Structures are defined which mirror the layout of the AST nodes, but instead of having AST
-/// nodes as children, they have the [AstVisitor] output type for each node.
+/// Structures are defined which mirror the layout of the AST nodes, but instead
+/// of having AST nodes as children, they have the [AstVisitor] output type for
+/// each node.
 ///
-/// For enums, there is an additional `*_same_children` function, which traverses the member of
-/// each variant and returns the inner type, given that all variants have the same declared type
-/// within the visitor.
+/// For enums, there is an additional `*_same_children` function, which
+/// traverses the member of each variant and returns the inner type, given that
+/// all variants have the same declared type within the visitor.
 pub mod walk {
-    use super::ast;
-    use super::AstVisitor;
+    use super::{ast, AstVisitor};
 
     pub struct FunctionDefArg<V: AstVisitor> {
         pub name: V::NameRet,
@@ -3247,8 +3254,7 @@ pub mod walk {
 pub mod walk_mut {
     use crate::ast::AstNodeRefMut;
 
-    use super::ast;
-    use super::AstVisitorMut;
+    use super::{ast, AstVisitorMut};
 
     pub struct FunctionDefArg<V: AstVisitorMut> {
         pub name: V::NameRet,
