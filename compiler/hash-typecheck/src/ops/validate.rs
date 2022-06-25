@@ -165,7 +165,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::AppSub(app_sub) => {
                 let app_sub = app_sub.clone();
                 // Recurse to inner term
-                let unified_sub = self.unifier().unify_subs(&trt_sub, &app_sub.sub)?;
+                let unified_sub = self.unifier().unify_subs(trt_sub, &app_sub.sub)?;
                 self.ensure_scope_implements_trait(
                     app_sub.term,
                     &unified_sub,
@@ -190,7 +190,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
                         // Apply the substitution to the trait member first:
                         let trt_member_ty_subbed =
-                            self.substituter().apply_sub_to_term(&trt_sub, trt_member_data.ty);
+                            self.substituter().apply_sub_to_term(trt_sub, trt_member_data.ty);
 
                         // Unify the types of the scope member and the substituted trait member:
                         let _ =
@@ -244,10 +244,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     }
 
     /// Validate the trait definition of the given [TrtDefId]
-    pub fn validate_trt_def(&mut self, _trt_def_id: TrtDefId) -> TcResult<()> {
-        // Ensure Self exists?
+    pub fn validate_trt_def(&mut self, trt_def_id: TrtDefId) -> TcResult<()> {
         // @@Design: do we allow traits without self?
-        todo!()
+        let reader = self.reader();
+        let trt_def = reader.get_trt_def(trt_def_id);
+        self.validate_constant_scope(trt_def.members, true, SelfMode::Required)
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
