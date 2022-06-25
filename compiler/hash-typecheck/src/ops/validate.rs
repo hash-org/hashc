@@ -1,5 +1,5 @@
 //! Contains utilities to validate terms.
-
+use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
     storage::{
@@ -11,8 +11,6 @@ use crate::{
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-
-use super::{AccessToOps, AccessToOpsMut};
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,7 +138,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     }
 
     /// Ensure that the given `scope` implements the trait at the given
-    /// `trt_def_term_id`.
+    /// `trt_def_term_id`, after applying the given substitution to the
+    /// trait.
     ///
     /// This also validates that `trt_def_term_id` is a (validated) trait
     /// definition.
@@ -149,6 +148,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     fn ensure_scope_implements_trait(
         &mut self,
         trt_def_term_id: TermId,
+        trt_sub: &Sub,
         scope_originating_term_id: TermId,
         scope_id: ScopeId,
     ) -> TcResult<()> {
@@ -162,7 +162,17 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Ensure the term leads to a trait definition:
         match simplified_trt_def_term {
-            // @@Todo: application of subs:
+            Term::AppSub(app_sub) => {
+                let app_sub = app_sub.clone();
+                // Recurse to inner term
+                let unified_sub = self.unifier().unify_subs(&trt_sub, &app_sub.sub)?;
+                self.ensure_scope_implements_trait(
+                    app_sub.term,
+                    &unified_sub,
+                    scope_originating_term_id,
+                    scope_id,
+                )
+            }
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
                 let trt_def_id = *trt_def_id;
                 let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
@@ -174,11 +184,17 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     let trt_member_data = self.typer().infer_member_data(trt_member.data)?;
 
                     if let Some(scope_member) = scope.get(trt_member.name) {
-                        // Unify the types of the member and the trait member:
+                        // Infer the type of the scope member:
                         let scope_member_data =
                             self.typer().infer_member_data(scope_member.data)?;
+
+                        // Apply the substitution to the trait member first:
+                        let trt_member_ty_subbed =
+                            self.substituter().apply_sub_to_term(&trt_sub, trt_member_data.ty);
+
+                        // Unify the types of the scope member and the substituted trait member:
                         let _ =
-                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty);
+                            self.unifier().unify_terms(scope_member_data.ty, trt_member_ty_subbed);
                     } else {
                         return Err(TcError::TraitImplementationMissingMember {
                             trt_def_term_id,
@@ -218,6 +234,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
             self.ensure_scope_implements_trait(
                 trt_def_term_id,
+                &Sub::empty(),
                 originating_term_id,
                 mod_def_members,
             )?;
