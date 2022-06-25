@@ -91,7 +91,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         for member in scope.iter() {
             // This should have been checked in semantic analysis:
             assert!(
-                member.mutability == Mutability::Mutable,
+                member.mutability != Mutability::Mutable,
                 "Found mutable member in constant scope!"
             );
 
