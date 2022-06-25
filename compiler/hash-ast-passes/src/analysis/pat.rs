@@ -68,8 +68,8 @@ impl SemanticAnalyser {
     /// ambiguous and should be disallowed within the list patten.
     pub(crate) fn check_list_pattern(&mut self, fields: &AstNodes<Pattern>) {
         // @@TODO: Rather than use a boolean, we should use a reference to the pattern
-        //         so that we can report an auxiliary span of where the initial use of
-        // the         pattern occurs.
+        // so that we can report an auxiliary span of where the initial use of the
+        // pattern occurs.
         let mut seen_spread_pattern = false;
 
         for field in fields.iter() {
