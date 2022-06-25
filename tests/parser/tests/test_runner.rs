@@ -17,8 +17,8 @@ use regex::Regex;
 /// Whether or not the UI tests should re-generate the output.
 const REGENERATE_OUTPUT: bool = false;
 
-/// This is the ANSI Regular expression matcher. This will match all the specified
-/// ANSI escape codes that are used by the [`hash_reporting`] crate.
+/// This is the ANSI Regular expression matcher. This will match all the
+/// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
 const ANSI_RE: &str = r"[\x1b\x9b]\[[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]";
 
 lazy_static! {
@@ -37,11 +37,7 @@ fn handle_failure_case(
     let content_path = input.path.join("case.hash");
 
     // Verify that the parser failed to parse this file
-    assert!(
-        result.is_err(),
-        "parsing file: {:?} did not fail",
-        content_path
-    );
+    assert!(result.is_err(), "parsing file: {:?} did not fail", content_path);
 
     let diagnostics = result.unwrap_err();
     let contents = diagnostics
@@ -55,9 +51,7 @@ fn handle_failure_case(
 
     // Replace the directory by `$DIR`
     let dir_regex = Regex::new(input.path.as_path().to_str().unwrap()).unwrap();
-    let report_contents = dir_regex
-        .replace_all(report_contents.as_ref(), r"$$DIR")
-        .to_string();
+    let report_contents = dir_regex.replace_all(report_contents.as_ref(), r"$$DIR").to_string();
 
     // We want to load the `.stderr` file and verify that the contents of the
     // file match to the created report. If the `.stderr` file does not exist
@@ -108,8 +102,8 @@ fn handle_test(input: TestingInput) {
     if should_fail {
         handle_failure_case(input, result, sources).unwrap();
     } else {
-        // Check whether the result fails or not, depending on if the file_path begins with
-        // 'should_fail'...
+        // Check whether the result fails or not, depending on if the file_path begins
+        // with 'should_fail'...
         assert!(result.is_ok(), "parsing file failed: {:?}", content_path);
     }
 }

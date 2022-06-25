@@ -1,7 +1,7 @@
 //! The Hash typechecker.
 //!
-//! This brings light to the world by ensuring the correctness of the crude and dangerous Hash
-//! program that is given as input to the compiler.
+//! This brings light to the world by ensuring the correctness of the crude and
+//! dangerous Hash program that is given as input to the compiler.
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
 
@@ -38,11 +38,7 @@ impl TcState {
         let mut global_storage = GlobalStorage::new();
         let core_defs = CoreDefs::new(&mut global_storage);
         let local_storage = LocalStorage::new(&mut global_storage);
-        Self {
-            global_storage,
-            core_defs,
-            prev_local_storage: local_storage,
-        }
+        Self { global_storage, core_defs, prev_local_storage: local_storage }
     }
 }
 
@@ -66,8 +62,8 @@ impl Tc<'_> for TcImpl {
         state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
-        // Instantiate a visitor with the source and visit the source, using the previous local
-        // storage.
+        // Instantiate a visitor with the source and visit the source, using the
+        // previous local storage.
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
             core_defs: &state.core_defs,
@@ -82,10 +78,7 @@ impl Tc<'_> for TcImpl {
             Ok(_) => Ok(()),
             Err(error) => {
                 // Turn the error into a report:
-                let err_with_storage = TcErrorWithStorage {
-                    error,
-                    storage: storage.storages(),
-                };
+                let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
                 Err(err_with_storage.into())
             }
         }
@@ -115,10 +108,7 @@ impl Tc<'_> for TcImpl {
             Ok(_) => Ok(()),
             Err(error) => {
                 // Turn the error into a report:
-                let err_with_storage = TcErrorWithStorage {
-                    error,
-                    storage: storage.storages(),
-                };
+                let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
                 Err(err_with_storage.into())
             }
         }

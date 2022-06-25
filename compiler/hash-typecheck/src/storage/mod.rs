@@ -1,10 +1,11 @@
-//! Structures relating to storing type information, symbol information, and other kinds of
-//! information managed by the typechecker.
+//! Structures relating to storing type information, symbol information, and
+//! other kinds of information managed by the typechecker.
 //!
-//! This information lives either in [LocalStorage] or [GlobalStorage], depending on if it is
-//! accessible from within a given source only, or accessible globally. For example, a stack
-//! variable will be in [LocalStorage] because it is only accessible from one file, whereas a
-//! type definition will be in [GlobalStorage] because it can be accessed from any file (with the
+//! This information lives either in [LocalStorage] or [GlobalStorage],
+//! depending on if it is accessible from within a given source only, or
+//! accessible globally. For example, a stack variable will be in [LocalStorage]
+//! because it is only accessible from one file, whereas a type definition will
+//! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
 use self::{
     core::CoreDefs,
@@ -37,8 +38,9 @@ pub struct GlobalStorage {
     pub checked_sources: CheckedSources,
     /// Used to create the first scope when creating a LocalStorage.
     ///
-    /// This includes all the core language definitions; it shouldn't be directly queried, but
-    /// rather the [LocalStorage] scopes should be queried.
+    /// This includes all the core language definitions; it shouldn't be
+    /// directly queried, but rather the [LocalStorage] scopes should be
+    /// queried.
     pub root_scope: ScopeId,
 }
 
@@ -86,8 +88,8 @@ impl LocalStorage {
     }
 }
 
-/// A reference to the storage, which includes both local and global storage, as well as core
-/// definitions.
+/// A reference to the storage, which includes both local and global storage, as
+/// well as core definitions.
 #[derive(Debug, Clone, Copy)]
 pub struct StorageRef<'gs, 'ls, 'cd> {
     pub local_storage: &'ls LocalStorage,
@@ -95,8 +97,8 @@ pub struct StorageRef<'gs, 'ls, 'cd> {
     pub core_defs: &'cd CoreDefs,
 }
 
-/// A mutable reference to the storage, which includes both local and global storage, as well as
-/// core definitions.
+/// A mutable reference to the storage, which includes both local and global
+/// storage, as well as core definitions.
 #[derive(Debug)]
 pub struct StorageRefMut<'gs, 'ls, 'cd> {
     pub local_storage: &'ls mut LocalStorage,
@@ -104,8 +106,8 @@ pub struct StorageRefMut<'gs, 'ls, 'cd> {
     pub core_defs: &'cd CoreDefs,
 }
 
-/// Trait that provides convenient accessor methods to various parts of the storage given a path to
-/// a [StorageRef] object.
+/// Trait that provides convenient accessor methods to various parts of the
+/// storage given a path to a [StorageRef] object.
 pub trait AccessToStorage {
     fn storages(&self) -> StorageRef;
 
@@ -154,8 +156,8 @@ pub trait AccessToStorage {
     }
 }
 
-/// Trait that provides convenient mutable accessor methods to various parts of the storage given a
-/// path to a [StorageRefMut] object.
+/// Trait that provides convenient mutable accessor methods to various parts of
+/// the storage given a path to a [StorageRefMut] object.
 pub trait AccessToStorageMut: AccessToStorage {
     fn storages_mut(&mut self) -> StorageRefMut;
 

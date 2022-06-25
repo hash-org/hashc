@@ -1,12 +1,14 @@
 //! Hash utilities for printing various data structures that might be used for
-//! debugging purposes or for creating human readable error messages when reporting
-//! errors.
+//! debugging purposes or for creating human readable error messages when
+//! reporting errors.
 use std::fmt;
 
-/// This is used within error messages, so it is formatted in a pretty way to display the expected token kinds
-/// after a particular token. This is useful for constructing re-usable error messages that might appear in multiple
-/// places when parsing. We use conjunctives to display multiple variants together, so they are readable. If the
-/// length of the vector kind is one, we don't use conjunctives to glue kinds together.
+/// This is used within error messages, so it is formatted in a pretty way to
+/// display the expected token kinds after a particular token. This is useful
+/// for constructing re-usable error messages that might appear in multiple
+/// places when parsing. We use conjunctives to display multiple variants
+/// together, so they are readable. If the length of the vector kind is one, we
+/// don't use conjunctives to glue kinds together.
 pub struct SequenceDisplay<'a, T: 'a>(pub &'a [T]);
 
 impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {

@@ -6,10 +6,12 @@ use hash_token::{keyword::Keyword, TokenKind};
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// This function is used to pickup 'glued' operator tokens to form more complex binary operators
-    /// that might be made up of multiple tokens. The function will peek ahead (2 tokens at most since
-    /// all binary operators are made of that many tokens). The function returns an optional derived
-    /// operator, and the number of tokens that was consumed deriving the operator, it is the responsibility
+    /// This function is used to pickup 'glued' operator tokens to form more
+    /// complex binary operators that might be made up of multiple tokens.
+    /// The function will peek ahead (2 tokens at most since all binary
+    /// operators are made of that many tokens). The function returns an
+    /// optional derived operator, and the number of tokens that was
+    /// consumed deriving the operator, it is the responsibility
     /// of the caller to increment the token stream by the provided number.
     pub(crate) fn parse_binary_operator(&self) -> (Option<BinOp>, u8) {
         let token = self.peek();

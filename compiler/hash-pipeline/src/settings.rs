@@ -1,9 +1,10 @@
-//! Hash Compiler pipeline implementation. This file contains various structures and
-//! utilities representing settings and configurations that can be applied to the
-//! Compiler pipeline.
+//! Hash Compiler pipeline implementation. This file contains various structures
+//! and utilities representing settings and configurations that can be applied
+//! to the Compiler pipeline.
 use std::fmt::Display;
 
-/// Various settings that are present on the compiler pipeline when initially launching.
+/// Various settings that are present on the compiler pipeline when initially
+/// launching.
 #[derive(Debug, Clone, Copy)]
 pub struct CompilerSettings {
     /// Print metrics about each stage when the entire pipeline has completed.
@@ -20,10 +21,7 @@ pub struct CompilerSettings {
 
 impl CompilerSettings {
     pub fn new(display_metrics: bool, worker_count: usize) -> Self {
-        Self {
-            worker_count,
-            display_metrics,
-        }
+        Self { worker_count, display_metrics }
     }
 }
 
@@ -78,18 +76,12 @@ pub struct CompilerJobParams {
 
 impl CompilerJobParams {
     pub fn new(mode: CompilerMode, output_stage_result: bool) -> Self {
-        Self {
-            mode,
-            output_stage_result,
-        }
+        Self { mode, output_stage_result }
     }
 }
 
 impl Default for CompilerJobParams {
     fn default() -> Self {
-        Self {
-            mode: CompilerMode::Full,
-            output_stage_result: false,
-        }
+        Self { mode: CompilerMode::Full, output_stage_result: false }
     }
 }

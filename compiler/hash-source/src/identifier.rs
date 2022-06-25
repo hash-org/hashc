@@ -27,9 +27,7 @@ impl Display for Identifier {
 
 impl Debug for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Identifier")
-            .field(&IDENTIFIER_MAP.get_ident(*self).to_owned())
-            .finish()
+        f.debug_tuple("Identifier").field(&IDENTIFIER_MAP.get_ident(*self).to_owned()).finish()
     }
 }
 
@@ -70,15 +68,16 @@ lazy_static! {
         CoreIdentifiers::from_ident_map(&IDENTIFIER_MAP);
 }
 
-/// Struct representing a globally accessible identifier map. The struct contains a identifier
-/// map and another map for reverse lookups.
+/// Struct representing a globally accessible identifier map. The struct
+/// contains a identifier map and another map for reverse lookups.
 #[derive(Debug, Default)]
 pub struct IdentifierMap<'c> {
     identifiers: DashMap<&'c str, Identifier, FnvBuildHasher>,
     reverse_lookup: DashMap<Identifier, &'c str, FnvBuildHasher>,
 }
 
-/// Holds some default identifiers in order to avoid map lookups when e.g. generating the AST.
+/// Holds some default identifiers in order to avoid map lookups when e.g.
+/// generating the AST.
 pub struct CoreIdentifiers {
     pub underscore: Identifier,
 }
@@ -86,19 +85,14 @@ pub struct CoreIdentifiers {
 impl CoreIdentifiers {
     /// Create the core identifiers inside the given [IdentifierMap].
     pub fn from_ident_map(ident_map: &IdentifierMap) -> Self {
-        Self {
-            underscore: ident_map.create_ident("_"),
-        }
+        Self { underscore: ident_map.create_ident("_") }
     }
 }
 
 impl<'c> IdentifierMap<'c> {
     /// Function to create a new identifier map instance.
     pub fn new() -> Self {
-        IdentifierMap {
-            identifiers: DashMap::default(),
-            reverse_lookup: DashMap::default(),
-        }
+        IdentifierMap { identifiers: DashMap::default(), reverse_lookup: DashMap::default() }
     }
 
     /// Function to create an identifier in the identifier map.
@@ -120,14 +114,13 @@ impl<'c> IdentifierMap<'c> {
         }
     }
 
-    /// Function to lookup an identifier by an [Identifier] value in the identifier map.
+    /// Function to lookup an identifier by an [Identifier] value in the
+    /// identifier map.
     pub fn get_ident(&self, ident: Identifier) -> &'c str {
         self.reverse_lookup.get(&ident).unwrap().value()
     }
 
     pub fn get_path(&self, path: impl Iterator<Item = impl Borrow<Identifier>>) -> String {
-        path.map(|ident| self.get_ident(*ident.borrow()))
-            .collect::<Vec<&'_ str>>()
-            .join("::")
+        path.map(|ident| self.get_ident(*ident.borrow())).collect::<Vec<&'_ str>>().join("::")
     }
 }

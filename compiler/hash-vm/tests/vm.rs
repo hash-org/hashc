@@ -1,7 +1,9 @@
 //! Hash Compiler VM tests.
 use hash_vm::{
-    bytecode::Instruction, bytecode_builder::BytecodeBuilder, register::Register, vm::Interpreter,
-    vm::InterpreterOptions,
+    bytecode::Instruction,
+    bytecode_builder::BytecodeBuilder,
+    register::Register,
+    vm::{Interpreter, InterpreterOptions},
 };
 
 #[test]

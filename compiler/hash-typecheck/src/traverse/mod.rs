@@ -1,4 +1,5 @@
-//! Contains functions to traverse the AST and add types to it, while checking it for correctness.
+//! Contains functions to traverse the AST and add types to it, while checking
+//! it for correctness.
 
 use hash_ast::visitor;
 use hash_pipeline::sources::Sources;
@@ -32,21 +33,18 @@ impl<'gs, 'ls, 'cd, 'src> AccessToStorageMut for TcVisitor<'gs, 'ls, 'cd, 'src> 
 }
 
 impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
-    /// Create a new [TcVisitor] with the given state, traversing the given source from [Sources].
+    /// Create a new [TcVisitor] with the given state, traversing the given
+    /// source from [Sources].
     pub fn new_in_source(
         storage: StorageRefMut<'gs, 'ls, 'cd>,
         source_id: SourceId,
         sources: &'src Sources,
     ) -> Self {
-        TcVisitor {
-            storage,
-            source_id,
-            sources,
-        }
+        TcVisitor { storage, source_id, sources }
     }
 
-    /// Visits the source passed in as an argument to [Self::new], and returns the term of the
-    /// module that corresponds to the source.
+    /// Visits the source passed in as an argument to [Self::new], and returns
+    /// the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
         // @@Todo: implement this
         Ok(self.builder().create_unresolved_term())

@@ -32,34 +32,32 @@ pub(crate) enum AnalysisErrorKind {
     UsingBreakOutsideLoop,
     /// When a `continue` expression is found outside of a loop.
     UsingContinueOutsideLoop,
-    /// When a `return` statement is found outside of a function or in scope that doesn't relate
-    /// to the function.
+    /// When a `return` statement is found outside of a function or in scope
+    /// that doesn't relate to the function.
     UsingReturnOutsideOfFunction,
-    /// When there is a non-declarative expression in either the root scope (module) or in a
-    /// `impl` / `mod` block.
+    /// When there is a non-declarative expression in either the root scope
+    /// (module) or in a `impl` / `mod` block.
     NonDeclarativeExpression { origin: BlockOrigin },
     /// When multiple spread patterns `...` are present within a list pattern
     MultipleSpreadPatterns {
         /// Where the use of the pattern originated from
         origin: PatternOrigin,
     },
-    /// When a spread pattern is used within a parent pattern that does not allow them to be used.
+    /// When a spread pattern is used within a parent pattern that does not
+    /// allow them to be used.
     IllegalSpreadPatternUse {
         /// Where the use of the pattern originated from
         origin: PatternOrigin,
     },
-    /// When compound patterns such as constructors and tuples have named fields before un-named
-    /// fields.
+    /// When compound patterns such as constructors and tuples have named fields
+    /// before un-named fields.
     AmbiguousPatternFieldOrder { origin: PatternOrigin },
     /// When a top-level declaration features a pattern that has a binding which
     /// is declared to be mutable.
     IllegalBindingMutability,
-    /// When bindings declare themselves to be `pub` or `priv` within non-constant blocks
-    /// like function bodies.
-    IllegalBindingVisibilityModifier {
-        modifier: Visibility,
-        origin: BlockOrigin,
-    },
+    /// When bindings declare themselves to be `pub` or `priv` within
+    /// non-constant blocks like function bodies.
+    IllegalBindingVisibilityModifier { modifier: Visibility, origin: BlockOrigin },
 }
 
 impl From<AnalysisError> for Report {
@@ -71,22 +69,16 @@ impl From<AnalysisError> for Report {
             AnalysisErrorKind::UsingBreakOutsideLoop => {
                 builder.with_error_code(HashErrorCode::UsingBreakOutsideLoop);
 
-                builder
-                    .with_message("use of a `break` clause outside of a loop")
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
+                builder.with_message("use of a `break` clause outside of a loop").add_element(
+                    ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
+                );
             }
             AnalysisErrorKind::UsingContinueOutsideLoop => {
                 builder.with_error_code(HashErrorCode::UsingContinueOutsideLoop);
 
-                builder
-                    .with_message("use of a `continue` clause outside of a loop")
-                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        err.location,
-                        "here",
-                    )));
+                builder.with_message("use of a `continue` clause outside of a loop").add_element(
+                    ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
+                );
             }
             AnalysisErrorKind::UsingReturnOutsideOfFunction => {
                 builder.with_error_code(HashErrorCode::UsingReturnOutsideFunction);
@@ -161,10 +153,7 @@ impl From<AnalysisError> for Report {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         err.location,
-                        format!(
-                            "{} blocks cannot have `{}` explicit visibility",
-                            origin, modifier
-                        ),
+                        format!("{} blocks cannot have `{}` explicit visibility", origin, modifier),
                     )))
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Note,

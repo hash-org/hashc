@@ -1,4 +1,5 @@
-//! Contains utilities to convert a [crate::error::TcError] into a [hash_reporting::report::Report].
+//! Contains utilities to convert a [crate::error::TcError] into a
+//! [hash_reporting::report::Report].
 use crate::{
     error::TcError,
     storage::{AccessToStorage, StorageRef},
@@ -20,8 +21,6 @@ impl<'gs, 'ls, 'cd> AccessToStorage for TcErrorWithStorage<'gs, 'ls, 'cd> {
 impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
     fn from(err: TcErrorWithStorage<'gs, 'ls, 'cd>) -> Self {
         // @@Todo: actually implement this:
-        vec![ReportBuilder::new()
-            .with_message(format!("{:?}", err.error))
-            .build()]
+        vec![ReportBuilder::new().with_message(format!("{:?}", err.error)).build()]
     }
 }

@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 mod block;
 mod definitions;
 pub mod error;
@@ -65,12 +65,13 @@ pub struct AstGen<'stream, 'resolver> {
     /// Current token stream offset.
     offset: Cell<usize>,
 
-    /// The span of the current generator, the root generator does not have a parent span,
-    /// whereas as child generators might need to use the span to report errors if their
-    /// token streams are empty (and they're expecting them to be non empty.) For example,
-    /// if the expression `k[]` was being parsed, the index component `[]` is expected to be
-    /// non-empty, so the error reporting can grab the span of the `[]` and report it as an
-    /// expected expression.
+    /// The span of the current generator, the root generator does not have a
+    /// parent span, whereas as child generators might need to use the span
+    /// to report errors if their token streams are empty (and they're
+    /// expecting them to be non empty.) For example, if the expression
+    /// `k[]` was being parsed, the index component `[]` is expected to be
+    /// non-empty, so the error reporting can grab the span of the `[]` and
+    /// report it as an expected expression.
     parent_span: Option<Span>,
 
     /// The token stream
@@ -79,11 +80,13 @@ pub struct AstGen<'stream, 'resolver> {
     /// Token trees that were generated from the stream
     token_trees: &'stream [Vec<Token>],
 
-    /// State set by expression parsers for parents to let them know if the parsed expression
-    /// was made up of multiple expressions with precedence operators.
+    /// State set by expression parsers for parents to let them know if the
+    /// parsed expression was made up of multiple expressions with
+    /// precedence operators.
     is_compound_expr: Cell<bool>,
 
-    /// Instance of an [ImportResolver] to notify the parser of encountered imports.
+    /// Instance of an [ImportResolver] to notify the parser of encountered
+    /// imports.
     resolver: &'resolver ImportResolver,
 }
 
@@ -106,8 +109,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Create new AST generator from a provided token stream with inherited module resolver
-    /// and a provided parent span.
+    /// Create new AST generator from a provided token stream with inherited
+    /// module resolver and a provided parent span.
     #[must_use]
     pub fn from_stream(&self, stream: &'stream [Token], parent_span: Span) -> Self {
         Self {
@@ -120,12 +123,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Function to create a [SourceLocation] from a [Span] by using the provided resolver
+    /// Function to create a [SourceLocation] from a [Span] by using the
+    /// provided resolver
     pub(crate) fn source_location(&self, span: &Span) -> SourceLocation {
-        SourceLocation {
-            span: *span,
-            source_id: self.resolver.current_source_id(),
-        }
+        SourceLocation { span: *span, source_id: self.resolver.current_source_id() }
     }
 
     /// Get the current offset of where the stream is at.
@@ -150,8 +151,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.peek_nth(1)
     }
 
-    /// Function to check if the token stream has been exhausted based on the current
-    /// offset in the generator.
+    /// Function to check if the token stream has been exhausted based on the
+    /// current offset in the generator.
     pub(crate) fn has_token(&self) -> bool {
         let length = self.stream.len();
 
@@ -179,9 +180,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         value
     }
 
-    /// Get the current [Token] in the stream. Panics if the current offset has passed the
-    /// size of the stream, e.g tring to get the current token after reaching the end of the
-    /// stream.
+    /// Get the current [Token] in the stream. Panics if the current offset has
+    /// passed the size of the stream, e.g tring to get the current token
+    /// after reaching the end of the stream.
     pub(crate) fn current_token(&self) -> &Token {
         let offset = if self.offset.get() > 0 { self.offset.get() - 1 } else { 0 };
 
@@ -195,8 +196,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.stream.get(offset).unwrap()
     }
 
-    /// Get the current location from the current token, if there is no token at the current
-    /// offset, then the location of the last token is used.
+    /// Get the current location from the current token, if there is no token at
+    /// the current offset, then the location of the last token is used.
     pub(crate) fn current_location(&self) -> Span {
         // check that the length of current generator is at least one...
         if self.stream.is_empty() {
@@ -211,8 +212,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Get the next location of the token, if there is no token after, we use the
-    /// next character offset to determine the location.
+    /// Get the next location of the token, if there is no token after, we use
+    /// the next character offset to determine the location.
     pub(crate) fn next_location(&self) -> Span {
         match self.peek() {
             Some(token) => token.span,
@@ -235,8 +236,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         AstNode::new(inner, location)
     }
 
-    /// Create a new [AstNode] with a span that ranges from the start [Span] to the
-    /// current [Span].
+    /// Create a new [AstNode] with a span that ranges from the start [Span] to
+    /// the current [Span].
     #[inline(always)]
     pub(crate) fn node_with_joined_span<T>(&self, body: T, start: &Span) -> AstNode<T> {
         AstNode::new(body, start.join(self.current_location()))
@@ -281,10 +282,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Generate an error that represents that within the current [AstGen] the
-    /// `end of file` state should be reached. This means that either in the root
-    /// generator there are no more tokens or within a nested generator (such as
-    /// if the generator is within a brackets) that it should now read no more
-    /// tokens.
+    /// `end of file` state should be reached. This means that either in the
+    /// root generator there are no more tokens or within a nested generator
+    /// (such as if the generator is within a brackets) that it should now
+    /// read no more tokens.
     pub(crate) fn expected_eof<T>(&self) -> AstGenResult<T> {
         // move onto the next token
         self.offset.set(self.offset.get() + 1);
@@ -301,17 +302,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(())
     }
 
-    /// Generate an error representing that the current generator unexpectedly reached the
-    /// end of input at this point.
+    /// Generate an error representing that the current generator unexpectedly
+    /// reached the end of input at this point.
     pub(crate) fn unexpected_eof<T>(&self) -> AstGenResult<T> {
         self.error(AstGenErrorKind::EOF, None, None)
     }
 
-    /// Function to peek ahead and match some parsing function that returns a [Option<T>].
-    /// If The result is an error, the function wil reset the current offset of the token stream
-    /// to where it was the function was peeked. This is essentially a convertor from a [AstGenResult<T>]
-    /// into an [Option<T>] with the side effect of resetting the parser state back to it's original
-    /// settings.
+    /// Function to peek ahead and match some parsing function that returns a
+    /// [Option<T>]. If The result is an error, the function wil reset the
+    /// current offset of the token stream to where it was the function was
+    /// peeked. This is essentially a convertor from a [AstGenResult<T>]
+    /// into an [Option<T>] with the side effect of resetting the parser state
+    /// back to it's original settings.
     pub(crate) fn peek_resultant_fn<T, E>(&self, parse_fn: impl Fn() -> Result<T, E>) -> Option<T> {
         let start = self.offset();
 
@@ -324,10 +326,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Function to parse an arbitrary number of 'parsing functions' separated by a singular
-    /// 'separator' closure. The function has a behaviour of allowing trailing separator. This
-    /// will also parse the function until the end of the current generator, and therefore it
-    /// is intended to be used with a nested generator.
+    /// Function to parse an arbitrary number of 'parsing functions' separated
+    /// by a singular 'separator' closure. The function has a behaviour of
+    /// allowing trailing separator. This will also parse the function until
+    /// the end of the current generator, and therefore it is intended to be
+    /// used with a nested generator.
     pub(crate) fn parse_separated_fn<T>(
         &self,
         parse_fn: impl Fn() -> AstGenResult<AstNode<T>>,
@@ -336,7 +339,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let start = self.current_location();
         let mut args = vec![];
 
-        // so parse the arguments to the function here... with potential type annotations
+        // so parse the arguments to the function here... with potential type
+        // annotations
         while self.has_token() {
             match parse_fn() {
                 Ok(el) => args.push(el),
@@ -348,10 +352,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        Ok(AstNodes::new(
-            args,
-            Some(start.join(self.current_location())),
-        ))
+        Ok(AstNodes::new(args, Some(start.join(self.current_location()))))
     }
 
     /// Function to parse the next [Token] with the specified [TokenKind].
@@ -370,8 +371,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Function to parse a token atom optionally. If the appropriate token atom is
-    /// present we advance the token count, if not then just return None
+    /// Function to parse a token atom optionally. If the appropriate token atom
+    /// is present we advance the token count, if not then just return None
     pub(crate) fn parse_token_fast(&self, kind: TokenKind) -> Option<()> {
         match self.peek() {
             Some(token) if token.has_kind(kind) => {
@@ -382,18 +383,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Utility function to parse a brace tree as the next token, if a brace tree
-    /// isn't present, then an error is generated.
+    /// Utility function to parse a brace tree as the next token, if a brace
+    /// tree isn't present, then an error is generated.
     pub(crate) fn parse_delim_tree(
         &self,
         delimiter: Delimiter,
         error: Option<AstGenErrorKind>,
     ) -> AstGenResult<Self> {
         match self.peek() {
-            Some(Token {
-                kind: TokenKind::Tree(inner, tree_index),
-                span,
-            }) if *inner == delimiter => {
+            Some(Token { kind: TokenKind::Tree(inner, tree_index), span })
+                if *inner == delimiter =>
+            {
                 self.skip_token();
 
                 let tree = self.token_trees.get(*tree_index).unwrap();
@@ -401,9 +401,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             token => self.error_with_location(
                 error.unwrap_or(AstGenErrorKind::Expected),
-                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(
-                    delimiter, true,
-                )])),
+                Some(TokenKindVector::from_row(vec![TokenKind::Delimiter(delimiter, true)])),
                 token.map(|tok| tok.kind),
                 token.map_or_else(|| self.current_location(), |tok| tok.span),
             )?,
@@ -416,26 +414,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut contents = vec![];
 
         while self.has_token() {
-            contents.push(
-                self.parse_top_level_expression(true)
-                    .map(|(_, statement)| statement)?,
-            );
+            contents.push(self.parse_top_level_expression(true).map(|(_, statement)| statement)?);
         }
 
         let span = start.join(self.current_location());
-        Ok(self.node_with_span(
-            Module {
-                contents: AstNodes::new(contents, Some(span)),
-            },
-            span,
-        ))
+        Ok(self.node_with_span(Module { contents: AstNodes::new(contents, Some(span)) }, span))
     }
 
-    /// This function is used to exclusively parse a interactive block which follows
-    /// similar rules to a an actual block. Interactive statements are like ghost blocks
-    /// without the actual braces to begin with. It follows that there are an arbitrary
-    /// number of statements, followed by an optional final expression which doesn't
-    /// need to be completed by a comma...
+    /// This function is used to exclusively parse a interactive block which
+    /// follows similar rules to a an actual block. Interactive statements
+    /// are like ghost blocks without the actual braces to begin with. It
+    /// follows that there are an arbitrary number of statements, followed
+    /// by an optional final expression which doesn't need to be completed
+    /// by a comma...
     pub(crate) fn parse_expression_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
         let start = self.current_location();
 

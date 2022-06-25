@@ -12,8 +12,8 @@ use hash_source::location::SourceLocation;
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
-/// A [AstGenError] represents possible errors that occur when transforming the token
-/// stream into the AST.
+/// A [AstGenError] represents possible errors that occur when transforming the
+/// token stream into the AST.
 #[derive(Debug, Constructor)]
 pub struct AstGenError {
     /// The kind of the error.
@@ -47,13 +47,14 @@ pub enum AstGenErrorKind {
     Block,
     /// Expected end of input or token stream here, but encountered tokens.
     EOF,
-    /// Expecting a re-assignment operator at the specified location. Re-assignment operators
-    /// are like normal operators, but they expect an 'equals' sign after the specified
-    /// operator.
+    /// Expecting a re-assignment operator at the specified location.
+    /// Re-assignment operators are like normal operators, but they expect
+    /// an 'equals' sign after the specified operator.
     ReAssignmentOp,
-    /// Error representing expected type arguments. This error has two variants, it can
-    /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
-    /// is to add additional information in the error message.
+    /// Error representing expected type arguments. This error has two variants,
+    /// it can either be 'struct' or 'enum' type arguments. The reason why
+    /// there are two variants is to add additional information in the error
+    /// message.
     TypeDefinition(TyArgumentKind),
     /// Expected an identifier here.
     ExpectedIdentifier,
@@ -62,8 +63,9 @@ pub enum AstGenErrorKind {
     ExpectedOperator,
     /// Expected an expression.
     ExpectedExpression,
-    /// Expected a '=>' at the current location. This error can occur in a number of places; including
-    /// but not limited to: after type arguments, lambda definition, trait bound annotation, etc.
+    /// Expected a '=>' at the current location. This error can occur in a
+    /// number of places; including but not limited to: after type
+    /// arguments, lambda definition, trait bound annotation, etc.
     ExpectedArrow,
     /// Specific error when expecting an arrow after the function definition
     ExpectedFnArrow,
@@ -76,14 +78,16 @@ pub enum AstGenErrorKind {
     /// After a dot operator, the parser expects either a property access or an
     /// infix call which is an extended version of a property access.
     InfixCall,
-    /// When the `import()` directive is used, the only argument should be a string path.
-    /// @@Future: @@CompTime: This could likely change in the future.
+    /// When the `import()` directive is used, the only argument should be a
+    /// string path. @@Future: @@CompTime: This could likely change in the
+    /// future.
     ImportPath,
     /// Expected an identifier after a name qualifier '::'.
     AccessName,
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
-    /// Malformed spread pattern (if for any reason there is a problem with parsing the spread operator)
+    /// Malformed spread pattern (if for any reason there is a problem with
+    /// parsing the spread operator)
     MalformedSpreadPattern(u8),
 }
 
@@ -105,10 +109,7 @@ impl From<AstGenError> for ParseError {
             AstGenErrorKind::Keyword => {
                 let keyword = err.received.unwrap();
 
-                format!(
-                    "Encountered an unexpected keyword {}",
-                    keyword.as_error_string()
-                )
+                format!("Encountered an unexpected keyword {}", keyword.as_error_string())
             }
             AstGenErrorKind::Expected => match &err.received {
                 Some(kind) => format!("Unexpectedly encountered {}", kind.as_error_string()),
@@ -127,10 +128,7 @@ impl From<AstGenError> for ParseError {
             AstGenErrorKind::EOF => "Unexpectedly reached the end of input".to_string(),
             AstGenErrorKind::ReAssignmentOp => "Expected a re-assignment operator".to_string(),
             AstGenErrorKind::TypeDefinition(ty) => {
-                format!(
-                    "Expected {} definition entries here which begin with a '('",
-                    ty
-                )
+                format!("Expected {} definition entries here which begin with a '('", ty)
             }
             AstGenErrorKind::ExpectedValueAfterTyAnnotation => {
                 "Expected value assignment after type annotation within named tuple".to_string()
@@ -187,10 +185,7 @@ impl From<AstGenError> for ParseError {
             }
         }
 
-        Self::Parsing {
-            message: base_message,
-            src: Some(err.span),
-        }
+        Self::Parsing { message: base_message, src: Some(err.span) }
     }
 }
 
@@ -199,10 +194,7 @@ impl From<AstGenError> for ParseError {
 pub enum ParseError {
     Import(ImportError),
     IO(io::Error),
-    Parsing {
-        message: String,
-        src: Option<SourceLocation>,
-    },
+    Parsing { message: String, src: Option<SourceLocation> },
 }
 
 impl From<io::Error> for ParseError {
@@ -220,16 +212,11 @@ impl From<ParseError> for Report {
 impl ParseError {
     pub fn create_report(self) -> Report {
         let mut builder = ReportBuilder::new();
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message("Failed to parse");
+        builder.with_kind(ReportKind::Error).with_message("Failed to parse");
 
         match self {
             ParseError::Import(import_error) => return import_error.create_report(),
-            ParseError::Parsing {
-                message,
-                src: Some(src),
-            } => {
+            ParseError::Parsing { message, src: Some(src) } => {
                 builder
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(src, "here")))
                     .add_element(ReportElement::Note(ReportNote::new(
@@ -252,20 +239,18 @@ impl ParseError {
 }
 
 impl From<LexerErrorWrapper> for ParseError {
-    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the combination of a
-    /// [`hash_source::SourceId`] into a [ParseError]. This is used in order to interface with the lexer
-    /// within the parsing stage.
+    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the
+    /// combination of a [`hash_source::SourceId`] into a [ParseError]. This
+    /// is used in order to interface with the lexer within the parsing
+    /// stage.
     ///
     /// @@Future: In the future, there is a hope that we don't
-    /// need to convert between various error kinds in crates and they can just be passed
-    /// around as reports which are pipeline stage agnostic.
+    /// need to convert between various error kinds in crates and they can just
+    /// be passed around as reports which are pipeline stage agnostic.
     fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),
-            src: Some(SourceLocation {
-                span: err.span,
-                source_id,
-            }),
+            src: Some(SourceLocation { span: err.span, source_id }),
         }
     }
 }

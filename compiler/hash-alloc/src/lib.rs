@@ -1,5 +1,4 @@
 //! Arena allocator implementation for use within the Hash compiler sources.
-//!
 
 pub mod brick;
 pub mod collections;
@@ -8,13 +7,14 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 
 /// The root primitive of arena allocation.
 ///
-/// A `Castle` can create [`Wall`]s, which in turn can allocate values onto an arena. The existence
-/// of these two primitives, rather than a single one, is due to the requirement of thread-safety
-/// in memory allocation. Each [`Wall`] in a `Castle` lives inside its own thread, and it cannot
-/// cross thread boundaries (although the allocations themselves can).
+/// A `Castle` can create [`Wall`]s, which in turn can allocate values onto an
+/// arena. The existence of these two primitives, rather than a single one, is
+/// due to the requirement of thread-safety in memory allocation. Each [`Wall`]
+/// in a `Castle` lives inside its own thread, and it cannot cross thread
+/// boundaries (although the allocations themselves can).
 ///
-/// This means that there is no need to acquire any mutex or lock whenever an allocation occurs,
-/// but this is needed when a new [`Wall`] is created.
+/// This means that there is no need to acquire any mutex or lock whenever an
+/// allocation occurs, but this is needed when a new [`Wall`] is created.
 #[derive(Default)]
 pub struct Castle {
     herd: bumpalo_herd::Herd,
@@ -27,14 +27,14 @@ impl std::fmt::Debug for Castle {
 }
 
 impl Castle {
-    /// Create a new [`Castle`]. All values allocated within [`Wall`]s created from this castle
-    /// will be dropped once the `Castle` is dropped.
+    /// Create a new [`Castle`]. All values allocated within [`Wall`]s created
+    /// from this castle will be dropped once the `Castle` is dropped.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Create a new [`Wall`] inside this `Castle`. The created [`Wall`] lives as long as the
-    /// reference to this `Castle`.
+    /// Create a new [`Wall`] inside this `Castle`. The created [`Wall`] lives
+    /// as long as the reference to this `Castle`.
     pub fn wall(&self) -> Wall {
         Wall::with_member(self.herd.get(), self)
     }
@@ -44,20 +44,22 @@ impl Castle {
 ///
 /// Some features of this style of allocation:
 ///
-/// * Cost of allocation is really tiny (just an integer comparison and a pointer incrementation).
+/// * Cost of allocation is really tiny (just an integer comparison and a
+///   pointer incrementation).
 ///
-/// * All allocations are very well spatially localised---they are arranged sequentially in
-/// memory. This means that traversing graph/tree structures allocated on the [`Wall`] is very
-/// cache-friendly, as the elements will be right next to each other.
+/// * All allocations are very well spatially localised---they are arranged /
+///   sequentially in memory. This means that traversing graph/tree structures
+///   allocated on the[`Wall`] is very cache-friendly, as the elements will be
+///   right next to each other.
 ///
-/// * All allocations live for the same amount of time, which is the lifetime of the underlying
-/// [`Castle`]. However, values allocated inside a [`Wall`] can be dropped because the allocations
-/// are wrapped in [`ManuallyDrop`]. For a more ergonomic way of allocating values and collections,
-/// take a look at the [`collections`] and [`brick`] modules.
+/// * All allocations live for the same amount of time, which is the lifetime of
+///   the underlying[`Castle`]. However, values allocated inside a [`Wall`] can
+///   be dropped because the allocations are wrapped in [`ManuallyDrop`]. For a
+///   more ergonomic way of allocating values and collections, take a look at
+///   the[`collections`] and [`brick`] modules.
 ///
-///
-///  Currently, this is implemented using [`bumpalo`], but this will (probably) change in the
-///  future as the compiler acquires more niche requirements.
+/// Currently, this is implemented using [`bumpalo`], but this will (probably) /
+/// change in the  future as the compiler acquires more niche requirements.
 pub struct Wall<'c> {
     castle: &'c Castle,
     member: bumpalo_herd::Member<'c>,
@@ -65,9 +67,7 @@ pub struct Wall<'c> {
 
 impl std::fmt::Debug for Wall<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Wall")
-            .field("castle", &self.castle)
-            .finish()
+        f.debug_struct("Wall").field("castle", &self.castle).finish()
     }
 }
 
@@ -79,8 +79,9 @@ impl<'c> Wall<'c> {
         castle.wall()
     }
 
-    /// *Bumpalo-specific*: create a wall with the given [`bumpalo_herd::Member`], which is the
-    /// underlying `bumpalo` primitive that [`Wall`] uses.
+    /// *Bumpalo-specific*: create a wall with the given
+    /// [`bumpalo_herd::Member`], which is the underlying `bumpalo`
+    /// primitive that [`Wall`] uses.
     fn with_member(member: bumpalo_herd::Member<'c>, castle: &'c Castle) -> Self {
         Self { member, castle }
     }
@@ -92,28 +93,29 @@ impl<'c> Wall<'c> {
 
     /// Allocate a given value on the [`Wall`].
     ///
-    /// This returns a mutable reference to the given value, wrapped in [`ManuallyDrop`] which
-    /// allows one to drop the value even though it is still physically present in the arena. Keep
-    /// in mind that this sort of manually dropping is an unsafe operation.
+    /// This returns a mutable reference to the given value, wrapped in
+    /// [`ManuallyDrop`] which allows one to drop the value even though it
+    /// is still physically present in the arena. Keep in mind that this
+    /// sort of manually dropping is an unsafe operation.
     pub fn alloc_value<T>(&self, value: T) -> &'c mut ManuallyDrop<T> {
         self.member.alloc(ManuallyDrop::new(value))
     }
 
     /// Allocate an uninitialised slice on the [`Wall`] with the given length.
     ///
-    /// This returns a mutable reference to the allocated slice, wrapped in [`MaybeUninit`] and
-    /// [`ManuallyDrop`]. All the values are initially set to `MaybeUninit::uninit()`.
+    /// This returns a mutable reference to the allocated slice, wrapped in
+    /// [`MaybeUninit`] and [`ManuallyDrop`]. All the values are initially
+    /// set to `MaybeUninit::uninit()`.
     ///
-    /// Despite the fact that `MaybeUninit` implies `ManuallyDrop`, Rust does not yet provide a stable
-    /// way of in-place dropping a `MaybeUninit` (until [#63567](https://github.com/rust-lang/rust/issues/63567) lands).
+    /// Despite the fact that `MaybeUninit` implies `ManuallyDrop`, Rust does
+    /// not yet provide a stable way of in-place dropping a `MaybeUninit` (until [#63567](https://github.com/rust-lang/rust/issues/63567) lands).
     pub fn alloc_uninit_slice<T>(&self, len: usize) -> &'c mut [MaybeUninit<ManuallyDrop<T>>] {
-        self.member
-            .alloc_slice_fill_with(len, |_| MaybeUninit::uninit())
+        self.member.alloc_slice_fill_with(len, |_| MaybeUninit::uninit())
     }
 }
 
-// We will probably need more tests here once we replace bumpalo with a custom implementation
-// again.
+// We will probably need more tests here once we replace bumpalo with a custom
+// implementation again.
 #[cfg(test)]
 mod test {
     use super::*;
@@ -147,11 +149,8 @@ mod test {
             c: [Color; 3],
         }
 
-        const COMPLEX_VALUE: MyComplexStruct = MyComplexStruct {
-            a: 43,
-            b: 'R',
-            c: [Color::Red, Color::Green, Color::Blue],
-        };
+        const COMPLEX_VALUE: MyComplexStruct =
+            MyComplexStruct { a: 43, b: 'R', c: [Color::Red, Color::Green, Color::Blue] };
 
         let castle = Castle::new();
         let wall = castle.wall();
@@ -176,9 +175,8 @@ mod test {
             *v = MaybeUninit::new(ManuallyDrop::new(i.pow(2)));
         }
 
-        let mut values_eq = (0..ARRAY_SIZE)
-            .map(|i| ManuallyDrop::new(i.pow(2)))
-            .collect::<Vec<_>>();
+        let mut values_eq =
+            (0..ARRAY_SIZE).map(|i| ManuallyDrop::new(i.pow(2))).collect::<Vec<_>>();
 
         assert_eq!(
             unsafe {

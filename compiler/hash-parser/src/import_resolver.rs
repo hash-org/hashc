@@ -1,5 +1,5 @@
-//! Self hosted hash parser, this function contains the implementations for `hash-ast`
-//! which provides a general interface to write a parser.
+//! Self hosted hash parser, this function contains the implementations for
+//! `hash-ast` which provides a general interface to write a parser.
 use std::path::{Path, PathBuf};
 
 use crossbeam_channel::Sender;
@@ -16,11 +16,7 @@ pub struct ImportResolver {
 
 impl ImportResolver {
     pub fn new(source_id: SourceId, root_dir: PathBuf, sender: Sender<ParserAction>) -> Self {
-        Self {
-            root_dir,
-            sender,
-            source_id,
-        }
+        Self { root_dir, sender, source_id }
     }
 
     pub fn current_source_id(&self) -> SourceId {

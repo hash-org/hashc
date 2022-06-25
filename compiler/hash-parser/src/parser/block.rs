@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
@@ -11,10 +11,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_block(&self) -> AstGenResult<AstNode<Block>> {
         let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
 
-        Ok(self.node_with_span(
-            Block::Body(gen.parse_body_block_inner()?),
-            self.current_location(),
-        ))
+        Ok(self.node_with_span(Block::Body(gen.parse_body_block_inner()?), self.current_location()))
     }
 
     /// Helper function to simply parse a body block without wrapping it in
@@ -26,23 +23,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_span(gen.parse_body_block_inner()?, self.current_location()))
     }
 
-    /// Parse a body block that uses itself as the inner generator. This function
-    /// will advance the current generator than expecting that the next token
-    /// is a brace tree.
+    /// Parse a body block that uses itself as the inner generator. This
+    /// function will advance the current generator than expecting that the
+    /// next token is a brace tree.
     pub(crate) fn parse_body_block_inner(&self) -> AstGenResult<BodyBlock> {
         // Append the initial statement if there is one.
-        let mut block = BodyBlock {
-            statements: AstNodes::empty(),
-            expr: None,
-        };
+        let mut block = BodyBlock { statements: AstNodes::empty(), expr: None };
 
         // Just return an empty block if we don't get anything
         if !self.has_token() {
             return Ok(block);
         }
 
-        // firstly check if the first token signals a beginning of a statement, we can tell
-        // this by checking for keywords that must begin a statement...
+        // firstly check if the first token signals a beginning of a statement, we can
+        // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
             let (has_semi, statement) = self.parse_top_level_expression(false)?;
 
@@ -62,9 +56,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a `for` loop block.
     pub(crate) fn parse_for_loop(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::For)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::For)));
 
         let start = self.current_location();
 
@@ -76,21 +68,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let iterator = self.parse_expression_with_precedence(0)?;
         let body = self.parse_block()?;
 
-        Ok(self.node_with_joined_span(
-            Block::For(ForLoopBlock {
-                pattern,
-                iterator,
-                body,
-            }),
-            &start,
-        ))
+        Ok(self.node_with_joined_span(Block::For(ForLoopBlock { pattern, iterator, body }), &start))
     }
 
     /// Parse a `while` loop block.
     pub(crate) fn parse_while_loop(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::While)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::While)));
 
         let start = self.current_location();
 
@@ -112,12 +95,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(MatchCase { pattern, expr }, &start))
     }
 
-    /// Parse a match block statement, which is composed of a subject and an arbitrary
-    /// number of match cases that are surrounded in braces.
+    /// Parse a match block statement, which is composed of a subject and an
+    /// arbitrary number of match cases that are surrounded in braces.
     pub(crate) fn parse_match_block(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(self
-            .current_token()
-            .has_kind(TokenKind::Keyword(Keyword::Match)));
+        debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Match)));
 
         let start = self.current_location();
         let subject = self.parse_expression_with_precedence(0)?;
@@ -132,11 +113,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(self.node_with_joined_span(
-            Block::Match(MatchBlock {
-                subject,
-                cases,
-                origin: MatchOrigin::Match,
-            }),
+            Block::Match(MatchBlock { subject, cases, origin: MatchOrigin::Match }),
             &start,
         ))
     }
@@ -158,13 +135,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ///     }
     ///
     /// Additionally, if no 'else' clause is specified, we fill it with an
-    /// empty block since an if-block could be assigned to any variable and therefore
-    /// we need to know the outcome of all branches for typechecking.
+    /// empty block since an if-block could be assigned to any variable and
+    /// therefore we need to know the outcome of all branches for
+    /// typechecking.
     pub(crate) fn parse_if_block(&self) -> AstGenResult<AstNode<Block>> {
-        debug_assert!(matches!(
-            self.current_token().kind,
-            TokenKind::Keyword(Keyword::If)
-        ));
+        debug_assert!(matches!(self.current_token().kind, TokenKind::Keyword(Keyword::If)));
 
         let start = self.current_location();
 
@@ -182,14 +157,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 &if_span,
             ));
 
-            // Now check if there is another branch after the else or if, and loop onwards...
+            // Now check if there is another branch after the else or if, and loop
+            // onwards...
             match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Keyword(Keyword::Else)) => {
                     self.skip_token();
 
                     match self.peek() {
                         Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
-                            // skip trying to convert just an 'else' branch since this is another if-branch
+                            // skip trying to convert just an 'else' branch since this is another
+                            // if-branch
                             self.skip_token();
                             continue;
                         }

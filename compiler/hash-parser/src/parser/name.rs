@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::identifier::Identifier;
 use hash_token::{Token, TokenKind};
@@ -10,17 +10,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Name] from the current token stream.
     pub fn parse_name(&self) -> AstGenResult<AstNode<Name>> {
         match self.next_token() {
-            Some(Token {
-                kind: TokenKind::Ident(ident),
-                span,
-            }) => Ok(self.node_with_span(Name { ident: *ident }, *span)),
+            Some(Token { kind: TokenKind::Ident(ident), span }) => {
+                Ok(self.node_with_span(Name { ident: *ident }, *span))
+            }
             _ => self.error(AstGenErrorKind::ExpectedIdentifier, None, None),
         }
     }
 
-    /// Parse an [AccessName] from the current token stream. An [AccessName] is defined as
-    /// a number of identifiers that are separated by the namespace operator '::'. The function
-    /// presumes that the current token is an identifier an that the next token is a colon.
+    /// Parse an [AccessName] from the current token stream. An [AccessName] is
+    /// defined as a number of identifiers that are separated by the
+    /// namespace operator '::'. The function presumes that the current
+    /// token is an identifier an that the next token is a colon.
     pub fn parse_access_name(
         &self,
         start_id: AstNode<Identifier>,
@@ -38,10 +38,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             self.skip_token(); // :
 
                             match self.peek() {
-                                Some(Token {
-                                    kind: TokenKind::Ident(id),
-                                    span,
-                                }) => {
+                                Some(Token { kind: TokenKind::Ident(id), span }) => {
                                     self.skip_token();
                                     path.push(self.node_with_span(*id, *span));
                                 }
@@ -61,11 +58,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let location = start.join(self.current_location());
 
-        Ok(self.node_with_span(
-            AccessName {
-                path: AstNodes::new(path, Some(location)),
-            },
-            location,
-        ))
+        Ok(self.node_with_span(AccessName { path: AstNodes::new(path, Some(location)) }, location))
     }
 }

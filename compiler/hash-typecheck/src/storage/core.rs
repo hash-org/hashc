@@ -1,9 +1,10 @@
 //! Contains all the core type and trait definitions of the language.
 //!
-//! These are accessed during the AST traversal in order to type certain language primitives (for
-//! example `if`-block subjects). This is because a lot of the "primitive" Hash types aren't
-//! actually primitives as far as the typechecker is concerned. This includes: integers, floats,
-//! characters, strings, lists, maps, references, etc.
+//! These are accessed during the AST traversal in order to type certain
+//! language primitives (for example `if`-block subjects). This is because a lot
+//! of the "primitive" Hash types aren't actually primitives as far as the
+//! typechecker is concerned. This includes: integers, floats, characters,
+//! strings, lists, maps, references, etc.
 use super::{
     primitives::{NominalDefId, TermId, TrtDefId},
     GlobalStorage,
@@ -37,13 +38,14 @@ pub struct CoreDefs {
 }
 
 impl CoreDefs {
-    /// Create the core language type and trait definitions in the given [GlobalStorage], and add
-    /// their symbols to the root scope.
+    /// Create the core language type and trait definitions in the given
+    /// [GlobalStorage], and add their symbols to the root scope.
     pub fn new(global_storage: &mut GlobalStorage) -> Self {
         // @@Safety: core defs have not been filled in global_storage, don't access
         // global_storage.core_defs()!
         //
-        // We use the root scope as the population scope, since these are the core definitions.
+        // We use the root scope as the population scope, since these are the core
+        // definitions.
         let builder = PrimitiveBuilder::new_with_scope(global_storage, global_storage.root_scope);
 
         // Primitive integers
@@ -64,10 +66,7 @@ impl CoreDefs {
         let char_ty = builder.create_opaque_struct_def("char", []);
         let bool_ty = builder.create_enum_def(
             "bool",
-            [
-                builder.create_enum_variant("true", []),
-                builder.create_enum_variant("false", []),
-            ],
+            [builder.create_enum_variant("true", []), builder.create_enum_variant("false", [])],
             [],
         );
 

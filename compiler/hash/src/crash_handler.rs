@@ -1,15 +1,14 @@
 //! Hash Compiler crash handler
 use backtrace::Backtrace;
-use std::panic::PanicInfo;
-use std::process::exit;
-use std::{io::Write, sync::atomic, thread};
+use std::{io::Write, panic::PanicInfo, process::exit, sync::atomic, thread};
 
 const BUG_REPORT_MSG: &str = "This is an compiler bug, please file a bug report at";
 const BUG_REPORT_URI: &str =
     "https://github.com/hash-org/lang/issues?labels=bug&template=bug_report";
 
 pub(crate) fn panic_handler(info: &PanicInfo) {
-    // keep track to ensure that we only panic once and multiple threads can exit gracefully!
+    // keep track to ensure that we only panic once and multiple threads can exit
+    // gracefully!
     static PANIC_ONCE: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
     if !PANIC_ONCE.swap(true, atomic::Ordering::SeqCst) {
@@ -41,11 +40,7 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
 
         // Print backtrace and thread name if available
         if let Some(name) = thread::current().name() {
-            let _ = writeln!(
-                &mut stdout,
-                "Backtrace for thread \"{}\":\n{:?}",
-                name, backtrace
-            );
+            let _ = writeln!(&mut stdout, "Backtrace for thread \"{}\":\n{:?}", name, backtrace);
         } else {
             let _ = writeln!(&mut stdout, "Backtrace:\n{:?}", backtrace);
         }

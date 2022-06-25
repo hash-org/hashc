@@ -1,4 +1,5 @@
-//! Contains utilities to format types for displaying in error messages and debug output.
+//! Contains utilities to format types for displaying in error messages and
+//! debug output.
 use crate::storage::{
     primitives::{
         Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
@@ -12,10 +13,12 @@ use std::cell::Cell;
 
 /// Contains methods to format terms like types, traits, values etc.
 ///
-/// It needs access to [GlobalStorage] in order to resolve nested structures of types/traits/etc.
+/// It needs access to [GlobalStorage] in order to resolve nested structures of
+/// types/traits/etc.
 ///
-/// Some methods take an `is_atomic` parameter, which is an "out" parameter that is set to `true`
-/// when the output is atomic (i.e. does not need to be put in parentheses). For example:
+/// Some methods take an `is_atomic` parameter, which is an "out" parameter that
+/// is set to `true` when the output is atomic (i.e. does not need to be put in
+/// parentheses). For example:
 ///
 /// `(A, B, C)`: atomic
 /// `(A) -> B`: not atomic
@@ -35,12 +38,7 @@ impl<'gs> TcFormatter<'gs> {
         for (i, param) in params.positional().iter().enumerate() {
             match param.name {
                 Some(param_name) => {
-                    write!(
-                        f,
-                        "{}: {}",
-                        param_name,
-                        param.ty.for_formatting(self.global_storage)
-                    )?;
+                    write!(f, "{}: {}", param_name, param.ty.for_formatting(self.global_storage))?;
                 }
                 None => {
                     self.fmt_term(f, param.ty, &Cell::new(false))?;
@@ -59,12 +57,7 @@ impl<'gs> TcFormatter<'gs> {
         for (i, arg) in args.positional().iter().enumerate() {
             match arg.name {
                 Some(arg_name) => {
-                    write!(
-                        f,
-                        "{} = {}",
-                        arg_name,
-                        arg.value.for_formatting(self.global_storage)
-                    )?;
+                    write!(f, "{} = {}", arg_name, arg.value.for_formatting(self.global_storage))?;
                 }
                 None => {
                     self.fmt_term(f, arg.value, &Cell::new(false))?;
@@ -78,8 +71,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the [TrtDef](crate::storage::primitives::TrtDef) indexed by the given [TrtDefId]
-    /// with the given formatter.
+    /// Format the [TrtDef](crate::storage::primitives::TrtDef) indexed by the
+    /// given [TrtDefId] with the given formatter.
     pub fn fmt_trt_def(&self, f: &mut fmt::Formatter, trt_def_id: TrtDefId) -> fmt::Result {
         match self.global_storage.trt_def_store.get(trt_def_id).name {
             Some(name) => {
@@ -101,11 +94,7 @@ impl<'gs> TcFormatter<'gs> {
         match term {
             Level0Term::Rt(ty_id) => {
                 is_atomic.set(true);
-                write!(
-                    f,
-                    "{{runtime value of type {}}}",
-                    ty_id.for_formatting(self.global_storage)
-                )
+                write!(f, "{{runtime value of type {}}}", ty_id.for_formatting(self.global_storage))
             }
             Level0Term::FnLit(fn_lit) => {
                 is_atomic.set(true);
@@ -202,7 +191,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the [Term] indexed by the given [TermId] with the given formatter.
+    /// Format the [Term] indexed by the given [TermId] with the given
+    /// formatter.
     pub fn fmt_term(
         &self,
         f: &mut fmt::Formatter,
@@ -322,12 +312,8 @@ impl<'gs> TcFormatter<'gs> {
     ) -> fmt::Result {
         is_atomic.set(true);
         match self.global_storage.nominal_def_store.get(nominal_def_id) {
-            NominalDef::Struct(StructDef {
-                name: Some(name), ..
-            })
-            | NominalDef::Enum(EnumDef {
-                name: Some(name), ..
-            }) => {
+            NominalDef::Struct(StructDef { name: Some(name), .. })
+            | NominalDef::Enum(EnumDef { name: Some(name), .. }) => {
                 write!(f, "{}", name)
             }
             // @@Future: we can actually print out the location of these definitions, which might
@@ -342,7 +328,8 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format a [ModDef](crate::storage::primitives::ModDef) indexed by the given [ModDefId].
+    /// Format a [ModDef](crate::storage::primitives::ModDef) indexed by the
+    /// given [ModDefId].
     pub fn fmt_mod_def(
         &self,
         f: &mut fmt::Formatter,
@@ -358,11 +345,7 @@ impl<'gs> TcFormatter<'gs> {
             None => match mod_def.origin {
                 ModDefOrigin::TrtImpl(trt_def_id) => {
                     is_atomic.set(false);
-                    write!(
-                        f,
-                        "impl {} {{..}}",
-                        trt_def_id.for_formatting(self.global_storage)
-                    )
+                    write!(f, "impl {} {{..}}", trt_def_id.for_formatting(self.global_storage))
                 }
                 ModDefOrigin::AnonImpl => {
                     is_atomic.set(false);
@@ -382,11 +365,11 @@ impl<'gs> TcFormatter<'gs> {
     }
 }
 
-/// Wraps a type `T` in a structure that contains information to be able to format `T` using
-/// [TcFormatter].
+/// Wraps a type `T` in a structure that contains information to be able to
+/// format `T` using [TcFormatter].
 ///
-/// This can wrap any type, but only types that have corresponding `fmt_*` methods in
-/// [TcFormatter] are useful with it.
+/// This can wrap any type, but only types that have corresponding `fmt_*`
+/// methods in [TcFormatter] are useful with it.
 pub struct ForFormatting<'gs, 'a, T> {
     pub t: T,
     pub global_storage: &'gs GlobalStorage,
@@ -400,25 +383,17 @@ pub trait PrepareForFormatting: Sized {
         self,
         global_storage: &'gs GlobalStorage,
     ) -> ForFormatting<'gs, '_, Self> {
-        ForFormatting {
-            t: self,
-            global_storage,
-            is_atomic: None,
-        }
+        ForFormatting { t: self, global_storage, is_atomic: None }
     }
 
-    /// Create a `ForFormatting<T>` given a `T`, and provide an out parameter for the `is_atomic`
-    /// check.
+    /// Create a `ForFormatting<T>` given a `T`, and provide an out parameter
+    /// for the `is_atomic` check.
     fn for_formatting_with_atomic_flag<'gs, 'a>(
         self,
         global_storage: &'gs GlobalStorage,
         is_atomic: &'a Cell<bool>,
     ) -> ForFormatting<'gs, 'a, Self> {
-        ForFormatting {
-            t: self,
-            global_storage,
-            is_atomic: Some(is_atomic),
-        }
+        ForFormatting { t: self, global_storage, is_atomic: Some(is_atomic) }
     }
 }
 
@@ -427,7 +402,8 @@ impl PrepareForFormatting for TrtDefId {}
 impl PrepareForFormatting for ModDefId {}
 impl PrepareForFormatting for NominalDefId {}
 
-// Convenience implementations of Display for the types that implement PrepareForFormatting:
+// Convenience implementations of Display for the types that implement
+// PrepareForFormatting:
 
 impl fmt::Display for ForFormatting<'_, '_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -1,8 +1,7 @@
-//! Hash Compiler Intermediate Representation (IR) crate. This module is still under
-//! construction and is subject to change.
+//! Hash Compiler Intermediate Representation (IR) crate. This module is still
+//! under construction and is subject to change.
 
-use hash_source::identifier::Identifier;
-use hash_source::location::Span;
+use hash_source::{identifier::Identifier, location::Span};
 use hash_utils::counter;
 
 counter! {
@@ -12,8 +11,8 @@ counter! {
     method_visibility: pub,
 }
 
-// TODO: do we need namespaces, we could just de-sugar them into binds that are associated
-//       with symbols?
+// TODO: do we need namespaces, we could just de-sugar them into binds that are
+// associated       with symbols?
 
 // TODO: We could just de-sugar guard patterns into:
 //
@@ -24,7 +23,7 @@ counter! {
 //    1 if x => ...
 //}
 // ```
-//
+// 
 // Into:
 // ```
 // match k {
@@ -33,7 +32,7 @@ counter! {
 //     }
 // }
 // ```
-//
+// 
 // But, this means that we have to perform exhaustiveness checking before transforming into IR?
 
 #[derive(Debug, PartialEq, Eq)]
@@ -129,7 +128,8 @@ pub struct Expr<'i> {
 /// The kind of an expression
 #[derive(Debug, PartialEq, Eq)]
 pub enum ExprKind<'i> {
-    /// Filler kind when expressions are optimised out or removed for other reasons.
+    /// Filler kind when expressions are optimised out or removed for other
+    /// reasons.
     Nop,
     /// A constant value.
     Const(Const),
@@ -143,12 +143,12 @@ pub enum ExprKind<'i> {
     Call(&'i Expr<'i>, &'i [Expr<'i>]),
     /// An index expression e.g. `x[3]`
     Index(&'i Expr<'i>, &'i Expr<'i>),
-    /// An assignment expression, a right hand-side expression is assigned to a left hand-side
-    /// pattern e.g. `x = 2`
+    /// An assignment expression, a right hand-side expression is assigned to a
+    /// left hand-side pattern e.g. `x = 2`
     Assign(&'i Pat<'i>, &'i Expr<'i>),
-    /// An expression which represents a re-assignment to a pattern with a right hand-side
-    /// expression and a binary operator that combines assignment and an operator, e.g.
-    /// `x += 2`
+    /// An expression which represents a re-assignment to a pattern with a right
+    /// hand-side expression and a binary operator that combines assignment
+    /// and an operator, e.g. `x += 2`
     AssignOp(&'i Pat<'i>, BinOp, &'i Expr<'i>),
     /// An expression which is taking the address of another expression with an
     /// mutability modifier e.g. `&mut x`.
