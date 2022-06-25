@@ -1,4 +1,8 @@
 //! Contains functionality to simplify terms into more concrete terms.
+
+// @@Remove
+#![allow(unused)]
+
 use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
@@ -148,7 +152,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Apply the substitution on the parameters and return type:
                 let subbed_params = self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
-                let subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
+                let _subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
 
                 // Return the substituted type without the first parameter:
                 Ok(self.builder().create_fn_ty_term(
@@ -355,7 +359,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let reader = self.reader();
                 let nominal_def = reader.get_nominal_def(*nominal_def_id);
                 match nominal_def {
-                    NominalDef::Struct(struct_def) => {
+                    NominalDef::Struct(_struct_def) => {
                         // Struct type access is not valid.
                         does_not_support_access(access_term)
                     }
@@ -377,7 +381,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     }
                 }
             }
-            Level1Term::Tuple(tuple_ty) => does_not_support_access(access_term),
+            Level1Term::Tuple(_tuple_ty) => does_not_support_access(access_term),
             Level1Term::Fn(_) => does_not_support_access(access_term),
         }
     }
@@ -420,7 +424,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     /// [AccessTerm].
     fn apply_access_to_level3_term(
         &mut self,
-        term: &Level3Term,
+        _term: &Level3Term,
         access_term: &AccessTerm,
     ) -> TcResult<Option<TermId>> {
         does_not_support_access(access_term)
@@ -895,7 +899,7 @@ mod test_super {
 
     fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
         let mut global_storage = GlobalStorage::new();
-        let mut local_storage = LocalStorage::new(&mut global_storage);
+        let local_storage = LocalStorage::new(&mut global_storage);
         let core_defs = CoreDefs::new(&mut global_storage);
         (global_storage, local_storage, core_defs)
     }
@@ -912,7 +916,7 @@ mod test_super {
         let builder = storage_ref.builder();
 
         // Handy shorthand for &Self type
-        let ref_self_ty = builder.create_app_ty_fn_term(
+        let _ref_self_ty = builder.create_app_ty_fn_term(
             core_defs.reference_ty_fn,
             [builder.create_arg("T", builder.create_var_term("Self"))],
         );
