@@ -1,5 +1,5 @@
-//! Self hosted hash parser, this function contains the implementations for `hash-ast`
-//! which provides a general interface to write a parser.
+//! Self hosted hash parser, this function contains the implementations for
+//! `hash-ast` which provides a general interface to write a parser.
 #![feature(cell_update)]
 #![feature(is_some_with)]
 
@@ -10,15 +10,17 @@ mod source;
 use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast;
 use hash_lexer::Lexer;
-use hash_pipeline::sources::{Module, Sources};
-use hash_pipeline::{traits::Parser, CompilerResult};
+use hash_pipeline::{
+    sources::{Module, Sources},
+    traits::Parser,
+    CompilerResult,
+};
 use hash_reporting::report::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};
 use source::ParseSource;
-use std::env;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 #[derive(Debug)]
 pub enum ParserAction {

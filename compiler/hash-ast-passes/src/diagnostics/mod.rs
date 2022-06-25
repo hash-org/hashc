@@ -7,9 +7,10 @@ use std::fmt::Display;
 pub(crate) mod error;
 pub(crate) mod warning;
 
-/// Denotes where a pattern was used as in the parent of the pattern. This is useful
-/// for propagating errors upwards by signalling what is the current parent of the
-/// pattern. This only contains patterns that can be compound (hold multiple children patterns).
+/// Denotes where a pattern was used as in the parent of the pattern. This is
+/// useful for propagating errors upwards by signalling what is the current
+/// parent of the pattern. This only contains patterns that can be compound
+/// (hold multiple children patterns).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum PatternOrigin {
     Tuple,
@@ -20,8 +21,8 @@ pub(crate) enum PatternOrigin {
 }
 
 impl PatternOrigin {
-    /// Convert the [PatternOrigin] into a string which can be used for displaying
-    /// within error messages.
+    /// Convert the [PatternOrigin] into a string which can be used for
+    /// displaying within error messages.
     fn to_str(self) -> &'static str {
         match self {
             PatternOrigin::Tuple => "tuple",
@@ -40,8 +41,8 @@ impl Display for PatternOrigin {
 }
 
 /// Denotes where an error occurred from which type of block. This is useful
-/// when giving more context about errors such as [AnalysisErrorKind::NonDeclarativeExpression]
-/// occur from.
+/// when giving more context about errors such as
+/// [AnalysisErrorKind::NonDeclarativeExpression] occur from.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum BlockOrigin {
     Root,

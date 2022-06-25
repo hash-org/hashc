@@ -21,20 +21,23 @@ use std::collections::HashSet;
 pub struct HashSemanticAnalysis;
 
 impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
-    /// A store representing modules that have already been analysed in the current pipeline.
+    /// A store representing modules that have already been analysed in the
+    /// current pipeline.
     type State = HashSet<SourceId>;
 
     fn make_state(&mut self) -> CompilerResult<Self::State> {
         Ok(HashSet::default())
     }
 
-    /// This will perform a pass on the AST by checking the semantic rules that are within
-    /// the language specification. The function will attempt to perform a pass on the
-    /// `entry_point` which happens on the main thread. The target may be either an interactive
-    /// block or a module. A pass is performed and then remaining modules are processed if they
-    /// have not already been processed. This is a sound implementation because it always considers
-    /// the `entry_point` which might not always occur within the modules map. Each time the pipeline
-    /// runs (in the interactive case), the most recent block is always passed.
+    /// This will perform a pass on the AST by checking the semantic rules that
+    /// are within the language specification. The function will attempt to
+    /// perform a pass on the `entry_point` which happens on the main
+    /// thread. The target may be either an interactive block or a module. A
+    /// pass is performed and then remaining modules are processed if they
+    /// have not already been processed. This is a sound implementation because
+    /// it always considers the `entry_point` which might not always occur
+    /// within the modules map. Each time the pipeline runs (in the
+    /// interactive case), the most recent block is always passed.
     fn perform_pass(
         &mut self,
         entry_point: SourceId,

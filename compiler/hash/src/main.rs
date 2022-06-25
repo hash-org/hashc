@@ -21,9 +21,7 @@ use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::num::NonZeroUsize;
-use std::panic;
-use std::{env, fs};
+use std::{env, fs, num::NonZeroUsize, panic};
 
 use crate::{
     args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},
@@ -90,8 +88,9 @@ fn main() {
     let vm = Interpreter::new(InterpreterOptions::new(opts.stack_size));
     let compiler_settings = CompilerSettings::new(opts.debug, worker_count);
 
-    // We need at least 2 workers for the parsing loop in order so that the job queue can run
-    // within a worker and any other jobs can run inside another worker or workers.
+    // We need at least 2 workers for the parsing loop in order so that the job
+    // queue can run within a worker and any other jobs can run inside another
+    // worker or workers.
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(worker_count + 1)
         .thread_name(|id| format!("compiler-worker-{}", id))

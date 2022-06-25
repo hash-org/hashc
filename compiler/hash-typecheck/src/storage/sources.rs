@@ -3,7 +3,8 @@ use super::primitives::ModDefId;
 use hash_source::SourceId;
 use std::collections::HashMap;
 
-/// Contains a record of all the sources which have been typechecked, and maps them to [ModDefId]s.
+/// Contains a record of all the sources which have been typechecked, and maps
+/// them to [ModDefId]s.
 #[derive(Debug, Default)]
 pub struct CheckedSources {
     data: HashMap<SourceId, ModDefId>,

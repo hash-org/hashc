@@ -21,10 +21,11 @@ pub enum TcError {
     CannotUseValueAsTy { value: TermId },
     /// The given arguments do not match the length of the target parameters.
     MismatchingArgParamLength { args: Args, params: Params },
-    /// The parameter with the given name is not found in the given parameter list.
+    /// The parameter with the given name is not found in the given parameter
+    /// list.
     ParamNotFound { params: Params, name: Identifier },
-    /// There is a parameter (at the index `param_index_given_twice`) which is specified twice in
-    /// the given argument list.
+    /// There is a parameter (at the index `param_index_given_twice`) which is
+    /// specified twice in the given argument list.
     ParamGivenTwice {
         args: Args,
         params: Params,
@@ -41,11 +42,13 @@ pub enum TcError {
     UnresolvedVariable { name: Identifier },
     /// The given value does not support accessing (of the given name).
     UnsupportedAccess { name: Identifier, value: TermId },
-    /// The given value does not support namespace accessing (of the given name).
+    /// The given value does not support namespace accessing (of the given
+    /// name).
     UnsupportedNamespaceAccess { name: Identifier, value: TermId },
     /// The given value does not support property accessing (of the given name).
     UnsupportedPropertyAccess { name: Identifier, value: TermId },
-    /// The given type function cannot be applied to the given arguments, due to the given errors.
+    /// The given type function cannot be applied to the given arguments, due to
+    /// the given errors.
     InvalidTypeFunctionApplication {
         type_fn: TermId,
         args: Args,
@@ -59,8 +62,8 @@ pub enum TcError {
     InvalidTypeFunctionReturnType { return_ty: TermId },
     /// The given term cannot be used as a type function return value.
     InvalidTypeFunctionReturnValue { return_value: TermId },
-    /// The given merge term should only contain zero or one nominal elements, but it contains
-    /// more.
+    /// The given merge term should only contain zero or one nominal elements,
+    /// but it contains more.
     MergeShouldOnlyContainOneNominal {
         merge_term: TermId,
         nominal_term: TermId,
@@ -80,7 +83,8 @@ pub enum TcError {
     NeedMoreTypeAnnotationsToResolve { term_to_resolve: TermId },
     /// The given term cannot be instantiated at runtime.
     TermIsNotRuntimeInstantiable { term: TermId },
-    /// The given term cannot be used as the subject of a type function application.
+    /// The given term cannot be used as the subject of a type function
+    /// application.
     UnsupportedTypeFunctionApplication { subject_id: TermId },
     /// The given access operation results in more than one result.
     AmbiguousAccess { access: AccessTerm },

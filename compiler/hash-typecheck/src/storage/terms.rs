@@ -14,9 +14,10 @@ pub struct TermStore {
     /// Keeps track of the last ID used for unresolved terms.
     /// This will be incremented every time a [Term::Unresolved] is created.
     ///
-    /// @@Future: In the future, resolution IDs can be used to implement a pointer-based unknown
-    /// term resolution, where substitutions correspond to mutating terms rather than creating
-    /// whole new ones. This could greatly improve performance.
+    /// @@Future: In the future, resolution IDs can be used to implement a
+    /// pointer-based unknown term resolution, where substitutions
+    /// correspond to mutating terms rather than creating whole new ones.
+    /// This could greatly improve performance.
     last_resolution_id: Cell<usize>,
 }
 
@@ -32,9 +33,9 @@ impl TermStore {
 
     /// Get a term by [TermId].
     ///
-    /// If the term is not found, this function will panic. However, this shouldn't happen
-    /// because the only way to acquire a term is to use [Self::create], and terms cannot be
-    /// deleted.
+    /// If the term is not found, this function will panic. However, this
+    /// shouldn't happen because the only way to acquire a term is to use
+    /// [Self::create], and terms cannot be deleted.
     pub fn get(&self, term_id: TermId) -> &Term {
         self.data.get(term_id).unwrap()
     }
@@ -48,7 +49,8 @@ impl TermStore {
 
     /// Get a new [ResolutionId] for a new [Term::Unresolved].
     ///
-    /// This shouldn't be directly used in inference code, rather call the appropriate
+    /// This shouldn't be directly used in inference code, rather call the
+    /// appropriate
     /// [PrimitiveBuilder](crate::ops::building::PrimitiveBuilder) function.
     pub fn new_resolution_id(&self) -> ResolutionId {
         let new_id = self.last_resolution_id.get() + 1;
@@ -59,9 +61,10 @@ impl TermStore {
 
 /// Stores the source location of terms in the AST tree.
 ///
-/// Not every term is guaranteed to have an attached location, but if it does it will be stored
-/// here. Note that term locations are on the [TermId]-level, not on the [Term]-level. So two
-/// identical [Term]s with different [TermId]s can have separate location attachments.
+/// Not every term is guaranteed to have an attached location, but if it does it
+/// will be stored here. Note that term locations are on the [TermId]-level, not
+/// on the [Term]-level. So two identical [Term]s with different [TermId]s can
+/// have separate location attachments.
 #[derive(Debug, Default)]
 pub struct TermLocations {
     data: SecondaryMap<TermId, SourceLocation>,
@@ -79,7 +82,8 @@ impl TermLocations {
 
     /// Attach a location to the term with the given [TermId].
     ///
-    /// This will overwrite any previous location attachment for this specific term.
+    /// This will overwrite any previous location attachment for this specific
+    /// term.
     pub fn add_location(&mut self, id: TermId, location: SourceLocation) {
         self.data.insert(id, location);
     }

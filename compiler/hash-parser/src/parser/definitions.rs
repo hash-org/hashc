@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind, TokenKindVector};
 
@@ -8,8 +8,8 @@ use crate::parser::error::TyArgumentKind;
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Parse a [StructDef]. The keyword `struct` begins the construct and is followed
-    /// by parenthesees with inner struct fields defined.
+    /// Parse a [StructDef]. The keyword `struct` begins the construct and is
+    /// followed by parenthesees with inner struct fields defined.
     pub fn parse_struct_def(&self) -> AstGenResult<StructDef> {
         debug_assert!(self
             .current_token()
@@ -53,8 +53,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &start))
     }
 
-    /// Parse an [EnumDef]. The keyword `enum` begins the construct and is followed
-    /// by parenthesees with inner enum fields defined.
+    /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
+    /// followed by parenthesees with inner enum fields defined.
     pub fn parse_enum_def(&self) -> AstGenResult<EnumDef> {
         debug_assert!(self
             .current_token()
@@ -89,13 +89,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_span))
     }
 
-    /// Parse a [TypeFunctionDef]. Type functions specify logic at the type level on expressions such as
-    /// struct, enum, function, and trait definitions.
+    /// Parse a [TypeFunctionDef]. Type functions specify logic at the type
+    /// level on expressions such as struct, enum, function, and trait
+    /// definitions.
     pub fn parse_type_function_def(&self) -> AstGenResult<TypeFunctionDef> {
         let mut args = AstNodes::empty();
 
-        // We can't do this because the parse_separated_fn() function expects a token tree and
-        // not the while tree:
+        // We can't do this because the parse_separated_fn() function expects a token
+        // tree and not the while tree:
         //
         // let args = self.parse_separated_fn(
         //     || self.parse_type_function_def_arg(),
@@ -133,7 +134,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        // Now that we parse the bound, we're expecting a fat-arrow and then some expression
+        // Now that we parse the bound, we're expecting a fat-arrow and then some
+        // expression
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
@@ -144,8 +146,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         })
     }
 
-    // Parse a [TypeFunctionDefArg] which consists the name of the argument and then any specified bounds
-    // on the argument which are essentially types that are separated by a `~`
+    // Parse a [TypeFunctionDefArg] which consists the name of the argument and then
+    // any specified bounds on the argument which are essentially types that are
+    // separated by a `~`
     fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TypeFunctionDefArg>> {
         let start = self.current_location();
         let name = self.parse_name()?;
@@ -159,8 +162,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(TypeFunctionDefArg { name, ty }, &start))
     }
 
-    /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with `trait` that contains
-    /// definitions or attach expressions to a trait.
+    /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
+    /// `trait` that contains definitions or attach expressions to a trait.
     pub fn parse_trait_def(&self) -> AstGenResult<TraitDef> {
         debug_assert!(self
             .current_token()

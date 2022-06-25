@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use std::{path::PathBuf, str::FromStr};
 
 use hash_ast::{ast::*, ast_nodes};
@@ -17,8 +17,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ) -> AstGenResult<(bool, AstNode<Expression>)> {
         let start = self.next_location();
 
-        // So here we want to check that the next token(s) could make up a singular pattern which
-        // is then followed by a `:` to denote that this is a declaration.
+        // So here we want to check that the next token(s) could make up a singular
+        // pattern which is then followed by a `:` to denote that this is a
+        // declaration.
         let decl = match self.begins_pattern() {
             true => {
                 let pat = self.parse_singular_pattern()?;
@@ -40,7 +41,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     Ok(expr)
                 } else {
                     match self.peek() {
-                        // We don't skip here because it is handled after the statement has been generated.
+                        // We don't skip here because it is handled after the statement has been
+                        // generated.
                         Some(token) if token.has_kind(TokenKind::Semi) => Ok(expr),
                         Some(token) if token.has_kind(TokenKind::Eq) => {
                             self.skip_token();
@@ -66,8 +68,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             None,
                             self.next_location(),
                         ),
-                        // Special case where there is a expression at the end of the stream and therefore it
-                        // is signifying that it is returning the expression value here
+                        // Special case where there is a expression at the end of the stream and
+                        // therefore it is signifying that it is returning
+                        // the expression value here
                         None => Ok(expr),
                     }
                 }
@@ -98,8 +101,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             )
         })?;
 
-        // ::CompoundExpressions: firstly, we have to get the initial part of the expression, and then we can check
-        // if there are any additional parts in the forms of either property accesses, indexing or infix function calls
+        // ::CompoundExpressions: firstly, we have to get the initial part of the
+        // expression, and then we can check if there are any additional parts
+        // in the forms of either property accesses, indexing or infix function calls
         let subject = match &token.kind {
             kind if kind.is_unary_op() => return self.parse_unary_expression(),
 
@@ -162,7 +166,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
             // Body block.
             TokenKind::Tree(Delimiter::Brace, _) => {
-                // @@Hack: we need to backtrack a single token so that `parse_block` can be used.
+                // @@Hack: we need to backtrack a single token so that `parse_block` can be
+                // used.
                 self.offset.set(self.offset.get() - 1);
 
                 self.node_with_joined_span(
@@ -211,9 +216,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Paren, tree_index) => {
                 let mut is_func = false;
 
-                // Now here we have to look ahead after the token_tree to see if there is an arrow
-                // @@Speed: avoid using parse_token_atom() because we don't care about error messages
-                //          We just want to purely look if there are is a combination of symbols following
+                // Now here we have to look ahead after the token_tree to see if there is an
+                // arrow @@Speed: avoid using parse_token_atom() because we
+                // don't care about error messages          We just want to
+                // purely look if there are is a combination of symbols following
                 //          which make up an '=>'.
                 let has_arrow = self
                     .peek_resultant_fn(|| -> Result<(), ()> {
@@ -327,10 +333,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(VariableExpr { name, type_args })
     }
 
-    /// Parse an expression whilst taking into account binary precedence operators.
-    /// Parse chain of expressions with chain links being binary operators. Whilst
-    /// parsing the chain, figure out the applicative precedence of each operator using
-    /// Pratt parsing.
+    /// Parse an expression whilst taking into account binary precedence
+    /// operators. Parse chain of expressions with chain links being binary
+    /// operators. Whilst parsing the chain, figure out the applicative
+    /// precedence of each operator using Pratt parsing.
     pub(crate) fn parse_expression_with_precedence(
         &self,
         mut min_prec: u8,
@@ -344,8 +350,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         loop {
             let op_start = self.next_location();
-            // this doesn't consider operators that have an 'eq' variant because that is handled at the statement level,
-            // since it isn't really a binary operator...
+            // this doesn't consider operators that have an 'eq' variant because that is
+            // handled at the statement level, since it isn't really a binary
+            // operator...
             let (op, consumed_tokens) = self.parse_binary_operator();
 
             // We want to break if it's an operator and it is wanting to re-assign
@@ -356,9 +363,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             match op {
-                // check if the operator here is re-assignable, as in '+=', '/=', if so then we need to stop
-                // parsing onwards because this might be an assignable expression...
-                // Only perform this check if know prior that the expression is not made of compounded components.
+                // check if the operator here is re-assignable, as in '+=', '/=', if so then we need
+                // to stop parsing onwards because this might be an assignable
+                // expression... Only perform this check if know prior that the
+                // expression is not made of compounded components.
                 Some(op) => {
                     // check if we have higher precedence than the lhs expression...
                     let (l_prec, r_prec) = op.infix_binding_power();
@@ -370,8 +378,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     self.offset.update(|x| x + consumed_tokens as usize);
                     let op_span = op_start.join(self.current_location());
 
-                    // if the operator is a non-functional, (e.g. as) we need to perform a different conversion
-                    // where we transform the AstNode into a different
+                    // if the operator is a non-functional, (e.g. as) we need to perform a different
+                    // conversion where we transform the AstNode into a
+                    // different
                     if op == BinOp::As {
                         lhs = self.node_with_joined_span(
                             Expression::new(ExpressionKind::As(CastExpr {
@@ -406,9 +415,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(lhs)
     }
 
-    /// Provided an initial subject expression that is parsed by the parent caller, this function
-    /// will check if there are any additional components to the expression; in the form of either
-    /// property access, infix function calls, indexing, etc.
+    /// Provided an initial subject expression that is parsed by the parent
+    /// caller, this function will check if there are any additional
+    /// components to the expression; in the form of either property access,
+    /// infix function calls, indexing, etc.
     pub(crate) fn parse_singular_expression(
         &self,
         subject: AstNode<Expression>,
@@ -418,7 +428,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let mut lhs_expr = subject;
 
-        // so here we need to peek to see if this is either a index_access, field access or a function call...
+        // so here we need to peek to see if this is either a index_access, field access
+        // or a function call...
         while let Some(next_token) = self.peek() {
             match &next_token.kind {
                 // Property access or infix function call
@@ -433,10 +444,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         //
                         // `foo.bar()` transpiles to `bar(foo)`
                         //
-                        // Additionally, if the RHS has arguments, they are shifted for the LHS to be inserted as the first argument...
+                        // Additionally, if the RHS has arguments, they are shifted for the LHS to
+                        // be inserted as the first argument...
                         //
                         // `foo.bar(baz)` transpiles to `bar(foo, baz)`
-                        //
                         ExpressionKind::ConstructorCall(ConstructorCallExpr {
                             subject,
                             mut args,
@@ -463,7 +474,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             );
                         }
                         ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
-                            // @@Cleanup: This produces an AstNode<AccessName> whereas we just want the single name...
+                            // @@Cleanup: This produces an AstNode<AccessName> whereas we just want
+                            // the single name...
                             let ident = name.body().path[0].body();
                             let span = name.span();
 
@@ -510,9 +522,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ///
     /// import("./relative/path/to/module")
     ///
-    /// The path argument to imports automatically assumes that the path you provide
-    /// is references '.hash' extension file or a directory with a 'index.hash' file
-    /// contained within the directory.
+    /// The path argument to imports automatically assumes that the path you
+    /// provide is references '.hash' extension file or a directory with a
+    /// 'index.hash' file contained within the directory.
     pub(crate) fn parse_import(&self) -> AstGenResult<AstNode<Expression>> {
         let pre = self.current_token().span;
         let start = self.current_location();
@@ -558,8 +570,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse a [FunctionCall] which requires that the [AccessName] is pre-parsed and passed
-    /// into the function which deals with the call arguments.
+    /// Parse a [FunctionCall] which requires that the [AccessName] is
+    /// pre-parsed and passed into the function which deals with the call
+    /// arguments.
     pub(crate) fn parse_constructor_call(
         &self,
         subject: AstNode<Expression>,
@@ -577,8 +590,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         while gen.has_token() {
             let start = gen.next_location();
 
-            // here we trying to check if this argument is in form of just an expression or if there is a
-            // name being assigned here...
+            // here we trying to check if this argument is in form of just an expression or
+            // if there is a name being assigned here...
             let name = match (gen.peek(), gen.peek_second()) {
                 (
                     Some(Token {
@@ -646,7 +659,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let index_expr = gen.parse_expression_with_precedence(0)?;
 
         // since nothing should be after the expression, we can check that no tokens
-        // are left and the generator is empty, otherwise report this as an unexpected_token
+        // are left and the generator is empty, otherwise report this as an
+        // unexpected_token
         gen.verify_is_empty()?;
 
         Ok(self.node_with_joined_span(
@@ -658,9 +672,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parses a unary operator or expression modifier followed by a singular expression.
-    /// Once the unary operator is picked up, the expression is parsed given the specific
-    /// rules of the operator or expression modifier.
+    /// Parses a unary operator or expression modifier followed by a singular
+    /// expression. Once the unary operator is picked up, the expression is
+    /// parsed given the specific rules of the operator or expression
+    /// modifier.
     pub(crate) fn parse_unary_expression(&self) -> AstGenResult<AstNode<Expression>> {
         let token = self.current_token();
         let start = self.current_location();
@@ -744,11 +759,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a declaration.
     ///
-    /// A declaration is either a variable declaration, function declaration, or both.
-    /// As such a name is returned before parsing a type, function, or both.
-    /// A destructuring pattern, potential for-all statement, optional
-    /// type definition and a potential definition of the right hand side. For example:
-    /// ```text
+    /// A declaration is either a variable declaration, function declaration, or
+    /// both. As such a name is returned before parsing a type, function, or
+    /// both. A destructuring pattern, potential for-all statement, optional
+    /// type definition and a potential definition of the right hand side. For
+    /// example: ```text
     /// some_var: float = ...;
     /// ^^^^^^^^  ^^^^^   ^^^─────┐
     /// pattern    type    the right hand-side expr
@@ -780,8 +795,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Function to pass a [MergeDeclaration] which is a pattern on the right-hand side followed
-    /// by the `~=` operator and then an expression (which should be either a [ImplBlock] or a [TraitImpl]).
+    /// Function to pass a [MergeDeclaration] which is a pattern on the
+    /// right-hand side followed by the `~=` operator and then an expression
+    /// (which should be either a [ImplBlock] or a [TraitImpl]).
     pub(crate) fn parse_merge_declaration(
         &self,
         decl: AstNode<Expression>,
@@ -799,9 +815,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Given a initial left-hand side expression, attempt to parse a re-assignment operator and
-    /// then right hand-side. If a re-assignment operator is successfully parsed, then a right
-    /// hand-side is expected and will hard fail. If no re-assignment operator is found, then it
+    /// Given a initial left-hand side expression, attempt to parse a
+    /// re-assignment operator and then right hand-side. If a re-assignment
+    /// operator is successfully parsed, then a right hand-side is expected
+    /// and will hard fail. If no re-assignment operator is found, then it
     /// should just return the left-hand side.
     #[profiling::function]
     pub(crate) fn parse_expression_with_re_assignment(
@@ -844,9 +861,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse an single name or a function call that is applied on the left hand side
-    /// expression. Infix calls and name are only separated by infix calls having
-    /// parenthesees at the end of the name.
+    /// Parse an single name or a function call that is applied on the left hand
+    /// side expression. Infix calls and name are only separated by infix
+    /// calls having parenthesees at the end of the name.
     pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<AstNode<Expression>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
 
@@ -883,7 +900,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         // Eat the generator now...
                         self.skip_token();
 
-                        // so we know that this is the beginning of the function call, so we have to essentially parse an arbitrary number
+                        // so we know that this is the beginning of the function call, so we have to
+                        // essentially parse an arbitrary number
                         // of expressions separated by commas as arguments to the call.
                         let tree = self.token_trees.get(*tree_index).unwrap();
                         self.parse_constructor_call(subject, tree, *span)
@@ -895,18 +913,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Function to either parse an expression that is wrapped in parentheses or a tuple literal. If this
-    /// is a tuple literal, the first expression must be followed by a comma separator, after that the comma
+    /// Function to either parse an expression that is wrapped in parentheses or
+    /// a tuple literal. If this is a tuple literal, the first expression
+    /// must be followed by a comma separator, after that the comma
     /// after the expression is optional.
     ///
     ///
-    /// Tuples have a familiar syntax with many other languages, but exhibit two distinct differences between the common syntax.
-    /// These differences are:
+    /// Tuples have a familiar syntax with many other languages, but exhibit two
+    /// distinct differences between the common syntax. These differences
+    /// are:
     ///
     /// - Empty tuples: (,)
     /// - Singleton tuple : (A,)
     /// - Many membered tuple: (A, B, C) or (A, B, C,)
-    ///
     pub(crate) fn parse_expression_or_tuple(
         &self,
         tree: &'stream [Token],
@@ -945,9 +964,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let entry = gen.parse_tuple_literal_entry()?;
 
-        // In the special case where this is just an expression that is wrapped within parenthesees, we can
-        // check that the 'name' and 'ty' parameters are set to `None` and that there are no extra tokens
-        // that are left within the token tree...
+        // In the special case where this is just an expression that is wrapped within
+        // parenthesees, we can check that the 'name' and 'ty' parameters are
+        // set to `None` and that there are no extra tokens that are left within
+        // the token tree...
         if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
             return Ok(entry.into_body().value);
         }
@@ -981,7 +1001,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parse a function definition argument, which is made of an identifier and a function type.
+    /// Parse a function definition argument, which is made of an identifier and
+    /// a function type.
     pub(crate) fn parse_function_def_arg(&self) -> AstGenResult<AstNode<FunctionDefArg>> {
         let name = self.parse_name()?;
         let name_span = name.span();
@@ -1005,8 +1026,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(FunctionDefArg { name, ty, default }, &name_span))
     }
 
-    /// Parse a function literal. Function literals are essentially definitions of lambdas
-    /// that can be assigned to variables or passed as arguments into other functions.
+    /// Parse a function literal. Function literals are essentially definitions
+    /// of lambdas that can be assigned to variables or passed as arguments
+    /// into other functions.
     pub(crate) fn parse_function_definition(
         &self,
         gen: &Self,
@@ -1042,9 +1064,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Function to parse a sequence of top-level [Expression]s from a brace-block exhausting all of the
-    /// remaining tokens within the block. This function expects that the next token is a [TokenKind::Tree]
-    /// and it will consume it producing [Expression]s from it.
+    /// Function to parse a sequence of top-level [Expression]s from a
+    /// brace-block exhausting all of the remaining tokens within the block.
+    /// This function expects that the next token is a [TokenKind::Tree] and
+    /// it will consume it producing [Expression]s from it.
     pub(crate) fn parse_expressions_from_braces(&self) -> AstGenResult<AstNodes<Expression>> {
         let gen = self.parse_delim_tree(Delimiter::Brace, Some(AstGenErrorKind::Block))?;
 

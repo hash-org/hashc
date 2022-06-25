@@ -12,8 +12,7 @@ use hash_pipeline::{
 use hash_reporting::errors::{CompilerError, InteractiveCommandError};
 use hash_source::SourceId;
 use rustyline::{error::ReadlineError, Editor};
-use std::env;
-use std::process::exit;
+use std::{env, process::exit};
 
 type CompilerResult<T> = Result<T, CompilerError>;
 
@@ -32,8 +31,9 @@ pub fn goodbye() {
     exit(0)
 }
 
-/// Function that initialises the interactive mode. Setup all the resources required to perform
-/// execution of provided statements and then initiate the REPL.
+/// Function that initialises the interactive mode. Setup all the resources
+/// required to perform execution of provided statements and then initiate the
+/// REPL.
 pub fn init<'c, 'pool, P, D, S, C, V>(
     mut compiler: Compiler<'pool, P, D, S, C, V>,
 ) -> CompilerResult<()>
@@ -119,7 +119,8 @@ where
                 .sources
                 .add_interactive_block(new_interactive_block);
 
-            // Compute the mode of the job based on provided arguments via the interactive command
+            // Compute the mode of the job based on provided arguments via the interactive
+            // command
             let settings: CompilerJobParams = inner.into();
 
             let new_state = compiler.run(

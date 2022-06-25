@@ -53,7 +53,8 @@ impl TreeWriterConfig {
         }
     }
 
-    /// Draw trees using Unicode box drawing characters and longer child prefixes.
+    /// Draw trees using Unicode box drawing characters and longer child
+    /// prefixes.
     pub fn unicode_long() -> Self {
         Self {
             child_prefix: "──".into(),
@@ -99,12 +100,14 @@ pub struct TreeWriter<'t, 'cfg> {
 }
 
 impl<'t, 'cfg> TreeWriter<'t, 'cfg> {
-    /// Create a new [TreeWriter] with the given [TreeNode] and default configuration.
+    /// Create a new [TreeWriter] with the given [TreeNode] and default
+    /// configuration.
     pub fn new(tree: &'t TreeNode) -> Self {
         Self::new_with_config(tree, TreeWriterConfig::default())
     }
 
-    /// Create a new [TreeWriter] with the given [TreeNode] and configuration [TreeWriterConfig].
+    /// Create a new [TreeWriter] with the given [TreeNode] and configuration
+    /// [TreeWriterConfig].
     pub fn new_with_config(tree: &'t TreeNode, config: TreeWriterConfig) -> Self {
         Self {
             tree,

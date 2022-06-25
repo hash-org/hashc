@@ -1,5 +1,5 @@
-//! Contains structures that store information about the scopes in a given module, as well as the
-//! symbols in each scope.
+//! Contains structures that store information about the scopes in a given
+//! module, as well as the symbols in each scope.
 use super::primitives::{Scope, ScopeId};
 use slotmap::SlotMap;
 
@@ -23,8 +23,9 @@ impl ScopeStore {
 
     /// Get a scope by [ScopeId].
     ///
-    /// If the scope is not found, this function will panic. However, this shouldn't happen because
-    /// the only way to acquire a scope is to use [Self::create], and scopes cannot be deleted.
+    /// If the scope is not found, this function will panic. However, this
+    /// shouldn't happen because the only way to acquire a scope is to use
+    /// [Self::create], and scopes cannot be deleted.
     pub fn get(&self, ty_id: ScopeId) -> &Scope {
         self.data.get(ty_id).unwrap()
     }
@@ -37,7 +38,8 @@ impl ScopeStore {
     }
 }
 
-/// Stores a collection of scopes, used from within [LocalStorage](crate::storage::LocalStorage).
+/// Stores a collection of scopes, used from within
+/// [LocalStorage](crate::storage::LocalStorage).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeStack {
     scopes: Vec<ScopeId>,

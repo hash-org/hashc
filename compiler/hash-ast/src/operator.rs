@@ -121,10 +121,12 @@ impl std::fmt::Display for OperatorKind {
 }
 
 impl OperatorKind {
-    /// This returns if an operator is actually re-assignable. By re-assignable, this is in the sense
-    /// that you can add a '=' to mean that you are performing a re-assigning operation using the left
-    /// hand-side expression as a starting point and the rhs as the other argument to the operator.
-    /// For example, `a += b` is re-assigning because it means `a = a + b`.
+    /// This returns if an operator is actually re-assignable. By re-assignable,
+    /// this is in the sense that you can add a '=' to mean that you are
+    /// performing a re-assigning operation using the left
+    /// hand-side expression as a starting point and the rhs as the other
+    /// argument to the operator. For example, `a += b` is re-assigning
+    /// because it means `a = a + b`.
     pub fn is_re_assignable(&self) -> bool {
         matches!(
             self,
@@ -149,7 +151,8 @@ impl OperatorKind {
         matches!(self, OperatorKind::And | OperatorKind::Or,)
     }
 
-    /// Compound functions that use multiple function calls when they are transformed.
+    /// Compound functions that use multiple function calls when they are
+    /// transformed.
     pub fn is_compound(&self) -> bool {
         matches!(
             self,

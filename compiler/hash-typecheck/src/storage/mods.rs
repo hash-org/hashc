@@ -1,4 +1,5 @@
-//! Contains structures to keep track of modules and information relating to them.
+//! Contains structures to keep track of modules and information relating to
+//! them.
 use super::primitives::{ModDef, ModDefId};
 use slotmap::SlotMap;
 
@@ -20,9 +21,9 @@ impl ModDefStore {
 
     /// Get a module by [ModDefId].
     ///
-    /// If the module is not found, this function will panic. However, this shouldn't happen
-    /// because the only way to acquire a module is to use [Self::create], and modules cannot be
-    /// deleted.
+    /// If the module is not found, this function will panic. However, this
+    /// shouldn't happen because the only way to acquire a module is to use
+    /// [Self::create], and modules cannot be deleted.
     pub fn get(&self, mod_def_id: ModDefId) -> &ModDef {
         self.data.get(mod_def_id).unwrap()
     }

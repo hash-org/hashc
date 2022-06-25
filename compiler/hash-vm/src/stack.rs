@@ -6,8 +6,8 @@ use crate::error::{RuntimeError, RuntimeResult, StackAccessKind};
 /// program.
 #[derive(Debug)]
 pub struct Stack {
-    /// The actual internal data of the stack. Once created, the stack size cannot
-    /// be modified.
+    /// The actual internal data of the stack. Once created, the stack size
+    /// cannot be modified.
     data: Vec<u8>,
     /// The internal representation of where the stack offset is located at.
     stack_pointer: usize,

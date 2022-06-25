@@ -1,7 +1,7 @@
 //! Hash AST lowering passes crate. This crate holds an implementation for the
-//! visitor pattern on the AST in order to `lower` it to a simpler version so that
-//! later stages can work on it without having to operate on similar constructs and
-//! duplicating logic.
+//! visitor pattern on the AST in order to `lower` it to a simpler version so
+//! that later stages can work on it without having to operate on similar
+//! constructs and duplicating logic.
 #![feature(generic_associated_types)]
 
 use hash_ast::{
@@ -44,11 +44,12 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
     /// the loop breaks, otherwise the body of the while-loop is executed.
     ///
     /// Any if-statements are transformed into equivalent match cases by using
-    /// the "if-guard" pattern to express all of the branches in the if-statement.
+    /// the "if-guard" pattern to express all of the branches in the
+    /// if-statement.
     ///
-    /// This function utilised the pipeline thread pool in order to make the transformations
-    /// as parallel as possible. There is a queue that is queues all of the expressions within
-    /// each [hash_ast::ast::Module].
+    /// This function utilised the pipeline thread pool in order to make the
+    /// transformations as parallel as possible. There is a queue that is
+    /// queues all of the expressions within each [hash_ast::ast::Module].
     fn desugar(
         &mut self,
         entry_point: SourceId,
@@ -77,13 +78,13 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
                 }
 
                 // @@Future: So here, it would be nice that the de-sugaring visitor could have a
-                //           context that has access to the pool so that it could just push other jobs into
-                //           the queue rather than only splitting the job by top-level expressions.
-                //           This would work by the visitor pushing expressions into the work queue
-                //           whenever it hits body-blocks that have a list of expressions. This would
-                //           definitely make this process even faster, but it might add overhead to the
-                //           process of adding these items to the queue. However, it might be worth
-                //           investigating this in the future.
+                // context that has access to the pool so that it could just push other jobs
+                // into the queue rather than only splitting the job by top-level expressions.
+                // This would work by the visitor pushing expressions into the work queue
+                // whenever it hits body-blocks that have a list of expressions. This would
+                // definitely make this process even faster, but it might add overhead to the
+                // process of adding these items to the queue. However, it might be worth
+                // investigating this in the future.
                 for expr in module.node_mut().contents.iter_mut() {
                     scope.spawn(|_| {
                         AstDesugaring
@@ -126,8 +127,8 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
 /// }
 /// ```
 ///
-/// So essentially the for-loop becomes a simple loop with a match block on the given
-/// iterator since for-loops only support iterators.
+/// So essentially the for-loop becomes a simple loop with a match block on the
+/// given iterator since for-loops only support iterators.
 fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
@@ -263,8 +264,8 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
 /// The de-sugaring process is similar to the for-loop de-sugaring
 /// process. The condition that is specified for the while-loop to continue
 /// executing is treated like a matchable pattern, and then matched on whether
-/// if it is true or not. If it is true, the body block is executed, otherwise the loop
-/// breaks.
+/// if it is true or not. If it is true, the body block is executed, otherwise
+/// the loop breaks.
 fn desugar_while_loop_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
@@ -315,10 +316,10 @@ fn desugar_while_loop_block(node: Block, parent_span: Span) -> Block {
     )))
 }
 
-/// This function converts a [AstNode<IfClause>] into a [AstNode<MatchCase>]. This
-/// is part of the de-sugaring process for if-statements. Each branch in the
-/// if-block is converted into a branch within a match block using the `if-guard`
-/// pattern.
+/// This function converts a [AstNode<IfClause>] into a [AstNode<MatchCase>].
+/// This is part of the de-sugaring process for if-statements. Each branch in
+/// the if-block is converted into a branch within a match block using the
+/// `if-guard` pattern.
 ///
 /// For example, take the branch:
 ///
@@ -361,11 +362,11 @@ fn desugar_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
     )
 }
 
-/// This function is responsible for de-sugaring an if-block into a match case. This
-/// function converts a [IfBlock] into a [MatchBlock]. This is not obvious from the
-/// function definition because it accepts a [Block], not specifically a [IfBlock].
-/// This is because it operates by using [AstNode<T>::replace] in order to convert
-/// the if-block into a match-block.
+/// This function is responsible for de-sugaring an if-block into a match case.
+/// This function converts a [IfBlock] into a [MatchBlock]. This is not obvious
+/// from the function definition because it accepts a [Block], not specifically
+/// a [IfBlock]. This is because it operates by using [AstNode<T>::replace] in
+/// order to convert the if-block into a match-block.
 ///
 /// The de-sugaring process is as follows, take the following if block:
 ///
@@ -381,19 +382,21 @@ fn desugar_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
 ///     _ if b => b_branch
 ///     _ => c_branch
 /// }
-///```
+/// ```
 ///
-/// The condition of the if-branch is converted into a [hash_ast::ast::MatchCase] by using
-/// the `if-guard` pattern with the condition being the guard. As can be seen in the example,
-/// the condition that the match-block is matching is `true`. This is essentially a filler for
-/// the de-sugaring process and will be optimised out. This process is done so that the
-/// later stages of the compiler don't need to deal with multiple constructs that resemble
-/// each other in functionality. An if-block is de-sugared into a match-block because it
-/// captures all of the features of an if-block, but the relationship is not mutual and thus
-/// converting to a match-block is the only case.
+/// The condition of the if-branch is converted into a
+/// [hash_ast::ast::MatchCase] by using the `if-guard` pattern with the
+/// condition being the guard. As can be seen in the example, the condition that
+/// the match-block is matching is `true`. This is essentially a filler for
+/// the de-sugaring process and will be optimised out. This process is done so
+/// that the later stages of the compiler don't need to deal with multiple
+/// constructs that resemble each other in functionality. An if-block is
+/// de-sugared into a match-block because it captures all of the features of an
+/// if-block, but the relationship is not mutual and thus converting to a
+/// match-block is the only case.
 ///
-/// In the event that there is no `else` branch, this function will add a default branch that
-/// adds a default branch with an empty block like so:
+/// In the event that there is no `else` branch, this function will add a
+/// default branch that adds a default branch with an empty block like so:
 ///
 /// ```text
 /// if x == 3 { <body> }
@@ -414,12 +417,12 @@ fn desugar_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
 /// however when an if block returns something from a previous branch, then
 /// this will fail compilation and it will be reported.
 ///
-/// @@Note: We could just add some flag on the match-case to say that when
-///         it was lowered from a if-block, it was missing an else case, and this
-///         would mean we don't always have to add it. However, this might complicate
-///         things with pattern exhaustiveness because then there would be no base case
-///         branch, thus the exhaustiveness checking would also need to know about
-///         the omitted else branch.
+/// @@Note: We could just add some flag on the match-case to say that when it
+/// was lowered from a if-block, it was missing an else case, and this would
+/// mean we don't always have to add it. However, this might complicate things
+/// with pattern exhaustiveness because then there would be no base case branch,
+/// thus the exhaustiveness checking would also need to know about the omitted
+/// else branch.
 fn desugar_if_block(node: Block, parent_span: Span) -> Block {
     // Since this function expects it to be a for-loop block, we match it and unwrap
     let block = match node {
@@ -442,9 +445,9 @@ fn desugar_if_block(node: Block, parent_span: Span) -> Block {
         .map(desugar_if_clause)
         .collect::<Vec<_>>();
 
-    // Deal with the `otherwise` case, if there is no otherwise case then we can just
-    // push an ignore branch and the body of the else block, otherwise it is replaces by
-    // just an empty block
+    // Deal with the `otherwise` case, if there is no otherwise case then we can
+    // just push an ignore branch and the body of the else block, otherwise it
+    // is replaces by just an empty block
     let else_block = if let Some(block) = otherwise {
         let else_block_span = block.span();
 
@@ -459,12 +462,13 @@ fn desugar_if_block(node: Block, parent_span: Span) -> Block {
             else_block_span,
         )
     } else {
-        // @@Hack: We don't have a span for the branch, so we rely on using the span of the
-        //         entire if-clause. This might not be the exactly right approach because some
-        //         later checks (within typechecking) might report errors that are related to a
-        //         missing else-branch because the return type of the block doesn't become the same
-        //         anymore. Therefore, we might later want to re-think which span we use for
-        //         generating the else-branch.
+        // @@Hack: We don't have a span for the branch, so we rely on using the span of
+        // the         entire if-clause. This might not be the exactly right
+        // approach because some         later checks (within typechecking)
+        // might report errors that are related to a         missing else-branch
+        // because the return type of the block doesn't become the same
+        //         anymore. Therefore, we might later want to re-think which span we use
+        // for         generating the else-branch.
         AstNode::new(
             MatchCase {
                 pattern: AstNode::new(Pattern::Ignore(IgnorePattern), parent_span),
@@ -974,7 +978,8 @@ impl AstVisitorMut for AstDesugaring {
     ) -> Result<Self::BlockRet, Self::Error> {
         let parent_span = node.span();
 
-        // Check if this is a for, while, or if block and then apply the appropriate transformations.
+        // Check if this is a for, while, or if block and then apply the appropriate
+        // transformations.
         match node.body() {
             Block::For(_) => {
                 node.replace(|old| desugar_for_loop_block(old, parent_span));

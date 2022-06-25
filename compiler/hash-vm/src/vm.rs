@@ -42,22 +42,24 @@ pub struct InterpreterFlags {
     pub comparison: Cell<i64>,
 }
 
-/// The [Interpreter] is a structure representing the current execution context of the program. It
-/// contains the program stack, heap, instruction vector, registers, etc.
-///
+/// The [Interpreter] is a structure representing the current execution context
+/// of the program. It contains the program stack, heap, instruction vector,
+/// registers, etc.
 #[derive(Debug)]
 pub struct Interpreter {
-    /// The Interpreter stack holds the current execution context of the function. This is
-    /// very similar to the way that the x86 architecture handles the flag.
+    /// The Interpreter stack holds the current execution context of the
+    /// function. This is very similar to the way that the x86 architecture
+    /// handles the flag.
     stack: Stack,
-    /// Interpreter flags represent the result of some operation that has occurred
+    /// Interpreter flags represent the result of some operation that has
+    /// occurred
     flags: InterpreterFlags,
     /// A vector of [Instruction]s representing the program that it will run
     instructions: Vec<Instruction>,
     /// We have 256 [Register]s available to the interpreter at any time
     registers: RegisterSet,
-    // /// The interpreter [Heap] containing heap allocated values that are not contained on the stack
-    // heap: Heap,
+    // /// The interpreter [Heap] containing heap allocated values that are not contained on the
+    // stack heap: Heap,
 }
 
 impl Interpreter {
@@ -734,8 +736,8 @@ impl Interpreter {
             Instruction::JmpPos { l1, location } => {
                 let r1 = i64::from_be_bytes(*self.registers.get_register_8b(l1));
 
-                // Arbitrarily jump to the specified location in the register if the comparison value is less
-                // than zero or in other words, negative...
+                // Arbitrarily jump to the specified location in the register if the comparison
+                // value is less than zero or in other words, negative...
                 if r1 > 0 {
                     let value = self.registers.get_register64(location).try_into().unwrap();
                     self.set_instruction_pointer(value);
@@ -744,8 +746,8 @@ impl Interpreter {
             Instruction::JmpNeg { l1, location } => {
                 let r1 = i64::from_be_bytes(*self.registers.get_register_8b(l1));
 
-                // Arbitrarily jump to the specified location in the register if the comparison value is less
-                // than zero or in other words, negative...
+                // Arbitrarily jump to the specified location in the register if the comparison
+                // value is less than zero or in other words, negative...
                 if r1 < 0 {
                     let value = self.registers.get_register64(location).try_into().unwrap();
                     self.set_instruction_pointer(value);
@@ -754,8 +756,8 @@ impl Interpreter {
             Instruction::JmpZero { l1, location } => {
                 let r1 = i64::from_be_bytes(*self.registers.get_register_8b(l1));
 
-                // Arbitrarily jump to the specified location in the register if the comparison value is less
-                // than zero or in other words, negative...
+                // Arbitrarily jump to the specified location in the register if the comparison
+                // value is less than zero or in other words, negative...
                 if r1 == 0 {
                     let value = self.registers.get_register64(location).try_into().unwrap();
                     self.set_instruction_pointer(value);
@@ -894,13 +896,15 @@ impl Interpreter {
         let ip = self.get_instruction_pointer();
 
         while ip < self.instructions.len() {
-            // Ok, now we need to run the current instruction, so we pass it into the run_next_instruction,
-            // it's possible that the the next instruction will jump or invoke some kind of exit condition in
-            // the VM, therefore we have to check after each invocation of the instruction if we can proceed
+            // Ok, now we need to run the current instruction, so we pass it into the
+            // run_next_instruction, it's possible that the the next instruction
+            // will jump or invoke some kind of exit condition in
+            // the VM, therefore we have to check after each invocation of the instruction
+            // if we can proceed
             self.run_next_instruction()?;
 
-            // TODO: we probably need to refactor this out into a function as the 'done' state will become
-            //       significantly more complicated...
+            // TODO: we probably need to refactor this out into a function as the 'done'
+            // state will become       significantly more complicated...
             if ip == self.instructions.len() - 1 {
                 return Ok(());
             }

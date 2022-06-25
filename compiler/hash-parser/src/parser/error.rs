@@ -12,8 +12,8 @@ use hash_source::location::SourceLocation;
 use hash_token::{TokenKind, TokenKindVector};
 use hash_utils::printing::SequenceDisplay;
 
-/// A [AstGenError] represents possible errors that occur when transforming the token
-/// stream into the AST.
+/// A [AstGenError] represents possible errors that occur when transforming the
+/// token stream into the AST.
 #[derive(Debug, Constructor)]
 pub struct AstGenError {
     /// The kind of the error.
@@ -47,13 +47,14 @@ pub enum AstGenErrorKind {
     Block,
     /// Expected end of input or token stream here, but encountered tokens.
     EOF,
-    /// Expecting a re-assignment operator at the specified location. Re-assignment operators
-    /// are like normal operators, but they expect an 'equals' sign after the specified
-    /// operator.
+    /// Expecting a re-assignment operator at the specified location.
+    /// Re-assignment operators are like normal operators, but they expect
+    /// an 'equals' sign after the specified operator.
     ReAssignmentOp,
-    /// Error representing expected type arguments. This error has two variants, it can
-    /// either be 'struct' or 'enum' type arguments. The reason why there are two variants
-    /// is to add additional information in the error message.
+    /// Error representing expected type arguments. This error has two variants,
+    /// it can either be 'struct' or 'enum' type arguments. The reason why
+    /// there are two variants is to add additional information in the error
+    /// message.
     TypeDefinition(TyArgumentKind),
     /// Expected an identifier here.
     ExpectedIdentifier,
@@ -62,8 +63,9 @@ pub enum AstGenErrorKind {
     ExpectedOperator,
     /// Expected an expression.
     ExpectedExpression,
-    /// Expected a '=>' at the current location. This error can occur in a number of places; including
-    /// but not limited to: after type arguments, lambda definition, trait bound annotation, etc.
+    /// Expected a '=>' at the current location. This error can occur in a
+    /// number of places; including but not limited to: after type
+    /// arguments, lambda definition, trait bound annotation, etc.
     ExpectedArrow,
     /// Specific error when expecting an arrow after the function definition
     ExpectedFnArrow,
@@ -76,14 +78,16 @@ pub enum AstGenErrorKind {
     /// After a dot operator, the parser expects either a property access or an
     /// infix call which is an extended version of a property access.
     InfixCall,
-    /// When the `import()` directive is used, the only argument should be a string path.
-    /// @@Future: @@CompTime: This could likely change in the future.
+    /// When the `import()` directive is used, the only argument should be a
+    /// string path. @@Future: @@CompTime: This could likely change in the
+    /// future.
     ImportPath,
     /// Expected an identifier after a name qualifier '::'.
     AccessName,
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
-    /// Malformed spread pattern (if for any reason there is a problem with parsing the spread operator)
+    /// Malformed spread pattern (if for any reason there is a problem with
+    /// parsing the spread operator)
     MalformedSpreadPattern(u8),
 }
 
@@ -252,13 +256,14 @@ impl ParseError {
 }
 
 impl From<LexerErrorWrapper> for ParseError {
-    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the combination of a
-    /// [`hash_source::SourceId`] into a [ParseError]. This is used in order to interface with the lexer
-    /// within the parsing stage.
+    /// Implementation to convert a [`hash_lexer::error::LexerError`] with the
+    /// combination of a [`hash_source::SourceId`] into a [ParseError]. This
+    /// is used in order to interface with the lexer within the parsing
+    /// stage.
     ///
     /// @@Future: In the future, there is a hope that we don't
-    /// need to convert between various error kinds in crates and they can just be passed
-    /// around as reports which are pipeline stage agnostic.
+    /// need to convert between various error kinds in crates and they can just
+    /// be passed around as reports which are pipeline stage agnostic.
     fn from(LexerErrorWrapper(source_id, err): LexerErrorWrapper) -> Self {
         ParseError::Parsing {
             message: err.to_string(),

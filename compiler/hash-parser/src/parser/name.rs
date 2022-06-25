@@ -1,5 +1,5 @@
-//! Hash Compiler AST generation sources. This file contains the sources to the logic
-//! that transforms tokens into an AST.
+//! Hash Compiler AST generation sources. This file contains the sources to the
+//! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::identifier::Identifier;
 use hash_token::{Token, TokenKind};
@@ -18,9 +18,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse an [AccessName] from the current token stream. An [AccessName] is defined as
-    /// a number of identifiers that are separated by the namespace operator '::'. The function
-    /// presumes that the current token is an identifier an that the next token is a colon.
+    /// Parse an [AccessName] from the current token stream. An [AccessName] is
+    /// defined as a number of identifiers that are separated by the
+    /// namespace operator '::'. The function presumes that the current
+    /// token is an identifier an that the next token is a colon.
     pub fn parse_access_name(
         &self,
         start_id: AstNode<Identifier>,

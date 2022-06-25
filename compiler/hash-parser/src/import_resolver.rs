@@ -1,5 +1,5 @@
-//! Self hosted hash parser, this function contains the implementations for `hash-ast`
-//! which provides a general interface to write a parser.
+//! Self hosted hash parser, this function contains the implementations for
+//! `hash-ast` which provides a general interface to write a parser.
 use std::path::{Path, PathBuf};
 
 use crossbeam_channel::Sender;

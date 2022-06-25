@@ -119,10 +119,11 @@ fn read_dir(
 
 /// Generate test cases based on a directory structure.
 ///
-/// Test cases are generated based on a given test folder path (see `TEST_DIR` below). Each
-/// generated test corresponds to the full path of each "wanted" (see `TEST_PATTERN` below) leaf
-/// node of the test folder structure, converted to snake case. For example, for a file path
-/// `number_tests/is_valid_number.hash`, a test function named `test_number_tests_is_valid_number`
+/// Test cases are generated based on a given test folder path (see `TEST_DIR`
+/// below). Each generated test corresponds to the full path of each "wanted"
+/// (see `TEST_PATTERN` below) leaf node of the test folder structure, converted
+/// to snake case. For example, for a file path `number_tests/is_valid_number.
+/// hash`, a test function named `test_number_tests_is_valid_number`
 /// will be generated.
 ///
 /// The format of this macro is as follows:
@@ -130,26 +131,32 @@ fn read_dir(
 /// generate_tests!(TEST_DIR, TEST_PATTERN, TEST_FN);
 /// ```
 ///
-/// - `TEST_DIR` must be a string literal path, relative to the file in which the macro is invoked,
-/// which is the root directory of the test folder structure (whose name is not included in the
-/// test function names).
+/// - `TEST_DIR` must be a string literal path, relative to the file in which
+///   the macro is invoked,
+/// which is the root directory of the test folder structure (whose name is not
+/// included in the test function names).
 ///
-/// - `TEST_PATTERN` must be a string literal regular expression, which should match some leaf node
-/// of the test folder structure. The generator will stop generating sub-tests for a subfolder once
-/// any file in that subfolder matches `TEST_PATTERN`. For example, if the test folder structure is
-/// such that some test folder `test_foo/` contains files `case.hash` and `output`, specifying
-/// either of `"output"` or `"case.hash"` as `TEST_PATTERN` will result in a test case being
-/// generated for `test_foo`, but no further (i.e. not `test_foo_output` or `test_foo_case_hash`).
+/// - `TEST_PATTERN` must be a string literal regular expression, which should
+///   match some leaf node
+/// of the test folder structure. The generator will stop generating sub-tests
+/// for a subfolder once any file in that subfolder matches `TEST_PATTERN`. For
+/// example, if the test folder structure is such that some test folder
+/// `test_foo/` contains files `case.hash` and `output`, specifying either of `"
+/// output"` or `"case.hash"` as `TEST_PATTERN` will result in a test case being
+/// generated for `test_foo`, but no further (i.e. not `test_foo_output` or
+/// `test_foo_case_hash`).
 ///
-/// - `FN_PREFIX` is a unique prefix for the generated function in case the macro is used more than once
-/// in a single file for generating more than one test file with a potentially different internal test
-/// logic. The prefix must be a specified string literal, leaving it empty will generate the normal
-/// test name.
+/// - `FN_PREFIX` is a unique prefix for the generated function in case the
+///   macro is used more than once
+/// in a single file for generating more than one test file with a potentially
+/// different internal test logic. The prefix must be a specified string
+/// literal, leaving it empty will generate the normal test name.
 ///
-/// - `TEST_FN` must be an expression of type [`TestingFn`](hash_utils::testing::TestingFn). Every
+/// - `TEST_FN` must be an expression of type
+///   [`TestingFn`](hash_utils::testing::TestingFn). Every
 /// generated test case body will invoke this function with the appropriate
-/// [`TestingInput`](hash_utils::testing::TestingInput). Within this function, the actual test
-/// logic should be written.
+/// [`TestingInput`](hash_utils::testing::TestingInput). Within this function,
+/// the actual test logic should be written.
 #[proc_macro]
 pub fn generate_tests(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as GenerateTestsInput);

@@ -1,24 +1,25 @@
-//! Contains a [`String`]-like implementation for allocating strings within a [`Wall`].
-//!
+//! Contains a [`String`]-like implementation for allocating strings within a
+//! [`Wall`].
 
 use super::row::Row;
 use crate::Wall;
 use core::fmt;
-use std::borrow::Borrow;
-use std::hash::Hash;
-use std::ops::Deref;
+use std::{borrow::Borrow, hash::Hash, ops::Deref};
 
 /// A [`String`]-like implementation for allocating strings within a [`Wall`].
 ///
-/// This is generic over the castle `'c` lifetime, and implements `Deref<Target=str>`.
+/// This is generic over the castle `'c` lifetime, and implements
+/// `Deref<Target=str>`.
 ///
-/// It should mostly be used in the same way as [`String`], and uses a `Row<u8>` internally.
+/// It should mostly be used in the same way as [`String`], and uses a `Row<u8>`
+/// internally.
 pub struct BrickString<'c> {
     inner: Row<'c, u8>,
 }
 
 impl<'c> BrickString<'c> {
-    /// Create a new `BrickString` within the given [`Wall`], copying the given string value.
+    /// Create a new `BrickString` within the given [`Wall`], copying the given
+    /// string value.
     pub fn new(value: &str, wall: &Wall<'c>) -> Self {
         let mut brick_str = Self::with_capacity(value.len(), wall);
         for v in value.bytes() {
@@ -27,7 +28,8 @@ impl<'c> BrickString<'c> {
         brick_str
     }
 
-    /// Create an empty `BrickString` within the given [`Wall`] with a given capacity.
+    /// Create an empty `BrickString` within the given [`Wall`] with a given
+    /// capacity.
     pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
         Self {
             inner: Row::with_capacity(initial_capacity, wall),
@@ -39,7 +41,8 @@ impl<'c> BrickString<'c> {
         self.inner.capacity()
     }
 
-    /// Reserve some capacity within the `BrickString` by reallocating inside the given [`Wall`].
+    /// Reserve some capacity within the `BrickString` by reallocating inside
+    /// the given [`Wall`].
     ///
     /// # Panics
     ///
@@ -55,8 +58,8 @@ impl<'c> BrickString<'c> {
 
     /// Produce a string reference to the data inside `self`, consuming self.
     ///
-    /// This is valid because the data is stored within the underlying [`crate::Castle`], which can
-    /// outlive `Self`.
+    /// This is valid because the data is stored within the underlying
+    /// [`crate::Castle`], which can outlive `Self`.
     pub fn into_str(self) -> &'c str {
         unsafe { std::str::from_utf8_unchecked(self.inner.into_slice()) }
     }

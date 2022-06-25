@@ -5,8 +5,8 @@ use std::{convert::TryInto, fmt};
 
 /// Enum representing a location of a token within the source.
 ///
-/// The first element of the tuple represents the starting byte offset and the second element
-/// represents the ending byte offset.
+/// The first element of the tuple represents the starting byte offset and the
+/// second element represents the ending byte offset.
 #[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
 pub struct Span(u32, u32);
 
@@ -22,10 +22,11 @@ impl Span {
         Span(start.try_into().unwrap(), end.try_into().unwrap())
     }
 
-    /// This function is used to join a [Span] to another [Span]. The assumption is made that the left hand-side
-    /// [Span] ends before the start of the right hand side [Span]. If that is the case, then a new location is
-    /// created with start pos of the lhs, and the end position of the rhs. If that is not the case, the
-    /// lhs span is returned.
+    /// This function is used to join a [Span] to another [Span]. The assumption
+    /// is made that the left hand-side [Span] ends before the start of the
+    /// right hand side [Span]. If that is the case, then a new location is
+    /// created with start pos of the lhs, and the end position of the rhs. If
+    /// that is not the case, the lhs span is returned.
     ///
     /// In essence, if this was the source stream:
     /// ```text
@@ -34,7 +35,8 @@ impl Span {
     /// --------------------------------------------------------------
     /// ```
     ///
-    /// Then the two locations are joined into one, otherwise the lhs is returned
+    /// Then the two locations are joined into one, otherwise the lhs is
+    /// returned
     #[must_use]
     pub fn join(&self, end: Self) -> Self {
         if self.end() <= end.start() {

@@ -1,4 +1,5 @@
-//! Contains utilities to format types for displaying in error messages and debug output.
+//! Contains utilities to format types for displaying in error messages and
+//! debug output.
 use crate::storage::{
     primitives::{
         Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
@@ -12,10 +13,12 @@ use std::cell::Cell;
 
 /// Contains methods to format terms like types, traits, values etc.
 ///
-/// It needs access to [GlobalStorage] in order to resolve nested structures of types/traits/etc.
+/// It needs access to [GlobalStorage] in order to resolve nested structures of
+/// types/traits/etc.
 ///
-/// Some methods take an `is_atomic` parameter, which is an "out" parameter that is set to `true`
-/// when the output is atomic (i.e. does not need to be put in parentheses). For example:
+/// Some methods take an `is_atomic` parameter, which is an "out" parameter that
+/// is set to `true` when the output is atomic (i.e. does not need to be put in
+/// parentheses). For example:
 ///
 /// `(A, B, C)`: atomic
 /// `(A) -> B`: not atomic
@@ -78,8 +81,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the [TrtDef](crate::storage::primitives::TrtDef) indexed by the given [TrtDefId]
-    /// with the given formatter.
+    /// Format the [TrtDef](crate::storage::primitives::TrtDef) indexed by the
+    /// given [TrtDefId] with the given formatter.
     pub fn fmt_trt_def(&self, f: &mut fmt::Formatter, trt_def_id: TrtDefId) -> fmt::Result {
         match self.global_storage.trt_def_store.get(trt_def_id).name {
             Some(name) => {
@@ -202,7 +205,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the [Term] indexed by the given [TermId] with the given formatter.
+    /// Format the [Term] indexed by the given [TermId] with the given
+    /// formatter.
     pub fn fmt_term(
         &self,
         f: &mut fmt::Formatter,
@@ -342,7 +346,8 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format a [ModDef](crate::storage::primitives::ModDef) indexed by the given [ModDefId].
+    /// Format a [ModDef](crate::storage::primitives::ModDef) indexed by the
+    /// given [ModDefId].
     pub fn fmt_mod_def(
         &self,
         f: &mut fmt::Formatter,
@@ -382,11 +387,11 @@ impl<'gs> TcFormatter<'gs> {
     }
 }
 
-/// Wraps a type `T` in a structure that contains information to be able to format `T` using
-/// [TcFormatter].
+/// Wraps a type `T` in a structure that contains information to be able to
+/// format `T` using [TcFormatter].
 ///
-/// This can wrap any type, but only types that have corresponding `fmt_*` methods in
-/// [TcFormatter] are useful with it.
+/// This can wrap any type, but only types that have corresponding `fmt_*`
+/// methods in [TcFormatter] are useful with it.
 pub struct ForFormatting<'gs, 'a, T> {
     pub t: T,
     pub global_storage: &'gs GlobalStorage,
@@ -407,8 +412,8 @@ pub trait PrepareForFormatting: Sized {
         }
     }
 
-    /// Create a `ForFormatting<T>` given a `T`, and provide an out parameter for the `is_atomic`
-    /// check.
+    /// Create a `ForFormatting<T>` given a `T`, and provide an out parameter
+    /// for the `is_atomic` check.
     fn for_formatting_with_atomic_flag<'gs, 'a>(
         self,
         global_storage: &'gs GlobalStorage,
@@ -427,7 +432,8 @@ impl PrepareForFormatting for TrtDefId {}
 impl PrepareForFormatting for ModDefId {}
 impl PrepareForFormatting for NominalDefId {}
 
-// Convenience implementations of Display for the types that implement PrepareForFormatting:
+// Convenience implementations of Display for the types that implement
+// PrepareForFormatting:
 
 impl fmt::Display for ForFormatting<'_, '_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

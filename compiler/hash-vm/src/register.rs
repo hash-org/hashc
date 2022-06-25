@@ -35,8 +35,8 @@ impl Default for RegisterSet {
 }
 
 ///
-/// This is how {get|set}_register{32|16|8} access the entire register. The functions access
-/// the lower X-bytes like so:
+/// This is how {get|set}_register{32|16|8} access the entire register. The
+/// functions access the lower X-bytes like so:
 ///
 /// Register
 /// XXXXXXXX
@@ -53,19 +53,20 @@ impl Default for RegisterSet {
 ///        ^
 ///     get_register8
 ///       
-///
 impl RegisterSet {
     /// Function to get a [Register] within the [RegisterSet].
     pub fn get_register_8b(&self, register: Register) -> &[u8; 8] {
         &self.registers[register.0 as usize]
     }
 
-    /// Function to get a lower four bytes of a [Register] within the [RegisterSet].
+    /// Function to get a lower four bytes of a [Register] within the
+    /// [RegisterSet].
     pub fn get_register_4b(&self, register: Register) -> &[u8; 4] {
         self.registers[register.0 as usize][4..].try_into().unwrap()
     }
 
-    /// Function to get a lower two bytes of a [Register] within the [RegisterSet].
+    /// Function to get a lower two bytes of a [Register] within the
+    /// [RegisterSet].
     pub fn get_register_2b(&self, register: Register) -> &[u8; 2] {
         self.registers[register.0 as usize][6..].try_into().unwrap()
     }
@@ -81,13 +82,15 @@ impl RegisterSet {
         reg.copy_from_slice(value);
     }
 
-    /// Function to set the lower four bytes of a [Register] within the [RegisterSet].
+    /// Function to set the lower four bytes of a [Register] within the
+    /// [RegisterSet].
     pub fn set_register_4b(&mut self, register: Register, value: &[u8; 4]) {
         let reg = self.get_register_mut(register);
         reg[4..].copy_from_slice(value);
     }
 
-    /// Function to set the lower two bytes of a [Register] within the [RegisterSet].
+    /// Function to set the lower two bytes of a [Register] within the
+    /// [RegisterSet].
     pub fn set_register_2b(&mut self, register: Register, value: &[u8; 2]) {
         let reg = self.get_register_mut(register);
         reg[6..].copy_from_slice(value);
@@ -99,7 +102,8 @@ impl RegisterSet {
         reg[7] = value[0];
     }
 
-    /// Function to get a mutable reference to a  [Register] within the [RegisterSet].
+    /// Function to get a mutable reference to a  [Register] within the
+    /// [RegisterSet].
     fn get_register_mut(&mut self, register: Register) -> &mut [u8; 8] {
         self.registers.get_mut(register.0 as usize).unwrap()
     }
