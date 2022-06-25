@@ -70,4 +70,7 @@ pub enum TcError {
     AmbiguousAccess { access: AccessTerm },
     /// The given access operation does not resolve to a method.
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
+    /// The given member requires an initialisation in the current scope.
+    /// @@ErrorReporting: add span of member.
+    UninitialisedMemberNotAllowed { member_ty: TermId },
 }

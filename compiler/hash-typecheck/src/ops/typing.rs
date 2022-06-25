@@ -3,7 +3,8 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, ModDefOrigin, Term, TermId,
+            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefOrigin,
+            Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -94,7 +95,17 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
-                Ok(self.scope_resolver().resolve_name_in_scopes(var.name)?.ty)
+                let var_member = self.scope_resolver().resolve_name_in_scopes(var.name)?;
+
+                // Get the type of the variable:
+                match var_member.data {
+                    // Already given:
+                    MemberData::Uninitialised { ty } | MemberData::InitialisedWithTy { ty, .. } => {
+                        Ok(ty)
+                    }
+                    // Infer the type from the value:
+                    MemberData::InitialisedWithInferredTy { value } => self.ty_of_term(value),
+                }
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:

@@ -3,8 +3,8 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            Args, FnTy, Level0Term, Level1Term, Level2Term, ModDefId, NominalDefId, Params, Sub,
-            Term, TermId, TrtDefId,
+            Args, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, Mutability,
+            NominalDefId, Params, Scope, ScopeId, ScopeKind, Sub, Term, TermId, TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -60,9 +60,79 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
+    /// Validate the members of the given constant scope.
+    ///
+    /// Allows uninitialised members in the scope if `allow_uninitialised` is true.
+    fn validate_constant_scope(
+        &mut self,
+        scope_id: ScopeId,
+        allow_uninitialised: bool,
+    ) -> TcResult<()> {
+        // @@Design: when do we insert each member into the scope? As we go or all at once?
+        // For now, we insert as we go.
+
+        // Enter the progressive scope:
+        let progressive_scope = Scope::new(ScopeKind::Constant, []);
+        let progressive_scope_id = self.scope_store_mut().create(progressive_scope);
+        self.scopes_mut().append(progressive_scope_id);
+
+        // @@Performance: sad that we have to clone here:
+        let scope = self.reader().get_scope(scope_id).clone();
+        for member in scope.iter() {
+            // This should have been checked in semantic analysis:
+            assert!(
+                member.mutability == Mutability::Mutable,
+                "Found mutable member in constant scope!"
+            );
+
+            match member.data {
+                MemberData::Uninitialised { ty } if !allow_uninitialised => {
+                    return Err(TcError::UninitialisedMemberNotAllowed { member_ty: ty });
+                }
+                MemberData::Uninitialised { ty } => {
+                    // Validate only the type
+                    self.validate_term(ty)?;
+                }
+                MemberData::InitialisedWithTy { ty, value } => {
+                    // Validate the term, the type, and unify them.
+                    let TermValidation { term_ty_id, .. } = self.validate_term(value)?;
+                    let TermValidation {
+                        simplified_term_id: simplified_ty_id,
+                        ..
+                    } = self.validate_term(ty)?;
+                    let _ = self.unifier().unify_terms(term_ty_id, simplified_ty_id)?;
+                }
+                MemberData::InitialisedWithInferredTy { value } => {
+                    // Validate the term, and the type
+                    let TermValidation { term_ty_id, .. } = self.validate_term(value)?;
+                    // @@PotentiallyRedundant: is this necessary? shouldn't this be an invariant already?
+                    self.validate_term(term_ty_id)?;
+                }
+            }
+
+            // Now add the member to the progressive scope so that next members can access it.
+            self.scope_store_mut()
+                .get_mut(progressive_scope_id)
+                .add(member);
+        }
+
+        // Leave the progressive scope:
+        let popped_scope = self.scopes_mut().pop_scope();
+        assert!(popped_scope == progressive_scope_id);
+
+        Ok(())
+    }
+
     /// Validate the module definition of the given [ModDefId]
-    pub fn validate_mod_def(&mut self, _mod_def_id: ModDefId) -> TcResult<()> {
+    pub fn validate_mod_def(&mut self, mod_def_id: ModDefId) -> TcResult<()> {
+        let mod_def_members = self.reader().get_mod_def(mod_def_id).members;
+
+        // Validate all members:
+        // Bound vars should already be in scope.
+        self.validate_constant_scope(mod_def_members, false)?;
+
         // Ensure if it is a trait impl it implements all the trait members.
+
         todo!()
     }
 

@@ -1,25 +1,16 @@
 //! Contains functionality to simplify terms into more concrete terms.
-
-// @@Remove
-#![allow(unused)]
-use super::{
-    building::PrimitiveBuilder, params::pair_args_with_params, substitute::Substituter,
-    unify::Unifier, validate::TermLevel, AccessToOps, AccessToOpsMut,
-};
+use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
-    fmt::PrepareForFormatting,
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, Args, FnLit, FnTy, Level0Term, Level1Term,
             Level2Term, Level3Term, Member, NominalDef, Param, Params, ScopeId, StructFields, Term,
             TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
         },
-        scope::ScopeStack,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-use hash_pipeline::traits::Tc;
 use hash_source::identifier::Identifier;
 
 /// Can perform simplification on terms.
@@ -122,7 +113,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         scope: ScopeId,
         value: TermId,
     ) -> TcResult<Option<TermId>> {
-        match self.resolve_name_member_in_scope(name, scope, value)?.value {
+        match self.resolve_name_member_in_scope(name, scope, value)?.data.value() {
             // Member found and has value, return it!
             Some(value) => Ok(Some(value)),
             // Cannot simplify yet, because the member does not have a defined value:
@@ -374,8 +365,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         does_not_support_prop_access(access_term)?;
                         match enum_def.variants.get(&access_term.name) {
                             Some(enum_variant) => {
-                                /// Return a term that refers to the variant
-                                /// (level 0)
+                                // Return a term that refers to the variant (level 0)
                                 let name = enum_variant.name;
                                 Ok(Some(
                                     self.builder()
@@ -804,7 +794,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // First resolve the name:
                 let maybe_resolved_term_id =
-                    self.scope_resolver().resolve_name_in_scopes(var.name)?.value;
+                    self.scope_resolver().resolve_name_in_scopes(var.name)?.data.value();
                 // Try to simplify it
                 if let Some(resolved_term_id) = maybe_resolved_term_id {
                     Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
@@ -897,15 +887,11 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
 #[cfg(test)]
 mod test_super {
-    use hash_source::{InteractiveId, SourceId};
-    use slotmap::Key;
-
+    use super::*;
     use crate::{
         fmt::PrepareForFormatting,
         storage::{core::CoreDefs, primitives::ModDefOrigin, GlobalStorage, LocalStorage},
     };
-
-    use super::*;
 
     fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
         let mut global_storage = GlobalStorage::new();
