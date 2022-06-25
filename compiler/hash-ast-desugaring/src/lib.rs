@@ -411,11 +411,11 @@ fn desugar_if_clause(node: AstNode<IfClause>) -> AstNode<MatchCase> {
 /// }
 /// ```
 ///
-/// This is done so that the typechecker can perform that the whole
-/// block returns the same type. If the previous branches do not return
-/// anything, omitting an `else` case is ok and this will pass later stages,
-/// however when an if block returns something from a previous branch, then
-/// this will fail compilation and it will be reported.
+/// This is done so that the typechecker can perform that the whole block
+/// returns the same type. If the previous branches do not return anything,
+/// omitting an `else` case is ok and this will pass later stages,however
+/// when an if block returns something from a previous branch, then this will
+/// fail compilation and it will be reported.
 ///
 /// @@Note: We could just add some flag on the match-case to say that when it
 /// was lowered from a if-block, it was missing an else case, and this would
@@ -463,12 +463,11 @@ fn desugar_if_block(node: Block, parent_span: Span) -> Block {
         )
     } else {
         // @@Hack: We don't have a span for the branch, so we rely on using the span of
-        // the         entire if-clause. This might not be the exactly right
-        // approach because some         later checks (within typechecking)
-        // might report errors that are related to a         missing else-branch
-        // because the return type of the block doesn't become the same
-        //         anymore. Therefore, we might later want to re-think which span we use
-        // for         generating the else-branch.
+        // the entire if-clause. This might not be the exactly right approach because
+        // some later checks (within typechecking) might report errors that are related
+        // to a missing else-branch because the return type of the block doesn't become
+        // the same anymore. Therefore, we might later want to re-think which span we
+        // use for generating the else-branch.
         AstNode::new(
             MatchCase {
                 pattern: AstNode::new(Pattern::Ignore(IgnorePattern), parent_span),
