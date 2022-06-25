@@ -3,10 +3,10 @@
 use crate::storage::{
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, EnumVariantValue,
-        FnLit, FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member, ModDef,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, Scope,
-        ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy,
-        TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        FnLit, FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member,
+        MemberData, ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param,
+        ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef,
+        TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -244,19 +244,21 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ) -> Member {
         Member {
             name: name.into(),
-            ty,
-            value: Some(value),
+            data: MemberData::InitialisedWithTy { ty, value },
             visibility: Visibility::Public,
             mutability: Mutability::Immutable,
         }
     }
 
     /// Create a public member with the given name, type and unset value.
-    pub fn create_unset_pub_member(&self, name: impl Into<Identifier>, ty: TermId) -> Member {
+    pub fn create_uninitialised_pub_member(
+        &self,
+        name: impl Into<Identifier>,
+        ty: TermId,
+    ) -> Member {
         Member {
             name: name.into(),
-            ty,
-            value: None,
+            data: MemberData::Uninitialised { ty },
             visibility: Visibility::Public,
             mutability: Mutability::Immutable,
         }

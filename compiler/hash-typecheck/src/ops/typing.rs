@@ -3,7 +3,8 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, ModDefOrigin, Term, TermId,
+            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefOrigin,
+            Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -28,6 +29,14 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Typer<'gs, 'ls, 'cd> {
     }
 }
 
+/// A version of [MemberData] where the type has been inferred if it was not
+/// given in the member definition.
+#[derive(Debug, Clone, Copy)]
+pub struct InferredMemberData {
+    pub ty: TermId,
+    pub value: Option<TermId>,
+}
+
 impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
@@ -40,6 +49,22 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     pub fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         self.ty_of_simplified_term(simplified_term_id)
+    }
+
+    /// Infer the type of the given member, if it does not already exist.
+    ///
+    /// *Note*: Assumes the term is validated.
+    pub fn infer_member_data(&mut self, member_data: MemberData) -> TcResult<InferredMemberData> {
+        match member_data {
+            MemberData::Uninitialised { ty } => Ok(InferredMemberData { ty, value: None }),
+            MemberData::InitialisedWithTy { ty, value } => {
+                Ok(InferredMemberData { ty, value: Some(value) })
+            }
+            MemberData::InitialisedWithInferredTy { value } => {
+                let ty = self.ty_of_term(value)?;
+                Ok(InferredMemberData { ty, value: Some(value) })
+            }
+        }
     }
 
     /// Get the type of the given term, given that it is simplified, as another
@@ -94,7 +119,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
-                Ok(self.scope_resolver().resolve_name_in_scopes(var.name)?.ty)
+                let var_member = self.scope_resolver().resolve_name_in_scopes(var.name)?;
+                Ok(self.infer_member_data(var_member.data)?.ty)
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:

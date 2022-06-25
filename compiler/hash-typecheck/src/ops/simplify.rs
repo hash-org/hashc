@@ -1,25 +1,16 @@
 //! Contains functionality to simplify terms into more concrete terms.
-
-// @@Remove
-#![allow(unused)]
-use super::{
-    building::PrimitiveBuilder, params::pair_args_with_params, substitute::Substituter,
-    unify::Unifier, validate::TermLevel, AccessToOps, AccessToOpsMut,
-};
+use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
     error::{TcError, TcResult},
-    fmt::PrepareForFormatting,
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, Args, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, Member, NominalDef, Param, Params, ScopeId, StructFields, Term,
-            TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
+            Level2Term, Level3Term, NominalDef, Param, Params, StructFields, Term, TermId, TupleTy,
+            TyFn, TyFnCase, TyFnTy,
         },
-        scope::ScopeStack,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-use hash_pipeline::traits::Tc;
 use hash_source::identifier::Identifier;
 
 /// Can perform simplification on terms.
@@ -72,9 +63,7 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
 // Helper for [Simplifier::apply_access_term] erroring for name not found in
 // value:
 fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
-    {
-        Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
-    }
+    Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
 }
 
 impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
@@ -90,44 +79,6 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     /// Convenience method to get a [Substituter].
     fn substituter(&mut self) -> Substituter {
         Substituter::new(self.storages_mut())
-    }
-
-    /// Resolve the given name in the scope with the given [ScopeId],
-    /// originating from the given value.
-    ///
-    /// Returns the resolved member, or errors if no such member was found.
-    fn resolve_name_member_in_scope(
-        &self,
-        name: Identifier,
-        scope: ScopeId,
-        value: TermId,
-    ) -> TcResult<Member> {
-        match self.reader().get_scope(scope).get(name) {
-            Some(member) => Ok(member),
-            None => {
-                // Member not found!
-                Err(TcError::UnresolvedNameInValue { name, value })
-            }
-        }
-    }
-
-    /// Resolve the given name in the scope with the given [ScopeId],
-    /// originating from the given value.
-    ///
-    /// Returns [Some] if the member can be resolved with a value, [None] if it
-    /// cannot because it has no value yet.
-    fn resolve_name_in_scope(
-        &self,
-        name: Identifier,
-        scope: ScopeId,
-        value: TermId,
-    ) -> TcResult<Option<TermId>> {
-        match self.resolve_name_member_in_scope(name, scope, value)?.value {
-            // Member found and has value, return it!
-            Some(value) => Ok(Some(value)),
-            // Cannot simplify yet, because the member does not have a defined value:
-            None => Ok(None),
-        }
     }
 
     /// Convert an accessed type (or any other type for that matter) along with
@@ -157,7 +108,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Apply the substitution on the parameters and return type:
                 let subbed_params = self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
-                let subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
+                let _subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
 
                 // Return the substituted type without the first parameter:
                 Ok(self.builder().create_fn_ty_term(
@@ -364,7 +315,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let reader = self.reader();
                 let nominal_def = reader.get_nominal_def(*nominal_def_id);
                 match nominal_def {
-                    NominalDef::Struct(struct_def) => {
+                    NominalDef::Struct(_struct_def) => {
                         // Struct type access is not valid.
                         does_not_support_access(access_term)
                     }
@@ -374,8 +325,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         does_not_support_prop_access(access_term)?;
                         match enum_def.variants.get(&access_term.name) {
                             Some(enum_variant) => {
-                                /// Return a term that refers to the variant
-                                /// (level 0)
+                                // Return a term that refers to the variant (level 0)
                                 let name = enum_variant.name;
                                 Ok(Some(
                                     self.builder()
@@ -387,7 +337,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     }
                 }
             }
-            Level1Term::Tuple(tuple_ty) => does_not_support_access(access_term),
+            Level1Term::Tuple(_tuple_ty) => does_not_support_access(access_term),
             Level1Term::Fn(_) => does_not_support_access(access_term),
         }
     }
@@ -430,7 +380,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     /// [AccessTerm].
     fn apply_access_to_level3_term(
         &mut self,
-        term: &Level3Term,
+        _term: &Level3Term,
         access_term: &AccessTerm,
     ) -> TcResult<Option<TermId>> {
         does_not_support_access(access_term)
@@ -496,7 +446,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) | Term::Unresolved(_) => {
+            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
@@ -804,7 +754,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // First resolve the name:
                 let maybe_resolved_term_id =
-                    self.scope_resolver().resolve_name_in_scopes(var.name)?.value;
+                    self.scope_resolver().resolve_name_in_scopes(var.name)?.data.value();
                 // Try to simplify it
                 if let Some(resolved_term_id) = maybe_resolved_term_id {
                     Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
@@ -897,19 +847,15 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
 #[cfg(test)]
 mod test_super {
-    use hash_source::{InteractiveId, SourceId};
-    use slotmap::Key;
-
+    use super::*;
     use crate::{
         fmt::PrepareForFormatting,
         storage::{core::CoreDefs, primitives::ModDefOrigin, GlobalStorage, LocalStorage},
     };
 
-    use super::*;
-
     fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
         let mut global_storage = GlobalStorage::new();
-        let mut local_storage = LocalStorage::new(&mut global_storage);
+        let local_storage = LocalStorage::new(&mut global_storage);
         let core_defs = CoreDefs::new(&mut global_storage);
         (global_storage, local_storage, core_defs)
     }
@@ -926,7 +872,7 @@ mod test_super {
         let builder = storage_ref.builder();
 
         // Handy shorthand for &Self type
-        let ref_self_ty = builder.create_app_ty_fn_term(
+        let _ref_self_ty = builder.create_app_ty_fn_term(
             core_defs.reference_ty_fn,
             [builder.create_arg("T", builder.create_var_term("Self"))],
         );
