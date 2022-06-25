@@ -47,21 +47,18 @@ impl Castle {
 /// * Cost of allocation is really tiny (just an integer comparison and a
 ///   pointer incrementation).
 ///
-/// * All allocations are very well spatially localised---they are arranged
-///   sequentially in
-/// memory. This means that traversing graph/tree structures allocated on the
-/// [`Wall`] is very cache-friendly, as the elements will be right next to each
-/// other.
+/// * All allocations are very well spatially localised---they are arranged /
+///   sequentially in / memory. This means that traversing graph/tree structures
+///   allocated on the / [`Wall`] is very cache-friendly, as the elements will
+///   be right next to each / other.
 ///
 /// * All allocations live for the same amount of time, which is the lifetime of
-///   the underlying
-/// [`Castle`]. However, values allocated inside a [`Wall`] can be dropped
-/// because the allocations are wrapped in [`ManuallyDrop`]. For a more
-/// ergonomic way of allocating values and collections, take a look at the
-/// [`collections`] and [`brick`] modules.
+///   /   the underlying / [`Castle`]. However, values allocated inside a
+///   [`Wall`] can be dropped / because the allocations are wrapped in
+///   [`ManuallyDrop`]. For a more / ergonomic way of allocating values and
+///   collections, take a look at the / [`collections`] and [`brick`] modules.
 ///
-///
-///  Currently, this is implemented using [`bumpalo`], but this will (probably)
+/// Currently, this is implemented using [`bumpalo`], but this will (probably) /
 /// change in the  future as the compiler acquires more niche requirements.
 pub struct Wall<'c> {
     castle: &'c Castle,
