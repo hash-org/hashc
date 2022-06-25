@@ -29,10 +29,8 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Typer<'gs, 'ls, 'cd> {
     }
 }
 
-/// Helper to store an member with inferred type and possibly a value.
-///
-/// If the original member does not have a type, then it is inferred from the
-/// value.
+/// A version of [MemberData] where the type has been inferred if it was not
+/// given in the member definition.
 #[derive(Debug, Clone, Copy)]
 pub struct InferredMemberData {
     pub ty: TermId,
