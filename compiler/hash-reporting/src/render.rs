@@ -10,8 +10,7 @@
 
 use std::{
     fmt,
-    iter::{once, repeat, Enumerate, Skip, Take},
-    str::Split,
+    iter::{once, repeat},
 };
 
 use hash_source::{location::SourceLocation, SourceMap};
@@ -31,15 +30,20 @@ const BLOCK_DIAGNOSTIC_MARKER: char = '-';
 /// Character used to connect block views
 const DIAGNOSTIC_CONNECTING_CHAR: &str = "|";
 
+/// Struct to represent the column and row offset produced from converting a
+/// [Span].
+pub(crate) struct ColRowOffset {
+    /// The column offset.
+    col: usize,
+    /// The row offset.
+    row: usize,
+}
+
 /// Function to compute a row and column number from a given source string
 /// and an offset within the source. This will take into account the number
 /// of encountered newlines and characters per line in order to compute
 /// precise row and column numbers of the span.
-pub(crate) fn offset_col_row(
-    offset: usize,
-    source: &str,
-    non_inclusive: bool,
-) -> (/* col: */ usize, /* row: */ usize) {
+pub(crate) fn offset_col_row(offset: usize, source: &str, non_inclusive: bool) -> ColRowOffset {
     let source_lines = source.split('\n');
 
     let mut bytes_skipped = 0;
@@ -61,7 +65,10 @@ pub(crate) fn offset_col_row(
         };
 
         if range.contains(&offset) {
-            line_index = Some((offset - bytes_skipped, line_idx));
+            line_index = Some(ColRowOffset {
+                col: offset - bytes_skipped,
+                row: line_idx,
+            });
             break;
         }
 
@@ -70,10 +77,10 @@ pub(crate) fn offset_col_row(
         last_line_len = line.len();
     }
 
-    line_index.unwrap_or((
-        last_line_len.saturating_sub(1),
-        total_lines.saturating_sub(1),
-    ))
+    line_index.unwrap_or(ColRowOffset {
+        col: last_line_len.saturating_sub(1),
+        row: total_lines.saturating_sub(1),
+    })
 }
 
 /// This function holds inner rules for calculating what the selected top
@@ -113,9 +120,18 @@ impl ReportCodeBlock {
                 let source = modules.contents_by_id(source_id);
 
                 // Compute offset rows and columns from the provided span
-                let (start_col, start_row) = offset_col_row(span.start(), source, true);
-                let (end_col, end_row) = offset_col_row(span.end(), source, false);
-                let (_, last_row) = offset_col_row(source.len(), source, false);
+                let ColRowOffset {
+                    col: start_col,
+                    row: start_row,
+                } = offset_col_row(span.start(), source, true);
+
+                let ColRowOffset {
+                    col: end_col,
+                    row: end_row,
+                } = offset_col_row(span.end(), source, false);
+
+                let ColRowOffset { row: last_row, .. } =
+                    offset_col_row(source.len(), source, false);
 
                 // Compute the selected span outside of the diagnostic span
                 let (top_buf, bottom_buf) = compute_buffers(start_row, end_row);
@@ -146,7 +162,7 @@ impl ReportCodeBlock {
     fn get_source_view<'a, T: SourceMap>(
         &self,
         modules: &'a T,
-    ) -> Take<Skip<Enumerate<Split<'a, char>>>> {
+    ) -> impl Iterator<Item = (usize, &'a str)> {
         // Get the actual contents of the erroneous span
         let source_id = self.source_location.source_id;
         let source = modules.contents_by_id(source_id);
@@ -455,10 +471,10 @@ mod tests {
     fn offset_test() {
         let contents = "Hello, world!\nGoodbye, world, it has been fun.";
 
-        let (col, row) = offset_col_row(contents.len() - 1, contents, false);
+        let ColRowOffset { col, row } = offset_col_row(contents.len() - 1, contents, false);
         assert_eq!((col, row), (31, 1));
 
-        let (col, row) = offset_col_row(contents.len() + 3, contents, false);
+        let ColRowOffset { col, row } = offset_col_row(contents.len() + 3, contents, false);
         assert_eq!((col, row), (31, 1));
     }
 }
