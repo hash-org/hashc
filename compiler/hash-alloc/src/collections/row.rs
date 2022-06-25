@@ -1,4 +1,5 @@
-//! Contains a [`Vec`]-like implementation for allocating contiguous sequences within a [`Wall`].
+//! Contains a [`Vec`]-like implementation for allocating contiguous sequences
+//! within a [`Wall`].
 
 use crate::Wall;
 use core::fmt;
@@ -8,15 +9,18 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-/// A [`Vec`]-like implementation for allocating contiguous sequences within a [`Wall`].
+/// A [`Vec`]-like implementation for allocating contiguous sequences within a
+/// [`Wall`].
 ///
-/// This is generic over the castle `'c` lifetime, and implements `Deref<Target=T>`.
+/// This is generic over the castle `'c` lifetime, and implements
+/// `Deref<Target=T>`.
 ///
 /// It should mostly be used in the same way as [`Vec`].
 ///
-/// Note: Reallocations require copying the data every time, as opposed to [`Vec`] (which calls
-/// `realloc`, which in turn might grow the memory block without extra copying). This means that
-/// reserving space is even more important when using `Row` than when using [`Vec`].
+/// Note: Reallocations require copying the data every time, as opposed to
+/// [`Vec`] (which calls `realloc`, which in turn might grow the memory block
+/// without extra copying). This means that reserving space is even more
+/// important when using `Row` than when using [`Vec`].
 pub struct Row<'c, T> {
     data: &'c mut [MaybeUninit<ManuallyDrop<T>>],
     length: usize,
@@ -31,24 +35,20 @@ impl<T> Default for Row<'_, T> {
 /// How much to initially reserve in the row.
 const ROW_INITIAL_REALLOC_SIZE: usize = 4;
 
-/// How much to multiply (.0) and divide (.1) the current capacity by when reallocating.
+/// How much to multiply (.0) and divide (.1) the current capacity by when
+/// reallocating.
 const ROW_REALLOC_MULT_DIV: (usize, usize) = (2, 1);
 
 impl<'c, T> Row<'c, T> {
     /// Create a new [`Row`] with zero length and capacity.
     pub fn new() -> Self {
-        Self {
-            data: &mut [],
-            length: 0,
-        }
+        Self { data: &mut [], length: 0 }
     }
 
-    /// Create a new `Row` within the given [`Wall`] with zero length and a given capacity.
+    /// Create a new `Row` within the given [`Wall`] with zero length and a
+    /// given capacity.
     pub fn with_capacity(initial_capacity: usize, wall: &Wall<'c>) -> Self {
-        Self {
-            data: wall.alloc_uninit_slice(initial_capacity),
-            length: 0,
-        }
+        Self { data: wall.alloc_uninit_slice(initial_capacity), length: 0 }
     }
 
     /// Get the current capacity of the `Row`.
@@ -56,17 +56,15 @@ impl<'c, T> Row<'c, T> {
         self.data.len()
     }
 
-    /// Reserve some capacity within the `Row` by reallocating inside the given [`Wall`].
+    /// Reserve some capacity within the `Row` by reallocating inside the given
+    /// [`Wall`].
     ///
     /// # Panics
     ///
     /// - Panics if `new_capacity` is greater than [`isize::MAX`].
     /// - Panics if `new_capacity` is less than the current length of the `Row`.
     pub fn reserve(&mut self, new_capacity: usize, wall: &Wall<'c>) {
-        assert!(
-            new_capacity <= isize::MAX as usize,
-            "Reallocation target capacity is too large"
-        );
+        assert!(new_capacity <= isize::MAX as usize, "Reallocation target capacity is too large");
 
         assert!(
             new_capacity >= self.len(),
@@ -91,8 +89,8 @@ impl<'c, T> Row<'c, T> {
 
     /// Push an element to the end of the `Row`.
     ///
-    /// This will reallocate the data inside the given [`Wall`] if there is not enough capacity to
-    /// add the element.
+    /// This will reallocate the data inside the given [`Wall`] if there is not
+    /// enough capacity to add the element.
     ///
     /// # Panics
     ///
@@ -121,15 +119,16 @@ impl<'c, T> Row<'c, T> {
 
     /// Pop an element from the end of the `Row`
     ///
-    /// Returns `None` if there are no elements in the `Row`, otherwise the popped element.
+    /// Returns `None` if there are no elements in the `Row`, otherwise the
+    /// popped element.
     pub fn pop(&mut self) -> Option<T> {
         if self.len() == 0 {
             return None;
         }
 
         let last_element = std::mem::replace(
-            // ##Safety: self.len() - 1 is always a valid index as long as self.len() != 0 (which has
-            // just been checked).
+            // ##Safety: self.len() - 1 is always a valid index as long as self.len() != 0 (which
+            // has just been checked).
             unsafe { self.data.get_unchecked_mut(self.len() - 1) },
             MaybeUninit::uninit(),
         );
@@ -138,16 +137,15 @@ impl<'c, T> Row<'c, T> {
         // ##Safety: value has been initialised because it was within (0..self.len()).
         //
         // We give responsibility of dropping to the caller.
-        Some(ManuallyDrop::into_inner(unsafe {
-            last_element.assume_init()
-        }))
+        Some(ManuallyDrop::into_inner(unsafe { last_element.assume_init() }))
     }
 
     /// Insert an element at a given index inside the `Row`.
     ///
     /// # Panics
     ///
-    /// If index is not within the range `(0..=self.len())`. Also see [`Row::reserve`].
+    /// If index is not within the range `(0..=self.len())`. Also see
+    /// [`Row::reserve`].
     pub fn insert(&mut self, index: usize, element: T, wall: &Wall<'c>) {
         // Insert at the end means push.
         if index == self.len() {
@@ -167,7 +165,8 @@ impl<'c, T> Row<'c, T> {
         let target_point = &mut self.data[index + 1] as *mut _;
         let shift_length = self.len() - index;
 
-        // ##Safety: We have reserved one more element than the length so the shift is valid.
+        // ##Safety: We have reserved one more element than the length so the shift is
+        // valid.
         unsafe {
             std::ptr::copy(current_point, target_point, shift_length);
         }
@@ -179,10 +178,11 @@ impl<'c, T> Row<'c, T> {
         self.length += 1;
     }
 
-    /// Construct a [Row] from an iterator, allocating inside the given [`Wall`].
+    /// Construct a [Row] from an iterator, allocating inside the given
+    /// [`Wall`].
     ///
-    /// This uses `Iterator::size_hint` to predict how many elements are inside the iterator, and
-    /// avoid extraneous reallocations.
+    /// This uses `Iterator::size_hint` to predict how many elements are inside
+    /// the iterator, and avoid extraneous reallocations.
     pub fn from_iter<I>(iter: I, wall: &Wall<'c>) -> Self
     where
         I: IntoIterator<Item = T>,
@@ -204,13 +204,14 @@ impl<'c, T> Row<'c, T> {
         Self::from_iter(vec.into_iter(), wall)
     }
 
-    /// Construct a `Row` from an iterator of [`Result`]s, allocating inside the given [`Wall`].
+    /// Construct a `Row` from an iterator of [`Result`]s, allocating inside the
+    /// given [`Wall`].
     ///
-    /// Returns a `Result` of either the collected `Row` or the first error encountered in the
-    /// iterator.
+    /// Returns a `Result` of either the collected `Row` or the first error
+    /// encountered in the iterator.
     ///
-    /// This uses `Iterator::size_hint` to predict how many elements are inside the iterator, and
-    /// avoid extraneous reallocations.
+    /// This uses `Iterator::size_hint` to predict how many elements are inside
+    /// the iterator, and avoid extraneous reallocations.
     pub fn try_from_iter<I, E>(iter: I, wall: &Wall<'c>) -> Result<Self, E>
     where
         I: IntoIterator<Item = Result<T, E>>,
@@ -227,7 +228,8 @@ impl<'c, T> Row<'c, T> {
         Ok(row)
     }
 
-    /// Produce a reference to the data inside the `Row` as a mutable slice, consuming `self`.
+    /// Produce a reference to the data inside the `Row` as a mutable slice,
+    /// consuming `self`.
     pub fn into_slice(self) -> &'c mut [T] {
         // ##Safety: values until self.length are initialised.
         // Also, the slice will live as long as 'c, which might outlive self.
@@ -245,15 +247,18 @@ impl<'c, T: Clone> Row<'c, T> {
         self.iter().cloned().collect()
     }
 
-    /// Clone the data inside `self` into a [`Row`] allocated using the given [`Wall`].
+    /// Clone the data inside `self` into a [`Row`] allocated using the given
+    /// [`Wall`].
     pub fn clone_in<'cc>(&self, wall: &Wall<'cc>) -> Row<'cc, T> {
         Row::from_iter(self.iter().cloned(), wall)
     }
 }
 
-/// A macro to help in the creation of [`Row`] objects. Similar to the [`vec!`] macro.
+/// A macro to help in the creation of [`Row`] objects. Similar to the [`vec!`]
+/// macro.
 ///
-/// Usage is the same as `vec!`, but with an explicit argument providing the [`Wall`] to allocate into.
+/// Usage is the same as `vec!`, but with an explicit argument providing the
+/// [`Wall`] to allocate into.
 ///
 /// # Examples
 ///
@@ -361,7 +366,8 @@ impl<'r, 'c, T> IntoIterator for &'r mut Row<'c, T> {
 
 impl<T> Drop for Row<'_, T> {
     fn drop(&mut self) {
-        // ##Safety: values until self.length are initialised, and ManuallyDrop<T> has the same layout as T.
+        // ##Safety: values until self.length are initialised, and ManuallyDrop<T> has
+        // the same layout as T.
         let data_to_drop = unsafe {
             std::mem::transmute::<&mut [MaybeUninit<ManuallyDrop<T>>], &mut ManuallyDrop<[T]>>(
                 &mut self.data[0..self.length],

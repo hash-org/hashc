@@ -18,8 +18,7 @@ impl Heap {
     pub fn allocate(&mut self, size: u64) -> Pointer {
         let offset = self.values.len();
 
-        self.values
-            .extend(iter::repeat(0).take(size.try_into().unwrap()));
+        self.values.extend(iter::repeat(0).take(size.try_into().unwrap()));
 
         Pointer(offset.try_into().unwrap())
     }

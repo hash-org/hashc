@@ -373,23 +373,26 @@ pub enum Instruction {
     Jmp {
         location: Register,
     },
-    /// Jump if the comparison value yields a '> zero', or in other words the right is greater than left
+    /// Jump if the comparison value yields a '> zero', or in other words the
+    /// right is greater than left
     JmpPos {
         l1: Register,
         location: Register,
     },
-    /// Jump if the comparison value yields a '< zero', or in other words the left is greater than right
+    /// Jump if the comparison value yields a '< zero', or in other words the
+    /// left is greater than right
     JmpNeg {
         l1: Register,
         location: Register,
     },
-    /// Jump if the comparison yields a 'zero', or in other words the left and right are equal
+    /// Jump if the comparison yields a 'zero', or in other words the left and
+    /// right are equal
     JmpZero {
         l1: Register,
         location: Register,
     },
-    /// Compare both values and store the result in `l1`. This will return either a one, zero or negative
-    /// one.
+    /// Compare both values and store the result in `l1`. This will return
+    /// either a one, zero or negative one.
     Cmp {
         l1: Register,
         l2: Register,

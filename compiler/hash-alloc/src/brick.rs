@@ -1,4 +1,5 @@
-//! Contains a [`Box`]-like implementation for allocating values within a [`Wall`].
+//! Contains a [`Box`]-like implementation for allocating values within a
+//! [`Wall`].
 
 use crate::Wall;
 use core::fmt;
@@ -10,20 +11,20 @@ use std::{
 
 /// A [`Box`]-like implementation for allocating values within a [`Wall`].
 ///
-/// This is generic over the castle `'c` lifetime, and implements `Deref<Target=T>`.
+/// This is generic over the castle `'c` lifetime, and implements
+/// `Deref<Target=T>`.
 ///
-/// It should mostly be used in the same way as [`Box`], and is a zero-cost abstraction over a
-/// pointer into the memory arena.
+/// It should mostly be used in the same way as [`Box`], and is a zero-cost
+/// abstraction over a pointer into the memory arena.
 pub struct Brick<'c, T> {
     data: &'c mut ManuallyDrop<T>,
 }
 
 impl<'c, T> Brick<'c, T> {
-    /// Create a new `Brick` within the given [`Wall`], containing the given value.
+    /// Create a new `Brick` within the given [`Wall`], containing the given
+    /// value.
     pub fn new(value: T, wall: &Wall<'c>) -> Self {
-        Self {
-            data: wall.alloc_value(value),
-        }
+        Self { data: wall.alloc_value(value) }
     }
 
     /// Move the value inside this `Brick` out, consuming the brick.
@@ -31,8 +32,8 @@ impl<'c, T> Brick<'c, T> {
     /// This will always perform a bitwise-copy of the data stored in the arena.
     pub fn move_out(self) -> T {
         let no_drop_self = ManuallyDrop::new(self);
-        // ##Safety: this value will never be used again (and no destructors will run), so it is
-        // safe to bitwise copy out of the castle.
+        // ##Safety: this value will never be used again (and no destructors will run),
+        // so it is safe to bitwise copy out of the castle.
         //
         // @@Verify: make sure that this is completely valid in all cases.
         unsafe {

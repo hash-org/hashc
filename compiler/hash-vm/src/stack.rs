@@ -6,8 +6,8 @@ use crate::error::{RuntimeError, RuntimeResult, StackAccessKind};
 /// program.
 #[derive(Debug)]
 pub struct Stack {
-    /// The actual internal data of the stack. Once created, the stack size cannot
-    /// be modified.
+    /// The actual internal data of the stack. Once created, the stack size
+    /// cannot be modified.
     data: Vec<u8>,
     /// The internal representation of where the stack offset is located at.
     stack_pointer: usize,
@@ -16,10 +16,7 @@ pub struct Stack {
 impl Stack {
     /// Create a new stack
     pub fn new(size: usize) -> Self {
-        Stack {
-            data: vec![0; size],
-            stack_pointer: 0,
-        }
+        Stack { data: vec![0; size], stack_pointer: 0 }
     }
 
     /// Method that verifies that a particular call to modify the stack storage
@@ -40,9 +37,7 @@ impl Stack {
     pub fn pop8(&mut self) -> RuntimeResult<&[u8; 1]> {
         self.verify_access(StackAccessKind::Pop, 1)?;
 
-        let value = (&self.data[(self.stack_pointer - 1)..self.stack_pointer])
-            .try_into()
-            .unwrap();
+        let value = (&self.data[(self.stack_pointer - 1)..self.stack_pointer]).try_into().unwrap();
         self.stack_pointer -= 1;
 
         Ok(value)
@@ -52,9 +47,7 @@ impl Stack {
     pub fn pop16(&mut self) -> RuntimeResult<&[u8; 2]> {
         self.verify_access(StackAccessKind::Pop, 2)?;
 
-        let value = (&self.data[(self.stack_pointer - 2)..self.stack_pointer])
-            .try_into()
-            .unwrap();
+        let value = (&self.data[(self.stack_pointer - 2)..self.stack_pointer]).try_into().unwrap();
         self.stack_pointer -= 2;
 
         Ok(value)
@@ -63,9 +56,7 @@ impl Stack {
     pub fn pop32(&mut self) -> RuntimeResult<&[u8; 4]> {
         self.verify_access(StackAccessKind::Pop, 4)?;
 
-        let value = (&self.data[(self.stack_pointer - 4)..self.stack_pointer])
-            .try_into()
-            .unwrap();
+        let value = (&self.data[(self.stack_pointer - 4)..self.stack_pointer]).try_into().unwrap();
         self.stack_pointer -= 4;
 
         Ok(value)
@@ -75,9 +66,7 @@ impl Stack {
     pub fn pop64(&mut self) -> RuntimeResult<&[u8; 8]> {
         self.verify_access(StackAccessKind::Pop, 8)?;
 
-        let value = (&self.data[(self.stack_pointer - 8)..self.stack_pointer])
-            .try_into()
-            .unwrap();
+        let value = (&self.data[(self.stack_pointer - 8)..self.stack_pointer]).try_into().unwrap();
         self.stack_pointer -= 8;
 
         Ok(value)
@@ -87,10 +76,7 @@ impl Stack {
     pub fn push8(&mut self, value: &[u8; 1]) -> RuntimeResult<()> {
         self.verify_access(StackAccessKind::Push, 1)?;
 
-        self.data.splice(
-            self.stack_pointer..(self.stack_pointer + 1),
-            value.iter().copied(),
-        );
+        self.data.splice(self.stack_pointer..(self.stack_pointer + 1), value.iter().copied());
         self.stack_pointer += 1;
         Ok(())
     }
@@ -99,10 +85,7 @@ impl Stack {
     pub fn push16(&mut self, value: &[u8; 2]) -> RuntimeResult<()> {
         self.verify_access(StackAccessKind::Push, 2)?;
 
-        self.data.splice(
-            self.stack_pointer..(self.stack_pointer + 2),
-            value.iter().copied(),
-        );
+        self.data.splice(self.stack_pointer..(self.stack_pointer + 2), value.iter().copied());
         self.stack_pointer += 2;
         Ok(())
     }
@@ -111,10 +94,7 @@ impl Stack {
     pub fn push32(&mut self, value: &[u8; 4]) -> RuntimeResult<()> {
         self.verify_access(StackAccessKind::Push, 4)?;
 
-        self.data.splice(
-            self.stack_pointer..(self.stack_pointer + 4),
-            value.iter().copied(),
-        );
+        self.data.splice(self.stack_pointer..(self.stack_pointer + 4), value.iter().copied());
         self.stack_pointer += 4;
         Ok(())
     }
@@ -123,10 +103,7 @@ impl Stack {
     pub fn push64(&mut self, value: &[u8; 8]) -> RuntimeResult<()> {
         self.verify_access(StackAccessKind::Push, 8)?;
 
-        self.data.splice(
-            self.stack_pointer..(self.stack_pointer + 8),
-            value.iter().copied(),
-        );
+        self.data.splice(self.stack_pointer..(self.stack_pointer + 8), value.iter().copied());
         self.stack_pointer += 8;
         Ok(())
     }

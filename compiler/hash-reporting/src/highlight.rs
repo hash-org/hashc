@@ -27,10 +27,7 @@ impl BitOr<Modifier> for Colour {
     type Output = Decoration;
 
     fn bitor(self, rhs: Modifier) -> Self::Output {
-        Decoration {
-            colour: self,
-            modifier: rhs,
-        }
+        Decoration { colour: self, modifier: rhs }
     }
 }
 
@@ -40,10 +37,7 @@ impl BitOr<Colour> for Modifier {
     type Output = Decoration;
 
     fn bitor(self, rhs: Colour) -> Self::Output {
-        Decoration {
-            colour: rhs,
-            modifier: self,
-        }
+        Decoration { colour: rhs, modifier: self }
     }
 }
 
@@ -82,8 +76,8 @@ impl Highlighter for Modifier {
     }
 }
 
-/// Type that holds the union of a colour and a text modifier. This type is the resultant
-/// type when combining a text colour and a modifier.
+/// Type that holds the union of a colour and a text modifier. This type is the
+/// resultant type when combining a text colour and a modifier.
 pub struct Decoration {
     /// The colour of the decoration.
     pub colour: Colour,
@@ -91,21 +85,17 @@ pub struct Decoration {
     pub modifier: Modifier,
 }
 
-/// Implementation of the [Highlighter] trait for a Decoration. It first applies the
-/// Colour modifier and then the text modifier.
+/// Implementation of the [Highlighter] trait for a Decoration. It first applies
+/// the Colour modifier and then the text modifier.
 impl Highlighter for Decoration {
     fn escape_code(&self) -> String {
-        self.colour
-            .escape_code()
-            .chars()
-            .chain(self.modifier.escape_code().chars())
-            .collect()
+        self.colour.escape_code().chars().chain(self.modifier.escape_code().chars()).collect()
     }
 }
 
-/// General function to apply a highlighter on a string. This will call the provided
-/// [Highlighter] implementation and then apply it to the passed message, resetting the
-/// effect at the end of the message.
+/// General function to apply a highlighter on a string. This will call the
+/// provided [Highlighter] implementation and then apply it to the passed
+/// message, resetting the effect at the end of the message.
 pub fn highlight(highlighter: impl Highlighter, message: impl ToString) -> String {
     const RESET: &str = "\u{001b}[0m";
 

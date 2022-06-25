@@ -39,15 +39,14 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd> {
     }
 }
 
-// Helper for [Simplifier::apply_access_term] erroring for things that do not support accessing:
+// Helper for [Simplifier::apply_access_term] erroring for things that do not
+// support accessing:
 fn does_not_support_access<T>(access_term: &AccessTerm) -> TcResult<T> {
-    Err(TcError::UnsupportedPropertyAccess {
-        name: access_term.name,
-        value: access_term.subject,
-    })
+    Err(TcError::UnsupportedPropertyAccess { name: access_term.name, value: access_term.subject })
 }
 
-// Helper for [Simplifier::apply_access_term] erroring for things that only support namespace access:
+// Helper for [Simplifier::apply_access_term] erroring for things that only
+// support namespace access:
 fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
     match access_term.op {
         AccessOp::Namespace => Ok(()),
@@ -58,7 +57,8 @@ fn does_not_support_prop_access(access_term: &AccessTerm) -> TcResult<()> {
     }
 }
 
-// Helper for [Simplifier::apply_access_term] erroring for things that only support property access:
+// Helper for [Simplifier::apply_access_term] erroring for things that only
+// support property access:
 fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
     match access_term.op {
         AccessOp::Property => Ok(()),
@@ -69,13 +69,11 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
     }
 }
 
-// Helper for [Simplifier::apply_access_term] erroring for name not found in value:
+// Helper for [Simplifier::apply_access_term] erroring for name not found in
+// value:
 fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
     {
-        Err(TcError::UnresolvedNameInValue {
-            name: access_term.name,
-            value: access_term.subject,
-        })
+        Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
     }
 }
 
@@ -94,7 +92,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         Substituter::new(self.storages_mut())
     }
 
-    /// Resolve the given name in the scope with the given [ScopeId], originating from the given value.
+    /// Resolve the given name in the scope with the given [ScopeId],
+    /// originating from the given value.
     ///
     /// Returns the resolved member, or errors if no such member was found.
     fn resolve_name_member_in_scope(
@@ -112,10 +111,11 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Resolve the given name in the scope with the given [ScopeId], originating from the given value.
+    /// Resolve the given name in the scope with the given [ScopeId],
+    /// originating from the given value.
     ///
-    /// Returns [Some] if the member can be resolved with a value, [None] if it cannot because it
-    /// has no value yet.
+    /// Returns [Some] if the member can be resolved with a value, [None] if it
+    /// cannot because it has no value yet.
     fn resolve_name_in_scope(
         &self,
         name: Identifier,
@@ -130,12 +130,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Convert an accessed type (or any other type for that matter) along with a subject type, into a method call type.
+    /// Convert an accessed type (or any other type for that matter) along with
+    /// a subject type, into a method call type.
     ///
-    /// This is done by first ensuring that the accessed type is a function type. Then the first
-    /// argument of the function type (self) is unified with the subject type. If that succeeds, a
-    /// method function type is created, which is the same as the resolved function type without
-    /// the first parameter (with the substitution from the unification applied).
+    /// This is done by first ensuring that the accessed type is a function
+    /// type. Then the first argument of the function type (self) is unified
+    /// with the subject type. If that succeeds, a method function type is
+    /// created, which is the same as the resolved function type without the
+    /// first parameter (with the substitution from the unification applied).
     fn turn_accessed_ty_and_subject_ty_into_method_ty(
         &mut self,
         accessed_ty: TermId,
@@ -150,9 +152,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         match self.validator().term_is_fn_ty(accessed_ty)? {
             Some(fn_ty) if !fn_ty.params.positional().is_empty() => {
                 // Unify the first parameter type with the subject:
-                let sub = self
-                    .unifier()
-                    .unify_terms(subject_ty, fn_ty.params.positional()[0].ty)?;
+                let sub =
+                    self.unifier().unify_terms(subject_ty, fn_ty.params.positional()[0].ty)?;
 
                 // Apply the substitution on the parameters and return type:
                 let subbed_params = self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
@@ -174,9 +175,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Try to access the given `field_name` as a field on the given term, which is the inner type
-    /// of a runtime term. Returns `Some(X)` if found, where X is the runtime term of the result,
-    /// or `None` if not found.
+    /// Try to access the given `field_name` as a field on the given term, which
+    /// is the inner type of a runtime term. Returns `Some(X)` if found,
+    /// where X is the runtime term of the result, or `None` if not found.
     fn access_struct_or_tuple_field(
         &mut self,
         rt_term_ty_id: TermId,
@@ -186,8 +187,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let term = reader.get_term(rt_term_ty_id);
         match term {
             Term::AppSub(app_sub) => {
-                // If a substitution needs to be applied first, then apply it on the result of the
-                // inner recursion:
+                // If a substitution needs to be applied first, then apply it on the result of
+                // the inner recursion:
                 let app_sub = app_sub.clone();
                 let result = self.access_struct_or_tuple_field(app_sub.term, field_name)?;
                 Ok(result.map(|result| self.substituter().apply_sub_to_term(&app_sub.sub, result)))
@@ -203,8 +204,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 Ok(None)
             }
             Term::Level1(level1_term) => {
-                // If it is a struct or a tuple, and the name is resolved in the fields, return the (runtime)
-                // value of the field.
+                // If it is a struct or a tuple, and the name is resolved in the fields, return
+                // the (runtime) value of the field.
                 if let Level1Term::NominalDef(nominal_def_id) = level1_term {
                     let nominal_def = reader.get_nominal_def(*nominal_def_id);
                     if let NominalDef::Struct(struct_def) = nominal_def {
@@ -228,8 +229,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given access, comprising of a name and an operator, to the given [Level0Term], if
-    /// possible, originating from the given [AccessTerm].
+    /// Apply the given access, comprising of a name and an operator, to the
+    /// given [Level0Term], if possible, originating from the given
+    /// [AccessTerm].
     fn apply_access_to_level0_term(
         &mut self,
         term: &Level0Term,
@@ -240,15 +242,16 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Level0Term::Rt(ty_term_id) => {
                 does_not_support_ns_access(access_term)?;
 
-                // First, check if the value is a struct instance, in which case we are accessing one of its members:
+                // First, check if the value is a struct instance, in which case we are
+                // accessing one of its members:
                 if let Some(access_result) =
                     self.access_struct_or_tuple_field(*ty_term_id, access_term.name)?
                 {
                     return Ok(Some(access_result));
                 }
 
-                // If a property access is given, first try to access `ty_term_id` with a namespace
-                // operator, to resolve "method calls":
+                // If a property access is given, first try to access `ty_term_id` with a
+                // namespace operator, to resolve "method calls":
                 let ty_access_result = self.apply_access_term(&AccessTerm {
                     subject: *ty_term_id,
                     name: access_term.name,
@@ -313,7 +316,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                             .fields;
                         match fields.get_by_name(access_term.name) {
                             Some((_, field)) => {
-                                // Field found, now return a Rt(X) of the field type X as the result.
+                                // Field found, now return a Rt(X) of the field type X as the
+                                // result.
                                 let field_ty = field.ty;
                                 Ok(Some(self.builder().create_rt_term(field_ty)))
                             }
@@ -327,8 +331,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given access, comprising of a name and an operator, to the given [Level1Term], if
-    /// possible, originating from the given [AccessTerm].
+    /// Apply the given access, comprising of a name and an operator, to the
+    /// given [Level1Term], if possible, originating from the given
+    /// [AccessTerm].
     fn apply_access_to_level1_term(
         &mut self,
         term: &Level1Term,
@@ -369,7 +374,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         does_not_support_prop_access(access_term)?;
                         match enum_def.variants.get(&access_term.name) {
                             Some(enum_variant) => {
-                                /// Return a term that refers to the variant (level 0)
+                                /// Return a term that refers to the variant
+                                /// (level 0)
                                 let name = enum_variant.name;
                                 Ok(Some(
                                     self.builder()
@@ -386,8 +392,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given access, comprising of a name and an operator, to the given [Level2Term], if
-    /// possible, originating from the given [AccessTerm].
+    /// Apply the given access, comprising of a name and an operator, to the
+    /// given [Level2Term], if possible, originating from the given
+    /// [AccessTerm].
     fn apply_access_to_level2_term(
         &mut self,
         term: &Level2Term,
@@ -418,8 +425,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Apply the given access, comprising of a name and an operator, to the given [Level3Term], if
-    /// possible, originating from the given [AccessTerm].
+    /// Apply the given access, comprising of a name and an operator, to the
+    /// given [Level3Term], if possible, originating from the given
+    /// [AccessTerm].
     fn apply_access_to_level3_term(
         &mut self,
         term: &Level3Term,
@@ -435,15 +443,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         match simplified_subject {
             Term::Merge(terms) => {
-                // Apply the access to each result. If there are multiple results, it means there
-                // is an ambiguity which should be reported.
+                // Apply the access to each result. If there are multiple results, it means
+                // there is an ambiguity which should be reported.
                 let results: Vec<_> = terms
                     .iter()
                     .filter_map(|item| {
-                        let item_access_term = AccessTerm {
-                            subject: *item,
-                            ..*access_term
-                        };
+                        let item_access_term = AccessTerm { subject: *item, ..*access_term };
                         self.apply_access_term(&item_access_term).ok().flatten()
                     })
                     .collect();
@@ -455,23 +460,18 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // We only got a single result, so we can use it:
                     [single_result] => Ok(Some(*single_result)),
                     // Got multiple results, which is ambiguous:
-                    _ => Err(TcError::AmbiguousAccess {
-                        access: access_term.clone(),
-                    }),
+                    _ => Err(TcError::AmbiguousAccess { access: access_term.clone() }),
                 }
             }
             Term::AppSub(app_sub) => {
                 // Apply the access on the subject:
-                let inner_applied_term = self.apply_access_term(&AccessTerm {
-                    subject: app_sub.term,
-                    ..*access_term
-                })?;
+                let inner_applied_term =
+                    self.apply_access_term(&AccessTerm { subject: app_sub.term, ..*access_term })?;
                 match inner_applied_term {
                     Some(inner_applied_term) => {
                         // Successful access operation, apply the substitution on the result:
                         Ok(Some(
-                            self.substituter()
-                                .apply_sub_to_term(&app_sub.sub, inner_applied_term),
+                            self.substituter().apply_sub_to_term(&app_sub.sub, inner_applied_term),
                         ))
                     }
                     None => Ok(None), // Access resulted in no change
@@ -510,14 +510,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         // Helper for errors:
         let cannot_apply = || -> TcResult<Option<TermId>> {
-            Err(TcError::UnsupportedTypeFunctionApplication {
-                subject_id: simplified_subject_id,
-            })
+            Err(TcError::UnsupportedTypeFunctionApplication { subject_id: simplified_subject_id })
         };
         match simplified_subject {
             Term::TyFn(ty_fn) => {
-                // Keep track of encountered errors so that if no cases match, we can return all of
-                // them.
+                // Keep track of encountered errors so that if no cases match, we can return all
+                // of them.
                 let mut errors = vec![];
                 let mut results = vec![];
 
@@ -530,16 +528,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Try to match each of the cases:
                 for case in &ty_fn.cases {
-                    match self
-                        .unifier()
-                        .unify_params_with_args(&case.params, &apply_ty_fn.args)
-                    {
+                    match self.unifier().unify_params_with_args(&case.params, &apply_ty_fn.args) {
                         Ok(sub) => {
                             // Successful, add the return value to result, subbed with the
                             // substitution, and continue:
                             results.push(
-                                self.substituter()
-                                    .apply_sub_to_term(&sub, case.return_value),
+                                self.substituter().apply_sub_to_term(&sub, case.return_value),
                             );
                         }
                         Err(err) => {
@@ -568,7 +562,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
-                // @@Enhancement: here we can unify the unresolved term with a type function term ?
+                // @@Enhancement: here we can unify the unresolved term with a type function
+                // term ?
                 cannot_apply()
             }
             Term::Merge(_) => {
@@ -595,7 +590,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Simplify the given term, just returning the original if no simplification occurred.
+    /// Simplify the given term, just returning the original if no
+    /// simplification occurred.
     pub fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
@@ -604,21 +600,21 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     pub fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
         match term {
             // For Rt(..), try to simplify the inner term:
-            Level0Term::Rt(inner) => Ok(self
-                .simplify_term(*inner)?
-                .map(|result| self.builder().create_rt_term(result))),
+            Level0Term::Rt(inner) => {
+                Ok(self.simplify_term(*inner)?.map(|result| self.builder().create_rt_term(result)))
+            }
             Level0Term::FnLit(fn_lit) => {
                 // For FnLit(..), simplify the inner terms:
                 let simplified_fn_ty = self.simplify_term(fn_lit.fn_ty)?;
                 let simplified_return_value = self.simplify_term(fn_lit.return_value)?;
                 match (simplified_fn_ty, simplified_return_value) {
                     (None, None) => Ok(None),
-                    _ => Ok(Some(self.builder().create_term(Term::Level0(
-                        Level0Term::FnLit(FnLit {
+                    _ => Ok(Some(self.builder().create_term(Term::Level0(Level0Term::FnLit(
+                        FnLit {
                             fn_ty: simplified_fn_ty.unwrap_or(fn_lit.fn_ty),
                             return_value: simplified_return_value.unwrap_or(fn_lit.return_value),
-                        }),
-                    )))),
+                        },
+                    ))))),
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),
@@ -633,10 +629,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 // Simplify each inner type
                 let simplified_members = self.simplify_params(&tuple_ty.members)?;
                 Ok(simplified_members.map(|simplified_members| {
-                    self.builder()
-                        .create_term(Term::Level1(Level1Term::Tuple(TupleTy {
-                            members: simplified_members,
-                        })))
+                    self.builder().create_term(Term::Level1(Level1Term::Tuple(TupleTy {
+                        members: simplified_members,
+                    })))
                 }))
             }
             Level1Term::Fn(fn_ty) => {
@@ -646,12 +641,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let simplified_return_ty = self.simplify_term(fn_ty.return_ty)?;
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
-                    _ => Ok(Some(self.builder().create_term(Term::Level1(
-                        Level1Term::Fn(FnTy {
-                            params: simplified_params.unwrap_or_else(|| fn_ty.params.clone()),
-                            return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
-                        }),
-                    )))),
+                    _ => Ok(Some(self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
+                        params: simplified_params.unwrap_or_else(|| fn_ty.params.clone()),
+                        return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
+                    }))))),
                 }
             }
         }
@@ -745,7 +738,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
     /// Simplify the given term, if possible.
     ///
-    /// This does not perform all validity checks, some are performed by [Typer], and all are by [Validator].
+    /// This does not perform all validity checks, some are performed by
+    /// [Typer], and all are by [Validator].
     pub fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
         // @@Performance: we can cache the result of the simplification in a hashmap.
         let value = self.reader().get_term(term_id).clone();
@@ -801,8 +795,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::AppSub(apply_sub) => Ok(Some(
                 // @@Performance: add Option<_> to the substituter to return
                 // terms which don't have the variables in them.
-                self.substituter()
-                    .apply_sub_to_term(&apply_sub.sub, apply_sub.term),
+                self.substituter().apply_sub_to_term(&apply_sub.sub, apply_sub.term),
             )),
             Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
@@ -810,10 +803,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             // because it is unset:
             Term::Var(var) => {
                 // First resolve the name:
-                let maybe_resolved_term_id = self
-                    .scope_resolver()
-                    .resolve_name_in_scopes(var.name)?
-                    .value;
+                let maybe_resolved_term_id =
+                    self.scope_resolver().resolve_name_in_scopes(var.name)?.value;
                 // Try to simplify it
                 if let Some(resolved_term_id) = maybe_resolved_term_id {
                     Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
@@ -838,11 +829,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         let simplified_return_ty = self.simplify_term(case.return_ty)?;
                         let simplified_return_value = self.simplify_term(case.return_value)?;
                         // A case is simplified if any of its constituents is simplified:
-                        match (
-                            &simplified_params,
-                            simplified_return_ty,
-                            simplified_return_value,
-                        ) {
+                        match (&simplified_params, simplified_return_ty, simplified_return_value) {
                             (None, None, None) => Ok(None),
                             _ => Ok(Some(TyFnCase {
                                 params: simplified_params.unwrap_or_else(|| case.params.clone()),
@@ -881,7 +868,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 }
             }
             Term::TyFnTy(ty_fn_ty) => {
-                // Simplify params and return, and if either is simplified, the whole term is simplified.
+                // Simplify params and return, and if either is simplified, the whole term is
+                // simplified.
                 let simplified_params = self.simplify_params(&ty_fn_ty.params)?;
                 let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
                 match (&simplified_params, simplified_return_ty) {
@@ -998,9 +986,6 @@ mod test_super {
             .unwrap();
 
         println!("{}", dog_hash.for_formatting(storage_ref.global_storage()));
-        println!(
-            "{}",
-            dog_hash_simplified.for_formatting(storage_ref.global_storage())
-        );
+        println!("{}", dog_hash_simplified.for_formatting(storage_ref.global_storage()));
     }
 }

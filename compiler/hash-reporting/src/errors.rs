@@ -4,7 +4,8 @@ use thiserror::Error;
 
 use crate::highlight::{highlight, Colour, Modifier};
 
-/// Enum representing the variants of error that can occur when running an interactive session
+/// Enum representing the variants of error that can occur when running an
+/// interactive session
 #[derive(Error, Debug)]
 pub enum InteractiveCommandError {
     /// Encountering an unknown command.

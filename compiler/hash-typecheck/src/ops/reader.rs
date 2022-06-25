@@ -1,4 +1,5 @@
-//! Contains helpers to read various things stored in [crate::storage] with ease.
+//! Contains helpers to read various things stored in [crate::storage] with
+//! ease.
 use hash_source::SourceId;
 
 use crate::storage::{
@@ -8,7 +9,8 @@ use crate::storage::{
     GlobalStorage,
 };
 
-/// Helper to read various primitive constructions (from [crate::storage::primitives]).
+/// Helper to read various primitive constructions (from
+/// [crate::storage::primitives]).
 pub struct PrimitiveReader<'gs> {
     gs: &'gs GlobalStorage,
 }
@@ -49,7 +51,8 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.trt_def_store.get(trt_def_id)
     }
 
-    /// Get the module definition ID of the given source, if it has already been checked.
+    /// Get the module definition ID of the given source, if it has already been
+    /// checked.
     pub fn get_source_term(&self, source_id: SourceId) -> Option<ModDefId> {
         self.gs.checked_sources.source_type_id(source_id)
     }

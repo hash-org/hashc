@@ -1,5 +1,5 @@
-//! Self hosted hash parser, this function contains the implementations for `hash-ast`
-//! which provides a general interface to write a parser.
+//! Self hosted hash parser, this function contains the implementations for
+//! `hash-ast` which provides a general interface to write a parser.
 #![feature(cell_update)]
 #![feature(is_some_with)]
 
@@ -10,35 +10,25 @@ mod source;
 use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast;
 use hash_lexer::Lexer;
-use hash_pipeline::sources::{Module, Sources};
-use hash_pipeline::{traits::Parser, CompilerResult};
+use hash_pipeline::{
+    sources::{Module, Sources},
+    traits::Parser,
+    CompilerResult,
+};
 use hash_reporting::report::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};
 use source::ParseSource;
-use std::env;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 #[derive(Debug)]
 pub enum ParserAction {
     Error(ParseError),
-    ParseImport {
-        resolved_path: PathBuf,
-        sender: Sender<ParserAction>,
-    },
-    SetInteractiveInfo {
-        interactive_id: InteractiveId,
-        node: ast::AstNode<ast::BodyBlock>,
-    },
-    SetModuleNode {
-        module_id: ModuleId,
-        node: ast::AstNode<ast::Module>,
-    },
-    SetModuleContents {
-        module_id: ModuleId,
-        contents: String,
-    },
+    ParseImport { resolved_path: PathBuf, sender: Sender<ParserAction> },
+    SetInteractiveInfo { interactive_id: InteractiveId, node: ast::AstNode<ast::BodyBlock> },
+    SetModuleNode { module_id: ModuleId, node: ast::AstNode<ast::Module> },
+    SetModuleContents { module_id: ModuleId, contents: String },
 }
 
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
@@ -57,10 +47,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // We need to send the source either way
     if let SourceId::Module(module_id) = source_id {
         sender
-            .send(ParserAction::SetModuleContents {
-                contents: contents.to_string(),
-                module_id,
-            })
+            .send(ParserAction::SetModuleContents { contents: contents.to_string(), module_id })
             .unwrap();
     }
 
@@ -78,18 +65,14 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let action = match &source {
         ParseSource::Module { module_id, .. } => match gen.parse_module() {
             Err(err) => ParserAction::Error(err.into()),
-            Ok(node) => ParserAction::SetModuleNode {
-                module_id: *module_id,
-                node,
-            },
+            Ok(node) => ParserAction::SetModuleNode { module_id: *module_id, node },
         },
         ParseSource::Interactive { interactive_id, .. } => {
             match gen.parse_expression_from_interactive() {
                 Err(err) => ParserAction::Error(err.into()),
-                Ok(node) => ParserAction::SetInteractiveInfo {
-                    interactive_id: *interactive_id,
-                    node,
-                },
+                Ok(node) => {
+                    ParserAction::SetInteractiveInfo { interactive_id: *interactive_id, node }
+                }
             }
         }
     };
@@ -123,10 +106,7 @@ impl<'pool> HashParser {
         let mut errors = Vec::new();
         let (sender, receiver) = unbounded::<ParserAction>();
 
-        assert!(
-            pool.current_num_threads() > 1,
-            "Parser loop requires at least 2 workers"
-        );
+        assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
 
         // Parse the entry point
         let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);
@@ -135,18 +115,10 @@ impl<'pool> HashParser {
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    ParserAction::SetInteractiveInfo {
-                        interactive_id,
-                        node,
-                    } => {
-                        sources
-                            .get_interactive_block_mut(interactive_id)
-                            .set_node(node);
+                    ParserAction::SetInteractiveInfo { interactive_id, node } => {
+                        sources.get_interactive_block_mut(interactive_id).set_node(node);
                     }
-                    ParserAction::SetModuleContents {
-                        module_id,
-                        contents,
-                    } => {
+                    ParserAction::SetModuleContents { module_id, contents } => {
                         let module = sources.get_module_mut(module_id);
                         module.set_contents(contents);
                     }
@@ -154,10 +126,7 @@ impl<'pool> HashParser {
                         let module = sources.get_module_mut(module_id);
                         module.set_node(node);
                     }
-                    ParserAction::ParseImport {
-                        resolved_path,
-                        sender,
-                    } => {
+                    ParserAction::ParseImport { resolved_path, sender } => {
                         if sources.get_module_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
@@ -184,9 +153,8 @@ impl<'pool> Parser<'pool> for HashParser {
         sources: &mut Sources,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
-        let current_dir = env::current_dir()
-            .map_err(ParseError::from)
-            .map_err(|err| vec![Report::from(err)])?;
+        let current_dir =
+            env::current_dir().map_err(ParseError::from).map_err(|err| vec![Report::from(err)])?;
         let errors = self.parse_main(sources, target, current_dir, pool);
 
         // @@Todo: merge errors

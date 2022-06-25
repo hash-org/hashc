@@ -1,26 +1,22 @@
 //! AST visualisation utilities.
 
-use std::convert::Infallible;
-use std::iter;
+use std::{convert::Infallible, iter};
 
 use hash_utils::tree_writing::TreeNode;
 
-use crate::{ast, visitor::walk, visitor::AstVisitor};
+use crate::{
+    ast,
+    visitor::{walk, AstVisitor},
+};
 
-/// Struct implementing [AstVisitor], for the purpose of transforming the AST tree into a
-/// [TreeNode] tree, for visualisation purposes.
+/// Struct implementing [AstVisitor], for the purpose of transforming the AST
+/// tree into a [TreeNode] tree, for visualisation purposes.
 pub struct AstTreeGenerator;
 
-/// Easy way to format a [TreeNode] label with a main label as well as short contents, and a
-/// quoting string.
+/// Easy way to format a [TreeNode] label with a main label as well as short
+/// contents, and a quoting string.
 fn labelled(label: impl ToString, contents: impl ToString, quote_str: &str) -> String {
-    format!(
-        "{} {}{}{}",
-        label.to_string(),
-        quote_str,
-        contents.to_string(),
-        quote_str
-    )
+    format!("{} {}{}{}", label.to_string(), quote_str, contents.to_string(), quote_str)
 }
 
 impl AstVisitor for AstTreeGenerator {
@@ -61,11 +57,7 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::AccessName>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(TreeNode::leaf(
-            node.path
-                .iter()
-                .map(|p| (*p.body()).into())
-                .intersperse("::")
-                .collect::<String>(),
+            node.path.iter().map(|p| (*p.body()).into()).intersperse("::").collect::<String>(),
         ))
     }
 
@@ -112,10 +104,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
 
-        Ok(TreeNode::branch(
-            labelled("directive", node.name.ident, "\""),
-            vec![subject],
-        ))
+        Ok(TreeNode::branch(labelled("directive", node.name.ident, "\""), vec![subject]))
     }
 
     type ConstructorCallArgRet = TreeNode;
@@ -149,10 +138,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
         Ok(TreeNode::branch(
             "args",
-            walk::walk_constructor_call_args(self, ctx, node)?
-                .entries
-                .into_iter()
-                .collect(),
+            walk::walk_constructor_call_args(self, ctx, node)?.entries.into_iter().collect(),
         ))
     }
 
@@ -197,10 +183,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        let walk::RefExpr {
-            inner_expr,
-            mutability,
-        } = walk::walk_ref_expr(self, ctx, node)?;
+        let walk::RefExpr { inner_expr, mutability } = walk::walk_ref_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "ref",
             iter::once(inner_expr)
@@ -248,10 +231,7 @@ impl AstVisitor for AstTreeGenerator {
         let walk::AsExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "typed_expr",
-            vec![
-                TreeNode::branch("subject", vec![expr]),
-                TreeNode::branch("type", vec![ty]),
-            ],
+            vec![TreeNode::branch("subject", vec![expr]), TreeNode::branch("type", vec![ty])],
         ))
     }
 
@@ -295,10 +275,7 @@ impl AstVisitor for AstTreeGenerator {
         if let Some(name) = name {
             Ok(TreeNode::branch(
                 "field",
-                vec![
-                    TreeNode::branch("name", vec![name]),
-                    TreeNode::branch("type", vec![ty]),
-                ],
+                vec![TreeNode::branch("name", vec![name]), TreeNode::branch("type", vec![ty])],
             ))
         } else {
             Ok(ty)
@@ -357,10 +334,7 @@ impl AstVisitor for AstTreeGenerator {
 
         Ok(TreeNode::branch(
             "map",
-            vec![
-                TreeNode::branch("key", vec![key]),
-                TreeNode::branch("key", vec![value]),
-            ],
+            vec![TreeNode::branch("key", vec![key]), TreeNode::branch("key", vec![value])],
         ))
     }
 
@@ -403,11 +377,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::RefTypeRet, Self::Error> {
         let walk::RefType { inner, mutability } = walk::walk_ref_type(self, ctx, node)?;
 
-        let label = if node
-            .kind
-            .as_ref()
-            .map_or(false, |t| *t.body() == ast::RefKind::Raw)
-        {
+        let label = if node.kind.as_ref().map_or(false, |t| *t.body() == ast::RefKind::Raw) {
             "raw_ref"
         } else {
             "ref"
@@ -442,10 +412,7 @@ impl AstVisitor for AstTreeGenerator {
 
         Ok(TreeNode::branch(
             "type_function_call",
-            vec![
-                TreeNode::branch("subject", vec![subject]),
-                TreeNode::branch("arguments", args),
-            ],
+            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("arguments", args)],
         ))
     }
 
@@ -455,11 +422,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionParam>,
     ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
-        let walk::TypeFunctionParam {
-            name,
-            bound,
-            default,
-        } = walk::walk_type_function_param(self, ctx, node)?;
+        let walk::TypeFunctionParam { name, bound, default } =
+            walk::walk_type_function_param(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "arg",
@@ -497,10 +461,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MapLiteral>,
     ) -> Result<Self::MapLiteralRet, Self::Error> {
-        Ok(TreeNode::branch(
-            "map",
-            walk::walk_map_literal(self, ctx, node)?.entries,
-        ))
+        Ok(TreeNode::branch("map", walk::walk_map_literal(self, ctx, node)?.entries))
     }
 
     type MapLiteralEntryRet = TreeNode;
@@ -512,10 +473,7 @@ impl AstVisitor for AstTreeGenerator {
         let walk::MapLiteralEntry { key, value } = walk::walk_map_literal_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
             "entry",
-            vec![
-                TreeNode::branch("key", vec![key]),
-                TreeNode::branch("value", vec![value]),
-            ],
+            vec![TreeNode::branch("key", vec![key]), TreeNode::branch("value", vec![value])],
         ))
     }
 
@@ -619,11 +577,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error> {
-        let walk::FunctionDef {
-            args,
-            fn_body,
-            return_ty,
-        } = walk::walk_function_def(self, ctx, node)?;
+        let walk::FunctionDef { args, fn_body, return_ty } =
+            walk::walk_function_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "function_def",
@@ -667,10 +622,7 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
         let walk::MatchCase { expr, pattern } = walk::walk_match_case(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "case",
-            vec![pattern, TreeNode::branch("branch", vec![expr])],
-        ))
+        Ok(TreeNode::branch("case", vec![pattern, TreeNode::branch("branch", vec![expr])]))
     }
 
     type MatchBlockRet = TreeNode;
@@ -683,10 +635,7 @@ impl AstVisitor for AstTreeGenerator {
 
         Ok(TreeNode::branch(
             "match",
-            vec![
-                TreeNode::branch("subject", vec![subject]),
-                TreeNode::branch("cases", cases),
-            ],
+            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("cases", cases)],
         ))
     }
 
@@ -706,11 +655,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ForLoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
-        let walk::ForLoopBlock {
-            pattern,
-            iterator,
-            body,
-        } = walk::walk_for_loop_block(self, ctx, node)?;
+        let walk::ForLoopBlock { pattern, iterator, body } =
+            walk::walk_for_loop_block(self, ctx, node)?;
 
         Ok(TreeNode::branch("for_loop", vec![pattern, iterator, body]))
     }
@@ -877,10 +823,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error> {
-        let walk::MergeDeclaration {
-            decl: pattern,
-            value,
-        } = walk::walk_merge_declaration(self, ctx, node)?;
+        let walk::MergeDeclaration { decl: pattern, value } =
+            walk::walk_merge_declaration(self, ctx, node)?;
 
         Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
@@ -912,10 +856,7 @@ impl AstVisitor for AstTreeGenerator {
         let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
             "assign",
-            vec![
-                TreeNode::branch("lhs", vec![lhs]),
-                TreeNode::branch("rhs", vec![rhs]),
-            ],
+            vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
         ))
     }
 
@@ -931,11 +872,7 @@ impl AstVisitor for AstTreeGenerator {
 
         Ok(TreeNode::branch(
             "binary_expr",
-            vec![
-                operator,
-                TreeNode::branch("lhs", vec![lhs]),
-                TreeNode::branch("rhs", vec![rhs]),
-            ],
+            vec![operator, TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
         ))
     }
 
@@ -948,10 +885,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
         let walk::UnaryExpression { operator, expr } = walk::walk_unary_expr(self, ctx, node)?;
 
-        Ok(TreeNode::branch(
-            "unary_expr",
-            vec![operator, TreeNode::branch("expr", vec![expr])],
-        ))
+        Ok(TreeNode::branch("unary_expr", vec![operator, TreeNode::branch("expr", vec![expr])]))
     }
 
     type IndexExpressionRet = TreeNode;
@@ -961,10 +895,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IndexExpression>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
-        let walk::IndexExpr {
-            subject,
-            index_expr,
-        } = walk::walk_index_expr(self, ctx, node)?;
+        let walk::IndexExpr { subject, index_expr } = walk::walk_index_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "index",
@@ -985,11 +916,7 @@ impl AstVisitor for AstTreeGenerator {
             walk::walk_assign_op_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
             "assign",
-            vec![
-                operator,
-                TreeNode::branch("lhs", vec![lhs]),
-                TreeNode::branch("rhs", vec![rhs]),
-            ],
+            vec![operator, TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
         ))
     }
 
@@ -1057,10 +984,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::TraitDefRet, Self::Error> {
         let walk::TraitDef { members } = walk::walk_trait_def(self, ctx, node)?;
 
-        Ok(TreeNode::branch(
-            "trait_def",
-            vec![TreeNode::branch("members", members)],
-        ))
+        Ok(TreeNode::branch("trait_def", vec![TreeNode::branch("members", members)]))
     }
 
     type TraitImplRet = TreeNode;
@@ -1070,10 +994,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let walk::TraitImpl {
-            implementation,
-            ty: name,
-        } = walk::walk_trait_impl(self, ctx, node)?;
+        let walk::TraitImpl { implementation, ty: name } = walk::walk_trait_impl(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "trait_impl",
@@ -1096,11 +1017,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::TypeFunctionDef {
-            args,
-            return_ty,
-            expression,
-        } = walk::walk_type_function_def(self, ctx, node)?;
+        let walk::TypeFunctionDef { args, return_ty, expression } =
+            walk::walk_type_function_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
@@ -1120,10 +1038,7 @@ impl AstVisitor for AstTreeGenerator {
         let walk::TypeFunctionDefArg { name, ty } =
             walk::walk_type_function_def_arg(self, ctx, node)?;
 
-        Ok(TreeNode::branch(
-            "arg",
-            iter::once(name).chain(ty).collect(),
-        ))
+        Ok(TreeNode::branch("arg", iter::once(name).chain(ty).collect()))
     }
 
     type ConstructorPatternRet = TreeNode;
@@ -1152,10 +1067,7 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::NamespacePattern>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
         let walk::NamespacePattern { patterns } = walk::walk_namespace_pattern(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "namespace",
-            vec![TreeNode::branch("members", patterns)],
-        ))
+        Ok(TreeNode::branch("namespace", vec![TreeNode::branch("members", patterns)]))
     }
 
     type TuplePatternEntryRet = TreeNode;
@@ -1334,10 +1246,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
         let walk::DestructuringPattern { name, pattern } =
             walk::walk_destructuring_pattern(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            labelled("binding", name.label, "\""),
-            vec![pattern],
-        ))
+        Ok(TreeNode::branch(labelled("binding", name.label, "\""), vec![pattern]))
     }
 
     type ModuleRet = TreeNode;

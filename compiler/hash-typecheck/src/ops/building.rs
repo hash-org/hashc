@@ -1,5 +1,5 @@
-//! Contains helper structures to create complex types and values without having to manually call
-//! the corresponding stores.
+//! Contains helper structures to create complex types and values without having
+//! to manually call the corresponding stores.
 use crate::storage::{
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, EnumVariantValue,
@@ -13,7 +13,8 @@ use crate::storage::{
 use hash_source::identifier::Identifier;
 use std::cell::{Cell, RefCell};
 
-/// Helper to create various primitive constructions (from [crate::storage::primitives]).
+/// Helper to create various primitive constructions (from
+/// [crate::storage::primitives]).
 ///
 /// Optionally adds the constructions to a scope, if given.
 pub struct PrimitiveBuilder<'gs> {
@@ -29,27 +30,20 @@ pub struct PrimitiveBuilder<'gs> {
 impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a new [PrimitiveBuilder] with a given scope.
     pub fn new(gs: &'gs mut GlobalStorage) -> Self {
-        Self {
-            gs: RefCell::new(gs),
-            scope: Cell::new(None),
-        }
+        Self { gs: RefCell::new(gs), scope: Cell::new(None) }
     }
 
     /// Create a new [PrimitiveBuilder] with a given scope.
     ///
-    /// This adds every constructed item into the scope with their given names (if any).
+    /// This adds every constructed item into the scope with their given names
+    /// (if any).
     pub fn new_with_scope(gs: &'gs mut GlobalStorage, scope: ScopeId) -> Self {
-        Self {
-            gs: RefCell::new(gs),
-            scope: Cell::new(Some(scope)),
-        }
+        Self { gs: RefCell::new(gs), scope: Cell::new(Some(scope)) }
     }
 
     /// Create a variable with the given name.
     pub fn create_var(&self, var_name: impl Into<Identifier>) -> Var {
-        Var {
-            name: var_name.into(),
-        }
+        Var { name: var_name.into() }
     }
 
     /// Create a variable with the given name, in the form of a [Term::Var].
@@ -75,7 +69,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.add_pub_member_to_scope(name, def_ty, def_value);
     }
 
-    /// Create a named module definition with the given name, members, and origin.
+    /// Create a named module definition with the given name, members, and
+    /// origin.
     ///
     /// This adds the name to the scope.
     pub fn create_named_mod_def(
@@ -98,7 +93,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_mod_def(Option::<Identifier>::None, origin, members, bound_vars)
     }
 
-    /// Create a module definition with the given optional name, members, and origin.
+    /// Create a module definition with the given optional name, members, and
+    /// origin.
     pub fn create_mod_def(
         &self,
         name: Option<impl Into<Identifier>>,
@@ -124,15 +120,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
-        let def_id = self
-            .gs
-            .borrow_mut()
-            .nominal_def_store
-            .create(NominalDef::Struct(StructDef {
-                name: None,
-                fields: StructFields::Opaque,
-                bound_vars: bound_vars.into_iter().collect(),
-            }));
+        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+            name: None,
+            fields: StructFields::Opaque,
+            bound_vars: bound_vars.into_iter().collect(),
+        }));
         def_id
     }
 
@@ -145,15 +137,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = struct_name.into();
-        let def_id = self
-            .gs
-            .borrow_mut()
-            .nominal_def_store
-            .create(NominalDef::Struct(StructDef {
-                name: Some(name),
-                fields: StructFields::Opaque,
-                bound_vars: bound_vars.into_iter().collect(),
-            }));
+        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+            name: Some(name),
+            fields: StructFields::Opaque,
+            bound_vars: bound_vars.into_iter().collect(),
+        }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
     }
@@ -168,15 +156,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = struct_name.into();
-        let def_id = self
-            .gs
-            .borrow_mut()
-            .nominal_def_store
-            .create(NominalDef::Struct(StructDef {
-                name: Some(name),
-                fields: StructFields::Explicit(ParamList::new(fields.into_iter().collect())),
-                bound_vars: bound_vars.into_iter().collect(),
-            }));
+        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+            name: Some(name),
+            fields: StructFields::Explicit(ParamList::new(fields.into_iter().collect())),
+            bound_vars: bound_vars.into_iter().collect(),
+        }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
     }
@@ -199,10 +183,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         name: impl Into<Identifier>,
         fields: impl IntoIterator<Item = Param>,
     ) -> EnumVariant {
-        EnumVariant {
-            name: name.into(),
-            fields: ParamList::new(fields.into_iter().collect()),
-        }
+        EnumVariant { name: name.into(), fields: ParamList::new(fields.into_iter().collect()) }
     }
 
     /// Create an enum with the given name and variants.
@@ -215,18 +196,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = enum_name.into();
-        let def_id = self
-            .gs
-            .borrow_mut()
-            .nominal_def_store
-            .create(NominalDef::Enum(EnumDef {
-                name: Some(name),
-                variants: variants
-                    .into_iter()
-                    .map(|variant| (variant.name, variant))
-                    .collect(),
-                bound_vars: bound_vars.into_iter().collect(),
-            }));
+        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Enum(EnumDef {
+            name: Some(name),
+            variants: variants.into_iter().map(|variant| (variant.name, variant)).collect(),
+            bound_vars: bound_vars.into_iter().collect(),
+        }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
     }
@@ -241,7 +215,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
-    /// Create a [Term::Access] with the given subject and name, and namespace operator.
+    /// Create a [Term::Access] with the given subject and name, and namespace
+    /// operator.
     pub fn create_ns_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
             subject: subject_id,
@@ -250,7 +225,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }))
     }
 
-    /// Create a [Term::Access] with the given subject and name, and property operator.
+    /// Create a [Term::Access] with the given subject and name, and property
+    /// operator.
     pub fn create_prop_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {
         self.create_term(Term::Access(AccessTerm {
             subject: subject_id,
@@ -330,12 +306,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
     }
 
-    /// Create a [Level0Term::FnLit] of the given function type and return value.
+    /// Create a [Level0Term::FnLit] of the given function type and return
+    /// value.
     pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
-        self.create_term(Term::Level0(Level0Term::FnLit(FnLit {
-            fn_ty,
-            return_value,
-        })))
+        self.create_term(Term::Level0(Level0Term::FnLit(FnLit { fn_ty, return_value })))
     }
 
     /// Create a [ParamList<T>] from the given set of items.
@@ -348,11 +322,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a parameter with the given name and type.
     pub fn create_param(&self, name: impl Into<Identifier>, ty: TermId) -> Param {
-        Param {
-            name: Some(name.into()),
-            ty,
-            default_value: None,
-        }
+        Param { name: Some(name.into()), ty, default_value: None }
     }
 
     /// Create a term with the given term value.
@@ -360,7 +330,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.gs.borrow_mut().term_store.create(term)
     }
 
-    /// Create a [Level1Term::Fn] term with the given parameters and return type.
+    /// Create a [Level1Term::Fn] term with the given parameters and return
+    /// type.
     pub fn create_fn_ty_term(
         &self,
         params: impl IntoIterator<Item = Param>,
@@ -382,8 +353,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.gs.borrow_mut().scope_store.create(scope)
     }
 
-    /// Create a [Scope] of kind [ScopeKind::Constant] from the given members, returning a
-    /// [ScopeId].
+    /// Create a [Scope] of kind [ScopeKind::Constant] from the given members,
+    /// returning a [ScopeId].
     pub fn create_constant_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
         self.create_scope(Scope::new(ScopeKind::Constant, members))
     }
@@ -429,7 +400,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Level1(Level1Term::ModDef(mod_def_id)))
     }
 
-    /// Create a type function type term with the given name, parameters, and return type.
+    /// Create a type function type term with the given name, parameters, and
+    /// return type.
     pub fn create_ty_fn_ty_term(
         &self,
         params: impl IntoIterator<Item = Param>,
@@ -440,7 +412,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::TyFnTy(ty_fn))
     }
 
-    /// Create a nameless type function term with parameters, return type and value.
+    /// Create a nameless type function term with parameters, return type and
+    /// value.
     ///
     /// This adds the name to the scope.
     pub fn create_nameless_ty_fn_term(
@@ -452,7 +425,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_ty_fn_term(Option::<Identifier>::None, params, return_ty, return_value)
     }
 
-    /// Create a named type function term with parameters, return type and value.
+    /// Create a named type function term with parameters, return type and
+    /// value.
     ///
     /// This adds the name to the scope.
     pub fn create_named_ty_fn_term(
@@ -465,8 +439,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_ty_fn_term(Some(name), params, return_ty, return_value)
     }
 
-    /// Create a type function term with the given optional name, parameters, return type and
-    /// value.
+    /// Create a type function term with the given optional name, parameters,
+    /// return type and value.
     ///
     /// This adds the name to the scope.
     pub fn create_ty_fn_term(
@@ -482,11 +456,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             name,
             general_params: params.clone(),
             general_return_ty: return_ty,
-            cases: vec![TyFnCase {
-                params: params.clone(),
-                return_ty,
-                return_value,
-            }],
+            cases: vec![TyFnCase { params: params.clone(), return_ty, return_value }],
         };
         let ty_fn_id = self.create_term(Term::TyFn(ty_fn));
         let ty_fn_ty_id = self.create_term(Term::TyFnTy(TyFnTy { params, return_ty }));
@@ -496,16 +466,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty_fn_id
     }
 
-    /// Create a type function application, given type function value and arguments.
+    /// Create a type function application, given type function value and
+    /// arguments.
     pub fn create_app_ty_fn(
         &self,
         subject: TermId,
         args: impl IntoIterator<Item = Arg>,
     ) -> AppTyFn {
-        AppTyFn {
-            args: Args::new(args.into_iter().collect()),
-            subject,
-        }
+        AppTyFn { args: Args::new(args.into_iter().collect()), subject }
     }
 
     /// Create a new unresolved term value, of type [Term::Unresolved].
@@ -519,9 +487,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Unresolved(self.create_unresolved()))
     }
 
-    /// Create a substitution application term, given a substitution and inner term.
+    /// Create a substitution application term, given a substitution and inner
+    /// term.
     ///
-    /// If no elements exist in the substitution, returns the term itself without wrapping it.
+    /// If no elements exist in the substitution, returns the term itself
+    /// without wrapping it.
     pub fn create_app_sub_term(&self, sub: Sub, term: TermId) -> TermId {
         if sub.map().is_empty() {
             term
@@ -532,13 +502,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create an argument with the given name and value.
     pub fn create_arg(&self, name: impl Into<Identifier>, value: TermId) -> Arg {
-        Arg {
-            name: Some(name.into()),
-            value,
-        }
+        Arg { name: Some(name.into()), value }
     }
 
-    /// Create a type function application type, given type function value and arguments.
+    /// Create a type function application type, given type function value and
+    /// arguments.
     ///
     /// This calls [Self::create_app_ty_fn], so its conditions apply here.
     pub fn create_app_ty_fn_term(

@@ -5,23 +5,26 @@ use std::convert::Infallible;
 
 /// The main visitor trait for [crate::ast] nodes.
 ///
-/// This contains a method for each AST structure, as well as a dedicated return type for it.
-/// These can be implemented using the functions defined in [walk] that can traverse the children
-/// of each node.
+/// This contains a method for each AST structure, as well as a dedicated return
+/// type for it. These can be implemented using the functions defined in [walk]
+/// that can traverse the children of each node.
 pub trait AstVisitor: Sized {
-    /// Context type immutably passed to each visitor method for separating mutable from immutable context.
+    /// Context type immutably passed to each visitor method for separating
+    /// mutable from immutable context.
     type Ctx;
 
     /// What container to use to collect multiple children, used by [walk].
     type CollectionContainer<T>: Sized;
 
-    /// Try collect an iterator of results into a container specified by [Self::CollectionContainer].
+    /// Try collect an iterator of results into a container specified by
+    /// [Self::CollectionContainer].
     fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
         ctx: &Self::Ctx,
         items: I,
     ) -> Result<Self::CollectionContainer<T>, E>;
 
-    /// Collect an iterator of items into a container specified by [Self::CollectionContainer].
+    /// Collect an iterator of items into a container specified by
+    /// [Self::CollectionContainer].
     fn collect_items<T, E, I: Iterator<Item = T>>(
         ctx: &Self::Ctx,
         items: I,
@@ -713,19 +716,22 @@ pub trait AstVisitor: Sized {
 }
 
 pub trait AstVisitorMut: Sized {
-    /// Context type immutably passed to each visitor method for separating mutable from immutable context.
+    /// Context type immutably passed to each visitor method for separating
+    /// mutable from immutable context.
     type Ctx;
 
     /// What container to use to collect multiple children, used by [walk].
     type CollectionContainer<T>: Sized;
 
-    /// Try collect an iterator of results into a container specified by [Self::CollectionContainer].
+    /// Try collect an iterator of results into a container specified by
+    /// [Self::CollectionContainer].
     fn try_collect_items<T, E, I: Iterator<Item = Result<T, E>>>(
         ctx: &Self::Ctx,
         items: I,
     ) -> Result<Self::CollectionContainer<T>, E>;
 
-    /// Collect an iterator of items into a container specified by [Self::CollectionContainer].
+    /// Collect an iterator of items into a container specified by
+    /// [Self::CollectionContainer].
     fn collect_items<T, E, I: Iterator<Item = T>>(
         ctx: &Self::Ctx,
         items: I,
@@ -1416,17 +1422,18 @@ pub trait AstVisitorMut: Sized {
     ) -> Result<Self::ModuleRet, Self::Error>;
 }
 
-/// Contains helper functions and structures to traverse AST nodes using a given visitor.
+/// Contains helper functions and structures to traverse AST nodes using a given
+/// visitor.
 ///
-/// Structures are defined which mirror the layout of the AST nodes, but instead of having AST
-/// nodes as children, they have the [AstVisitor] output type for each node.
+/// Structures are defined which mirror the layout of the AST nodes, but instead
+/// of having AST nodes as children, they have the [AstVisitor] output type for
+/// each node.
 ///
-/// For enums, there is an additional `*_same_children` function, which traverses the member of
-/// each variant and returns the inner type, given that all variants have the same declared type
-/// within the visitor.
+/// For enums, there is an additional `*_same_children` function, which
+/// traverses the member of each variant and returns the inner type, given that
+/// all variants have the same declared type within the visitor.
 pub mod walk {
-    use super::ast;
-    use super::AstVisitor;
+    use super::{ast, AstVisitor};
 
     pub struct FunctionDefArg<V: AstVisitor> {
         pub name: V::NameRet,
@@ -1441,11 +1448,7 @@ pub mod walk {
     ) -> Result<FunctionDefArg<V>, V::Error> {
         Ok(FunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            ty: node
-                .ty
-                .as_ref()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
-                .transpose()?,
+            ty: node.ty.as_ref().map(|t| visitor.visit_type(ctx, t.ast_ref())).transpose()?,
             default: node
                 .default
                 .as_ref()
@@ -1468,9 +1471,7 @@ pub mod walk {
         Ok(FunctionDef {
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter()
-                    .map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref())),
+                node.args.iter().map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref())),
             )?,
             return_ty: node
                 .return_ty
@@ -1688,9 +1689,7 @@ pub mod walk {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
             type_args: V::try_collect_items(
                 ctx,
-                node.type_args
-                    .iter()
-                    .map(|t| visitor.visit_named_field_type(ctx, t.ast_ref())),
+                node.type_args.iter().map(|t| visitor.visit_named_field_type(ctx, t.ast_ref())),
             )?,
         })
     }
@@ -1722,11 +1721,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::ConstructorCallArg>,
     ) -> Result<ConstructorCallArg<V>, V::Error> {
         Ok(ConstructorCallArg {
-            name: node
-                .name
-                .as_ref()
-                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
-                .transpose()?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
             value: visitor.visit_expression(ctx, node.value.ast_ref())?,
         })
     }
@@ -1743,9 +1738,7 @@ pub mod walk {
         Ok(ConstructorCallArgs {
             entries: V::try_collect_items(
                 ctx,
-                node.entries
-                    .iter()
-                    .map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref())),
+                node.entries.iter().map(|e| visitor.visit_constructor_call_arg(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -1987,9 +1980,7 @@ pub mod walk {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
             cases: V::try_collect_items(
                 ctx,
-                node.cases
-                    .iter()
-                    .map(|c| visitor.visit_match_case(ctx, c.ast_ref())),
+                node.cases.iter().map(|c| visitor.visit_match_case(ctx, c.ast_ref())),
             )?,
         })
     }
@@ -2087,9 +2078,7 @@ pub mod walk {
         Ok(IfBlock {
             clauses: V::try_collect_items(
                 ctx,
-                node.clauses
-                    .iter()
-                    .map(|clause| visitor.visit_if_clause(ctx, clause.ast_ref())),
+                node.clauses.iter().map(|clause| visitor.visit_if_clause(ctx, clause.ast_ref())),
             )?,
             otherwise: node
                 .otherwise
@@ -2112,9 +2101,7 @@ pub mod walk {
         Ok(BodyBlock {
             statements: V::try_collect_items(
                 ctx,
-                node.statements
-                    .iter()
-                    .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
+                node.statements.iter().map(|s| visitor.visit_expression(ctx, s.ast_ref())),
             )?,
             expr: node
                 .expr
@@ -2197,9 +2184,7 @@ pub mod walk {
         Ok(SetLiteral {
             elements: V::try_collect_items(
                 ctx,
-                node.elements
-                    .iter()
-                    .map(|e| visitor.visit_expression(ctx, e.ast_ref())),
+                node.elements.iter().map(|e| visitor.visit_expression(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -2232,9 +2217,7 @@ pub mod walk {
         Ok(MapLiteral {
             entries: V::try_collect_items(
                 ctx,
-                node.elements
-                    .iter()
-                    .map(|e| visitor.visit_map_literal_entry(ctx, e.ast_ref())),
+                node.elements.iter().map(|e| visitor.visit_map_literal_entry(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -2251,9 +2234,7 @@ pub mod walk {
         Ok(ListLiteral {
             elements: V::try_collect_items(
                 ctx,
-                node.elements
-                    .iter()
-                    .map(|e| visitor.visit_expression(ctx, e.ast_ref())),
+                node.elements.iter().map(|e| visitor.visit_expression(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -2270,16 +2251,8 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TupleLiteralEntry>,
     ) -> Result<TupleLiteralEntry<V>, V::Error> {
         Ok(TupleLiteralEntry {
-            name: node
-                .name
-                .as_ref()
-                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
-                .transpose()?,
-            ty: node
-                .ty
-                .as_ref()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
-                .transpose()?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
+            ty: node.ty.as_ref().map(|t| visitor.visit_type(ctx, t.ast_ref())).transpose()?,
             value: visitor.visit_expression(ctx, node.value.ast_ref())?,
         })
     }
@@ -2296,9 +2269,7 @@ pub mod walk {
         Ok(TupleLiteral {
             elements: V::try_collect_items(
                 ctx,
-                node.elements
-                    .iter()
-                    .map(|e| visitor.visit_tuple_literal_entry(ctx, e.ast_ref())),
+                node.elements.iter().map(|e| visitor.visit_tuple_literal_entry(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -2315,11 +2286,7 @@ pub mod walk {
     ) -> Result<NamedFieldTypeEntry<V>, V::Error> {
         Ok(NamedFieldTypeEntry {
             ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
-            name: node
-                .name
-                .as_ref()
-                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
-                .transpose()?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
         })
     }
 
@@ -2336,9 +2303,7 @@ pub mod walk {
         Ok(FnType {
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter()
-                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
+                node.args.iter().map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
         })
@@ -2356,9 +2321,7 @@ pub mod walk {
         Ok(TupleType {
             entries: V::try_collect_items(
                 ctx,
-                node.entries
-                    .iter()
-                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
+                node.entries.iter().map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
             )?,
         })
     }
@@ -2372,9 +2335,7 @@ pub mod walk {
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::ListType>,
     ) -> Result<ListType<V>, V::Error> {
-        Ok(ListType {
-            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
-        })
+        Ok(ListType { inner: visitor.visit_type(ctx, node.inner.ast_ref())? })
     }
 
     pub struct SetType<V: AstVisitor> {
@@ -2386,9 +2347,7 @@ pub mod walk {
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::SetType>,
     ) -> Result<SetType<V>, V::Error> {
-        Ok(SetType {
-            inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
-        })
+        Ok(SetType { inner: visitor.visit_type(ctx, node.inner.ast_ref())? })
     }
 
     pub struct MapType<V: AstVisitor> {
@@ -2416,9 +2375,7 @@ pub mod walk {
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::NamedType>,
     ) -> Result<NamedType<V>, V::Error> {
-        Ok(NamedType {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-        })
+        Ok(NamedType { name: visitor.visit_access_name(ctx, node.name.ast_ref())? })
     }
 
     pub struct RefType<V: AstVisitor> {
@@ -2468,9 +2425,7 @@ pub mod walk {
             subject: visitor.visit_type(ctx, node.subject.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter()
-                    .map(|a| visitor.visit_named_field_type(ctx, a.ast_ref())),
+                node.args.iter().map(|a| visitor.visit_named_field_type(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2514,9 +2469,7 @@ pub mod walk {
         Ok(TypeFunction {
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter()
-                    .map(|a| visitor.visit_type_function_param(ctx, a.ast_ref())),
+                node.args.iter().map(|a| visitor.visit_type_function_param(ctx, a.ast_ref())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
         })
@@ -2685,9 +2638,7 @@ pub mod walk {
         Ok(OrPattern {
             variants: V::try_collect_items(
                 ctx,
-                node.variants
-                    .iter()
-                    .map(|v| visitor.visit_pattern(ctx, v.ast_ref())),
+                node.variants.iter().map(|v| visitor.visit_pattern(ctx, v.ast_ref())),
             )?,
         })
     }
@@ -2705,9 +2656,7 @@ pub mod walk {
             name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
-                node.fields
-                    .iter()
-                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
+                node.fields.iter().map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2723,9 +2672,7 @@ pub mod walk {
         Ok(NamespacePattern {
             patterns: V::try_collect_items(
                 ctx,
-                node.fields
-                    .iter()
-                    .map(|a| visitor.visit_destructuring_pattern(ctx, a.ast_ref())),
+                node.fields.iter().map(|a| visitor.visit_destructuring_pattern(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2741,11 +2688,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TuplePatternEntry>,
     ) -> Result<TuplePatternEntry<V>, V::Error> {
         Ok(TuplePatternEntry {
-            name: node
-                .name
-                .as_ref()
-                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
-                .transpose()?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
             pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
         })
     }
@@ -2762,9 +2705,7 @@ pub mod walk {
         Ok(TuplePattern {
             elements: V::try_collect_items(
                 ctx,
-                node.fields
-                    .iter()
-                    .map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
+                node.fields.iter().map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2781,9 +2722,7 @@ pub mod walk {
         Ok(ListPattern {
             elements: V::try_collect_items(
                 ctx,
-                node.fields
-                    .iter()
-                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
+                node.fields.iter().map(|a| visitor.visit_pattern(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2840,11 +2779,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::SpreadPattern>,
     ) -> Result<SpreadPattern<V>, V::Error> {
         Ok(SpreadPattern {
-            name: node
-                .name
-                .as_ref()
-                .map(|t| visitor.visit_name(ctx, t.ast_ref()))
-                .transpose()?,
+            name: node.name.as_ref().map(|t| visitor.visit_name(ctx, t.ast_ref())).transpose()?,
         })
     }
 
@@ -2925,10 +2860,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::ReturnStatement>,
     ) -> Result<ReturnStatement<V>, V::Error> {
         Ok(ReturnStatement(
-            node.0
-                .as_ref()
-                .map(|n| visitor.visit_expression(ctx, n.ast_ref()))
-                .transpose()?,
+            node.0.as_ref().map(|n| visitor.visit_expression(ctx, n.ast_ref())).transpose()?,
         ))
     }
 
@@ -2945,11 +2877,7 @@ pub mod walk {
     ) -> Result<Declaration<V>, V::Error> {
         Ok(Declaration {
             pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref())?,
-            ty: node
-                .ty
-                .as_ref()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
-                .transpose()?,
+            ty: node.ty.as_ref().map(|t| visitor.visit_type(ctx, t.ast_ref())).transpose()?,
             value: node
                 .value
                 .as_ref()
@@ -3068,11 +2996,7 @@ pub mod walk {
     ) -> Result<StructDefEntry<V>, V::Error> {
         Ok(StructDefEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            ty: node
-                .ty
-                .as_ref()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref()))
-                .transpose()?,
+            ty: node.ty.as_ref().map(|t| visitor.visit_type(ctx, t.ast_ref())).transpose()?,
             default: node
                 .default
                 .as_ref()
@@ -3092,9 +3016,7 @@ pub mod walk {
         Ok(StructDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries
-                    .iter()
-                    .map(|b| visitor.visit_struct_def_entry(ctx, b.ast_ref())),
+                node.entries.iter().map(|b| visitor.visit_struct_def_entry(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -3112,9 +3034,7 @@ pub mod walk {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter()
-                    .map(|b| visitor.visit_type(ctx, b.ast_ref())),
+                node.args.iter().map(|b| visitor.visit_type(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -3130,9 +3050,7 @@ pub mod walk {
         Ok(EnumDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries
-                    .iter()
-                    .map(|b| visitor.visit_enum_def_entry(ctx, b.ast_ref())),
+                node.entries.iter().map(|b| visitor.visit_enum_def_entry(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -3151,9 +3069,7 @@ pub mod walk {
         Ok(TypeFunctionDef {
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter()
-                    .map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref())),
+                node.args.iter().map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref())),
             )?,
             return_ty: node
                 .return_ty
@@ -3196,9 +3112,7 @@ pub mod walk {
         Ok(TraitDef {
             members: V::try_collect_items(
                 ctx,
-                node.members
-                    .iter()
-                    .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
+                node.members.iter().map(|t| visitor.visit_expression(ctx, t.ast_ref())),
             )?,
         })
     }
@@ -3217,9 +3131,7 @@ pub mod walk {
             ty: visitor.visit_type(ctx, node.ty.ast_ref())?,
             implementation: V::try_collect_items(
                 ctx,
-                node.implementation
-                    .iter()
-                    .map(|t| visitor.visit_expression(ctx, t.ast_ref())),
+                node.implementation.iter().map(|t| visitor.visit_expression(ctx, t.ast_ref())),
             )?,
         })
     }
@@ -3236,9 +3148,7 @@ pub mod walk {
         Ok(Module {
             contents: V::try_collect_items(
                 ctx,
-                node.contents
-                    .iter()
-                    .map(|s| visitor.visit_expression(ctx, s.ast_ref())),
+                node.contents.iter().map(|s| visitor.visit_expression(ctx, s.ast_ref())),
             )?,
         })
     }
@@ -3247,8 +3157,7 @@ pub mod walk {
 pub mod walk_mut {
     use crate::ast::AstNodeRefMut;
 
-    use super::ast;
-    use super::AstVisitorMut;
+    use super::{ast, AstVisitorMut};
 
     pub struct FunctionDefArg<V: AstVisitorMut> {
         pub name: V::NameRet,
@@ -3263,11 +3172,7 @@ pub mod walk_mut {
     ) -> Result<FunctionDefArg<V>, V::Error> {
         Ok(FunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            ty: node
-                .ty
-                .as_mut()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
-                .transpose()?,
+            ty: node.ty.as_mut().map(|t| visitor.visit_type(ctx, t.ast_ref_mut())).transpose()?,
             default: node
                 .default
                 .as_mut()
@@ -3290,9 +3195,7 @@ pub mod walk_mut {
         Ok(FunctionDef {
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter_mut()
-                    .map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref_mut())),
+                node.args.iter_mut().map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref_mut())),
             )?,
             return_ty: node
                 .return_ty
@@ -3634,9 +3537,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::DerefExpr>,
     ) -> Result<DerefExpr<V>, V::Error> {
-        Ok(DerefExpr(
-            visitor.visit_expression(ctx, node.0.ast_ref_mut())?,
-        ))
+        Ok(DerefExpr(visitor.visit_expression(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct UnsafeExpr<V: AstVisitorMut>(pub V::ExpressionRet);
@@ -3646,9 +3547,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::UnsafeExpr>,
     ) -> Result<UnsafeExpr<V>, V::Error> {
-        Ok(UnsafeExpr(
-            visitor.visit_expression(ctx, node.0.ast_ref_mut())?,
-        ))
+        Ok(UnsafeExpr(visitor.visit_expression(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct LiteralExpr<V: AstVisitorMut>(pub V::LiteralRet);
@@ -3658,9 +3557,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::LiteralExpr>,
     ) -> Result<LiteralExpr<V>, V::Error> {
-        Ok(LiteralExpr(
-            visitor.visit_literal(ctx, node.0.ast_ref_mut())?,
-        ))
+        Ok(LiteralExpr(visitor.visit_literal(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct AsExpr<V: AstVisitorMut> {
@@ -3821,9 +3718,7 @@ pub mod walk_mut {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
             cases: V::try_collect_items(
                 ctx,
-                node.cases
-                    .iter_mut()
-                    .map(|c| visitor.visit_match_case(ctx, c.ast_ref_mut())),
+                node.cases.iter_mut().map(|c| visitor.visit_match_case(ctx, c.ast_ref_mut())),
             )?,
         })
     }
@@ -3879,9 +3774,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::ModBlock>,
     ) -> Result<ModBlock<V>, V::Error> {
-        Ok(ModBlock(
-            visitor.visit_body_block(ctx, node.0.ast_ref_mut())?,
-        ))
+        Ok(ModBlock(visitor.visit_body_block(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct ImplBlock<V: AstVisitorMut>(pub V::BodyBlockRet);
@@ -3891,9 +3784,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::ImplBlock>,
     ) -> Result<ImplBlock<V>, V::Error> {
-        Ok(ImplBlock(
-            visitor.visit_body_block(ctx, node.0.ast_ref_mut())?,
-        ))
+        Ok(ImplBlock(visitor.visit_body_block(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct IfClause<V: AstVisitorMut> {
@@ -3950,9 +3841,7 @@ pub mod walk_mut {
         Ok(BodyBlock {
             statements: V::try_collect_items(
                 ctx,
-                node.statements
-                    .iter_mut()
-                    .map(|s| visitor.visit_expression(ctx, s.ast_ref_mut())),
+                node.statements.iter_mut().map(|s| visitor.visit_expression(ctx, s.ast_ref_mut())),
             )?,
             expr: node
                 .expr
@@ -4050,9 +3939,7 @@ pub mod walk_mut {
         Ok(SetLiteral {
             elements: V::try_collect_items(
                 ctx,
-                node.elements
-                    .iter_mut()
-                    .map(|e| visitor.visit_expression(ctx, e.ast_ref_mut())),
+                node.elements.iter_mut().map(|e| visitor.visit_expression(ctx, e.ast_ref_mut())),
             )?,
         })
     }
@@ -4104,9 +3991,7 @@ pub mod walk_mut {
         Ok(ListLiteral {
             elements: V::try_collect_items(
                 ctx,
-                node.elements
-                    .iter_mut()
-                    .map(|e| visitor.visit_expression(ctx, e.ast_ref_mut())),
+                node.elements.iter_mut().map(|e| visitor.visit_expression(ctx, e.ast_ref_mut())),
             )?,
         })
     }
@@ -4128,11 +4013,7 @@ pub mod walk_mut {
                 .as_mut()
                 .map(|t| visitor.visit_name(ctx, t.ast_ref_mut()))
                 .transpose()?,
-            ty: node
-                .ty
-                .as_mut()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
-                .transpose()?,
+            ty: node.ty.as_mut().map(|t| visitor.visit_type(ctx, t.ast_ref_mut())).transpose()?,
             value: visitor.visit_expression(ctx, node.value.ast_ref_mut())?,
         })
     }
@@ -4189,9 +4070,7 @@ pub mod walk_mut {
         Ok(FnType {
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter_mut()
-                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref_mut())),
+                node.args.iter_mut().map(|e| visitor.visit_named_field_type(ctx, e.ast_ref_mut())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref_mut())?,
         })
@@ -4225,9 +4104,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::ListType>,
     ) -> Result<ListType<V>, V::Error> {
-        Ok(ListType {
-            inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())?,
-        })
+        Ok(ListType { inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())? })
     }
 
     pub struct SetType<V: AstVisitorMut> {
@@ -4239,9 +4116,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::SetType>,
     ) -> Result<SetType<V>, V::Error> {
-        Ok(SetType {
-            inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())?,
-        })
+        Ok(SetType { inner: visitor.visit_type(ctx, node.inner.ast_ref_mut())? })
     }
 
     pub struct MapType<V: AstVisitorMut> {
@@ -4269,9 +4144,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::NamedType>,
     ) -> Result<NamedType<V>, V::Error> {
-        Ok(NamedType {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())?,
-        })
+        Ok(NamedType { name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())? })
     }
 
     pub struct RefType<V: AstVisitorMut> {
@@ -4303,9 +4176,7 @@ pub mod walk_mut {
     ) -> Result<MergedType<V>, V::Error> {
         Ok(MergedType(V::try_collect_items(
             ctx,
-            node.0
-                .iter_mut()
-                .map(|a| visitor.visit_type(ctx, a.ast_ref_mut())),
+            node.0.iter_mut().map(|a| visitor.visit_type(ctx, a.ast_ref_mut())),
         )?))
     }
 
@@ -4323,9 +4194,7 @@ pub mod walk_mut {
             subject: visitor.visit_type(ctx, node.subject.ast_ref_mut())?,
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter_mut()
-                    .map(|a| visitor.visit_named_field_type(ctx, a.ast_ref_mut())),
+                node.args.iter_mut().map(|a| visitor.visit_named_field_type(ctx, a.ast_ref_mut())),
             )?,
         })
     }
@@ -4564,9 +4433,7 @@ pub mod walk_mut {
         Ok(OrPattern {
             variants: V::try_collect_items(
                 ctx,
-                node.variants
-                    .iter_mut()
-                    .map(|v| visitor.visit_pattern(ctx, v.ast_ref_mut())),
+                node.variants.iter_mut().map(|v| visitor.visit_pattern(ctx, v.ast_ref_mut())),
             )?,
         })
     }
@@ -4660,9 +4527,7 @@ pub mod walk_mut {
         Ok(ListPattern {
             elements: V::try_collect_items(
                 ctx,
-                node.fields
-                    .iter_mut()
-                    .map(|a| visitor.visit_pattern(ctx, a.ast_ref_mut())),
+                node.fields.iter_mut().map(|a| visitor.visit_pattern(ctx, a.ast_ref_mut())),
             )?,
         })
     }
@@ -4807,10 +4672,7 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::ReturnStatement>,
     ) -> Result<ReturnStatement<V>, V::Error> {
         Ok(ReturnStatement(
-            node.0
-                .as_mut()
-                .map(|n| visitor.visit_expression(ctx, n.ast_ref_mut()))
-                .transpose()?,
+            node.0.as_mut().map(|n| visitor.visit_expression(ctx, n.ast_ref_mut())).transpose()?,
         ))
     }
 
@@ -4827,11 +4689,7 @@ pub mod walk_mut {
     ) -> Result<Declaration<V>, V::Error> {
         Ok(Declaration {
             pattern: visitor.visit_pattern(ctx, node.pattern.ast_ref_mut())?,
-            ty: node
-                .ty
-                .as_mut()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
-                .transpose()?,
+            ty: node.ty.as_mut().map(|t| visitor.visit_type(ctx, t.ast_ref_mut())).transpose()?,
             value: node
                 .value
                 .as_mut()
@@ -4950,11 +4808,7 @@ pub mod walk_mut {
     ) -> Result<StructDefEntry<V>, V::Error> {
         Ok(StructDefEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            ty: node
-                .ty
-                .as_mut()
-                .map(|t| visitor.visit_type(ctx, t.ast_ref_mut()))
-                .transpose()?,
+            ty: node.ty.as_mut().map(|t| visitor.visit_type(ctx, t.ast_ref_mut())).transpose()?,
             default: node
                 .default
                 .as_mut()
@@ -4994,9 +4848,7 @@ pub mod walk_mut {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             args: V::try_collect_items(
                 ctx,
-                node.args
-                    .iter_mut()
-                    .map(|b| visitor.visit_type(ctx, b.ast_ref_mut())),
+                node.args.iter_mut().map(|b| visitor.visit_type(ctx, b.ast_ref_mut())),
             )?,
         })
     }
@@ -5012,9 +4864,7 @@ pub mod walk_mut {
         Ok(EnumDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries
-                    .iter_mut()
-                    .map(|b| visitor.visit_enum_def_entry(ctx, b.ast_ref_mut())),
+                node.entries.iter_mut().map(|b| visitor.visit_enum_def_entry(ctx, b.ast_ref_mut())),
             )?,
         })
     }
@@ -5078,9 +4928,7 @@ pub mod walk_mut {
         Ok(TraitDef {
             members: V::try_collect_items(
                 ctx,
-                node.members
-                    .iter_mut()
-                    .map(|t| visitor.visit_expression(ctx, t.ast_ref_mut())),
+                node.members.iter_mut().map(|t| visitor.visit_expression(ctx, t.ast_ref_mut())),
             )?,
         })
     }
@@ -5118,9 +4966,7 @@ pub mod walk_mut {
         Ok(Module {
             contents: V::try_collect_items(
                 ctx,
-                node.contents
-                    .iter_mut()
-                    .map(|s| visitor.visit_expression(ctx, s.ast_ref_mut())),
+                node.contents.iter_mut().map(|s| visitor.visit_expression(ctx, s.ast_ref_mut())),
             )?,
         })
     }

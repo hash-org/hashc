@@ -52,32 +52,31 @@ impl SemanticAnalyser {
         }
     }
 
-    /// Here we need to check that the list pattern only contains a single spread pattern since
-    /// it wouldn't make sense for there to be multiple spread patterns. This is primarily because
-    /// having multiple spreads would introduce ambiguity about which elements are captured by the spread.
-    /// For example in the following pattern:
+    /// Here we need to check that the list pattern only contains a single
+    /// spread pattern since it wouldn't make sense for there to be multiple
+    /// spread patterns. This is primarily because having multiple spreads
+    /// would introduce ambiguity about which elements are captured by the
+    /// spread. For example in the following pattern:
     /// ```ignore
     /// >>> [..., ...x]
     /// ```
     ///
-    /// Note: this isn't the only case that is erroneous, in general any list pattern with multiple
-    /// spread patterns is considered to be incorrect.
+    /// Note: this isn't the only case that is erroneous, in general any list
+    /// pattern with multiple spread patterns is considered to be incorrect.
     ///
-    /// Which parts does the `x` spread pattern capture? It's clear that this is ambiguous and should
-    /// be disallowed within the list patten.
+    /// Which parts does the `x` spread pattern capture? It's clear that this is
+    /// ambiguous and should be disallowed within the list patten.
     pub(crate) fn check_list_pattern(&mut self, fields: &AstNodes<Pattern>) {
         // @@TODO: Rather than use a boolean, we should use a reference to the pattern
-        //         so that we can report an auxiliary span of where the initial use of the
-        //         pattern occurs.
+        // so that we can report an auxiliary span of where the initial use of the
+        // pattern occurs.
         let mut seen_spread_pattern = false;
 
         for field in fields.iter() {
             if matches!(field.body(), Pattern::Spread(_)) {
                 if seen_spread_pattern {
                     self.append_error(
-                        AnalysisErrorKind::MultipleSpreadPatterns {
-                            origin: PatternOrigin::List,
-                        },
+                        AnalysisErrorKind::MultipleSpreadPatterns { origin: PatternOrigin::List },
                         field.span(),
                     );
                 } else {

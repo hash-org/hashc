@@ -1,4 +1,5 @@
-//! Contains structures to keep track of traits and information relating to them.
+//! Contains structures to keep track of traits and information relating to
+//! them.
 use super::primitives::{TrtDef, TrtDefId};
 use slotmap::SlotMap;
 
@@ -20,8 +21,9 @@ impl TrtDefStore {
 
     /// Get a trait by [TrtDefId].
     ///
-    /// If the trait is not found, this function will panic. However, this shouldn't happen because
-    /// the only way to acquire a trait is to use [Self::create], and traits cannot be deleted.
+    /// If the trait is not found, this function will panic. However, this
+    /// shouldn't happen because the only way to acquire a trait is to use
+    /// [Self::create], and traits cannot be deleted.
     pub fn get(&self, trt_def_id: TrtDefId) -> &TrtDef {
         self.data.get(trt_def_id).unwrap()
     }

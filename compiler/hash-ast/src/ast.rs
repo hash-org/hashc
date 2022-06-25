@@ -1,12 +1,14 @@
 //! Frontend-agnostic Hash AST (abstract syntax tree) type definitions.
 
-use hash_source::location::Span;
-use hash_source::{identifier::Identifier, string::StringLiteral};
+use hash_source::{identifier::Identifier, location::Span, string::StringLiteral};
 use hash_utils::counter;
 use replace_with::replace_with_or_abort;
-use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
-use std::{fmt::Display, hash::Hash};
+use std::{
+    fmt::Display,
+    hash::Hash,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 
 counter! {
     name: AstNodeId,
@@ -34,11 +36,7 @@ impl<T> PartialEq for AstNode<T> {
 impl<T> AstNode<T> {
     /// Create a new node with a given body and location.
     pub fn new(body: T, span: Span) -> Self {
-        Self {
-            body: Box::new(body),
-            span,
-            id: AstNodeId::new(),
-        }
+        Self { body: Box::new(body), span, id: AstNodeId::new() }
     }
 
     /// Get a reference to the body contained within this node.
@@ -67,30 +65,18 @@ impl<T> AstNode<T> {
 
     /// Create an [AstNodeRef] from this [AstNode].
     pub fn ast_ref(&self) -> AstNodeRef<T> {
-        AstNodeRef {
-            body: self.body.as_ref(),
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRef { body: self.body.as_ref(), span: self.span, id: self.id }
     }
 
     /// Create an [AstNodeRefMut] from this [AstNode].
     pub fn ast_ref_mut(&mut self) -> AstNodeRefMut<T> {
-        AstNodeRefMut {
-            body: self.body.as_mut(),
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRefMut { body: self.body.as_mut(), span: self.span, id: self.id }
     }
 
     /// Create an [AstNodeRef] by providing a body and copying over the
     /// [Span] and [AstNodeId] that belong to this [AstNode].
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
-        AstNodeRef {
-            body,
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRef { body, span: self.span, id: self.id }
     }
 }
 
@@ -107,11 +93,7 @@ pub struct AstNodeRef<'t, T> {
 
 impl<T> Clone for AstNodeRef<'_, T> {
     fn clone(&self) -> Self {
-        Self {
-            body: self.body,
-            span: self.span,
-            id: self.id,
-        }
+        Self { body: self.body, span: self.span, id: self.id }
     }
 }
 
@@ -124,11 +106,7 @@ impl<'t, T> AstNodeRef<'t, T> {
     }
 
     pub fn with_body<'u, U>(&self, body: &'u U) -> AstNodeRef<'u, U> {
-        AstNodeRef {
-            body,
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRef { body, span: self.span, id: self.id }
     }
 
     /// Get the [Span] of this node in the input.
@@ -168,11 +146,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     }
 
     pub fn with_body<'u, U>(&self, body: &'u mut U) -> AstNodeRefMut<'u, U> {
-        AstNodeRefMut {
-            body,
-            span: self.span,
-            id: self.id,
-        }
+        AstNodeRefMut { body, span: self.span, id: self.id }
     }
 
     /// Function to replace the body of the node with a newly generated body
@@ -230,10 +204,7 @@ macro_rules! ast_nodes {
 
 impl<T> AstNodes<T> {
     pub fn empty() -> Self {
-        Self {
-            nodes: vec![],
-            span: None,
-        }
+        Self { nodes: vec![], span: None }
     }
 
     pub fn new(nodes: Vec<AstNode<T>>, span: Option<Span>) -> Self {
@@ -249,8 +220,7 @@ impl<T> AstNodes<T> {
     }
 
     pub fn span(&self) -> Option<Span> {
-        self.span
-            .or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
+        self.span.or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
     }
 }
 
@@ -297,17 +267,11 @@ pub struct AccessName {
 
 impl AccessName {
     pub fn path(&self) -> Vec<Identifier> {
-        self.path
-            .iter()
-            .map(|part| *part.body())
-            .collect::<Vec<_>>()
+        self.path.iter().map(|part| *part.body()).collect::<Vec<_>>()
     }
 
     pub fn path_with_locations(&self) -> Vec<(Identifier, Span)> {
-        self.path
-            .iter()
-            .map(|part| (*part.body(), part.span()))
-            .collect::<Vec<_>>()
+        self.path.iter().map(|part| (*part.body(), part.span())).collect::<Vec<_>>()
     }
 }
 
@@ -332,7 +296,8 @@ pub enum RefKind {
 pub struct RefType {
     /// Inner type of the reference type
     pub inner: AstNode<Type>,
-    /// Whether this reference is a `raw` reference or normal reference (normal by default).
+    /// Whether this reference is a `raw` reference or normal reference (normal
+    /// by default).
     pub kind: Option<AstNode<RefKind>>,
     /// Mutability of the reference (immutable by default)
     pub mutability: Option<AstNode<Mutability>>,
@@ -364,8 +329,8 @@ pub struct SetType {
 }
 
 /// The grouped type (essentially a type within parenthesees), e.g. `(str)`. It
-/// differs from a tuple that it does not contain a trailing comma which signifies that
-/// this is a single element tuple.
+/// differs from a tuple that it does not contain a trailing comma which
+/// signifies that this is a single element tuple.
 #[derive(Debug, PartialEq)]
 pub struct GroupedType(pub AstNode<Type>);
 
@@ -383,9 +348,9 @@ pub struct FnType {
     pub return_ty: AstNode<Type>,
 }
 
-/// A [TypeFunctionParam] is a parameter that appears within a [TypeFunction]. This specifies
-/// that the type function takes a particular parameter with a specific name, a bound and a default
-/// value.
+/// A [TypeFunctionParam] is a parameter that appears within a [TypeFunction].
+/// This specifies that the type function takes a particular parameter with a
+/// specific name, a bound and a default value.
 #[derive(Debug, PartialEq)]
 pub struct TypeFunctionParam {
     pub name: AstNode<Name>,
@@ -401,8 +366,9 @@ pub struct TypeFunction {
 }
 
 /// A type function call specifies a call to a type function with the specified
-/// function name in the form of a [Type] (which can only be a [NamedType] or a [GroupedType])
-/// and then followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
+/// function name in the form of a [Type] (which can only be a [NamedType] or a
+/// [GroupedType]) and then followed by arguments. For example: `Conv<u32>` or
+/// `(Foo<bar>)<baz>`
 #[derive(Debug, PartialEq)]
 pub struct TypeFunctionCall {
     pub subject: AstNode<Type>,
@@ -516,9 +482,9 @@ pub enum Literal {
 impl Literal {
     /// This function is used to determine if the current literal tree only
     /// contains constants. Constants are other literals that are not subject
-    /// to change, e.g. a number like `5` or a string `hello`. This function implements
-    /// short circuiting behaviour and thus should check if the literal is constant
-    /// in the minimal time possible.
+    /// to change, e.g. a number like `5` or a string `hello`. This function
+    /// implements short circuiting behaviour and thus should check if the
+    /// literal is constant in the minimal time possible.
     pub fn is_constant(&self) -> bool {
         let is_expr_literal_and_const = |expr: &AstNode<Expression>| -> bool {
             match expr.kind() {
@@ -527,14 +493,15 @@ impl Literal {
             }
         };
 
-        // Recurse over the literals for `set`, `map` and `tuple to see if they are constant.
+        // Recurse over the literals for `set`, `map` and `tuple to see if they are
+        // constant.
         match self {
             Literal::List(ListLiteral { elements }) | Literal::Set(SetLiteral { elements }) => {
                 !elements.iter().any(|expr| !is_expr_literal_and_const(expr))
             }
-            Literal::Tuple(TupleLiteral { elements }) => !elements
-                .iter()
-                .any(|entry| !is_expr_literal_and_const(&entry.body().value)),
+            Literal::Tuple(TupleLiteral { elements }) => {
+                !elements.iter().any(|entry| !is_expr_literal_and_const(&entry.body().value))
+            }
             Literal::Map(MapLiteral { elements }) => !elements.iter().any(|entry| {
                 !is_expr_literal_and_const(&entry.body().key)
                     || !is_expr_literal_and_const(&entry.body().value)
@@ -603,8 +570,8 @@ pub struct TuplePattern {
 
 impl TuplePattern {
     /// Function used to check if the pattern is nameless or not. If the pattern
-    /// has at least one member that contains a `name` field, then it is considered
-    /// to be named.
+    /// has at least one member that contains a `name` field, then it is
+    /// considered to be named.
     pub fn is_nameless_pat(&self) -> bool {
         !self.fields.iter().any(|pat| pat.body().name.is_some())
     }
@@ -760,7 +727,8 @@ pub struct Declaration {
     pub value: Option<AstNode<Expression>>,
 }
 
-/// A merge declaration (adding implementations to traits/structs), e.g. `x ~= impl { ... };`.
+/// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
+/// impl { ... };`.
 #[derive(Debug, PartialEq)]
 pub struct MergeDeclaration {
     /// The expression to bind the right-hand side to.
@@ -882,10 +850,12 @@ impl BinOp {
         }
     }
 
-    /// This returns if an operator is actually re-assignable. By re-assignable, this is in the sense
-    /// that you can add a '=' to mean that you are performing a re-assigning operation using the left
-    /// hand-side expression as a starting point and the rhs as the other argument to the operator.
-    /// For example, `a += b` is re-assigning because it means `a = a + b`.
+    /// This returns if an operator is actually re-assignable. By re-assignable,
+    /// this is in the sense that you can add a '=' to mean that you are
+    /// performing a re-assigning operation using the left
+    /// hand-side expression as a starting point and the rhs as the other
+    /// argument to the operator. For example, `a += b` is re-assigning
+    /// because it means `a = a + b`.
     pub fn is_re_assignable(&self) -> bool {
         matches!(
             self,
@@ -931,7 +901,8 @@ pub struct AssignOpExpression {
     /// The value will be assigned to the left-hand side.
     pub rhs: AstNode<Expression>,
 
-    /// Operator that is applied with the assignment on the lhs with the rhs value.
+    /// Operator that is applied with the assignment on the lhs with the rhs
+    /// value.
     ///
     /// Note: Some binary operators are not allowed to be in the location.
     pub operator: AstNode<BinOp>,
@@ -1060,7 +1031,8 @@ pub struct IfClause {
     pub body: AstNode<Block>,
 }
 
-/// An `if` block consisting of the condition, block and an optional else clause e.g. `if x { ... } else { y }`
+/// An `if` block consisting of the condition, block and an optional else clause
+/// e.g. `if x { ... } else { y }`
 #[derive(Debug, PartialEq)]
 pub struct IfBlock {
     pub clauses: AstNodes<IfClause>,
@@ -1084,13 +1056,16 @@ pub enum Block {
     /// A for-loop block. This is later transpiled into a more simpler
     /// construct using a `loop` and a `match` clause.
     ///
-    /// Since for loops are used for iterators in hash, we transpile the construct into a primitive loop.
-    /// An iterator can be traversed by calling the next function on the iterator.
-    /// Since next returns a Option type, we need to check if there is a value or if it returns None.
-    /// If a value does exist, we essentially perform an assignment to the pattern provided.
-    /// If None, the branch immediately breaks the for loop.
+    /// Since for loops are used for iterators in hash, we transpile the
+    /// construct into a primitive loop. An iterator can be traversed by
+    /// calling the next function on the iterator. Since next returns a
+    /// Option type, we need to check if there is a value or if it returns None.
+    /// If a value does exist, we essentially perform an assignment to the
+    /// pattern provided. If None, the branch immediately breaks the for
+    /// loop.
     ///
-    /// A rough outline of what the transpilation process for a for loop looks like:
+    /// A rough outline of what the transpilation process for a for loop looks
+    /// like:
     ///
     /// Take the original for-loop:
     ///
@@ -1111,12 +1086,15 @@ pub enum Block {
     /// }
     /// ```
     For(ForLoopBlock),
-    /// A while-loop block. This is later transpiled into a `loop` and `match` clause.
+    /// A while-loop block. This is later transpiled into a `loop` and `match`
+    /// clause.
     ///
-    /// In general, a while loop transpilation process occurs by transferring the looping
-    /// condition into a match block, which compares a boolean condition. If the boolean condition
-    /// evaluates to false, the loop will immediately break. Otherwise the body expression is expected.
-    /// A rough outline of what the transpilation process for a while loop looks like:
+    /// In general, a while loop transpilation process occurs by transferring
+    /// the looping condition into a match block, which compares a boolean
+    /// condition. If the boolean condition evaluates to false, the loop
+    /// will immediately break. Otherwise the body expression is expected. A
+    /// rough outline of what the transpilation process for a while loop looks
+    /// like:
     ///
     /// ```text
     /// while <condition> {
@@ -1157,14 +1135,15 @@ pub enum Block {
     ///     _ if b => b_branch
     ///     _ => c_branch
     /// }
-    ///```
+    /// ```
     ///
     /// Additionally, if no 'else' clause is specified, we fill it with an
-    /// empty block since an if-block could be assigned to any variable and therefore
-    /// we need to know the outcome of all branches for typechecking.
+    /// empty block since an if-block could be assigned to any variable and
+    /// therefore we need to know the outcome of all branches for
+    /// typechecking.
     If(IfBlock),
-    /// A module block. The inner block becomes an inner module of the current module.
-    ///
+    /// A module block. The inner block becomes an inner module of the current
+    /// module.
     Mod(ModBlock),
     /// A body block.
     Body(BodyBlock),
@@ -1267,7 +1246,8 @@ pub struct CastExpr {
     pub expr: AstNode<Expression>,
 }
 
-/// Represents a path to a module, given as a string literal to an `import` call.
+/// Represents a path to a module, given as a string literal to an `import`
+/// call.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Import {
     pub path: StringLiteral,
@@ -1287,7 +1267,8 @@ pub struct VariableExpr {
 #[derive(Debug, PartialEq)]
 pub struct RefExpr {
     pub inner_expr: AstNode<Expression>,
-    /// The kind of reference, either being a normal reference or a `raw` reference
+    /// The kind of reference, either being a normal reference or a `raw`
+    /// reference
     pub kind: RefKind,
     /// Mutability modifier on the expression.
     pub mutability: Option<AstNode<Mutability>>,
@@ -1384,7 +1365,8 @@ pub enum ExpressionKind {
     AssignOp(AssignOpExpression),
     MergeDeclaration(MergeDeclaration),
     TraitImpl(TraitImpl),
-    /// Binary Expression composed of a left and right hand-side with a binary operator
+    /// Binary Expression composed of a left and right hand-side with a binary
+    /// operator
     BinaryExpr(BinaryExpression),
     /// Unary Expression composed of a unary operator and an expression
     UnaryExpr(UnaryExpression),
@@ -1424,6 +1406,7 @@ impl Expression {
 /// Represents a parsed `.hash` file.
 #[derive(Debug, PartialEq)]
 pub struct Module {
-    /// The contents of the module, as a list of expressions terminated with a semi-colon.
+    /// The contents of the module, as a list of expressions terminated with a
+    /// semi-colon.
     pub contents: AstNodes<Expression>,
 }

@@ -55,9 +55,9 @@ pub(crate) fn offset_col_row(offset: usize, source: &str, non_inclusive: bool) -
         // One byte for the newline
         let skip_width = line.len() + 1;
 
-        // Here, we don't want an inclusive range because we don't want to get the last byte because
-        // that will always point to the newline character and this isn't necessary to be included
-        // when selecting a span for printing.
+        // Here, we don't want an inclusive range because we don't want to get the last
+        // byte because that will always point to the newline character and this
+        // isn't necessary to be included when selecting a span for printing.
         let range = if non_inclusive {
             bytes_skipped..bytes_skipped + skip_width
         } else {
@@ -65,10 +65,7 @@ pub(crate) fn offset_col_row(offset: usize, source: &str, non_inclusive: bool) -
         };
 
         if range.contains(&offset) {
-            line_index = Some(ColRowOffset {
-                col: offset - bytes_skipped,
-                row: line_idx,
-            });
+            line_index = Some(ColRowOffset { col: offset - bytes_skipped, row: line_idx });
             break;
         }
 
@@ -86,9 +83,9 @@ pub(crate) fn offset_col_row(offset: usize, source: &str, non_inclusive: bool) -
 /// This function holds inner rules for calculating what the selected top
 /// and bottom buffer sizes should be.
 fn adjust_initial_span_size(span: usize) -> usize {
-    // @@Correctness: This is an arbitrary rule and should be decided upon more concretely. It's
-    //                even possible that we might not want to get any additional lines for even larger
-    //                spans
+    // @@Correctness: This is an arbitrary rule and should be decided upon more
+    // concretely. It's even possible that we might not want to get any additional
+    // lines for even larger spans
     match span {
         3..=4 => 2,
         5.. => 1,
@@ -120,15 +117,11 @@ impl ReportCodeBlock {
                 let source = modules.contents_by_id(source_id);
 
                 // Compute offset rows and columns from the provided span
-                let ColRowOffset {
-                    col: start_col,
-                    row: start_row,
-                } = offset_col_row(span.start(), source, true);
+                let ColRowOffset { col: start_col, row: start_row } =
+                    offset_col_row(span.start(), source, true);
 
-                let ColRowOffset {
-                    col: end_col,
-                    row: end_row,
-                } = offset_col_row(span.end(), source, false);
+                let ColRowOffset { col: end_col, row: end_row } =
+                    offset_col_row(span.end(), source, false);
 
                 let ColRowOffset { row: last_row, .. } =
                     offset_col_row(source.len(), source, false);
@@ -143,13 +136,8 @@ impl ReportCodeBlock {
                     .chars()
                     .count();
 
-                let info = ReportCodeBlockInfo {
-                    indent_width,
-                    start_col,
-                    start_row,
-                    end_col,
-                    end_row,
-                };
+                let info =
+                    ReportCodeBlockInfo { indent_width, start_col, start_row, end_col, end_row };
 
                 self.info.replace(Some(info));
                 info
@@ -157,8 +145,8 @@ impl ReportCodeBlock {
         }
     }
 
-    /// Function to extract the block of the code that will be used to display the span
-    /// of the diagnostic.
+    /// Function to extract the block of the code that will be used to display
+    /// the span of the diagnostic.
     fn get_source_view<'a, T: SourceMap>(
         &self,
         modules: &'a T,
@@ -167,9 +155,7 @@ impl ReportCodeBlock {
         let source_id = self.source_location.source_id;
         let source = modules.contents_by_id(source_id);
 
-        let ReportCodeBlockInfo {
-            start_row, end_row, ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, .. } = self.info(modules);
 
         let (top_buffer, bottom_buffer) = compute_buffers(start_row, end_row);
 
@@ -181,9 +167,10 @@ impl ReportCodeBlock {
             .take(top_buffer + end_row - start_row + 1 + bottom_buffer)
     }
 
-    /// Function that performs the rendering of the `line` view for a diagnostic. In this mode,
-    /// only a single line is highlighted using the [LINE_DIAGNOSTIC_MARKER]. It will highlight
-    /// the entire span using this mode. Here is an example of a diagnostic using the `line`
+    /// Function that performs the rendering of the `line` view for a
+    /// diagnostic. In this mode, only a single line is highlighted using
+    /// the [LINE_DIAGNOSTIC_MARKER]. It will highlight the entire span
+    /// using this mode. Here is an example of a diagnostic using the `line`
     /// mode:
     ///
     /// ```text
@@ -191,7 +178,7 @@ impl ReportCodeBlock {
     /// --> ~/examples/weird.hash:1:1
     /// 1 |   a = "2";
     ///   |   ^^^^^^^ not allowed here
-    /// 2 |   
+    /// 2 |
     /// 3 |   // main := () => {
     /// ```
     fn render_line_view<T: SourceMap>(
@@ -203,21 +190,11 @@ impl ReportCodeBlock {
     ) -> fmt::Result {
         let error_view = self.get_source_view(modules);
 
-        let ReportCodeBlockInfo {
-            start_row,
-            end_row,
-            start_col,
-            end_col,
-            ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
 
         // Print each selected line with the line number
         for (index, line) in error_view {
-            let index_str = format!(
-                "{:>pad_width$}",
-                index + 1,
-                pad_width = longest_indent_width
-            );
+            let index_str = format!("{:>pad_width$}", index + 1, pad_width = longest_indent_width);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)
@@ -225,13 +202,7 @@ impl ReportCodeBlock {
                 index_str
             };
 
-            writeln!(
-                f,
-                "{} {}   {}",
-                line_number,
-                highlight(Colour::Blue, "|"),
-                line
-            )?;
+            writeln!(f, "{} {}   {}", line_number, highlight(Colour::Blue, "|"), line)?;
 
             if (start_row..=end_row).contains(&index) && !line.is_empty() {
                 let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER)
@@ -268,29 +239,31 @@ impl ReportCodeBlock {
         Ok(())
     }
 
-    /// Function that performs the rendering of the `block` view for a diagnostic.
-    /// The `block` view works by drawing an initial arrow that points to the start
-    /// of the diagnostic span, and an arrow to the end of the span in the same
-    /// format (with a label at the end). The two arrows are connected by a vertical
-    /// connector on the left hand-side. Here is an example of the `block` mode:
+    /// Function that performs the rendering of the `block` view for a
+    /// diagnostic. The `block` view works by drawing an initial arrow that
+    /// points to the start of the diagnostic span, and an arrow to the end
+    /// of the span in the same format (with a label at the end). The two
+    /// arrows are connected by a vertical connector on the left hand-side.
+    /// Here is an example of the `block` mode:
     ///
     /// ```text
     /// error: non-declarative expressions are not allowed in `module` pattern
     ///   --> /Users/alex/Documents/hash-org/lang/examples/weird.hash:11:1
     ///  9 |    // };
-    /// 10 |    
+    /// 10 |
     /// 11 |    IoError = struct(
     ///    |  __-
     /// 12 | |      error: IoErrorType,
     /// 13 | |      message: str,
     /// 14 | |  );
     ///    | |___- not allowed here
-    /// 15 |    
+    /// 15 |
     /// 16 |    // Make this a test case:
     /// ```
     ///
-    /// As seen in this example, there are two arrows which look like `__-` and which
-    /// are connected by a vertical arrow on the left side of the span.
+    /// As seen in this example, there are two arrows which look like `__-` and
+    /// which are connected by a vertical arrow on the left side of the
+    /// span.
     fn render_block_view<T: SourceMap>(
         &self,
         f: &mut fmt::Formatter,
@@ -300,25 +273,16 @@ impl ReportCodeBlock {
     ) -> fmt::Result {
         let error_view = self.get_source_view(modules);
 
-        let ReportCodeBlockInfo {
-            start_row,
-            end_row,
-            start_col,
-            end_col,
-            ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, start_col, end_col, .. } = self.info(modules);
 
-        // So here, we want to iterate over all of the line and on the starting line, we want to
-        // draw an arrow from the left hand-side up until the beginning which then points up, on
-        // lines that are in the middle, we just want to draw a connecting character of the arrow,
-        // and finally on the line below the final line we want to draw an arrow leading up until
+        // So here, we want to iterate over all of the line and on the starting line, we
+        // want to draw an arrow from the left hand-side up until the beginning
+        // which then points up, on lines that are in the middle, we just want
+        // to draw a connecting character of the arrow, and finally on the line
+        // below the final line we want to draw an arrow leading up until
         // the end of the span.
         for (index, line) in error_view {
-            let index_str = format!(
-                "{:>pad_width$}",
-                index + 1,
-                pad_width = longest_indent_width
-            );
+            let index_str = format!("{:>pad_width$}", index + 1, pad_width = longest_indent_width);
 
             let line_number = if (start_row..=end_row).contains(&index) {
                 highlight(report_kind.as_colour(), &index_str)
@@ -326,9 +290,10 @@ impl ReportCodeBlock {
                 index_str
             };
 
-            // Compute the connector, if the current index is within the diagnostic span, we also need
-            // to add a connector that connects the bottom and top spans by a vertical line to the left
-            // hand-side of the diagnostic span.
+            // Compute the connector, if the current index is within the diagnostic span, we
+            // also need to add a connector that connects the bottom and top
+            // spans by a vertical line to the left hand-side of the diagnostic
+            // span.
             let connector = if (start_row + 1..=end_row).contains(&index) {
                 DIAGNOSTIC_CONNECTING_CHAR
             } else {
@@ -344,12 +309,11 @@ impl ReportCodeBlock {
                 line
             )?;
 
-            // If this is th first row of the diagnostic span, then we want to draw an arrow leading up to it
+            // If this is th first row of the diagnostic span, then we want to draw an arrow
+            // leading up to it
             if index == start_row {
-                let arrow: String = repeat('_')
-                    .take(start_col + 2)
-                    .chain(once(BLOCK_DIAGNOSTIC_MARKER))
-                    .collect();
+                let arrow: String =
+                    repeat('_').take(start_col + 2).chain(once(BLOCK_DIAGNOSTIC_MARKER)).collect();
 
                 writeln!(
                     f,
@@ -360,8 +324,8 @@ impl ReportCodeBlock {
                 )?;
             }
 
-            // Now we perform the same operator for creating an arrow to join the end span, and of course
-            // we write the note at the end of the span.
+            // Now we perform the same operator for creating an arrow to join the end span,
+            // and of course we write the note at the end of the span.
             if index == end_row {
                 let arrow: String = once('|')
                     .chain(repeat('_').take(end_col + 2))
@@ -382,8 +346,8 @@ impl ReportCodeBlock {
         Ok(())
     }
 
-    /// Function to render the [ReportCodeBlock] using the provided [SourceLocation], message and
-    /// [ReportKind].
+    /// Function to render the [ReportCodeBlock] using the provided
+    /// [SourceLocation], message and [ReportKind].
     pub(crate) fn render<T: SourceMap>(
         &self,
         f: &mut fmt::Formatter,
@@ -392,12 +356,7 @@ impl ReportCodeBlock {
         report_kind: ReportKind,
     ) -> fmt::Result {
         let source_id = self.source_location.source_id;
-        let ReportCodeBlockInfo {
-            start_row,
-            end_row,
-            start_col,
-            ..
-        } = self.info(modules);
+        let ReportCodeBlockInfo { start_row, end_row, start_col, .. } = self.info(modules);
 
         // Print the filename of the code block...
         writeln!(
@@ -416,9 +375,9 @@ impl ReportCodeBlock {
             )
         )?;
 
-        // Now we can determine whether we want to use the `block` or the `line` view. The
-        // block view is for displaying large spans for multiple lines, whilst the line view
-        // is for a single line span.
+        // Now we can determine whether we want to use the `block` or the `line` view.
+        // The block view is for displaying large spans for multiple lines,
+        // whilst the line view is for a single line span.
         if start_row == end_row {
             self.render_line_view(f, modules, longest_indent_width, report_kind)
         } else {

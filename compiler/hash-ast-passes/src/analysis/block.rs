@@ -13,13 +13,15 @@ use crate::diagnostics::{error::AnalysisErrorKind, BlockOrigin};
 use super::SemanticAnalyser;
 
 impl SemanticAnalyser {
-    /// This function will verify that all of the given expressions are declarations. Additionally,
-    /// the function checks that all of the declarations within the scope do not attempt to
-    /// declare the binding to be `mutable` as this is disallowed.
+    /// This function will verify that all of the given expressions are
+    /// declarations. Additionally, the function checks that all of the
+    /// declarations within the scope do not attempt to declare the binding
+    /// to be `mutable` as this is disallowed.
     ///
     /// During the checking process, the function also collects the indices of
     /// the erroneous statements in the provided [AstNodes<Expression>]. This is
-    /// so that the caller can later 'skip' these statements when performing further checks.
+    /// so that the caller can later 'skip' these statements when performing
+    /// further checks.
     pub(crate) fn check_statements_are_declarative(
         &mut self,
         statements: &AstNodes<Expression>,

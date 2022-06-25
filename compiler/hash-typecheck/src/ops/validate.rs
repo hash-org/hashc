@@ -38,16 +38,16 @@ impl<'gs, 'ls, 'cd> AccessToStorageMut for Validator<'gs, 'ls, 'cd> {
     }
 }
 
-/// Used to communicate the result of a successful term validation, which produces the simplified
-/// term as well as its type.
+/// Used to communicate the result of a successful term validation, which
+/// produces the simplified term as well as its type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TermValidation {
     pub simplified_term_id: TermId,
     pub term_ty_id: TermId,
 }
 
-/// Helper type for [Validator::validate_merge_element], to keep track of the kind of the merge
-/// (whether it is level 2, level 1, or not known yet).
+/// Helper type for [Validator::validate_merge_element], to keep track of the
+/// kind of the merge (whether it is level 2, level 1, or not known yet).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MergeKind {
     Unknown,
@@ -75,14 +75,15 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Validate the nominal definition of the given [NominalDefId]
     pub fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
-        // Ensure all members have level 1 types/level 0 default values and the default values are
-        // of the given type.
+        // Ensure all members have level 1 types/level 0 default values and the default
+        // values are of the given type.
         todo!()
     }
 
-    /// Ensure the element `merge_element_term_id` of the merge with the given `merge_term_id` is
-    /// either level 2 (along with the merge being all level 2), or level 1 (along with the merge
-    /// being all level 1). Furthermore, if it is level 1, the merge should only have zero or one
+    /// Ensure the element `merge_element_term_id` of the merge with the given
+    /// `merge_term_id` is either level 2 (along with the merge being all
+    /// level 2), or level 1 (along with the merge being all level 1).
+    /// Furthermore, if it is level 1, the merge should only have zero or one
     /// nominal definition attached.
     fn validate_merge_element(
         &mut self,
@@ -95,9 +96,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Error helper:
         let invalid_merge_element = || -> TcResult<()> {
-            Err(TcError::InvalidElementOfMerge {
-                term: merge_element_term_id,
-            })
+            Err(TcError::InvalidElementOfMerge { term: merge_element_term_id })
         };
 
         // Helper to ensure that a merge is level 2, returns the updated MergeKind.
@@ -111,9 +110,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // Merge is already level 2, all good:
                     Ok(*merge_kind)
                 }
-                MergeKind::Level1 {
-                    nominal_attached: _,
-                } => {
+                MergeKind::Level1 { nominal_attached: _ } => {
                     // Merge was already specified to be level 1, error!
                     Err(TcError::MergeShouldBeLevel2 {
                         merge_term: merge_term_id,
@@ -128,9 +125,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             match (*merge_kind, checking_nominal) {
                 (MergeKind::Unknown, _) => {
                     // Now we know that the merge should be level 1
-                    Ok(MergeKind::Level1 {
-                        nominal_attached: checking_nominal,
-                    })
+                    Ok(MergeKind::Level1 { nominal_attached: checking_nominal })
                 }
                 (MergeKind::Level2, _) => {
                     // Merge was already specified to be level 2, error!
@@ -139,32 +134,18 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         offending_term: merge_element_term_id,
                     })
                 }
-                (
-                    MergeKind::Level1 {
-                        nominal_attached: _,
-                    },
-                    None,
-                ) => {
+                (MergeKind::Level1 { nominal_attached: _ }, None) => {
                     // Merge is level 1; independently of whether a nominal is
                     // attached, this is fine because we are not checking a nominal.
                     Ok(*merge_kind)
                 }
-                (
-                    MergeKind::Level1 {
-                        nominal_attached: None,
-                    },
-                    Some(checking_nominal),
-                ) => {
+                (MergeKind::Level1 { nominal_attached: None }, Some(checking_nominal)) => {
                     // Merge is level 1 without a nominal and we are checking a nominal; we attach
                     // the nominal.
-                    Ok(MergeKind::Level1 {
-                        nominal_attached: Some(checking_nominal),
-                    })
+                    Ok(MergeKind::Level1 { nominal_attached: Some(checking_nominal) })
                 }
                 (
-                    MergeKind::Level1 {
-                        nominal_attached: Some(nominal_term_id),
-                    },
+                    MergeKind::Level1 { nominal_attached: Some(nominal_term_id) },
                     Some(checking_nominal),
                 ) => {
                     // A nominal has already been attached, error!
@@ -180,17 +161,18 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         // Ensure the level of the term is valid:
         match merge_element_term {
             // Type function application, access, or variable:
-            // These should have already been simplified, so we only accept them if their type is level
-            // 3 and the merge is level 2, which means it is a level 2 term. Their type is level
-            // 2, we cannot be sure it won't have a duplicate nominal definition so we cannot
-            // accept it.
+            // These should have already been simplified, so we only accept them if their type is
+            // level 3 and the merge is level 2, which means it is a level 2 term. Their
+            // type is level 2, we cannot be sure it won't have a duplicate nominal
+            // definition so we cannot accept it.
             Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => {
                 let ty_id_of_term = self.typer().ty_of_term(merge_element_term_id)?;
                 let reader = self.reader();
                 let ty_of_term = reader.get_term(ty_id_of_term);
                 match ty_of_term {
                     Term::Level3(_) => {
-                        // If the type of the term is level 3, then we know that the merge should be level 2:
+                        // If the type of the term is level 3, then we know that the merge should be
+                        // level 2:
                         *merge_kind = ensure_merge_is_level2()?;
                         Ok(())
                     }
@@ -259,7 +241,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             if let Some(default_value) = param.default_value {
                 self.validate_term(default_value)?;
 
-                // Ensure the default value's type can be unified with the given type of the parameter:
+                // Ensure the default value's type can be unified with the given type of the
+                // parameter:
                 let ty_of_default_value = self.typer().ty_of_simplified_term(default_value)?;
                 let _ = self.unifier().unify_terms(ty_of_default_value, param.ty)?;
             }
@@ -279,7 +262,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Validate the given term for correctness.
     ///
-    /// Returns the simplified term, along with its type, which are computed during the validation.
+    /// Returns the simplified term, along with its type, which are computed
+    /// during the validation.
     pub fn validate_term(&mut self, term_id: TermId) -> TcResult<TermValidation> {
         // First, we try simplify the term:
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
@@ -291,10 +275,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         let reader = self.reader();
 
         // Prepare the result of the validation:
-        let result = TermValidation {
-            simplified_term_id,
-            term_ty_id,
-        };
+        let result = TermValidation { simplified_term_id, term_ty_id };
 
         let term = reader.get_term(simplified_term_id);
         match term {
@@ -374,8 +355,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                             let fn_return_value_validation =
                                 self.validate_term(fn_lit.return_value)?;
 
-                            // Ensure the return type of the function unifies with the type of the return
-                            // value:
+                            // Ensure the return type of the function unifies with the type of the
+                            // return value:
                             let _ = self.unifier().unify_terms(
                                 fn_return_value_validation.term_ty_id,
                                 fn_return_ty_validation.simplified_term_id,
@@ -399,8 +380,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
             // Access
             Term::Access(access_term) => {
-                // Validate the inner term; the access should already be valid since it passed the
-                // typing stage.
+                // Validate the inner term; the access should already be valid since it passed
+                // the typing stage.
                 self.validate_term(access_term.subject)?;
                 Ok(result)
             }
@@ -408,8 +389,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             // Substitution application:
             Term::AppSub(app_sub) => {
                 // @@Correctness: do we need to perform any sort of substitution validity check?
-                // maybe to try unify the substitution with itself to ensure it does not contradict
-                // itself? For example, if it contains cycles `T0 -> T1, T1 -> T0`.
+                // maybe to try unify the substitution with itself to ensure it does not
+                // contradict itself? For example, if it contains cycles `T0 ->
+                // T1, T1 -> T0`.
                 //
                 // For now, we just validate the inner term:
                 self.validate_term(app_sub.term)?;
@@ -462,16 +444,12 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // Ensure the params are a subtype of the general params
                     // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
                     // the message.
-                    let _ = self
-                        .unifier()
-                        .unify_params(&case.params, &ty_fn.general_params)?;
+                    let _ = self.unifier().unify_params(&case.params, &ty_fn.general_params)?;
 
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
                     let return_value_ty = self.typer().ty_of_simplified_term(term_id)?;
-                    let _ = self
-                        .unifier()
-                        .unify_terms(case.return_ty, return_value_ty)?;
+                    let _ = self.unifier().unify_terms(case.return_ty, return_value_ty)?;
 
                     // Ensure the return value of each case is a subtype of the general return type.
                     let _ = self
@@ -492,8 +470,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             // Type function application:
             Term::AppTyFn(app_ty_fn) => {
                 // Since this could be typed, it means the application is valid in terms of
-                // unification of type function params with the arguments. Thus, all we need to do
-                // is validate individually the term and the arguments:
+                // unification of type function params with the arguments. Thus, all we need to
+                // do is validate individually the term and the arguments:
                 let app_ty_fn = app_ty_fn.clone();
                 self.validate_term(app_ty_fn.subject)?;
                 self.validate_args(&app_ty_fn.args)?;
@@ -508,7 +486,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Ensure that the given term is runtime instantiable.
     ///
-    /// Internally uses [Self::term_is_runtime_instantiable], check its docs for info.
+    /// Internally uses [Self::term_is_runtime_instantiable], check its docs for
+    /// info.
     pub fn ensure_term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<()> {
         if !(self.term_is_runtime_instantiable(term_id)?) {
             Err(TcError::TermIsNotRuntimeInstantiable { term: term_id })
@@ -517,11 +496,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Determine whether the given term is runtime instantiable, i.e. a level 1 term that can be
-    /// wrapped in an Rt(..).
+    /// Determine whether the given term is runtime instantiable, i.e. a level 1
+    /// term that can be wrapped in an Rt(..).
     ///
-    /// This is the condition for the term to be able to be used within tuple types, function
-    /// types, structs and enums.
+    /// This is the condition for the term to be able to be used within tuple
+    /// types, function types, structs and enums.
     ///
     /// *Note*: assumes the term has been simplified and validated.
     pub fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
@@ -537,10 +516,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Determine if the given term can be used as the return value of a type function.
+    /// Determine if the given term can be used as the return value of a type
+    /// function.
     ///
-    /// This includes constant level 0 terms, level 1 terms, level 2 terms, and other type
-    /// functions.
+    /// This includes constant level 0 terms, level 1 terms, level 2 terms, and
+    /// other type functions.
     ///
     /// *Note*: assumes the term has been simplified and validated.
     pub fn term_can_be_used_as_ty_fn_return_value(&mut self, term_id: TermId) -> TcResult<bool> {
@@ -549,15 +529,16 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         if !(self.term_can_be_used_as_ty_fn_return_ty(term_ty_id)?) {
             return Ok(false);
         }
-        // If it passes the check, we just need to make sure that if it is a level 0 function, it
-        // is a function literal.
+        // If it passes the check, we just need to make sure that if it is a level 0
+        // function, it is a function literal.
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
             Term::Level0(level0_term) => {
                 match level0_term {
                     Level0Term::Rt(_) => {
-                        // Not any runtime value can be used here because it might produce side-effects.
+                        // Not any runtime value can be used here because it might produce
+                        // side-effects.
                         Ok(false)
                     }
                     Level0Term::FnLit(_) => {
@@ -575,10 +556,12 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Determine if the given term can be used as the return type of a type function.
+    /// Determine if the given term can be used as the return type of a type
+    /// function.
     ///
-    /// There are also additional restrictions on the kind of *value* that can be used for a type
-    /// function return, which are covered by [Self::term_can_be_used_as_ty_fn_return_value].
+    /// There are also additional restrictions on the kind of *value* that can
+    /// be used for a type function return, which are covered by
+    /// [Self::term_can_be_used_as_ty_fn_return_value].
     ///
     /// *Note*: assumes the term has been simplified and validated.
     pub fn term_can_be_used_as_ty_fn_return_ty(&mut self, term_id: TermId) -> TcResult<bool> {
@@ -613,9 +596,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve {
-                    term_to_resolve: term_id,
-                })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
             }
             // All level 2 and 3 terms are ok to use as return types
             Term::Level2(_) | Term::Level3(_) => Ok(true),
@@ -629,10 +610,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Determine if the given term can be used as the parameter type of a type function.
+    /// Determine if the given term can be used as the parameter type of a type
+    /// function.
     ///
-    /// This extends to level 2, as well as type function types returning level 2 terms.
-    /// **Note**: assumes the term has been simplified.
+    /// This extends to level 2, as well as type function types returning level
+    /// 2 terms. **Note**: assumes the term has been simplified.
     ///
     /// @@Extension: we could allow level 3 terms as parameters too (TraitKind).
     pub fn term_can_be_used_as_ty_fn_param_ty(&mut self, term_id: TermId) -> TcResult<bool> {
@@ -667,9 +649,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve {
-                    term_to_resolve: term_id,
-                })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
             }
             // All level 2 and 3 terms are ok to use as parameter types
             Term::Level2(_) | Term::Level3(_) => Ok(true),
@@ -695,10 +675,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Determine if the two given substitutions are equivalent.
     ///
-    /// That is, if for any term X, they produce the same result when applied to X
+    /// That is, if for any term X, they produce the same result when applied to
+    /// X
     ///
-    /// @@Correctness: This is not based on any accepted algorithm, and requires testing to ensure
-    /// its correctness.
+    /// @@Correctness: This is not based on any accepted algorithm, and requires
+    /// testing to ensure its correctness.
     pub fn subs_are_equivalent(&mut self, s0: &Sub, s1: &Sub) -> bool {
         // First we get the two substitutions as lists sorted by their domains:
         let mut s0_list = s0.pairs().collect::<Vec<_>>();
@@ -706,22 +687,16 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         s0_list.sort_by_key(|x| x.0);
         s1_list.sort_by_key(|x| x.0);
 
-        // Then for each pair, we ensure the domain elements are the same, and the range elements
-        // can be unified:
+        // Then for each pair, we ensure the domain elements are the same, and the range
+        // elements can be unified:
         for (s0_element, s1_element) in s0_list.iter().zip(&s1_list) {
             if s0_element.0 != s1_element.0 {
                 return false;
             }
 
             // Unify bidirectionally
-            if self
-                .unifier()
-                .unify_terms(s0_element.1, s1_element.1)
-                .is_err()
-                || self
-                    .unifier()
-                    .unify_terms(s1_element.1, s0_element.1)
-                    .is_err()
+            if self.unifier().unify_terms(s0_element.1, s1_element.1).is_err()
+                || self.unifier().unify_terms(s1_element.1, s0_element.1).is_err()
             {
                 return false;
             }

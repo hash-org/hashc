@@ -2,9 +2,9 @@
 
 use clap::Parser as ClapParser;
 
-/// CompilerOptions is a structural representation of what arguments the compiler
-/// can take when running. Compiler options are well documented on the wiki page:
-/// <https://hash-org.github.io/hash-arxiv/interpreter-options.html>
+/// CompilerOptions is a structural representation of what arguments the
+/// compiler can take when running. Compiler options are well documented on the
+/// wiki page: <https://hash-org.github.io/hash-arxiv/interpreter-options.html>
 #[derive(ClapParser)]
 #[clap(
     name = "Hash Interpreter",

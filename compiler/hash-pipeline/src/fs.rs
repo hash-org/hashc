@@ -10,8 +10,8 @@ use std::{
 };
 use thiserror::Error;
 
-/// Import error is an abstraction to represent errors that are in relevance to IO
-/// operations rather than parsing operations.
+/// Import error is an abstraction to represent errors that are in relevance to
+/// IO operations rather than parsing operations.
 #[derive(Debug, Clone, Error)]
 #[error("Couldn't import module `{filename}`: {message}")]
 pub struct ImportError {
@@ -23,9 +23,7 @@ pub struct ImportError {
 impl ImportError {
     pub fn create_report(&self) -> Report {
         let mut builder = ReportBuilder::new();
-        builder
-            .with_kind(ReportKind::Error)
-            .with_message("Failed to import");
+        builder.with_kind(ReportKind::Error).with_message("Failed to import");
 
         if let Some(src) = self.src {
             builder
@@ -42,8 +40,8 @@ impl ImportError {
     }
 }
 
-/// The location of a build directory of this package, this used to resolve where the standard library
-/// is located at.
+/// The location of a build directory of this package, this used to resolve
+/// where the standard library is located at.
 static BUILD_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 /// Name of the prelude module
@@ -71,13 +69,15 @@ pub fn get_stdlib_modules(dir: impl AsRef<Path>) -> Vec<PathBuf> {
                     } else if path.is_file() {
                         let file_name = path.file_stem().unwrap();
 
-                        // Special case, don't add prelude to the module list since we don't want to allow
-                        // it to be imported under the normal standard library imports.
+                        // Special case, don't add prelude to the module list since we don't want to
+                        // allow it to be imported under the normal standard
+                        // library imports.
                         if file_name == PRELUDE {
                             continue;
                         }
 
-                        // This shouldn't happen but if there is a file which does not have a hash extension, we shouldn't add it
+                        // This shouldn't happen but if there is a file which does not have a hash
+                        // extension, we shouldn't add it
                         if path.extension().unwrap_or_default() != "hash" {
                             continue;
                         }
@@ -113,9 +113,9 @@ pub fn resolve_path(
     let work_dir = wd.canonicalize().unwrap();
     let raw_path = work_dir.join(path);
 
-    // If the provided path is a directory, we assume that the user is referencing an index
-    // module that is located within the given directory. This takes precedence over checking
-    // if a module is named that directory.
+    // If the provided path is a directory, we assume that the user is referencing
+    // an index module that is located within the given directory. This takes
+    // precedence over checking if a module is named that directory.
     // More info on this topic: https://hash-org.github.io/lang/modules.html#importing
     if raw_path.is_dir() {
         let idx_path = raw_path.join("index.hash");
@@ -139,9 +139,9 @@ pub fn resolve_path(
             src: location,
         })
     } else {
-        // we don't need to anything if the given raw_path already has a extension '.hash',
-        // since we don't disallow someone to import a module and reference the module with
-        // the name, like so...
+        // we don't need to anything if the given raw_path already has a extension
+        // '.hash', since we don't disallow someone to import a module and
+        // reference the module with the name, like so...
         //
         // > let lib = import("lib.hash");
         // same as...
@@ -153,7 +153,8 @@ pub fn resolve_path(
                 // add hash extension regardless and check if the path exists...
                 let raw_path_hash = raw_path.with_extension("hash");
 
-                // Only try to check this route if the provided file did not already have an extension
+                // Only try to check this route if the provided file did not already have an
+                // extension
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
                     Ok(raw_path_hash)
                 } else {

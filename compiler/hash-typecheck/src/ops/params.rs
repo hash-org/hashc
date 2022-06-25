@@ -7,8 +7,8 @@ use std::collections::HashSet;
 
 /// Pair the given parameters with the given arguments.
 ///
-/// This does not perform any typechecking, it simply matches parameters and arguments by
-/// position or name.
+/// This does not perform any typechecking, it simply matches parameters and
+/// arguments by position or name.
 pub fn pair_args_with_params<'p, 'a>(
     params: &'p Params,
     args: &'a Args,

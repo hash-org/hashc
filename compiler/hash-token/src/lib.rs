@@ -7,10 +7,10 @@ use delimiter::Delimiter;
 use hash_source::{identifier::Identifier, location::Span, string::StringLiteral};
 use keyword::Keyword;
 
-/// A Lexeme token that represents the smallest code unit of a hash source file. The
-/// token contains a kind which is elaborated by [TokenKind] and a [Span] in the
-/// source that is represented as a span. The span is the beginning byte offset, and the
-/// number of bytes for the said token.
+/// A Lexeme token that represents the smallest code unit of a hash source file.
+/// The token contains a kind which is elaborated by [TokenKind] and a [Span] in
+/// the source that is represented as a span. The span is the beginning byte
+/// offset, and the number of bytes for the said token.
 #[derive(Debug, PartialEq)]
 pub struct Token {
     /// The current token type.
@@ -62,7 +62,8 @@ impl std::fmt::Display for Token {
 }
 
 impl TokenKind {
-    /// Check if a [TokenKind] can be considered in a situation as a unary operator.
+    /// Check if a [TokenKind] can be considered in a situation as a unary
+    /// operator.
     pub fn is_unary_op(&self) -> bool {
         matches!(
             self,
@@ -80,8 +81,8 @@ impl TokenKind {
 
     /// Check if the current token can begin a pattern
 
-    /// Checks if the [TokenKind] must begin a block, as in the specified keywords that
-    /// follow a specific syntax, and must be statements.
+    /// Checks if the [TokenKind] must begin a block, as in the specified
+    /// keywords that follow a specific syntax, and must be statements.
     pub fn begins_block(&self) -> bool {
         matches!(
             self,
@@ -95,7 +96,8 @@ impl TokenKind {
         )
     }
 
-    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int', 'float' or a 'string'
+    /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int',
+    /// 'float' or a 'string'
     pub fn is_literal(&self) -> bool {
         matches!(
             self,
@@ -109,8 +111,9 @@ impl TokenKind {
     }
 }
 
-/// An Atom represents all variants of a token that can be present in a source file. Atom token
-/// kinds can represent a single character, literal or an identifier.
+/// An Atom represents all variants of a token that can be present in a source
+/// file. Atom token kinds can represent a single character, literal or an
+/// identifier.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenKind {
     /// '='
@@ -174,19 +177,20 @@ pub enum TokenKind {
     /// Keyword
     Keyword(Keyword),
 
-    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error reporting and messages.
-    /// The boolean flag represents if the delimiter is left or right, If it's true, then it is the left
-    /// variant.
+    /// Delimiter: '(' '{', '[' and right hand-side variants, useful for error
+    /// reporting and messages. The boolean flag represents if the delimiter
+    /// is left or right, If it's true, then it is the left variant.
     Delimiter(Delimiter, bool),
 
-    /// A token that was unexpected by the lexer, e.g. a unicode symbol not within
-    /// string literal.
+    /// A token that was unexpected by the lexer, e.g. a unicode symbol not
+    /// within string literal.
     Unexpected(char),
 }
 
 impl TokenKind {
-    /// This function is used to create an error message representing when a token
-    /// was unexpectedly encountered or was expected in a particular context.
+    /// This function is used to create an error message representing when a
+    /// token was unexpectedly encountered or was expected in a particular
+    /// context.
     pub fn as_error_string(&self) -> String {
         match self {
             TokenKind::Unexpected(ch) => format!("an unknown character `{}`", ch),
@@ -253,16 +257,16 @@ impl std::fmt::Display for TokenKind {
     }
 }
 
-/// This is a wrapper around a vector of token atoms that can represent the expected
-/// tokens in a given context when transforming the token tree into and an AST.
-/// The wrapper exists because once again you cannot specify implementations for types
-/// that don't originate from the current crate.
+/// This is a wrapper around a vector of token atoms that can represent the
+/// expected tokens in a given context when transforming the token tree into and
+/// an AST. The wrapper exists because once again you cannot specify
+/// implementations for types that don't originate from the current crate.
 ///
-/// @@TODO(alex): Instead of using a [TokenKind], we should use an enum to custom
-/// variants or descriptors such as 'operator'. Instead of token atoms we can just
-/// the display representations of the token atoms. Or even better, we can use the
-/// [`ToString`] trait and just auto cast into a string, whilst holding a vector of
-/// strings.
+/// @@TODO(alex): Instead of using a [TokenKind], we should use an enum to
+/// custom variants or descriptors such as 'operator'. Instead of token atoms we
+/// can just the display representations of the token atoms. Or even better, we
+/// can use the [`ToString`] trait and just auto cast into a string, whilst
+/// holding a vector of strings.
 #[derive(Debug)]
 pub struct TokenKindVector(Vec<TokenKind>);
 
@@ -297,18 +301,13 @@ impl TokenKindVector {
 
     #[inline(always)]
     pub fn begin_visibility() -> Self {
-        Self(vec![
-            TokenKind::Keyword(Keyword::Pub),
-            TokenKind::Keyword(Keyword::Priv),
-        ])
+        Self(vec![TokenKind::Keyword(Keyword::Pub), TokenKind::Keyword(Keyword::Priv)])
     }
 
-    /// Tokens expected when the parser expects a collection of patterns to be present.
+    /// Tokens expected when the parser expects a collection of patterns to be
+    /// present.
     pub fn begin_pattern_collection() -> Self {
-        Self(vec![
-            TokenKind::Delimiter(Delimiter::Paren, true),
-            TokenKind::Colon,
-        ])
+        Self(vec![TokenKind::Delimiter(Delimiter::Paren, true), TokenKind::Colon])
     }
 
     /// Tokens expected when a pattern begins in a match statement.
