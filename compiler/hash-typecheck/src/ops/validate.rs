@@ -1,10 +1,12 @@
 //! Contains utilities to validate terms.
+
 use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            Args, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, Mutability,
-            NominalDefId, Params, Scope, ScopeId, ScopeKind, Sub, Term, TermId, TrtDefId,
+            Args, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
+            Mutability, NominalDefId, Params, Scope, ScopeId, ScopeKind, Sub, Term, TermId,
+            TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -55,6 +57,16 @@ enum MergeKind {
     Level1 { nominal_attached: Option<TermId> },
 }
 
+/// Helper type for [Validator::validate_constant_scope], to determine in what
+/// capacity the `Self` member should be existing in the scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(unused)] // @@Todo: remove
+enum SelfMode {
+    NotAllowed,
+    Allowed,
+    Required,
+}
+
 impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
         Self { storage }
@@ -68,6 +80,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         &mut self,
         scope_id: ScopeId,
         allow_uninitialised: bool,
+        _self_mode: SelfMode,
     ) -> TcResult<()> {
         // @@Design: when do we insert each member into the scope? As we go or all at
         // once? For now, we insert as we go.
@@ -86,6 +99,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 "Found mutable member in constant scope!"
             );
 
+            // Add the member to the progressive scope so that this and next members can
+            // access it.
+            self.scope_store_mut().get_mut(progressive_scope_id).add(member);
+
+            // Validate the member:
             match member.data {
                 MemberData::Uninitialised { ty } if !allow_uninitialised => {
                     return Err(TcError::UninitialisedMemberNotAllowed { member_ty: ty });
@@ -110,9 +128,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 }
             }
 
-            // Now add the member to the progressive scope so that next members can access
-            // it.
-            self.scope_store_mut().get_mut(progressive_scope_id).add(member);
+            // @@Incomplete: here we also need to ensure that the member does
+            // not directly access itself (i.e. `a := a`).
         }
 
         // Leave the progressive scope:
@@ -122,17 +139,91 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         Ok(())
     }
 
-    /// Validate the module definition of the given [ModDefId]
-    pub fn validate_mod_def(&mut self, mod_def_id: ModDefId) -> TcResult<()> {
-        let mod_def_members = self.reader().get_mod_def(mod_def_id).members;
+    /// Ensure that the given `scope` implements the trait at the given
+    /// `trt_def_term_id`.
+    ///
+    /// This also validates that `trt_def_term_id` is a (validated) trait
+    /// definition.
+    ///
+    /// Assumes that `scope` has already been validated.
+    fn ensure_scope_implements_trait(
+        &mut self,
+        trt_def_term_id: TermId,
+        scope_originating_term_id: TermId,
+        scope_id: ScopeId,
+    ) -> TcResult<()> {
+        let scope = self.reader().get_scope(scope_id).clone();
+
+        // Simplify the term and ensure it is a trait
+        let simplified_trt_def_term_id =
+            self.simplifier().potentially_simplify_term(trt_def_term_id)?;
+        let reader = self.reader();
+        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id);
+
+        // Ensure the term leads to a trait definition:
+        match simplified_trt_def_term {
+            // @@Todo: application of subs:
+            Term::Level2(Level2Term::Trt(trt_def_id)) => {
+                let trt_def_id = *trt_def_id;
+                let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
+                // @@Performance: cloning :((
+                let trt_def_members = self.reader().get_scope(trt_def_members).clone();
+
+                // Ensure all members have been implemented:
+                for trt_member in trt_def_members.iter() {
+                    let trt_member_data = self.typer().infer_member_data(trt_member.data)?;
+
+                    if let Some(scope_member) = scope.get(trt_member.name) {
+                        // Unify the types of the member and the trait member:
+                        let scope_member_data =
+                            self.typer().infer_member_data(scope_member.data)?;
+                        let _ =
+                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty);
+                    } else {
+                        return Err(TcError::TraitImplementationMissingMember {
+                            trt_def_term_id,
+                            trt_impl_term_id: scope_originating_term_id,
+                            trt_def_missing_member_term_id: trt_member_data.ty,
+                        });
+                    }
+                }
+
+                // @@Design: do we want to block the implementation of members
+                // that are not in the trait definition?
+                Ok(())
+            }
+            _ => Err(TcError::CannotImplementNonTrait {
+                supposed_trait_term: simplified_trt_def_term_id,
+            }),
+        }
+    }
+
+    /// Validate the module definition of the given [ModDefId], defined in
+    /// `originating_term_id`.
+    pub fn validate_mod_def(
+        &mut self,
+        mod_def_id: ModDefId,
+        originating_term_id: TermId,
+    ) -> TcResult<()> {
+        let reader = self.reader();
+        let mod_def = reader.get_mod_def(mod_def_id);
+        let mod_def_members = mod_def.members;
+        let mod_def_origin = mod_def.origin;
 
         // Validate all members:
         // Bound vars should already be in scope.
-        self.validate_constant_scope(mod_def_members, false)?;
+        self.validate_constant_scope(mod_def_members, false, SelfMode::Allowed)?;
 
         // Ensure if it is a trait impl it implements all the trait members.
+        if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
+            self.ensure_scope_implements_trait(
+                trt_def_term_id,
+                originating_term_id,
+                mod_def_members,
+            )?;
+        }
 
-        todo!()
+        Ok(())
     }
 
     /// Validate the trait definition of the given [TrtDefId]
@@ -270,6 +361,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             },
             // Level 1 terms are allowed:
             Term::Level1(level1_term) => match level1_term {
+                // @@Incomplete: shouldn't we also check that the `Self` property is compatible with
+                // the other elements?
+
                 // Modules:
                 Level1Term::ModDef(_) => {
                     // Not checking a nominal:
