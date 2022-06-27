@@ -8,19 +8,25 @@
 //! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
 use self::{
+    arguments::ArgsStore,
     core::CoreDefs,
+    location::LocationStore,
     mods::ModDefStore,
     nominals::NominalDefStore,
+    params::ParamsStore,
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
-    terms::{TermLocations, TermStore},
+    terms::TermStore,
     trts::TrtDefStore,
 };
 
+pub mod arguments;
 pub mod core;
+pub mod location;
 pub mod mods;
 pub mod nominals;
+pub mod params;
 pub mod primitives;
 pub mod scope;
 pub mod sources;
@@ -32,7 +38,9 @@ pub mod trts;
 pub struct GlobalStorage {
     pub scope_store: ScopeStore,
     pub term_store: TermStore,
-    pub term_location_store: TermLocations,
+    pub location_store: LocationStore,
+    pub params_store: ParamsStore,
+    pub args_store: ArgsStore,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
@@ -51,14 +59,16 @@ impl GlobalStorage {
         let mut scope_store = ScopeStore::new();
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
         Self {
+            location_store: LocationStore::new(),
             term_store: TermStore::new(),
-            term_location_store: TermLocations::new(),
             scope_store,
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
+            params_store: ParamsStore::new(),
+            args_store: ArgsStore::new(),
         }
     }
 }
@@ -133,8 +143,8 @@ pub trait AccessToStorage {
         &self.global_storage().term_store
     }
 
-    fn term_location_store(&self) -> &TermLocations {
-        &self.global_storage().term_location_store
+    fn location_store(&self) -> &LocationStore {
+        &self.global_storage().location_store
     }
 
     fn nominal_def_store(&self) -> &NominalDefStore {
@@ -143,6 +153,14 @@ pub trait AccessToStorage {
 
     fn trt_def_store(&self) -> &TrtDefStore {
         &self.global_storage().trt_def_store
+    }
+
+    fn args_store(&self) -> &ArgsStore {
+        &self.global_storage().args_store
+    }
+
+    fn params_store(&self) -> &ParamsStore {
+        &self.global_storage().params_store
     }
 
     fn mod_def_store(&self) -> &ModDefStore {
@@ -179,8 +197,8 @@ pub trait AccessToStorageMut: AccessToStorage {
         &mut self.global_storage_mut().term_store
     }
 
-    fn term_location_store_mut(&mut self) -> &mut TermLocations {
-        &mut self.global_storage_mut().term_location_store
+    fn location_store_mut(&mut self) -> &mut LocationStore {
+        &mut self.global_storage_mut().location_store
     }
 
     fn scope_store_mut(&mut self) -> &mut ScopeStore {
@@ -193,6 +211,14 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn trt_def_store_mut(&mut self) -> &mut TrtDefStore {
         &mut self.global_storage_mut().trt_def_store
+    }
+
+    fn args_store_mut(&mut self) -> &mut ArgsStore {
+        &mut self.global_storage_mut().args_store
+    }
+
+    fn params_store_mut(&mut self) -> &mut ParamsStore {
+        &mut self.global_storage_mut().params_store
     }
 
     fn mod_def_store_mut(&mut self) -> &mut ModDefStore {

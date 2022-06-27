@@ -4,8 +4,8 @@ use crate::{
     error::{ParamUnificationOrigin, TcError, TcResult},
     storage::{
         primitives::{
-            Args, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
-            Mutability, NominalDefId, Params, Scope, ScopeId, ScopeKind, Sub, Term, TermId,
+            ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
+            Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term, TermId,
             TrtDefId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -414,7 +414,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// Validate the given parameters, by validating their types and values.
     ///
     /// **Note**: Requires that the parameters have already been simplified.
-    pub(crate) fn validate_params(&mut self, params: &Params) -> TcResult<()> {
+    pub(crate) fn validate_params(&mut self, params_id: ParamsId) -> TcResult<()> {
+        let params = self.params_store().get(params_id).clone();
+
         for param in params.positional() {
             self.validate_term(param.ty)?;
             if let Some(default_value) = param.default_value {
@@ -432,7 +434,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// Validate the given arguments, by validating their values.
     ///
     /// **Note**: Requires that the arguments have already been simplified.
-    pub(crate) fn validate_args(&mut self, args: &Args) -> TcResult<()> {
+    pub(crate) fn validate_args(&mut self, args_id: ArgsId) -> TcResult<()> {
+        let args = self.args_store().get(args_id).clone();
+
         for arg in args.positional() {
             self.validate_term(arg.value)?;
         }
@@ -485,10 +489,12 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
                     let tuple_ty = tuple_ty.clone();
-                    self.validate_params(&tuple_ty.members)?;
+                    self.validate_params(tuple_ty.members)?;
+
+                    let members = self.params_store().get(tuple_ty.members).clone();
 
                     // Ensure each parameter is runtime instantiable:
-                    for param in tuple_ty.members.positional() {
+                    for param in members.positional() {
                         self.ensure_term_is_runtime_instantiable(param.ty)?;
                     }
                     Ok(result)
@@ -496,11 +502,13 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 Level1Term::Fn(fn_ty) => {
                     // Validate parameters and return type
                     let fn_ty = fn_ty.clone();
-                    self.validate_params(&fn_ty.params)?;
+                    self.validate_params(fn_ty.params)?;
                     self.validate_term(fn_ty.return_ty)?;
 
+                    let params = self.params_store().get(fn_ty.params).clone();
+
                     // Ensure each parameter and return type are runtime instantiable:
-                    for param in fn_ty.params.positional() {
+                    for param in params.positional() {
                         self.ensure_term_is_runtime_instantiable(param.ty)?;
                     }
                     self.ensure_term_is_runtime_instantiable(fn_ty.return_ty)?;
@@ -529,7 +537,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         Some(fn_ty) => {
                             // Validate constituents:
                             let fn_ty = fn_ty;
-                            self.validate_params(&fn_ty.params)?;
+                            self.validate_params(fn_ty.params)?;
                             let fn_return_ty_validation = self.validate_term(fn_ty.return_ty)?;
                             let fn_return_value_validation =
                                 self.validate_term(fn_lit.return_value)?;
@@ -581,11 +589,13 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::TyFnTy(ty_fn_ty) => {
                 // Validate the params and return type:
                 let ty_fn_ty = ty_fn_ty.clone();
-                self.validate_params(&ty_fn_ty.params)?;
+                self.validate_params(ty_fn_ty.params)?;
                 let _ = self.validate_term(ty_fn_ty.return_ty);
 
+                let params = self.params_store().get(ty_fn_ty.params).clone();
+
                 // Ensure each parameter's type can be used as a type function parameter type:
-                for param in ty_fn_ty.params.positional() {
+                for param in params.positional() {
                     if !(self.term_can_be_used_as_ty_fn_param_ty(param.ty)?) {
                         return Err(TcError::InvalidTypeFunctionParameterType {
                             param_ty: param.ty,
@@ -607,7 +617,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             Term::TyFn(ty_fn) => {
                 // Validate params and return type.
                 let ty_fn = ty_fn.clone();
-                self.validate_params(&ty_fn.general_params)?;
+                self.validate_params(ty_fn.general_params)?;
                 let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
 
                 // We also validate the type of the type function, for including the
@@ -616,7 +626,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
                 // Validate each case:
                 for case in &ty_fn.cases {
-                    self.validate_params(&case.params)?;
+                    self.validate_params(case.params)?;
                     self.validate_term(case.return_ty)?;
                     self.validate_term(case.return_value)?;
 
@@ -628,8 +638,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // @@Correctness: Is it ok to use `return_ty` of the case as the target, and
                     // `term_id` as the source??
                     let _ = self.unifier().unify_params(
-                        &case.params,
-                        &ty_fn.general_params,
+                        case.params,
+                        ty_fn.general_params,
                         case.return_ty,
                         term_id,
                         ParamUnificationOrigin::TypeFunction,
@@ -663,7 +673,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // do is validate individually the term and the arguments:
                 let app_ty_fn = app_ty_fn.clone();
                 self.validate_term(app_ty_fn.subject)?;
-                self.validate_args(&app_ty_fn.args)?;
+                self.validate_args(app_ty_fn.args)?;
                 Ok(result)
             }
             Term::Level2(_) | Term::Level3(_) | Term::Var(_) | Term::Root | Term::Unresolved(_) => {
