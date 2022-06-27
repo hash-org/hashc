@@ -122,6 +122,9 @@ where
             // command
             let settings: CompilerJobParams = inner.into();
 
+            // We don't want the old diagnostics
+            // @@Refactor: we don't want to leak the diagnostics here..
+            compiler_state.diagnostics.clear();
             let new_state =
                 compiler.run(SourceId::Interactive(interactive_id), compiler_state, settings);
             return new_state;

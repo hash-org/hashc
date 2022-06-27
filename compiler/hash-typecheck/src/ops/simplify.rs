@@ -328,7 +328,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let result = self.simplifier().simplify_term(name_var)?;
 
                 // Pop back the scope
-                self.scopes_mut().pop_scope();
+                self.scopes_mut().pop_the_scope(mod_def_scope);
 
                 Ok(result)
             }
@@ -582,17 +582,19 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 Ok(self.simplify_term(*inner)?.map(|result| self.builder().create_rt_term(result)))
             }
             Level0Term::FnLit(fn_lit) => {
-                // For FnLit(..), simplify the inner terms:
+                // For FnLit(..), simplify the inner function type:
                 let simplified_fn_ty = self.simplify_term(fn_lit.fn_ty)?;
-                let simplified_return_value = self.simplify_term(fn_lit.return_value)?;
-                match (simplified_fn_ty, simplified_return_value) {
-                    (None, None) => Ok(None),
-                    _ => Ok(Some(self.builder().create_term(Term::Level0(Level0Term::FnLit(
-                        FnLit {
-                            fn_ty: simplified_fn_ty.unwrap_or(fn_lit.fn_ty),
-                            return_value: simplified_return_value.unwrap_or(fn_lit.return_value),
-                        },
-                    ))))),
+
+                // We don't need to simplify the return value because it will not ever be used
+                // for unification.
+
+                match simplified_fn_ty {
+                    None => Ok(None),
+                    Some(simplified_fn_ty) => {
+                        Ok(Some(self.builder().create_term(Term::Level0(Level0Term::FnLit(
+                            FnLit { fn_ty: simplified_fn_ty, return_value: fn_lit.return_value },
+                        )))))
+                    }
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),

@@ -4,7 +4,8 @@ use hash_source::SourceId;
 
 use crate::storage::{
     primitives::{
-        ModDef, ModDefId, NominalDef, NominalDefId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId,
+        Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Scope, ScopeId,
+        Term, TermId, TrtDef, TrtDefId,
     },
     GlobalStorage,
 };
@@ -44,6 +45,16 @@ impl<'gs> PrimitiveReader<'gs> {
     /// Get the scope with the given [ScopeId].
     pub fn get_scope(&self, scope_id: ScopeId) -> &Scope {
         self.gs.scope_store.get(scope_id)
+    }
+
+    /// Get the args with the given [ArgsId].
+    pub fn get_args(&self, args_id: ArgsId) -> &Args {
+        self.gs.args_store.get(args_id)
+    }
+
+    /// Get the params with the given [ParamsId].
+    pub fn get_params(&self, params_id: ParamsId) -> &Params {
+        self.gs.params_store.get(params_id)
     }
 
     /// Get the trait definition with the given [TrtDefId].

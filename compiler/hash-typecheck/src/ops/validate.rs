@@ -129,8 +129,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
 
         // Leave the progressive scope:
-        let popped_scope = self.scopes_mut().pop_scope();
-        assert!(popped_scope == progressive_scope_id);
+        self.scopes_mut().pop_the_scope(progressive_scope_id);
 
         Ok(())
     }
