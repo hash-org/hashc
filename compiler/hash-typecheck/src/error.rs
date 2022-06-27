@@ -1,17 +1,58 @@
 //! Error-related data structures for errors that occur during typechecking.
+use std::fmt::Display;
+
 use crate::storage::primitives::{AccessTerm, Args, Params, TermId};
 use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
-pub type TcResult<T> = Result<T, TcError>;
+pub(crate) type TcResult<T> = Result<T, TcError>;
+
+/// Particular reason why parameters couldn't be unified, either argument
+/// length mis-match or that a name mismatched between the two given parameters.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ParamUnificationErrorReason {
+    /// The provided and expected parameter lengths mismatched.
+    LengthMismatch,
+    /// A name mismatch of the parameters occurred at the particular
+    /// index.
+    NameMismatch(usize),
+}
+
+// / This enum describes the origin kind of the subject that a parameter
+/// unification occurred on.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ParamUnificationOrigin {
+    Tuple,
+    Function,
+    TypeFunction,
+}
+
+impl Display for ParamUnificationOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParamUnificationOrigin::Tuple => write!(f, "tuple"),
+            ParamUnificationOrigin::Function => write!(f, "function"),
+            ParamUnificationOrigin::TypeFunction => write!(f, "type function"),
+        }
+    }
+}
 
 /// An error that occurs during typechecking.
 #[derive(Debug, Clone)]
-pub enum TcError {
+pub(crate) enum TcError {
     /// Cannot unify the two terms.
     CannotUnify { src: TermId, target: TermId },
-    /// Cannot unify the two parameter lists.
-    CannotUnifyParams { src_params: Params, target_params: Params },
+    /// Cannot unify the two parameter lists. This can occur if the names
+    /// don't match of the parameters or if the number of parameters isn't the
+    /// same.
+    CannotUnifyParams {
+        src_params: Params,
+        target_params: Params,
+        src: TermId,
+        target: TermId,
+        origin: ParamUnificationOrigin,
+        reason: ParamUnificationErrorReason,
+    },
     /// The given term should be a type function but it isn't.
     NotATypeFunction { term: TermId },
     /// The given value cannot be used as a type.
