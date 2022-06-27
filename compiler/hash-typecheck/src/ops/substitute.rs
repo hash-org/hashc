@@ -1,8 +1,8 @@
 //! Functionality related to variable substitution inside terms/types.
 use crate::storage::{
     primitives::{
-        AppSub, AppTyFn, Arg, Args, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
-        ParamList, Params, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCase, TyFnTy, Var,
+        AppSub, AppTyFn, Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
+        ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCase, TyFnTy, Var,
     },
     AccessToStorage, AccessToStorageMut, StorageRefMut,
 };
@@ -34,18 +34,23 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
 
     /// Apply the given substitution to the given arguments, producing a new set
     /// of arguments with the substituted variables.
-    pub fn apply_sub_to_args(&mut self, sub: &Sub, args: &Args) -> Args {
+    pub fn apply_sub_to_args(&mut self, sub: &Sub, args_id: ArgsId) -> ArgsId {
+        let args = self.args_store().get(args_id).clone();
+
         let new_args = args
             .positional()
             .iter()
             .map(|arg| Arg { name: arg.name, value: self.apply_sub_to_term(sub, arg.value) })
             .collect::<Vec<_>>();
-        ParamList::new(new_args)
+
+        self.builder().create_args(new_args)
     }
 
     /// Apply the given substitution to the given parameters, producing a new
     /// set of parameters with the substituted variables.
-    pub fn apply_sub_to_params(&mut self, sub: &Sub, params: &Params) -> Params {
+    pub fn apply_sub_to_params(&mut self, sub: &Sub, params_id: ParamsId) -> ParamsId {
+        let params = self.params_store().get(params_id).clone();
+
         let new_params = params
             .positional()
             .iter()
@@ -55,7 +60,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 default_value: param.default_value.map(|value| self.apply_sub_to_term(sub, value)),
             })
             .collect::<Vec<_>>();
-        ParamList::new(new_params)
+
+        self.builder().create_params(new_params)
     }
 
     /// Apply the given substitution to the given [Level3Term], producing a new
@@ -107,14 +113,14 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             }
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
-                let subbed_members = self.apply_sub_to_params(sub, &tuple_ty.members);
+                let subbed_members = self.apply_sub_to_params(sub, tuple_ty.members);
                 self.builder().create_term(Term::Level1(Level1Term::Tuple(TupleTy {
                     members: subbed_members,
                 })))
             }
             Level1Term::Fn(fn_ty) => {
                 // Apply to parameters and return type
-                let subbed_params = self.apply_sub_to_params(sub, &fn_ty.params);
+                let subbed_params = self.apply_sub_to_params(sub, fn_ty.params);
                 let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty);
                 self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
                     params: subbed_params,
@@ -204,16 +210,19 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 // substitution: If we have T -> str, and <T> => List<T>, we
                 // don't wanna get <T> => List<str> because T is bound in the
                 // term, not free.
-                let shadowed_sub = sub.filter(&ty_fn.general_params);
+                let params = self.params_store().get(ty_fn.general_params).clone();
+
+                let shadowed_sub = sub.filter(params);
                 let subbed_general_params =
-                    self.apply_sub_to_params(&shadowed_sub, &ty_fn.general_params);
+                    self.apply_sub_to_params(&shadowed_sub, ty_fn.general_params);
                 let subbed_general_return_ty =
                     self.apply_sub_to_term(&shadowed_sub, ty_fn.general_return_ty);
+
                 let subbed_cases = ty_fn
                     .cases
                     .into_iter()
                     .map(|case| TyFnCase {
-                        params: self.apply_sub_to_params(&shadowed_sub, &case.params),
+                        params: self.apply_sub_to_params(&shadowed_sub, case.params),
                         return_ty: self.apply_sub_to_term(&shadowed_sub, case.return_ty),
                         return_value: self.apply_sub_to_term(&shadowed_sub, case.return_value),
                     })
@@ -228,8 +237,10 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::TyFnTy(ty_fn_ty) => {
                 // Apply the substitution to the parameters and return type.
                 // Same rule applies about binding as above.
-                let shadowed_sub = sub.filter(&ty_fn_ty.params);
-                let subbed_params = self.apply_sub_to_params(&shadowed_sub, &ty_fn_ty.params);
+                let params = self.params_store().get(ty_fn_ty.params).clone();
+
+                let shadowed_sub = sub.filter(params);
+                let subbed_params = self.apply_sub_to_params(&shadowed_sub, ty_fn_ty.params);
                 let subbed_return_ty = self.apply_sub_to_term(&shadowed_sub, ty_fn_ty.return_ty);
                 self.builder().create_term(Term::TyFnTy(TyFnTy {
                     params: subbed_params,
@@ -239,7 +250,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::AppTyFn(app_ty_fn) => {
                 // Apply the substitution to the subject and arguments.
                 let subbed_subject = self.apply_sub_to_term(sub, app_ty_fn.subject);
-                let subbed_args = self.apply_sub_to_args(sub, &app_ty_fn.args);
+                let subbed_args = self.apply_sub_to_args(sub, app_ty_fn.args);
                 self.builder().create_term(Term::AppTyFn(AppTyFn {
                     subject: subbed_subject,
                     args: subbed_args,
@@ -273,9 +284,11 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     /// given [HashSet].
     pub fn add_free_vars_in_params_to_set(
         &self,
-        params: &Params,
+        params_id: ParamsId,
         result: &mut HashSet<SubSubject>,
     ) {
+        let params = self.params_store().get(params_id);
+
         // Add default value and type free vars
         for param in params.positional() {
             self.add_free_vars_in_term_to_set(param.ty, result);
@@ -292,10 +305,12 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
     /// This is to be used for type functions.
     pub fn add_and_remove_free_vars_in_params_from_set(
         &self,
-        params: &Params,
+        params_id: ParamsId,
         result: &mut HashSet<SubSubject>,
     ) {
-        self.add_free_vars_in_params_to_set(params, result);
+        self.add_free_vars_in_params_to_set(params_id, result);
+
+        let params = self.params_store().get(params_id);
         // Remove param names
         for param in params.positional() {
             if let Some(name) = param.name {
@@ -307,7 +322,9 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
 
     /// Add the free variables that exist in the given args, to the given
     /// [HashSet].
-    pub fn add_free_vars_in_args_to_set(&self, args: &Args, result: &mut HashSet<SubSubject>) {
+    pub fn add_free_vars_in_args_to_set(&self, args_id: ArgsId, result: &mut HashSet<SubSubject>) {
+        let args = self.args_store().get(args_id);
+
         for arg in args.positional() {
             self.add_free_vars_in_term_to_set(arg.value, result);
         }
@@ -369,11 +386,11 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             }
             Level1Term::Tuple(tuple_ty) => {
                 // Add the free variables in the parameters (don't remove the parameter names)
-                self.add_free_vars_in_params_to_set(&tuple_ty.members, result);
+                self.add_free_vars_in_params_to_set(tuple_ty.members, result);
             }
             Level1Term::Fn(fn_ty) => {
                 // Add the free variables in the parameters and return type.
-                self.add_free_vars_in_params_to_set(&fn_ty.params, result);
+                self.add_free_vars_in_params_to_set(fn_ty.params, result);
                 self.add_free_vars_in_term_to_set(fn_ty.return_ty, result);
             }
         }
@@ -452,11 +469,11 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 }
 
                 // Remove the ones which are bound:
-                self.add_and_remove_free_vars_in_params_from_set(&ty_fn.general_params, result);
+                self.add_and_remove_free_vars_in_params_from_set(ty_fn.general_params, result);
                 // And from the cases:
                 for case in &ty_fn.cases {
                     // @@Correctness: is this right? is it necessary?
-                    self.add_and_remove_free_vars_in_params_from_set(&case.params, result);
+                    self.add_and_remove_free_vars_in_params_from_set(case.params, result);
                 }
             }
             Term::TyFnTy(ty_fn_ty) => {
@@ -464,12 +481,12 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
                 self.add_free_vars_in_term_to_set(ty_fn_ty.return_ty, result);
 
                 // Remove the ones which are bound:
-                self.add_and_remove_free_vars_in_params_from_set(&ty_fn_ty.params, result);
+                self.add_and_remove_free_vars_in_params_from_set(ty_fn_ty.params, result);
             }
             Term::AppTyFn(app_ty_fn) => {
                 // Free vars in subject and args
                 self.add_free_vars_in_term_to_set(app_ty_fn.subject, result);
-                self.add_free_vars_in_args_to_set(&app_ty_fn.args, result);
+                self.add_free_vars_in_args_to_set(app_ty_fn.args, result);
             }
             Term::AppSub(app_sub) => {
                 // Add free vars in the subject term
@@ -549,29 +566,29 @@ mod tests {
         );
 
         let inner = builder.create_nameless_ty_fn_term(
-            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_params([builder.create_param("T", builder.create_any_ty_term())]),
             builder.create_any_ty_term(),
             builder.create_app_ty_fn_term(
                 core_defs.set_ty_fn,
-                [
+                builder.create_args([
                     builder.create_arg("T", builder.create_var_term("T")),
                     builder.create_arg("X", builder.create_mod_def_term(hash_impl)),
-                ],
+                ]),
             ),
         );
         let target = builder.create_ty_fn_ty_term(
-            [builder.create_param("U", builder.create_any_ty_term())],
+            builder.create_params([builder.create_param("U", builder.create_any_ty_term())]),
             builder.create_fn_ty_term(
-                [
+                builder.create_params([
                     builder.create_param("foo", builder.create_unresolved_term()),
                     builder.create_param(
                         "bar",
                         builder.create_app_ty_fn_term(
                             core_defs.list_ty_fn,
-                            [builder.create_arg("T", inner)],
+                            builder.create_args([builder.create_arg("T", inner)]),
                         ),
                     ),
-                ],
+                ]),
                 builder.create_var_term("T"),
             ),
         );
@@ -585,10 +602,10 @@ mod tests {
             builder.create_var("T"),
             builder.create_app_ty_fn_term(
                 core_defs.map_ty_fn,
-                [
+                builder.create_args([
                     builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
                     builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
-                ],
+                ]),
             ),
         )]);
 

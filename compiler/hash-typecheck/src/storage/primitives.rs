@@ -153,6 +153,16 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
         &self.params
     }
 
+    /// Get the length of the parameters.
+    pub fn len(&self) -> usize {
+        self.params.len()
+    }
+
+    /// Check if the [ParamList] is empty
+    pub fn is_empty(&self) -> bool {
+        self.params.is_empty()
+    }
+
     /// Turn [Self] into the parameters as a positional vector.
     pub fn into_positional(self) -> Vec<ParamType> {
         self.params
@@ -262,7 +272,7 @@ pub struct StructDef {
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
     pub name: Identifier,
-    pub fields: Params,
+    pub fields: ParamsId,
 }
 
 /// An enum definition, containing a binding name and a set of variants.
@@ -309,7 +319,7 @@ impl NominalDef {
 /// A tuple type, containing parameters as members.
 #[derive(Debug, Clone)]
 pub struct TupleTy {
-    pub members: Params,
+    pub members: ParamsId,
 }
 
 /// A function type, with a set of input parameters and a return type.
@@ -317,7 +327,7 @@ pub struct TupleTy {
 /// All the parameter types and return type must be level 0
 #[derive(Debug, Clone)]
 pub struct FnTy {
-    pub params: Params,
+    pub params: ParamsId,
     pub return_ty: TermId,
 }
 
@@ -383,7 +393,7 @@ pub struct TyFn {
     /// An optional name for the type function, if it is directly assigned to a
     /// binding.
     pub name: Option<Identifier>,
-    pub general_params: Params,
+    pub general_params: ParamsId,
     pub general_return_ty: TermId,
     pub cases: Vec<TyFnCase>,
 }
@@ -419,7 +429,7 @@ pub struct TyFn {
 /// with the target `general_params`, of the parent [TyFn].
 #[derive(Debug, Clone)]
 pub struct TyFnCase {
-    pub params: Params,
+    pub params: ParamsId,
     pub return_ty: TermId,
     pub return_value: TermId,
 }
@@ -450,7 +460,7 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct AppTyFn {
     pub subject: TermId,
-    pub args: Args,
+    pub args: ArgsId,
 }
 
 /// The type of a type function, for example:
@@ -468,7 +478,7 @@ pub struct AppTyFn {
 /// ```
 #[derive(Debug, Clone)]
 pub struct TyFnTy {
-    pub params: Params,
+    pub params: ParamsId,
     pub return_ty: TermId,
 }
 
@@ -672,7 +682,7 @@ impl Sub {
 
     /// Create a new substitution equivalent to this one but selecting only the
     /// pairs which are not shadowed by the given [Params].
-    pub fn filter(&self, params: &Params) -> Self {
+    pub fn filter(&self, params: Params) -> Self {
         Self {
             data: self
                 .data
@@ -812,6 +822,16 @@ new_key_type! {
 new_key_type! {
     /// The ID of a [Scope] stored in [super::values::ScopeStore].
     pub struct ScopeId;
+}
+
+new_key_type! {
+    /// The Id of a [Args]
+    pub struct ArgsId;
+}
+
+new_key_type! {
+    /// The ID of a [Params]
+    pub struct ParamsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

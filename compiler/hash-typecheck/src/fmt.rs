@@ -2,8 +2,8 @@
 //! debug output.
 use crate::storage::{
     primitives::{
-        Args, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
-        NominalDef, NominalDefId, Params, StructDef, SubSubject, Term, TermId, TrtDefId,
+        ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, ModDefId, ModDefOrigin,
+        NominalDef, NominalDefId, ParamsId, StructDef, SubSubject, Term, TermId, TrtDefId,
         UnresolvedTerm,
     },
     GlobalStorage,
@@ -34,7 +34,9 @@ impl<'gs> TcFormatter<'gs> {
     }
 
     /// Format the given [Params] with the given formatter.
-    pub fn fmt_params(&self, f: &mut fmt::Formatter, params: &Params) -> fmt::Result {
+    pub fn fmt_params(&self, f: &mut fmt::Formatter, params_id: ParamsId) -> fmt::Result {
+        let params = self.global_storage.params_store.get(params_id);
+
         for (i, param) in params.positional().iter().enumerate() {
             match param.name {
                 Some(param_name) => {
@@ -53,7 +55,9 @@ impl<'gs> TcFormatter<'gs> {
     }
 
     /// Format the given [Args] with the given formatter.
-    pub fn fmt_args(&self, f: &mut fmt::Formatter, args: &Args) -> fmt::Result {
+    pub fn fmt_args(&self, f: &mut fmt::Formatter, args_id: ArgsId) -> fmt::Result {
+        let args = self.global_storage.args_store.get(args_id);
+
         for (i, arg) in args.positional().iter().enumerate() {
             match arg.name {
                 Some(arg_name) => {
@@ -131,14 +135,14 @@ impl<'gs> TcFormatter<'gs> {
             Level1Term::Tuple(tuple) => {
                 is_atomic.set(true);
                 write!(f, "(")?;
-                self.fmt_params(f, &tuple.members)?;
+                self.fmt_params(f, tuple.members)?;
                 write!(f, ")")?;
                 Ok(())
             }
             Level1Term::Fn(fn_term) => {
                 is_atomic.set(false);
                 write!(f, "(")?;
-                self.fmt_params(f, &fn_term.params)?;
+                self.fmt_params(f, fn_term.params)?;
                 write!(f, ") -> ")?;
                 self.fmt_term(f, fn_term.return_ty, &Cell::new(false))?;
                 Ok(())
@@ -230,7 +234,7 @@ impl<'gs> TcFormatter<'gs> {
                     None => {
                         is_atomic.set(false);
                         write!(f, "<")?;
-                        self.fmt_params(f, &ty_fn.general_params)?;
+                        self.fmt_params(f, ty_fn.general_params)?;
                         write!(f, "> -> ")?;
                         self.fmt_term(f, ty_fn.general_return_ty, &Cell::new(false))?;
 
@@ -249,7 +253,7 @@ impl<'gs> TcFormatter<'gs> {
             Term::TyFnTy(ty_fn_ty) => {
                 is_atomic.set(false);
                 write!(f, "<")?;
-                self.fmt_params(f, &ty_fn_ty.params)?;
+                self.fmt_params(f, ty_fn_ty.params)?;
                 write!(f, "> -> ")?;
                 self.fmt_term(f, ty_fn_ty.return_ty, &Cell::new(false))?;
                 Ok(())
@@ -258,7 +262,7 @@ impl<'gs> TcFormatter<'gs> {
                 is_atomic.set(true);
                 self.fmt_term_as_single(f, app_ty_fn.subject)?;
                 write!(f, "<")?;
-                self.fmt_args(f, &app_ty_fn.args)?;
+                self.fmt_args(f, app_ty_fn.args)?;
                 write!(f, ">")?;
                 Ok(())
             }
@@ -438,5 +442,17 @@ impl fmt::Display for ForFormatting<'_, '_, NominalDefId> {
             self.t,
             self.is_atomic.unwrap_or(&Cell::new(false)),
         )
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, '_, ParamsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_params(f, self.t)
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, '_, ArgsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_args(f, self.t)
     }
 }

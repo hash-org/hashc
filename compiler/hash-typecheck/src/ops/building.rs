@@ -2,11 +2,11 @@
 //! to manually call the corresponding stores.
 use crate::storage::{
     primitives::{
-        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, Args, EnumDef, EnumVariant, EnumVariantValue,
-        FnLit, FnTy, GetNameOpt, Level0Term, Level1Term, Level2Term, Level3Term, Member,
-        MemberData, ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param,
-        ParamList, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef,
-        TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue,
+        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
+        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId,
+        Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId,
+        TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -181,9 +181,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_enum_variant(
         &self,
         name: impl Into<Identifier>,
-        fields: impl IntoIterator<Item = Param>,
+        fields: ParamsId,
     ) -> EnumVariant {
-        EnumVariant { name: name.into(), fields: ParamList::new(fields.into_iter().collect()) }
+        EnumVariant { name: name.into(), fields }
     }
 
     /// Create an enum with the given name and variants.
@@ -292,15 +292,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create the void type term: [Level1Term::Tuple] with no members.
     pub fn create_void_ty_term(&self) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
-            members: ParamList::new(vec![]),
+            members: self.create_params([]),
         })))
     }
 
     /// Create a tuple type term [Level1Term::Tuple].
-    pub fn create_tuple_ty_term(&self, members: impl IntoIterator<Item = Param>) -> TermId {
-        self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
-            members: ParamList::new(members.into_iter().collect()),
-        })))
+    pub fn create_tuple_ty_term(&self, members: ParamsId) -> TermId {
+        self.create_term(Term::Level1(Level1Term::Tuple(TupleTy { members })))
     }
 
     /// Create a [Level0Term::Rt] of the given type.
@@ -312,14 +310,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// value.
     pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::FnLit(FnLit { fn_ty, return_value })))
-    }
-
-    /// Create a [ParamList<T>] from the given set of items.
-    pub fn create_param_list<T: GetNameOpt + Clone>(
-        &self,
-        items: impl IntoIterator<Item = T>,
-    ) -> ParamList<T> {
-        ParamList::new(items.into_iter().collect())
     }
 
     /// Create a parameter with the given name and type.
@@ -334,15 +324,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a [Level1Term::Fn] term with the given parameters and return
     /// type.
-    pub fn create_fn_ty_term(
-        &self,
-        params: impl IntoIterator<Item = Param>,
-        return_ty: TermId,
-    ) -> TermId {
-        self.create_term(Term::Level1(Level1Term::Fn(FnTy {
-            params: ParamList::new(params.into_iter().collect()),
-            return_ty,
-        })))
+    pub fn create_fn_ty_term(&self, params: ParamsId, return_ty: TermId) -> TermId {
+        self.create_term(Term::Level1(Level1Term::Fn(FnTy { params, return_ty })))
     }
 
     /// Create a [Level1Term::NominalDef] from the given [NominalDefId].
@@ -404,14 +387,22 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a type function type term with the given name, parameters, and
     /// return type.
-    pub fn create_ty_fn_ty_term(
-        &self,
-        params: impl IntoIterator<Item = Param>,
-        return_ty: TermId,
-    ) -> TermId {
-        let params = ParamList::new(params.into_iter().collect());
+    pub fn create_ty_fn_ty_term(&self, params: ParamsId, return_ty: TermId) -> TermId {
         let ty_fn = TyFnTy { params, return_ty };
         self.create_term(Term::TyFnTy(ty_fn))
+    }
+
+    /// Create a [ParamsId] from an iterator of [Param]. This function wil
+    /// create a [Params], append it to the store and return  the created
+    /// id.
+    pub fn create_params(&self, params: impl IntoIterator<Item = Param>) -> ParamsId {
+        self.gs.borrow_mut().params_store.create(ParamList::new(params.into_iter().collect()))
+    }
+
+    /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
+    /// [Args], append it to the store and return  the created id.
+    pub fn create_args(&self, args: impl IntoIterator<Item = Arg>) -> ArgsId {
+        self.gs.borrow_mut().args_store.create(ParamList::new(args.into_iter().collect()))
     }
 
     /// Create a nameless type function term with parameters, return type and
@@ -420,7 +411,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// This adds the name to the scope.
     pub fn create_nameless_ty_fn_term(
         &self,
-        params: impl IntoIterator<Item = Param>,
+        params: ParamsId,
         return_ty: TermId,
         return_value: TermId,
     ) -> TermId {
@@ -434,7 +425,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_named_ty_fn_term(
         &self,
         name: impl Into<Identifier>,
-        params: impl IntoIterator<Item = Param>,
+        params: ParamsId,
         return_ty: TermId,
         return_value: TermId,
     ) -> TermId {
@@ -448,17 +439,16 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_ty_fn_term(
         &self,
         name: Option<impl Into<Identifier>>,
-        params: impl IntoIterator<Item = Param>,
+        params: ParamsId,
         return_ty: TermId,
         return_value: TermId,
     ) -> TermId {
         let name = name.map(Into::into);
-        let params = ParamList::new(params.into_iter().collect());
         let ty_fn = TyFn {
             name,
-            general_params: params.clone(),
+            general_params: params,
             general_return_ty: return_ty,
-            cases: vec![TyFnCase { params: params.clone(), return_ty, return_value }],
+            cases: vec![TyFnCase { params, return_ty, return_value }],
         };
         let ty_fn_id = self.create_term(Term::TyFn(ty_fn));
         let ty_fn_ty_id = self.create_term(Term::TyFnTy(TyFnTy { params, return_ty }));
@@ -470,12 +460,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a type function application, given type function value and
     /// arguments.
-    pub fn create_app_ty_fn(
-        &self,
-        subject: TermId,
-        args: impl IntoIterator<Item = Arg>,
-    ) -> AppTyFn {
-        AppTyFn { args: Args::new(args.into_iter().collect()), subject }
+    pub fn create_app_ty_fn(&self, subject: TermId, args: ArgsId) -> AppTyFn {
+        AppTyFn { args, subject }
     }
 
     /// Create a new unresolved term value, of type [Term::Unresolved].
@@ -511,11 +497,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// arguments.
     ///
     /// This calls [Self::create_app_ty_fn], so its conditions apply here.
-    pub fn create_app_ty_fn_term(
-        &self,
-        subject: TermId,
-        args: impl IntoIterator<Item = Arg>,
-    ) -> TermId {
+    pub fn create_app_ty_fn_term(&self, subject: TermId, args: ArgsId) -> TermId {
         let app_ty_fn = self.create_app_ty_fn(subject, args);
         self.create_term(Term::AppTyFn(app_ty_fn))
     }

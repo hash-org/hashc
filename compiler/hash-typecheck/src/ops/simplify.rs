@@ -4,9 +4,9 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            AccessOp, AccessTerm, AppTyFn, Arg, Args, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, NominalDef, Param, Params, StructFields, Term, TermId, TupleTy,
-            TyFn, TyFnCase, TyFnTy,
+            AccessOp, AccessTerm, AppTyFn, Arg, Args, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
+            Level2Term, Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId,
+            TupleTy, TyFn, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -96,23 +96,40 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         initial_subject_term: TermId,
         initial_property_name: Identifier,
     ) -> TcResult<TermId> {
+        // Invalid because it is not a method:
+        let invalid_property_access = || {
+            Err(TcError::InvalidPropertyAccessOfNonMethod {
+                subject: initial_subject_term,
+                property: initial_property_name,
+            })
+        };
+
         // Here we need to ensure the result is a function type, and if so call
         // it with the self parameter:
         //
         // @@Todo: infer type variables here:
         match self.validator().term_is_fn_ty(accessed_ty)? {
-            Some(fn_ty) if !fn_ty.params.positional().is_empty() => {
+            Some(fn_ty) => {
+                let params = self.params_store().get(fn_ty.params).clone();
+
+                if params.positional().is_empty() {
+                    invalid_property_access()?;
+                }
+
                 // Unify the first parameter type with the subject:
-                let sub =
-                    self.unifier().unify_terms(subject_ty, fn_ty.params.positional()[0].ty)?;
+                let sub = self.unifier().unify_terms(subject_ty, params.positional()[0].ty)?;
 
                 // Apply the substitution on the parameters and return type:
-                let subbed_params = self.substituter().apply_sub_to_params(&sub, &fn_ty.params);
+                let subbed_params_id = self.substituter().apply_sub_to_params(&sub, fn_ty.params);
+                let subbed_params = self.params_store().get(subbed_params_id).clone();
+
                 let _subbed_return_ty = self.substituter().apply_sub_to_term(&sub, fn_ty.return_ty);
 
+                let builder = self.builder();
+
                 // Return the substituted type without the first parameter:
-                Ok(self.builder().create_fn_ty_term(
-                    subbed_params.into_positional().into_iter().skip(1),
+                Ok(builder.create_fn_ty_term(
+                    builder.create_params(subbed_params.into_positional().into_iter().skip(1)),
                     fn_ty.return_ty,
                 ))
             }
@@ -168,7 +185,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         }
                     }
                 } else if let Level1Term::Tuple(tuple_ty) = level1_term {
-                    if let Some((_, param)) = tuple_ty.members.get_by_name(field_name) {
+                    let params = self.params_store().get(tuple_ty.members);
+
+                    if let Some((_, param)) = params.get_by_name(field_name) {
                         let param_ty = param.ty;
                         return Ok(Some(self.builder().create_rt_term(param_ty)));
                     }
@@ -260,11 +279,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
                 match nominal_def {
                     NominalDef::Enum(enum_def) => {
-                        let fields = &enum_def
-                            .variants
-                            .get(&enum_variant.variant_name)
-                            .expect("Enum variant name not found in def!")
-                            .fields;
+                        let fields = self.params_store().get(
+                            enum_def
+                                .variants
+                                .get(&enum_variant.variant_name)
+                                .expect("Enum variant name not found in def!")
+                                .fields,
+                        );
+
                         match fields.get_by_name(access_term.name) {
                             Some((_, field)) => {
                                 // Field found, now return a Rt(X) of the field type X as the
@@ -472,13 +494,19 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 // First, ensure they unify with general params:
                 //
                 // @@Correctness: do we need to apply this sub anywhere?
-                let _ = self
-                    .unifier()
-                    .unify_params_with_args(&ty_fn.general_params, &apply_ty_fn.args)?;
+                let _ = self.unifier().unify_params_with_args(
+                    ty_fn.general_params,
+                    apply_ty_fn.args,
+                    simplified_subject_id,
+                )?;
 
                 // Try to match each of the cases:
                 for case in &ty_fn.cases {
-                    match self.unifier().unify_params_with_args(&case.params, &apply_ty_fn.args) {
+                    match self.unifier().unify_params_with_args(
+                        case.params,
+                        apply_ty_fn.args,
+                        simplified_subject_id,
+                    ) {
                         Ok(sub) => {
                             // Successful, add the return value to result, subbed with the
                             // substitution, and continue:
@@ -497,7 +525,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // If we have no results, we have to return an error:
                     Err(TcError::InvalidTypeFunctionApplication {
                         type_fn: simplified_subject_id,
-                        args: apply_ty_fn.args.clone(),
+                        args: apply_ty_fn.args,
                         unification_errors: errors,
                     })
                 } else {
@@ -542,12 +570,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
     /// Simplify the given term, just returning the original if no
     /// simplification occurred.
-    pub fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
 
     /// Simplify the given [Level0Term], if possible.
-    pub fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
         match term {
             // For Rt(..), try to simplify the inner term:
             Level0Term::Rt(inner) => {
@@ -572,12 +600,13 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Level1Term], if possible.
-    pub fn simplify_level1_term(&mut self, term: &Level1Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level1_term(&mut self, term: &Level1Term) -> TcResult<Option<TermId>> {
         match term {
             Level1Term::ModDef(_) | Level1Term::NominalDef(_) => Ok(None),
             Level1Term::Tuple(tuple_ty) => {
                 // Simplify each inner type
-                let simplified_members = self.simplify_params(&tuple_ty.members)?;
+                let simplified_members = self.simplify_params(tuple_ty.members)?;
+
                 Ok(simplified_members.map(|simplified_members| {
                     self.builder().create_term(Term::Level1(Level1Term::Tuple(TupleTy {
                         members: simplified_members,
@@ -587,12 +616,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Level1Term::Fn(fn_ty) => {
                 // Simplify params and return type, and if either was simplified, return a new
                 // simplified type.
-                let simplified_params = self.simplify_params(&fn_ty.params)?;
+                let simplified_params = self.simplify_params(fn_ty.params)?;
                 let simplified_return_ty = self.simplify_term(fn_ty.return_ty)?;
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
                     _ => Ok(Some(self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
-                        params: simplified_params.unwrap_or_else(|| fn_ty.params.clone()),
+                        params: simplified_params.unwrap_or(fn_ty.params),
                         return_ty: simplified_return_ty.unwrap_or(fn_ty.return_ty),
                     }))))),
                 }
@@ -601,21 +630,23 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Level2Term], if possible.
-    pub fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
         match term {
             Level2Term::Trt(_) | Level2Term::AnyTy => Ok(None),
         }
     }
 
     /// Simplify the given [Level3Term], if possible.
-    pub fn simplify_level3_term(&mut self, term: &Level3Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level3_term(&mut self, term: &Level3Term) -> TcResult<Option<TermId>> {
         match term {
             Level3Term::TrtKind => Ok(None),
         }
     }
 
     /// Simplify the given [Args], if possible.
-    pub fn simplify_args(&mut self, args: &Args) -> TcResult<Option<Args>> {
+    pub(crate) fn simplify_args(&mut self, args_id: ArgsId) -> TcResult<Option<Args>> {
+        let args = self.args_store().get(args_id).clone();
+
         // Simplify values:
         let mut simplified_once = false;
         let result = args
@@ -644,7 +675,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Params], if possible.
-    pub fn simplify_params(&mut self, params: &Params) -> TcResult<Option<Params>> {
+    pub(crate) fn simplify_params(&mut self, params_id: ParamsId) -> TcResult<Option<ParamsId>> {
+        let params = self.params_store().get(params_id).clone();
+
         // Simplify types and default values:
         let mut simplified_once = false;
         let result = params
@@ -676,11 +709,11 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         .transpose()?,
                 })
             })
-            .collect::<TcResult<_>>()?;
+            .collect::<TcResult<Vec<_>>>()?;
 
         // Only return the new params if we simplified them:
         if simplified_once {
-            Ok(Some(result))
+            Ok(Some(self.builder().create_params(result)))
         } else {
             Ok(None)
         }
@@ -690,7 +723,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     ///
     /// This does not perform all validity checks, some are performed by
     /// [Typer], and all are by [Validator].
-    pub fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
         // @@Performance: we can cache the result of the simplification in a hashmap.
         let value = self.reader().get_term(term_id).clone();
         match value {
@@ -767,7 +800,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 // simplified, the whole thing can be simplified:
 
                 // Simplify general params and return
-                let simplified_general_params = self.simplify_params(&ty_fn.general_params)?;
+                let simplified_general_params = self.simplify_params(ty_fn.general_params)?;
                 let simplified_general_return_ty = self.simplify_term(ty_fn.general_return_ty)?;
 
                 // Simplify each of the cases
@@ -775,14 +808,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     .cases
                     .iter()
                     .map(|case| {
-                        let simplified_params = self.simplify_params(&case.params)?;
+                        let simplified_params = self.simplify_params(case.params)?;
                         let simplified_return_ty = self.simplify_term(case.return_ty)?;
                         let simplified_return_value = self.simplify_term(case.return_value)?;
                         // A case is simplified if any of its constituents is simplified:
                         match (&simplified_params, simplified_return_ty, simplified_return_value) {
                             (None, None, None) => Ok(None),
                             _ => Ok(Some(TyFnCase {
-                                params: simplified_params.unwrap_or_else(|| case.params.clone()),
+                                params: simplified_params.unwrap_or(case.params),
                                 return_ty: simplified_return_ty.unwrap_or(case.return_ty),
                                 return_value: simplified_return_value.unwrap_or(case.return_value),
                             })),
@@ -816,7 +849,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::TyFnTy(ty_fn_ty) => {
                 // Simplify params and return, and if either is simplified, the whole term is
                 // simplified.
-                let simplified_params = self.simplify_params(&ty_fn_ty.params)?;
+                let simplified_params = self.simplify_params(ty_fn_ty.params)?;
                 let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
@@ -870,7 +903,7 @@ mod test_super {
         // Handy shorthand for &Self type
         let _ref_self_ty = builder.create_app_ty_fn_term(
             core_defs.reference_ty_fn,
-            [builder.create_arg("T", builder.create_var_term("Self"))],
+            builder.create_args([builder.create_arg("T", builder.create_var_term("Self"))]),
         );
         let dog_def = builder.create_struct_def(
             "Dog",
@@ -889,12 +922,16 @@ mod test_super {
                 builder.create_pub_member(
                     "hash",
                     builder.create_fn_ty_term(
-                        [builder.create_param("value", builder.create_var_term("Self"))],
+                        builder.create_params([
+                            builder.create_param("value", builder.create_var_term("Self"))
+                        ]),
                         builder.create_nominal_def_term(core_defs.u64_ty),
                     ),
                     builder.create_fn_lit_term(
                         builder.create_fn_ty_term(
-                            [builder.create_param("value", builder.create_var_term("Self"))],
+                            builder.create_params([
+                                builder.create_param("value", builder.create_var_term("Self"))
+                            ]),
                             builder.create_nominal_def_term(core_defs.u64_ty),
                         ),
                         builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
