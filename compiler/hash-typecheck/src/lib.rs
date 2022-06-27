@@ -5,6 +5,7 @@
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
 
+#![allow(dead_code)] // @@Temporary
 #![feature(generic_associated_types)]
 
 use hash_pipeline::{traits::Tc, CompilerResult};

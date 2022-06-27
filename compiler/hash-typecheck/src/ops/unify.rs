@@ -1,7 +1,7 @@
 //! Utilities related to type unification and substitution.
 use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{TcError, TcResult},
+    error::{ParamUnificationErrorReason, ParamUnificationOrigin, TcError, TcResult},
     storage::{
         primitives::{
             Args, Level0Term, Level1Term, Level2Term, Level3Term, Params, Sub, Term, TermId,
@@ -44,7 +44,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     ///
     /// This implements the algorithm outlined in the paper:
     /// <https://www.researchgate.net/publication/221600544_On_the_Unification_of_Substitutions_in_Type_Interfaces>
-    pub fn unify_subs(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
+    pub(crate) fn unify_subs(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
         let dom_s0: HashSet<_> = s0.domain().collect();
         let dom_s1: HashSet<_> = s1.domain().collect();
         let mut substituter = self.substituter();
@@ -95,7 +95,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     /// This is done by first getting the type of each argument, and unifying
     /// with the type of each parameter. Then, a substitution is created
     /// from each parameter to each argument value.
-    pub fn unify_params_with_args(&mut self, params: &Params, args: &Args) -> TcResult<Sub> {
+    pub(crate) fn unify_params_with_args(&mut self, params: &Params, args: &Args) -> TcResult<Sub> {
         let pairs = pair_args_with_params(params, args)?;
         let mut cumulative_sub = Sub::empty();
         for (param, arg) in pairs.into_iter() {
@@ -107,27 +107,40 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     }
 
     /// Unify the two given parameter lists, by parameter-wise unifying terms.
-    pub fn unify_params(&mut self, src_params: &Params, target_params: &Params) -> TcResult<Sub> {
-        let cannot_unify = || {
+    /// The function requires a reference to the parent source and target
+    /// terms in order to give meaningful error messages.
+    pub(crate) fn unify_params(
+        &mut self,
+        src_params: &Params,
+        target_params: &Params,
+        src_id: TermId,
+        target_id: TermId,
+        origin: ParamUnificationOrigin,
+    ) -> TcResult<Sub> {
+        let cannot_unify = |reason: ParamUnificationErrorReason| {
             Err(TcError::CannotUnifyParams {
                 src_params: src_params.clone(),
                 target_params: target_params.clone(),
+                reason,
+                origin,
+                src: src_id,
+                target: target_id,
             })
         };
 
         // Ensure the parameter lengths match
         if src_params.positional().len() != target_params.positional().len() {
-            return cannot_unify();
+            return cannot_unify(ParamUnificationErrorReason::LengthMismatch);
         }
 
         // For each parameter, ensure it is the same:
         // @@Todo: handle default values.
         let mut cumulative_sub = Sub::empty();
         let pairs = src_params.positional().iter().zip(target_params.positional());
-        for (src_param, target_param) in pairs {
+        for (index, (src_param, target_param)) in pairs.enumerate() {
             // Names match
             if src_param.name != target_param.name {
-                return cannot_unify();
+                return cannot_unify(ParamUnificationErrorReason::NameMismatch(index));
             }
             // Types match
             let ty_sub = self.unify_terms(src_param.ty, target_param.ty)?;
@@ -144,7 +157,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     ///
     /// The relation between src and target is that src must be a subtype (or
     /// eq) of target.
-    pub fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
+    pub(crate) fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
         // Shortcut: terms have the same ID:
         if src_id == target_id {
             return Ok(Sub::empty());
@@ -306,8 +319,14 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
                 // Params need to be unified inversely.
                 // @@Correctness: figure out exact variance rules.
-                let params_sub =
-                    self.unify_params(&target_ty_fn_ty.params, &src_ty_fn_ty.params)?;
+                let params_sub = self.unify_params(
+                    &target_ty_fn_ty.params,
+                    &src_ty_fn_ty.params,
+                    src_id,
+                    target_id,
+                    ParamUnificationOrigin::TypeFunction,
+                )?;
+
                 let return_sub =
                     self.unify_terms(src_ty_fn_ty.return_ty, target_ty_fn_ty.return_ty)?;
 
@@ -372,14 +391,25 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                         }
                     }
                     // Tuples unify if all their members unify:
-                    (Level1Term::Tuple(src_tuple), Level1Term::Tuple(target_tuple)) => {
-                        self.unify_params(&src_tuple.members, &target_tuple.members)
-                    }
+                    (Level1Term::Tuple(src_tuple), Level1Term::Tuple(target_tuple)) => self
+                        .unify_params(
+                            &src_tuple.members,
+                            &target_tuple.members,
+                            src_id,
+                            target_id,
+                            ParamUnificationOrigin::Tuple,
+                        ),
                     // Tuples unify if their parameters and return unify:
                     (Level1Term::Fn(src_fn_ty), Level1Term::Fn(target_fn_ty)) => {
                         // Once again, params need to be unified inversely.
-                        let params_sub =
-                            self.unify_params(&target_fn_ty.params, &src_fn_ty.params)?;
+                        let params_sub = self.unify_params(
+                            &target_fn_ty.params,
+                            &src_fn_ty.params,
+                            src_id,
+                            target_id,
+                            ParamUnificationOrigin::Function,
+                        )?;
+
                         let return_sub =
                             self.unify_terms(src_fn_ty.return_ty, target_fn_ty.return_ty)?;
 

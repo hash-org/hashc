@@ -22,7 +22,7 @@ impl<'gs, 'ls, 'cd> ScopeResolver<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
-    pub fn resolve_name_in_scopes(&self, name: Identifier) -> TcResult<Member> {
+    pub(crate) fn resolve_name_in_scopes(&self, name: Identifier) -> TcResult<Member> {
         // Here, we have to look in the scopes:
         for scope_id in self.scopes().iter_up() {
             match self.reader().get_scope(scope_id).get(name) {
