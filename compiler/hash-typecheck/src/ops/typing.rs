@@ -104,9 +104,11 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                     Term::TyFnTy(ty_fn_ty) => {
                         let ty_fn_ty = ty_fn_ty.clone();
                         // Unify the type function type params with the given args:
-                        let sub = self
-                            .unifier()
-                            .unify_params_with_args(&ty_fn_ty.params, &app_ty_fn.args)?;
+                        let sub = self.unifier().unify_params_with_args(
+                            &ty_fn_ty.params,
+                            &app_ty_fn.args,
+                            ty_id_of_subject,
+                        )?;
                         // Apply the substitution to the return type and use it as the result:
                         Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
                     }

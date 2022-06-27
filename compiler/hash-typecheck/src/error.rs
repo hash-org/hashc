@@ -58,7 +58,7 @@ pub(crate) enum TcError {
     /// The given value cannot be used as a type.
     CannotUseValueAsTy { value: TermId },
     /// The given arguments do not match the length of the target parameters.
-    MismatchingArgParamLength { args: Args, params: Params },
+    MismatchingArgParamLength { args: Args, params: Params, target: TermId },
     /// The parameter with the given name is not found in the given parameter
     /// list.
     ParamNotFound { params: Params, name: Identifier },

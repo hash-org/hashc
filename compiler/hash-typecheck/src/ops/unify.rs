@@ -95,9 +95,15 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
     /// This is done by first getting the type of each argument, and unifying
     /// with the type of each parameter. Then, a substitution is created
     /// from each parameter to each argument value.
-    pub(crate) fn unify_params_with_args(&mut self, params: &Params, args: &Args) -> TcResult<Sub> {
-        let pairs = pair_args_with_params(params, args)?;
+    pub(crate) fn unify_params_with_args(
+        &mut self,
+        params: &Params,
+        args: &Args,
+        parent: TermId,
+    ) -> TcResult<Sub> {
+        let pairs = pair_args_with_params(params, args, parent)?;
         let mut cumulative_sub = Sub::empty();
+
         for (param, arg) in pairs.into_iter() {
             let ty_of_arg = self.typer().ty_of_term(arg.value)?;
             let sub = self.unify_terms(ty_of_arg, param.ty)?;
@@ -295,10 +301,16 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                         let ty_fn_ty = ty_fn_ty.clone();
 
                         // Match the type function params with each (src,target)-arguments.
-                        let args_src_sub =
-                            self.unify_params_with_args(&ty_fn_ty.params, &src_app_ty_fn.args)?;
-                        let args_target_sub =
-                            self.unify_params_with_args(&ty_fn_ty.params, &target_app_ty_fn.args)?;
+                        let args_src_sub = self.unify_params_with_args(
+                            &ty_fn_ty.params,
+                            &src_app_ty_fn.args,
+                            target_id,
+                        )?;
+                        let args_target_sub = self.unify_params_with_args(
+                            &ty_fn_ty.params,
+                            &target_app_ty_fn.args,
+                            src_id,
+                        )?;
 
                         // Unify all the created substitutions
                         let args_unified_sub = self.unify_subs(&args_src_sub, &args_target_sub)?;
