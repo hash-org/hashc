@@ -542,12 +542,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
     /// Simplify the given term, just returning the original if no
     /// simplification occurred.
-    pub fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
 
     /// Simplify the given [Level0Term], if possible.
-    pub fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
         match term {
             // For Rt(..), try to simplify the inner term:
             Level0Term::Rt(inner) => {
@@ -572,7 +572,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Level1Term], if possible.
-    pub fn simplify_level1_term(&mut self, term: &Level1Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level1_term(&mut self, term: &Level1Term) -> TcResult<Option<TermId>> {
         match term {
             Level1Term::ModDef(_) | Level1Term::NominalDef(_) => Ok(None),
             Level1Term::Tuple(tuple_ty) => {
@@ -601,21 +601,21 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Level2Term], if possible.
-    pub fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level2_term(&mut self, term: &Level2Term) -> TcResult<Option<TermId>> {
         match term {
             Level2Term::Trt(_) | Level2Term::AnyTy => Ok(None),
         }
     }
 
     /// Simplify the given [Level3Term], if possible.
-    pub fn simplify_level3_term(&mut self, term: &Level3Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level3_term(&mut self, term: &Level3Term) -> TcResult<Option<TermId>> {
         match term {
             Level3Term::TrtKind => Ok(None),
         }
     }
 
     /// Simplify the given [Args], if possible.
-    pub fn simplify_args(&mut self, args: &Args) -> TcResult<Option<Args>> {
+    pub(crate) fn simplify_args(&mut self, args: &Args) -> TcResult<Option<Args>> {
         // Simplify values:
         let mut simplified_once = false;
         let result = args
@@ -644,7 +644,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Params], if possible.
-    pub fn simplify_params(&mut self, params: &Params) -> TcResult<Option<Params>> {
+    pub(crate) fn simplify_params(&mut self, params: &Params) -> TcResult<Option<Params>> {
         // Simplify types and default values:
         let mut simplified_once = false;
         let result = params
@@ -690,7 +690,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     ///
     /// This does not perform all validity checks, some are performed by
     /// [Typer], and all are by [Validator].
-    pub fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
         // @@Performance: we can cache the result of the simplification in a hashmap.
         let value = self.reader().get_term(term_id).clone();
         match value {

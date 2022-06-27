@@ -45,7 +45,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
 
     /// Visits the source passed in as an argument to [Self::new], and returns
     /// the term of the module that corresponds to the source.
-    pub fn visit_source(&mut self) -> TcResult<TermId> {
+    pub(crate) fn visit_source(&mut self) -> TcResult<TermId> {
         // @@Todo: implement this
         Ok(self.builder().create_unresolved_term())
     }

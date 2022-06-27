@@ -153,6 +153,11 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
         &self.params
     }
 
+    /// Get the length of the parameters.
+    pub fn len(&self) -> usize {
+        self.params.len()
+    }
+
     /// Turn [Self] into the parameters as a positional vector.
     pub fn into_positional(self) -> Vec<ParamType> {
         self.params

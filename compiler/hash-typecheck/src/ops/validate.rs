@@ -1,7 +1,7 @@
 //! Contains utilities to validate terms.
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{TcError, TcResult},
+    error::{ParamUnificationOrigin, TcError, TcResult},
     storage::{
         primitives::{
             Args, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
@@ -214,7 +214,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
     /// Validate the module definition of the given [ModDefId], defined in
     /// `originating_term_id`.
-    pub fn validate_mod_def(
+    pub(crate) fn validate_mod_def(
         &mut self,
         mod_def_id: ModDefId,
         originating_term_id: TermId,
@@ -242,7 +242,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     }
 
     /// Validate the trait definition of the given [TrtDefId]
-    pub fn validate_trt_def(&mut self, trt_def_id: TrtDefId) -> TcResult<()> {
+    pub(crate) fn validate_trt_def(&mut self, trt_def_id: TrtDefId) -> TcResult<()> {
         // @@Design: do we allow traits without self?
         let reader = self.reader();
         let trt_def = reader.get_trt_def(trt_def_id);
@@ -250,7 +250,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
-    pub fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
+    pub(crate) fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
         // Ensure all members have level 1 types/level 0 default values and the default
         // values are of the given type.
         todo!()
@@ -414,7 +414,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// Validate the given parameters, by validating their types and values.
     ///
     /// **Note**: Requires that the parameters have already been simplified.
-    pub fn validate_params(&mut self, params: &Params) -> TcResult<()> {
+    pub(crate) fn validate_params(&mut self, params: &Params) -> TcResult<()> {
         for param in params.positional() {
             self.validate_term(param.ty)?;
             if let Some(default_value) = param.default_value {
@@ -432,7 +432,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// Validate the given arguments, by validating their values.
     ///
     /// **Note**: Requires that the arguments have already been simplified.
-    pub fn validate_args(&mut self, args: &Args) -> TcResult<()> {
+    pub(crate) fn validate_args(&mut self, args: &Args) -> TcResult<()> {
         for arg in args.positional() {
             self.validate_term(arg.value)?;
         }
@@ -443,7 +443,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     ///
     /// Returns the simplified term, along with its type, which are computed
     /// during the validation.
-    pub fn validate_term(&mut self, term_id: TermId) -> TcResult<TermValidation> {
+    pub(crate) fn validate_term(&mut self, term_id: TermId) -> TcResult<TermValidation> {
         // First, we try simplify the term:
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
 
@@ -621,9 +621,19 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     self.validate_term(case.return_value)?;
 
                     // Ensure the params are a subtype of the general params
+                    //
                     // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
                     // the message.
-                    let _ = self.unifier().unify_params(&case.params, &ty_fn.general_params)?;
+                    //
+                    // @@Correctness: Is it ok to use `return_ty` of the case as the target, and
+                    // `term_id` as the source??
+                    let _ = self.unifier().unify_params(
+                        &case.params,
+                        &ty_fn.general_params,
+                        case.return_ty,
+                        term_id,
+                        ParamUnificationOrigin::TypeFunction,
+                    )?;
 
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
@@ -667,7 +677,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     ///
     /// Internally uses [Self::term_is_runtime_instantiable], check its docs for
     /// info.
-    pub fn ensure_term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<()> {
+    pub(crate) fn ensure_term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<()> {
         if !(self.term_is_runtime_instantiable(term_id)?) {
             Err(TcError::TermIsNotRuntimeInstantiable { term: term_id })
         } else {
@@ -682,7 +692,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// types, function types, structs and enums.
     ///
     /// *Note*: assumes the term has been simplified and validated.
-    pub fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
+    pub(crate) fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
         // Ensure that the type of the term unifies with "RuntimeInstantiable":
         let ty_id_of_term = self.typer().ty_of_simplified_term(term_id)?;
         let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
@@ -702,7 +712,10 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// other type functions.
     ///
     /// *Note*: assumes the term has been simplified and validated.
-    pub fn term_can_be_used_as_ty_fn_return_value(&mut self, term_id: TermId) -> TcResult<bool> {
+    pub(crate) fn term_can_be_used_as_ty_fn_return_value(
+        &mut self,
+        term_id: TermId,
+    ) -> TcResult<bool> {
         // First ensure its type can be used as a return type:
         let term_ty_id = self.typer().ty_of_simplified_term(term_id)?;
         if !(self.term_can_be_used_as_ty_fn_return_ty(term_ty_id)?) {
@@ -743,7 +756,10 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// [Self::term_can_be_used_as_ty_fn_return_value].
     ///
     /// *Note*: assumes the term has been simplified and validated.
-    pub fn term_can_be_used_as_ty_fn_return_ty(&mut self, term_id: TermId) -> TcResult<bool> {
+    pub(crate) fn term_can_be_used_as_ty_fn_return_ty(
+        &mut self,
+        term_id: TermId,
+    ) -> TcResult<bool> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
@@ -796,7 +812,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// 2 terms. **Note**: assumes the term has been simplified.
     ///
     /// @@Extension: we could allow level 3 terms as parameters too (TraitKind).
-    pub fn term_can_be_used_as_ty_fn_param_ty(&mut self, term_id: TermId) -> TcResult<bool> {
+    pub(crate) fn term_can_be_used_as_ty_fn_param_ty(&mut self, term_id: TermId) -> TcResult<bool> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
@@ -842,7 +858,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     }
 
     /// Determine if the given term is a function type, and if so return it.
-    pub fn term_is_fn_ty(&mut self, term_id: TermId) -> TcResult<Option<FnTy>> {
+    pub(crate) fn term_is_fn_ty(&mut self, term_id: TermId) -> TcResult<Option<FnTy>> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         let reader = self.reader();
         let term = reader.get_term(simplified_term_id);
@@ -859,7 +875,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     ///
     /// @@Correctness: This is not based on any accepted algorithm, and requires
     /// testing to ensure its correctness.
-    pub fn subs_are_equivalent(&mut self, s0: &Sub, s1: &Sub) -> bool {
+    pub(crate) fn subs_are_equivalent(&mut self, s0: &Sub, s1: &Sub) -> bool {
         // First we get the two substitutions as lists sorted by their domains:
         let mut s0_list = s0.pairs().collect::<Vec<_>>();
         let mut s1_list = s1.pairs().collect::<Vec<_>>();

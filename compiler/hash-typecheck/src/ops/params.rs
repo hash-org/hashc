@@ -9,7 +9,7 @@ use std::collections::HashSet;
 ///
 /// This does not perform any typechecking, it simply matches parameters and
 /// arguments by position or name.
-pub fn pair_args_with_params<'p, 'a>(
+pub(crate) fn pair_args_with_params<'p, 'a>(
     params: &'p Params,
     args: &'a Args,
 ) -> TcResult<Vec<(&'p Param, &'a Arg)>> {
