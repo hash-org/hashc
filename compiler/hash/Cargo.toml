@@ -15,21 +15,32 @@ clap = { version = "3.0.0", features = ["derive"] }
 profiling = "1.0.6"
 tracy-client = "0.13.2"
 
-hash-parser = {path = "../hash-parser" }
-hash-alloc = {path = "../hash-alloc" }
-hash-interactive = {path = "../hash-interactive" } 
-hash-reporting = {path = "../hash-reporting" }
-hash-pipeline = {path = "../hash-pipeline" }
+hash-parser = { path = "../hash-parser" }
+hash-alloc = { path = "../hash-alloc" }
+hash-interactive = { path = "../hash-interactive" }
+hash-reporting = { path = "../hash-reporting" }
+hash-pipeline = { path = "../hash-pipeline" }
 
 # Various stages that the pipeline interfaces with
 hash-ast-desugaring = { path = "../hash-ast-desugaring" }
 hash-ast-passes = { path = "../hash-ast-passes" }
-hash-typecheck = {path = "../hash-typecheck" }
-hash-vm = {path = "../hash-vm" }
-hash-source = {path = "../hash-source" }
+hash-typecheck = { path = "../hash-typecheck" }
+hash-vm = { path = "../hash-vm" }
+hash-source = { path = "../hash-source" }
 
 [features]
 profile-with-tracy = ["profiling/profile-with-tracy"]
 
 # Enable this flag to run tracy profiling
 # default = ["profile-with-tracy"]
+
+[dev-dependencies.cargo-husky]
+version = "1.5"
+default-features = false
+features = [
+  "precommit-hook",
+  "run-for-all",
+  "run-cargo-test",
+  "run-cargo-fmt",
+  "run-cargo-clippy",
+]
