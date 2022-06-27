@@ -22,6 +22,10 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
+
+      - name: "Dependency caching"
+      - uses: Swatinem/rust-cache@v1
+
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
