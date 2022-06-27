@@ -2,8 +2,7 @@
 use std::cell::Cell;
 
 use super::primitives::{ResolutionId, Term, TermId};
-use hash_source::location::SourceLocation;
-use slotmap::{SecondaryMap, SlotMap};
+use slotmap::SlotMap;
 
 /// Stores all the terms within a typechecking cycle.
 ///
@@ -56,35 +55,5 @@ impl TermStore {
         let new_id = self.last_resolution_id.get() + 1;
         self.last_resolution_id.set(new_id);
         ResolutionId(new_id)
-    }
-}
-
-/// Stores the source location of terms in the AST tree.
-///
-/// Not every term is guaranteed to have an attached location, but if it does it
-/// will be stored here. Note that term locations are on the [TermId]-level, not
-/// on the [Term]-level. So two identical [Term]s with different [TermId]s can
-/// have separate location attachments.
-#[derive(Debug, Default)]
-pub struct TermLocations {
-    data: SecondaryMap<TermId, SourceLocation>,
-}
-
-impl TermLocations {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get the location of the term with the given [TermId], if it exists.
-    pub fn get_location(&self, id: TermId) -> Option<SourceLocation> {
-        self.data.get(id).copied()
-    }
-
-    /// Attach a location to the term with the given [TermId].
-    ///
-    /// This will overwrite any previous location attachment for this specific
-    /// term.
-    pub fn add_location(&mut self, id: TermId, location: SourceLocation) {
-        self.data.insert(id, location);
     }
 }

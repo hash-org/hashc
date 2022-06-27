@@ -46,7 +46,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [Self::ty_of_simplified_term].
-    pub fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         self.ty_of_simplified_term(simplified_term_id)
     }
@@ -54,7 +54,10 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     /// Infer the type of the given member, if it does not already exist.
     ///
     /// *Note*: Assumes the term is validated.
-    pub fn infer_member_data(&mut self, member_data: MemberData) -> TcResult<InferredMemberData> {
+    pub(crate) fn infer_member_data(
+        &mut self,
+        member_data: MemberData,
+    ) -> TcResult<InferredMemberData> {
         match member_data {
             MemberData::Uninitialised { ty } => Ok(InferredMemberData { ty, value: None }),
             MemberData::InitialisedWithTy { ty, value } => {
@@ -72,7 +75,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     ///
     /// **Warning**: This might produce unexpected behaviour if the term is not
     /// simplified.
-    pub fn ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let term = self.reader().get_term(term_id).clone();
         match term {
             Term::Access(access_term) => {
@@ -101,9 +104,11 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                     Term::TyFnTy(ty_fn_ty) => {
                         let ty_fn_ty = ty_fn_ty.clone();
                         // Unify the type function type params with the given args:
-                        let sub = self
-                            .unifier()
-                            .unify_params_with_args(&ty_fn_ty.params, &app_ty_fn.args)?;
+                        let sub = self.unifier().unify_params_with_args(
+                            ty_fn_ty.params,
+                            app_ty_fn.args,
+                            ty_id_of_subject,
+                        )?;
                         // Apply the substitution to the return type and use it as the result:
                         Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
                     }
@@ -124,10 +129,9 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
-                Ok(self.builder().create_ty_fn_ty_term(
-                    ty_fn.general_params.into_positional(),
-                    ty_fn.general_return_ty,
-                ))
+                Ok(self
+                    .builder()
+                    .create_ty_fn_ty_term(ty_fn.general_params, ty_fn.general_return_ty))
             }
             Term::Merge(terms) => {
                 // The type of a merge is a merge of the inner terms:
