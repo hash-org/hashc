@@ -8,7 +8,7 @@ pub mod parser;
 mod source;
 
 use crossbeam_channel::{unbounded, Sender};
-use hash_ast::ast;
+use hash_ast::ast::{self};
 use hash_lexer::Lexer;
 use hash_pipeline::{
     sources::{Module, Sources},

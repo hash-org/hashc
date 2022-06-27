@@ -184,6 +184,20 @@ impl<T> DerefMut for AstNodeRefMut<'_, T> {
     }
 }
 
+/// Helper trait to access a node from a structure that contains one.
+pub trait OwnsAstNode<T> {
+    fn node(&self) -> &AstNode<T>;
+    fn node_mut(&mut self) -> &mut AstNode<T>;
+
+    fn node_ref(&self) -> AstNodeRef<T> {
+        self.node().ast_ref()
+    }
+
+    fn node_ref_mut(&mut self) -> AstNodeRefMut<T> {
+        self.node_mut().ast_ref_mut()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct AstNodes<T> {
     pub nodes: Vec<AstNode<T>>,
