@@ -2,50 +2,43 @@ name: Rust
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build_and_test:
-    name: Unit, Style, and Lint Testing
+    name: Test, clippy, and format
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
-      - name: Install Rust Nightly
+      - name: Install Rust nightly
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
-      - name: Cargo Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all --verbose
-      - name: Cargo Test
+      - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all --verbose
-      - name: Cargo Doc
+      - name: Generate documentation
         uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --all --verbose
-      - name: Cargo Clippy
+      - name: Run clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: --all -- -D warnings
-      - name: Cargo Fmt
+      - name: Check formatting
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-
-
