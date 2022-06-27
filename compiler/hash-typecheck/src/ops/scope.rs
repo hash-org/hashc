@@ -1,4 +1,5 @@
 //! Functionality related to resolving variables in scopes.
+
 use super::AccessToOps;
 use crate::{
     error::{TcError, TcResult},
@@ -27,9 +28,13 @@ impl<'gs, 'ls, 'cd> ScopeResolver<'gs, 'ls, 'cd> {
         for scope_id in self.scopes().iter_up() {
             match self.reader().get_scope(scope_id).get(name) {
                 // Found in this scope, return the member.
-                Some(result) => return Ok(result),
+                Some(result) => {
+                    return Ok(result);
+                }
                 // Continue to the next (higher) scope:
-                None => continue,
+                None => {
+                    continue;
+                }
             }
         }
         // Name was not found, error:

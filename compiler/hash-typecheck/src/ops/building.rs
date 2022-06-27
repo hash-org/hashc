@@ -235,6 +235,22 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }))
     }
 
+    /// Create a member of a variable scope (private and immutable), with the
+    /// given name, type and value.
+    pub fn create_variable_member(
+        &self,
+        name: impl Into<Identifier>,
+        ty: TermId,
+        value: TermId,
+    ) -> Member {
+        Member {
+            name: name.into(),
+            data: MemberData::InitialisedWithTy { ty, value },
+            visibility: Visibility::Private,
+            mutability: Mutability::Immutable,
+        }
+    }
+
     /// Create a public member with the given name, type and value.
     pub fn create_pub_member(
         &self,
@@ -336,6 +352,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Scope], returning a [ScopeId].
     pub fn create_scope(&self, scope: Scope) -> ScopeId {
         self.gs.borrow_mut().scope_store.create(scope)
+    }
+
+    /// Create a [Scope] of kind [ScopeKind::Variable] from the given members,
+    /// returning a [ScopeId].
+    pub fn create_variable_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
+        self.create_scope(Scope::new(ScopeKind::Variable, members))
     }
 
     /// Create a [Scope] of kind [ScopeKind::Constant] from the given members,
@@ -473,6 +495,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a new unresolved term, of type [Term::Unresolved].
     pub fn create_unresolved_term(&self) -> TermId {
         self.create_term(Term::Unresolved(self.create_unresolved()))
+    }
+
+    /// Create a new unresolved term, of type [Term::Unresolved], if the given
+    /// term is `None`.
+    pub fn or_unresolved_term(&self, existing: Option<TermId>) -> TermId {
+        existing.unwrap_or_else(|| self.create_unresolved_term())
     }
 
     /// Create a substitution application term, given a substitution and inner

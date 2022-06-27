@@ -61,7 +61,7 @@ pub struct CompilerState<
     /// The collected workspace sources for the current job.
     pub sources: Sources,
     /// Any diagnostics that were collected from any stage
-    diagnostics: Vec<Report>,
+    pub diagnostics: Vec<Report>,
     /// The typechecker state.
     pub ds_state: D::State,
     /// The semantic analysis state.
