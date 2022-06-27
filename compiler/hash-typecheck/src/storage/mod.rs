@@ -14,7 +14,7 @@ use self::{
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
-    terms::TermStore,
+    terms::{TermLocations, TermStore},
     trts::TrtDefStore,
 };
 
@@ -32,6 +32,7 @@ pub mod trts;
 pub struct GlobalStorage {
     pub scope_store: ScopeStore,
     pub term_store: TermStore,
+    pub term_location_store: TermLocations,
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
@@ -51,6 +52,7 @@ impl GlobalStorage {
         let root_scope = scope_store.create(Scope::empty(ScopeKind::Constant));
         Self {
             term_store: TermStore::new(),
+            term_location_store: TermLocations::new(),
             scope_store,
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
@@ -131,6 +133,10 @@ pub trait AccessToStorage {
         &self.global_storage().term_store
     }
 
+    fn term_location_store(&self) -> &TermLocations {
+        &self.global_storage().term_location_store
+    }
+
     fn nominal_def_store(&self) -> &NominalDefStore {
         &self.global_storage().nominal_def_store
     }
@@ -171,6 +177,10 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn term_store_mut(&mut self) -> &mut TermStore {
         &mut self.global_storage_mut().term_store
+    }
+
+    fn term_location_store_mut(&mut self) -> &mut TermLocations {
+        &mut self.global_storage_mut().term_location_store
     }
 
     fn scope_store_mut(&mut self) -> &mut ScopeStore {
