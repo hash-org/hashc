@@ -199,7 +199,23 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
-            TcError::CannotUseValueAsTy { value } => todo!(),
+            TcError::CannotUseValueAsTy { value } => {
+                builder.with_error_code(HashErrorCode::ValueCannotBeUsedAsType).with_message(
+                    format!(
+                        "type `{}` is not a type function",
+                        value.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) =
+                    err.global_storage().term_location_store.get_location(*value)
+                {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this cannot be used a type",
+                    )));
+                }
+            }
             TcError::MismatchingArgParamLength { args, params } => todo!(),
             TcError::ParamNotFound { params, name } => todo!(),
             TcError::ParamGivenTwice { args, params, param_index_given_twice } => todo!(),
