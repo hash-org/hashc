@@ -238,8 +238,27 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
-            TcError::ParamNotFound { params, name } => todo!(),
-            TcError::ParamGivenTwice { args, params, param_index_given_twice } => todo!(),
+            TcError::ParamNotFound { params, name } => {
+                builder
+                    .with_error_code(HashErrorCode::UnresolvedSymbol)
+                    .with_message(format!("parameter with name `{}` is not defined", name,));
+
+                // find the parameter and report the location
+                let (_, param) = params.get_by_name(*name).unwrap();
+
+                // Provide information about the location of the target type if available
+                if let Some(location) =
+                    err.global_storage().term_location_store.get_location(param.ty)
+                {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("parameter `{}` not defined", name,),
+                    )));
+                }
+            }
+            TcError::ParamGivenTwice { args, params, param_index_given_twice } => {
+                todo!()
+            }
             TcError::CannotUsePositionalArgAfterNamedArg { args, problematic_arg_index } => todo!(),
             TcError::UnresolvedNameInValue { name, value } => todo!(),
             TcError::UnresolvedVariable { name } => todo!(),
