@@ -30,6 +30,7 @@ error_codes! {
     TypeAnnotationNotAllowedInTraitImpl = 22,
     TypeArgumentLengthMismatch = 23,
     TypeIsNotTypeFunction = 27,
+    ValueCannotBeUsedAsType = 28,
 
     // Errors in regard to parameter lists
     ParameterLengthMismatch = 25,
