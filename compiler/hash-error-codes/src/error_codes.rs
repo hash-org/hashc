@@ -1,7 +1,6 @@
 //! Hash Error code definitions.
 
 error_codes! {
-    TypeMismatch = 1,
     // Semantic errors
     UsingBreakOutsideLoop = 2,
     UsingContinueOutsideLoop = 3,
@@ -14,8 +13,7 @@ error_codes! {
     SymbolIsNotAVariable = 10,
     SymbolIsNotATrait = 11,
     SymbolIsNotAEnum = 12,
-    TypeIsNotStruct = 13,
-    TypeIsNotEnum = 14,
+
     UnresolvedStructField = 15,
     InvalidPropertyAccess = 16,
     ExpectingBooleanInCondition = 17,
@@ -23,9 +21,16 @@ error_codes! {
     BoundRequiresStrictlyTypeVars = 19,
     // 20: un-used
     TraitDefinitionNotFound = 21,
+    NoMatchingTraitImplementations = 24,
+
+    // Type errors
+    TypeMismatch = 1,
+    TypeIsNotStruct = 13,
+    TypeIsNotEnum = 14,
     TypeAnnotationNotAllowedInTraitImpl = 22,
     TypeArgumentLengthMismatch = 23,
-    NoMatchingTraitImplementations = 24,
+    TypeIsNotTypeFunction = 27,
+
     // Errors in regard to parameter lists
     ParameterLengthMismatch = 25,
     ParameterNameMismatch = 26,

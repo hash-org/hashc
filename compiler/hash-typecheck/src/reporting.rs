@@ -180,7 +180,25 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             },
-            TcError::NotATypeFunction { term } => todo!(),
+            TcError::NotATypeFunction { term } => {
+                builder.with_error_code(HashErrorCode::TypeIsNotTypeFunction).with_message(
+                    format!(
+                        "type `{}` is not a type function",
+                        term.for_formatting(err.global_storage())
+                    ),
+                );
+
+                // Get the location of the term
+                // @@Future: is it useful to also print the location of what was expecting
+                // something to be a type function.
+                if let Some(location) = err.global_storage().term_location_store.get_location(*term)
+                {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this type is not a type function",
+                    )));
+                }
+            }
             TcError::CannotUseValueAsTy { value } => todo!(),
             TcError::MismatchingArgParamLength { args, params } => todo!(),
             TcError::ParamNotFound { params, name } => todo!(),
