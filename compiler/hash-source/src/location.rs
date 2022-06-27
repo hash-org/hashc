@@ -79,3 +79,13 @@ pub struct SourceLocation {
     pub span: Span,
     pub source_id: SourceId,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn type_size() {
+        println!("{:?}", std::mem::size_of::<SourceLocation>());
+    }
+}
