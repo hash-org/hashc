@@ -66,7 +66,10 @@ impl CoreDefs {
         let char_ty = builder.create_opaque_struct_def("char", []);
         let bool_ty = builder.create_enum_def(
             "bool",
-            [builder.create_enum_variant("true", []), builder.create_enum_variant("false", [])],
+            [
+                builder.create_enum_variant("true", builder.create_params([])),
+                builder.create_enum_variant("false", builder.create_params([])),
+            ],
             [],
         );
 
@@ -76,7 +79,7 @@ impl CoreDefs {
         // Reference types
         let reference_ty_fn = builder.create_ty_fn_term(
             Some("Ref"),
-            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_params([builder.create_param("T", builder.create_any_ty_term())]),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
                 builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
@@ -84,7 +87,7 @@ impl CoreDefs {
         );
         let raw_reference_ty_fn = builder.create_ty_fn_term(
             Some("RawRef"),
-            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_params([builder.create_param("T", builder.create_any_ty_term())]),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
                 builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
@@ -101,7 +104,9 @@ impl CoreDefs {
                 builder.create_uninitialised_pub_member(
                     "hash",
                     builder.create_fn_ty_term(
-                        [builder.create_param("value", builder.create_var_term("Self"))],
+                        builder.create_params([
+                            builder.create_param("value", builder.create_var_term("Self"))
+                        ]),
                         builder.create_nominal_def_term(u64_ty),
                     ),
                 ),
@@ -115,10 +120,10 @@ impl CoreDefs {
                 builder.create_uninitialised_pub_member(
                     "eq",
                     builder.create_fn_ty_term(
-                        [
+                        builder.create_params([
                             builder.create_param("a", builder.create_var_term("Self")),
                             builder.create_param("b", builder.create_var_term("Self")),
-                        ],
+                        ]),
                         builder.create_nominal_def_term(u64_ty),
                     ),
                 ),
@@ -132,7 +137,7 @@ impl CoreDefs {
         // Collection types
         let list_ty_fn = builder.create_ty_fn_term(
             Some("List"),
-            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_params([builder.create_param("T", builder.create_any_ty_term())]),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
                 builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
@@ -141,7 +146,7 @@ impl CoreDefs {
 
         let set_ty_fn = builder.create_ty_fn_term(
             Some("Set"),
-            [builder.create_param("T", builder.create_any_ty_term())],
+            builder.create_params([builder.create_param("T", builder.create_any_ty_term())]),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
                 builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
@@ -150,7 +155,7 @@ impl CoreDefs {
 
         let map_ty_fn = builder.create_ty_fn_term(
             Some("Map"),
-            [
+            builder.create_params([
                 builder.create_param(
                     "K",
                     builder.create_merge_term([
@@ -159,7 +164,7 @@ impl CoreDefs {
                     ]),
                 ),
                 builder.create_param("V", builder.create_any_ty_term()),
-            ],
+            ]),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def([
                 builder.create_var("K"),

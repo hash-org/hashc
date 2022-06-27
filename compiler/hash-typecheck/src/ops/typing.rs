@@ -105,8 +105,8 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                         let ty_fn_ty = ty_fn_ty.clone();
                         // Unify the type function type params with the given args:
                         let sub = self.unifier().unify_params_with_args(
-                            &ty_fn_ty.params,
-                            &app_ty_fn.args,
+                            ty_fn_ty.params,
+                            app_ty_fn.args,
                             ty_id_of_subject,
                         )?;
                         // Apply the substitution to the return type and use it as the result:
@@ -129,10 +129,9 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:
-                Ok(self.builder().create_ty_fn_ty_term(
-                    ty_fn.general_params.into_positional(),
-                    ty_fn.general_return_ty,
-                ))
+                Ok(self
+                    .builder()
+                    .create_ty_fn_ty_term(ty_fn.general_params, ty_fn.general_return_ty))
             }
             Term::Merge(terms) => {
                 // The type of a merge is a merge of the inner terms:

@@ -3,7 +3,6 @@
 //!
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
-#![allow(dead_code)] //@@Temporary
 use self::{
     building::PrimitiveBuilder, reader::PrimitiveReader, scope::ScopeResolver,
     simplify::Simplifier, substitute::Substituter, typing::Typer, unify::Unifier,

@@ -1,7 +1,7 @@
 //! Operations related to handling parameters.
 use crate::{
     error::{TcError, TcResult},
-    storage::primitives::{Arg, Args, Param, Params, TermId},
+    storage::primitives::{Arg, Args, ArgsId, Param, Params, ParamsId, TermId},
 };
 use std::collections::HashSet;
 
@@ -13,6 +13,8 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
     params: &'p Params,
     args: &'a Args,
     parent: TermId,
+    params_id: ParamsId,
+    args_id: ArgsId,
 ) -> TcResult<Vec<(&'p Param, &'a Arg)>> {
     let mut result = vec![];
 
@@ -24,8 +26,8 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
     // Ensure the length of params and args is the same
     if params.positional().len() != args.positional().len() {
         return Err(TcError::MismatchingArgParamLength {
-            args: args.clone(),
-            params: params.clone(),
+            args: args_id,
+            params: params_id,
             target: parent,
         });
     }
@@ -42,8 +44,8 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                         if params_used.contains(&i) {
                             // Ensure not already used
                             return Err(TcError::ParamGivenTwice {
-                                args: args.clone(),
-                                params: params.clone(),
+                                args: args_id,
+                                params: params_id,
                                 param_index_given_twice: param_i,
                             });
                         } else {
@@ -52,10 +54,7 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                         }
                     }
                     None => {
-                        return Err(TcError::ParamNotFound {
-                            params: params.clone(),
-                            name: arg_name,
-                        })
+                        return Err(TcError::ParamNotFound { params: params_id, name: arg_name })
                     }
                 }
             }
@@ -64,14 +63,14 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                 if done_positional {
                     // Using positional args after named args is an error
                     return Err(TcError::CannotUsePositionalArgAfterNamedArg {
-                        args: args.clone(),
+                        args: args_id,
                         problematic_arg_index: i,
                     });
                 } else if params_used.contains(&i) {
                     // Ensure not already used
                     return Err(TcError::ParamGivenTwice {
-                        args: args.clone(),
-                        params: params.clone(),
+                        args: args_id,
+                        params: params_id,
                         param_index_given_twice: i,
                     });
                 } else {
