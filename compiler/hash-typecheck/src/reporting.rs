@@ -216,7 +216,28 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
-            TcError::MismatchingArgParamLength { args, params } => todo!(),
+            TcError::MismatchingArgParamLength { args, params, target } => {
+                builder.with_error_code(HashErrorCode::ParameterLengthMismatch).with_message(
+                    format!(
+                        "type function application expects `{}` arguments, however `{}` arguments were given",
+                        params.len(),
+                        args.len()
+                    ),
+                );
+
+                // Provide information about the location of the target type if available
+                if let Some(location) =
+                    err.global_storage().term_location_store.get_location(*target)
+                {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "this expects `{}` arguments.",
+                            target.for_formatting(err.global_storage()),
+                        ),
+                    )));
+                }
+            }
             TcError::ParamNotFound { params, name } => todo!(),
             TcError::ParamGivenTwice { args, params, param_index_given_twice } => todo!(),
             TcError::CannotUsePositionalArgAfterNamedArg { args, problematic_arg_index } => todo!(),

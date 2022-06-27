@@ -1,7 +1,7 @@
 //! Operations related to handling parameters.
 use crate::{
     error::{TcError, TcResult},
-    storage::primitives::{Arg, Args, Param, Params},
+    storage::primitives::{Arg, Args, Param, Params, TermId},
 };
 use std::collections::HashSet;
 
@@ -12,6 +12,7 @@ use std::collections::HashSet;
 pub(crate) fn pair_args_with_params<'p, 'a>(
     params: &'p Params,
     args: &'a Args,
+    parent: TermId,
 ) -> TcResult<Vec<(&'p Param, &'a Arg)>> {
     let mut result = vec![];
 
@@ -25,6 +26,7 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
         return Err(TcError::MismatchingArgParamLength {
             args: args.clone(),
             params: params.clone(),
+            target: parent,
         });
     }
 

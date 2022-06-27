@@ -472,13 +472,19 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 // First, ensure they unify with general params:
                 //
                 // @@Correctness: do we need to apply this sub anywhere?
-                let _ = self
-                    .unifier()
-                    .unify_params_with_args(&ty_fn.general_params, &apply_ty_fn.args)?;
+                let _ = self.unifier().unify_params_with_args(
+                    &ty_fn.general_params,
+                    &apply_ty_fn.args,
+                    simplified_subject_id,
+                )?;
 
                 // Try to match each of the cases:
                 for case in &ty_fn.cases {
-                    match self.unifier().unify_params_with_args(&case.params, &apply_ty_fn.args) {
+                    match self.unifier().unify_params_with_args(
+                        &case.params,
+                        &apply_ty_fn.args,
+                        simplified_subject_id,
+                    ) {
                         Ok(sub) => {
                             // Successful, add the return value to result, subbed with the
                             // substitution, and continue:
