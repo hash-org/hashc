@@ -795,26 +795,22 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // No simplification occurred:
                     (None, None) if simplified_cases.iter().all(|x| x.is_none()) => Ok(None),
                     // Otherwise, build the simplified type function:
-                    _ => {
-                        Ok(Some(self.builder().create_term(
-                            Term::TyFn(
-                                TyFn {
-                                    name: ty_fn.name,
-                                    general_params: simplified_general_params
-                                        .unwrap_or(ty_fn.general_params),
-                                    general_return_ty: simplified_general_return_ty
-                                        .unwrap_or(ty_fn.general_return_ty),
-                                    cases: simplified_cases
-                                        .into_iter()
-                                        .zip(ty_fn.cases.into_iter())
-                                        .map(|(simplified_case, old_case)| {
-                                            simplified_case.unwrap_or(old_case)
-                                        })
-                                        .collect(),
-                                },
-                            ),
-                        )))
-                    }
+                    _ => Ok(Some(
+                        self.builder().create_term(Term::TyFn(TyFn {
+                            name: ty_fn.name,
+                            general_params: simplified_general_params
+                                .unwrap_or(ty_fn.general_params),
+                            general_return_ty: simplified_general_return_ty
+                                .unwrap_or(ty_fn.general_return_ty),
+                            cases: simplified_cases
+                                .into_iter()
+                                .zip(ty_fn.cases.into_iter())
+                                .map(|(simplified_case, old_case)| {
+                                    simplified_case.unwrap_or(old_case)
+                                })
+                                .collect(),
+                        })),
+                    )),
                 }
             }
             Term::TyFnTy(ty_fn_ty) => {
