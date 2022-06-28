@@ -67,6 +67,12 @@ pub enum PatternHint {
     Binding { name: Identifier },
 }
 
+/// Implementation of [visitor::AstVisitor] for [TcVisitor], to traverse the AST
+/// and type it.
+///
+/// Notes:
+/// - Terms derived from expressions are always validated, in order to ensure
+///   they are correct. The same goes for types.
 impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src> {
     type Ctx = ();
     type CollectionContainer<T> = Vec<T>;
@@ -712,8 +718,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         match &node.expr {
             Some(expr) => {
                 let expr_id = self.visit_expression(ctx, expr.ast_ref())?;
-                self.validator().validate_term(expr_id)?;
-                Ok(expr_id)
+                let TermValidation { simplified_term_id, .. } =
+                    self.validator().validate_term(expr_id)?;
+                Ok(simplified_term_id)
             }
             None => Ok(self.builder().create_void_ty_term()),
         }
@@ -786,6 +793,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
 
+        // Unify the type of the declaration with the type of the value of the
+        // declaration.
         let sub = if let Some(value) = value {
             let ty_of_value = self.typer().ty_of_term(value)?;
             self.unifier().unify_terms(ty_of_value, ty_or_unresolved)?
@@ -793,10 +802,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             Sub::empty()
         };
 
+        // Apply the substitution on the type and value
         let value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
-        // Add to scope:
+        // Add the member to scope:
         let current_scope_id = self.scopes().current_scope();
         self.scope_store_mut().get_mut(current_scope_id).add(Member {
             name,
