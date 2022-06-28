@@ -3,9 +3,9 @@
 
 use crate::{
     error::{TcError, TcResult},
-    ops::AccessToOpsMut,
+    ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
-        primitives::{Param, TermId},
+        primitives::{Member, MemberData, Mutability, Param, Sub, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -59,6 +59,12 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
             SourceRef::Module(module_source) => self.visit_module(&(), module_source.node_ref()),
         }
     }
+}
+
+/// Represents a kind of pattern, with information about it.
+#[derive(Clone, Debug)]
+pub enum PatternHint {
+    Binding { name: Identifier },
 }
 
 impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src> {
@@ -157,7 +163,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        Ok(walk::walk_variable_expr(self, ctx, node)?.name)
+        let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
+        let TermValidation { simplified_term_id, .. } = self.validator().validate_term(name)?;
+        Ok(simplified_term_id)
     }
 
     type DirectiveExprRet = TermId;
@@ -555,7 +563,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.scopes_mut().pop_the_scope(param_scope);
 
         let builder = self.builder();
-        Ok(builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value))
+
+        let fn_ty_term =
+            builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
+
+        let TermValidation { simplified_term_id, .. } =
+            self.validator().validate_term(fn_ty_term)?;
+        Ok(simplified_term_id)
     }
 
     type FunctionDefArgRet = Param;
@@ -688,14 +702,19 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         // Traverse each statement
         for statement in node.statements.iter() {
-            self.visit_expression(ctx, statement.ast_ref())?;
+            let statement_id = self.visit_expression(ctx, statement.ast_ref())?;
+            self.validator().validate_term(statement_id)?;
             // @@Design: do we check that the return type is void? Should we
             // warn if it isn't?
         }
 
         // Traverse the ending expression, if any, or return void.
         match &node.expr {
-            Some(expr) => self.visit_expression(ctx, expr.ast_ref()),
+            Some(expr) => {
+                let expr_id = self.visit_expression(ctx, expr.ast_ref())?;
+                self.validator().validate_term(expr_id)?;
+                Ok(expr_id)
+            }
             None => Ok(self.builder().create_void_ty_term()),
         }
     }
@@ -754,10 +773,44 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_declaration(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        todo!()
+        // @@Todo: deal with mutability and visibility
+        let walk::Declaration { pattern, ty, value } = walk::walk_declaration(self, ctx, node)?;
+
+        // @@Todo: deal with other kinds of patterns:
+        let name = match pattern {
+            PatternHint::Binding { name } => name,
+        };
+
+        let ty_or_unresolved = self.builder().or_unresolved_term(ty);
+
+        let sub = if let Some(value) = value {
+            let ty_of_value = self.typer().ty_of_term(value)?;
+            self.unifier().unify_terms(ty_of_value, ty_or_unresolved)?
+        } else {
+            Sub::empty()
+        };
+
+        let value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
+        let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
+
+        // Add to scope:
+        let current_scope_id = self.scopes().current_scope();
+        self.scope_store_mut().get_mut(current_scope_id).add(Member {
+            name,
+            data: MemberData::from_ty_and_value(Some(ty), value),
+            mutability: Mutability::Immutable,
+            visibility: Visibility::Private,
+        });
+
+        // Declaration should return its value if any:
+        match value {
+            Some(value) => Ok(self.validator().validate_term(value)?.simplified_term_id),
+            // Void if no value:
+            None => Ok(self.builder().create_void_ty_term()),
+        }
     }
 
     type MergeDeclarationRet = TermId;
@@ -870,14 +923,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type PatternRet = TermId;
+    type PatternRet = PatternHint;
 
     fn visit_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
     ) -> Result<Self::PatternRet, Self::Error> {
-        todo!()
+        walk::walk_pattern_same_children(self, ctx, node)
     }
 
     type TraitImplRet = TermId;
@@ -910,7 +963,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type ConstructorPatternRet = TermId;
+    type ConstructorPatternRet = PatternHint;
 
     fn visit_constructor_pattern(
         &mut self,
@@ -920,7 +973,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type NamespacePatternRet = TermId;
+    type NamespacePatternRet = PatternHint;
 
     fn visit_namespace_pattern(
         &mut self,
@@ -940,7 +993,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type TuplePatternRet = TermId;
+    type TuplePatternRet = PatternHint;
 
     fn visit_tuple_pattern(
         &mut self,
@@ -950,7 +1003,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type ListPatternRet = TermId;
+    type ListPatternRet = PatternHint;
 
     fn visit_list_pattern(
         &mut self,
@@ -1000,7 +1053,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type StrLiteralPatternRet = TermId;
+    type StrLiteralPatternRet = PatternHint;
 
     fn visit_str_literal_pattern(
         &mut self,
@@ -1010,7 +1063,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type CharLiteralPatternRet = TermId;
+    type CharLiteralPatternRet = PatternHint;
 
     fn visit_char_literal_pattern(
         &mut self,
@@ -1020,7 +1073,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IntLiteralPatternRet = TermId;
+    type IntLiteralPatternRet = PatternHint;
 
     fn visit_int_literal_pattern(
         &mut self,
@@ -1030,7 +1083,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type FloatLiteralPatternRet = TermId;
+    type FloatLiteralPatternRet = PatternHint;
 
     fn visit_float_literal_pattern(
         &mut self,
@@ -1040,7 +1093,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type BoolLiteralPatternRet = TermId;
+    type BoolLiteralPatternRet = PatternHint;
 
     fn visit_bool_literal_pattern(
         &mut self,
@@ -1050,7 +1103,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type LiteralPatternRet = TermId;
+    type LiteralPatternRet = PatternHint;
 
     fn visit_literal_pattern(
         &mut self,
@@ -1060,7 +1113,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type OrPatternRet = TermId;
+    type OrPatternRet = PatternHint;
 
     fn visit_or_pattern(
         &mut self,
@@ -1070,7 +1123,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IfPatternRet = TermId;
+    type IfPatternRet = PatternHint;
 
     fn visit_if_pattern(
         &mut self,
@@ -1080,17 +1133,17 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type BindingPatternRet = TermId;
+    type BindingPatternRet = PatternHint;
 
     fn visit_binding_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        todo!()
+        Ok(PatternHint::Binding { name: node.name.body().ident })
     }
 
-    type SpreadPatternRet = TermId;
+    type SpreadPatternRet = PatternHint;
 
     fn visit_spread_pattern(
         &mut self,
@@ -1100,7 +1153,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IgnorePatternRet = TermId;
+    type IgnorePatternRet = PatternHint;
 
     fn visit_ignore_pattern(
         &mut self,
@@ -1110,7 +1163,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type DestructuringPatternRet = TermId;
+    type DestructuringPatternRet = PatternHint;
 
     fn visit_destructuring_pattern(
         &mut self,
