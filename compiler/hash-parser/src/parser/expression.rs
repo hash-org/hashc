@@ -938,7 +938,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a function definition argument, which is made of an identifier and
     /// a function type.
-    pub(crate) fn parse_function_def_arg(&self) -> AstGenResult<AstNode<FunctionDefArg>> {
+    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<FunctionDefParam>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -958,7 +958,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(FunctionDefArg { name, ty, default }, &name_span))
+        Ok(self.node_with_joined_span(FunctionDefParam { name, ty, default }, &name_span))
     }
 
     /// Parse a function literal. Function literals are essentially definitions
@@ -970,9 +970,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ) -> AstGenResult<AstNode<Expression>> {
         let start = self.current_location();
 
-        // parse function definition arguments.
-        let args = gen.parse_separated_fn(
-            || gen.parse_function_def_arg(),
+        // parse function definition parameters.
+        let params = gen.parse_separated_fn(
+            || gen.parse_function_def_param(),
             || gen.parse_token(TokenKind::Comma),
         )?;
 
@@ -990,7 +990,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::FunctionDef(FunctionDef { args, return_ty, fn_body })),
+            Expression::new(ExpressionKind::FunctionDef(FunctionDef {
+                params,
+                return_ty,
+                fn_body,
+            })),
             &start,
         ))
     }
