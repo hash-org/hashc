@@ -710,7 +710,7 @@ impl Display for Mutability {
 #[derive(Debug, PartialEq)]
 pub struct TypeFunctionDef {
     /// The type arguments of the function.
-    pub args: AstNodes<TypeFunctionDefArg>,
+    pub params: AstNodes<TypeFunctionDefParam>,
     /// Optional return type of the type function
     pub return_ty: Option<AstNode<Type>>,
     /// The body of the type function,
@@ -719,7 +719,7 @@ pub struct TypeFunctionDef {
 
 /// An argument within a type function
 #[derive(Debug, PartialEq)]
-pub struct TypeFunctionDefArg {
+pub struct TypeFunctionDefParam {
     /// The name of the argument
     pub name: AstNode<Name>,
 
@@ -1180,12 +1180,9 @@ impl Block {
     }
 }
 
-/// A function definition argument.
-///
-/// @@Naming,@@Todo(@feds01): Rename "Arg" to "Param", to be in-line with TC
-/// terminology.
+/// A function definition parameter.
 #[derive(Debug, PartialEq)]
-pub struct FunctionDefArg {
+pub struct FunctionDefParam {
     /// The name of the argument.
     pub name: AstNode<Name>,
     /// The type of the argument, if any.
@@ -1201,8 +1198,8 @@ pub struct FunctionDefArg {
 /// A function definition.
 #[derive(Debug, PartialEq)]
 pub struct FunctionDef {
-    /// The arguments of the function definition.
-    pub args: AstNodes<FunctionDefArg>,
+    /// The parameters of the function definition.
+    pub params: AstNodes<FunctionDefParam>,
     /// The return type of the function definition.
     ///
     /// Will be inferred if [None].
@@ -1276,11 +1273,6 @@ pub struct Import {
 pub struct VariableExpr {
     /// The name of the variable.
     pub name: AstNode<AccessName>,
-    /// Any type arguments of the variable. Only valid for traits.
-    ///
-    /// @@Todo(@feds01): Shouldn't be here, it should be a TypeFunctionCall if
-    /// there are arguments.
-    pub type_args: AstNodes<NamedFieldTypeEntry>,
 }
 
 /// A reference expression with a flag denoting whether it is a raw ref or not

@@ -10,7 +10,7 @@ use crate::storage::{
     },
     GlobalStorage,
 };
-use hash_source::identifier::Identifier;
+use hash_source::{identifier::Identifier, location::SourceLocation};
 use std::cell::{Cell, RefCell};
 
 /// Helper to create various primitive constructions (from
@@ -31,6 +31,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a new [PrimitiveBuilder] with a given scope.
     pub fn new(gs: &'gs mut GlobalStorage) -> Self {
         Self { gs: RefCell::new(gs), scope: Cell::new(None) }
+    }
+
+    /// Release [Self], returning the original [GlobalStorage].
+    pub fn release(self) -> &'gs mut GlobalStorage {
+        self.gs.into_inner()
     }
 
     /// Create a new [PrimitiveBuilder] with a given scope.
@@ -530,8 +535,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::AppTyFn(app_ty_fn))
     }
 
-    /// Release [Self], returning the original [GlobalStorage].
-    pub fn release(self) -> &'gs mut GlobalStorage {
-        self.gs.into_inner()
+    /// Add a [SourceLocation] to a [Term].
+    pub fn add_location_to(&self, subject: TermId, location: SourceLocation) {
+        self.gs.borrow_mut().location_store.add_location_to_target(subject.into(), location);
     }
 }

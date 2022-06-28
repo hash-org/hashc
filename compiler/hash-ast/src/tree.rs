@@ -85,15 +85,9 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let walk::VariableExpr { name, type_args } = walk::walk_variable_expr(self, ctx, node)?;
+        let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
 
-        let mut children = vec![TreeNode::leaf(labelled("named", name.label, "\""))];
-
-        if !type_args.is_empty() {
-            children.extend(iter::once(TreeNode::branch("type_args", type_args)));
-        }
-
-        Ok(TreeNode::branch("variable", children))
+        Ok(TreeNode::branch("variable", vec![TreeNode::leaf(labelled("named", name.label, "\""))]))
     }
 
     type DirectiveExprRet = TreeNode;
@@ -426,7 +420,7 @@ impl AstVisitor for AstTreeGenerator {
             walk::walk_type_function_param(self, ctx, node)?;
 
         Ok(TreeNode::branch(
-            "arg",
+            "param",
             iter::once(TreeNode::branch("name", vec![name]))
                 .chain(bound.map(|t| TreeNode::branch("type", vec![t])))
                 .chain(default.map(|d| TreeNode::branch("default", vec![d])))
@@ -589,16 +583,16 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type FunctionDefArgRet = TreeNode;
-    fn visit_function_def_arg(
+    type FunctionDefParamRet = TreeNode;
+    fn visit_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDefArg>,
-    ) -> Result<Self::FunctionDefArgRet, Self::Error> {
-        let walk::FunctionDefArg { name, ty, default } =
-            walk::walk_function_def_arg(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::FunctionDefParam>,
+    ) -> Result<Self::FunctionDefParamRet, Self::Error> {
+        let walk::FunctionDefParam { name, ty, default } =
+            walk::walk_function_def_param(self, ctx, node)?;
         Ok(TreeNode::branch(
-            "arg",
+            "param",
             iter::once(TreeNode::branch("name", vec![name]))
                 .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
                 .chain(default.map(|d| TreeNode::branch("default", vec![d])))
@@ -1030,15 +1024,15 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type TypeFunctionDefArgRet = TreeNode;
-    fn visit_type_function_def_arg(
+    fn visit_type_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionDefArg>,
+        node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
         let walk::TypeFunctionDefArg { name, ty } =
-            walk::walk_type_function_def_arg(self, ctx, node)?;
+            walk::walk_type_function_def_param(self, ctx, node)?;
 
-        Ok(TreeNode::branch("arg", iter::once(name).chain(ty).collect()))
+        Ok(TreeNode::branch("param", iter::once(name).chain(ty).collect()))
     }
 
     type ConstructorPatternRet = TreeNode;
