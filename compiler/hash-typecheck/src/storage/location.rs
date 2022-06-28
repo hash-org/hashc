@@ -28,7 +28,7 @@ pub struct LocationStore {
 }
 
 impl LocationStore {
-    /// Create a new [LocationMap]
+    /// Create a new [LocationStore]
     pub fn new() -> Self {
         Self { data: HashMap::new() }
     }
@@ -42,6 +42,16 @@ impl LocationStore {
     pub fn get_location(&self, target: LocationTarget) -> Option<SourceLocation> {
         self.data.get(&target).copied()
     }
+
+    /// Copy a location from a source [LocationTarget] to a destination target.
+    ///
+    /// if the `source` is not present within the store, then no location is
+    /// copied.
+    pub fn copy_location(&mut self, src: LocationTarget, dest: LocationTarget) {
+        if let Some(origin) = self.get_location(src) {
+            self.add_location_to_target(dest, origin);
+        }
+    }
 }
 
 impl From<TermId> for LocationTarget {
@@ -53,5 +63,11 @@ impl From<TermId> for LocationTarget {
 impl From<&TermId> for LocationTarget {
     fn from(id: &TermId) -> Self {
         Self::Term(*id)
+    }
+}
+
+impl From<(ParamsId, usize)> for LocationTarget {
+    fn from((id, index): (ParamsId, usize)) -> Self {
+        Self::Params(id, index)
     }
 }

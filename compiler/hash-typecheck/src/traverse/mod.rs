@@ -94,6 +94,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type NameRet = Identifier;
+
     fn visit_name(
         &mut self,
         _: &Self::Ctx,
@@ -111,7 +112,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::AccessNameRet, Self::Error> {
         // Accumulate all the names into an access term:
         let mut names = node.path.iter();
-        let source_id = self.source_id;
 
         let first_name = names.next().unwrap();
         let location = self.source_location(first_name.span());
@@ -119,13 +119,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let mut current_term = builder.create_var_term(*first_name.body());
 
-        builder.add_location_to(current_term, location);
+        builder.add_location_to_term(current_term, location);
 
         for access_name in names {
-            let name_location = SourceLocation { span: access_name.span(), source_id };
+            let name_location = self.source_location(access_name.span());
+            let builder = self.builder();
 
             current_term = builder.create_ns_access(current_term, *access_name.body());
-            builder.add_location_to(current_term, name_location);
+            builder.add_location_to_term(current_term, name_location);
         }
         Ok(current_term)
     }
@@ -304,10 +305,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_import_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImportExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
-        todo!()
+        Ok(walk::walk_import_expr(self, ctx, node)?.0)
     }
 
     type TypeRet = TermId;
@@ -320,14 +321,20 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_type_same_children(self, ctx, node)
     }
 
-    type NamedFieldTypeRet = TermId;
+    type NamedFieldTypeRet = Param;
 
     fn visit_named_field_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTypeEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTypeEntry>,
     ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
-        todo!()
+        let walk::NamedFieldTypeEntry { ty, name } = walk::walk_named_field_type(self, ctx, node)?;
+
+        // Add the location of the type
+        let location = self.source_location(node.ty.span());
+        self.location_store_mut().add_location_to_target(ty.into(), location);
+
+        Ok(Param { ty, name, default_value: None })
     }
 
     type FnTypeRet = TermId;
@@ -400,6 +407,83 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
+    type TypeFunctionDefRet = TermId;
+
+    fn visit_type_function_def(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDef>,
+    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
+        todo!()
+    }
+
+    type TypeFunctionDefArgRet = TermId;
+
+    fn visit_type_function_def_param(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
+    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        todo!()
+    }
+
+    type TupleTypeRet = TermId;
+
+    fn visit_tuple_type(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleType>,
+    ) -> Result<Self::TupleTypeRet, Self::Error> {
+        let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
+
+        let members = self.builder().create_params(entries);
+
+        // We have to append locations to each of the parameters
+        for (index, entry) in node.body().entries.iter().enumerate() {
+            let location = self.source_location(entry.span());
+            self.location_store_mut().add_location_to_target((members, index).into(), location);
+        }
+
+        let builder = self.builder();
+        let term = builder.create_tuple_ty_term(members);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
+        Ok(term)
+    }
+
+    type ListTypeRet = TermId;
+
+    fn visit_list_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
+    ) -> Result<Self::ListTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type SetTypeRet = TermId;
+
+    fn visit_set_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
+    ) -> Result<Self::SetTypeRet, Self::Error> {
+        todo!()
+    }
+
+    type MapTypeRet = TermId;
+
+    fn visit_map_type(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
+    ) -> Result<Self::MapTypeRet, Self::Error> {
+        todo!()
+    }
+
     type MapLiteralRet = TermId;
 
     fn visit_map_literal(
@@ -424,10 +508,43 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_list_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLiteral>,
     ) -> Result<Self::ListLiteralRet, Self::Error> {
-        todo!()
+        let walk::ListLiteral { elements } = walk::walk_list_literal(self, ctx, node)?;
+
+        let list_inner_ty = self.core_defs().list_ty_fn;
+
+        // Create a shared term that is used to verify all elements within the
+        // list can be unified with one another, and then iterate over all of the
+        // elements.
+        let mut shared_term = self.builder().create_unresolved_term();
+
+        for element in elements.iter() {
+            let element_ty = self.typer().ty_of_term(*element)?;
+            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
+
+            // apply the substitution on the `shared_term`
+            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
+
+            // @@Overworked: surely we don't need to constantly update the location of the
+            // `shared_term`
+            self.location_store_mut().copy_location(element_ty.into(), shared_term.into());
+        }
+
+        let builder = self.builder();
+        let list_ty = builder.create_app_ty_fn_term(
+            list_inner_ty,
+            builder.create_args([builder.create_arg("T", shared_term)]),
+        );
+
+        let term = self.builder().create_rt_term(list_ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
+        Ok(term)
     }
 
     type SetLiteralRet = TermId;
@@ -692,7 +809,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        todo!()
+        panic!("hit for-block whilst performing typechecking");
     }
 
     type WhileLoopBlockRet = TermId;
@@ -702,7 +819,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        todo!()
+        panic!("hit while-block whilst performing typechecking");
     }
 
     type ModBlockRet = TermId;
@@ -732,7 +849,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
-        todo!()
+        panic!("hit if-clause whilst performing typechecking");
     }
 
     type IfBlockRet = TermId;
@@ -742,7 +859,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
-        todo!()
+        panic!("hit if-block whilst performing typechecking");
     }
 
     type BodyBlockRet = TermId;
@@ -936,16 +1053,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type PatternRet = TermId;
-
-    fn visit_pattern(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
-    ) -> Result<Self::PatternRet, Self::Error> {
-        todo!()
-    }
-
     type TraitImplRet = TermId;
 
     fn visit_trait_impl(
@@ -956,24 +1063,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type TypeFunctionDefRet = TermId;
+    type PatternRet = TermId;
 
-    fn visit_type_function_def(
+    fn visit_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDef>,
-    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        todo!()
-    }
-
-    type TypeFunctionDefArgRet = TermId;
-
-    fn visit_type_function_def_param(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
-    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        todo!()
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
+    ) -> Result<Self::PatternRet, Self::Error> {
+        walk::walk_pattern_same_children(self, ctx, node)
     }
 
     type ConstructorPatternRet = TermId;
@@ -1023,46 +1120,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPattern>,
     ) -> Result<Self::ListPatternRet, Self::Error> {
-        todo!()
-    }
-
-    type TupleTypeRet = TermId;
-
-    fn visit_tuple_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleType>,
-    ) -> Result<Self::TupleTypeRet, Self::Error> {
-        todo!()
-    }
-
-    type ListTypeRet = TermId;
-
-    fn visit_list_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
-    ) -> Result<Self::ListTypeRet, Self::Error> {
-        todo!()
-    }
-
-    type SetTypeRet = TermId;
-
-    fn visit_set_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
-    ) -> Result<Self::SetTypeRet, Self::Error> {
-        todo!()
-    }
-
-    type MapTypeRet = TermId;
-
-    fn visit_map_type(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
-    ) -> Result<Self::MapTypeRet, Self::Error> {
         todo!()
     }
 
