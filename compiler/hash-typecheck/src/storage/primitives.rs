@@ -47,6 +47,16 @@ impl MemberData {
             MemberData::InitialisedWithInferredTy { value } => Some(*value),
         }
     }
+
+    /// Turn the given type and value into a [MemberData].
+    pub fn from_ty_and_value(ty: Option<TermId>, value: Option<TermId>) -> Self {
+        match (ty, value) {
+            (Some(ty), Some(value)) => MemberData::InitialisedWithTy { ty, value },
+            (Some(ty), None) => MemberData::Uninitialised { ty },
+            (None, Some(value)) => MemberData::InitialisedWithInferredTy { value },
+            (None, None) => panic!("Got None for both ty and value when creating MemberData"),
+        }
+    }
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
@@ -101,10 +111,6 @@ impl Scope {
     /// Add a member to the scope, overwriting any existing member with the same
     /// name.
     pub fn add(&mut self, member: Member) {
-        // Remove existing members:
-        if let Some(&i) = self.member_names.get(&member.name) {
-            self.members.remove(i);
-        }
         self.members.push(member);
         self.member_names.insert(member.name, self.members.len() - 1);
     }
