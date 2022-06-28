@@ -52,7 +52,6 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         let new_term = self.ty_of_simplified_term(simplified_term_id)?;
 
-        self.location_store_mut().copy_location(term_id, new_term);
         Ok(new_term)
     }
 
@@ -82,7 +81,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     /// simplified.
     pub(crate) fn ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let term = self.reader().get_term(term_id).clone();
-        match term {
+        let new_term = match term {
             Term::Access(access_term) => {
                 // Here we want to get the type of the subject, and ensure it contains this
                 // property, and if so return it.
@@ -205,6 +204,9 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             }
             // The type of root is root
             Term::Root => Ok(self.builder().create_root_term()),
-        }
+        }?;
+
+        self.location_store_mut().copy_location(term_id, new_term);
+        Ok(new_term)
     }
 }
