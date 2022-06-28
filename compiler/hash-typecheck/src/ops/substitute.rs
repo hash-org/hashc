@@ -183,7 +183,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         // actually exist in the term.
 
         let term = self.reader().get_term(term_id).clone();
-        match term {
+
+        let new_term = match term {
             // Leaves:
             Term::Var(var) => self.apply_sub_to_subject(sub, var.into()),
             Term::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
@@ -277,7 +278,10 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             Term::Level2(term) => self.apply_sub_to_level2_term(sub, term),
             Term::Level1(term) => self.apply_sub_to_level1_term(sub, term),
             Term::Level0(term) => self.apply_sub_to_level0_term(sub, term),
-        }
+        };
+
+        self.location_store_mut().copy_location(term_id, new_term);
+        new_term
     }
 
     /// Add the free variables in the parameter default values and types to the
