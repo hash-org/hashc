@@ -1,7 +1,9 @@
 //! Contains utilities to validate terms.
+
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{ParamUnificationOrigin, TcError, TcResult},
+    error::{ParamUnificationOrigin, ParameterListOrigin, TcError, TcResult},
+    ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
             ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
@@ -410,14 +412,18 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Validate the given parameters, by validating their types and values.
+    /// Validate the given parameters, by validating their types and values,
+    /// positions within all of the parameters, and re-use of already
+    /// declared parameter names.
     ///
     /// **Note**: Requires that the parameters have already been simplified.
     pub(crate) fn validate_params(&mut self, params_id: ParamsId) -> TcResult<()> {
         let params = self.params_store().get(params_id).clone();
+        validate_param_list_ordering(&params, ParameterListOrigin::Params(params_id))?;
 
         for param in params.positional() {
             self.validate_term(param.ty)?;
+
             if let Some(default_value) = param.default_value {
                 self.validate_term(default_value)?;
 

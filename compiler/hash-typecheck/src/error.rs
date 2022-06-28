@@ -18,7 +18,7 @@ pub enum ParamUnificationErrorReason {
     NameMismatch(usize),
 }
 
-// / This enum describes the origin kind of the subject that a parameter
+/// This enum describes the origin kind of the subject that a parameter
 /// unification occurred on.
 #[derive(Debug, Clone, Copy)]
 pub enum ParamUnificationOrigin {
@@ -35,6 +35,16 @@ impl Display for ParamUnificationOrigin {
             ParamUnificationOrigin::TypeFunction => write!(f, "type function"),
         }
     }
+}
+
+/// This type is used to represent a `source` of where
+/// a [TcError::ParamGivenTwice] occurs. It can either occur
+/// in an argument list, or it can occur within a parameter list.
+/// The reporting logic is the same, with the minor wording difference.
+#[derive(Debug, Clone)]
+pub enum ParameterListOrigin {
+    Params(ParamsId),
+    Args(ArgsId),
 }
 
 /// An error that occurs during typechecking.
@@ -62,11 +72,11 @@ pub enum TcError {
     /// The parameter with the given name is not found in the given parameter
     /// list.
     ParamNotFound { params: ParamsId, name: Identifier },
-    /// There is a parameter (at the index `param_index_given_twice`) which is
+    /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
-    ParamGivenTwice { args: ArgsId, params: ParamsId, param_index_given_twice: usize },
+    ParamGivenTwice { origin: ParameterListOrigin, index: usize },
     /// It is invalid to use a positional argument after a named argument.
-    CannotUsePositionalArgAfterNamedArg { args: ArgsId, problematic_arg_index: usize },
+    CannotUsePositionalArgAfterNamedArg { origin: ParameterListOrigin, index: usize },
     /// The given name cannot be resolved in the given value.
     UnresolvedNameInValue { name: Identifier, value: TermId },
     /// The given variable cannot be resolved in the current context.

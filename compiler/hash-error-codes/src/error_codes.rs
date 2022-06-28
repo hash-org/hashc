@@ -35,4 +35,5 @@ error_codes! {
     // Errors in regard to parameter lists
     ParameterLengthMismatch = 25,
     ParameterNameMismatch = 26,
+    ParameterInUse = 29,
 }

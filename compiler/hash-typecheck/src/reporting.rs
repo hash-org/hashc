@@ -1,9 +1,12 @@
 //! Contains utilities to convert a [crate::error::TcError] into a
 //! [hash_reporting::report::Report].
 use crate::{
-    error::{ParamUnificationErrorReason, TcError},
+    error::{ParamUnificationErrorReason, ParameterListOrigin, TcError},
     fmt::PrepareForFormatting,
-    storage::{AccessToStorage, StorageRef},
+    storage::{
+        primitives::{Arg, Param},
+        AccessToStorage, StorageRef,
+    },
 };
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
@@ -252,6 +255,75 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("parameter `{}` not defined", name,),
+                    )));
+                }
+            }
+            TcError::ParamGivenTwice { origin, index, .. } => {
+                // we want to get the particular argument at the specified index, get the name
+                // and then later use the name to find the original use so that it can be
+                // added to the report.
+                //
+                // Safety: this should be safe to unwrap otherwise we can't detect this issue.
+                let (name, first_use) = match origin {
+                    ParameterListOrigin::Params(id) => {
+                        let params = err.params_store().get(*id);
+
+                        // Extract the name from the parameter
+                        let Param { name, .. } = params.positional()[*index];
+                        let name = name.unwrap();
+
+                        // find the ise of the first name
+                        let first_use = params
+                            .positional()
+                            .iter()
+                            .position(|param| param.name == Some(name))
+                            .unwrap();
+
+                        (name, first_use)
+                    }
+                    ParameterListOrigin::Args(id) => {
+                        let args = err.args_store().get(*id);
+
+                        // Extract the name from the argument
+                        let Arg { name, .. } = args.positional()[*index];
+                        let name = name.unwrap();
+
+                        // find the ise of the first name
+                        let first_use = args
+                            .positional()
+                            .iter()
+                            .position(|param| param.name == Some(name))
+                            .unwrap();
+
+                        (name, first_use)
+                    }
+                };
+
+                let location_from_origin = |index: usize| match origin {
+                    ParameterListOrigin::Params(id) => {
+                        err.location_store().get_location((*id, index))
+                    }
+                    ParameterListOrigin::Args(id) => {
+                        err.location_store().get_location((*id, index))
+                    }
+                };
+
+                builder
+                    .with_error_code(HashErrorCode::ParameterInUse)
+                    .with_message(format!("parameter with name `{}` is already specified", name,));
+
+                // Report where the secondary use occurred, and if possible the first use
+                if let Some(location) = location_from_origin(*index) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("parameter `{}` has already been used", name),
+                    )));
+                }
+
+                if let Some(location) = location_from_origin(first_use) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "initial use occurs here",
                     )));
                 }
             }

@@ -1,7 +1,10 @@
 //! Operations related to handling parameters.
+
 use crate::{
-    error::{TcError, TcResult},
-    storage::primitives::{Arg, Args, ArgsId, Param, Params, ParamsId, TermId},
+    error::{ParameterListOrigin, TcError, TcResult},
+    storage::primitives::{
+        Arg, Args, ArgsId, GetNameOpt, Param, ParamList, Params, ParamsId, TermId,
+    },
 };
 use std::collections::HashSet;
 
@@ -32,6 +35,8 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
         });
     }
 
+    let origin = ParameterListOrigin::Args(args_id);
+
     // Keep track of the first non-positional argument
     let mut done_positional = false;
     for (i, arg) in args.positional().iter().enumerate() {
@@ -41,13 +46,9 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                 done_positional = true;
                 match params.get_by_name(arg_name) {
                     Some((param_i, param)) => {
-                        if params_used.contains(&i) {
+                        if params_used.contains(&param_i) {
                             // Ensure not already used
-                            return Err(TcError::ParamGivenTwice {
-                                args: args_id,
-                                params: params_id,
-                                param_index_given_twice: param_i,
-                            });
+                            return Err(TcError::ParamGivenTwice { origin, index: param_i });
                         } else {
                             params_used.insert(param_i);
                             result.push((param, arg));
@@ -62,17 +63,10 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                 // Positional argument
                 if done_positional {
                     // Using positional args after named args is an error
-                    return Err(TcError::CannotUsePositionalArgAfterNamedArg {
-                        args: args_id,
-                        problematic_arg_index: i,
-                    });
+                    return Err(TcError::CannotUsePositionalArgAfterNamedArg { origin, index: i });
                 } else if params_used.contains(&i) {
                     // Ensure not already used
-                    return Err(TcError::ParamGivenTwice {
-                        args: args_id,
-                        params: params_id,
-                        param_index_given_twice: i,
-                    });
+                    return Err(TcError::ParamGivenTwice { origin, index: i });
                 } else {
                     params_used.insert(i);
                     result.push((params.positional().get(i).unwrap(), arg));
@@ -82,4 +76,53 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
     }
 
     Ok(result)
+}
+
+/// Verify that a [ParamList<T>] adheres to the standard rules of ordering for
+/// named fields. The two rules that must hold within the parameter list are:
+///
+/// - Named parameters cannot be used more than once.
+///
+/// - Un-named parameters must not be used after named ones.
+///
+/// This does not perform any typechecking, it simply checks that the given
+/// [ParamList] follows the described rules. This function works for either
+/// parameters or arguments, and hence why it accepts a [ParameterListOrigin]
+/// in order to preserve context in the event of an error.
+pub(crate) fn validate_param_list_ordering<'p, T: Clone + GetNameOpt>(
+    params: &'p ParamList<T>,
+    origin: ParameterListOrigin,
+) -> TcResult<()> {
+    // Keep track of used params to ensure no parameter is given twice.
+    let mut params_used = HashSet::new();
+
+    // Keep track of when positional parameters are in use
+    let mut done_positional = false;
+
+    for (index, param) in params.positional().iter().enumerate() {
+        // If the parameter has a name, verify that it is only being used once
+        match param.get_name_opt() {
+            Some(name) => {
+                done_positional = true;
+
+                // If we have found the index in our set, that means that it must
+                // of already been used and therefore it should trigger an error
+                if let Some((found_index, _)) = params.get_by_name(name) {
+                    if params_used.contains(&found_index) {
+                        return Err(TcError::ParamGivenTwice { origin, index });
+                    } else {
+                        params_used.insert(found_index);
+                    }
+                }
+            }
+            None => {
+                // Using positional args after named args is an error
+                if done_positional {
+                    return Err(TcError::CannotUsePositionalArgAfterNamedArg { origin, index });
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
