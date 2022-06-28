@@ -216,7 +216,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => {
                 args = gen.parse_separated_fn(
                     || {
-                        let start = gen.current_location();
+                        let start = gen.next_location();
 
                         // Here we have to essentially try and parse a identifier. If this is the
                         // case and then there is a colon present then we

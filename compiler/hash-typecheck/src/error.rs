@@ -46,8 +46,8 @@ pub enum TcError {
     /// don't match of the parameters or if the number of parameters isn't the
     /// same.
     CannotUnifyParams {
-        src_params: ParamsId,
-        target_params: ParamsId,
+        src_params_id: ParamsId,
+        target_params_id: ParamsId,
         src: TermId,
         target: TermId,
         origin: ParamUnificationOrigin,

@@ -4,7 +4,7 @@ use crate::{
     error::{TcError, TcResult},
     storage::{
         primitives::{
-            AccessOp, AccessTerm, AppTyFn, Arg, Args, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
+            AccessOp, AccessTerm, AppTyFn, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
             Level2Term, Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId,
             TupleTy, TyFn, TyFnCase, TyFnTy,
         },
@@ -477,7 +477,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
     /// Apply the given type function application structure, if possible.
     fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
-        let simplified_subject_id = self.potentially_simplify_term(apply_ty_fn.subject)?;
+        let potentially_simplified_subject = self.simplify_term(apply_ty_fn.subject)?;
+
+        let (subject_simplified, simplified_subject_id) = (
+            potentially_simplified_subject.is_some(),
+            potentially_simplified_subject.unwrap_or(apply_ty_fn.subject),
+        );
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
 
         // Helper for errors:
@@ -562,8 +567,20 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 cannot_apply()
             }
             Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
-                // We cannot perform any more simplification:
-                Ok(None)
+                let simplified_args = self.simplifier().simplify_args(apply_ty_fn.args)?;
+
+                // Return a simplified term if either the subject or the args were simplified.
+                if let Some(args) = simplified_args {
+                    Ok(Some(self.builder().create_app_ty_fn_term(simplified_subject_id, args)))
+                } else if subject_simplified {
+                    Ok(Some(
+                        self.builder()
+                            .create_app_ty_fn_term(simplified_subject_id, apply_ty_fn.args),
+                    ))
+                } else {
+                    // We cannot perform any more simplification:
+                    Ok(None)
+                }
             }
         }
     }
@@ -646,7 +663,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     }
 
     /// Simplify the given [Args], if possible.
-    pub(crate) fn simplify_args(&mut self, args_id: ArgsId) -> TcResult<Option<Args>> {
+    pub(crate) fn simplify_args(&mut self, args_id: ArgsId) -> TcResult<Option<ArgsId>> {
         let args = self.args_store().get(args_id).clone();
 
         // Simplify values:
@@ -666,11 +683,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         .unwrap_or(arg.value),
                 })
             })
-            .collect::<TcResult<_>>()?;
+            .collect::<TcResult<Vec<_>>>()?;
 
         // Only return the new args if we simplified them:
         if simplified_once {
-            Ok(Some(result))
+            let new_args = self.builder().create_args(result);
+            self.location_store_mut().copy_args_locations(args_id, new_args);
+
+            Ok(Some(new_args))
         } else {
             Ok(None)
         }
@@ -715,7 +735,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         // Only return the new params if we simplified them:
         if simplified_once {
-            Ok(Some(self.builder().create_params(result)))
+            let new_params = self.builder().create_params(result);
+            self.location_store_mut().copy_params_locations(params_id, new_params);
+
+            Ok(Some(new_params))
         } else {
             Ok(None)
         }
@@ -728,7 +751,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
     pub(crate) fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
         // @@Performance: we can cache the result of the simplification in a hashmap.
         let value = self.reader().get_term(term_id).clone();
-        match value {
+        let new_term = match value {
             Term::Merge(inner) => {
                 // Simplify each element of the merge:
 
@@ -872,7 +895,14 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Level0(term) => self.simplify_level0_term(&term),
             // Root cannot be simplified:
             Term::Root => Ok(None),
+        }?;
+
+        // Copy over the location if a new term was created
+        if let Some(new_term) = new_term {
+            self.location_store_mut().copy_location(term_id, new_term);
         }
+
+        Ok(new_term)
     }
 }
 

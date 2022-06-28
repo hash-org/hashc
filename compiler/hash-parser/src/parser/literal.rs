@@ -74,7 +74,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Function to parse a tuple literal entry with a name.
     pub(crate) fn parse_tuple_literal_entry(&self) -> AstGenResult<AstNode<TupleLiteralEntry>> {
-        let start = self.current_location();
+        let start = self.next_location();
         let offset = self.offset();
 
         // Determine if this might have a tuple field name and optional type

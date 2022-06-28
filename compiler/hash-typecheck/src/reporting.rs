@@ -38,7 +38,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
 
                 // Now get the spans for the two terms and add them to the
                 // report
-                if let Some(location) = err.location_store().get_location(target.into()) {
+                if let Some(location) = err.location_store().get_location(target) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
@@ -48,7 +48,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
 
-                if let Some(location) = err.location_store().get_location(src.into()) {
+                if let Some(location) = err.location_store().get_location(src) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
@@ -59,15 +59,15 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                 }
             }
             TcError::CannotUnifyParams {
-                src_params,
-                target_params,
+                src_params_id,
+                target_params_id,
                 origin,
                 reason,
                 src,
                 target,
             } => {
-                let src_params = err.params_store().get(*src_params);
-                let target_params = err.params_store().get(*target_params);
+                let src_params = err.params_store().get(*src_params_id);
+                let target_params = err.params_store().get(*target_params_id);
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
@@ -81,7 +81,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(target.into()) {
+                        if let Some(location) = err.location_store().get_location(target) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
@@ -93,7 +93,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                         }
 
                         // Provide information about the source of the unification error
-                        if let Some(location) = err.location_store().get_location(src.into()) {
+                        if let Some(location) = err.location_store().get_location(src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 "incorrect number of arguments here",
@@ -138,9 +138,10 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                                 _ => unreachable!(),
                             };
 
-                        let src_location = err.location_store().get_location(src_param.ty.into());
+                        let src_location =
+                            err.location_store().get_location((*src_params_id, *index));
                         let target_location =
-                            err.location_store().get_location(target_param.ty.into());
+                            err.location_store().get_location((*target_params_id, *index));
 
                         // Provide information about the location of the target type if available.
                         // If the location is not available, we just attach
@@ -192,7 +193,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                 // Get the location of the term
                 // @@Future: is it useful to also print the location of what was expecting
                 // something to be a type function.
-                if let Some(location) = err.location_store().get_location(term.into()) {
+                if let Some(location) = err.location_store().get_location(term) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this type is not a type function",
@@ -207,7 +208,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     ),
                 );
 
-                if let Some(location) = err.location_store().get_location(value.into()) {
+                if let Some(location) = err.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this cannot be used a type",
@@ -227,7 +228,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                 );
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(target.into()) {
+                if let Some(location) = err.location_store().get_location(target) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
@@ -247,7 +248,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                 let (_, param) = params.get_by_name(*name).unwrap();
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(param.ty.into()) {
+                if let Some(location) = err.location_store().get_location(param.ty) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("parameter `{}` not defined", name,),

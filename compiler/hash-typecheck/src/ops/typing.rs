@@ -42,13 +42,17 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
-    /// Get the type of the given term, as another term.
+    /// Get the type of the given term, as another term. This will copy over the
+    /// location of the provided term to the new term within
+    /// [LocationStore].
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [Self::ty_of_simplified_term].
     pub(crate) fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
-        self.ty_of_simplified_term(simplified_term_id)
+        let new_term = self.ty_of_simplified_term(simplified_term_id)?;
+
+        Ok(new_term)
     }
 
     /// Infer the type of the given member, if it does not already exist.
@@ -77,7 +81,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
     /// simplified.
     pub(crate) fn ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let term = self.reader().get_term(term_id).clone();
-        match term {
+        let new_term = match term {
             Term::Access(access_term) => {
                 // Here we want to get the type of the subject, and ensure it contains this
                 // property, and if so return it.
@@ -200,6 +204,9 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             }
             // The type of root is root
             Term::Root => Ok(self.builder().create_root_term()),
-        }
+        }?;
+
+        self.location_store_mut().copy_location(term_id, new_term);
+        Ok(new_term)
     }
 }
