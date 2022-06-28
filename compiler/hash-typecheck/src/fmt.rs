@@ -61,7 +61,7 @@ impl<'gs> TcFormatter<'gs> {
             };
             let visibility = match member.visibility {
                 Visibility::Public => "pub ",
-                Visibility::Private => "pri ",
+                Visibility::Private => "priv ",
             };
             let name = member.name;
 
