@@ -22,21 +22,22 @@ impl InteractiveBlock {
         Self { contents, node: None }
     }
 
-    pub fn node(&self) -> ast::AstNodeRef<ast::BodyBlock> {
-        self.node.as_ref().unwrap().ast_ref()
-    }
-
-    /// Get a [AstNodeRefMut] to the inner [ast::BodyBlock]
-    pub fn node_mut(&mut self) -> ast::AstNodeRefMut<ast::BodyBlock> {
-        self.node.as_mut().unwrap().ast_ref_mut()
-    }
-
     pub fn contents(&self) -> &str {
         &self.contents
     }
 
     pub fn set_node(&mut self, node: ast::AstNode<ast::BodyBlock>) {
         self.node = Some(node);
+    }
+}
+
+impl ast::OwnsAstNode<ast::BodyBlock> for InteractiveBlock {
+    fn node(&self) -> &ast::AstNode<ast::BodyBlock> {
+        self.node.as_ref().unwrap()
+    }
+
+    fn node_mut(&mut self) -> &mut ast::AstNode<ast::BodyBlock> {
+        self.node.as_mut().unwrap()
     }
 }
 
@@ -56,18 +57,6 @@ impl Module {
         &self.path
     }
 
-    pub fn node(&self) -> &ast::Module {
-        self.node.as_ref().unwrap()
-    }
-
-    pub fn node_ref(&self) -> ast::AstNodeRef<ast::Module> {
-        self.node.as_ref().unwrap().ast_ref()
-    }
-
-    pub fn node_mut(&mut self) -> &mut ast::Module {
-        self.node.as_mut().unwrap()
-    }
-
     pub fn contents(&self) -> &str {
         self.contents.as_ref().unwrap()
     }
@@ -78,6 +67,16 @@ impl Module {
 
     pub fn set_contents(&mut self, contents: String) {
         self.contents = Some(contents);
+    }
+}
+
+impl ast::OwnsAstNode<ast::Module> for Module {
+    fn node(&self) -> &ast::AstNode<ast::Module> {
+        self.node.as_ref().unwrap()
+    }
+
+    fn node_mut(&mut self) -> &mut ast::AstNode<ast::Module> {
+        self.node.as_mut().unwrap()
     }
 }
 

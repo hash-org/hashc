@@ -5,12 +5,12 @@ use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId};
 use hash_source::identifier::Identifier;
 
 /// Convenient type alias for a result with a [TcError] as the error type.
-pub(crate) type TcResult<T> = Result<T, TcError>;
+pub type TcResult<T> = Result<T, TcError>;
 
 /// Particular reason why parameters couldn't be unified, either argument
 /// length mis-match or that a name mismatched between the two given parameters.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ParamUnificationErrorReason {
+pub enum ParamUnificationErrorReason {
     /// The provided and expected parameter lengths mismatched.
     LengthMismatch,
     /// A name mismatch of the parameters occurred at the particular
@@ -21,7 +21,7 @@ pub(crate) enum ParamUnificationErrorReason {
 // / This enum describes the origin kind of the subject that a parameter
 /// unification occurred on.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ParamUnificationOrigin {
+pub enum ParamUnificationOrigin {
     Tuple,
     Function,
     TypeFunction,
@@ -39,7 +39,7 @@ impl Display for ParamUnificationOrigin {
 
 /// An error that occurs during typechecking.
 #[derive(Debug, Clone)]
-pub(crate) enum TcError {
+pub enum TcError {
     /// Cannot unify the two terms.
     CannotUnify { src: TermId, target: TermId },
     /// Cannot unify the two parameter lists. This can occur if the names

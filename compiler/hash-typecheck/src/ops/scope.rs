@@ -1,4 +1,5 @@
 //! Functionality related to resolving variables in scopes.
+
 use super::AccessToOps;
 use crate::{
     error::{TcError, TcResult},

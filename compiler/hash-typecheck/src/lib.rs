@@ -15,6 +15,8 @@ use storage::{
 };
 use traverse::TcVisitor;
 
+use crate::fmt::PrepareForFormatting;
+
 pub mod error;
 pub mod fmt;
 pub mod ops;
@@ -76,7 +78,11 @@ impl Tc<'_> for TcImpl {
             sources,
         );
         match tc_visitor.visit_source() {
-            Ok(_) => Ok(()),
+            Ok(source_term) => {
+                println!("{}", source_term.for_formatting(storage.global_storage()));
+
+                Ok(())
+            }
             Err(error) => {
                 // Turn the error into a report:
                 let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };

@@ -184,6 +184,20 @@ impl<T> DerefMut for AstNodeRefMut<'_, T> {
     }
 }
 
+/// Helper trait to access a node from a structure that contains one.
+pub trait OwnsAstNode<T> {
+    fn node(&self) -> &AstNode<T>;
+    fn node_mut(&mut self) -> &mut AstNode<T>;
+
+    fn node_ref(&self) -> AstNodeRef<T> {
+        self.node().ast_ref()
+    }
+
+    fn node_ref_mut(&mut self) -> AstNodeRefMut<T> {
+        self.node_mut().ast_ref_mut()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct AstNodes<T> {
     pub nodes: Vec<AstNode<T>>,
@@ -1167,6 +1181,9 @@ impl Block {
 }
 
 /// A function definition argument.
+///
+/// @@Naming,@@Todo(@feds01): Rename "Arg" to "Param", to be in-line with TC
+/// terminology.
 #[derive(Debug, PartialEq)]
 pub struct FunctionDefArg {
     /// The name of the argument.
@@ -1260,6 +1277,9 @@ pub struct VariableExpr {
     /// The name of the variable.
     pub name: AstNode<AccessName>,
     /// Any type arguments of the variable. Only valid for traits.
+    ///
+    /// @@Todo(@feds01): Shouldn't be here, it should be a TypeFunctionCall if
+    /// there are arguments.
     pub type_args: AstNodes<NamedFieldTypeEntry>,
 }
 

@@ -10,7 +10,7 @@ use hash_ast::{
         BoolLiteralPattern, BreakStatement, ConstructorCallArg, ConstructorCallArgs,
         ConstructorCallExpr, ConstructorPattern, Expression, ExpressionKind, ForLoopBlock, IfBlock,
         IfClause, IfPattern, IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock,
-        MatchBlock, MatchCase, MatchOrigin, Pattern, TuplePatternEntry, VariableExpr,
+        MatchBlock, MatchCase, MatchOrigin, OwnsAstNode, Pattern, TuplePatternEntry, VariableExpr,
         WhileLoopBlock,
     },
     ast_nodes,
@@ -63,7 +63,7 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
                 if let SourceId::Interactive(id) = entry_point {
                     let source = sources.get_interactive_block_mut(id);
 
-                    AstDesugaring.visit_body_block(&(), source.node_mut()).unwrap();
+                    AstDesugaring.visit_body_block(&(), source.node_ref_mut()).unwrap();
                 }
             }
 
