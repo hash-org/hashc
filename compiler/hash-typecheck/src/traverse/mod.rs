@@ -14,7 +14,11 @@ use hash_ast::{
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{SourceRef, Sources};
-use hash_source::{identifier::Identifier, SourceId};
+use hash_source::{
+    identifier::Identifier,
+    location::{SourceLocation, Span},
+    SourceId,
+};
 
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
@@ -59,6 +63,11 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
             SourceRef::Module(module_source) => self.visit_module(&(), module_source.node_ref()),
         }
     }
+
+    /// Create a [SourceLocation] from a [Span]
+    pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
+        SourceLocation { span, source_id: self.source_id }
+    }
 }
 
 impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src> {
@@ -101,11 +110,22 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessName>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         // Accumulate all the names into an access term:
-        let builder = self.builder();
         let mut names = node.path.iter();
-        let mut current_term = builder.create_var_term(*names.next().unwrap().body());
+        let source_id = self.source_id;
+
+        let first_name = names.next().unwrap();
+        let location = self.source_location(first_name.span());
+
+        let builder = self.builder();
+        let mut current_term = builder.create_var_term(*first_name.body());
+
+        builder.add_location_to(current_term, location);
+
         for access_name in names {
-            current_term = builder.create_ns_access(current_term, *access_name.body())
+            let name_location = SourceLocation { span: access_name.span(), source_id };
+
+            current_term = builder.create_ns_access(current_term, *access_name.body());
+            builder.add_location_to(current_term, name_location);
         }
         Ok(current_term)
     }
@@ -432,9 +452,22 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let ty_or_unresolved = ty.unwrap_or_else(|| self.builder().create_unresolved_term());
         let value_ty = self.typer().ty_of_term(value)?;
+
+        // Append location to value term
+        let value_location = self.source_location(node.value.span());
+        self.location_store_mut().add_location_to_target(value_ty.into(), value_location);
+
         let ty_sub = self.unifier().unify_terms(value_ty, ty_or_unresolved)?;
 
         let ty = self.substituter().apply_sub_to_term(&ty_sub, ty_or_unresolved);
+
+        // Append the type location if the node was present
+        if let Some(ty_node) = &node.ty {
+            // add the location of the term to the location storage
+            let location = self.source_location(ty_node.span());
+            self.location_store_mut().add_location_to_target(ty.into(), location);
+        }
+
         let value = self.substituter().apply_sub_to_term(&ty_sub, value);
 
         Ok(Param { name, ty, default_value: Some(value) })
@@ -449,7 +482,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::TupleLiteralRet, Self::Error> {
         let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
         let builder = self.builder();
-        Ok(builder.create_rt_term(builder.create_tuple_ty_term(builder.create_params(elements))))
+
+        let term =
+            builder.create_rt_term(builder.create_tuple_ty_term(builder.create_params(elements)));
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
+        Ok(term)
     }
 
     type StrLiteralRet = TermId;
@@ -457,11 +498,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_str_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteral>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
         let str_def = self.core_defs().str_ty;
         let ty = self.builder().create_nominal_def_term(str_def);
         let term = self.builder().create_rt_term(ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
         Ok(term)
     }
 
@@ -470,11 +516,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_char_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteral>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteral>,
     ) -> Result<Self::CharLiteralRet, Self::Error> {
         let char_def = self.core_defs().char_ty;
         let ty = self.builder().create_nominal_def_term(char_def);
         let term = self.builder().create_rt_term(ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
         Ok(term)
     }
 
@@ -483,11 +534,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_float_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteral>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteral>,
     ) -> Result<Self::FloatLiteralRet, Self::Error> {
         let f32_def = self.core_defs().f32_ty;
         let ty = self.builder().create_nominal_def_term(f32_def);
         let term = self.builder().create_rt_term(ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
         Ok(term)
     }
 
@@ -496,11 +552,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_bool_literal(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteral>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteral>,
     ) -> Result<Self::BoolLiteralRet, Self::Error> {
         let bool_def = self.core_defs().bool_ty;
         let ty = self.builder().create_nominal_def_term(bool_def);
         let term = self.builder().create_rt_term(ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
         Ok(term)
     }
 
@@ -509,11 +570,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_int_literal(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteral>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteral>,
     ) -> Result<Self::IntLiteralRet, Self::Error> {
         let i32_def = self.core_defs().i32_ty;
         let ty = self.builder().create_nominal_def_term(i32_def);
         let term = self.builder().create_rt_term(ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term.into(), location);
+
         Ok(term)
     }
 
