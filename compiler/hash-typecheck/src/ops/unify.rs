@@ -131,8 +131,8 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
         let cannot_unify = |reason: ParamUnificationErrorReason| {
             Err(TcError::CannotUnifyParams {
-                src_params: src_params_id,
-                target_params: target_params_id,
+                src_params_id,
+                target_params_id,
                 reason,
                 origin,
                 src: src_id,

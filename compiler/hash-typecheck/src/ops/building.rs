@@ -537,6 +537,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Add a [SourceLocation] to a [Term].
     pub fn add_location_to_term(&self, subject: TermId, location: SourceLocation) {
-        self.gs.borrow_mut().location_store.add_location_to_target(subject.into(), location);
+        self.gs.borrow_mut().location_store.add_location_to_target(subject, location);
     }
 }

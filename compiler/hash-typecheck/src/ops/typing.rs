@@ -52,7 +52,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
         let new_term = self.ty_of_simplified_term(simplified_term_id)?;
 
-        self.location_store_mut().copy_location(term_id.into(), new_term.into());
+        self.location_store_mut().copy_location(term_id, new_term);
         Ok(new_term)
     }
 
