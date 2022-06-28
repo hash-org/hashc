@@ -405,6 +405,8 @@ impl PrepareForFormatting for TermId {}
 impl PrepareForFormatting for TrtDefId {}
 impl PrepareForFormatting for ModDefId {}
 impl PrepareForFormatting for NominalDefId {}
+impl PrepareForFormatting for ParamsId {}
+impl PrepareForFormatting for ArgsId {}
 
 // Convenience implementations of Display for the types that implement
 // PrepareForFormatting:

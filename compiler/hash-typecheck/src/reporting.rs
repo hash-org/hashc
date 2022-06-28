@@ -254,47 +254,10 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
-            TcError::ParamGivenTwice { args: _, params: _, param_index_given_twice: _ } => {
-                todo!()
+            _ => {
+                // @@Temporary
+                builder.with_message(format!("not yet pretty error: {:#?}", err.error));
             }
-            TcError::CannotUsePositionalArgAfterNamedArg { args: _, problematic_arg_index: _ } => {
-                todo!()
-            }
-            TcError::UnresolvedNameInValue { name: _, value: _ } => todo!(),
-            TcError::UnresolvedVariable { name: _ } => todo!(),
-            TcError::UnsupportedAccess { name: _, value: _ } => todo!(),
-            TcError::UnsupportedNamespaceAccess { name: _, value: _ } => todo!(),
-            TcError::UnsupportedPropertyAccess { name: _, value: _ } => todo!(),
-            TcError::InvalidTypeFunctionApplication {
-                type_fn: _,
-                args: _,
-                unification_errors: _,
-            } => {
-                todo!()
-            }
-            TcError::InvalidElementOfMerge { term: _ } => todo!(),
-            TcError::InvalidTypeFunctionParameterType { param_ty: _ } => todo!(),
-            TcError::InvalidTypeFunctionReturnType { return_ty: _ } => todo!(),
-            TcError::InvalidTypeFunctionReturnValue { return_value: _ } => todo!(),
-            TcError::MergeShouldOnlyContainOneNominal {
-                merge_term: _,
-                nominal_term: _,
-                second_nominal_term: _,
-            } => todo!(),
-            TcError::MergeShouldBeLevel1 { merge_term: _, offending_term: _ } => todo!(),
-            TcError::MergeShouldBeLevel2 { merge_term: _, offending_term: _ } => todo!(),
-            TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: _ } => todo!(),
-            TcError::TermIsNotRuntimeInstantiable { term: _ } => todo!(),
-            TcError::UnsupportedTypeFunctionApplication { subject_id: _ } => todo!(),
-            TcError::AmbiguousAccess { access: _ } => todo!(),
-            TcError::InvalidPropertyAccessOfNonMethod { subject: _, property: _ } => todo!(),
-            TcError::UninitialisedMemberNotAllowed { member_ty: _ } => todo!(),
-            TcError::CannotImplementNonTrait { supposed_trait_term: _ } => todo!(),
-            TcError::TraitImplementationMissingMember {
-                trt_impl_term_id: _,
-                trt_def_term_id: _,
-                trt_def_missing_member_term_id: _,
-            } => todo!(),
         };
 
         vec![builder.build()]

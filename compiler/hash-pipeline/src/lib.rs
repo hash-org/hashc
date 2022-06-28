@@ -12,7 +12,7 @@ pub mod traits;
 
 use std::{collections::HashMap, time::Duration};
 
-use hash_ast::{tree::AstTreeGenerator, visitor::AstVisitor};
+use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
@@ -61,7 +61,7 @@ pub struct CompilerState<
     /// The collected workspace sources for the current job.
     pub sources: Sources,
     /// Any diagnostics that were collected from any stage
-    diagnostics: Vec<Report>,
+    pub diagnostics: Vec<Report>,
     /// The typechecker state.
     pub ds_state: D::State,
     /// The semantic analysis state.
@@ -164,7 +164,7 @@ where
                 // just parsed.
                 let source = sources.get_interactive_block(id);
 
-                let tree = AstTreeGenerator.visit_body_block(&(), source.node()).unwrap();
+                let tree = AstTreeGenerator.visit_body_block(&(), source.node_ref()).unwrap();
 
                 println!("{}", TreeWriter::new(&tree));
             }

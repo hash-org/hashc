@@ -12,7 +12,7 @@ use analysis::SemanticAnalyser;
 use crossbeam_channel::unbounded;
 
 use diagnostics::Diagnostic;
-use hash_ast::visitor::AstVisitor;
+use hash_ast::{ast::OwnsAstNode, visitor::AstVisitor};
 use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
 use hash_reporting::report::Report;
 use hash_source::SourceId;
@@ -56,7 +56,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     // setup a visitor and the context
                     let mut visitor = SemanticAnalyser::new(entry_point);
 
-                    visitor.visit_body_block(&(), source.node()).unwrap();
+                    visitor.visit_body_block(&(), source.node_ref()).unwrap();
                     visitor.send_generated_messages(&sender);
                 }
             }
