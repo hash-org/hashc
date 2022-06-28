@@ -191,7 +191,6 @@ fn desugar_for_loop_block(node: Block, parent_span: Span) -> Block {
                     subject: AstNode::new(
                         Expression::new(ExpressionKind::Variable(VariableExpr {
                             name: make_access_name("next"),
-                            type_args: ast_nodes![],
                         })),
                         iter_span,
                     ),

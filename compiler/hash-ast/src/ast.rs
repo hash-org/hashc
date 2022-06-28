@@ -1273,11 +1273,6 @@ pub struct Import {
 pub struct VariableExpr {
     /// The name of the variable.
     pub name: AstNode<AccessName>,
-    /// Any type arguments of the variable. Only valid for traits.
-    ///
-    /// @@Todo(@feds01): Shouldn't be here, it should be a TypeFunctionCall if
-    /// there are arguments.
-    pub type_args: AstNodes<NamedFieldTypeEntry>,
 }
 
 /// A reference expression with a flag denoting whether it is a raw ref or not

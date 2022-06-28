@@ -85,15 +85,9 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let walk::VariableExpr { name, type_args } = walk::walk_variable_expr(self, ctx, node)?;
+        let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
 
-        let mut children = vec![TreeNode::leaf(labelled("named", name.label, "\""))];
-
-        if !type_args.is_empty() {
-            children.extend(iter::once(TreeNode::branch("type_args", type_args)));
-        }
-
-        Ok(TreeNode::branch("variable", children))
+        Ok(TreeNode::branch("variable", vec![TreeNode::leaf(labelled("named", name.label, "\""))]))
     }
 
     type DirectiveExprRet = TreeNode;

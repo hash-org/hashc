@@ -1677,7 +1677,6 @@ pub mod walk {
 
     pub struct VariableExpr<V: AstVisitor> {
         pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::NamedFieldTypeRet>,
     }
 
     pub fn walk_variable_expr<V: AstVisitor>(
@@ -1685,13 +1684,7 @@ pub mod walk {
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<VariableExpr<V>, V::Error> {
-        Ok(VariableExpr {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args.iter().map(|t| visitor.visit_named_field_type(ctx, t.ast_ref())),
-            )?,
-        })
+        Ok(VariableExpr { name: visitor.visit_access_name(ctx, node.name.ast_ref())? })
     }
 
     pub struct DirectiveExpr<V: AstVisitor> {
@@ -3406,7 +3399,6 @@ pub mod walk_mut {
 
     pub struct VariableExpr<V: AstVisitorMut> {
         pub name: V::AccessNameRet,
-        pub type_args: V::CollectionContainer<V::NamedFieldTypeRet>,
     }
 
     pub fn walk_variable_expr<V: AstVisitorMut>(
@@ -3414,15 +3406,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::VariableExpr>,
     ) -> Result<VariableExpr<V>, V::Error> {
-        Ok(VariableExpr {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())?,
-            type_args: V::try_collect_items(
-                ctx,
-                node.type_args
-                    .iter_mut()
-                    .map(|t| visitor.visit_named_field_type(ctx, t.ast_ref_mut())),
-            )?,
-        })
+        Ok(VariableExpr { name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())? })
     }
 
     pub struct DirectiveExpr<V: AstVisitorMut> {
