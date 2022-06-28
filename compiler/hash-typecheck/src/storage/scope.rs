@@ -67,7 +67,7 @@ impl ScopeStack {
     }
 
     /// Iterate up the scopes in the stack.
-    pub fn iter_up(&self) -> impl Iterator<Item = ScopeId> + '_ {
+    pub fn iter_up(&self) -> impl Iterator<Item = ScopeId> + DoubleEndedIterator + '_ {
         self.scopes.iter().copied().rev()
     }
 
