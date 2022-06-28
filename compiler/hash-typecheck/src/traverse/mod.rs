@@ -525,9 +525,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error> {
         let args: Vec<_> = node
-            .args
+            .params
             .iter()
-            .map(|a| self.visit_function_def_arg(ctx, a.ast_ref()))
+            .map(|a| self.visit_function_def_param(ctx, a.ast_ref()))
             .collect::<TcResult<_>>()?;
         let return_ty =
             node.return_ty.as_ref().map(|t| self.visit_type(ctx, t.ast_ref())).transpose()?;
@@ -558,14 +558,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value))
     }
 
-    type FunctionDefArgRet = Param;
-    fn visit_function_def_arg(
+    type FunctionDefParamRet = Param;
+    fn visit_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDefArg>,
-    ) -> Result<Self::FunctionDefArgRet, Self::Error> {
-        let walk::FunctionDefArg { name, default, ty } =
-            walk::walk_function_def_arg(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDefParam>,
+    ) -> Result<Self::FunctionDefParamRet, Self::Error> {
+        let walk::FunctionDefParam { name, default, ty } =
+            walk::walk_function_def_param(self, ctx, node)?;
 
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
         let value_or_unresolved = self.builder().or_unresolved_term(default);
@@ -902,10 +902,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type TypeFunctionDefArgRet = TermId;
 
-    fn visit_type_function_def_arg(
+    fn visit_type_function_def_param(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefArg>,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
         todo!()
     }

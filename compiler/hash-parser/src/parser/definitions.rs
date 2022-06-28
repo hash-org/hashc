@@ -9,7 +9,7 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [StructDef]. The keyword `struct` begins the construct and is
-    /// followed by parenthesees with inner struct fields defined.
+    /// followed by parentheses with inner struct fields defined.
     pub fn parse_struct_def(&self) -> AstGenResult<StructDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Struct)));
 
@@ -89,7 +89,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
     pub fn parse_type_function_def(&self) -> AstGenResult<TypeFunctionDef> {
-        let mut args = AstNodes::empty();
+        let mut params = AstNodes::empty();
 
         // We can't do this because the parse_separated_fn() function expects a token
         // tree and not the while tree:
@@ -101,8 +101,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         //
         // And so instead we do this:
         //
-        while let Some(arg) = self.peek_resultant_fn(|| self.parse_type_function_def_arg()) {
-            args.nodes.push(arg);
+        while let Some(param) = self.peek_resultant_fn(|| self.parse_type_function_def_arg()) {
+            params.nodes.push(param);
 
             match self.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => {
@@ -132,20 +132,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(TypeFunctionDef { args, return_ty, expr })
+        Ok(TypeFunctionDef { params, return_ty, expr })
     }
 
     // Parse a [TypeFunctionDefArg] which consists the name of the argument and then
     // any specified bounds on the argument which are essentially types that are
     // separated by a `~`
-    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TypeFunctionDefArg>> {
+    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TypeFunctionDefParam>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
         let ty = self.parse_token_fast(TokenKind::Colon).map(|_| self.parse_type()).transpose()?;
 
-        Ok(self.node_with_joined_span(TypeFunctionDefArg { name, ty }, &start))
+        Ok(self.node_with_joined_span(TypeFunctionDefParam { name, ty }, &start))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with

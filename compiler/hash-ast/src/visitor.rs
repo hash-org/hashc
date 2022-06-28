@@ -329,12 +329,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error>;
 
-    type FunctionDefArgRet;
-    fn visit_function_def_arg(
+    type FunctionDefParamRet;
+    fn visit_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDefArg>,
-    ) -> Result<Self::FunctionDefArgRet, Self::Error>;
+        node: ast::AstNodeRef<ast::FunctionDefParam>,
+    ) -> Result<Self::FunctionDefParamRet, Self::Error>;
 
     type BlockRet;
     fn visit_block(
@@ -554,10 +554,10 @@ pub trait AstVisitor: Sized {
     ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
 
     type TypeFunctionDefArgRet;
-    fn visit_type_function_def_arg(
+    fn visit_type_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionDefArg>,
+        node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error>;
 
     type ConstructorPatternRet;
@@ -1036,12 +1036,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::FunctionDef>,
     ) -> Result<Self::FunctionDefRet, Self::Error>;
 
-    type FunctionDefArgRet;
-    fn visit_function_def_arg(
+    type FunctionDefParamRet;
+    fn visit_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FunctionDefArg>,
-    ) -> Result<Self::FunctionDefArgRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::FunctionDefParam>,
+    ) -> Result<Self::FunctionDefParamRet, Self::Error>;
 
     type BlockRet;
     fn visit_block(
@@ -1261,10 +1261,10 @@ pub trait AstVisitorMut: Sized {
     ) -> Result<Self::TypeFunctionDefRet, Self::Error>;
 
     type TypeFunctionDefArgRet;
-    fn visit_type_function_def_arg(
+    fn visit_type_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TypeFunctionDefArg>,
+        node: ast::AstNodeRefMut<ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error>;
 
     type ConstructorPatternRet;
@@ -1435,18 +1435,18 @@ pub trait AstVisitorMut: Sized {
 pub mod walk {
     use super::{ast, AstVisitor};
 
-    pub struct FunctionDefArg<V: AstVisitor> {
+    pub struct FunctionDefParam<V: AstVisitor> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
         pub default: Option<V::ExpressionRet>,
     }
 
-    pub fn walk_function_def_arg<V: AstVisitor>(
+    pub fn walk_function_def_param<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDefArg>,
-    ) -> Result<FunctionDefArg<V>, V::Error> {
-        Ok(FunctionDefArg {
+        node: ast::AstNodeRef<ast::FunctionDefParam>,
+    ) -> Result<FunctionDefParam<V>, V::Error> {
+        Ok(FunctionDefParam {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             ty: node.ty.as_ref().map(|t| visitor.visit_type(ctx, t.ast_ref())).transpose()?,
             default: node
@@ -1458,7 +1458,7 @@ pub mod walk {
     }
 
     pub struct FunctionDef<V: AstVisitor> {
-        pub args: V::CollectionContainer<V::FunctionDefArgRet>,
+        pub args: V::CollectionContainer<V::FunctionDefParamRet>,
         pub return_ty: Option<V::TypeRet>,
         pub fn_body: V::ExpressionRet,
     }
@@ -1471,7 +1471,7 @@ pub mod walk {
         Ok(FunctionDef {
             args: V::try_collect_items(
                 ctx,
-                node.args.iter().map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref())),
+                node.params.iter().map(|a| visitor.visit_function_def_param(ctx, a.ast_ref())),
             )?,
             return_ty: node
                 .return_ty
@@ -3069,7 +3069,7 @@ pub mod walk {
         Ok(TypeFunctionDef {
             args: V::try_collect_items(
                 ctx,
-                node.args.iter().map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref())),
+                node.params.iter().map(|t| visitor.visit_type_function_def_param(ctx, t.ast_ref())),
             )?,
             return_ty: node
                 .return_ty
@@ -3085,10 +3085,10 @@ pub mod walk {
         pub ty: Option<V::TypeRet>,
     }
 
-    pub fn walk_type_function_def_arg<V: AstVisitor>(
+    pub fn walk_type_function_def_param<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionDefArg>,
+        node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
     ) -> Result<TypeFunctionDefArg<V>, V::Error> {
         Ok(TypeFunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
@@ -3165,10 +3165,10 @@ pub mod walk_mut {
         pub default: Option<V::ExpressionRet>,
     }
 
-    pub fn walk_function_def_arg<V: AstVisitorMut>(
+    pub fn walk_function_def_param<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::FunctionDefArg>,
+        mut node: ast::AstNodeRefMut<ast::FunctionDefParam>,
     ) -> Result<FunctionDefArg<V>, V::Error> {
         Ok(FunctionDefArg {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
@@ -3182,7 +3182,7 @@ pub mod walk_mut {
     }
 
     pub struct FunctionDef<V: AstVisitorMut> {
-        pub args: V::CollectionContainer<V::FunctionDefArgRet>,
+        pub params: V::CollectionContainer<V::FunctionDefParamRet>,
         pub return_ty: Option<V::TypeRet>,
         pub fn_body: V::ExpressionRet,
     }
@@ -3193,9 +3193,11 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::FunctionDef>,
     ) -> Result<FunctionDef<V>, V::Error> {
         Ok(FunctionDef {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
-                node.args.iter_mut().map(|a| visitor.visit_function_def_arg(ctx, a.ast_ref_mut())),
+                node.params
+                    .iter_mut()
+                    .map(|a| visitor.visit_function_def_param(ctx, a.ast_ref_mut())),
             )?,
             return_ty: node
                 .return_ty
@@ -4870,7 +4872,7 @@ pub mod walk_mut {
     }
 
     pub struct TypeFunctionDef<V: AstVisitorMut> {
-        pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
+        pub params: V::CollectionContainer<V::TypeFunctionDefArgRet>,
         pub return_ty: Option<V::TypeRet>,
         pub expression: V::ExpressionRet,
     }
@@ -4881,11 +4883,11 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::TypeFunctionDef>,
     ) -> Result<TypeFunctionDef<V>, V::Error> {
         Ok(TypeFunctionDef {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
-                node.args
+                node.params
                     .iter_mut()
-                    .map(|t| visitor.visit_type_function_def_arg(ctx, t.ast_ref_mut())),
+                    .map(|t| visitor.visit_type_function_def_param(ctx, t.ast_ref_mut())),
             )?,
             return_ty: node
                 .return_ty
@@ -4896,17 +4898,17 @@ pub mod walk_mut {
         })
     }
 
-    pub struct TypeFunctionDefArg<V: AstVisitorMut> {
+    pub struct TypeFunctionDefParam<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
     }
 
-    pub fn walk_type_function_def_arg<V: AstVisitorMut>(
+    pub fn walk_type_function_def_param<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::TypeFunctionDefArg>,
-    ) -> Result<TypeFunctionDefArg<V>, V::Error> {
-        Ok(TypeFunctionDefArg {
+        mut node: ast::AstNodeRefMut<ast::TypeFunctionDefParam>,
+    ) -> Result<TypeFunctionDefParam<V>, V::Error> {
+        Ok(TypeFunctionDefParam {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             ty: node
                 .ty

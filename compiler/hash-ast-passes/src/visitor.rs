@@ -525,14 +525,14 @@ impl AstVisitor for SemanticAnalyser {
         Ok(())
     }
 
-    type FunctionDefArgRet = ();
+    type FunctionDefParamRet = ();
 
-    fn visit_function_def_arg(
+    fn visit_function_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDefArg>,
-    ) -> Result<Self::FunctionDefArgRet, Self::Error> {
-        let _ = walk::walk_function_def_arg(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDefParam>,
+    ) -> Result<Self::FunctionDefParamRet, Self::Error> {
+        let _ = walk::walk_function_def_param(self, ctx, node);
         Ok(())
     }
 
@@ -913,10 +913,10 @@ impl AstVisitor for SemanticAnalyser {
 
     type TypeFunctionDefArgRet = ();
 
-    fn visit_type_function_def_arg(
+    fn visit_type_function_def_param(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefArg>,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
         Ok(())
     }
