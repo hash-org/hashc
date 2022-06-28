@@ -111,13 +111,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(ident) => {
                 let start = self.node_with_span(*ident, token.span);
-
-                self.node_with_joined_span(
-                    Expression::new(ExpressionKind::Variable(
-                        self.parse_variable_expression(Some(start))?,
-                    )),
-                    &token.span,
-                )
+                self.parse_variable_or_type_fn_call(Some(start))?
             }
             TokenKind::Lt => self.node_with_joined_span(
                 Expression::new(ExpressionKind::TypeFunctionDef(self.parse_type_function_def()?)),
@@ -292,10 +286,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_singular_expression(subject)
     }
 
-    fn parse_variable_expression(
+    fn parse_variable_or_type_fn_call(
         &self,
         start: Option<AstNode<Identifier>>,
-    ) -> AstGenResult<VariableExpr> {
+    ) -> AstGenResult<AstNode<Expression>> {
         let name = match start {
             Some(node) => self.parse_access_name(node)?,
             None => match self.peek() {
@@ -312,18 +306,39 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             },
         };
 
+        let name_span = name.span();
+
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
         // see if the next token atom is a 'Lt' rather than using parse_token_atom
         // because it throws an error essentially and thus allocates a stupid amount
         // of strings which at the end of the day aren't even used...
-        let type_args = match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Lt) => self
-                .peek_resultant_fn(|| self.parse_type_args(false))
-                .unwrap_or_else(AstNodes::empty),
-            _ => AstNodes::empty(),
-        };
-
-        Ok(VariableExpr { name, type_args })
+        match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Lt) => {
+                match self.peek_resultant_fn(|| self.parse_type_args(false)) {
+                    Some(args) => Ok(self.node_with_joined_span(
+                        Expression::new(ExpressionKind::Type(TypeExpr(
+                            self.node_with_joined_span(
+                                Type::TypeFunctionCall(TypeFunctionCall {
+                                    subject: self
+                                        .node_with_span(Type::Named(NamedType { name }), name_span),
+                                    args,
+                                }),
+                                &name_span,
+                            ),
+                        ))),
+                        &name_span,
+                    )),
+                    None => Ok(self.node_with_joined_span(
+                        Expression::new(ExpressionKind::Variable(VariableExpr { name })),
+                        &name_span,
+                    )),
+                }
+            }
+            _ => Ok(self.node_with_joined_span(
+                Expression::new(ExpressionKind::Variable(VariableExpr { name })),
+                &name_span,
+            )),
+        }
     }
 
     /// Parse an expression whilst taking into account binary precedence
@@ -463,7 +478,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 &start,
                             );
                         }
-                        ExpressionKind::Variable(VariableExpr { name, type_args: _ }) => {
+                        ExpressionKind::Variable(VariableExpr { name }) => {
                             // @@Cleanup: This produces an AstNode<AccessName> whereas we just want
                             // the single name...
                             let ident = name.body().path[0].body();
@@ -808,29 +823,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse an single name or a function call that is applied on the left hand
     /// side expression. Infix calls and name are only separated by infix
-    /// calls having parenthesees at the end of the name.
+    /// calls having parentheses at the end of the name.
     pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<AstNode<Expression>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
 
-        let start = self.current_location();
-
         match &self.next_token() {
             Some(Token { kind: TokenKind::Ident(id), span: id_span }) => {
-                let type_args = self
-                    .peek_resultant_fn(|| self.parse_type_args(false))
-                    .unwrap_or_else(AstNodes::empty);
-
-                // create the subject of the call
-                let subject = self.node_with_span(
-                    Expression::new(ExpressionKind::Variable(VariableExpr {
-                        name: self.node_with_span(
-                            AccessName { path: ast_nodes![self.node_with_span(*id, *id_span)] },
-                            *id_span,
-                        ),
-                        type_args,
-                    })),
-                    start.join(self.current_location()),
-                );
+                let subject =
+                    self.parse_variable_or_type_fn_call(Some(self.node_with_span(*id, *id_span)))?;
 
                 match self.peek() {
                     Some(Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span }) => {
@@ -900,7 +900,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let entry = gen.parse_tuple_literal_entry()?;
 
         // In the special case where this is just an expression that is wrapped within
-        // parenthesees, we can check that the 'name' and 'ty' parameters are
+        // parentheses, we can check that the 'name' and 'ty' parameters are
         // set to `None` and that there are no extra tokens that are left within
         // the token tree...
         if entry.ty.is_none() && entry.name.is_none() && !gen.has_token() {
@@ -938,7 +938,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a function definition argument, which is made of an identifier and
     /// a function type.
-    pub(crate) fn parse_function_def_arg(&self) -> AstGenResult<AstNode<FunctionDefArg>> {
+    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<FunctionDefParam>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -958,7 +958,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(FunctionDefArg { name, ty, default }, &name_span))
+        Ok(self.node_with_joined_span(FunctionDefParam { name, ty, default }, &name_span))
     }
 
     /// Parse a function literal. Function literals are essentially definitions
@@ -970,9 +970,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ) -> AstGenResult<AstNode<Expression>> {
         let start = self.current_location();
 
-        // parse function definition arguments.
-        let args = gen.parse_separated_fn(
-            || gen.parse_function_def_arg(),
+        // parse function definition parameters.
+        let params = gen.parse_separated_fn(
+            || gen.parse_function_def_param(),
             || gen.parse_token(TokenKind::Comma),
         )?;
 
@@ -990,7 +990,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::FunctionDef(FunctionDef { args, return_ty, fn_body })),
+            Expression::new(ExpressionKind::FunctionDef(FunctionDef {
+                params,
+                return_ty,
+                fn_body,
+            })),
             &start,
         ))
     }

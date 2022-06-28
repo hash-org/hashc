@@ -48,7 +48,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
 
-                if let Some(location) = err.location_store().get_location((*src).into()) {
+                if let Some(location) = err.location_store().get_location(src.into()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
