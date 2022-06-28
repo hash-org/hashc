@@ -42,13 +42,18 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
-    /// Get the type of the given term, as another term.
+    /// Get the type of the given term, as another term. This will copy over the
+    /// location of the provided term to the new term within
+    /// [LocationStore].
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [Self::ty_of_simplified_term].
     pub(crate) fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
-        self.ty_of_simplified_term(simplified_term_id)
+        let new_term = self.ty_of_simplified_term(simplified_term_id)?;
+
+        self.location_store_mut().copy_location(term_id.into(), new_term.into());
+        Ok(new_term)
     }
 
     /// Infer the type of the given member, if it does not already exist.
