@@ -429,6 +429,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => return false,
         };
 
+        // Ensure that double colons `::` aren't followed which doesn't necessarily
+        // imply that this is a declaration
         matches!(self.peek_nth(n_lookahead), Some(token) if token.has_kind(TokenKind::Colon))
+            && matches!(self.peek_nth(n_lookahead + 1), Some(token) if !token.has_kind(TokenKind::Colon))
     }
 }

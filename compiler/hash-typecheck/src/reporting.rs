@@ -87,7 +87,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                                 format!(
                                     "this {} expects `{}` arguments.",
                                     origin,
-                                    target.for_formatting(err.global_storage()),
+                                    target_params.len(),
                                 ),
                             )));
                         }

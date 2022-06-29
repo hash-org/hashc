@@ -23,6 +23,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let decl = match self.begins_pattern() {
             true => {
                 let pat = self.parse_singular_pattern()?;
+
                 self.parse_token(TokenKind::Colon)?;
 
                 let decl = self.parse_declaration(pat)?;
