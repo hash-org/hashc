@@ -419,7 +419,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedType>,
     ) -> Result<Self::NamedTypeRet, Self::Error> {
-        Ok(walk::walk_named_type(self, ctx, node)?.name)
+        if node.name.path.len() == 1 && *node.name.path[0].body() == Identifier::from("_") {
+            // Infer type if it is an underscore:
+            let infer_term = self.builder().create_unresolved_term();
+            let infer_term_location = self.source_location(node.span());
+            self.builder().add_location_to_term(infer_term, infer_term_location);
+            Ok(infer_term)
+        } else {
+            Ok(walk::walk_named_type(self, ctx, node)?.name)
+        }
     }
 
     type RefTypeRet = TermId;
