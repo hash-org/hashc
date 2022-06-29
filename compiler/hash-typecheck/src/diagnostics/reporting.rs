@@ -351,6 +351,61 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
+            TcError::UnsupportedAccess { name, value } => {
+                builder
+                    .with_error_code(HashErrorCode::UnsupportedAccess)
+                    .with_message("unsupported access");
+
+                if let Some(location) = err.location_store().get_location(value) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "`{}` cannot be accessed using with the name `{}`",
+                            value.for_formatting(err.global_storage()),
+                            name
+                        ),
+                    )));
+                }
+            }
+            TcError::UnsupportedNamespaceAccess { name, value } => {
+                builder.with_error_code(HashErrorCode::UnsupportedNamespaceAccess).with_message(
+                    format!(
+                        "unsupported namespace access, `{}` cannot be namespaced",
+                        value.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) = err.location_store().get_location(value) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "`{}` cannot be namespaced using with the name `{}`",
+                            value.for_formatting(err.global_storage()),
+                            name
+                        ),
+                    )));
+                }
+            }
+
+            TcError::UnsupportedPropertyAccess { name, value } => {
+                builder.with_error_code(HashErrorCode::UnsupportedPropertyAccess).with_message(
+                    format!(
+                        "unsupported property access for type `{}`",
+                        value.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) = err.location_store().get_location(value) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "The property `{}` cannot be accessed from `{}`, it does not support property. accessing",
+                            name,
+                            value.for_formatting(err.global_storage()),
+                        ),
+                    )));
+                }
+            }
             _ => {
                 // @@Temporary
                 builder.with_message(format!("not yet pretty error: {:#?}", err.error));

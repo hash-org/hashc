@@ -6,19 +6,20 @@ error_codes! {
     UsingContinueOutsideLoop = 3,
     UsingReturnOutsideFunction = 4,
     // 5: un-used
+
+    // Name spacing and symbol errors
     UnresolvedSymbol = 6,
-    TryingToNamespaceType = 7,
-    TryingToNamespaceVariable = 8,
-    SymbolIsNotAType = 9,
-    SymbolIsNotAVariable = 10,
-    SymbolIsNotATrait = 11,
-    SymbolIsNotAEnum = 12,
+    UnsupportedAccess = 8,
+    UnsupportedNamespaceAccess = 9,
+    UnsupportedPropertyAccess = 10,
+
 
     UnresolvedStructField = 15,
     InvalidPropertyAccess = 16,
     ExpectingBooleanInCondition = 17,
     MissingStructField = 18,
-    BoundRequiresStrictlyTypeVars = 19,
+
+
     // 20: un-used
     TraitDefinitionNotFound = 21,
     NoMatchingTraitImplementations = 24,
