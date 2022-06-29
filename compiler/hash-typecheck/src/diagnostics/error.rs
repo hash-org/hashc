@@ -1,6 +1,6 @@
 //! Error-related data structures for errors that occur during typechecking.
 
-use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId};
+use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId, TyFnCase};
 use hash_source::identifier::Identifier;
 
 use super::params::{ParamListKind, ParamUnificationErrorReason};
@@ -52,6 +52,7 @@ pub enum TcError {
     /// the given errors.
     InvalidTypeFunctionApplication {
         type_fn: TermId,
+        cases: Vec<TyFnCase>,
         args: ArgsId,
         unification_errors: Vec<TcError>,
     },

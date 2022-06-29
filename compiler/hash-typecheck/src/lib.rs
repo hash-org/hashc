@@ -84,7 +84,7 @@ impl Tc<'_> for TcImpl {
             Err(error) => {
                 // Turn the error into a report:
                 let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
-                Err(err_with_storage.into())
+                Err(vec![err_with_storage.into()])
             }
         }
     }
@@ -114,7 +114,7 @@ impl Tc<'_> for TcImpl {
             Err(error) => {
                 // Turn the error into a report:
                 let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
-                Err(err_with_storage.into())
+                Err(vec![err_with_storage.into()])
             }
         }
     }

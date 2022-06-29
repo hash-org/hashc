@@ -24,13 +24,20 @@ pub(crate) struct TcErrorWithStorage<'gs, 'ls, 'cd> {
     pub storage: StorageRef<'gs, 'ls, 'cd>,
 }
 
+impl<'gs, 'ls, 'cd> TcErrorWithStorage<'gs, 'ls, 'cd> {
+    /// Create a new [TcErrorWithStorage]
+    pub fn new(error: TcError, storage: StorageRef<'gs, 'ls, 'cd>) -> Self {
+        Self { error, storage }
+    }
+}
+
 impl<'gs, 'ls, 'cd> AccessToStorage for TcErrorWithStorage<'gs, 'ls, 'cd> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
+impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
     fn from(err: TcErrorWithStorage<'gs, 'ls, 'cd>) -> Self {
         let mut builder = ReportBuilder::new();
         builder.with_kind(ReportKind::Error);
@@ -406,12 +413,45 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
+            TcError::InvalidTypeFunctionApplication {
+                type_fn, cases, unification_errors, ..
+            } => {
+                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
+                    "the type function `{}` cannot be applied",
+                    type_fn.for_formatting(err.global_storage()),
+                ));
+
+                // Now we show where the unification shouldn't occur
+                if let Some(location) = err.location_store().get_location(type_fn) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "couldn't apply type function due to a type mismatch".to_string(),
+                    )));
+                }
+
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Note,
+                    format!(
+                        "attempted to match {} implementations, they failed due to:",
+                        cases.len()
+                    ),
+                )));
+
+                // Generate the inner `unification_errors` and merge them with the base builder
+                // report.
+                let _inner_reports: Vec<Report> = unification_errors
+                    .iter()
+                    .map(|error| TcErrorWithStorage::new(error.clone(), err.storages()).into())
+                    .collect();
+
+                // @@Todo(feds01): Now we need to merge the reports:
+            }
             _ => {
                 // @@Temporary
                 builder.with_message(format!("not yet pretty error: {:#?}", err.error));
             }
         };
 
-        vec![builder.build()]
+        builder.build()
     }
 }

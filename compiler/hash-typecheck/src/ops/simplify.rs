@@ -492,6 +492,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let cannot_apply = || -> TcResult<Option<TermId>> {
             Err(TcError::UnsupportedTypeFunctionApplication { subject_id: simplified_subject_id })
         };
+
         match simplified_subject {
             Term::TyFn(ty_fn) => {
                 // Keep track of encountered errors so that if no cases match, we can return all
@@ -533,6 +534,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // If we have no results, we have to return an error:
                     Err(TcError::InvalidTypeFunctionApplication {
                         type_fn: simplified_subject_id,
+                        cases: ty_fn.cases,
                         args: apply_ty_fn.args,
                         unification_errors: errors,
                     })
