@@ -26,10 +26,7 @@ error_codes! {
 
     // Type errors
     TypeMismatch = 1,
-    TypeIsNotStruct = 13,
-    TypeIsNotEnum = 14,
-    TypeAnnotationNotAllowedInTraitImpl = 22,
-    TypeArgumentLengthMismatch = 23,
+    DisallowedType = 22,
     TypeIsNotTypeFunction = 27,
     ValueCannotBeUsedAsType = 28,
 
@@ -38,4 +35,7 @@ error_codes! {
     ParameterNameMismatch = 26,
     ParameterInUse = 29,
     AmbiguousFieldOrder = 30,
+
+    // traits
+    InvalidMergeElement = 50,
 }

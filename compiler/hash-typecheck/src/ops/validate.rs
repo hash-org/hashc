@@ -277,7 +277,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Error helper:
         let invalid_merge_element = || -> TcResult<()> {
-            Err(TcError::InvalidElementOfMerge { term: merge_element_term_id })
+            Err(TcError::InvalidMergeElement { term: merge_element_term_id })
         };
 
         // Helper to ensure that a merge is level 2, returns the updated MergeKind.

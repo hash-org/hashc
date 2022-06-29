@@ -109,6 +109,7 @@ impl Tc<'_> for TcImpl {
             hash_source::SourceId::Module(module_id),
             sources,
         );
+
         match tc_visitor.visit_source() {
             Ok(_) => Ok(()),
             Err(error) => {

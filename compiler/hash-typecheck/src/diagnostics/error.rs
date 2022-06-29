@@ -57,7 +57,7 @@ pub enum TcError {
         unification_errors: Vec<TcError>,
     },
     /// The given term cannot be used in a merge operation.
-    InvalidElementOfMerge { term: TermId },
+    InvalidMergeElement { term: TermId },
     /// The given term cannot be used as a type function parameter type.
     InvalidTypeFunctionParameterType { param_ty: TermId },
     /// The given term cannot be used as a type function return type.

@@ -446,6 +446,76 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
 
                 // @@Todo(feds01): Now we need to merge the reports:
             }
+            TcError::InvalidMergeElement { term } => {
+                builder
+                    .with_error_code(HashErrorCode::InvalidMergeElement)
+                    .with_message("invalid element within a merge declaration");
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "cannot use the type `{}` within a merge declaration",
+                            term.for_formatting(err.global_storage()),
+                        ),
+                    )));
+
+                    // @@Todo(feds01): add more helpful information about why
+                    // this particular type cannot be
+                    // used within this position
+                }
+            }
+            TcError::InvalidTypeFunctionParameterType { param_ty } => {
+                builder
+                    .with_error_code(HashErrorCode::DisallowedType)
+                    .with_message("invalid function parameter type".to_string());
+
+                if let Some(location) = err.location_store().get_location(param_ty) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "cannot use the type `{}` within as the type of a function parameter",
+                            param_ty.for_formatting(err.global_storage()),
+                        ),
+                    )));
+                }
+            }
+            TcError::InvalidTypeFunctionReturnType { return_ty } => {
+                builder
+                    .with_error_code(HashErrorCode::DisallowedType)
+                    .with_message("invalid function return type".to_string());
+
+                if let Some(location) = err.location_store().get_location(return_ty) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "cannot use the type `{}` as the return type of a function",
+                            return_ty.for_formatting(err.global_storage()),
+                        ),
+                    )));
+                }
+            }
+            TcError::InvalidTypeFunctionReturnValue { return_value } => {
+                builder
+                    .with_error_code(HashErrorCode::DisallowedType)
+                    .with_message("invalid type of function return value".to_string());
+
+                if let Some(location) = err.location_store().get_location(return_value) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this can't be used as the return of the function",
+                    )));
+
+                    // @@Todo(feds01): more information about why this is disallowed
+                    builder.add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        format!(
+                            "the type of the return value `{}` which is disallowed",
+                            return_value.for_formatting(err.global_storage()),
+                        ),
+                    )));
+                }
+            }
             _ => {
                 // @@Temporary
                 builder.with_message(format!("not yet pretty error: {:#?}", err.error));
