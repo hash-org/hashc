@@ -1,7 +1,7 @@
 //! Utilities related to type unification and substitution.
 use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{ParamUnificationErrorReason, ParamUnificationOrigin, TcError, TcResult},
+    error::{ParamUnificationErrorReason, TcError, TcResult},
     storage::{
         primitives::{
             ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,
@@ -124,7 +124,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         target_params_id: ParamsId,
         src_id: TermId,
         target_id: TermId,
-        origin: ParamUnificationOrigin,
     ) -> TcResult<Sub> {
         let src_params = self.params_store().get(src_params_id).clone();
         let target_params = self.params_store().get(target_params_id).clone();
@@ -134,7 +133,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                 src_params_id,
                 target_params_id,
                 reason,
-                origin,
                 src: src_id,
                 target: target_id,
             })
@@ -342,7 +340,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     src_ty_fn_ty.params,
                     src_id,
                     target_id,
-                    ParamUnificationOrigin::TypeFunction,
                 )?;
 
                 let return_sub =
@@ -410,13 +407,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     }
                     // Tuples unify if all their members unify:
                     (Level1Term::Tuple(src_tuple), Level1Term::Tuple(target_tuple)) => self
-                        .unify_params(
-                            src_tuple.members,
-                            target_tuple.members,
-                            src_id,
-                            target_id,
-                            ParamUnificationOrigin::Tuple,
-                        ),
+                        .unify_params(src_tuple.members, target_tuple.members, src_id, target_id),
                     // Tuples unify if their parameters and return unify:
                     (Level1Term::Fn(src_fn_ty), Level1Term::Fn(target_fn_ty)) => {
                         // Once again, params need to be unified inversely.
@@ -425,7 +416,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                             src_fn_ty.params,
                             target_id,
                             src_id,
-                            ParamUnificationOrigin::Function,
                         )?;
 
                         let return_sub =

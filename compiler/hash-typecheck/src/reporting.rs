@@ -1,7 +1,7 @@
 //! Contains utilities to convert a [crate::error::TcError] into a
 //! [hash_reporting::report::Report].
 use crate::{
-    error::{ParamUnificationErrorReason, ParameterListOrigin, TcError},
+    error::{ParamListKind, ParamUnificationErrorReason, TcError},
     fmt::PrepareForFormatting,
     storage::{
         primitives::{Arg, Param},
@@ -61,16 +61,13 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
-            TcError::CannotUnifyParams {
-                src_params_id,
-                target_params_id,
-                origin,
-                reason,
-                src,
-                target,
-            } => {
+            TcError::CannotUnifyParams { src_params_id, target_params_id, reason, src, target } => {
                 let src_params = err.params_store().get(*src_params_id);
                 let target_params = err.params_store().get(*target_params_id);
+
+                // It doesn't matter whether we use `src` or `target` since they should be the
+                // same
+                let origin = src_params.origin();
 
                 match &reason {
                     ParamUnificationErrorReason::LengthMismatch => {
@@ -258,14 +255,16 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     )));
                 }
             }
-            TcError::ParamGivenTwice { origin, index, .. } => {
+            TcError::ParamGivenTwice { param_kind, index } => {
+                let origin = param_kind.origin(err.global_storage());
+
                 // we want to get the particular argument at the specified index, get the name
                 // and then later use the name to find the original use so that it can be
                 // added to the report.
                 //
                 // Safety: this should be safe to unwrap otherwise we can't detect this issue.
-                let (name, first_use) = match origin {
-                    ParameterListOrigin::Params(id) => {
+                let (name, first_use) = match param_kind {
+                    ParamListKind::Params(id) => {
                         let params = err.params_store().get(*id);
 
                         // Extract the name from the parameter
@@ -281,7 +280,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
 
                         (name, first_use)
                     }
-                    ParameterListOrigin::Args(id) => {
+                    ParamListKind::Args(id) => {
                         let args = err.args_store().get(*id);
 
                         // Extract the name from the argument
@@ -299,31 +298,39 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     }
                 };
 
-                let location_from_origin = |index: usize| match origin {
-                    ParameterListOrigin::Params(id) => {
-                        err.location_store().get_location((*id, index))
-                    }
-                    ParameterListOrigin::Args(id) => {
-                        err.location_store().get_location((*id, index))
-                    }
-                };
-
-                builder
-                    .with_error_code(HashErrorCode::ParameterInUse)
-                    .with_message(format!("parameter with name `{}` is already specified", name,));
+                builder.with_error_code(HashErrorCode::ParameterInUse).with_message(format!(
+                    "parameter with name `{}` is already specified within the {}",
+                    name, origin
+                ));
 
                 // Report where the secondary use occurred, and if possible the first use
-                if let Some(location) = location_from_origin(*index) {
+                if let Some(location) = param_kind.to_location(*index, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("parameter `{}` has already been used", name),
                     )));
                 }
 
-                if let Some(location) = location_from_origin(first_use) {
+                if let Some(location) = param_kind.to_location(first_use, err.location_store()) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "initial use occurs here",
+                    )));
+                }
+            }
+            // @@ErrorReporting: this could be delegated to semantic-analysis...
+            TcError::AmbiguousArgumentOrdering { param_kind, index } => {
+                let origin = param_kind.origin(err.global_storage());
+
+                builder
+                    .with_error_code(HashErrorCode::AmbiguousFieldOrder)
+                    .with_message(format!("ambiguous parameter ordering within a {}", origin));
+
+                // Add the location of the
+                if let Some(location) = param_kind.to_location(*index, err.location_store()) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "un-named parameters cannot appear after named parameters",
                     )));
                 }
             }

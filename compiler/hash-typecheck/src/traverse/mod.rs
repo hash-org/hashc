@@ -5,7 +5,7 @@ use crate::{
     error::{TcError, TcResult},
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
-        primitives::{Member, MemberData, Mutability, Param, Sub, TermId, Visibility},
+        primitives::{Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -450,7 +450,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::TupleTypeRet, Self::Error> {
         let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
 
-        let members = self.builder().create_params(entries);
+        let members = self.builder().create_params(entries, ParamOrigin::Tuple);
 
         // We have to append locations to each of the parameters
         for (index, entry) in node.body().entries.iter().enumerate() {
@@ -549,7 +549,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
             list_inner_ty,
-            builder.create_args([builder.create_arg("T", shared_term)]),
+            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TypeFunction),
         );
 
         let term = self.builder().create_rt_term(list_ty);
@@ -608,7 +608,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
         let builder = self.builder();
 
-        let params = builder.create_params(elements);
+        let params = builder.create_params(elements, ParamOrigin::Tuple);
         let term = builder.create_rt_term(builder.create_tuple_ty_term(params));
 
         // add the location of each parameter
@@ -744,7 +744,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
         let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
-        let params_potentially_unresolved = self.builder().create_params(args);
+        let params_potentially_unresolved =
+            self.builder().create_params(args, ParamOrigin::Function);
         let params =
             self.substituter().apply_sub_to_params(&body_sub, params_potentially_unresolved);
 

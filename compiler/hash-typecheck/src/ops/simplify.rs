@@ -5,8 +5,8 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId,
-            TupleTy, TyFn, TyFnCase, TyFnTy,
+            Level2Term, Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term,
+            TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -129,7 +129,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Return the substituted type without the first parameter:
                 Ok(builder.create_fn_ty_term(
-                    builder.create_params(subbed_params.into_positional().into_iter().skip(1)),
+                    builder.create_params(
+                        subbed_params.into_positional().into_iter().skip(1),
+                        ParamOrigin::Function,
+                    ),
                     fn_ty.return_ty,
                 ))
             }
@@ -687,7 +690,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         // Only return the new args if we simplified them:
         if simplified_once {
-            let new_args = self.builder().create_args(result);
+            let new_args = self.builder().create_args(result, args.origin());
             self.location_store_mut().copy_args_locations(args_id, new_args);
 
             Ok(Some(new_args))
@@ -735,7 +738,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         // Only return the new params if we simplified them:
         if simplified_once {
-            let new_params = self.builder().create_params(result);
+            let new_params = self.builder().create_params(result, params.origin());
             self.location_store_mut().copy_params_locations(params_id, new_params);
 
             Ok(Some(new_params))
@@ -935,7 +938,10 @@ mod test_super {
         // Handy shorthand for &Self type
         let _ref_self_ty = builder.create_app_ty_fn_term(
             core_defs.reference_ty_fn,
-            builder.create_args([builder.create_arg("T", builder.create_var_term("Self"))]),
+            builder.create_args(
+                [builder.create_arg("T", builder.create_var_term("Self"))],
+                ParamOrigin::TypeFunction,
+            ),
         );
         let dog_def = builder.create_struct_def(
             "Dog",
@@ -954,16 +960,18 @@ mod test_super {
                 builder.create_pub_member(
                     "hash",
                     builder.create_fn_ty_term(
-                        builder.create_params([
-                            builder.create_param("value", builder.create_var_term("Self"))
-                        ]),
+                        builder.create_params(
+                            [builder.create_param("value", builder.create_var_term("Self"))],
+                            ParamOrigin::Function,
+                        ),
                         builder.create_nominal_def_term(core_defs.u64_ty),
                     ),
                     builder.create_fn_lit_term(
                         builder.create_fn_ty_term(
-                            builder.create_params([
-                                builder.create_param("value", builder.create_var_term("Self"))
-                            ]),
+                            builder.create_params(
+                                [builder.create_param("value", builder.create_var_term("Self"))],
+                                ParamOrigin::Function,
+                            ),
                             builder.create_nominal_def_term(core_defs.u64_ty),
                         ),
                         builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),

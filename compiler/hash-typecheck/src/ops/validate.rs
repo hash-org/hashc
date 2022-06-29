@@ -2,7 +2,7 @@
 
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{ParamUnificationOrigin, ParameterListOrigin, TcError, TcResult},
+    error::{ParamListKind, TcError, TcResult},
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
@@ -419,7 +419,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
     /// **Note**: Requires that the parameters have already been simplified.
     pub(crate) fn validate_params(&mut self, params_id: ParamsId) -> TcResult<()> {
         let params = self.params_store().get(params_id).clone();
-        validate_param_list_ordering(&params, ParameterListOrigin::Params(params_id))?;
+        validate_param_list_ordering(&params, ParamListKind::Params(params_id))?;
 
         for param in params.positional() {
             self.validate_term(param.ty)?;
@@ -647,7 +647,6 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         ty_fn.general_params,
                         case.return_ty,
                         term_id,
-                        ParamUnificationOrigin::TypeFunction,
                     )?;
 
                     // Ensure that the return type can be unified with the type of the return value:

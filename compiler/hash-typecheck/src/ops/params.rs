@@ -1,7 +1,7 @@
 //! Operations related to handling parameters.
 
 use crate::{
-    error::{ParameterListOrigin, TcError, TcResult},
+    error::{ParamListKind, TcError, TcResult},
     storage::primitives::{
         Arg, Args, ArgsId, GetNameOpt, Param, ParamList, Params, ParamsId, TermId,
     },
@@ -35,7 +35,7 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
         });
     }
 
-    let origin = ParameterListOrigin::Args(args_id);
+    let origin = ParamListKind::Args(args_id);
 
     // Keep track of the first non-positional argument
     let mut done_positional = false;
@@ -48,7 +48,10 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                     Some((param_i, param)) => {
                         if params_used.contains(&param_i) {
                             // Ensure not already used
-                            return Err(TcError::ParamGivenTwice { origin, index: param_i });
+                            return Err(TcError::ParamGivenTwice {
+                                param_kind: origin,
+                                index: param_i,
+                            });
                         } else {
                             params_used.insert(param_i);
                             result.push((param, arg));
@@ -63,10 +66,13 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                 // Positional argument
                 if done_positional {
                     // Using positional args after named args is an error
-                    return Err(TcError::CannotUsePositionalArgAfterNamedArg { origin, index: i });
+                    return Err(TcError::AmbiguousArgumentOrdering {
+                        param_kind: origin,
+                        index: i,
+                    });
                 } else if params_used.contains(&i) {
                     // Ensure not already used
-                    return Err(TcError::ParamGivenTwice { origin, index: i });
+                    return Err(TcError::ParamGivenTwice { param_kind: origin, index: i });
                 } else {
                     params_used.insert(i);
                     result.push((params.positional().get(i).unwrap(), arg));
@@ -89,9 +95,9 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
 /// [ParamList] follows the described rules. This function works for either
 /// parameters or arguments, and hence why it accepts a [ParameterListOrigin]
 /// in order to preserve context in the event of an error.
-pub(crate) fn validate_param_list_ordering<'p, T: Clone + GetNameOpt>(
-    params: &'p ParamList<T>,
-    origin: ParameterListOrigin,
+pub(crate) fn validate_param_list_ordering<T: Clone + GetNameOpt>(
+    params: &ParamList<T>,
+    origin: ParamListKind,
 ) -> TcResult<()> {
     // Keep track of used params to ensure no parameter is given twice.
     let mut params_used = HashSet::new();
@@ -109,7 +115,7 @@ pub(crate) fn validate_param_list_ordering<'p, T: Clone + GetNameOpt>(
                 // of already been used and therefore it should trigger an error
                 if let Some((found_index, _)) = params.get_by_name(name) {
                     if params_used.contains(&found_index) {
-                        return Err(TcError::ParamGivenTwice { origin, index });
+                        return Err(TcError::ParamGivenTwice { param_kind: origin, index });
                     } else {
                         params_used.insert(found_index);
                     }
@@ -118,7 +124,7 @@ pub(crate) fn validate_param_list_ordering<'p, T: Clone + GetNameOpt>(
             None => {
                 // Using positional args after named args is an error
                 if done_positional {
-                    return Err(TcError::CannotUsePositionalArgAfterNamedArg { origin, index });
+                    return Err(TcError::AmbiguousArgumentOrdering { param_kind: origin, index });
                 }
             }
         }

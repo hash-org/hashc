@@ -36,4 +36,5 @@ error_codes! {
     ParameterLengthMismatch = 25,
     ParameterNameMismatch = 26,
     ParameterInUse = 29,
+    AmbiguousFieldOrder = 30,
 }
