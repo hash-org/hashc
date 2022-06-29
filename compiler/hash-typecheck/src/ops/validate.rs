@@ -12,10 +12,11 @@ use crate::{
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
-            ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
-            Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term, TermId,
-            TrtDefId,
+            AppSub, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId,
+            ModDefOrigin, Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term,
+            TermId, TrtDefId,
         },
+        terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
@@ -55,17 +56,16 @@ impl Term {
     /// Compute the level of the term. This is a primitive computation
     /// and does not attempt to compute the true level of the [Term]
     /// by looking at the inner children of the [Term].
-    pub fn get_term_level(&self) -> TermLevel {
+    pub fn get_term_level(&self, store: &TermStore) -> TermLevel {
+        // @@Todo(feds01): implement the other variants by recursing into them.
         match self {
             Term::Access(_)
             | Term::Var(_)
             | Term::Merge(_)
             | Term::TyFn(_)
             | Term::TyFnTy(_)
-            | Term::AppTyFn(_)
-            | Term::AppSub(_) => {
-                todo!()
-            }
+            | Term::AppTyFn(_) => TermLevel::Unknown,
+            Term::AppSub(AppSub { term, .. }) => store.get(*term).get_term_level(store),
             Term::Unresolved(_) => TermLevel::Unknown,
             Term::Root => TermLevel::Level4,
             Term::Level3(_) => TermLevel::Level3,

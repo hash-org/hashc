@@ -4,7 +4,7 @@
 use std::fmt::Display;
 
 use crate::storage::{
-    primitives::{Level0Term, Level1Term, Term},
+    primitives::{AppSub, Level0Term, Level1Term, Term},
     terms::TermStore,
 };
 
@@ -45,6 +45,9 @@ impl NameFieldOrigin {
                 // we can extract the inner type since it's
                 // known that this should be a level-1 term
                 NameFieldOrigin::from_term(store.get(*inner), store)
+            }
+            Term::AppSub(AppSub { term, .. }) => {
+                NameFieldOrigin::from_term(store.get(*term), store)
             }
             _ => panic!(
                 "`NameFieldOrigin::from_term` should only be used on level-1 or level-0 terms"

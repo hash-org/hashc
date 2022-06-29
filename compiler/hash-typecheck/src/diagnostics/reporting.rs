@@ -581,7 +581,10 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                     )))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         offender_location,
-                        format!("this term is of {} and not level-1", offender.get_term_level()),
+                        format!(
+                            "this term is of {} and not level-1",
+                            offender.get_term_level(err.term_store())
+                        ),
                     )));
             }
             TcError::MergeShouldBeLevel2 { merge_term, offending_term } => {
@@ -601,7 +604,10 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                     )))
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         offender_location,
-                        format!("this term is of {} and not level-2", offender.get_term_level()),
+                        format!(
+                            "this term is of {} and not level-2",
+                            offender.get_term_level(err.term_store())
+                        ),
                     )));
             }
             TcError::NeedMoreTypeAnnotationsToResolve { term } => {
