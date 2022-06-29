@@ -720,6 +720,12 @@ impl Sub {
         self.data.insert(subject, term);
     }
 
+    /// Extend the substitution with pairs from the given one, consuming self.
+    pub fn with_extension(mut self, other: &Sub) -> Self {
+        self.extend(other);
+        self
+    }
+
     /// Extend the substitution with pairs from the given one.
     ///
     /// This is a naive implementation which does not perform any unification.

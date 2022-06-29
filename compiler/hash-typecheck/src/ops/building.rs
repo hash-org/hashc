@@ -1,6 +1,7 @@
 //! Contains helper structures to create complex types and values without having
 //! to manually call the corresponding stores.
 use crate::storage::{
+    location::LocationTarget,
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue,
         FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
@@ -545,8 +546,16 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::AppTyFn(app_ty_fn))
     }
 
-    /// Add a [SourceLocation] to a [Term].
-    pub fn add_location_to_term(&self, subject: TermId, location: SourceLocation) {
-        self.gs.borrow_mut().location_store.add_location_to_target(subject, location);
+    /// Add a [SourceLocation] to a [LocationTarget].
+    ///
+    /// This is added so that locations can be added without having to destroy
+    /// the current builder first (because it has mutable access to
+    /// [GlobalStorage]).
+    pub fn add_location_to_target(
+        &self,
+        target: impl Into<LocationTarget>,
+        location: SourceLocation,
+    ) {
+        self.gs.borrow_mut().location_store.add_location_to_target(target, location);
     }
 }

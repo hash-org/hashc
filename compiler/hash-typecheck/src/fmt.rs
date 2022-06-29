@@ -3,7 +3,7 @@
 use crate::storage::{
     primitives::{
         ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefId,
-        ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, ScopeId, StructDef,
+        ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, ScopeId, StructDef, Sub,
         SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
@@ -46,6 +46,22 @@ pub struct TcFormatter<'gs> {
 impl<'gs> TcFormatter<'gs> {
     pub fn new(global_storage: &'gs GlobalStorage) -> Self {
         Self { global_storage }
+    }
+
+    /// Format the given substitution with the given formatter.
+    pub fn fmt_sub(&self, f: &mut fmt::Formatter, sub: &Sub) -> fmt::Result {
+        for (subject, target) in sub.pairs() {
+            match subject {
+                SubSubject::Var(var) => {
+                    write!(f, "{}", var.name)?;
+                }
+                SubSubject::Unresolved(unresolved) => {
+                    self.fmt_unresolved(f, &unresolved)?;
+                }
+            };
+            write!(f, " -> {}", target.for_formatting(self.global_storage))?;
+        }
+        Ok(())
     }
 
     /// Format the given scope with the given formatter.
@@ -488,6 +504,7 @@ impl PrepareForFormatting for NominalDefId {}
 impl PrepareForFormatting for ParamsId {}
 impl PrepareForFormatting for ArgsId {}
 impl PrepareForFormatting for ScopeId {}
+impl PrepareForFormatting for &Sub {}
 
 // Convenience implementations of Display for the types that implement
 // PrepareForFormatting:
@@ -531,5 +548,11 @@ impl fmt::Display for ForFormatting<'_, ArgsId> {
 impl fmt::Display for ForFormatting<'_, ScopeId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_scope(f, self.t)
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, &Sub> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_sub(f, self.t)
     }
 }

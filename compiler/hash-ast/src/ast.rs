@@ -297,7 +297,7 @@ pub struct NamedType {
 }
 
 /// Reference kind representing either a raw reference or a normal reference.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RefKind {
     /// Raw reference type
     Raw,
@@ -358,6 +358,7 @@ pub struct MapType {
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType {
+    // @@Todo: rename this to parameters
     pub args: AstNodes<NamedFieldTypeEntry>,
     pub return_ty: AstNode<Type>,
 }

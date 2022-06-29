@@ -39,7 +39,20 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         Self { storage }
     }
 
-    /// Unify two substitutions to produce another substitution.
+    /// Get the super-substitution of the two substitutions.
+    ///
+    /// Equivalent to first unifying `U(s0, s1)` and then applying `s1` or `s0`.
+    pub(crate) fn get_super_sub(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
+        let fv_s1 = self.substituter().get_free_vars_in_sub(s1);
+        let dom_s0: HashSet<_> = s0.domain().collect();
+        if fv_s1.intersection(&dom_s0).next().is_some() {
+            panic!("Super-sub is not well formed!");
+        }
+        Ok(self.unify_subs(s0, s1)?.with_extension(s0))
+    }
+
+    /// Unify two substitutions to produce another substitution which is the
+    /// unifier of the two.
     ///
     /// The resultant substitution contains all the information of the two
     /// source substitutions, without any common free variables in their
@@ -55,12 +68,14 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         // First split the domains into three parts: d0, d1 (not directly needed), and
         // the intersection (see second loop)
         let d0: HashSet<_> = dom_s0.difference(&dom_s1).copied().collect();
+        let d1: HashSet<_> = dom_s1.difference(&dom_s0).copied().collect();
         let t0 = Sub::from_pairs(d0.iter().map(|&a| (a, substituter.apply_sub_to_subject(s0, a))));
+        let t1 = Sub::from_pairs(d1.iter().map(|&a| (a, substituter.apply_sub_to_subject(s1, a))));
 
         // Start with t0 and add terms for d1 one at a time, always producing well
         // formed substitutions
-        let mut result = t0.clone();
-        for (a, t) in t0.pairs() {
+        let mut result = t0;
+        for (a, t) in t1.pairs() {
             // Remove elements of dom(result) from t, and remove a from result.
             let subbed_t = substituter.apply_sub_to_term(&result, t);
             if substituter.get_free_vars_in_term(subbed_t).contains(&a) {
@@ -108,14 +123,20 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         let args = self.args_store().get(args_id).clone();
 
         let pairs = pair_args_with_params(&params, &args, parent, params_id, args_id)?;
-        let mut cumulative_sub = Sub::empty();
+        let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {
+            // Ensure their types unify:
             let ty_of_arg = self.typer().ty_of_term(arg.value)?;
-            let sub = self.unify_terms(ty_of_arg, param.ty)?;
-            cumulative_sub = self.unify_subs(&cumulative_sub, &sub)?;
+            let _ = self.unify_terms(ty_of_arg, param.ty)?;
+
+            // Add the parameter substituted for the argument to the substitution, if a
+            // parameter name is given:
+            if let Some(name) = param.name {
+                sub.add_pair(self.builder().create_var(name).into(), arg.value);
+            }
         }
-        Ok(cumulative_sub)
+        Ok(sub)
     }
 
     /// Unify the two given parameter lists, by parameter-wise unifying terms.
@@ -159,7 +180,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             let ty_sub = self.unify_terms(src_param.ty, target_param.ty)?;
 
             // Add to cumulative substitution
-            cumulative_sub = self.unify_subs(&cumulative_sub, &ty_sub)?;
+            cumulative_sub = self.get_super_sub(&cumulative_sub, &ty_sub)?;
         }
 
         // Return the cumulative substitution of all the parameter types:
@@ -321,7 +342,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
 
                         // Unify all the created substitutions
                         let args_unified_sub = self.unify_subs(&args_src_sub, &args_target_sub)?;
-                        self.unify_subs(&args_unified_sub, &subject_sub)
+                        Ok(self.get_super_sub(&args_unified_sub, &subject_sub)?)
                     }
                     // If the subject is not a function type then application is invalid:
                     _ => Err(TcError::UnsupportedTypeFunctionApplication { subject_id: subject }),
@@ -425,7 +446,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                             self.unify_terms(src_fn_ty.return_ty, target_fn_ty.return_ty)?;
 
                         // Merge the subs
-                        self.unify_subs(&params_sub, &return_sub)
+                        Ok(self.get_super_sub(&params_sub, &return_sub)?)
                     }
                     // Mismatching level 1 term variants do not unify:
                     _ => cannot_unify(),

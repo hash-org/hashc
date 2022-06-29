@@ -746,6 +746,16 @@ impl AstVisitor for SemanticAnalyser {
         Ok(())
     }
 
+    type RefKindRet = ();
+
+    fn visit_ref_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::RefKind>,
+    ) -> Result<Self::RefKindRet, Self::Error> {
+        Ok(())
+    }
+
     type DeclarationRet = ();
 
     fn visit_declaration(
