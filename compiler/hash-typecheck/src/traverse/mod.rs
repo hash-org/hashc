@@ -360,10 +360,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_function_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnType>,
     ) -> Result<Self::FnTypeRet, Self::Error> {
-        todo!()
+        let walk::FnType { args, return_ty } = walk::walk_function_type(self, ctx, node)?;
+        let params = self.builder().create_params(args);
+
+        // Add all the locations to the parameters:
+        for (index, param) in node.args.iter().enumerate() {
+            let location = self.source_location(param.span());
+            self.location_store_mut().add_location_to_target((params, index), location);
+        }
+
+        // Create the function type term:
+        let fn_ty_term = self.builder().create_fn_ty_term(params, return_ty);
+
+        // Add location to the type:
+        let fn_ty_location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(fn_ty_term, fn_ty_location);
+
+        Ok(fn_ty_term)
     }
 
     type TypeFunctionParamRet = Param;
