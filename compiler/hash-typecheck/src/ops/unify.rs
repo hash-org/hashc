@@ -1,7 +1,10 @@
 //! Utilities related to type unification and substitution.
 use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{ParamUnificationErrorReason, TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        params::ParamUnificationErrorReason,
+    },
     storage::{
         primitives::{
             ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,

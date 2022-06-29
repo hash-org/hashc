@@ -1,6 +1,6 @@
 //! Contains operations to get the type of a term.
 use crate::{
-    error::{TcError, TcResult},
+    diagnostics::error::{TcError, TcResult},
     storage::{
         primitives::{
             AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefOrigin,
@@ -128,7 +128,7 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
-                let var_member = self.scope_resolver().resolve_name_in_scopes(var.name)?;
+                let var_member = self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?;
                 Ok(self.infer_member_data(var_member.data)?.ty)
             }
             Term::TyFn(ty_fn) => {

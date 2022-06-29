@@ -1,8 +1,12 @@
 //! Contains utilities to validate terms.
+#![allow(dead_code)]
 
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{ParamListKind, TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        params::ParamListKind,
+    },
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{

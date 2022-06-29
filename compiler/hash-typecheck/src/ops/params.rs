@@ -1,7 +1,10 @@
 //! Operations related to handling parameters.
 
 use crate::{
-    error::{ParamListKind, TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        params::ParamListKind,
+    },
     storage::primitives::{
         Arg, Args, ArgsId, GetNameOpt, Param, ParamList, Params, ParamsId, TermId,
     },

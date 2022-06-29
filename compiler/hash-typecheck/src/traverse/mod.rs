@@ -2,7 +2,7 @@
 //! it for correctness.
 
 use crate::{
-    error::{TcError, TcResult},
+    diagnostics::error::{TcError, TcResult},
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility},
@@ -191,6 +191,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
+
+        // We need to add the location to the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(name, location);
+
         let TermValidation { simplified_term_id, .. } = self.validator().validate_term(name)?;
         Ok(simplified_term_id)
     }

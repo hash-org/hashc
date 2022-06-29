@@ -1,7 +1,7 @@
 //! Contains functionality to simplify terms into more concrete terms.
 use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{TcError, TcResult},
+    diagnostics::error::{TcError, TcResult},
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
@@ -815,7 +815,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // First resolve the name:
                 let maybe_resolved_term_id =
-                    self.scope_resolver().resolve_name_in_scopes(var.name)?.data.value();
+                    self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?.data.value();
                 // Try to simplify it
                 if let Some(resolved_term_id) = maybe_resolved_term_id {
                     Ok(Some(self.potentially_simplify_term(resolved_term_id)?))

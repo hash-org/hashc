@@ -1,7 +1,11 @@
-//! Contains utilities to convert a [crate::error::TcError] into a
+//! Contains utilities to convert a [super::error::TcError] into a
 //! [hash_reporting::report::Report].
+
+use super::{
+    error::TcError,
+    params::{ParamListKind, ParamUnificationErrorReason},
+};
 use crate::{
-    error::{ParamListKind, ParamUnificationErrorReason, TcError},
     fmt::PrepareForFormatting,
     storage::{
         primitives::{Arg, Param},
@@ -331,6 +335,19 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Vec<Report> {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "un-named parameters cannot appear after named parameters",
+                    )));
+                }
+            }
+            TcError::UnresolvedVariable { name, value } => {
+                builder.with_error_code(HashErrorCode::UnresolvedSymbol).with_message(format!(
+                    "variable `{}` is not defined in the current scope",
+                    name
+                ));
+
+                if let Some(location) = err.location_store().get_location(value) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "variable not defined in the current scope",
                     )));
                 }
             }

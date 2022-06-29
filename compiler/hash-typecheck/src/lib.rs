@@ -5,11 +5,10 @@
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
 
-#![allow(dead_code)] // @@Temporary
 #![feature(generic_associated_types)]
 
+use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
-use reporting::TcErrorWithStorage;
 use storage::{
     core::CoreDefs, AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
 };
@@ -17,10 +16,9 @@ use traverse::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
 
-pub mod error;
+pub mod diagnostics;
 pub mod fmt;
 pub mod ops;
-pub mod reporting;
 pub mod storage;
 pub mod traverse;
 
