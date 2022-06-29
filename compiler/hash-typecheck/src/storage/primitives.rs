@@ -144,6 +144,7 @@ pub enum ParamOrigin {
     Struct,
     Fn,
     TyFn,
+    EnumVariant,
 }
 
 impl Display for ParamOrigin {
@@ -154,6 +155,7 @@ impl Display for ParamOrigin {
             ParamOrigin::Struct => write!(f, "struct"),
             ParamOrigin::Fn => write!(f, "function"),
             ParamOrigin::TyFn => write!(f, "type function"),
+            ParamOrigin::EnumVariant => write!(f, "enum variant"),
         }
     }
 }

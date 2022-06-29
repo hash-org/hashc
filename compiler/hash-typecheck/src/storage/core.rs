@@ -67,10 +67,14 @@ impl CoreDefs {
         let bool_ty = builder.create_enum_def(
             "bool",
             [
-                builder
-                    .create_enum_variant("true", builder.create_params([], ParamOrigin::Unknown)),
-                builder
-                    .create_enum_variant("false", builder.create_params([], ParamOrigin::Unknown)),
+                builder.create_enum_variant(
+                    "true",
+                    builder.create_params([], ParamOrigin::EnumVariant),
+                ),
+                builder.create_enum_variant(
+                    "false",
+                    builder.create_params([], ParamOrigin::EnumVariant),
+                ),
             ],
             [],
         );
