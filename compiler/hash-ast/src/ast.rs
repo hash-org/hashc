@@ -358,6 +358,7 @@ pub struct MapType {
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType {
+    // @@Todo: rename this to parameters
     pub args: AstNodes<NamedFieldTypeEntry>,
     pub return_ty: AstNode<Type>,
 }
