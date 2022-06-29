@@ -3,7 +3,10 @@
 use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId, TyFnCase};
 use hash_source::identifier::Identifier;
 
-use super::params::{ParamListKind, ParamUnificationErrorReason};
+use super::{
+    params::{ParamListKind, ParamUnificationErrorReason},
+    symbol::NameFieldOrigin,
+};
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;
@@ -38,7 +41,7 @@ pub enum TcError {
     /// It is invalid to use a positional argument after a named argument.
     AmbiguousArgumentOrdering { param_kind: ParamListKind, index: usize },
     /// The given name cannot be resolved in the given value.
-    UnresolvedNameInValue { name: Identifier, value: TermId },
+    UnresolvedNameInValue { name: Identifier, origin: NameFieldOrigin, value: TermId },
     /// The given variable cannot be resolved in the current context.
     UnresolvedVariable { name: Identifier, value: TermId },
     /// The given value does not support accessing (of the given name).
@@ -92,10 +95,12 @@ pub enum TcError {
     /// @@ErrorReporting: add span of member.
     UninitialisedMemberNotAllowed { member_ty: TermId },
     /// Cannot implement something that isn't a trait.
-    CannotImplementNonTrait { supposed_trait_term: TermId },
+    CannotImplementNonTrait { term: TermId },
     /// The trait implementation `trt_impl_term_id` is missing the member
     /// `trt_def_missing_member_id` from the trait `trt_def_term_id`.
-    TraitImplementationMissingMember {
+    ///
+    /// @@ErrorReporting: identify all missing members
+    TraitImplMissingMember {
         trt_impl_term_id: TermId,
         trt_def_term_id: TermId,
         // @@ErrorReporting: Ideally we want to be able to identify whole members rather than just

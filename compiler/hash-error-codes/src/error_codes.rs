@@ -14,9 +14,10 @@ error_codes! {
     UnsupportedNamespaceAccess = 12,
     UnsupportedPropertyAccess = 13,
     AmbiguousAccess = 14,
-    UnresolvedStructField = 15,
+    UnresolvedNameInValue = 15,
     InvalidPropertyAccess = 16,
     MissingStructField = 17,
+    UninitialisedMember = 18,
 
     // Type errors
     TypeMismatch = 20,
@@ -26,6 +27,7 @@ error_codes! {
     ValueCannotBeUsedAsType = 24,
     NonRuntimeInstantiable = 25,
     UnsupportedTypeFunctionApplication = 26,
+    TypeIsNotTrait = 27,
 
     // Errors in regard to parameter lists
     ParameterLengthMismatch = 35,
@@ -38,4 +40,6 @@ error_codes! {
     MultipleNominals = 51,
     TraitDefinitionNotFound = 52,
     NoMatchingTraitImplementations = 53,
+    InvalidPropertyAccessOfNonMethod = 54,
+    TraitImplMissingMember = 55,
 }

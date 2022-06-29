@@ -4,3 +4,4 @@
 pub mod error;
 pub mod params;
 pub mod reporting;
+pub mod symbol;

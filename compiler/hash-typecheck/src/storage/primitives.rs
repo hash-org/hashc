@@ -593,7 +593,7 @@ pub enum Level2Term {
 /// -> B` etc.
 #[derive(Debug, Clone)]
 pub enum Level1Term {
-    /// Modules or impls.
+    /// Modules or impl blocks.
     ///
     /// Modules and trait implementations, as well as anonymous implementations,
     /// are treated as types, but do not have instance values.
@@ -624,7 +624,7 @@ pub struct FnLit {
 ///
 /// Type of: nothing.
 /// Value of: values, for example `3`, `Result::Ok(3)`, etc.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),

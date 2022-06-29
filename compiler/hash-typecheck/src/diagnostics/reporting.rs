@@ -345,6 +345,22 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                     )));
                 }
             }
+            TcError::UnresolvedNameInValue { name, origin, value } => {
+                builder.with_error_code(HashErrorCode::UnresolvedNameInValue).with_message(
+                    format!(
+                        "the field `{}` is not present within `{}`",
+                        name,
+                        value.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) = err.location_store().get_location(value) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("{} does not contain the named property `{}`", origin, name),
+                    )));
+                }
+            }
             TcError::UnresolvedVariable { name, value } => {
                 builder.with_error_code(HashErrorCode::UnresolvedSymbol).with_message(format!(
                     "variable `{}` is not defined in the current scope",
@@ -661,9 +677,90 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                     ),
                 )));
             }
-            _ => {
-                // @@Temporary
-                builder.with_message(format!("not yet pretty error: {:#?}", err.error));
+            TcError::InvalidPropertyAccessOfNonMethod { subject, property } => {
+                builder
+                    .with_error_code(HashErrorCode::InvalidPropertyAccessOfNonMethod)
+                    .with_message(format!(
+                        "property `{}` access yields non-method result",
+                        property
+                    ));
+
+                if let Some(location) = err.location_store().get_location(subject) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this is not a method",
+                    )));
+                }
+            }
+            TcError::UninitialisedMemberNotAllowed { member_ty } => {
+                builder
+                    .with_error_code(HashErrorCode::UninitialisedMember)
+                    .with_message("members must be initialised in the current scope");
+
+                if let Some(location) = err.location_store().get_location(member_ty) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this declaration must be initialised",
+                    )));
+                }
+            }
+            TcError::CannotImplementNonTrait { term } => {
+                builder.with_error_code(HashErrorCode::TypeIsNotTrait).with_message(format!(
+                    "type `{}` is not a trait",
+                    term.for_formatting(err.global_storage())
+                ));
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this cannot be implemented because it's not a trait",
+                    )));
+                }
+            }
+            TcError::TraitImplMissingMember {
+                trt_impl_term_id,
+                trt_def_term_id,
+                trt_def_missing_member_term_id,
+            } => {
+                builder.with_error_code(HashErrorCode::TraitImplMissingMember).with_message(
+                    format!(
+                        "trait `{}` is missing the member `{}`",
+                        trt_def_term_id.for_formatting(err.global_storage()),
+                        trt_def_missing_member_term_id.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) = err.location_store().get_location(trt_impl_term_id) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "the implementation of trait `{}` is missing the member `{}`",
+                            trt_def_term_id.for_formatting(err.global_storage()),
+                            trt_def_missing_member_term_id.for_formatting(err.global_storage())
+                        ),
+                    )));
+                }
+
+                // Add the location of the trait definition
+                if let Some(location) = err.location_store().get_location(trt_def_term_id) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "trait defined here",
+                    )));
+                }
+
+                // Add the location of the missing member definition if possible
+                if let Some(location) =
+                    err.location_store().get_location(trt_def_missing_member_term_id)
+                {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "missing member `{}` is defined here",
+                            trt_def_missing_member_term_id.for_formatting(err.global_storage())
+                        ),
+                    )));
+                }
             }
         };
 

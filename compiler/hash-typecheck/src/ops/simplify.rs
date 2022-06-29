@@ -1,7 +1,10 @@
 //! Contains functionality to simplify terms into more concrete terms.
 use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        symbol::NameFieldOrigin,
+    },
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
@@ -62,8 +65,12 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
 
 // Helper for [Simplifier::apply_access_term] erroring for name not found in
 // value:
-fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
-    Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
+fn name_not_found<T>(access_term: &AccessTerm, origin: NameFieldOrigin) -> TcResult<T> {
+    Err(TcError::UnresolvedNameInValue {
+        name: access_term.name,
+        value: access_term.subject,
+        origin,
+    })
 }
 
 impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
@@ -138,10 +145,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             }
             _ => {
                 // Invalid because it is not a method:
-                Err(TcError::InvalidPropertyAccessOfNonMethod {
-                    subject: initial_subject_term,
-                    property: initial_property_name,
-                })
+                invalid_property_access()
             }
         }
     }
@@ -271,6 +275,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     None => Err(TcError::UnresolvedNameInValue {
                         name: access_term.name,
                         value: access_term.subject,
+                        // @@Hack: this feels a bit hacky and there should be an easier
+                        // way to yield the origin rather than inspecting the term.
+                        origin: NameFieldOrigin::new_from_term(
+                            &Term::Level0(*term),
+                            self.term_store(),
+                        ),
                     }),
                 }
             }
@@ -297,7 +307,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                                 let field_ty = field.ty;
                                 Ok(Some(self.builder().create_rt_term(field_ty)))
                             }
-                            None => name_not_found(access_term),
+                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
                         }
                     }
                     NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
@@ -357,7 +367,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                                         .create_enum_variant_value_term(name, *nominal_def_id),
                                 ))
                             }
-                            None => name_not_found(access_term),
+                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
                         }
                     }
                 }

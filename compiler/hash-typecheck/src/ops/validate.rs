@@ -246,7 +246,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         let _ =
                             self.unifier().unify_terms(scope_member_data.ty, trt_member_ty_subbed);
                     } else {
-                        return Err(TcError::TraitImplementationMissingMember {
+                        return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
                             trt_impl_term_id: scope_originating_term_id,
                             trt_def_missing_member_term_id: trt_member_data.ty,
@@ -258,9 +258,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // that are not in the trait definition?
                 Ok(())
             }
-            _ => Err(TcError::CannotImplementNonTrait {
-                supposed_trait_term: simplified_trt_def_term_id,
-            }),
+            _ => Err(TcError::CannotImplementNonTrait { term: simplified_trt_def_term_id }),
         }
     }
 
