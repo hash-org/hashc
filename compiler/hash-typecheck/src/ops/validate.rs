@@ -1,6 +1,8 @@
 //! Contains utilities to validate terms.
 #![allow(dead_code)]
 
+use std::fmt::Display;
+
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
@@ -20,11 +22,56 @@ use crate::{
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A enumeration of the level kinds that terms can be.
 pub enum TermLevel {
+    /// Couldn't be determined and thus labelled as unknown
+    Unknown,
+    /// Level 0 terms
     Level0,
+    /// Level 1 terms
     Level1,
+    /// Level 2 terms
     Level2,
+    /// Level 3 terms
     Level3,
+    /// Higher order levels
+    LevelN,
+}
+
+impl Display for TermLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TermLevel::Unknown => write!(f, "unknown"),
+            TermLevel::Level0 => write!(f, "level-0"),
+            TermLevel::Level1 => write!(f, "level-1"),
+            TermLevel::Level2 => write!(f, "level-2"),
+            TermLevel::Level3 => write!(f, "level-3"),
+            TermLevel::LevelN => write!(f, "level-n"),
+        }
+    }
+}
+
+impl Term {
+    /// Compute the level of the term. This is a primitive computation
+    /// and does not attempt to compute the true level of the [Term]
+    /// by looking at the inner children of the [Term].
+    pub fn get_term_level(&self) -> TermLevel {
+        match self {
+            Term::Access(_)
+            | Term::Var(_)
+            | Term::Merge(_)
+            | Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::AppTyFn(_)
+            | Term::AppSub(_)
+            | Term::Root => TermLevel::LevelN,
+            Term::Unresolved(_) => TermLevel::Unknown,
+            Term::Level3(_) => TermLevel::Level3,
+            Term::Level2(_) => TermLevel::Level2,
+            Term::Level1(_) => TermLevel::Level1,
+            Term::Level0(_) => TermLevel::Level0,
+        }
+    }
 }
 
 /// Can resolve the type of a given term, as another term.
@@ -368,9 +415,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
             }
             // Unclear if this fits the requirements, so we reject it:
-            Term::Unresolved(_) => Err(TcError::NeedMoreTypeAnnotationsToResolve {
-                term_to_resolve: merge_element_term_id,
-            }),
+            Term::Unresolved(_) => {
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: merge_element_term_id })
+            }
             // Level 3 terms are not allowed:
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
@@ -809,7 +856,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: term_id })
             }
             // All level 2 and 3 terms are ok to use as return types
             Term::Level2(_) | Term::Level3(_) => Ok(true),
@@ -862,7 +909,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: term_id })
             }
             // All level 2 and 3 terms are ok to use as parameter types
             Term::Level2(_) | Term::Level3(_) => Ok(true),

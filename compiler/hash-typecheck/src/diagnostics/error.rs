@@ -78,7 +78,7 @@ pub enum TcError {
     /// The given merge term should contain only level 2 terms.
     MergeShouldBeLevel2 { merge_term: TermId, offending_term: TermId },
     /// More type annotations are needed to resolve the given term.
-    NeedMoreTypeAnnotationsToResolve { term_to_resolve: TermId },
+    NeedMoreTypeAnnotationsToResolve { term: TermId },
     /// The given term cannot be instantiated at runtime.
     TermIsNotRuntimeInstantiable { term: TermId },
     /// The given term cannot be used as the subject of a type function

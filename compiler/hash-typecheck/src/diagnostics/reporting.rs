@@ -547,6 +547,47 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                     )));
                 }
             }
+
+            TcError::MergeShouldBeLevel1 { merge_term, offending_term } => {
+                let location = err.location_store().get_location(merge_term).unwrap();
+
+                let offender = err.term_store().get(*offending_term);
+                let offender_location = err.location_store().get_location(offending_term).unwrap();
+
+                builder
+                    .with_error_code(HashErrorCode::DisallowedType)
+                    .with_message(
+                        "this merge declaration should only contain a level-1 terms".to_string(),
+                    )
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "in this merge declaration",
+                    )))
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        offender_location,
+                        format!("this term is of {} and not level-1", offender.get_term_level()),
+                    )));
+            }
+            TcError::MergeShouldBeLevel2 { merge_term, offending_term } => {
+                let location = err.location_store().get_location(merge_term).unwrap();
+
+                let offender = err.term_store().get(*offending_term);
+                let offender_location = err.location_store().get_location(offending_term).unwrap();
+
+                builder
+                    .with_error_code(HashErrorCode::DisallowedType)
+                    .with_message(
+                        "this merge declaration should only contain a level-2 terms".to_string(),
+                    )
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "in this merge declaration",
+                    )))
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        offender_location,
+                        format!("this term is of {} and not level-2", offender.get_term_level()),
+                    )));
+            }
             _ => {
                 // @@Temporary
                 builder.with_message(format!("not yet pretty error: {:#?}", err.error));
