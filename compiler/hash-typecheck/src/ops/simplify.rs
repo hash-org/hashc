@@ -138,7 +138,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 Ok(builder.create_fn_ty_term(
                     builder.create_params(
                         subbed_params.into_positional().into_iter().skip(1),
-                        ParamOrigin::Function,
+                        ParamOrigin::Fn,
                     ),
                     fn_ty.return_ty,
                 ))
@@ -955,7 +955,7 @@ mod test_super {
             core_defs.reference_ty_fn,
             builder.create_args(
                 [builder.create_arg("T", builder.create_var_term("Self"))],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
         );
         let dog_def = builder.create_struct_def(
@@ -977,7 +977,7 @@ mod test_super {
                     builder.create_fn_ty_term(
                         builder.create_params(
                             [builder.create_param("value", builder.create_var_term("Self"))],
-                            ParamOrigin::Function,
+                            ParamOrigin::Fn,
                         ),
                         builder.create_nominal_def_term(core_defs.u64_ty),
                     ),
@@ -985,7 +985,7 @@ mod test_super {
                         builder.create_fn_ty_term(
                             builder.create_params(
                                 [builder.create_param("value", builder.create_var_term("Self"))],
-                                ParamOrigin::Function,
+                                ParamOrigin::Fn,
                             ),
                             builder.create_nominal_def_term(core_defs.u64_ty),
                         ),

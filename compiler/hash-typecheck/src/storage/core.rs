@@ -83,7 +83,7 @@ impl CoreDefs {
             Some("Ref"),
             builder.create_params(
                 [builder.create_param("T", builder.create_any_ty_term())],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
@@ -94,7 +94,7 @@ impl CoreDefs {
             Some("RawRef"),
             builder.create_params(
                 [builder.create_param("T", builder.create_any_ty_term())],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
@@ -114,7 +114,7 @@ impl CoreDefs {
                     builder.create_fn_ty_term(
                         builder.create_params(
                             [builder.create_param("value", builder.create_var_term("Self"))],
-                            ParamOrigin::Function,
+                            ParamOrigin::Fn,
                         ),
                         builder.create_nominal_def_term(u64_ty),
                     ),
@@ -134,7 +134,7 @@ impl CoreDefs {
                                 builder.create_param("a", builder.create_var_term("Self")),
                                 builder.create_param("b", builder.create_var_term("Self")),
                             ],
-                            ParamOrigin::Function,
+                            ParamOrigin::Fn,
                         ),
                         builder.create_nominal_def_term(u64_ty),
                     ),
@@ -151,7 +151,7 @@ impl CoreDefs {
             Some("List"),
             builder.create_params(
                 [builder.create_param("T", builder.create_any_ty_term())],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
@@ -163,7 +163,7 @@ impl CoreDefs {
             Some("Set"),
             builder.create_params(
                 [builder.create_param("T", builder.create_any_ty_term())],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(
@@ -184,7 +184,7 @@ impl CoreDefs {
                     ),
                     builder.create_param("V", builder.create_any_ty_term()),
                 ],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
             builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def([

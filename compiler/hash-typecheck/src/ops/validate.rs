@@ -34,7 +34,7 @@ pub enum TermLevel {
     Level2,
     /// Level 3 terms
     Level3,
-    /// Higher order levels
+    /// Still unknown
     LevelN,
 }
 

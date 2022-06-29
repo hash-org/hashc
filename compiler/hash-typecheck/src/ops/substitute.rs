@@ -572,7 +572,7 @@ mod tests {
         let inner = builder.create_nameless_ty_fn_term(
             builder.create_params(
                 [builder.create_param("T", builder.create_any_ty_term())],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
             builder.create_app_ty_fn_term(
@@ -582,14 +582,14 @@ mod tests {
                         builder.create_arg("T", builder.create_var_term("T")),
                         builder.create_arg("X", builder.create_mod_def_term(hash_impl)),
                     ],
-                    ParamOrigin::TypeFunction,
+                    ParamOrigin::TyFn,
                 ),
             ),
         );
         let target = builder.create_ty_fn_ty_term(
             builder.create_params(
                 [builder.create_param("U", builder.create_any_ty_term())],
-                ParamOrigin::TypeFunction,
+                ParamOrigin::TyFn,
             ),
             builder.create_fn_ty_term(
                 builder.create_params(
@@ -601,12 +601,12 @@ mod tests {
                                 core_defs.list_ty_fn,
                                 builder.create_args(
                                     [builder.create_arg("T", inner)],
-                                    ParamOrigin::TypeFunction,
+                                    ParamOrigin::TyFn,
                                 ),
                             ),
                         ),
                     ],
-                    ParamOrigin::Function,
+                    ParamOrigin::Fn,
                 ),
                 builder.create_var_term("T"),
             ),
@@ -626,7 +626,7 @@ mod tests {
                         builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
                         builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
                     ],
-                    ParamOrigin::TypeFunction,
+                    ParamOrigin::TyFn,
                 ),
             ),
         )]);

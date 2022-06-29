@@ -142,8 +142,8 @@ pub enum ParamOrigin {
     Unknown,
     Tuple,
     Struct,
-    Function,
-    TypeFunction,
+    Fn,
+    TyFn,
 }
 
 impl Display for ParamOrigin {
@@ -152,8 +152,8 @@ impl Display for ParamOrigin {
             ParamOrigin::Unknown => write!(f, "unknown"),
             ParamOrigin::Tuple => write!(f, "tuple"),
             ParamOrigin::Struct => write!(f, "struct"),
-            ParamOrigin::Function => write!(f, "function"),
-            ParamOrigin::TypeFunction => write!(f, "type function"),
+            ParamOrigin::Fn => write!(f, "function"),
+            ParamOrigin::TyFn => write!(f, "type function"),
         }
     }
 }

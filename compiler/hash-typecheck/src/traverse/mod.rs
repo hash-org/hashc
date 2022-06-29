@@ -554,7 +554,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
             list_inner_ty,
-            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TypeFunction),
+            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TyFn),
         );
 
         let term = self.builder().create_rt_term(list_ty);
@@ -749,8 +749,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
         let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
-        let params_potentially_unresolved =
-            self.builder().create_params(args, ParamOrigin::Function);
+        let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
         let params =
             self.substituter().apply_sub_to_params(&body_sub, params_potentially_unresolved);
 
