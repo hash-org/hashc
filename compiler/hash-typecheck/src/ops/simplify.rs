@@ -277,10 +277,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                         value: access_term.subject,
                         // @@Hack: this feels a bit hacky and there should be an easier
                         // way to yield the origin rather than inspecting the term.
-                        origin: NameFieldOrigin::new_from_term(
-                            &Term::Level0(*term),
-                            self.term_store(),
-                        ),
+                        origin: NameFieldOrigin::from_term(&Term::Level0(*term), self.term_store()),
                     }),
                 }
             }

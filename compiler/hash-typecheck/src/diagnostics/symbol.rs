@@ -31,12 +31,12 @@ impl NameFieldOrigin {
     ///
     /// This assumes that the provided term does yield a [NameFieldOrigin]
     /// and any other variant of term will cause the function to *panic*.
-    pub fn new_from_term(term: &Term, store: &TermStore) -> Self {
+    pub fn from_term(term: &Term, store: &TermStore) -> Self {
         let term_from_level_1 = |t: &Level1Term| match t {
             Level1Term::ModDef(_) => Self::Mod,
             Level1Term::NominalDef(_) => Self::Enum,
             Level1Term::Tuple(_) => Self::Tuple,
-            Level1Term::Fn(_) => unreachable!(),
+            Level1Term::Fn(_) => panic!("`NameFieldOrigin::from_term` hit fn literal type"),
         };
 
         match term {
@@ -44,9 +44,11 @@ impl NameFieldOrigin {
             Term::Level0(Level0Term::Rt(inner)) => {
                 // we can extract the inner type since it's
                 // known that this should be a level-1 term
-                NameFieldOrigin::new_from_term(store.get(*inner), store)
+                NameFieldOrigin::from_term(store.get(*inner), store)
             }
-            _ => unreachable!(),
+            _ => panic!(
+                "`NameFieldOrigin::from_term` should only be used on level-1 or level-0 terms"
+            ),
         }
     }
 }

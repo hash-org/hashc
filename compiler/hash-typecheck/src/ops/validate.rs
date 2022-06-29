@@ -34,8 +34,8 @@ pub enum TermLevel {
     Level2,
     /// Level 3 terms
     Level3,
-    /// Still unknown
-    LevelN,
+    /// Level 4 terms, specifically [Term::Root]
+    Level4,
 }
 
 impl Display for TermLevel {
@@ -46,7 +46,7 @@ impl Display for TermLevel {
             TermLevel::Level1 => write!(f, "level-1"),
             TermLevel::Level2 => write!(f, "level-2"),
             TermLevel::Level3 => write!(f, "level-3"),
-            TermLevel::LevelN => write!(f, "level-n"),
+            TermLevel::Level4 => write!(f, "level-4"),
         }
     }
 }
@@ -63,9 +63,11 @@ impl Term {
             | Term::TyFn(_)
             | Term::TyFnTy(_)
             | Term::AppTyFn(_)
-            | Term::AppSub(_)
-            | Term::Root => TermLevel::LevelN,
+            | Term::AppSub(_) => {
+                todo!()
+            }
             Term::Unresolved(_) => TermLevel::Unknown,
+            Term::Root => TermLevel::Level4,
             Term::Level3(_) => TermLevel::Level3,
             Term::Level2(_) => TermLevel::Level2,
             Term::Level1(_) => TermLevel::Level1,
