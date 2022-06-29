@@ -588,6 +588,79 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                         format!("this term is of {} and not level-2", offender.get_term_level()),
                     )));
             }
+            TcError::NeedMoreTypeAnnotationsToResolve { term } => {
+                builder
+                    .with_error_code(HashErrorCode::UnresolvedType)
+                    .with_message("insufficient information to resolve types".to_string());
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                            location, "here",
+                        )))
+                        .add_element(ReportElement::Note(ReportNote::new(
+                            ReportNoteKind::Help,
+                            "consider adding more type annotations to this expression",
+                        )));
+                }
+            }
+            TcError::TermIsNotRuntimeInstantiable { term } => {
+                builder.with_error_code(HashErrorCode::NonRuntimeInstantiable).with_message(
+                    format!(
+                        "the type `{}` is not runtime instantiable",
+                        term.for_formatting(err.global_storage())
+                    ),
+                );
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "cannot use this as it isn't runtime instantiable",
+                    )));
+                }
+            }
+            TcError::UnsupportedTypeFunctionApplication { subject_id } => {
+                builder
+                    .with_error_code(HashErrorCode::UnsupportedTypeFunctionApplication)
+                    .with_message("unsupported subject in type function application");
+
+                if let Some(location) = err.location_store().get_location(subject_id) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this cannot be used to as the subject to a type function application",
+                    )));
+                }
+            }
+            TcError::AmbiguousAccess { access, results } => {
+                builder
+                    .with_error_code(HashErrorCode::AmbiguousAccess)
+                    .with_message(format!("ambiguous access of {} `{}`", access.op, access.name));
+
+                // show the subject if possible
+                if let Some(location) = err.location_store().get_location(access.subject) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "ambiguous access occurs here",
+                    )));
+                }
+
+                // render the results that the resolver found for additional context
+                builder.add_element(ReportElement::Note(ReportNote::new(
+                    ReportNoteKind::Note,
+                    format!(
+                        "the {} access yielded the following results:\n{}",
+                        access.op,
+                        results
+                            .iter()
+                            .map(|result| format!(
+                                "\t\t{}",
+                                result.for_formatting(err.global_storage())
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    ),
+                )));
+            }
             _ => {
                 // @@Temporary
                 builder.with_message(format!("not yet pretty error: {:#?}", err.error));

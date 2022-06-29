@@ -85,7 +85,7 @@ pub enum TcError {
     /// application.
     UnsupportedTypeFunctionApplication { subject_id: TermId },
     /// The given access operation results in more than one result.
-    AmbiguousAccess { access: AccessTerm },
+    AmbiguousAccess { access: AccessTerm, results: Vec<TermId> },
     /// The given access operation does not resolve to a method.
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
     /// The given member requires an initialisation in the current scope.

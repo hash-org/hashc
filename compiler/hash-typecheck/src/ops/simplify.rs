@@ -435,7 +435,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // We only got a single result, so we can use it:
                     [single_result] => Ok(Some(*single_result)),
                     // Got multiple results, which is ambiguous:
-                    _ => Err(TcError::AmbiguousAccess { access: access_term.clone() }),
+                    results => Err(TcError::AmbiguousAccess {
+                        access: access_term.clone(),
+                        results: results.to_vec(),
+                    }),
                 }
             }
             Term::AppSub(app_sub) => {
