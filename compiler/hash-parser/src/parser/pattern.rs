@@ -248,12 +248,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [Pattern::Tuple] from the token vector. A tuple pattern consists
-    /// of nested patterns within parenthesees which might also have an
+    /// of nested patterns within parentheses which might also have an
     /// optional named fields.
     ///
     /// If only a singular pattern is parsed and it doesn't have a name, then
     /// the function will assume that this is not a tuple pattern and simply
-    /// a pattern wrapped within parenthesees.
+    /// a pattern wrapped within parentheses.
     pub(crate) fn parse_tuple_pattern(
         &self,
         tree: &'stream [Token],
@@ -270,7 +270,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        // @@Hack: here it might actually be a nested pattern in parenthesees. So we
+        // @@Hack: here it might actually be a nested pattern in parentheses. So we
         // perform a slight transformation if the number of parsed patterns is
         // only one. So essentially we handle the case where a pattern is
         // wrapped in parentheses and so we just unwrap it.
@@ -429,6 +429,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => return false,
         };
 
+        // Ensure that double colons `::` aren't followed which doesn't necessarily
+        // imply that this is a declaration
         matches!(self.peek_nth(n_lookahead), Some(token) if token.has_kind(TokenKind::Colon))
+            && matches!(self.peek_nth(n_lookahead + 1), Some(token) if !token.has_kind(TokenKind::Colon))
     }
 }

@@ -133,6 +133,33 @@ pub trait GetNameOpt {
     fn get_name_opt(&self) -> Option<Identifier>;
 }
 
+/// This enum describes the origin kind of the subject that a parameter
+/// unification occurred on.
+#[derive(Debug, Clone, Copy)]
+pub enum ParamOrigin {
+    /// If at the current time, it's not known the origin of the parameter list,
+    /// the function will default to using this.
+    Unknown,
+    Tuple,
+    Struct,
+    Fn,
+    TyFn,
+    EnumVariant,
+}
+
+impl Display for ParamOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParamOrigin::Unknown => write!(f, "unknown"),
+            ParamOrigin::Tuple => write!(f, "tuple"),
+            ParamOrigin::Struct => write!(f, "struct"),
+            ParamOrigin::Fn => write!(f, "function"),
+            ParamOrigin::TyFn => write!(f, "type function"),
+            ParamOrigin::EnumVariant => write!(f, "enum variant"),
+        }
+    }
+}
+
 /// A list of parameters, generic over the parameter type.
 ///
 /// Provides ways to store and get a parameter by its name or index.
@@ -140,23 +167,29 @@ pub trait GetNameOpt {
 pub struct ParamList<ParamType: Clone> {
     params: Vec<ParamType>,
     name_map: HashMap<Identifier, usize>,
+    origin: ParamOrigin,
 }
 
 impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     /// Create a new [ParamList] from the given list of parameters.
-    pub fn new(params: Vec<ParamType>) -> Self {
+    pub fn new(params: Vec<ParamType>, origin: ParamOrigin) -> Self {
         let name_map = params
             .iter()
             .enumerate()
             .filter_map(|(i, param)| Some((param.get_name_opt()?, i)))
             .collect();
 
-        Self { params, name_map }
+        Self { params, name_map, origin }
     }
 
     /// Get the parameters as a positional slice
     pub fn positional(&self) -> &[ParamType] {
         &self.params
+    }
+
+    /// Get the origin of the parameters.
+    pub fn origin(&self) -> ParamOrigin {
+        self.origin
     }
 
     /// Get the length of the parameters.
@@ -184,7 +217,7 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
 /// Build a [ParamList] from an iterator of [ParamType].
 impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamType> {
     fn from_iter<T: IntoIterator<Item = ParamType>>(iter: T) -> Self {
-        Self::new(iter.into_iter().collect())
+        Self::new(iter.into_iter().collect(), ParamOrigin::Unknown)
     }
 }
 
@@ -511,6 +544,15 @@ pub enum AccessOp {
     Property,
 }
 
+impl Display for AccessOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AccessOp::Namespace => write!(f, "namespace member"),
+            AccessOp::Property => write!(f, "property"),
+        }
+    }
+}
+
 /// An access term, which is of the form X::Y, where X is a term and Y is an
 /// identifier.
 ///
@@ -553,7 +595,7 @@ pub enum Level2Term {
 /// -> B` etc.
 #[derive(Debug, Clone)]
 pub enum Level1Term {
-    /// Modules or impls.
+    /// Modules or impl blocks.
     ///
     /// Modules and trait implementations, as well as anonymous implementations,
     /// are treated as types, but do not have instance values.
@@ -584,7 +626,7 @@ pub struct FnLit {
 ///
 /// Type of: nothing.
 /// Value of: values, for example `3`, `Result::Ok(3)`, etc.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),

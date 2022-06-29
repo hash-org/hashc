@@ -1,41 +1,15 @@
 //! Error-related data structures for errors that occur during typechecking.
-use std::fmt::Display;
 
-use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId};
+use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId, TyFnCase};
 use hash_source::identifier::Identifier;
+
+use super::{
+    params::{ParamListKind, ParamUnificationErrorReason},
+    symbol::NameFieldOrigin,
+};
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;
-
-/// Particular reason why parameters couldn't be unified, either argument
-/// length mis-match or that a name mismatched between the two given parameters.
-#[derive(Debug, Clone, Copy)]
-pub enum ParamUnificationErrorReason {
-    /// The provided and expected parameter lengths mismatched.
-    LengthMismatch,
-    /// A name mismatch of the parameters occurred at the particular
-    /// index.
-    NameMismatch(usize),
-}
-
-// / This enum describes the origin kind of the subject that a parameter
-/// unification occurred on.
-#[derive(Debug, Clone, Copy)]
-pub enum ParamUnificationOrigin {
-    Tuple,
-    Function,
-    TypeFunction,
-}
-
-impl Display for ParamUnificationOrigin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParamUnificationOrigin::Tuple => write!(f, "tuple"),
-            ParamUnificationOrigin::Function => write!(f, "function"),
-            ParamUnificationOrigin::TypeFunction => write!(f, "type function"),
-        }
-    }
-}
 
 /// An error that occurs during typechecking.
 #[derive(Debug, Clone)]
@@ -50,7 +24,6 @@ pub enum TcError {
         target_params_id: ParamsId,
         src: TermId,
         target: TermId,
-        origin: ParamUnificationOrigin,
         reason: ParamUnificationErrorReason,
     },
     /// The given term should be a type function but it isn't.
@@ -62,15 +35,15 @@ pub enum TcError {
     /// The parameter with the given name is not found in the given parameter
     /// list.
     ParamNotFound { params: ParamsId, name: Identifier },
-    /// There is a parameter (at the index `param_index_given_twice`) which is
+    /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
-    ParamGivenTwice { args: ArgsId, params: ParamsId, param_index_given_twice: usize },
+    ParamGivenTwice { param_kind: ParamListKind, index: usize },
     /// It is invalid to use a positional argument after a named argument.
-    CannotUsePositionalArgAfterNamedArg { args: ArgsId, problematic_arg_index: usize },
+    AmbiguousArgumentOrdering { param_kind: ParamListKind, index: usize },
     /// The given name cannot be resolved in the given value.
-    UnresolvedNameInValue { name: Identifier, value: TermId },
+    UnresolvedNameInValue { name: Identifier, origin: NameFieldOrigin, value: TermId },
     /// The given variable cannot be resolved in the current context.
-    UnresolvedVariable { name: Identifier },
+    UnresolvedVariable { name: Identifier, value: TermId },
     /// The given value does not support accessing (of the given name).
     UnsupportedAccess { name: Identifier, value: TermId },
     /// The given value does not support namespace accessing (of the given
@@ -82,11 +55,12 @@ pub enum TcError {
     /// the given errors.
     InvalidTypeFunctionApplication {
         type_fn: TermId,
+        cases: Vec<TyFnCase>,
         args: ArgsId,
         unification_errors: Vec<TcError>,
     },
     /// The given term cannot be used in a merge operation.
-    InvalidElementOfMerge { term: TermId },
+    InvalidMergeElement { term: TermId },
     /// The given term cannot be used as a type function parameter type.
     InvalidTypeFunctionParameterType { param_ty: TermId },
     /// The given term cannot be used as a type function return type.
@@ -97,32 +71,36 @@ pub enum TcError {
     /// but it contains more.
     MergeShouldOnlyContainOneNominal {
         merge_term: TermId,
-        nominal_term: TermId,
-        second_nominal_term: TermId,
+        /// The first term
+        initial_term: TermId,
+        /// Secondary nominal term
+        offending_term: TermId,
     },
     /// The given merge term should contain only level 1 terms.
     MergeShouldBeLevel1 { merge_term: TermId, offending_term: TermId },
     /// The given merge term should contain only level 2 terms.
     MergeShouldBeLevel2 { merge_term: TermId, offending_term: TermId },
     /// More type annotations are needed to resolve the given term.
-    NeedMoreTypeAnnotationsToResolve { term_to_resolve: TermId },
+    NeedMoreTypeAnnotationsToResolve { term: TermId },
     /// The given term cannot be instantiated at runtime.
     TermIsNotRuntimeInstantiable { term: TermId },
     /// The given term cannot be used as the subject of a type function
     /// application.
     UnsupportedTypeFunctionApplication { subject_id: TermId },
     /// The given access operation results in more than one result.
-    AmbiguousAccess { access: AccessTerm },
+    AmbiguousAccess { access: AccessTerm, results: Vec<TermId> },
     /// The given access operation does not resolve to a method.
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
     /// The given member requires an initialisation in the current scope.
     /// @@ErrorReporting: add span of member.
     UninitialisedMemberNotAllowed { member_ty: TermId },
     /// Cannot implement something that isn't a trait.
-    CannotImplementNonTrait { supposed_trait_term: TermId },
+    CannotImplementNonTrait { term: TermId },
     /// The trait implementation `trt_impl_term_id` is missing the member
     /// `trt_def_missing_member_id` from the trait `trt_def_term_id`.
-    TraitImplementationMissingMember {
+    ///
+    /// @@ErrorReporting: identify all missing members
+    TraitImplMissingMember {
         trt_impl_term_id: TermId,
         trt_def_term_id: TermId,
         // @@ErrorReporting: Ideally we want to be able to identify whole members rather than just

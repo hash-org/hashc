@@ -5,11 +5,10 @@
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
 
-#![allow(dead_code)] // @@Temporary
 #![feature(generic_associated_types)]
 
+use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
-use reporting::TcErrorWithStorage;
 use storage::{
     core::CoreDefs, AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
 };
@@ -17,10 +16,9 @@ use traverse::TcVisitor;
 
 use crate::fmt::PrepareForFormatting;
 
-pub mod error;
+pub mod diagnostics;
 pub mod fmt;
 pub mod ops;
-pub mod reporting;
 pub mod storage;
 pub mod traverse;
 
@@ -86,7 +84,7 @@ impl Tc<'_> for TcImpl {
             Err(error) => {
                 // Turn the error into a report:
                 let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
-                Err(err_with_storage.into())
+                Err(vec![err_with_storage.into()])
             }
         }
     }
@@ -111,12 +109,13 @@ impl Tc<'_> for TcImpl {
             hash_source::SourceId::Module(module_id),
             sources,
         );
+
         match tc_visitor.visit_source() {
             Ok(_) => Ok(()),
             Err(error) => {
                 // Turn the error into a report:
                 let err_with_storage = TcErrorWithStorage { error, storage: storage.storages() };
-                Err(err_with_storage.into())
+                Err(vec![err_with_storage.into()])
             }
         }
     }

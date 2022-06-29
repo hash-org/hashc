@@ -4,9 +4,9 @@ use crate::storage::{
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue,
         FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId,
-        Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId,
-        TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
+        ParamOrigin, ParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
+        TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -163,7 +163,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         let name = struct_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
-            fields: StructFields::Explicit(ParamList::new(fields.into_iter().collect())),
+            fields: StructFields::Explicit(ParamList::new(
+                fields.into_iter().collect(),
+                ParamOrigin::Struct,
+            )),
             bound_vars: bound_vars.into_iter().collect(),
         }));
         self.add_nominal_def_to_scope(name, def_id);
@@ -313,7 +316,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create the void type term: [Level1Term::Tuple] with no members.
     pub fn create_void_ty_term(&self) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {
-            members: self.create_params([]),
+            members: self.create_params([], ParamOrigin::Tuple),
         })))
     }
 
@@ -422,14 +425,21 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [ParamsId] from an iterator of [Param]. This function wil
     /// create a [Params], append it to the store and return  the created
     /// id.
-    pub fn create_params(&self, params: impl IntoIterator<Item = Param>) -> ParamsId {
-        self.gs.borrow_mut().params_store.create(ParamList::new(params.into_iter().collect()))
+    pub fn create_params(
+        &self,
+        params: impl IntoIterator<Item = Param>,
+        origin: ParamOrigin,
+    ) -> ParamsId {
+        self.gs
+            .borrow_mut()
+            .params_store
+            .create(ParamList::new(params.into_iter().collect(), origin))
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
     /// [Args], append it to the store and return  the created id.
-    pub fn create_args(&self, args: impl IntoIterator<Item = Arg>) -> ArgsId {
-        self.gs.borrow_mut().args_store.create(ParamList::new(args.into_iter().collect()))
+    pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
+        self.gs.borrow_mut().args_store.create(ParamList::new(args.into_iter().collect(), origin))
     }
 
     /// Create a nameless type function term with parameters, return type and

@@ -43,7 +43,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             .map(|arg| Arg { name: arg.name, value: self.apply_sub_to_term(sub, arg.value) })
             .collect::<Vec<_>>();
 
-        self.builder().create_args(new_args)
+        self.builder().create_args(new_args, args.origin())
     }
 
     /// Apply the given substitution to the given parameters, producing a new
@@ -61,7 +61,7 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
             })
             .collect::<Vec<_>>();
 
-        self.builder().create_params(new_params)
+        self.builder().create_params(new_params, params.origin())
     }
 
     /// Apply the given substitution to the given [Level3Term], producing a new
@@ -543,7 +543,7 @@ mod tests {
         ops::AccessToOpsMut,
         storage::{
             core::CoreDefs,
-            primitives::{ModDefOrigin, Sub},
+            primitives::{ModDefOrigin, ParamOrigin, Sub},
             AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
         },
     };
@@ -570,29 +570,44 @@ mod tests {
         );
 
         let inner = builder.create_nameless_ty_fn_term(
-            builder.create_params([builder.create_param("T", builder.create_any_ty_term())]),
+            builder.create_params(
+                [builder.create_param("T", builder.create_any_ty_term())],
+                ParamOrigin::TyFn,
+            ),
             builder.create_any_ty_term(),
             builder.create_app_ty_fn_term(
                 core_defs.set_ty_fn,
-                builder.create_args([
-                    builder.create_arg("T", builder.create_var_term("T")),
-                    builder.create_arg("X", builder.create_mod_def_term(hash_impl)),
-                ]),
+                builder.create_args(
+                    [
+                        builder.create_arg("T", builder.create_var_term("T")),
+                        builder.create_arg("X", builder.create_mod_def_term(hash_impl)),
+                    ],
+                    ParamOrigin::TyFn,
+                ),
             ),
         );
         let target = builder.create_ty_fn_ty_term(
-            builder.create_params([builder.create_param("U", builder.create_any_ty_term())]),
+            builder.create_params(
+                [builder.create_param("U", builder.create_any_ty_term())],
+                ParamOrigin::TyFn,
+            ),
             builder.create_fn_ty_term(
-                builder.create_params([
-                    builder.create_param("foo", builder.create_unresolved_term()),
-                    builder.create_param(
-                        "bar",
-                        builder.create_app_ty_fn_term(
-                            core_defs.list_ty_fn,
-                            builder.create_args([builder.create_arg("T", inner)]),
+                builder.create_params(
+                    [
+                        builder.create_param("foo", builder.create_unresolved_term()),
+                        builder.create_param(
+                            "bar",
+                            builder.create_app_ty_fn_term(
+                                core_defs.list_ty_fn,
+                                builder.create_args(
+                                    [builder.create_arg("T", inner)],
+                                    ParamOrigin::TyFn,
+                                ),
+                            ),
                         ),
-                    ),
-                ]),
+                    ],
+                    ParamOrigin::Fn,
+                ),
                 builder.create_var_term("T"),
             ),
         );
@@ -606,10 +621,13 @@ mod tests {
             builder.create_var("T"),
             builder.create_app_ty_fn_term(
                 core_defs.map_ty_fn,
-                builder.create_args([
-                    builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
-                    builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
-                ]),
+                builder.create_args(
+                    [
+                        builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
+                        builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
+                    ],
+                    ParamOrigin::TyFn,
+                ),
             ),
         )]);
 

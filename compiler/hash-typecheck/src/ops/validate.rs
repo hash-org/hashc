@@ -1,24 +1,79 @@
 //! Contains utilities to validate terms.
+#![allow(dead_code)]
+
+use std::fmt::Display;
+
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{ParamUnificationOrigin, TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        params::ParamListKind,
+    },
+    ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
-            ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
-            Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term, TermId,
-            TrtDefId,
+            AppSub, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId,
+            ModDefOrigin, Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term,
+            TermId, TrtDefId,
         },
+        terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A enumeration of the level kinds that terms can be.
 pub enum TermLevel {
+    /// Couldn't be determined and thus labelled as unknown
+    Unknown,
+    /// Level 0 terms
     Level0,
+    /// Level 1 terms
     Level1,
+    /// Level 2 terms
     Level2,
+    /// Level 3 terms
     Level3,
+    /// Level 4 terms, specifically [Term::Root]
+    Level4,
+}
+
+impl Display for TermLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TermLevel::Unknown => write!(f, "unknown"),
+            TermLevel::Level0 => write!(f, "level-0"),
+            TermLevel::Level1 => write!(f, "level-1"),
+            TermLevel::Level2 => write!(f, "level-2"),
+            TermLevel::Level3 => write!(f, "level-3"),
+            TermLevel::Level4 => write!(f, "level-4"),
+        }
+    }
+}
+
+impl Term {
+    /// Compute the level of the term. This is a primitive computation
+    /// and does not attempt to compute the true level of the [Term]
+    /// by looking at the inner children of the [Term].
+    pub fn get_term_level(&self, store: &TermStore) -> TermLevel {
+        // @@Todo(feds01): implement the other variants by recursing into them.
+        match self {
+            Term::Access(_)
+            | Term::Var(_)
+            | Term::Merge(_)
+            | Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::AppTyFn(_) => TermLevel::Unknown,
+            Term::AppSub(AppSub { term, .. }) => store.get(*term).get_term_level(store),
+            Term::Unresolved(_) => TermLevel::Unknown,
+            Term::Root => TermLevel::Level4,
+            Term::Level3(_) => TermLevel::Level3,
+            Term::Level2(_) => TermLevel::Level2,
+            Term::Level1(_) => TermLevel::Level1,
+            Term::Level0(_) => TermLevel::Level0,
+        }
+    }
 }
 
 /// Can resolve the type of a given term, as another term.
@@ -193,7 +248,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         let _ =
                             self.unifier().unify_terms(scope_member_data.ty, trt_member_ty_subbed);
                     } else {
-                        return Err(TcError::TraitImplementationMissingMember {
+                        return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
                             trt_impl_term_id: scope_originating_term_id,
                             trt_def_missing_member_term_id: trt_member_data.ty,
@@ -205,9 +260,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // that are not in the trait definition?
                 Ok(())
             }
-            _ => Err(TcError::CannotImplementNonTrait {
-                supposed_trait_term: simplified_trt_def_term_id,
-            }),
+            _ => Err(TcError::CannotImplementNonTrait { term: simplified_trt_def_term_id }),
         }
     }
 
@@ -271,7 +324,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
         // Error helper:
         let invalid_merge_element = || -> TcResult<()> {
-            Err(TcError::InvalidElementOfMerge { term: merge_element_term_id })
+            Err(TcError::InvalidMergeElement { term: merge_element_term_id })
         };
 
         // Helper to ensure that a merge is level 2, returns the updated MergeKind.
@@ -326,8 +379,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // A nominal has already been attached, error!
                     Err(TcError::MergeShouldOnlyContainOneNominal {
                         merge_term: merge_term_id,
-                        nominal_term: nominal_term_id,
-                        second_nominal_term: checking_nominal,
+                        initial_term: nominal_term_id,
+                        offending_term: checking_nominal,
                     })
                 }
             }
@@ -362,9 +415,9 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
             }
             // Unclear if this fits the requirements, so we reject it:
-            Term::Unresolved(_) => Err(TcError::NeedMoreTypeAnnotationsToResolve {
-                term_to_resolve: merge_element_term_id,
-            }),
+            Term::Unresolved(_) => {
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: merge_element_term_id })
+            }
             // Level 3 terms are not allowed:
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
@@ -410,14 +463,18 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
         }
     }
 
-    /// Validate the given parameters, by validating their types and values.
+    /// Validate the given parameters, by validating their types and values,
+    /// positions within all of the parameters, and re-use of already
+    /// declared parameter names.
     ///
     /// **Note**: Requires that the parameters have already been simplified.
     pub(crate) fn validate_params(&mut self, params_id: ParamsId) -> TcResult<()> {
         let params = self.params_store().get(params_id).clone();
+        validate_param_list_ordering(&params, ParamListKind::Params(params_id))?;
 
         for param in params.positional() {
             self.validate_term(param.ty)?;
+
             if let Some(default_value) = param.default_value {
                 self.validate_term(default_value)?;
 
@@ -641,7 +698,6 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                         ty_fn.general_params,
                         case.return_ty,
                         term_id,
-                        ParamUnificationOrigin::TypeFunction,
                     )?;
 
                     // Ensure that the return type can be unified with the type of the return value:
@@ -800,7 +856,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: term_id })
             }
             // All level 2 and 3 terms are ok to use as return types
             Term::Level2(_) | Term::Level3(_) => Ok(true),
@@ -853,7 +909,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
-                Err(TcError::NeedMoreTypeAnnotationsToResolve { term_to_resolve: term_id })
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: term_id })
             }
             // All level 2 and 3 terms are ok to use as parameter types
             Term::Level2(_) | Term::Level3(_) => Ok(true),

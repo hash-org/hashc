@@ -1,12 +1,15 @@
 //! Contains functionality to simplify terms into more concrete terms.
 use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
-    error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        symbol::NameFieldOrigin,
+    },
     storage::{
         primitives::{
             AccessOp, AccessTerm, AppTyFn, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId,
-            TupleTy, TyFn, TyFnCase, TyFnTy,
+            Level2Term, Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term,
+            TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -62,8 +65,12 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
 
 // Helper for [Simplifier::apply_access_term] erroring for name not found in
 // value:
-fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
-    Err(TcError::UnresolvedNameInValue { name: access_term.name, value: access_term.subject })
+fn name_not_found<T>(access_term: &AccessTerm, origin: NameFieldOrigin) -> TcResult<T> {
+    Err(TcError::UnresolvedNameInValue {
+        name: access_term.name,
+        value: access_term.subject,
+        origin,
+    })
 }
 
 impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
@@ -129,16 +136,16 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Return the substituted type without the first parameter:
                 Ok(builder.create_fn_ty_term(
-                    builder.create_params(subbed_params.into_positional().into_iter().skip(1)),
+                    builder.create_params(
+                        subbed_params.into_positional().into_iter().skip(1),
+                        ParamOrigin::Fn,
+                    ),
                     fn_ty.return_ty,
                 ))
             }
             _ => {
                 // Invalid because it is not a method:
-                Err(TcError::InvalidPropertyAccessOfNonMethod {
-                    subject: initial_subject_term,
-                    property: initial_property_name,
-                })
+                invalid_property_access()
             }
         }
     }
@@ -268,6 +275,9 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     None => Err(TcError::UnresolvedNameInValue {
                         name: access_term.name,
                         value: access_term.subject,
+                        // @@Hack: this feels a bit hacky and there should be an easier
+                        // way to yield the origin rather than inspecting the term.
+                        origin: NameFieldOrigin::from_term(&Term::Level0(*term), self.term_store()),
                     }),
                 }
             }
@@ -294,7 +304,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                                 let field_ty = field.ty;
                                 Ok(Some(self.builder().create_rt_term(field_ty)))
                             }
-                            None => name_not_found(access_term),
+                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
                         }
                     }
                     NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
@@ -354,7 +364,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                                         .create_enum_variant_value_term(name, *nominal_def_id),
                                 ))
                             }
-                            None => name_not_found(access_term),
+                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
                         }
                     }
                 }
@@ -432,7 +442,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // We only got a single result, so we can use it:
                     [single_result] => Ok(Some(*single_result)),
                     // Got multiple results, which is ambiguous:
-                    _ => Err(TcError::AmbiguousAccess { access: access_term.clone() }),
+                    results => Err(TcError::AmbiguousAccess {
+                        access: access_term.clone(),
+                        results: results.to_vec(),
+                    }),
                 }
             }
             Term::AppSub(app_sub) => {
@@ -489,6 +502,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
         let cannot_apply = || -> TcResult<Option<TermId>> {
             Err(TcError::UnsupportedTypeFunctionApplication { subject_id: simplified_subject_id })
         };
+
         match simplified_subject {
             Term::TyFn(ty_fn) => {
                 // Keep track of encountered errors so that if no cases match, we can return all
@@ -530,6 +544,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     // If we have no results, we have to return an error:
                     Err(TcError::InvalidTypeFunctionApplication {
                         type_fn: simplified_subject_id,
+                        cases: ty_fn.cases,
                         args: apply_ty_fn.args,
                         unification_errors: errors,
                     })
@@ -687,7 +702,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         // Only return the new args if we simplified them:
         if simplified_once {
-            let new_args = self.builder().create_args(result);
+            let new_args = self.builder().create_args(result, args.origin());
             self.location_store_mut().copy_args_locations(args_id, new_args);
 
             Ok(Some(new_args))
@@ -735,7 +750,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
         // Only return the new params if we simplified them:
         if simplified_once {
-            let new_params = self.builder().create_params(result);
+            let new_params = self.builder().create_params(result, params.origin());
             self.location_store_mut().copy_params_locations(params_id, new_params);
 
             Ok(Some(new_params))
@@ -812,7 +827,7 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Var(var) => {
                 // First resolve the name:
                 let maybe_resolved_term_id =
-                    self.scope_resolver().resolve_name_in_scopes(var.name)?.data.value();
+                    self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?.data.value();
                 // Try to simplify it
                 if let Some(resolved_term_id) = maybe_resolved_term_id {
                     Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
@@ -935,7 +950,10 @@ mod test_super {
         // Handy shorthand for &Self type
         let _ref_self_ty = builder.create_app_ty_fn_term(
             core_defs.reference_ty_fn,
-            builder.create_args([builder.create_arg("T", builder.create_var_term("Self"))]),
+            builder.create_args(
+                [builder.create_arg("T", builder.create_var_term("Self"))],
+                ParamOrigin::TyFn,
+            ),
         );
         let dog_def = builder.create_struct_def(
             "Dog",
@@ -954,16 +972,18 @@ mod test_super {
                 builder.create_pub_member(
                     "hash",
                     builder.create_fn_ty_term(
-                        builder.create_params([
-                            builder.create_param("value", builder.create_var_term("Self"))
-                        ]),
+                        builder.create_params(
+                            [builder.create_param("value", builder.create_var_term("Self"))],
+                            ParamOrigin::Fn,
+                        ),
                         builder.create_nominal_def_term(core_defs.u64_ty),
                     ),
                     builder.create_fn_lit_term(
                         builder.create_fn_ty_term(
-                            builder.create_params([
-                                builder.create_param("value", builder.create_var_term("Self"))
-                            ]),
+                            builder.create_params(
+                                [builder.create_param("value", builder.create_var_term("Self"))],
+                                ParamOrigin::Fn,
+                            ),
                             builder.create_nominal_def_term(core_defs.u64_ty),
                         ),
                         builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),

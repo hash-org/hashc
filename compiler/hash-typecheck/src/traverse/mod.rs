@@ -2,10 +2,10 @@
 //! it for correctness.
 
 use crate::{
-    error::{TcError, TcResult},
+    diagnostics::error::{TcError, TcResult},
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
-        primitives::{Member, MemberData, Mutability, Param, Sub, TermId, Visibility},
+        primitives::{Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -191,6 +191,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
+
+        // We need to add the location to the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(name, location);
+
         let TermValidation { simplified_term_id, .. } = self.validator().validate_term(name)?;
         Ok(simplified_term_id)
     }
@@ -450,7 +455,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::TupleTypeRet, Self::Error> {
         let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
 
-        let members = self.builder().create_params(entries);
+        let members = self.builder().create_params(entries, ParamOrigin::Tuple);
 
         // We have to append locations to each of the parameters
         for (index, entry) in node.body().entries.iter().enumerate() {
@@ -549,7 +554,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
             list_inner_ty,
-            builder.create_args([builder.create_arg("T", shared_term)]),
+            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TyFn),
         );
 
         let term = self.builder().create_rt_term(list_ty);
@@ -608,7 +613,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
         let builder = self.builder();
 
-        let params = builder.create_params(elements);
+        let params = builder.create_params(elements, ParamOrigin::Tuple);
         let term = builder.create_rt_term(builder.create_tuple_ty_term(params));
 
         // add the location of each parameter
@@ -744,7 +749,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
         let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
-        let params_potentially_unresolved = self.builder().create_params(args);
+        let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
         let params =
             self.substituter().apply_sub_to_params(&body_sub, params_potentially_unresolved);
 
