@@ -332,8 +332,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     // A nominal has already been attached, error!
                     Err(TcError::MergeShouldOnlyContainOneNominal {
                         merge_term: merge_term_id,
-                        nominal_term: nominal_term_id,
-                        second_nominal_term: checking_nominal,
+                        initial_term: nominal_term_id,
+                        offending_term: checking_nominal,
                     })
                 }
             }

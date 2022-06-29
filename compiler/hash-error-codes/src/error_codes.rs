@@ -38,4 +38,5 @@ error_codes! {
 
     // traits
     InvalidMergeElement = 50,
+    MultipleNominals = 51,
 }

@@ -516,6 +516,37 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                     )));
                 }
             }
+            TcError::MergeShouldOnlyContainOneNominal {
+                merge_term,
+                initial_term,
+                offending_term,
+            } => {
+                builder.with_error_code(HashErrorCode::DisallowedType).with_message(
+                    "merge declarations should only contain a single nominal term".to_string(),
+                );
+
+                if let Some(location) = err.location_store().get_location(initial_term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "the merge declaration has an initial nominal term here",
+                    )));
+                }
+
+                if let Some(location) = err.location_store().get_location(offending_term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "...and the second nominal term use occurs here",
+                    )));
+                }
+
+                // Add the location of the actual merge for annotation
+                if let Some(location) = err.location_store().get_location(merge_term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "within this merge term",
+                    )));
+                }
+            }
             _ => {
                 // @@Temporary
                 builder.with_message(format!("not yet pretty error: {:#?}", err.error));

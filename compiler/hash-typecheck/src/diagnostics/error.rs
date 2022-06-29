@@ -68,8 +68,10 @@ pub enum TcError {
     /// but it contains more.
     MergeShouldOnlyContainOneNominal {
         merge_term: TermId,
-        nominal_term: TermId,
-        second_nominal_term: TermId,
+        /// The first term
+        initial_term: TermId,
+        /// Secondary nominal term
+        offending_term: TermId,
     },
     /// The given merge term should contain only level 1 terms.
     MergeShouldBeLevel1 { merge_term: TermId, offending_term: TermId },
