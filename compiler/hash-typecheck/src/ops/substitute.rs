@@ -524,6 +524,30 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
         }
     }
 
+    /// Add the free variables that exist in the given [Sub], to the
+    /// given [HashSet].
+    pub fn add_free_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubSubject>) {
+        // Add all the variables in the range, minus the variables in the domain:
+        for r in sub.range() {
+            self.add_free_vars_in_term_to_set(r, result);
+        }
+        let mut domain_vars = HashSet::new();
+        for d in sub.range() {
+            self.add_free_vars_in_term_to_set(d, &mut domain_vars);
+        }
+        // Remove all the variables in domain_vars:
+        for d in domain_vars {
+            result.remove(&d);
+        }
+    }
+
+    /// Get the free variables that exist in the given [Sub].
+    pub fn get_free_vars_in_sub(&self, sub: &Sub) -> HashSet<SubSubject> {
+        let mut result = HashSet::new();
+        self.add_free_vars_in_sub_to_set(sub, &mut result);
+        result
+    }
+
     /// Get the set of free variables that exist in the given term.
     ///
     /// Free variables are either `Var` or `Unresolved`, and this function
