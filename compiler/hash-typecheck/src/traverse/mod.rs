@@ -5,12 +5,13 @@ use crate::{
     diagnostics::error::{TcError, TcResult},
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
+        location::LocationTarget,
         primitives::{Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
 use hash_ast::{
-    ast::OwnsAstNode,
+    ast::{OwnsAstNode, RefKind},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{SourceRef, Sources};
@@ -131,14 +132,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let mut current_term = builder.create_var_term(*first_name.body());
 
-        builder.add_location_to_term(current_term, location);
+        builder.add_location_to_target(current_term, location);
 
         for access_name in names {
             let name_location = self.source_location(access_name.span());
             let builder = self.builder();
 
             current_term = builder.create_ns_access(current_term, *access_name.body());
-            builder.add_location_to_term(current_term, name_location);
+            builder.add_location_to_target(current_term, name_location);
         }
         Ok(current_term)
     }
@@ -423,10 +424,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             // Infer type if it is an underscore:
             let infer_term = self.builder().create_unresolved_term();
             let infer_term_location = self.source_location(node.span());
-            self.builder().add_location_to_term(infer_term, infer_term_location);
+            self.builder().add_location_to_target(infer_term, infer_term_location);
             Ok(infer_term)
         } else {
-            Ok(walk::walk_named_type(self, ctx, node)?.name)
+            let var = walk::walk_named_type(self, ctx, node)?.name;
+            let TermValidation { simplified_term_id, .. } = self.validator().validate_term(var)?;
+            Ok(simplified_term_id)
         }
     }
 
@@ -434,10 +437,39 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_ref_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefType>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
-        todo!()
+        let walk::RefType { inner, mutability, kind } = walk::walk_ref_type(self, ctx, node)?;
+
+        // Either mutable or immutable, raw or normal, depending on what was given:
+        let ref_def = match (kind, mutability) {
+            // Immutable, normal, by default:
+            (Some(RefKind::Normal) | None, None | Some(Mutability::Immutable)) => {
+                self.core_defs().reference_ty_fn
+            }
+            (Some(RefKind::Raw), None | Some(Mutability::Immutable)) => {
+                self.core_defs().raw_reference_ty_fn
+            }
+            (Some(RefKind::Normal) | None, Some(Mutability::Mutable)) => {
+                self.core_defs().reference_mut_ty_fn
+            }
+            (Some(RefKind::Raw), Some(Mutability::Mutable)) => {
+                self.core_defs().raw_reference_mut_ty_fn
+            }
+        };
+        let ref_ty_location = self.source_location(node.span());
+        let inner_ty_location = self.source_location(node.inner.span());
+        let builder = self.builder();
+        let ref_args = builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn);
+        let ref_ty = builder.create_app_ty_fn_term(ref_def, ref_args);
+
+        // Add locations:
+        builder.add_location_to_target(ref_ty, ref_ty_location);
+        builder.add_location_to_target(LocationTarget::Arg(ref_args, 0), inner_ty_location);
+
+        let TermValidation { simplified_term_id, .. } = self.validator().validate_term(ref_ty)?;
+        Ok(simplified_term_id)
     }
 
     type MergedTypeRet = TermId;
@@ -985,14 +1017,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type MutabilityRet = TermId;
+    type MutabilityRet = Mutability;
 
     fn visit_mutability_modifier(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Mutability>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error> {
-        todo!()
+        Ok(match node.body() {
+            hash_ast::ast::Mutability::Mutable => Mutability::Mutable,
+            hash_ast::ast::Mutability::Immutable => Mutability::Immutable,
+        })
+    }
+
+    type RefKindRet = RefKind;
+    fn visit_ref_kind(
+        &mut self,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<RefKind>,
+    ) -> Result<Self::RefKindRet, Self::Error> {
+        Ok(*node.body())
     }
 
     type DeclarationRet = TermId;

@@ -448,6 +448,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::Mutability>,
     ) -> Result<Self::MutabilityRet, Self::Error>;
 
+    type RefKindRet;
+    fn visit_ref_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::RefKind>,
+    ) -> Result<Self::RefKindRet, Self::Error>;
+
     type DeclarationRet;
     fn visit_declaration(
         &mut self,
@@ -2374,6 +2381,7 @@ pub mod walk {
     pub struct RefType<V: AstVisitor> {
         pub inner: V::TypeRet,
         pub mutability: Option<V::MutabilityRet>,
+        pub kind: Option<V::RefKindRet>,
     }
 
     pub fn walk_ref_type<V: AstVisitor>(
@@ -2383,6 +2391,11 @@ pub mod walk {
     ) -> Result<RefType<V>, V::Error> {
         Ok(RefType {
             inner: visitor.visit_type(ctx, node.inner.ast_ref())?,
+            kind: node
+                .kind
+                .as_ref()
+                .map(|inner| visitor.visit_ref_kind(ctx, inner.ast_ref()))
+                .transpose()?,
             mutability: node
                 .mutability
                 .as_ref()

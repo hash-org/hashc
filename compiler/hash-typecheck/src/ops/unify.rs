@@ -123,14 +123,20 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
         let args = self.args_store().get(args_id).clone();
 
         let pairs = pair_args_with_params(&params, &args, parent, params_id, args_id)?;
-        let mut cumulative_sub = Sub::empty();
+        let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {
+            // Ensure their types unify:
             let ty_of_arg = self.typer().ty_of_term(arg.value)?;
-            let sub = self.unify_terms(ty_of_arg, param.ty)?;
-            cumulative_sub = self.get_super_sub(&cumulative_sub, &sub)?;
+            let _ = self.unify_terms(ty_of_arg, param.ty)?;
+
+            // Add the parameter substituted for the argument to the substitution, if a
+            // parameter name is given:
+            if let Some(name) = param.name {
+                sub.add_pair(self.builder().create_var(name).into(), arg.value);
+            }
         }
-        Ok(cumulative_sub)
+        Ok(sub)
     }
 
     /// Unify the two given parameter lists, by parameter-wise unifying terms.

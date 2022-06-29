@@ -297,7 +297,7 @@ pub struct NamedType {
 }
 
 /// Reference kind representing either a raw reference or a normal reference.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RefKind {
     /// Raw reference type
     Raw,

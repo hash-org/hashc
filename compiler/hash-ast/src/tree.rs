@@ -369,7 +369,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::RefType>,
     ) -> Result<Self::RefTypeRet, Self::Error> {
-        let walk::RefType { inner, mutability } = walk::walk_ref_type(self, ctx, node)?;
+        let walk::RefType { inner, mutability, .. } = walk::walk_ref_type(self, ctx, node)?;
 
         let label = if node.kind.as_ref().map_or(false, |t| *t.body() == ast::RefKind::Raw) {
             "raw_ref"
@@ -383,6 +383,15 @@ impl AstVisitor for AstTreeGenerator {
                 .chain(mutability.map(|t| TreeNode::branch("mutability", vec![t])))
                 .collect(),
         ))
+    }
+
+    type RefKindRet = ();
+    fn visit_ref_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::RefKind>,
+    ) -> Result<Self::RefKindRet, Self::Error> {
+        Ok(())
     }
 
     type MergedTypeRet = TreeNode;

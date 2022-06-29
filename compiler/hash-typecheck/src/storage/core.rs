@@ -31,7 +31,9 @@ pub struct CoreDefs {
     pub char_ty: NominalDefId,
     pub bool_ty: NominalDefId,
     pub reference_ty_fn: TermId,
+    pub reference_mut_ty_fn: TermId,
     pub raw_reference_ty_fn: TermId,
+    pub raw_reference_mut_ty_fn: TermId,
     pub hash_trt: TrtDefId,
     pub eq_trt: TrtDefId,
     pub runtime_instantiable_trt: TrtDefId,
@@ -94,8 +96,30 @@ impl CoreDefs {
                 builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
             ),
         );
+        let reference_mut_ty_fn = builder.create_ty_fn_term(
+            Some("RefMut"),
+            builder.create_params(
+                [builder.create_param("T", builder.create_any_ty_term())],
+                ParamOrigin::TyFn,
+            ),
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(
+                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
+            ),
+        );
         let raw_reference_ty_fn = builder.create_ty_fn_term(
             Some("RawRef"),
+            builder.create_params(
+                [builder.create_param("T", builder.create_any_ty_term())],
+                ParamOrigin::TyFn,
+            ),
+            builder.create_any_ty_term(),
+            builder.create_nominal_def_term(
+                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
+            ),
+        );
+        let raw_reference_mut_ty_fn = builder.create_ty_fn_term(
+            Some("RawRefMut"),
             builder.create_params(
                 [builder.create_param("T", builder.create_any_ty_term())],
                 ParamOrigin::TyFn,
@@ -215,7 +239,9 @@ impl CoreDefs {
             char_ty,
             bool_ty,
             reference_ty_fn,
+            raw_reference_mut_ty_fn,
             raw_reference_ty_fn,
+            reference_mut_ty_fn,
             hash_trt,
             eq_trt,
             runtime_instantiable_trt,
