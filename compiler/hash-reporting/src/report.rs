@@ -32,14 +32,15 @@ pub enum ReportKind {
     Info,
     /// The report is a warning.
     Warning,
-    // @@TODO: Add `Internal` variant: This is an internal compiler error.
+    // This is an internal compiler error.
+    Internal,
 }
 
 impl ReportKind {
     /// Get the [Colour] of the label associated with the [ReportKind].
     pub(crate) fn as_colour(&self) -> Colour {
         match self {
-            ReportKind::Error => Colour::Red,
+            ReportKind::Error | ReportKind::Internal => Colour::Red,
             ReportKind::Info => Colour::Blue,
             ReportKind::Warning => Colour::Yellow,
         }
@@ -49,6 +50,7 @@ impl ReportKind {
     pub(crate) fn message(&self) -> &'static str {
         match self {
             ReportKind::Error => "error",
+            ReportKind::Internal => "internal",
             ReportKind::Info => "info",
             ReportKind::Warning => "warn",
         }
