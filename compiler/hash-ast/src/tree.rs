@@ -443,7 +443,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunction>,
     ) -> Result<Self::TypeFunctionRet, Self::Error> {
-        let walk::TypeFunction { args, return_ty } = walk::walk_type_function(self, ctx, node)?;
+        let walk::TypeFunction { params: args, return_ty } =
+            walk::walk_type_function(self, ctx, node)?;
 
         let return_child = TreeNode::branch("return", vec![return_ty]);
 
@@ -1020,7 +1021,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::TypeFunctionDef { args, return_ty, expression } =
+        let walk::TypeFunctionDef { params: args, return_ty, expression } =
             walk::walk_type_function_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
@@ -1038,7 +1039,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        let walk::TypeFunctionDefArg { name, ty } =
+        let walk::TypeFunctionDefParam { name, ty } =
             walk::walk_type_function_def_param(self, ctx, node)?;
 
         Ok(TreeNode::branch("param", iter::once(name).chain(ty).collect()))

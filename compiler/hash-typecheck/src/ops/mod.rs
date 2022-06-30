@@ -27,11 +27,6 @@ pub trait AccessToOps: AccessToStorage {
     fn reader(&self) -> PrimitiveReader {
         PrimitiveReader::new(self.global_storage())
     }
-
-    /// Create an instance of [ScopeResolver].
-    fn scope_resolver(&self) -> ScopeResolver {
-        ScopeResolver::new(self.storages())
-    }
 }
 
 impl<T: AccessToStorage> AccessToOps for T {}
@@ -75,6 +70,11 @@ pub trait AccessToOpsMut: AccessToStorageMut {
     /// Create an instance of [Validator].
     fn validator(&mut self) -> Validator {
         Validator::new(self.storages_mut())
+    }
+
+    /// Create an instance of [ScopeResolver].
+    fn scope_resolver(&mut self) -> ScopeResolver {
+        ScopeResolver::new(self.storages_mut())
     }
 }
 

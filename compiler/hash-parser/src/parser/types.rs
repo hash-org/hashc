@@ -316,7 +316,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let return_ty = self.parse_type()?;
 
         Ok(Type::TypeFunction(TypeFunction {
-            args: AstNodes::new(args, Some(arg_span)),
+            params: AstNodes::new(args, Some(arg_span)),
             return_ty,
         }))
     }

@@ -380,27 +380,56 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let fn_ty_location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(fn_ty_term, fn_ty_location);
 
-        Ok(fn_ty_term)
+        Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
     type TypeFunctionParamRet = Param;
 
     fn visit_type_function_param(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionParam>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionParam>,
     ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
-        todo!()
+        let walk::TypeFunctionParam { name, bound, default } =
+            walk::walk_type_function_param(self, ctx, node)?;
+
+        // The location of the param type is either the bound or the name (since <T>
+        // means <T: Type>):
+        let location = self.source_location(
+            node.bound.as_ref().map(|bound| bound.span()).unwrap_or_else(|| node.name.span()),
+        );
+        // The type of the param is the given bound, or Type if no bound was given.
+        let ty = bound.unwrap_or_else(|| self.builder().create_any_ty_term());
+        self.location_store_mut().add_location_to_target(ty, location);
+
+        Ok(Param { ty, name: Some(name), default_value: default })
     }
 
     type TypeFunctionRet = TermId;
 
     fn visit_type_function(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunction>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunction>,
     ) -> Result<Self::TypeFunctionRet, Self::Error> {
-        todo!()
+        let walk::TypeFunction { params: args, return_ty } =
+            walk::walk_type_function(self, ctx, node)?;
+        let params = self.builder().create_params(args, ParamOrigin::TyFn);
+
+        // Add all the locations to the parameters:
+        for (index, param) in node.params.iter().enumerate() {
+            let location = self.source_location(param.span());
+            self.location_store_mut().add_location_to_target((params, index), location);
+        }
+
+        // Create the type function type term:
+        let ty_fn_ty_term = self.builder().create_ty_fn_ty_term(params, return_ty);
+
+        // Add location to the type:
+        let fn_ty_location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(ty_fn_ty_term, fn_ty_location);
+
+        Ok(self.validator().validate_term(ty_fn_ty_term)?.simplified_term_id)
     }
 
     type TypeFunctionCallRet = TermId;
@@ -428,8 +457,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             Ok(infer_term)
         } else {
             let var = walk::walk_named_type(self, ctx, node)?.name;
-            let TermValidation { simplified_term_id, .. } = self.validator().validate_term(var)?;
-            Ok(simplified_term_id)
+            Ok(self.validator().validate_term(var)?.simplified_term_id)
         }
     }
 
@@ -468,8 +496,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         builder.add_location_to_target(ref_ty, ref_ty_location);
         builder.add_location_to_target(LocationTarget::Arg(ref_args, 0), inner_ty_location);
 
-        let TermValidation { simplified_term_id, .. } = self.validator().validate_term(ref_ty)?;
-        Ok(simplified_term_id)
+        Ok(self.validator().validate_term(ref_ty)?.simplified_term_id)
     }
 
     type MergedTypeRet = TermId;
@@ -486,20 +513,57 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_type_function_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        todo!()
+        let walk::TypeFunctionDef { params, expression, return_ty } =
+            walk::walk_type_function_def(self, ctx, node)?;
+        let params = self.builder().create_params(params, ParamOrigin::TyFn);
+
+        // Add all the locations to the parameters:
+        for (index, param) in node.params.iter().enumerate() {
+            let location = self.source_location(param.span());
+            self.location_store_mut().add_location_to_target((params, index), location);
+        }
+
+        // Create the type function type term:
+        let ty_fn_return_ty = self.builder().or_unresolved_term(return_ty);
+        let ty_of_ty_fn_return_value = self.typer().ty_of_term(expression)?;
+        let return_ty_sub =
+            self.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
+        let ty_fn_return_ty = self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
+        let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, expression);
+        let ty_fn_term =
+            self.builder().create_nameless_ty_fn_term(params, ty_fn_return_ty, ty_fn_return_value);
+
+        // Add location to the type function:
+        let fn_ty_location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(ty_fn_term, fn_ty_location);
+
+        Ok(self.validator().validate_term(ty_fn_term)?.simplified_term_id)
     }
 
-    type TypeFunctionDefArgRet = TermId;
+    type TypeFunctionDefArgRet = Param;
 
     fn visit_type_function_def_param(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        todo!()
+        // @@Todo: default values
+        let walk::TypeFunctionDefParam { name, ty } =
+            walk::walk_type_function_def_param(self, ctx, node)?;
+
+        // The location of the param type is either the bound or the name (since <T>
+        // means <T: Type>):
+        let location = self.source_location(
+            node.ty.as_ref().map(|bound| bound.span()).unwrap_or_else(|| node.name.span()),
+        );
+        // The type of the param is the given bound, or Type if no bound was given.
+        let ty = ty.unwrap_or_else(|| self.builder().create_any_ty_term());
+        self.location_store_mut().add_location_to_target(ty, location);
+
+        Ok(Param { ty, name: Some(name), default_value: None })
     }
 
     type TupleTypeRet = TermId;
@@ -824,9 +888,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let fn_ty_term =
             builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
 
-        let TermValidation { simplified_term_id, .. } =
-            self.validator().validate_term(fn_ty_term)?;
-        Ok(simplified_term_id)
+        Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
     type FunctionDefParamRet = Param;
@@ -969,9 +1031,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         match &node.expr {
             Some(expr) => {
                 let expr_id = self.visit_expression(ctx, expr.ast_ref())?;
-                let TermValidation { simplified_term_id, .. } =
-                    self.validator().validate_term(expr_id)?;
-                Ok(simplified_term_id)
+                Ok(self.validator().validate_term(expr_id)?.simplified_term_id)
             }
             None => Ok(self.builder().create_void_ty_term()),
         }
@@ -1080,7 +1140,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Declaration should return its value if any:
         match value {
-            Some(value) => Ok(self.validator().validate_term(value)?.simplified_term_id),
+            Some(value) => Ok(value),
             // Void if no value:
             None => Ok(self.builder().create_void_ty_term()),
         }
