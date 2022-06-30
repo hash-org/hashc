@@ -7,7 +7,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::error::{TcError, TcResult},
     storage::{
-        primitives::{Member, ParamsId, ScopeId, TermId},
+        primitives::{Member, ParamsId, ScopeId, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -63,7 +63,13 @@ impl<'gs, 'ls, 'cd> ScopeResolver<'gs, 'ls, 'cd> {
         Err(TcError::UnresolvedVariable { name, value: term })
     }
 
-    pub(crate) fn enter_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
+    /// Enter a parameter scope, which is a scope that contains all the given
+    /// parameters.
+    ///
+    /// This function is meant to be used for runtime functions, and not type
+    /// functions. This is because it creates a variable scope, and assigns each
+    /// argument to its type wrapped by `Rt(..)`.
+    pub(crate) fn enter_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
         let param_scope =
@@ -72,6 +78,27 @@ impl<'gs, 'ls, 'cd> ScopeResolver<'gs, 'ls, 'cd> {
                     param.name?,
                     param.ty,
                     builder.create_rt_term(param.ty),
+                ))
+            }));
+        self.scopes_mut().append(param_scope);
+        param_scope
+    }
+
+    /// Enter a parameter scope, which is a scope that contains all the given
+    /// parameters.
+    ///
+    /// This function is meant to be used for type functions, because it creates
+    /// a constant scope and does not assign parameters to any values.
+    pub(crate) fn enter_ty_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
+        let params = self.reader().get_params(params_id).clone();
+        let builder = self.builder();
+        let param_scope =
+            builder.create_constant_scope(params.positional().iter().filter_map(|param| {
+                Some(builder.create_constant_member(
+                    param.name?,
+                    param.ty,
+                    builder.create_rt_term(param.ty),
+                    Visibility::Private,
                 ))
             }));
         self.scopes_mut().append(param_scope);

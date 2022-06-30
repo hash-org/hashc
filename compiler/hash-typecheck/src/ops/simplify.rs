@@ -926,7 +926,11 @@ mod test_super {
     use super::*;
     use crate::{
         fmt::PrepareForFormatting,
-        storage::{core::CoreDefs, primitives::ModDefOrigin, GlobalStorage, LocalStorage},
+        storage::{
+            core::CoreDefs,
+            primitives::{ModDefOrigin, Visibility},
+            GlobalStorage, LocalStorage,
+        },
     };
 
     fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
@@ -964,12 +968,13 @@ mod test_super {
         let hash_impl = builder.create_nameless_mod_def(
             ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
             builder.create_constant_scope([
-                builder.create_pub_member(
+                builder.create_constant_member(
                     "Self",
                     builder.create_any_ty_term(),
                     builder.create_nominal_def_term(dog_def),
+                    Visibility::Public,
                 ),
-                builder.create_pub_member(
+                builder.create_constant_member(
                     "hash",
                     builder.create_fn_ty_term(
                         builder.create_params(
@@ -988,6 +993,7 @@ mod test_super {
                         ),
                         builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
                     ),
+                    Visibility::Public,
                 ),
             ]),
             [],
