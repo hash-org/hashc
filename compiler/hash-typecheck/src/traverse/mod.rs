@@ -516,15 +516,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDef>,
     ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::TypeFunctionDef { params, expression, return_ty } =
-            walk::walk_type_function_def(self, ctx, node)?;
-        let params = self.builder().create_params(params, ParamOrigin::TyFn);
+        // Traverse the parameters:
+        let param_elements = Self::try_collect_items(
+            ctx,
+            node.params.iter().map(|t| self.visit_type_function_def_param(ctx, t.ast_ref())),
+        )?;
+        let params = self.builder().create_params(param_elements, ParamOrigin::TyFn);
 
         // Add all the locations to the parameters:
         for (index, param) in node.params.iter().enumerate() {
             let location = self.source_location(param.span());
             self.location_store_mut().add_location_to_target((params, index), location);
         }
+
+        // Enter parameter scope:
+        let param_scope = self.scope_resolver().enter_ty_param_scope(params);
+
+        // Traverse return type and return value:
+        let return_ty =
+            node.return_ty.as_ref().map(|t| self.visit_type(ctx, t.ast_ref())).transpose()?;
+        let expression = self.visit_expression(ctx, node.expr.ast_ref())?;
 
         // Create the type function type term:
         let ty_fn_return_ty = self.builder().or_unresolved_term(return_ty);
@@ -533,6 +544,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
         let ty_fn_return_ty = self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
         let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, expression);
+
         let ty_fn_term =
             self.builder().create_nameless_ty_fn_term(params, ty_fn_return_ty, ty_fn_return_value);
 
@@ -540,7 +552,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let fn_ty_location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(ty_fn_term, fn_ty_location);
 
-        Ok(self.validator().validate_term(ty_fn_term)?.simplified_term_id)
+        let simplified_ty_fn_term = self.validator().validate_term(ty_fn_term)?.simplified_term_id;
+
+        // Exit scope:
+        self.scopes_mut().pop_the_scope(param_scope);
+
+        Ok(simplified_ty_fn_term)
     }
 
     type TypeFunctionDefArgRet = Param;
@@ -854,11 +871,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let return_ty =
             node.return_ty.as_ref().map(|t| self.visit_type(ctx, t.ast_ref())).transpose()?;
 
-        let builder = self.builder();
-        let param_scope = builder.create_variable_scope(args.iter().filter_map(|arg| {
-            Some(builder.create_variable_member(arg.name?, arg.ty, builder.create_rt_term(arg.ty)))
-        }));
-        self.scopes_mut().append(param_scope);
+        let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
+        let param_scope = self.scope_resolver().enter_rt_param_scope(params_potentially_unresolved);
 
         let fn_body = self.visit_expression(ctx, node.fn_body.ast_ref())?;
 
@@ -869,7 +883,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
         let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
-        let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
         let params =
             self.substituter().apply_sub_to_params(&body_sub, params_potentially_unresolved);
 
@@ -1031,6 +1044,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         match &node.expr {
             Some(expr) => {
                 let expr_id = self.visit_expression(ctx, expr.ast_ref())?;
+
                 Ok(self.validator().validate_term(expr_id)?.simplified_term_id)
             }
             None => Ok(self.builder().create_void_ty_term()),

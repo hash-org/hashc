@@ -646,6 +646,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // Validate the params and return type:
                 let ty_fn_ty = ty_fn_ty.clone();
                 self.validate_params(ty_fn_ty.params)?;
+
+                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn_ty.params);
                 let _ = self.validate_term(ty_fn_ty.return_ty);
 
                 let params = self.params_store().get(ty_fn_ty.params).clone();
@@ -666,6 +668,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     });
                 }
 
+                self.scopes_mut().pop_the_scope(param_scope);
+
                 Ok(result)
             }
 
@@ -674,15 +678,24 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 // Validate params and return type.
                 let ty_fn = ty_fn.clone();
                 self.validate_params(ty_fn.general_params)?;
+
+                // Enter param scope:
+                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn.general_params);
+
                 let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
 
                 // We also validate the type of the type function, for including the
                 // additional check of parameter type term levels:
                 let _ = self.validate_term(result.term_ty_id)?;
 
+                // Exit param scope:
+                self.scopes_mut().pop_the_scope(param_scope);
+
                 // Validate each case:
                 for case in &ty_fn.cases {
                     self.validate_params(case.params)?;
+
+                    let param_scope = self.scope_resolver().enter_ty_param_scope(case.params);
                     self.validate_term(case.return_ty)?;
                     self.validate_term(case.return_value)?;
 
@@ -702,13 +715,14 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
 
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
-                    let return_value_ty = self.typer().ty_of_simplified_term(term_id)?;
+                    let return_value_ty = self.typer().ty_of_simplified_term(case.return_value)?;
                     let _ = self.unifier().unify_terms(case.return_ty, return_value_ty)?;
 
                     // Ensure the return value of each case is a subtype of the general return type.
-                    let _ = self
-                        .unifier()
-                        .unify_terms(case.return_ty, general_return_validation.term_ty_id)?;
+                    let _ = self.unifier().unify_terms(
+                        case.return_ty,
+                        general_return_validation.simplified_term_id,
+                    )?;
 
                     // Ensure the return value can be used as a type function return value:
                     if !(self.term_can_be_used_as_ty_fn_return_value(case.return_value)?) {
@@ -716,6 +730,8 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                             return_value: case.return_value,
                         });
                     }
+
+                    self.scopes_mut().pop_the_scope(param_scope);
                 }
 
                 Ok(result)

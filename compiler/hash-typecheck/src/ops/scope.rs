@@ -94,10 +94,9 @@ impl<'gs, 'ls, 'cd> ScopeResolver<'gs, 'ls, 'cd> {
         let builder = self.builder();
         let param_scope =
             builder.create_constant_scope(params.positional().iter().filter_map(|param| {
-                Some(builder.create_constant_member(
+                Some(builder.create_uninitialised_constant_member(
                     param.name?,
                     param.ty,
-                    builder.create_rt_term(param.ty),
                     Visibility::Private,
                 ))
             }));
