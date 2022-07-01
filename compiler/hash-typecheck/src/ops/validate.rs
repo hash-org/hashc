@@ -340,7 +340,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 }
                 MergeKind::Level1 { nominal_attached: _ } => {
                     // Merge was already specified to be level 1, error!
-                    Err(TcError::MergeShouldBeLevel2 {
+                    Err(TcError::MergeShouldBeLevel1 {
                         merge_term: merge_term_id,
                         offending_term: merge_element_term_id,
                     })
@@ -357,7 +357,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 }
                 (MergeKind::Level2, _) => {
                     // Merge was already specified to be level 2, error!
-                    Err(TcError::MergeShouldBeLevel1 {
+                    Err(TcError::MergeShouldBeLevel2 {
                         merge_term: merge_term_id,
                         offending_term: merge_element_term_id,
                     })

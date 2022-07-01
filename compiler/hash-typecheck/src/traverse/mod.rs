@@ -503,10 +503,18 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_merged_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedType>,
     ) -> Result<Self::MergedTypeRet, Self::Error> {
-        todo!()
+        let walk::MergedType(elements) = walk::walk_merged_type(self, ctx, node)?;
+
+        let merge_term = self.builder().create_merge_term(elements);
+
+        // Add location
+        let merge_term_location = self.source_location(node.span());
+        self.builder().add_location_to_target(merge_term, merge_term_location);
+
+        Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
     }
 
     type TypeFunctionDefRet = TermId;
