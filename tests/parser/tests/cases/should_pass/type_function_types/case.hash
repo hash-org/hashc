@@ -1,0 +1,7 @@
+// Various ways of declaring a type functiont type!
+x: <T: Type> -> Type;
+x: <T> -> Type;
+x: <T, Q> -> Type;
+x: <T = i32> -> Type;
+x: <T := i32> -> Type;
+x: <T : i32 = i32> -> Type;
