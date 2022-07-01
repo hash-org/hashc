@@ -218,7 +218,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ///
     /// All other methods call this one to actually add members to the scope.
     pub fn add_pub_member_to_scope(&self, name: impl Into<Identifier>, ty: TermId, value: TermId) {
-        let member = self.create_pub_member(name, ty, value);
+        let member = self.create_constant_member(name, ty, value, Visibility::Public);
         if let Some(scope) = self.scope.get() {
             self.gs.borrow_mut().scope_store.get_mut(scope).add(member);
         }
@@ -261,30 +261,32 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a public member with the given name, type and value.
-    pub fn create_pub_member(
+    pub fn create_constant_member(
         &self,
         name: impl Into<Identifier>,
         ty: TermId,
         value: TermId,
+        visibility: Visibility,
     ) -> Member {
         Member {
             name: name.into(),
             data: MemberData::InitialisedWithTy { ty, value },
-            visibility: Visibility::Public,
+            visibility,
             mutability: Mutability::Immutable,
         }
     }
 
     /// Create a public member with the given name, type and unset value.
-    pub fn create_uninitialised_pub_member(
+    pub fn create_uninitialised_constant_member(
         &self,
         name: impl Into<Identifier>,
         ty: TermId,
+        visibility: Visibility,
     ) -> Member {
         Member {
             name: name.into(),
             data: MemberData::Uninitialised { ty },
-            visibility: Visibility::Public,
+            visibility,
             mutability: Mutability::Immutable,
         }
     }

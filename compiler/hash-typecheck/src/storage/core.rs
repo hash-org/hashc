@@ -6,7 +6,7 @@
 //! typechecker is concerned. This includes: integers, floats, characters,
 //! strings, lists, maps, references, etc.
 use super::{
-    primitives::{NominalDefId, ParamOrigin, TermId, TrtDefId},
+    primitives::{NominalDefId, ParamOrigin, TermId, TrtDefId, Visibility},
     GlobalStorage,
 };
 use crate::ops::building::PrimitiveBuilder;
@@ -136,8 +136,12 @@ impl CoreDefs {
         let hash_trt = builder.create_trt_def(
             "Hash",
             [
-                builder.create_uninitialised_pub_member("Self", builder.create_any_ty_term()),
-                builder.create_uninitialised_pub_member(
+                builder.create_uninitialised_constant_member(
+                    "Self",
+                    builder.create_any_ty_term(),
+                    Visibility::Public,
+                ),
+                builder.create_uninitialised_constant_member(
                     "hash",
                     builder.create_fn_ty_term(
                         builder.create_params(
@@ -146,6 +150,7 @@ impl CoreDefs {
                         ),
                         builder.create_nominal_def_term(u64_ty),
                     ),
+                    Visibility::Public,
                 ),
             ],
             [],
@@ -153,8 +158,12 @@ impl CoreDefs {
         let eq_trt = builder.create_trt_def(
             "Eq",
             [
-                builder.create_uninitialised_pub_member("Self", builder.create_any_ty_term()),
-                builder.create_uninitialised_pub_member(
+                builder.create_uninitialised_constant_member(
+                    "Self",
+                    builder.create_any_ty_term(),
+                    Visibility::Public,
+                ),
+                builder.create_uninitialised_constant_member(
                     "eq",
                     builder.create_fn_ty_term(
                         builder.create_params(
@@ -166,6 +175,7 @@ impl CoreDefs {
                         ),
                         builder.create_nominal_def_term(u64_ty),
                     ),
+                    Visibility::Public,
                 ),
             ],
             [],

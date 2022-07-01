@@ -376,7 +376,7 @@ pub struct TypeFunctionParam {
 /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
 #[derive(Debug, PartialEq)]
 pub struct TypeFunction {
-    pub args: AstNodes<TypeFunctionParam>,
+    pub params: AstNodes<TypeFunctionParam>,
     pub return_ty: AstNode<Type>,
 }
 
@@ -726,6 +726,7 @@ pub struct TypeFunctionDefParam {
 
     /// The argument bounds.
     pub ty: Option<AstNode<Type>>,
+    // @@Todo: missing default value
 }
 
 /// A declaration, e.g. `x := 3;`.

@@ -2463,7 +2463,7 @@ pub mod walk {
     }
 
     pub struct TypeFunction<V: AstVisitor> {
-        pub args: V::CollectionContainer<V::TypeFunctionParamRet>,
+        pub params: V::CollectionContainer<V::TypeFunctionParamRet>,
         pub return_ty: V::TypeRet,
     }
 
@@ -2473,9 +2473,9 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TypeFunction>,
     ) -> Result<TypeFunction<V>, V::Error> {
         Ok(TypeFunction {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
-                node.args.iter().map(|a| visitor.visit_type_function_param(ctx, a.ast_ref())),
+                node.params.iter().map(|a| visitor.visit_type_function_param(ctx, a.ast_ref())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
         })
@@ -3062,7 +3062,7 @@ pub mod walk {
     }
 
     pub struct TypeFunctionDef<V: AstVisitor> {
-        pub args: V::CollectionContainer<V::TypeFunctionDefArgRet>,
+        pub params: V::CollectionContainer<V::TypeFunctionDefArgRet>,
         pub return_ty: Option<V::TypeRet>,
         pub expression: V::ExpressionRet,
     }
@@ -3073,7 +3073,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TypeFunctionDef>,
     ) -> Result<TypeFunctionDef<V>, V::Error> {
         Ok(TypeFunctionDef {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
                 node.params.iter().map(|t| visitor.visit_type_function_def_param(ctx, t.ast_ref())),
             )?,
@@ -3086,7 +3086,7 @@ pub mod walk {
         })
     }
 
-    pub struct TypeFunctionDefArg<V: AstVisitor> {
+    pub struct TypeFunctionDefParam<V: AstVisitor> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
     }
@@ -3095,8 +3095,8 @@ pub mod walk {
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
-    ) -> Result<TypeFunctionDefArg<V>, V::Error> {
-        Ok(TypeFunctionDefArg {
+    ) -> Result<TypeFunctionDefParam<V>, V::Error> {
+        Ok(TypeFunctionDefParam {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             ty: node
                 .ty
@@ -4237,7 +4237,7 @@ pub mod walk_mut {
         Ok(TypeFunction {
             args: V::try_collect_items(
                 ctx,
-                node.args
+                node.params
                     .iter_mut()
                     .map(|a| visitor.visit_type_function_param(ctx, a.ast_ref_mut())),
             )?,

@@ -7,6 +7,8 @@
 //! because it is only accessible from one file, whereas a type definition will
 //! be in [GlobalStorage] because it can be accessed from any file (with the
 //! appropriate import).
+use crate::fmt::{ForFormatting, PrepareForFormatting};
+
 use self::{
     arguments::ArgsStore,
     core::CoreDefs,
@@ -177,6 +179,15 @@ pub trait AccessToStorage {
 
     fn scopes(&self) -> &ScopeStack {
         &self.local_storage().scopes
+    }
+
+    /// Create a [ForFormatting] for the given `T` and [GlobalStorage] from
+    /// self.
+    fn for_fmt<T>(&self, t: T) -> ForFormatting<T>
+    where
+        T: PrepareForFormatting,
+    {
+        t.for_formatting(self.global_storage())
     }
 }
 

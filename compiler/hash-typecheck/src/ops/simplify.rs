@@ -841,7 +841,10 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
                 // Simplify general params and return
                 let simplified_general_params = self.simplify_params(ty_fn.general_params)?;
+
+                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn.general_params);
                 let simplified_general_return_ty = self.simplify_term(ty_fn.general_return_ty)?;
+                self.scopes_mut().pop_the_scope(param_scope);
 
                 // Simplify each of the cases
                 let simplified_cases: Vec<_> = ty_fn
@@ -849,8 +852,12 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                     .iter()
                     .map(|case| {
                         let simplified_params = self.simplify_params(case.params)?;
+
+                        let param_scope = self.scope_resolver().enter_ty_param_scope(case.params);
                         let simplified_return_ty = self.simplify_term(case.return_ty)?;
                         let simplified_return_value = self.simplify_term(case.return_value)?;
+                        self.scopes_mut().pop_the_scope(param_scope);
+
                         // A case is simplified if any of its constituents is simplified:
                         match (&simplified_params, simplified_return_ty, simplified_return_value) {
                             (None, None, None) => Ok(None),
@@ -890,7 +897,11 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
                 // Simplify params and return, and if either is simplified, the whole term is
                 // simplified.
                 let simplified_params = self.simplify_params(ty_fn_ty.params)?;
+
+                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn_ty.params);
                 let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
+                self.scopes_mut().pop_the_scope(param_scope);
+
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
                     _ => Ok(Some(self.builder().create_term(Term::TyFnTy(TyFnTy {
@@ -926,7 +937,11 @@ mod test_super {
     use super::*;
     use crate::{
         fmt::PrepareForFormatting,
-        storage::{core::CoreDefs, primitives::ModDefOrigin, GlobalStorage, LocalStorage},
+        storage::{
+            core::CoreDefs,
+            primitives::{ModDefOrigin, Visibility},
+            GlobalStorage, LocalStorage,
+        },
     };
 
     fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
@@ -964,12 +979,13 @@ mod test_super {
         let hash_impl = builder.create_nameless_mod_def(
             ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
             builder.create_constant_scope([
-                builder.create_pub_member(
+                builder.create_constant_member(
                     "Self",
                     builder.create_any_ty_term(),
                     builder.create_nominal_def_term(dog_def),
+                    Visibility::Public,
                 ),
-                builder.create_pub_member(
+                builder.create_constant_member(
                     "hash",
                     builder.create_fn_ty_term(
                         builder.create_params(
@@ -988,6 +1004,7 @@ mod test_super {
                         ),
                         builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
                     ),
+                    Visibility::Public,
                 ),
             ]),
             [],
