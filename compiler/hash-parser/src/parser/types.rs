@@ -270,9 +270,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // only be fired when the next token is a an `<`
         debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
 
-        self.skip_token();
         let mut arg_span = self.current_location();
-
         let mut args = vec![];
 
         loop {
@@ -280,7 +278,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let name = self.parse_name()?;
 
             let bound = match self.parse_token_fast(TokenKind::Colon) {
-                Some(_) => Some(self.parse_type()?),
+                Some(_) => match self.peek() {
+                    // Don't try and parse a type if an '=' is followed straight after
+                    Some(tok) if tok.has_kind(TokenKind::Eq) => None,
+                    _ => Some(self.parse_type()?),
+                },
                 None => None,
             };
 
