@@ -364,11 +364,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnType>,
     ) -> Result<Self::FnTypeRet, Self::Error> {
-        let walk::FnType { args, return_ty } = walk::walk_function_type(self, ctx, node)?;
-        let params = self.builder().create_params(args, ParamOrigin::Fn);
+        let walk::FnType { params, return_ty } = walk::walk_function_type(self, ctx, node)?;
+        let params = self.builder().create_params(params, ParamOrigin::Fn);
 
         // Add all the locations to the parameters:
-        for (index, param) in node.args.iter().enumerate() {
+        for (index, param) in node.params.iter().enumerate() {
             let location = self.source_location(param.span());
             self.location_store_mut().add_location_to_target((params, index), location);
         }

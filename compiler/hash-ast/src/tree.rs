@@ -338,15 +338,15 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FnType>,
     ) -> Result<Self::FnTypeRet, Self::Error> {
-        let walk::FnType { args, return_ty } = walk::walk_function_type(self, ctx, node)?;
+        let walk::FnType { params, return_ty } = walk::walk_function_type(self, ctx, node)?;
 
         let return_child = TreeNode::branch("return", vec![return_ty]);
 
         let children = {
-            if args.is_empty() {
+            if params.is_empty() {
                 vec![return_child]
             } else {
-                vec![TreeNode::branch("arguments", args), return_child]
+                vec![TreeNode::branch("parameters", params), return_child]
             }
         };
 
