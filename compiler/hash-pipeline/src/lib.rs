@@ -10,14 +10,15 @@ pub mod settings;
 pub mod sources;
 pub mod traits;
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, env, time::Duration};
 
+use fs::{read_in_path, resolve_path};
 use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
-use sources::Sources;
+use sources::{Module, Sources};
 use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
@@ -401,7 +402,7 @@ where
                     warn_count += 1;
                 }
 
-                println!("{}", ReportWriter::new(diagnostic, &compiler_state.sources));
+                println!("{}", ReportWriter::new(diagnostic, compiler_state.sources.source_map()));
             }
 
             // @@Hack: to prevent the compiler from printing this message when the pipeline
@@ -420,5 +421,42 @@ where
         }
 
         compiler_state
+    }
+
+    pub fn run_on_filename(
+        &mut self,
+        filename: String,
+        mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
+        job_params: CompilerJobParams,
+    ) -> CompilerState<'c, 'pool, D, S, C, V> {
+        // First we have to work out if we need to transform the path
+        let current_dir = env::current_dir().unwrap();
+        let filename = resolve_path(filename, current_dir, None);
+
+        if let Err(err) = filename {
+            println!(
+                "{}",
+                ReportWriter::new(err.create_report(), compiler_state.sources.source_map())
+            );
+
+            return compiler_state;
+        };
+
+        let filename = filename.unwrap();
+        let contents = read_in_path(&filename);
+
+        if let Err(err) = contents {
+            println!(
+                "{}",
+                ReportWriter::new(err.create_report(), compiler_state.sources.source_map())
+            );
+
+            return compiler_state;
+        };
+
+        // Create the entry point and run!
+        let entry_point =
+            compiler_state.sources.add_module(contents.unwrap(), Module::new(filename));
+        self.run(SourceId::Module(entry_point), compiler_state, job_params)
     }
 }

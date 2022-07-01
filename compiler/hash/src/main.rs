@@ -10,18 +10,15 @@ use hash_ast_desugaring::AstDesugaring;
 use hash_ast_passes::HashSemanticAnalysis;
 use hash_parser::HashParser;
 use hash_pipeline::{
-    fs::resolve_path,
     settings::{CompilerJobParams, CompilerMode, CompilerSettings},
-    sources::Module,
     Compiler,
 };
-use hash_reporting::{errors::CompilerError, writer::ReportWriter};
-use hash_source::SourceId;
+use hash_reporting::errors::CompilerError;
 use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::{env, fs, num::NonZeroUsize, panic};
+use std::{num::NonZeroUsize, panic};
 
 use crate::{
     args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},
@@ -81,7 +78,7 @@ fn main() {
     // @@Naming: think about naming here!
     let parser = HashParser::new();
     let desugarer = AstDesugaring;
-    let semnatic_analyser = HashSemanticAnalysis;
+    let semantic_analyser = HashSemanticAnalysis;
     let checker = TcImpl;
 
     // Create the vm
@@ -98,25 +95,12 @@ fn main() {
         .unwrap();
 
     let mut compiler =
-        Compiler::new(parser, desugarer, semnatic_analyser, checker, vm, &pool, compiler_settings);
-    let mut compiler_state = compiler.create_state().unwrap();
+        Compiler::new(parser, desugarer, semantic_analyser, checker, vm, &pool, compiler_settings);
+    let compiler_state = compiler.create_state().unwrap();
 
     execute(|| {
         match entry_point {
             Some(path) => {
-                // First we have to work out if we need to transform the path
-                let current_dir = env::current_dir()?;
-                let filename = resolve_path(fs::canonicalize(&path)?, current_dir, None);
-
-                if let Err(err) = filename {
-                    println!("{}", ReportWriter::new(err.create_report(), &compiler_state.sources));
-
-                    return Ok(());
-                };
-
-                let module = Module::new(filename.unwrap());
-                let entry_point = SourceId::Module(compiler_state.sources.add_module(module));
-
                 let job_settings = match opts.mode {
                     Some(SubCmd::AstGen { .. }) => {
                         CompilerJobParams::new(CompilerMode::Parse, opts.debug)
@@ -133,7 +117,7 @@ fn main() {
                     _ => CompilerJobParams::default(),
                 };
 
-                compiler.run(entry_point, compiler_state, job_settings);
+                compiler.run_on_filename(path, compiler_state, job_settings);
             }
             None => {
                 hash_interactive::init(compiler)?;

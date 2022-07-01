@@ -64,12 +64,14 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
             // Iterate over all of the modules and add the expressions
             // to the queue so it can be distributed over the threads
             for (id, module) in sources.iter_modules() {
+                let source_id = SourceId::Module(*id);
+
                 // Skip any modules that have already been de-sugared
-                if state.contains(&SourceId::Module(id)) {
+                if state.contains(&source_id) {
                     continue;
                 }
 
-                let mut visitor = SemanticAnalyser::new(SourceId::Module(id));
+                let mut visitor = SemanticAnalyser::new(source_id);
 
                 // Check that all of the root scope statements are only declarations
                 let errors = visitor.visit_module(&(), module.node_ref()).unwrap();
@@ -86,7 +88,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     let sender = sender.clone();
 
                     scope.spawn(move |_| {
-                        let mut visitor = SemanticAnalyser::new(SourceId::Module(id));
+                        let mut visitor = SemanticAnalyser::new(source_id);
 
                         visitor.visit_expression(&(), expr.ast_ref()).unwrap();
                         visitor.send_generated_messages(&sender);
@@ -97,7 +99,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
 
         // Add all of the ids into the cache
         state.insert(entry_point);
-        state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
+        state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         // Collect all of the errors
         drop(sender);

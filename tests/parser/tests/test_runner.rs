@@ -4,6 +4,7 @@ use std::fs;
 
 use hash_parser::HashParser;
 use hash_pipeline::{
+    fs::read_in_path,
     sources::{Module, Sources},
     traits::Parser,
 };
@@ -15,7 +16,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 /// Whether or not the UI tests should re-generate the output.
-const REGENERATE_OUTPUT: bool = false;
+const REGENERATE_OUTPUT: bool = true;
 
 /// This is the ANSI Regular expression matcher. This will match all the
 /// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
@@ -42,7 +43,7 @@ fn handle_failure_case(
     let diagnostics = result.unwrap_err();
     let contents = diagnostics
         .into_iter()
-        .map(|report| format!("{}", ReportWriter::new(report, &sources)))
+        .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map())))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -86,7 +87,9 @@ fn handle_test(input: TestingInput) {
     let mut sources = Sources::new();
     let content_path = input.path.join("case.hash");
     let target = Module::new(content_path.clone());
-    let target_id = sources.add_module(target);
+    let contents = read_in_path(content_path.as_path()).unwrap();
+
+    let target_id = sources.add_module(contents, target);
 
     let mut parser = HashParser::new();
 

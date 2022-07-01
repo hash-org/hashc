@@ -71,7 +71,7 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
             // to the queue so it can be distributed over the threads
             for (id, module) in sources.iter_mut_modules() {
                 // Skip any modules that have already been de-sugared
-                if state.contains(&SourceId::Module(id)) {
+                if state.contains(&SourceId::Module(*id)) {
                     continue;
                 }
 
@@ -92,7 +92,7 @@ impl<'pool> Desugar<'pool> for AstDesugaring {
 
         // Add all of the ids into the cache
         state.insert(entry_point);
-        state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
+        state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         Ok(())
     }

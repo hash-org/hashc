@@ -109,12 +109,12 @@ fn compute_buffers(start_row: usize, end_row: usize) -> (usize, usize) {
 
 impl ReportCodeBlock {
     // Get the indent widths of this code block as (outer, inner).
-    pub(crate) fn info<T: SourceMap>(&self, modules: &T) -> ReportCodeBlockInfo {
+    pub(crate) fn info(&self, sources: &SourceMap) -> ReportCodeBlockInfo {
         match self.info.get() {
             Some(info) => info,
             None => {
                 let SourceLocation { span, source_id } = self.source_location;
-                let source = modules.contents_by_id(source_id);
+                let source = sources.contents_by_id(source_id);
 
                 // Compute offset rows and columns from the provided span
                 let ColRowOffset { col: start_col, row: start_row } =
@@ -147,9 +147,9 @@ impl ReportCodeBlock {
 
     /// Function to extract the block of the code that will be used to display
     /// the span of the diagnostic.
-    fn get_source_view<'a, T: SourceMap>(
+    fn get_source_view<'a>(
         &self,
-        modules: &'a T,
+        modules: &'a SourceMap,
     ) -> impl Iterator<Item = (usize, &'a str)> {
         // Get the actual contents of the erroneous span
         let source_id = self.source_location.source_id;
@@ -181,10 +181,10 @@ impl ReportCodeBlock {
     /// 2 |
     /// 3 |   // main := () => {
     /// ```
-    fn render_line_view<T: SourceMap>(
+    fn render_line_view(
         &self,
         f: &mut fmt::Formatter,
-        modules: &T,
+        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -264,10 +264,10 @@ impl ReportCodeBlock {
     /// As seen in this example, there are two arrows which look like `__-` and
     /// which are connected by a vertical arrow on the left side of the
     /// span.
-    fn render_block_view<T: SourceMap>(
+    fn render_block_view(
         &self,
         f: &mut fmt::Formatter,
-        modules: &T,
+        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -348,10 +348,10 @@ impl ReportCodeBlock {
 
     /// Function to render the [ReportCodeBlock] using the provided
     /// [SourceLocation], message and [ReportKind].
-    pub(crate) fn render<T: SourceMap>(
+    pub(crate) fn render(
         &self,
         f: &mut fmt::Formatter,
-        modules: &T,
+        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
@@ -406,10 +406,10 @@ impl ReportNote {
 }
 
 impl ReportElement {
-    pub(crate) fn render<T: SourceMap>(
+    pub(crate) fn render(
         &self,
         f: &mut fmt::Formatter,
-        modules: &T,
+        modules: &SourceMap,
         longest_indent_width: usize,
         report_kind: ReportKind,
     ) -> fmt::Result {
