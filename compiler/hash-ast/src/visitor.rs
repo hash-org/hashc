@@ -2291,7 +2291,7 @@ pub mod walk {
     }
 
     pub struct FnType<V: AstVisitor> {
-        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub params: V::CollectionContainer<V::NamedFieldTypeRet>,
         pub return_ty: V::TypeRet,
     }
 
@@ -2301,9 +2301,9 @@ pub mod walk {
         node: ast::AstNodeRef<ast::FnType>,
     ) -> Result<FnType<V>, V::Error> {
         Ok(FnType {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
-                node.args.iter().map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
+                node.params.iter().map(|e| visitor.visit_named_field_type(ctx, e.ast_ref())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref())?,
         })
@@ -3089,6 +3089,7 @@ pub mod walk {
     pub struct TypeFunctionDefParam<V: AstVisitor> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
+        pub default: Option<V::TypeRet>,
     }
 
     pub fn walk_type_function_def_param<V: AstVisitor>(
@@ -3100,6 +3101,11 @@ pub mod walk {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             ty: node
                 .ty
+                .as_ref()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref()))
+                .transpose()?,
+            default: node
+                .default
                 .as_ref()
                 .map(|inner| visitor.visit_type(ctx, inner.ast_ref()))
                 .transpose()?,
@@ -4057,7 +4063,7 @@ pub mod walk_mut {
     }
 
     pub struct FnType<V: AstVisitorMut> {
-        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub params: V::CollectionContainer<V::NamedFieldTypeRet>,
         pub return_ty: V::TypeRet,
     }
 
@@ -4067,9 +4073,11 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::FnType>,
     ) -> Result<FnType<V>, V::Error> {
         Ok(FnType {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
-                node.args.iter_mut().map(|e| visitor.visit_named_field_type(ctx, e.ast_ref_mut())),
+                node.params
+                    .iter_mut()
+                    .map(|e| visitor.visit_named_field_type(ctx, e.ast_ref_mut())),
             )?,
             return_ty: visitor.visit_type(ctx, node.return_ty.ast_ref_mut())?,
         })
@@ -4898,6 +4906,7 @@ pub mod walk_mut {
     pub struct TypeFunctionDefParam<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
+        pub default: Option<V::TypeRet>,
     }
 
     pub fn walk_type_function_def_param<V: AstVisitorMut>(
@@ -4909,6 +4918,11 @@ pub mod walk_mut {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             ty: node
                 .ty
+                .as_mut()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+            default: node
+                .default
                 .as_mut()
                 .map(|inner| visitor.visit_type(ctx, inner.ast_ref_mut()))
                 .transpose()?,
