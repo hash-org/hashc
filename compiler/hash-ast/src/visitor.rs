@@ -3089,6 +3089,7 @@ pub mod walk {
     pub struct TypeFunctionDefParam<V: AstVisitor> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
+        pub default: Option<V::TypeRet>,
     }
 
     pub fn walk_type_function_def_param<V: AstVisitor>(
@@ -3100,6 +3101,11 @@ pub mod walk {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             ty: node
                 .ty
+                .as_ref()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref()))
+                .transpose()?,
+            default: node
+                .default
                 .as_ref()
                 .map(|inner| visitor.visit_type(ctx, inner.ast_ref()))
                 .transpose()?,
@@ -4900,6 +4906,7 @@ pub mod walk_mut {
     pub struct TypeFunctionDefParam<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub ty: Option<V::TypeRet>,
+        pub default: Option<V::TypeRet>,
     }
 
     pub fn walk_type_function_def_param<V: AstVisitorMut>(
@@ -4911,6 +4918,11 @@ pub mod walk_mut {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             ty: node
                 .ty
+                .as_mut()
+                .map(|inner| visitor.visit_type(ctx, inner.ast_ref_mut()))
+                .transpose()?,
+            default: node
+                .default
                 .as_mut()
                 .map(|inner| visitor.visit_type(ctx, inner.ast_ref_mut()))
                 .transpose()?,

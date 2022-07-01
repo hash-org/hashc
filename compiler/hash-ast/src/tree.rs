@@ -1039,10 +1039,16 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        let walk::TypeFunctionDefParam { name, ty } =
+        let walk::TypeFunctionDefParam { name, ty, default } =
             walk::walk_type_function_def_param(self, ctx, node)?;
 
-        Ok(TreeNode::branch("param", iter::once(name).chain(ty).collect()))
+        Ok(TreeNode::branch(
+            "param",
+            iter::once(TreeNode::branch("name", vec![name]))
+                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
+                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
+                .collect(),
+        ))
     }
 
     type ConstructorPatternRet = TreeNode;

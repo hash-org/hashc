@@ -568,7 +568,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
         // @@Todo: default values
-        let walk::TypeFunctionDefParam { name, ty } =
+        let walk::TypeFunctionDefParam { name, ty, .. } =
             walk::walk_type_function_def_param(self, ctx, node)?;
 
         // The location of the param type is either the bound or the name (since <T>

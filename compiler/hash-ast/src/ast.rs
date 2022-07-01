@@ -724,10 +724,10 @@ pub struct TypeFunctionDef {
 pub struct TypeFunctionDefParam {
     /// The name of the argument
     pub name: AstNode<Name>,
-
     /// The argument bounds.
     pub ty: Option<AstNode<Type>>,
-    // @@Todo: missing default value
+    /// Default type assigned to the parameter
+    pub default: Option<AstNode<Type>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
