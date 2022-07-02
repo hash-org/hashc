@@ -342,7 +342,7 @@ pub struct SetType {
     pub inner: AstNode<Type>,
 }
 
-/// The grouped type (essentially a type within parenthesees), e.g. `(str)`. It
+/// The grouped type (essentially a type within parentheses), e.g. `(str)`. It
 /// differs from a tuple that it does not contain a trailing comma which
 /// signifies that this is a single element tuple.
 #[derive(Debug, PartialEq)]
@@ -358,8 +358,9 @@ pub struct MapType {
 /// The function type.
 #[derive(Debug, PartialEq)]
 pub struct FnType {
-    // @@Todo: rename this to parameters
-    pub args: AstNodes<NamedFieldTypeEntry>,
+    /// Any defined parameters for the function type
+    pub params: AstNodes<NamedFieldTypeEntry>,
+    /// Optional return type
     pub return_ty: AstNode<Type>,
 }
 
@@ -376,7 +377,7 @@ pub struct TypeFunctionParam {
 /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
 #[derive(Debug, PartialEq)]
 pub struct TypeFunction {
-    pub args: AstNodes<TypeFunctionParam>,
+    pub params: AstNodes<TypeFunctionParam>,
     pub return_ty: AstNode<Type>,
 }
 
@@ -723,9 +724,10 @@ pub struct TypeFunctionDef {
 pub struct TypeFunctionDefParam {
     /// The name of the argument
     pub name: AstNode<Name>,
-
     /// The argument bounds.
     pub ty: Option<AstNode<Type>>,
+    /// Default type assigned to the parameter
+    pub default: Option<AstNode<Type>>,
 }
 
 /// A declaration, e.g. `x := 3;`.

@@ -202,10 +202,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// [Type] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
     fn parse_function_or_tuple_type(&self) -> AstGenResult<Type> {
-        let mut args = AstNodes::empty();
+        let mut params = AstNodes::empty();
 
         let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
-        args.span = gen.parent_span;
+        params.span = gen.parent_span;
 
         match gen.peek() {
             // Handle special case where there is only one comma and no following items...
@@ -214,7 +214,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 gen.skip_token();
             }
             _ => {
-                args = gen.parse_separated_fn(
+                params = gen.parse_separated_fn(
                     || {
                         let start = gen.next_location();
 
@@ -247,17 +247,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(Type::Fn(FnType { args, return_ty: self.parse_type()? }))
+                Ok(Type::Fn(FnType { params, return_ty: self.parse_type()? }))
             }
             None => {
-                // If there is only one entry in the args, and the last token in the entry is
+                // If there is only one entry in the params, and the last token in the entry is
                 // not a comma then we can just return the inner type
-                if gen_has_comma && args.len() == 1 && args[0].name.is_none() {
-                    let field = args.nodes.pop().unwrap().into_body();
+                if gen_has_comma && params.len() == 1 && params[0].name.is_none() {
+                    let field = params.nodes.pop().unwrap().into_body();
                     return Ok(field.ty.into_body());
                 }
 
-                Ok(Type::Tuple(TupleType { entries: args }))
+                Ok(Type::Tuple(TupleType { entries: params }))
             }
         }
     }
@@ -270,9 +270,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // only be fired when the next token is a an `<`
         debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
 
-        self.skip_token();
         let mut arg_span = self.current_location();
-
         let mut args = vec![];
 
         loop {
@@ -280,7 +278,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let name = self.parse_name()?;
 
             let bound = match self.parse_token_fast(TokenKind::Colon) {
-                Some(_) => Some(self.parse_type()?),
+                Some(_) => match self.peek() {
+                    // Don't try and parse a type if an '=' is followed straight after
+                    Some(tok) if tok.has_kind(TokenKind::Eq) => None,
+                    _ => Some(self.parse_type()?),
+                },
                 None => None,
             };
 
@@ -316,7 +318,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let return_ty = self.parse_type()?;
 
         Ok(Type::TypeFunction(TypeFunction {
-            args: AstNodes::new(args, Some(arg_span)),
+            params: AstNodes::new(args, Some(arg_span)),
             return_ty,
         }))
     }

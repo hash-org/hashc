@@ -135,17 +135,29 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(TypeFunctionDef { params, return_ty, expr })
     }
 
-    // Parse a [TypeFunctionDefArg] which consists the name of the argument and then
-    // any specified bounds on the argument which are essentially types that are
-    // separated by a `~`
+    // Parse a [TypeFunctionDefParam] which consists the name of the argument and
+    // then any specified bounds on the argument which are essentially types
+    // that are separated by a `~`
     fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TypeFunctionDefParam>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
         // Now it's followed by a colon
-        let ty = self.parse_token_fast(TokenKind::Colon).map(|_| self.parse_type()).transpose()?;
+        let ty = match self.parse_token_fast(TokenKind::Colon) {
+            Some(_) => match self.peek() {
+                Some(tok) if tok.has_kind(TokenKind::Eq) => None,
+                _ => Some(self.parse_type()?),
+            },
+            None => None,
+        };
 
-        Ok(self.node_with_joined_span(TypeFunctionDefParam { name, ty }, &start))
+        // Parse a default type
+        let default = match self.parse_token_fast(TokenKind::Eq) {
+            Some(_) => Some(self.parse_type()?),
+            None => None,
+        };
+
+        Ok(self.node_with_joined_span(TypeFunctionDefParam { name, ty, default }, &start))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with
