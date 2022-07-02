@@ -30,6 +30,7 @@ pub struct CoreDefs {
     pub f64_ty: NominalDefId,
     pub char_ty: NominalDefId,
     pub bool_ty: NominalDefId,
+    pub any_ty: TermId,
     pub reference_ty_fn: TermId,
     pub reference_mut_ty_fn: TermId,
     pub raw_reference_ty_fn: TermId,
@@ -83,6 +84,10 @@ impl CoreDefs {
 
         // String
         let str_ty = builder.create_opaque_struct_def("str", []);
+
+        // Any type
+        let any_ty = builder.create_any_ty_term();
+        builder.add_pub_member_to_scope("Type", builder.create_trt_kind_term(), any_ty);
 
         // Reference types
         let reference_ty_fn = builder.create_ty_fn_term(
@@ -248,6 +253,7 @@ impl CoreDefs {
             f64_ty,
             char_ty,
             bool_ty,
+            any_ty,
             reference_ty_fn,
             raw_reference_mut_ty_fn,
             raw_reference_ty_fn,
