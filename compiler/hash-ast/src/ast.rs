@@ -388,6 +388,7 @@ pub struct TypeFunction {
 #[derive(Debug, PartialEq)]
 pub struct TypeFunctionCall {
     pub subject: AstNode<Type>,
+    // @@Todo: This should probably not use `NamedFieldTypeEntry`.
     pub args: AstNodes<NamedFieldTypeEntry>,
 }
 
