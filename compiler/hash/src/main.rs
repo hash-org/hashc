@@ -6,7 +6,7 @@ mod crash_handler;
 mod logger;
 
 use clap::Parser as ClapParser;
-use hash_ast_desugaring::AstDesugaring;
+use hash_ast_desugaring::AstDesugarer;
 use hash_ast_passes::HashSemanticAnalysis;
 use hash_parser::HashParser;
 use hash_pipeline::{
@@ -77,7 +77,7 @@ fn main() {
 
     // @@Naming: think about naming here!
     let parser = HashParser::new();
-    let desugarer = AstDesugaring;
+    let desugarer = AstDesugarer;
     let semantic_analyser = HashSemanticAnalysis;
     let checker = TcImpl;
 
