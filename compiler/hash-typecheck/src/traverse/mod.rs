@@ -707,10 +707,46 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_set_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
     ) -> Result<Self::SetLiteralRet, Self::Error> {
-        todo!()
+        let walk::SetLiteral { elements } = walk::walk_set_literal(self, ctx, node)?;
+
+        let set_inner_ty = self.core_defs().set_ty_fn;
+
+        // Create a shared term that is used to verify all elements within the
+        // set can be unified with one another, and then iterate over all of the
+        // elements.
+        let mut shared_term = self.builder().create_unresolved_term();
+
+        let mut elements = elements.into_iter().peekable();
+
+        while let Some(element) = elements.next() {
+            let element_ty = self.typer().ty_of_term(element)?;
+            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
+
+            // apply the substitution on the `shared_term`
+            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
+
+            // Only add the position to the last term...
+            if elements.peek().is_none() {
+                self.location_store_mut().copy_location(element_ty, shared_term);
+            }
+        }
+
+        let builder = self.builder();
+        let list_ty = builder.create_app_ty_fn_term(
+            set_inner_ty,
+            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TyFn),
+        );
+
+        let term = self.builder().create_rt_term(list_ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type TupleLiteralEntryRet = Param;
