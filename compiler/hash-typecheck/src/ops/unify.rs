@@ -218,7 +218,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             }
 
             // Merging:
-            (Term::Merge(_), Term::Merge(inner_target)) => {
+            (_, Term::Merge(inner_target)) => {
                 // Try to merge source with each individual term in target. If all succeed,
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
@@ -232,13 +232,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     }
                 }
                 Ok(subs)
-            }
-            (_, Term::Merge(inner_target)) => {
-                // This is only valid if the merge has one element and unifies with source
-                match inner_target.as_slice() {
-                    [inner_target_id] => self.unify_terms(src_id, *inner_target_id),
-                    _ => cannot_unify(),
-                }
             }
             (Term::Merge(inner_src), _) => {
                 // Try to merge each individual term in source, with target. If any one

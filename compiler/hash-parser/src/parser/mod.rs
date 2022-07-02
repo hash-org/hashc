@@ -208,7 +208,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         match self.stream.get(offset) {
             Some(token) => token.span,
-            None => (*self.stream.last().unwrap()).span,
+            None => self.stream.last().unwrap().span,
         }
     }
 

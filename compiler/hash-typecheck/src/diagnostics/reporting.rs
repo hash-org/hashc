@@ -573,7 +573,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message(
-                        "this merge declaration should only contain a level-1 terms".to_string(),
+                        "this merge declaration should only contain level-1 terms".to_string(),
                     )
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
@@ -596,7 +596,7 @@ impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message(
-                        "this merge declaration should only contain a level-2 terms".to_string(),
+                        "this merge declaration should only contain level-2 terms".to_string(),
                     )
                     .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
