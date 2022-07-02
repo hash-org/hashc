@@ -74,7 +74,7 @@ impl Tc<'_> for TcImpl {
         let mut tc_visitor = TcVisitor::new_in_source(
             storage.storages_mut(),
             hash_source::SourceId::Interactive(interactive_id),
-            sources,
+            sources.node_map(),
         );
         match tc_visitor.visit_source() {
             Ok(source_term) => {
@@ -109,7 +109,7 @@ impl Tc<'_> for TcImpl {
         let mut tc_visitor = TcVisitor::new_in_source(
             storage.storages_mut(),
             hash_source::SourceId::Module(module_id),
-            sources,
+            sources.node_map(),
         );
 
         match tc_visitor.visit_source() {
