@@ -58,7 +58,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Visits the source passed in as an argument to [Self::new], and returns
     /// the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
-        let source = self.sources.get_source(self.source_id);
+        let source = self.sources.node_map().get_source(self.source_id);
         match source {
             SourceRef::Interactive(interactive_source) => {
                 self.visit_body_block(&(), interactive_source.node_ref())

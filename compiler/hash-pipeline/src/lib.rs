@@ -163,7 +163,7 @@ where
             SourceId::Interactive(id) => {
                 // If this is an interactive statement, we want to print the statement that was
                 // just parsed.
-                let source = sources.get_interactive_block(id);
+                let source = sources.node_map().get_interactive_block(id);
 
                 let tree = AstTreeGenerator.visit_body_block(&(), source.node_ref()).unwrap();
 
@@ -172,7 +172,7 @@ where
             SourceId::Module(_) => {
                 // If this is a module, we want to print all of the generated modules from the
                 // parsing stage
-                for (_, generated_module) in sources.iter_modules() {
+                for (_, generated_module) in sources.node_map().iter_modules() {
                     let tree =
                         AstTreeGenerator.visit_module(&(), generated_module.node_ref()).unwrap();
 

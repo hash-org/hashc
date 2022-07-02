@@ -114,11 +114,13 @@ impl<'pool> HashParser {
             while let Ok(message) = receiver.recv() {
                 match message {
                     ParserAction::SetInteractiveNode { interactive_id, node } => {
-                        sources.get_interactive_block_mut(interactive_id).set_node(node);
+                        sources
+                            .node_map_mut()
+                            .get_interactive_block_mut(interactive_id)
+                            .set_node(node);
                     }
                     ParserAction::SetModuleNode { module_id, node } => {
-                        let module = sources.get_module_mut(module_id);
-                        module.set_node(node);
+                        sources.node_map_mut().get_module_mut(module_id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
                         if sources.get_module_id_by_path(&resolved_path).is_some() {

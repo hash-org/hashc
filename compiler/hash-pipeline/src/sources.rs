@@ -112,46 +112,31 @@ pub enum SourceRef<'i> {
 }
 
 #[derive(Debug, Default)]
-pub struct Sources {
+pub struct NodeMap {
     modules: HashMap<ModuleId, Module>,
     interactive_blocks: HashMap<InteractiveId, InteractiveBlock>,
-    dependencies: HashMap<SourceId, HashSet<ModuleId>>,
-    source_map: SourceMap,
 }
 
-impl Sources {
-    /// Create a new [Sources], initialising all members to be empty.
+impl NodeMap {
+    /// Create a new [NodeMap]
     pub fn new() -> Self {
-        Self {
-            modules: HashMap::new(),
-            interactive_blocks: HashMap::new(),
-            source_map: SourceMap::new(),
-            dependencies: HashMap::new(),
-        }
+        Self { modules: HashMap::new(), interactive_blocks: HashMap::new() }
     }
 
-    /// Add a interactive block to the [Sources] by providing the contents and
-    /// the [InteractiveBlock]. Returns the created [InteractiveId] from
-    /// adding it to the source map.
-    pub fn add_interactive_block(
-        &mut self,
-        input: String,
-        block: InteractiveBlock,
-    ) -> InteractiveId {
-        let id = self.source_map.add_interactive_block(input);
+    /// Add a [InteractiveBlock] to the [NodeMap]
+    pub fn add_interactive_block(&mut self, id: InteractiveId, block: InteractiveBlock) {
         self.interactive_blocks.insert(id, block);
-
-        id
     }
 
-    /// Add a module to the [Sources] by providing the contents and the
-    /// [Module]. Returns the created [ModuleId] from adding it to the
-    /// source map.
-    pub fn add_module(&mut self, contents: String, module: Module) -> ModuleId {
-        let id = self.source_map.add_module(module.path.to_owned(), contents);
+    /// Add a [Module] to the [NodeMap]
+    pub fn add_module(&mut self, id: ModuleId, module: Module) {
         self.modules.insert(id, module);
+    }
 
-        id
+    /// Get a reference to an [InteractiveBlock], panics if the [InteractiveId]
+    /// has no backing [InteractiveBlock].
+    pub fn get_interactive_block(&self, interactive_id: InteractiveId) -> &InteractiveBlock {
+        self.interactive_blocks.get(&interactive_id).unwrap()
     }
 
     /// Get a [SourceRef] by [SourceId].
@@ -162,12 +147,6 @@ impl Sources {
             }
             SourceId::Module(module_id) => SourceRef::Module(self.get_module(module_id)),
         }
-    }
-
-    /// Get a reference to an [InteractiveBlock], panics if the [InteractiveId]
-    /// has no backing [InteractiveBlock].
-    pub fn get_interactive_block(&self, interactive_id: InteractiveId) -> &InteractiveBlock {
-        self.interactive_blocks.get(&interactive_id).unwrap()
     }
 
     /// Get a mutable reference to an [InteractiveBlock], panics if the
@@ -191,11 +170,6 @@ impl Sources {
         self.modules.get(&module_id).unwrap()
     }
 
-    /// Get the [ModuleId] of the module by the specified [Path].
-    pub fn get_module_id_by_path(&self, path: &Path) -> Option<ModuleId> {
-        self.source_map.get_module_id_by_path(path)
-    }
-
     /// /// Create an [Iter] over the currently stores modules within [Sources]
     pub fn iter_modules(&self) -> Iter<'_, ModuleId, Module> {
         self.modules.iter()
@@ -204,6 +178,57 @@ impl Sources {
     /// Create an [IterMut] over the currently stores modules within [Sources].
     pub fn iter_mut_modules(&mut self) -> IterMut<'_, ModuleId, Module> {
         self.modules.iter_mut()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Sources {
+    /// Dependency map between sources and modules.
+    dependencies: HashMap<SourceId, HashSet<ModuleId>>,
+    /// Stores all of the raw file contents of the interactive blocks and
+    /// modules.
+    pub source_map: SourceMap,
+    /// Stores all of the generated AST for modules and nodes
+    pub node_map: NodeMap,
+}
+
+impl Sources {
+    /// Create a new [Sources], initialising all members to be empty.
+    pub fn new() -> Self {
+        Self {
+            node_map: NodeMap::new(),
+            source_map: SourceMap::new(),
+            dependencies: HashMap::new(),
+        }
+    }
+
+    /// Add a interactive block to the [Sources] by providing the contents and
+    /// the [InteractiveBlock]. Returns the created [InteractiveId] from
+    /// adding it to the source map.
+    pub fn add_interactive_block(
+        &mut self,
+        input: String,
+        block: InteractiveBlock,
+    ) -> InteractiveId {
+        let id = self.source_map.add_interactive_block(input);
+        self.node_map.add_interactive_block(id, block);
+
+        id
+    }
+
+    /// Add a module to the [Sources] by providing the contents and the
+    /// [Module]. Returns the created [ModuleId] from adding it to the
+    /// source map.
+    pub fn add_module(&mut self, contents: String, module: Module) -> ModuleId {
+        let id = self.source_map.add_module(module.path.to_owned(), contents);
+        self.node_map.add_module(id, module);
+
+        id
+    }
+
+    /// Get the [ModuleId] of the module by the specified [Path].
+    pub fn get_module_id_by_path(&self, path: &Path) -> Option<ModuleId> {
+        self.source_map.get_module_id_by_path(path)
     }
 
     /// Add a module dependency specified by a [ModuleId] to a specific source
@@ -215,5 +240,15 @@ impl Sources {
     /// Get a reference to [SourceMap]
     pub fn source_map(&self) -> &SourceMap {
         &self.source_map
+    }
+
+    /// Get a reference to [NodeMap]
+    pub fn node_map(&self) -> &NodeMap {
+        &self.node_map
+    }
+
+    /// Get a mutable reference to [NodeMap]
+    pub fn node_map_mut(&mut self) -> &mut NodeMap {
+        &mut self.node_map
     }
 }

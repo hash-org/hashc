@@ -23,7 +23,7 @@ pub struct ParseSource {
 impl ParseSource {
     /// Create a new [ParseSource] from a [ModuleId].
     pub fn from_module(module_id: ModuleId, sources: &Sources) -> Self {
-        let module = sources.get_module(module_id);
+        let module = sources.node_map().get_module(module_id);
         let contents = sources.source_map().contents_by_id(SourceId::Module(module_id)).to_owned();
 
         Self {
