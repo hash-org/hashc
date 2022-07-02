@@ -402,7 +402,7 @@ where
                     warn_count += 1;
                 }
 
-                println!("{}", ReportWriter::new(diagnostic, compiler_state.sources.source_map()));
+                eprintln!("{}", ReportWriter::new(diagnostic, compiler_state.sources.source_map()));
             }
 
             // @@Hack: to prevent the compiler from printing this message when the pipeline
@@ -434,7 +434,7 @@ where
         let filename = resolve_path(filename, current_dir, None);
 
         if let Err(err) = filename {
-            println!(
+            eprintln!(
                 "{}",
                 ReportWriter::new(err.create_report(), compiler_state.sources.source_map())
             );
@@ -446,7 +446,7 @@ where
         let contents = read_in_path(&filename);
 
         if let Err(err) = contents {
-            println!(
+            eprintln!(
                 "{}",
                 ReportWriter::new(err.create_report(), compiler_state.sources.source_map())
             );

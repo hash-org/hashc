@@ -37,7 +37,7 @@ pub macro tc_panic {
                     )));
             }
 
-            println!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
@@ -64,7 +64,7 @@ pub macro tc_panic {
                         )));
                 }
 
-            println!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     }
@@ -100,7 +100,7 @@ pub macro tc_panic_on_many {
                 }
             }
 
-            println!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
@@ -130,7 +130,7 @@ pub macro tc_panic_on_many {
                 }
             }
 
-            println!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     }

@@ -19,7 +19,7 @@ pub macro panic_on_span {
                     "here",
                 )));
 
-            println!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
+            eprintln!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
     },
@@ -34,7 +34,7 @@ pub macro panic_on_span {
                     "here",
                 )));
 
-            println!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
+            eprintln!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
     }
