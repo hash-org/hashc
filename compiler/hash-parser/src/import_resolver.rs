@@ -15,7 +15,7 @@ pub struct ImportResolver<'p> {
     /// The associated [SourceId] with the import resolution.
     source_id: SourceId,
     /// Working directory from where the import path resolution occurs.
-    root_dir: &'p PathBuf,
+    root_dir: &'p Path,
     /// The parser message queue sender.
     sender: Sender<ParserAction>,
 }
@@ -25,7 +25,7 @@ impl<'p> ImportResolver<'p> {
     /// directory and a message queue sender.
     pub(crate) fn new(
         source_id: SourceId,
-        root_dir: &'p PathBuf,
+        root_dir: &'p Path,
         sender: Sender<ParserAction>,
     ) -> Self {
         Self { root_dir, sender, source_id }
