@@ -6,7 +6,9 @@ use crate::{
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         location::LocationTarget,
-        primitives::{Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility},
+        primitives::{
+            Arg, Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility,
+        },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -399,7 +401,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             node.bound.as_ref().map(|bound| bound.span()).unwrap_or_else(|| node.name.span()),
         );
         // The type of the param is the given bound, or Type if no bound was given.
-        let ty = bound.unwrap_or_else(|| self.builder().create_any_ty_term());
+        let runtime_instantiable_trt = self.core_defs().runtime_instantiable_trt;
+        let ty = bound.unwrap_or_else(|| self.builder().create_trt_term(runtime_instantiable_trt));
         self.location_store_mut().add_location_to_target(ty, location);
 
         Ok(Param { ty, name: Some(name), default_value: default })
@@ -436,10 +439,32 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_type_function_call(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionCall>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionCall>,
     ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
-        todo!()
+        let walk::TypeFunctionCall { args, subject } =
+            walk::walk_type_function_call(self, ctx, node)?;
+
+        // These should be converted to args
+        let args = self.builder().create_args(
+            args.iter().map(|param_arg| Arg { name: param_arg.name, value: param_arg.ty }),
+            ParamOrigin::TyFn,
+        );
+
+        // Add all the locations to the args:
+        for (index, entry) in node.body().args.iter().enumerate() {
+            let location = self.source_location(entry.span());
+            self.location_store_mut().add_location_to_target((args, index), location);
+        }
+
+        // Create the type function call term:
+        let app_ty_fn_term = self.builder().create_app_ty_fn_term(subject, args);
+
+        // Add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(app_ty_fn_term, location);
+
+        Ok(self.validator().validate_term(app_ty_fn_term)?.simplified_term_id)
     }
 
     type NamedTypeRet = TermId;
@@ -611,7 +636,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let term = builder.create_tuple_ty_term(members);
 
-        // add the location of the term to the location storage
+        // Add the location of the term to the location storage
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(term, location);
 
@@ -1055,7 +1080,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
                 Ok(self.validator().validate_term(expr_id)?.simplified_term_id)
             }
-            None => Ok(self.builder().create_void_ty_term()),
+            None => {
+                let builder = self.builder();
+                Ok(builder.create_rt_term(builder.create_void_ty_term()))
+            }
         }
     }
 

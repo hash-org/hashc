@@ -438,17 +438,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     *merge_kind = ensure_merge_is_level1(None)?;
                     Ok(())
                 }
-                // Nominals:
-                Level1Term::NominalDef(_) => {
-                    // Checking a nominal:
+                // Nominals, tuples, functions:
+                Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
                     *merge_kind = ensure_merge_is_level1(Some(merge_element_term_id))?;
                     Ok(())
                 }
-                // Cannot attach a tuple to a merge
-                // @@Design: can we possibly allow this?
-                Level1Term::Tuple(_) => invalid_merge_element(),
-                // Cannot attach a function type to a merge
-                Level1Term::Fn(_) => invalid_merge_element(),
             },
             // Type functions are not allowed
             Term::TyFn(_) | Term::TyFnTy(_) => invalid_merge_element(),
