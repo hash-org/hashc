@@ -241,12 +241,12 @@ impl<T> AstNodes<T> {
 impl<T> Deref for AstNodes<T> {
     type Target = [AstNode<T>];
     fn deref(&self) -> &Self::Target {
-        &*self.nodes
+        &self.nodes
     }
 }
 impl<T> DerefMut for AstNodes<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.nodes
+        &mut self.nodes
     }
 }
 

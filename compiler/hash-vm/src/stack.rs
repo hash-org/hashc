@@ -37,7 +37,7 @@ impl Stack {
     pub fn pop8(&mut self) -> RuntimeResult<&[u8; 1]> {
         self.verify_access(StackAccessKind::Pop, 1)?;
 
-        let value = (&self.data[(self.stack_pointer - 1)..self.stack_pointer]).try_into().unwrap();
+        let value = self.data[(self.stack_pointer - 1)..self.stack_pointer].try_into().unwrap();
         self.stack_pointer -= 1;
 
         Ok(value)
@@ -47,7 +47,7 @@ impl Stack {
     pub fn pop16(&mut self) -> RuntimeResult<&[u8; 2]> {
         self.verify_access(StackAccessKind::Pop, 2)?;
 
-        let value = (&self.data[(self.stack_pointer - 2)..self.stack_pointer]).try_into().unwrap();
+        let value = self.data[(self.stack_pointer - 2)..self.stack_pointer].try_into().unwrap();
         self.stack_pointer -= 2;
 
         Ok(value)
@@ -56,7 +56,7 @@ impl Stack {
     pub fn pop32(&mut self) -> RuntimeResult<&[u8; 4]> {
         self.verify_access(StackAccessKind::Pop, 4)?;
 
-        let value = (&self.data[(self.stack_pointer - 4)..self.stack_pointer]).try_into().unwrap();
+        let value = self.data[(self.stack_pointer - 4)..self.stack_pointer].try_into().unwrap();
         self.stack_pointer -= 4;
 
         Ok(value)
@@ -66,7 +66,7 @@ impl Stack {
     pub fn pop64(&mut self) -> RuntimeResult<&[u8; 8]> {
         self.verify_access(StackAccessKind::Pop, 8)?;
 
-        let value = (&self.data[(self.stack_pointer - 8)..self.stack_pointer]).try_into().unwrap();
+        let value = self.data[(self.stack_pointer - 8)..self.stack_pointer].try_into().unwrap();
         self.stack_pointer -= 8;
 
         Ok(value)
