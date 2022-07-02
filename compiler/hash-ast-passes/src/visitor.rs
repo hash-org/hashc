@@ -627,7 +627,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         panic_on_span!(
             self.source_location(node.span()),
             self.source_map,
-            "hit for-block whilst performing semantic analysis"
+            "hit non de-sugared for-block whilst performing semantic analysis"
         );
     }
 
@@ -641,7 +641,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         panic_on_span!(
             self.source_location(node.span()),
             self.source_map,
-            "hit while-block whilst performing semantic analysis"
+            "hit non de-sugared while-block whilst performing semantic analysis"
         );
     }
 
@@ -655,7 +655,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         panic_on_span!(
             self.source_location(node.span()),
             self.source_map,
-            "hit if-clause whilst performing semantic analysis"
+            "hit non de-sugared if-clause whilst performing semantic analysis"
         );
     }
 
@@ -669,7 +669,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         panic_on_span!(
             self.source_location(node.span()),
             self.source_map,
-            "hit if-block whilst performing semantic analysis"
+            "hit non de-sugared if-block whilst performing semantic analysis"
         );
     }
 

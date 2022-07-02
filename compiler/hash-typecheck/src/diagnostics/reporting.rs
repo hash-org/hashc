@@ -19,26 +19,26 @@ use hash_reporting::{
 };
 
 /// A [TcError] with attached typechecker storage.
-pub(crate) struct TcErrorWithStorage<'gs, 'ls, 'cd> {
+pub(crate) struct TcErrorWithStorage<'gs, 'ls, 'cd, 's> {
     pub error: TcError,
-    pub storage: StorageRef<'gs, 'ls, 'cd>,
+    pub storage: StorageRef<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> TcErrorWithStorage<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> TcErrorWithStorage<'gs, 'ls, 'cd, 's> {
     /// Create a new [TcErrorWithStorage]
-    pub fn new(error: TcError, storage: StorageRef<'gs, 'ls, 'cd>) -> Self {
+    pub fn new(error: TcError, storage: StorageRef<'gs, 'ls, 'cd, 's>) -> Self {
         Self { error, storage }
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for TcErrorWithStorage<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for TcErrorWithStorage<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> From<TcErrorWithStorage<'gs, 'ls, 'cd>> for Report {
-    fn from(err: TcErrorWithStorage<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
+    fn from(err: TcErrorWithStorage<'gs, 'ls, 'cd, 's>) -> Self {
         let mut builder = ReportBuilder::new();
         builder.with_kind(ReportKind::Error);
 

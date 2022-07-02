@@ -5,7 +5,7 @@
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(generic_associated_types)]
+#![feature(generic_associated_types, decl_macro)]
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
@@ -69,6 +69,7 @@ impl Tc<'_> for TcImpl {
             global_storage: &mut state.global_storage,
             core_defs: &state.core_defs,
             local_storage: &mut state.prev_local_storage,
+            source_map: &sources.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(
             storage.storages_mut(),
@@ -101,8 +102,9 @@ impl Tc<'_> for TcImpl {
         let mut local_storage = LocalStorage::new(&mut state.global_storage);
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
-            core_defs: &state.core_defs,
             local_storage: &mut local_storage,
+            core_defs: &state.core_defs,
+            source_map: &sources.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(
             storage.storages_mut(),

@@ -17,6 +17,7 @@ use hash_ast::{
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{SourceRef, Sources};
+use hash_reporting::macros::panic_on_span;
 use hash_source::{
     identifier::Identifier,
     location::{SourceLocation, Span},
@@ -27,7 +28,7 @@ use hash_source::{
 ///
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'gs, 'ls, 'cd, 'src> {
-    pub storage: StorageRefMut<'gs, 'ls, 'cd>,
+    pub storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
     pub source_id: SourceId,
     pub sources: &'src Sources,
 }
@@ -48,7 +49,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Create a new [TcVisitor] with the given state, traversing the given
     /// source from [Sources].
     pub fn new_in_source(
-        storage: StorageRefMut<'gs, 'ls, 'cd>,
+        storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
         source_id: SourceId,
         sources: &'src Sources,
     ) -> Self {
@@ -1003,9 +1004,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_for_loop_block(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        panic!("hit for-block whilst performing typechecking");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared for-block whilst performing typechecking"
+        );
     }
 
     type WhileLoopBlockRet = TermId;
@@ -1013,9 +1018,41 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_while_loop_block(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        panic!("hit while-block whilst performing typechecking");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared while-block whilst performing typechecking"
+        );
+    }
+
+    type IfClauseRet = TermId;
+
+    fn visit_if_clause(
+        &mut self,
+        _ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
+    ) -> Result<Self::IfClauseRet, Self::Error> {
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared if-clause whilst performing typechecking"
+        );
+    }
+
+    type IfBlockRet = TermId;
+
+    fn visit_if_block(
+        &mut self,
+        _ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
+    ) -> Result<Self::IfBlockRet, Self::Error> {
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared if-block whilst performing typechecking"
+        );
     }
 
     type ModBlockRet = TermId;
@@ -1036,26 +1073,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         todo!()
-    }
-
-    type IfClauseRet = TermId;
-
-    fn visit_if_clause(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
-    ) -> Result<Self::IfClauseRet, Self::Error> {
-        panic!("hit if-clause whilst performing typechecking");
-    }
-
-    type IfBlockRet = TermId;
-
-    fn visit_if_block(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
-    ) -> Result<Self::IfBlockRet, Self::Error> {
-        panic!("hit if-block whilst performing typechecking");
     }
 
     type BodyBlockRet = TermId;
