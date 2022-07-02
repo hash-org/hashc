@@ -56,7 +56,6 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
-    println!("{:?}", source.current_dir());
     let resolver = ImportResolver::new(source_id, source.current_dir(), sender);
 
     let gen = AstGen::new(&tokens, &trees, &resolver);

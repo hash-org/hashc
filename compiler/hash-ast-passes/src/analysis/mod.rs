@@ -4,7 +4,7 @@
 use crossbeam_channel::Sender;
 use hash_source::{
     location::{SourceLocation, Span},
-    SourceId,
+    SourceId, SourceMap,
 };
 
 use crate::diagnostics::{
@@ -16,7 +16,7 @@ use crate::diagnostics::{
 mod block;
 mod pat;
 
-pub struct SemanticAnalyser {
+pub struct SemanticAnalyser<'s> {
     /// Whether the current visitor is within a loop construct.
     pub(crate) is_in_loop: bool,
     /// Whether the current visitor is within a function definition.
@@ -27,20 +27,23 @@ pub struct SemanticAnalyser {
     pub(crate) warnings: Vec<AnalysisWarning>,
     /// The current id of the source that is being passed.
     pub(crate) source_id: SourceId,
+    /// A reference to the sources of the current job.
+    pub(crate) source_map: &'s SourceMap,
     /// The current scope of the traversal, representing which block the
     /// analyser is walking.
     pub(crate) current_block: BlockOrigin,
 }
 
-impl SemanticAnalyser {
+impl<'s> SemanticAnalyser<'s> {
     /// Create a new semantic analyser
-    pub fn new(source_id: SourceId) -> Self {
+    pub fn new(source_map: &'s SourceMap, source_id: SourceId) -> Self {
         Self {
             is_in_loop: false,
             is_in_function: false,
             errors: vec![],
             warnings: vec![],
             source_id,
+            source_map,
             current_block: BlockOrigin::Root,
         }
     }
@@ -71,5 +74,10 @@ impl SemanticAnalyser {
         self.warnings
             .into_iter()
             .for_each(|warning| sender.send(Diagnostic::Warning(warning)).unwrap());
+    }
+
+    /// Create a [SourceLocation] from a [Span]
+    pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
+        SourceLocation { span, source_id: self.source_id }
     }
 }

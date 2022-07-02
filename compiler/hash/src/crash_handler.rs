@@ -15,7 +15,7 @@ pub(crate) fn panic_handler(info: &PanicInfo) {
         let stdout = std::io::stdout();
         let mut stdout = stdout.lock();
 
-        let _ = write!(&mut stdout, "Sorry :^(\nInternal Panic");
+        let _ = write!(&mut stdout, "Sorry :^(\nInternal Compiler Error");
 
         if let Some(s) = info.payload().downcast_ref::<&str>() {
             let _ = writeln!(&mut stdout, ": {}\n", s);
