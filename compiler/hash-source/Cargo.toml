@@ -9,6 +9,7 @@ lazy_static = "1.4.0"
 dashmap = "5.1"
 fnv = "1.0.7"
 slotmap = "1.0"
+bimap = "0.6.2"
 derive_more = "0.99"
 
 hash-utils = { path = "../hash-utils" } 

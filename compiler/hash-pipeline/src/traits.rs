@@ -5,7 +5,7 @@
 use hash_reporting::report::Report;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 
-use crate::{settings::CompilerJobParams, sources::Sources};
+use crate::{settings::CompilerJobParams, sources::Workspace};
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
 
@@ -19,7 +19,7 @@ pub trait Parser<'pool> {
     fn parse(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()>;
 }
@@ -36,7 +36,7 @@ pub trait Desugar<'pool> {
     fn desugar(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()>;
@@ -58,7 +58,7 @@ pub trait SemanticPass<'pool> {
     fn perform_pass(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>>;
@@ -87,7 +87,7 @@ pub trait Tc<'c> {
     fn check_interactive<'pool>(
         &'pool mut self,
         interactive_id: InteractiveId,
-        sources: &Sources,
+        workspace: &Workspace,
         state: &mut Self::State,
         job_params: &CompilerJobParams,
     ) -> CompilerResult<()>;
@@ -97,7 +97,7 @@ pub trait Tc<'c> {
     fn check_module(
         &mut self,
         module_id: ModuleId,
-        sources: &Sources,
+        workspace: &Workspace,
         state: &mut Self::State,
         job_params: &CompilerJobParams,
     ) -> CompilerResult<()>;

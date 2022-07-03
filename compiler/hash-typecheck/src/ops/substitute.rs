@@ -11,24 +11,24 @@ use std::collections::{HashMap, HashSet};
 use super::{AccessToOps, AccessToOpsMut};
 
 /// Can perform substitutions (see [Sub]) on terms.
-pub struct Substituter<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
+pub struct Substituter<'gs, 'ls, 'cd, 's> {
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Substituter<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for Substituter<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Substituter<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Substituter<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
@@ -561,6 +561,8 @@ impl<'gs, 'ls, 'cd> Substituter<'gs, 'ls, 'cd> {
 
 #[cfg(test)]
 mod tests {
+    use hash_source::SourceMap;
+
     use super::Substituter;
     use crate::{
         fmt::PrepareForFormatting,
@@ -572,15 +574,23 @@ mod tests {
         },
     };
 
+    fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs, SourceMap) {
+        let mut global_storage = GlobalStorage::new();
+        let local_storage = LocalStorage::new(&mut global_storage);
+        let core_defs = CoreDefs::new(&mut global_storage);
+        let source_map = SourceMap::new();
+
+        (global_storage, local_storage, core_defs, source_map)
+    }
+
     #[test]
     fn test_substitutions() {
-        let mut global_storage = GlobalStorage::new();
-        let mut local_storage = LocalStorage::new(&mut global_storage);
-        let core_defs = CoreDefs::new(&mut global_storage);
+        let (mut global_storage, mut local_storage, core_defs, source_map) = get_storages();
         let mut storage_ref = StorageRefMut {
-            core_defs: &core_defs,
             global_storage: &mut global_storage,
             local_storage: &mut local_storage,
+            core_defs: &core_defs,
+            source_map: &source_map,
         };
 
         let builder = storage_ref.builder();

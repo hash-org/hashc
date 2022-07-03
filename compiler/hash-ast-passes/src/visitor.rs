@@ -12,6 +12,7 @@ use hash_ast::{
     },
     visitor::{walk, AstVisitor},
 };
+use hash_reporting::macros::panic_on_span;
 
 use crate::{
     analysis::SemanticAnalyser,
@@ -20,7 +21,7 @@ use crate::{
     },
 };
 
-impl AstVisitor for SemanticAnalyser {
+impl AstVisitor for SemanticAnalyser<'_> {
     type Ctx = ();
 
     type CollectionContainer<T> = Vec<T>;
@@ -621,10 +622,13 @@ impl AstVisitor for SemanticAnalyser {
     fn visit_for_loop_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        // @@TODO: make this an error so it can be reported with a span
-        panic!("hit for-block whilst performing semantic analysis");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map,
+            "hit non de-sugared for-block whilst performing semantic analysis"
+        );
     }
 
     type WhileLoopBlockRet = ();
@@ -632,10 +636,13 @@ impl AstVisitor for SemanticAnalyser {
     fn visit_while_loop_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        // @@TODO: make this an error so it can be reported with a span
-        panic!("hit while-block whilst performing semantic analysis");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map,
+            "hit non de-sugared while-block whilst performing semantic analysis"
+        );
     }
 
     type IfClauseRet = ();
@@ -643,10 +650,13 @@ impl AstVisitor for SemanticAnalyser {
     fn visit_if_clause(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
-        // @@TODO: make this an error so it can be reported with a span
-        panic!("hit if-clause whilst performing semantic analysis");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map,
+            "hit non de-sugared if-clause whilst performing semantic analysis"
+        );
     }
 
     type IfBlockRet = ();
@@ -654,11 +664,13 @@ impl AstVisitor for SemanticAnalyser {
     fn visit_if_block(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
-        // Specifically left empty since this should never fire!
-        // @@TODO: make this an error so it can be reported with a span
-        panic!("hit if-block whilst performing semantic analysis");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map,
+            "hit non de-sugared if-block whilst performing semantic analysis"
+        );
     }
 
     type ModBlockRet = ();

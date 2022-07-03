@@ -13,7 +13,7 @@ use crossbeam_channel::unbounded;
 
 use diagnostics::Diagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitor};
-use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
+use hash_pipeline::{sources::Workspace, traits::SemanticPass, CompilerResult};
 use hash_reporting::report::Report;
 use hash_source::SourceId;
 use std::collections::HashSet;
@@ -41,20 +41,23 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
     fn perform_pass(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>> {
         let (sender, receiver) = unbounded::<Diagnostic>();
 
+        let source_map = &workspace.source_map;
+        let node_map = &mut workspace.node_map;
+
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
             if !state.contains(&entry_point) {
                 if let SourceId::Interactive(id) = entry_point {
-                    let source = sources.get_interactive_block_mut(id);
+                    let source = node_map.get_interactive_block_mut(id);
 
                     // setup a visitor and the context
-                    let mut visitor = SemanticAnalyser::new(entry_point);
+                    let mut visitor = SemanticAnalyser::new(source_map, entry_point);
 
                     visitor.visit_body_block(&(), source.node_ref()).unwrap();
                     visitor.send_generated_messages(&sender);
@@ -63,13 +66,15 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
 
             // Iterate over all of the modules and add the expressions
             // to the queue so it can be distributed over the threads
-            for (id, module) in sources.iter_modules() {
+            for (id, module) in node_map.iter_modules() {
+                let source_id = SourceId::Module(*id);
+
                 // Skip any modules that have already been de-sugared
-                if state.contains(&SourceId::Module(id)) {
+                if state.contains(&source_id) {
                     continue;
                 }
 
-                let mut visitor = SemanticAnalyser::new(SourceId::Module(id));
+                let mut visitor = SemanticAnalyser::new(source_map, source_id);
 
                 // Check that all of the root scope statements are only declarations
                 let errors = visitor.visit_module(&(), module.node_ref()).unwrap();
@@ -86,7 +91,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     let sender = sender.clone();
 
                     scope.spawn(move |_| {
-                        let mut visitor = SemanticAnalyser::new(SourceId::Module(id));
+                        let mut visitor = SemanticAnalyser::new(source_map, source_id);
 
                         visitor.visit_expression(&(), expr.ast_ref()).unwrap();
                         visitor.send_generated_messages(&sender);
@@ -97,7 +102,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
 
         // Add all of the ids into the cache
         state.insert(entry_point);
-        state.extend(sources.iter_modules().map(|(id, _)| SourceId::Module(id)));
+        state.extend(workspace.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         // Collect all of the errors
         drop(sender);

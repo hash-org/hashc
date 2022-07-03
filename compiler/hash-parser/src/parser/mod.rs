@@ -87,7 +87,7 @@ pub struct AstGen<'stream, 'resolver> {
 
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
-    resolver: &'resolver ImportResolver,
+    resolver: &'resolver ImportResolver<'resolver>,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific

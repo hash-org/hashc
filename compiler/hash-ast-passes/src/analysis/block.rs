@@ -12,7 +12,7 @@ use crate::diagnostics::{error::AnalysisErrorKind, BlockOrigin};
 
 use super::SemanticAnalyser;
 
-impl SemanticAnalyser {
+impl SemanticAnalyser<'_> {
     /// This function will verify that all of the given expressions are
     /// declarations. Additionally, the function checks that all of the
     /// declarations within the scope do not attempt to declare the binding

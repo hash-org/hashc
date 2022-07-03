@@ -7,6 +7,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
+        macros::tc_panic,
         params::ParamListKind,
     },
     ops::params::validate_param_list_ordering,
@@ -77,17 +78,17 @@ impl Term {
 }
 
 /// Can resolve the type of a given term, as another term.
-pub struct Validator<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
+pub struct Validator<'gs, 'ls, 'cd, 's> {
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Validator<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for Validator<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Validator<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Validator<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -119,8 +120,8 @@ enum SelfMode {
     Required,
 }
 
-impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
@@ -603,7 +604,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                             Ok(result)
                         }
                         // This isn't a user error, it is a compiler error:
-                        None => panic!("Found non-function type in function literal term!"),
+                        None => tc_panic!(
+                            simplified_term_id,
+                            self,
+                            "Found non-function type in function literal term!"
+                        ),
                     }
                 }
                 Level0Term::EnumVariant(_) => {

@@ -545,7 +545,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Attempt to add the module via the resolver
         let import_path = PathBuf::from_str(path.into()).unwrap_or_else(|err| match err {});
         let resolved_import_path =
-            self.resolver.parse_import(&import_path, self.source_location(span));
+            self.resolver.resolve_import(&import_path, self.source_location(span));
 
         match resolved_import_path {
             Ok(resolved_import_path) => Ok(self.node_with_joined_span(
