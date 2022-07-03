@@ -687,10 +687,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let map_inner_ty = self.core_defs().map_ty_fn;
 
         // Unify the key and value types...
-        let key_ty =
-            self.unify_term_sequence(entries.iter().map(|(k, _)| *k).collect::<Vec<_>>())?;
-        let val_ty =
-            self.unify_term_sequence(entries.iter().map(|(v, _)| *v).collect::<Vec<_>>())?;
+        let key_ty = self.unify_term_sequence(entries.iter().map(|(k, _)| *k))?;
+        let val_ty = self.unify_term_sequence(entries.iter().map(|(v, _)| *v))?;
 
         let builder = self.builder();
         let map_ty = builder.create_app_ty_fn_term(
