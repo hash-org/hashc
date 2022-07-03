@@ -519,24 +519,29 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         match term {
             // Merge:
             Term::Merge(terms) => {
-                // First, validate each term:
-                let terms = terms.clone();
-                for term in terms.iter().copied() {
-                    self.validate_term(term)?;
-                }
+                if let [term] = terms.as_slice() {
+                    // Shortcut: single term:
+                    self.validate_term(*term)
+                } else {
+                    // First, validate each term:
+                    let terms = terms.clone();
+                    for term in terms.iter().copied() {
+                        self.validate_term(term)?;
+                    }
 
-                // Validate the level of each term against the merge restrictions (see
-                // [Self::validate_merge_element] docs).
-                let mut merge_kind = MergeKind::Unknown;
-                for merge_element_term_id in terms.iter().copied() {
-                    self.validate_merge_element(
-                        &mut merge_kind,
-                        simplified_term_id,
-                        merge_element_term_id,
-                    )?;
-                }
+                    // Validate the level of each term against the merge restrictions (see
+                    // [Self::validate_merge_element] docs).
+                    let mut merge_kind = MergeKind::Unknown;
+                    for merge_element_term_id in terms.iter().copied() {
+                        self.validate_merge_element(
+                            &mut merge_kind,
+                            simplified_term_id,
+                            merge_element_term_id,
+                        )?;
+                    }
 
-                Ok(result)
+                    Ok(result)
+                }
             }
 
             // Level 1 terms:
