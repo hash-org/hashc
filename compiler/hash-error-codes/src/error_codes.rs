@@ -34,6 +34,7 @@ error_codes! {
     ParameterNameMismatch = 36,
     ParameterInUse = 37,
     AmbiguousFieldOrder = 38,
+    InvalidFunctionCallSubject = 39,
 
     // traits
     InvalidMergeElement = 50,

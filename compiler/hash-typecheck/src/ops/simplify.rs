@@ -663,14 +663,16 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::AppSub(_) => {
+            Term::AppSub(app_sub) => {
                 // Recurse to inner and then apply sub
-                todo!()
+                let app_sub = app_sub.clone();
+                let inner_fn_ty = self.use_term_as_fn_call_subject(app_sub.term)?;
+                Ok(self.substituter().apply_sub_to_fn_ty(&app_sub.sub, inner_fn_ty))
             }
             Term::Unresolved(_) => {
                 // @@Future: Here maybe create a function type with unknown args and return?
                 // For now error:
-                todo!()
+                cannot_use_as_fn_call_subject()
             }
             Term::Level1(_) => {
                 // Ensure it is a struct def
