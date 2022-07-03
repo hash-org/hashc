@@ -7,7 +7,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility,
+            Arg, ArgsId, Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -216,34 +217,59 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type ConstructorCallArgRet = TermId;
+    type ConstructorCallArgRet = Arg;
 
     fn visit_constructor_call_arg(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArg>,
     ) -> Result<Self::ConstructorCallArgRet, Self::Error> {
-        todo!()
+        let walk::ConstructorCallArg { name, value } =
+            walk::walk_constructor_call_arg(self, ctx, node)?;
+        Ok(Arg { name, value })
     }
 
-    type ConstructorCallArgsRet = TermId;
+    type ConstructorCallArgsRet = ArgsId;
 
     fn visit_constructor_call_args(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArgs>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallArgs>,
     ) -> Result<Self::ConstructorCallArgsRet, Self::Error> {
-        todo!()
+        let walk::ConstructorCallArgs { entries } =
+            walk::walk_constructor_call_args(self, ctx, node)?;
+
+        // Create the Args object:
+        let args = self.builder().create_args(entries, ParamOrigin::Unknown);
+
+        // Add locations:
+        for (index, arg) in node.entries.iter().enumerate() {
+            let location = self.source_location(arg.span());
+            self.location_store_mut().add_location_to_target((args, index), location);
+        }
+
+        Ok(args)
     }
 
     type ConstructorCallExprRet = TermId;
 
     fn visit_constructor_call_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        todo!()
+        let walk::ConstructorCallExpr { args, subject } =
+            walk::walk_constructor_call_expr(self, ctx, node)?;
+
+        // Create the function call term:
+        let return_term_ty = self.builder().create_fn_call_term(subject, args);
+        let return_term = self.builder().create_rt_term(return_term_ty);
+
+        // Set location:
+        let fn_call_location = self.source_location(node.span());
+        self.builder().add_location_to_target(return_term, fn_call_location);
+
+        Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
 
     type PropertyAccessExprRet = TermId;
@@ -418,9 +444,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunction>,
     ) -> Result<Self::TypeFunctionRet, Self::Error> {
-        let walk::TypeFunction { params: args, return_ty } =
-            walk::walk_type_function(self, ctx, node)?;
-        let params = self.builder().create_params(args, ParamOrigin::TyFn);
+        let params_list = Self::try_collect_items(
+            ctx,
+            node.params.iter().map(|a| self.visit_type_function_param(ctx, a.ast_ref())),
+        )?;
+        let params = self.builder().create_params(params_list, ParamOrigin::TyFn);
+
+        let param_scope = self.scope_resolver().enter_ty_param_scope(params);
+        let return_value = self.visit_type(ctx, node.return_ty.ast_ref())?;
+        self.scopes_mut().pop_the_scope(param_scope);
 
         // Add all the locations to the parameters:
         for (index, param) in node.params.iter().enumerate() {
@@ -429,7 +461,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
 
         // Create the type function type term:
-        let ty_fn_ty_term = self.builder().create_ty_fn_ty_term(params, return_ty);
+        let ty_fn_ty_term = self.builder().create_ty_fn_ty_term(params, return_value);
 
         // Add location to the type:
         let fn_ty_location = self.source_location(node.span());
@@ -603,20 +635,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
     ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        // @@Todo: default values
-        let walk::TypeFunctionDefParam { name, ty, .. } =
-            walk::walk_type_function_def_param(self, ctx, node)?;
-
-        // The location of the param type is either the bound or the name (since <T>
-        // means <T: Type>):
-        let location = self.source_location(
-            node.ty.as_ref().map(|bound| bound.span()).unwrap_or_else(|| node.name.span()),
-        );
-        // The type of the param is the given bound, or Type if no bound was given.
-        let ty = ty.unwrap_or_else(|| self.builder().create_any_ty_term());
-        self.location_store_mut().add_location_to_target(ty, location);
-
-        Ok(Param { ty, name: Some(name), default_value: None })
+        // Same as type function param:
+        let type_function_param = hash_ast::ast::TypeFunctionParam {
+            name: node.name.clone(),
+            bound: node.ty.clone(),
+            default: node.default.clone(),
+        };
+        self.visit_type_function_param(ctx, node.with_body(&type_function_param))
     }
 
     type TupleTypeRet = TermId;
