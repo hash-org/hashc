@@ -6,23 +6,6 @@
 /// where a panic occurs and provide additional context about where the panic
 /// occurred in regards to traversing the sources.
 pub macro panic_on_span {
-    ($location:expr, $sources:expr, $fmt: expr, $($arg:tt)*) => {
-        {
-            let message = format!($fmt, $($arg)*);
-
-            let mut report = $crate::builder::ReportBuilder::new();
-            report
-                .with_kind($crate::report::ReportKind::Internal)
-                .with_message(message)
-                .add_element($crate::report::ReportElement::CodeBlock($crate::report::ReportCodeBlock::new(
-                    $location,
-                    "here",
-                )));
-
-            eprintln!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
-            std::panic::panic_any("A fatal error occurred during compilation on the reported node");
-        }
-    },
     ($location:expr, $sources:expr, $fmt: expr) => {
         {
             let mut report = $crate::builder::ReportBuilder::new();
@@ -37,5 +20,8 @@ pub macro panic_on_span {
             eprintln!("{}", $crate::writer::ReportWriter::new(report.build(), $sources));
             std::panic::panic_any("A fatal error occurred during compilation on the reported node");
         }
+    },
+    ($location:expr, $sources:expr, $fmt: expr, $($arg:tt)*) => {
+        panic_on_span!($location, $sources, format!($fmt, $($arg)*))
     }
 }
