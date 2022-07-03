@@ -24,6 +24,8 @@ use hash_source::{
     SourceId,
 };
 
+mod sequence;
+
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
 /// Contains typechecker state that is accessed while traversing.
@@ -678,20 +680,44 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_map_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteral>,
     ) -> Result<Self::MapLiteralRet, Self::Error> {
-        todo!()
+        let walk::MapLiteral { entries } = walk::walk_map_literal(self, ctx, node)?;
+        let map_inner_ty = self.core_defs().map_ty_fn;
+
+        // Unify the key and value types...
+        let key_ty = self.unify_term_sequence(entries.iter().map(|(k, _)| *k))?;
+        let val_ty = self.unify_term_sequence(entries.iter().map(|(v, _)| *v))?;
+
+        let builder = self.builder();
+        let map_ty = builder.create_app_ty_fn_term(
+            map_inner_ty,
+            builder.create_args(
+                [builder.create_arg("K", key_ty), builder.create_arg("V", val_ty)],
+                ParamOrigin::TyFn,
+            ),
+        );
+
+        let term = builder.create_rt_term(map_ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
-    type MapLiteralEntryRet = TermId;
+    type MapLiteralEntryRet = (TermId, TermId);
 
     fn visit_map_literal_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteralEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteralEntry>,
     ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
-        todo!()
+        let walk::MapLiteralEntry { key, value } = walk::walk_map_literal_entry(self, ctx, node)?;
+
+        Ok((key, value))
     }
 
     type ListLiteralRet = TermId;
@@ -704,31 +730,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::ListLiteral { elements } = walk::walk_list_literal(self, ctx, node)?;
 
         let list_inner_ty = self.core_defs().list_ty_fn;
-
-        // Create a shared term that is used to verify all elements within the
-        // list can be unified with one another, and then iterate over all of the
-        // elements.
-        let mut shared_term = self.builder().create_unresolved_term();
-
-        for element in elements.iter() {
-            let element_ty = self.typer().ty_of_term(*element)?;
-            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
-
-            // apply the substitution on the `shared_term`
-            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
-
-            // @@Overworked: surely we don't need to constantly update the location of the
-            // `shared_term`
-            self.location_store_mut().copy_location(element_ty, shared_term);
-        }
+        let element_ty = self.unify_term_sequence(elements)?;
 
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
             list_inner_ty,
-            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TyFn),
+            builder.create_args([builder.create_arg("T", element_ty)], ParamOrigin::TyFn),
         );
 
-        let term = self.builder().create_rt_term(list_ty);
+        let term = builder.create_rt_term(list_ty);
 
         // add the location of the term to the location storage
         let location = self.source_location(node.span());
@@ -741,10 +751,27 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_set_literal(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
     ) -> Result<Self::SetLiteralRet, Self::Error> {
-        todo!()
+        let walk::SetLiteral { elements } = walk::walk_set_literal(self, ctx, node)?;
+
+        let set_inner_ty = self.core_defs().set_ty_fn;
+        let element_ty = self.unify_term_sequence(elements)?;
+
+        let builder = self.builder();
+        let set_ty = builder.create_app_ty_fn_term(
+            set_inner_ty,
+            builder.create_args([builder.create_arg("T", element_ty)], ParamOrigin::TyFn),
+        );
+
+        let term = builder.create_rt_term(set_ty);
+
+        // add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type TupleLiteralEntryRet = Param;

@@ -205,7 +205,13 @@ impl CoreDefs {
         let set_ty_fn = builder.create_ty_fn_term(
             Some("Set"),
             builder.create_params(
-                [builder.create_param("T", builder.create_any_ty_term())],
+                [builder.create_param(
+                    "T",
+                    builder.create_merge_term([
+                        builder.create_trt_term(hash_trt),
+                        builder.create_trt_term(eq_trt),
+                    ]),
+                )],
                 ParamOrigin::TyFn,
             ),
             builder.create_any_ty_term(),
