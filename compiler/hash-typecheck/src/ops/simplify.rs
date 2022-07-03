@@ -1,8 +1,15 @@
 //! Contains functionality to simplify terms into more concrete terms.
-use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
+use std::iter;
+
+use super::{
+    substitute::Substituter,
+    unify::{Unifier, UnifyParamsWithArgsMode},
+    AccessToOps, AccessToOpsMut,
+};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
+        macros::{tc_panic, tc_panic_on_many},
         symbol::NameFieldOrigin,
     },
     storage::{
@@ -185,6 +192,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     let nominal_def = reader.get_nominal_def(*nominal_def_id);
                     if let NominalDef::Struct(struct_def) = nominal_def {
                         if let StructFields::Explicit(fields) = &struct_def.fields {
+                            let reader = self.reader();
+                            let fields = reader.get_params(*fields);
                             if let Some((_, param)) = fields.get_by_name(field_name) {
                                 let param_ty = param.ty;
                                 return Ok(Some(self.builder().create_rt_term(param_ty)));
@@ -213,6 +222,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         &mut self,
         term: &Level0Term,
         access_term: &AccessTerm,
+        originating_term: TermId,
     ) -> TcResult<Option<TermId>> {
         match term {
             // Runtime values:
@@ -281,36 +291,16 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }),
                 }
             }
-            // Enum variants:
-            Level0Term::EnumVariant(enum_variant) => {
-                does_not_support_ns_access(access_term)?;
-                // Try to resolve the field in the variant:
-                let reader = self.reader();
-                let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
-                match nominal_def {
-                    NominalDef::Enum(enum_def) => {
-                        let fields = self.params_store().get(
-                            enum_def
-                                .variants
-                                .get(&enum_variant.variant_name)
-                                .expect("Enum variant name not found in def!")
-                                .fields,
-                        );
-
-                        match fields.get_by_name(access_term.name) {
-                            Some((_, field)) => {
-                                // Field found, now return a Rt(X) of the field type X as the
-                                // result.
-                                let field_ty = field.ty;
-                                Ok(Some(self.builder().create_rt_term(field_ty)))
-                            }
-                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
-                        }
-                    }
-                    NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
-                }
-            }
+            // Enum variants do not support access (only through pattern matching):
+            Level0Term::EnumVariant(_) => does_not_support_access(access_term),
             Level0Term::FnLit(_) => does_not_support_access(access_term),
+            Level0Term::FnCall(_) => {
+                tc_panic!(
+                    originating_term,
+                    self,
+                    "Function call in access apply should have already been simplified!"
+                )
+            }
         }
     }
 
@@ -472,7 +462,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 self.apply_access_to_level1_term(&level1_term, access_term)
             }
             Term::Level0(level0_term) => {
-                self.apply_access_to_level0_term(&level0_term, access_term)
+                self.apply_access_to_level0_term(&level0_term, access_term, simplified_subject_id)
             }
             // @@Todo: infer type vars:
             Term::TyFn(_) => does_not_support_access(access_term),
@@ -517,6 +507,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     ty_fn.general_params,
                     apply_ty_fn.args,
                     simplified_subject_id,
+                    UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                 )?;
 
                 // Try to match each of the cases:
@@ -525,6 +516,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         case.params,
                         apply_ty_fn.args,
                         simplified_subject_id,
+                        UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                     ) {
                         Ok(sub) => {
                             // Successful, add the return value to result, subbed with the
@@ -600,6 +592,184 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Use the given term in function call subject position, returning the type
+    /// of the function it represents.
+    ///
+    /// The following terms can be used as this:
+    /// - Function literals (`FnLit(..)`)
+    /// - Runtime values of function type (`Rt(FnTy(..))`)
+    /// - Enum variants with members (`EnumVariant(..)`)
+    /// - Struct definitions (`NominalDef(StructDef(..))`)
+    ///
+    /// *Note*: Expects the term to be simplified.
+    pub fn use_term_as_fn_call_subject(&mut self, term_id: TermId) -> TcResult<FnTy> {
+        let reader = self.reader();
+        let term = reader.get_term(term_id);
+
+        let cannot_use_as_fn_call_subject =
+            || Err(TcError::InvalidFunctionCallSubject { term: term_id });
+
+        match term {
+            Term::Merge(terms) => {
+                // Recurse into the inner terms:
+                let terms = terms.clone();
+                let results: Vec<_> = terms
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, item)| {
+                        Some((i, self.use_term_as_fn_call_subject(*item).ok()?))
+                    })
+                    .collect();
+
+                match results.as_slice() {
+                    // Got no results, cannot be used as fn call:
+                    [] => cannot_use_as_fn_call_subject(),
+                    // We only got a single result, so we can use it:
+                    [(result_i, single_result)] => {
+                        // The result we got, we have to merge its return value with the rest of
+                        // the elements:
+                        let params = single_result.params;
+                        let return_ty = self.builder().create_merge_term(
+                            iter::once(single_result.return_ty).chain(
+                                terms
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(i, _)| i != result_i)
+                                    .map(|(_, term)| *term),
+                            ),
+                        );
+                        Ok(FnTy { params, return_ty })
+                    }
+                    // Got multiple results, which should not happen:
+                    results => {
+                        let result_terms = results
+                            .iter()
+                            .map(|(_, result)| {
+                                self.builder().create_term(Term::Level1(Level1Term::Fn(*result)))
+                            })
+                            .collect::<Vec<_>>();
+                        tc_panic_on_many!(
+                            result_terms,
+                            self,
+                            "Got multiple results when using merge term as fn call subject: {:?}",
+                            results
+                        )
+                    }
+                }
+            }
+            Term::AppSub(app_sub) => {
+                // Recurse to inner and then apply sub
+                let app_sub = app_sub.clone();
+                let inner_fn_ty = self.use_term_as_fn_call_subject(app_sub.term)?;
+                Ok(self.substituter().apply_sub_to_fn_ty(&app_sub.sub, inner_fn_ty))
+            }
+            Term::Unresolved(_) => {
+                // @@Future: Here maybe create a function type with unknown args and return?
+                // For now error:
+                cannot_use_as_fn_call_subject()
+            }
+            Term::Level1(level1_term) => {
+                // Ensure it is a struct def
+                match level1_term {
+                    Level1Term::NominalDef(nominal_def_id) => {
+                        let reader = self.reader();
+                        let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                        match nominal_def {
+                            NominalDef::Struct(struct_def) => {
+                                let params = match struct_def.fields {
+                                    StructFields::Explicit(params) => params,
+                                    StructFields::Opaque => {
+                                        // Cannot construct an opaque struct:
+                                        return cannot_use_as_fn_call_subject();
+                                    }
+                                };
+
+                                // Create a function type with the struct def as return type:
+
+                                // Note: if this is in a parent merge, it will be dealt with in the
+                                // Merge branch above.
+                                let nominal_def_id = *nominal_def_id;
+                                Ok(FnTy {
+                                    params,
+                                    return_ty: self
+                                        .builder()
+                                        .create_nominal_def_term(nominal_def_id),
+                                })
+                            }
+                            NominalDef::Enum(_) => cannot_use_as_fn_call_subject(),
+                        }
+                    }
+                    _ => cannot_use_as_fn_call_subject(),
+                }
+            }
+            Term::Level0(level0_term) => {
+                // Ensure it is either an enum variant, or Rt(Fn(..)) or
+                // FnLit(..)
+                let reader = self.reader();
+                match level0_term {
+                    Level0Term::Rt(rt_inner_term_id) => {
+                        // Only accept if it is a function type inside:
+                        match reader.get_term(*rt_inner_term_id) {
+                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(*fn_ty),
+                            _ => cannot_use_as_fn_call_subject(),
+                        }
+                    }
+                    Level0Term::FnLit(fn_lit) => {
+                        // Just return the inner type:
+                        match reader.get_term(fn_lit.fn_ty) {
+                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(*fn_ty),
+                            _ => tc_panic!(
+                                fn_lit.fn_ty,
+                                self,
+                                "Unexpected non-function type as fn_ty field of FnLit"
+                            ),
+                        }
+                    }
+                    Level0Term::EnumVariant(enum_variant) => {
+                        // Only accept if it is an enum variant with data:
+
+                        // @@PartiallyBroken: Merged impls on the enum would not carry
+                        // forward here, we need to somehow carry them forward while doing
+                        // the access.
+                        let reader = self.reader();
+                        let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
+                        match nominal_def {
+                            NominalDef::Enum(enum_def) => {
+                                // For an enum variant Foo::Bar(x: A, y: B), we create:
+                                // (x: A, y: B) -> Bar
+                                let params = enum_def
+                                    .variants
+                                    .get(&enum_variant.variant_name)
+                                    .expect("Enum variant name not found in def!")
+                                    .fields;
+                                let enum_def_id = enum_variant.enum_def_id;
+                                let return_ty = self.builder().create_nominal_def_term(enum_def_id);
+                                Ok(FnTy { params, return_ty })
+                            }
+                            NominalDef::Struct(_) => {
+                                tc_panic!(term_id, self, "Got struct def ID in enum variant!")
+                            }
+                        }
+                    }
+                    Level0Term::FnCall(_) => {
+                        tc_panic!(term_id, self, "Function call should have already been simplified away when resolving function call subject")
+                    }
+                }
+            }
+
+            // Cannot be used as function call subjects:
+            // (Remember, the term should have already been simplified)
+            Term::Level2(_)
+            | Term::Level3(_)
+            | Term::AppTyFn(_)
+            | Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::Root
+            | Term::Var(_)
+            | Term::Access(_) => cannot_use_as_fn_call_subject(),
+        }
+    }
+
     /// Simplify the given term, just returning the original if no
     /// simplification occurred.
     pub(crate) fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
@@ -607,7 +777,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     }
 
     /// Simplify the given [Level0Term], if possible.
-    pub(crate) fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level0_term(
+        &mut self,
+        term: &Level0Term,
+        originating_term: TermId,
+    ) -> TcResult<Option<TermId>> {
         match term {
             // For Rt(..), try to simplify the inner term:
             Level0Term::Rt(inner) => {
@@ -630,6 +804,26 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),
+            Level0Term::FnCall(fn_call) => {
+                // Apply the function:
+
+                // Must be a function:
+                let fn_ty = self.use_term_as_fn_call_subject(fn_call.subject)?;
+
+                // Unify params with args:
+                let params_sub = self.unifier().unify_params_with_args(
+                    fn_ty.params,
+                    fn_call.args,
+                    originating_term,
+                    UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
+                )?;
+
+                // Apply the substitution to the return value:
+                let subbed_return_value =
+                    self.substituter().apply_sub_to_term(&params_sub, fn_ty.return_ty);
+
+                Ok(Some(subbed_return_value))
+            }
         }
     }
 
@@ -923,7 +1117,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Level3(term) => self.simplify_level3_term(&term),
             Term::Level2(term) => self.simplify_level2_term(&term),
             Term::Level1(term) => self.simplify_level1_term(&term),
-            Term::Level0(term) => self.simplify_level0_term(&term),
+            Term::Level0(term) => self.simplify_level0_term(&term, term_id),
             // Root cannot be simplified:
             Term::Root => Ok(None),
         }?;
@@ -982,7 +1176,10 @@ mod test_super {
         );
         let dog_def = builder.create_struct_def(
             "Dog",
-            [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
+            builder.create_params(
+                [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
+                ParamOrigin::Struct,
+            ),
             [],
         );
 

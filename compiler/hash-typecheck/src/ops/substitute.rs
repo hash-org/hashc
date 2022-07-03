@@ -64,6 +64,15 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         self.builder().create_params(new_params, params.origin())
     }
 
+    /// Apply the given substitution to the given [FnTy], producing a new
+    /// [FnTy] with the substituted variables.
+    pub fn apply_sub_to_fn_ty(&mut self, sub: &Sub, fn_ty: FnTy) -> FnTy {
+        // Apply to parameters and return type
+        let subbed_params = self.apply_sub_to_params(sub, fn_ty.params);
+        let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty);
+        FnTy { params: subbed_params, return_ty: subbed_return_ty }
+    }
+
     /// Apply the given substitution to the given [Level3Term], producing a new
     /// [Level3Term] with the substituted variables.
     pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TermId {
@@ -120,12 +129,8 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
             }
             Level1Term::Fn(fn_ty) => {
                 // Apply to parameters and return type
-                let subbed_params = self.apply_sub_to_params(sub, fn_ty.params);
-                let subbed_return_ty = self.apply_sub_to_term(sub, fn_ty.return_ty);
-                self.builder().create_term(Term::Level1(Level1Term::Fn(FnTy {
-                    params: subbed_params,
-                    return_ty: subbed_return_ty,
-                })))
+                let subbed_fn_ty = self.apply_sub_to_fn_ty(sub, fn_ty);
+                self.builder().create_term(Term::Level1(Level1Term::Fn(subbed_fn_ty)))
             }
         }
     }
@@ -156,6 +161,12 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_fn_ty = self.apply_sub_to_term(sub, fn_lit.fn_ty);
                 let subbed_return_value = self.apply_sub_to_term(sub, fn_lit.return_value);
                 self.builder().create_fn_lit_term(subbed_fn_ty, subbed_return_value)
+            }
+            Level0Term::FnCall(fn_call) => {
+                // Apply to subject and args
+                let subbed_subject = self.apply_sub_to_term(sub, fn_call.subject);
+                let subbed_args = self.apply_sub_to_args(sub, fn_call.args);
+                self.builder().create_fn_call_term(subbed_subject, subbed_args)
             }
         }
     }
@@ -352,6 +363,11 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 // Forward to fn type and return value
                 self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
                 self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
+            }
+            Level0Term::FnCall(fn_call) => {
+                // Forward to subject and args:
+                self.add_free_vars_in_term_to_set(fn_call.subject, result);
+                self.add_free_vars_in_args_to_set(fn_call.args, result);
             }
         }
     }

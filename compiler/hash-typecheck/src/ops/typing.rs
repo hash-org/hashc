@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-use super::{AccessToOps, AccessToOpsMut};
+use super::{unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut};
 
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'gs, 'ls, 'cd, 's> {
@@ -119,6 +119,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                             ty_fn_ty.params,
                             app_ty_fn.args,
                             ty_id_of_subject,
+                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
                         // Apply the substitution to the return type and use it as the result:
                         Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
@@ -206,6 +207,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     Level0Term::EnumVariant(enum_variant) => {
                         // The type of an enum variant is the enum
                         Ok(self.builder().create_nominal_def_term(enum_variant.enum_def_id))
+                    }
+                    Level0Term::FnCall(_) => {
+                        tc_panic!(term_id, self, "Function call should have been simplified away when trying to get the type of the term!")
                     }
                 }
             }

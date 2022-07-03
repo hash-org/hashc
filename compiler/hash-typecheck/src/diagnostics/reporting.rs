@@ -768,6 +768,19 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
+            TcError::InvalidFunctionCallSubject { term } => {
+                builder.with_error_code(HashErrorCode::TypeIsNotTrait).with_message(format!(
+                    "cannot use `{}` as a function call subject",
+                    term.for_formatting(err.global_storage())
+                ));
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "this cannot be called because it's not function-like",
+                    )));
+                }
+            }
         };
 
         builder.build()

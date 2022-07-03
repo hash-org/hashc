@@ -4,8 +4,8 @@ use crate::storage::{
     location::LocationTarget,
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue,
-        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
+        FnCall, FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData,
+        ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
         ParamOrigin, ParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
         TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
@@ -158,16 +158,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_struct_def(
         &self,
         struct_name: impl Into<Identifier>,
-        fields: impl IntoIterator<Item = Param>,
+        fields: ParamsId,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
-            fields: StructFields::Explicit(ParamList::new(
-                fields.into_iter().collect(),
-                ParamOrigin::Struct,
-            )),
+            fields: StructFields::Explicit(fields),
             bound_vars: bound_vars.into_iter().collect(),
         }));
         self.add_nominal_def_to_scope(name, def_id);
@@ -337,6 +334,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// value.
     pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::FnLit(FnLit { fn_ty, return_value })))
+    }
+
+    /// Create a [Level0Term::FnCall] term with the given subject and arguments.
+    pub fn create_fn_call_term(&self, subject: TermId, args: ArgsId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::FnCall(FnCall { subject, args })))
     }
 
     /// Create a parameter with the given name and type.
