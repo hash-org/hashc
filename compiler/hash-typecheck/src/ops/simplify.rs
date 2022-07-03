@@ -1,4 +1,6 @@
 //! Contains functionality to simplify terms into more concrete terms.
+use std::iter;
+
 use super::{
     substitute::Substituter,
     unify::{Unifier, UnifyParamsWithArgsMode},
@@ -190,6 +192,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     let nominal_def = reader.get_nominal_def(*nominal_def_id);
                     if let NominalDef::Struct(struct_def) = nominal_def {
                         if let StructFields::Explicit(fields) = &struct_def.fields {
+                            let reader = self.reader();
+                            let fields = reader.get_params(*fields);
                             if let Some((_, param)) = fields.get_by_name(field_name) {
                                 let param_ty = param.ty;
                                 return Ok(Some(self.builder().create_rt_term(param_ty)));
@@ -617,7 +621,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
     }
 
-    /// Use the given term in function call subject position.
+    /// Use the given term in function call subject position, returning the type
+    /// of the function it represents.
     ///
     /// The following terms can be used as this:
     /// - Function literals (`FnLit(..)`)
@@ -630,7 +635,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
 
-        let cannot_use_as_fn_call_subject = || todo!();
+        let cannot_use_as_fn_call_subject =
+            || Err(TcError::InvalidFunctionCallSubject { term: term_id });
 
         match term {
             Term::Merge(terms) => {
@@ -638,19 +644,36 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let terms = terms.clone();
                 let results: Vec<_> = terms
                     .iter()
-                    .map(|item| self.use_term_as_fn_call_subject(*item))
-                    .collect::<TcResult<_>>()?;
+                    .enumerate()
+                    .filter_map(|(i, item)| {
+                        Some((i, self.use_term_as_fn_call_subject(*item).ok()?))
+                    })
+                    .collect();
 
                 match results.as_slice() {
                     // Got no results, cannot be used as fn call:
                     [] => cannot_use_as_fn_call_subject(),
                     // We only got a single result, so we can use it:
-                    [single_result] => Ok(*single_result),
+                    [(result_i, single_result)] => {
+                        // The result we got, we have to merge its return value with the rest of
+                        // the elements:
+                        let params = single_result.params;
+                        let return_ty = self.builder().create_merge_term(
+                            iter::once(single_result.return_ty).chain(
+                                terms
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(i, _)| i != result_i)
+                                    .map(|(_, term)| *term),
+                            ),
+                        );
+                        Ok(FnTy { params, return_ty })
+                    }
                     // Got multiple results, which should not happen:
                     results => {
                         let result_terms = results
                             .iter()
-                            .map(|result| {
+                            .map(|(_, result)| {
                                 self.builder().create_term(Term::Level1(Level1Term::Fn(*result)))
                             })
                             .collect::<Vec<_>>();
@@ -674,25 +697,83 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // For now error:
                 cannot_use_as_fn_call_subject()
             }
-            Term::Level1(_) => {
+            Term::Level1(level1_term) => {
                 // Ensure it is a struct def
-                todo!()
+                match level1_term {
+                    Level1Term::NominalDef(nominal_def_id) => {
+                        let reader = self.reader();
+                        let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                        match nominal_def {
+                            NominalDef::Struct(struct_def) => {
+                                let params = match struct_def.fields {
+                                    StructFields::Explicit(params) => params,
+                                    StructFields::Opaque => {
+                                        // Cannot construct an opaque struct:
+                                        return cannot_use_as_fn_call_subject();
+                                    }
+                                };
+
+                                // Create a function type with the struct def as return type:
+
+                                // Note: if this is in a parent merge, it will be dealt with in the
+                                // Merge branch above.
+                                let nominal_def_id = *nominal_def_id;
+                                Ok(FnTy {
+                                    params,
+                                    return_ty: self
+                                        .builder()
+                                        .create_nominal_def_term(nominal_def_id),
+                                })
+                            }
+                            NominalDef::Enum(_) => cannot_use_as_fn_call_subject(),
+                        }
+                    }
+                    _ => cannot_use_as_fn_call_subject(),
+                }
             }
-            Term::Level0(_) => {
+            Term::Level0(level0_term) => {
                 // Ensure it is either an enum variant, or Rt(Fn(..)) or
                 // FnLit(..)
-                todo!()
+                let reader = self.reader();
+                match level0_term {
+                    Level0Term::Rt(rt_inner_term_id) => {
+                        // Only accept if it is a function type inside:
+                        match reader.get_term(*rt_inner_term_id) {
+                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(*fn_ty),
+                            _ => cannot_use_as_fn_call_subject(),
+                        }
+                    }
+                    Level0Term::FnLit(fn_lit) => {
+                        // Just return the inner type:
+                        match reader.get_term(fn_lit.fn_ty) {
+                            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(*fn_ty),
+                            _ => tc_panic!(
+                                fn_lit.fn_ty,
+                                self,
+                                "Unexpected non-function type as fn_ty field of FnLit"
+                            ),
+                        }
+                    }
+                    Level0Term::EnumVariant(_enum_variant) => {
+                        // Only accept if it is an enum variant with data:
+                        todo!()
+                    }
+                    Level0Term::FnCall(_) => {
+                        tc_panic!(term_id, self, "Function call should have already been simplified away when resolving function call subject")
+                    }
+                }
             }
 
             // Cannot be used as function call subjects:
-            Term::Level2(_) => todo!(),
-            Term::Level3(_) => todo!(),
-            Term::AppTyFn(_) => todo!(),
-            Term::TyFn(_) => todo!(),
-            Term::TyFnTy(_) => todo!(),
-            Term::Root => todo!(),
-            Term::Var(_) => todo!(),
-            Term::Access(_) => todo!(),
+            // (Remember, the term should have already been simplified)
+            Term::Level2(_)
+            | Term::Level3(_)
+            | Term::AppTyFn(_)
+            | Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::Root
+            | Term::Var(_)
+            | Term::Access(_) => cannot_use_as_fn_call_subject(),
         }
     }
 
@@ -1102,7 +1183,10 @@ mod test_super {
         );
         let dog_def = builder.create_struct_def(
             "Dog",
-            [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
+            builder.create_params(
+                [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
+                ParamOrigin::Struct,
+            ),
             [],
         );
 

@@ -289,7 +289,7 @@ pub struct ModDef {
 #[derive(Debug, Clone)]
 pub enum StructFields {
     /// An explicit set of fields, as a set of parameters.
-    Explicit(Params),
+    Explicit(ParamsId),
     /// The struct does not have any accessible parameters.
     ///
     /// This is used for core language definitions that will be filled in later
