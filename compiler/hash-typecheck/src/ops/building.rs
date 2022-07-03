@@ -4,8 +4,8 @@ use crate::storage::{
     location::LocationTarget,
     primitives::{
         AccessOp, AccessTerm, AppSub, AppTyFn, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue,
-        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
+        FnCall, FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData,
+        ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
         ParamOrigin, ParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
         TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
@@ -337,6 +337,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// value.
     pub fn create_fn_lit_term(&self, fn_ty: TermId, return_value: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::FnLit(FnLit { fn_ty, return_value })))
+    }
+
+    /// Create a [Level0Term::FnCall] term with the given subject and arguments.
+    pub fn create_fn_call_term(&self, subject: TermId, args: ArgsId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::FnCall(FnCall { subject, args })))
     }
 
     /// Create a parameter with the given name and type.

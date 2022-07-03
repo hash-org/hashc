@@ -614,6 +614,15 @@ pub enum Level1Term {
     Fn(FnTy),
 }
 
+// Represents a function call, with a level 0 subject and level 0 arguments.
+//
+// The subject must be either a `Rt(Fn(..))`, or an `FnLit(..)`.
+#[derive(Debug, Clone, Copy)]
+pub struct FnCall {
+    pub subject: TermId,
+    pub args: ArgsId,
+}
+
 /// Represents a function literal, with a function type, as well as a return
 /// value.
 #[derive(Debug, Clone, Copy)]
@@ -630,6 +639,9 @@ pub struct FnLit {
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),
+
+    /// A function call.
+    FnCall(FnCall),
 
     /// A function literal.
     FnLit(FnLit),

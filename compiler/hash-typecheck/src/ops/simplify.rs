@@ -3,6 +3,7 @@ use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
+        macros::tc_panic,
         symbol::NameFieldOrigin,
     },
     storage::{
@@ -213,6 +214,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         &mut self,
         term: &Level0Term,
         access_term: &AccessTerm,
+        originating_term: TermId,
     ) -> TcResult<Option<TermId>> {
         match term {
             // Runtime values:
@@ -311,6 +313,13 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Level0Term::FnLit(_) => does_not_support_access(access_term),
+            Level0Term::FnCall(_) => {
+                tc_panic!(
+                    originating_term,
+                    self,
+                    "Function call in access apply should have already been simplified!"
+                )
+            }
         }
     }
 
@@ -472,7 +481,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 self.apply_access_to_level1_term(&level1_term, access_term)
             }
             Term::Level0(level0_term) => {
-                self.apply_access_to_level0_term(&level0_term, access_term)
+                self.apply_access_to_level0_term(&level0_term, access_term, simplified_subject_id)
             }
             // @@Todo: infer type vars:
             Term::TyFn(_) => does_not_support_access(access_term),
@@ -630,6 +639,20 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),
+            Level0Term::FnCall(fn_call) => {
+                // Apply the function:
+
+                let reader = self.reader();
+                let _fn_ty = match reader.get_term(fn_call.subject).clone() {
+                    Term::Level0(Level0Term::FnLit(fn_lit)) => fn_lit.fn_ty,
+                    _ => panic!("Expected a function literal"),
+                };
+
+                // Unify params with args:
+                // self.unifier().unify_params_with_args(params_id, args_id, parent)?;
+
+                todo!()
+            }
         }
     }
 

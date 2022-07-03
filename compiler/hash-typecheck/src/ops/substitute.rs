@@ -157,6 +157,10 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_return_value = self.apply_sub_to_term(sub, fn_lit.return_value);
                 self.builder().create_fn_lit_term(subbed_fn_ty, subbed_return_value)
             }
+            Level0Term::FnCall(_) => {
+                // Apply to subject and args
+                todo!()
+            }
         }
     }
 
@@ -352,6 +356,10 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 // Forward to fn type and return value
                 self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
                 self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
+            }
+            Level0Term::FnCall(_) => {
+                // Forward to subject and args:
+                todo!()
             }
         }
     }

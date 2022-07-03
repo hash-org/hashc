@@ -618,6 +618,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // name. Furthermore, there are no inner terms to validate.
                     Ok(result)
                 }
+                Level0Term::FnCall(_) => {
+                    tc_panic!(
+                        simplified_term_id,
+                        self,
+                        "Function call in validation should have been simplified!"
+                    )
+                }
             },
 
             // Access
@@ -821,6 +828,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         // @@PotentiallyAllow: Enum variants also do not produce side effects, so
                         // why wouldn't they be allowed? Is there a use case for this?
                         Ok(false)
+                    }
+                    Level0Term::FnCall(_) => {
+                        tc_panic!(
+                        term_id,
+                        self,
+                        "Function call in checking for type function return validity should have been simplified!"
+                    )
                     }
                 }
             }

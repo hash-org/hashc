@@ -213,6 +213,12 @@ impl<'gs> TcFormatter<'gs> {
                     enum_variant.enum_def_id.for_formatting(self.global_storage)
                 )
             }
+            Level0Term::FnCall(fn_call) => {
+                opts.is_atomic.set(true);
+                self.fmt_term_as_single(f, fn_call.subject, TcFormatOpts::default())?;
+                write!(f, "({})", fn_call.args.for_formatting(self.global_storage))?;
+                Ok(())
+            }
         }
     }
 

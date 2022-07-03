@@ -207,6 +207,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         // The type of an enum variant is the enum
                         Ok(self.builder().create_nominal_def_term(enum_variant.enum_def_id))
                     }
+                    Level0Term::FnCall(_) => {
+                        tc_panic!(term_id, self, "Function call should have been simplified away!")
+                    }
                 }
             }
             // The type of root is root
