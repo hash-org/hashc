@@ -291,37 +291,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }),
                 }
             }
-            // Enum variants:
-            Level0Term::EnumVariant(enum_variant) => {
-                does_not_support_ns_access(access_term)?;
-                // Try to resolve the field in the variant:
-                let reader = self.reader();
-                let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
-                match nominal_def {
-                    NominalDef::Enum(enum_def) => {
-                        let fields = self.params_store().get(
-                            enum_def
-                                .variants
-                                .get(&enum_variant.variant_name)
-                                .expect("Enum variant name not found in def!")
-                                .fields,
-                        );
-
-                        match fields.get_by_name(access_term.name) {
-                            Some((_, field)) => {
-                                // Field found, now return a Rt(X) of the field type X as the
-                                // result.
-                                let field_ty = field.ty;
-                                Ok(Some(self.builder().create_rt_term(field_ty)))
-                            }
-                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
-                        }
-                    }
-                    NominalDef::Struct(_) => {
-                        tc_panic!(originating_term, self, "Got struct def ID in enum variant!")
-                    }
-                }
-            }
+            // Enum variants do not support access (only through pattern matching):
+            Level0Term::EnumVariant(_) => does_not_support_access(access_term),
             Level0Term::FnLit(_) => does_not_support_access(access_term),
             Level0Term::FnCall(_) => {
                 tc_panic!(
@@ -754,9 +725,31 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                             ),
                         }
                     }
-                    Level0Term::EnumVariant(_enum_variant) => {
+                    Level0Term::EnumVariant(enum_variant) => {
                         // Only accept if it is an enum variant with data:
-                        todo!()
+
+                        // @@PartiallyBroken: Merged impls on the enum would not carry
+                        // forward here, we need to somehow carry them forward while doing
+                        // the access.
+                        let reader = self.reader();
+                        let nominal_def = reader.get_nominal_def(enum_variant.enum_def_id);
+                        match nominal_def {
+                            NominalDef::Enum(enum_def) => {
+                                // For an enum variant Foo::Bar(x: A, y: B), we create:
+                                // (x: A, y: B) -> Bar
+                                let params = enum_def
+                                    .variants
+                                    .get(&enum_variant.variant_name)
+                                    .expect("Enum variant name not found in def!")
+                                    .fields;
+                                let enum_def_id = enum_variant.enum_def_id;
+                                let return_ty = self.builder().create_nominal_def_term(enum_def_id);
+                                Ok(FnTy { params, return_ty })
+                            }
+                            NominalDef::Struct(_) => {
+                                tc_panic!(term_id, self, "Got struct def ID in enum variant!")
+                            }
+                        }
                     }
                     Level0Term::FnCall(_) => {
                         tc_panic!(term_id, self, "Function call should have already been simplified away when resolving function call subject")
