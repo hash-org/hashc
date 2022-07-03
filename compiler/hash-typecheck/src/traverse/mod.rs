@@ -1093,10 +1093,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_loop_block(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
-        todo!()
+        let walk::LoopBlock(term) = walk::walk_loop_block(self, ctx, node)?;
+
+        // Add the location of the type as the whole block
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type ForLoopBlockRet = TermId;
@@ -1208,10 +1214,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_return_statement(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
-        todo!()
+        let walk::ReturnStatement(inner_ty) = walk::walk_return_statement(self, ctx, node)?;
+        let ret_ty = inner_ty.unwrap_or_else(|| self.builder().create_void_ty_term());
+
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(ret_ty, location);
+
+        Ok(ret_ty)
     }
 
     type BreakStatementRet = TermId;
@@ -1219,9 +1231,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_break_statement(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
-        todo!()
+        let void_ty = self.builder().create_void_ty_term();
+
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(void_ty, location);
+
+        Ok(void_ty)
     }
 
     type ContinueStatementRet = TermId;
@@ -1229,9 +1246,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_continue_statement(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
-        todo!()
+        let void_ty = self.builder().create_void_ty_term();
+
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(void_ty, location);
+
+        Ok(void_ty)
     }
 
     type VisibilityRet = Visibility;
