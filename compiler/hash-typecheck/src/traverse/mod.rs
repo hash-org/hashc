@@ -295,10 +295,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_deref_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
-        todo!()
+        let walk::DerefExpr(inner) = walk::walk_deref_expr(self, ctx, node)?;
+
+        // Attempt to unify this with a `Ref<T>` to see if the `inner_ty` can
+        // be dereferenced.
+        // @@Todo: deal with `RefMut<T>` and raw references...
+        let dummy = self.core_defs().reference_ty_fn;
+
+        // Unify the types, get the substitution result and use that as the return from
+        // the `inner_ty`
+        let result = self.unifier().unify_terms(inner, dummy)?;
+        let inner_ty = result.pairs().next().unwrap().1;
+
+        // Add the location to the type
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(inner_ty, location);
+
+        Ok(inner_ty)
     }
 
     type UnsafeExprRet = TermId;
