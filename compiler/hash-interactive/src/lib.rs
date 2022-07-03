@@ -114,9 +114,9 @@ where
             | InteractiveCommand::Code(expr)),
         ) => {
             // Add the interactive block to the state
-            let new_interactive_block = InteractiveBlock::new(expr.to_string());
-            let interactive_id =
-                compiler_state.sources.add_interactive_block(new_interactive_block);
+            let interactive_id = compiler_state
+                .workspace
+                .add_interactive_block(expr.to_string(), InteractiveBlock::new());
 
             // Compute the mode of the job based on provided arguments via the interactive
             // command

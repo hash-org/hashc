@@ -7,7 +7,7 @@ use crate::diagnostics::{error::AnalysisErrorKind, PatternOrigin};
 
 use super::SemanticAnalyser;
 
-impl SemanticAnalyser {
+impl SemanticAnalyser<'_> {
     pub(crate) fn check_compound_pattern_rules(
         &mut self,
         fields: &AstNodes<TuplePatternEntry>,

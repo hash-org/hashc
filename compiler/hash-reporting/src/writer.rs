@@ -9,18 +9,18 @@ use std::fmt;
 /// General data type for displaying [Report]s. This is needed due to the
 /// [Report] rendering process needing access to the program modules to get
 /// access to the source code.
-pub struct ReportWriter<'m, T: SourceMap> {
+pub struct ReportWriter<'m> {
     report: Report,
-    sources: &'m T,
+    sources: &'m SourceMap,
 }
 
-impl<'m, T: SourceMap> ReportWriter<'m, T> {
-    pub fn new(report: Report, sources: &'m T) -> Self {
+impl<'m> ReportWriter<'m> {
+    pub fn new(report: Report, sources: &'m SourceMap) -> Self {
         Self { report, sources }
     }
 }
 
-impl<T: SourceMap> fmt::Display for ReportWriter<'_, T> {
+impl fmt::Display for ReportWriter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Add the optional error code to the general message...
         let error_code_fmt = match self.report.error_code {

@@ -1,6 +1,9 @@
 //! Contains operations to get the type of a term.
 use crate::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic,
+    },
     storage::{
         primitives::{
             AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefOrigin,
@@ -13,17 +16,17 @@ use crate::{
 use super::{AccessToOps, AccessToOpsMut};
 
 /// Can resolve the type of a given term, as another term.
-pub struct Typer<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
+pub struct Typer<'gs, 'ls, 'cd, 's> {
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Typer<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for Typer<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Typer<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Typer<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -37,8 +40,8 @@ pub struct InferredMemberData {
     pub value: Option<TermId>,
 }
 
-impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
@@ -94,7 +97,11 @@ impl<'gs, 'ls, 'cd> Typer<'gs, 'ls, 'cd> {
                         self.simplifier().potentially_simplify_term(ty_access_term)
                     }
                     AccessOp::Property => {
-                        panic!("Property access should have already been simplified away!")
+                        tc_panic!(
+                            term_id,
+                            self,
+                            "Property access should have already been simplified away!"
+                        )
                     }
                 }
             }

@@ -17,17 +17,17 @@ use crate::{
 use hash_source::identifier::Identifier;
 
 /// Can perform simplification on terms.
-pub struct Simplifier<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
+pub struct Simplifier<'gs, 'ls, 'cd, 's> {
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Simplifier<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for Simplifier<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Simplifier<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -73,8 +73,8 @@ fn name_not_found<T>(access_term: &AccessTerm, origin: NameFieldOrigin) -> TcRes
     })
 }
 
-impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
@@ -770,49 +770,54 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
             Term::Merge(inner) => {
                 // Simplify each element of the merge:
 
-                // Keep track of if any terms have been simplified.
-                let mut simplified_once = false;
-                let inner = inner;
-                let inner_simplified = inner
-                    .iter()
-                    .copied()
-                    .map(|term_id| {
-                        // Simplify the current term:
-                        let simplified_term_id =
-                            self.simplify_term(term_id)?.map(|simplified_term_id| {
-                                simplified_once = true;
-                                simplified_term_id
-                            });
-
-                        // Check if the simplified term is a merge, and if so flatten it:
-                        let reader = self.reader();
-                        let simplified_term =
-                            reader.get_term(simplified_term_id.unwrap_or(term_id));
-                        match simplified_term {
-                            // It is a merge, flatten it (this also means the merge has been
-                            // simplified):
-                            Term::Merge(terms) => {
-                                simplified_once = true;
-                                Ok(terms.clone())
-                            }
-                            // Not a merge, just return a single-element vector:
-                            _ => Ok(vec![simplified_term_id.unwrap_or(term_id)]),
-                        }
-                    })
-                    .try_fold(vec![], |mut all_terms, nested_terms| {
-                        // Combine all the nested terms
-                        all_terms.extend(nested_terms?);
-                        Ok(all_terms)
-                    })?;
-
-                // @@Enhancement: here we can also collapse degenerate elements
-
-                if simplified_once {
-                    // If any of them have been simplified, create a new term
-                    Ok(Some(self.builder().create_merge_term(inner_simplified)))
+                // Shortcut if it is a single element:
+                if inner.len() == 1 {
+                    self.simplify_term(inner[0])
                 } else {
-                    // No simplification occurred
-                    Ok(None)
+                    // Keep track of if any terms have been simplified.
+                    let mut simplified_once = false;
+                    let inner = inner;
+                    let inner_simplified = inner
+                        .iter()
+                        .copied()
+                        .map(|term_id| {
+                            // Simplify the current term:
+                            let simplified_term_id =
+                                self.simplify_term(term_id)?.map(|simplified_term_id| {
+                                    simplified_once = true;
+                                    simplified_term_id
+                                });
+
+                            // Check if the simplified term is a merge, and if so flatten it:
+                            let reader = self.reader();
+                            let simplified_term =
+                                reader.get_term(simplified_term_id.unwrap_or(term_id));
+                            match simplified_term {
+                                // It is a merge, flatten it (this also means the merge has been
+                                // simplified):
+                                Term::Merge(terms) => {
+                                    simplified_once = true;
+                                    Ok(terms.clone())
+                                }
+                                // Not a merge, just return a single-element vector:
+                                _ => Ok(vec![simplified_term_id.unwrap_or(term_id)]),
+                            }
+                        })
+                        .try_fold(vec![], |mut all_terms, nested_terms| {
+                            // Combine all the nested terms
+                            all_terms.extend(nested_terms?);
+                            Ok(all_terms)
+                        })?;
+
+                    // @@Enhancement: here we can also collapse degenerate elements
+
+                    if simplified_once {
+                        // If any of them have been simplified, create a new term
+                        Ok(Some(self.builder().create_merge_term(inner_simplified)))
+                    } else {
+                        // No simplification occurred
+                        Ok(None)
+                    }
                 }
             }
             Term::AppSub(apply_sub) => Ok(Some(
@@ -934,6 +939,8 @@ impl<'gs, 'ls, 'cd> Simplifier<'gs, 'ls, 'cd> {
 
 #[cfg(test)]
 mod test_super {
+    use hash_source::SourceMap;
+
     use super::*;
     use crate::{
         fmt::PrepareForFormatting,
@@ -944,20 +951,23 @@ mod test_super {
         },
     };
 
-    fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs) {
+    fn get_storages() -> (GlobalStorage, LocalStorage, CoreDefs, SourceMap) {
         let mut global_storage = GlobalStorage::new();
         let local_storage = LocalStorage::new(&mut global_storage);
         let core_defs = CoreDefs::new(&mut global_storage);
-        (global_storage, local_storage, core_defs)
+        let source_map = SourceMap::new();
+
+        (global_storage, local_storage, core_defs, source_map)
     }
 
     #[test]
     fn test_simplify() {
-        let (mut global_storage, mut local_storage, core_defs) = get_storages();
+        let (mut global_storage, mut local_storage, core_defs, source_map) = get_storages();
         let mut storage_ref = StorageRefMut {
-            core_defs: &core_defs,
             global_storage: &mut global_storage,
             local_storage: &mut local_storage,
+            core_defs: &core_defs,
+            source_map: &source_map,
         };
 
         let builder = storage_ref.builder();

@@ -3,6 +3,7 @@ use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
+        macros::{tc_panic, tc_panic_on_many},
         params::ParamUnificationErrorReason,
     },
     storage::{
@@ -18,24 +19,24 @@ use std::collections::HashSet;
 pub struct UnifyTysOpts {}
 
 /// Performs type unification and other related operations.
-pub struct Unifier<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
+pub struct Unifier<'gs, 'ls, 'cd, 's> {
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Unifier<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for Unifier<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Unifier<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Unifier<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
@@ -79,8 +80,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             // Remove elements of dom(result) from t, and remove a from result.
             let subbed_t = substituter.apply_sub_to_term(&result, t);
             if substituter.get_free_vars_in_term(subbed_t).contains(&a) {
-                // @@ErrorReporting: here we can error with the span for more info.
-                panic!("Unexpected free variable in one of the substitutions being unified (occurs error)");
+                tc_panic!(subbed_t, self.storage, "Unexpected free variable in one of the substitutions being unified (occurs error)");
             }
 
             result.add_pair(a, subbed_t);
@@ -98,7 +98,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             if substituter.get_free_vars_in_term(x0).contains(&b)
                 || substituter.get_free_vars_in_term(x1).contains(&b)
             {
-                panic!("Unexpected free variable in intersection of substitutions being unified (occurs error)");
+                tc_panic_on_many!([x0, x1], self, "Unexpected free variable in intersection of substitutions being unified (occurs error)");
             }
 
             let v = self.unify_terms(x0, x1)?;
@@ -218,7 +218,7 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
             }
 
             // Merging:
-            (Term::Merge(_), Term::Merge(inner_target)) => {
+            (_, Term::Merge(inner_target)) => {
                 // Try to merge source with each individual term in target. If all succeed,
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
@@ -232,13 +232,6 @@ impl<'gs, 'ls, 'cd> Unifier<'gs, 'ls, 'cd> {
                     }
                 }
                 Ok(subs)
-            }
-            (_, Term::Merge(inner_target)) => {
-                // This is only valid if the merge has one element and unifies with source
-                match inner_target.as_slice() {
-                    [inner_target_id] => self.unify_terms(src_id, *inner_target_id),
-                    _ => cannot_unify(),
-                }
             }
             (Term::Merge(inner_src), _) => {
                 // Try to merge each individual term in source, with target. If any one

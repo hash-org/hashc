@@ -4,7 +4,8 @@ use std::fs;
 
 use hash_parser::HashParser;
 use hash_pipeline::{
-    sources::{Module, Sources},
+    fs::read_in_path,
+    sources::{Module, Workspace},
     traits::Parser,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
@@ -15,7 +16,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 /// Whether or not the UI tests should re-generate the output.
-const REGENERATE_OUTPUT: bool = false;
+const REGENERATE_OUTPUT: bool = true;
 
 /// This is the ANSI Regular expression matcher. This will match all the
 /// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
@@ -32,7 +33,7 @@ lazy_static! {
 fn handle_failure_case(
     input: TestingInput,
     result: Result<(), Vec<Report>>,
-    sources: Sources,
+    sources: Workspace,
 ) -> std::io::Result<()> {
     let content_path = input.path.join("case.hash");
 
@@ -42,7 +43,7 @@ fn handle_failure_case(
     let diagnostics = result.unwrap_err();
     let contents = diagnostics
         .into_iter()
-        .map(|report| format!("{}", ReportWriter::new(report, &sources)))
+        .map(|report| format!("{}", ReportWriter::new(report, &sources.source_map())))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -83,10 +84,12 @@ fn handle_test(input: TestingInput) {
     // determine if this test should fail or not
     let should_fail = input.snake_name.starts_with("should_fail");
 
-    let mut sources = Sources::new();
+    let mut workspace = Workspace::new();
     let content_path = input.path.join("case.hash");
     let target = Module::new(content_path.clone());
-    let target_id = sources.add_module(target);
+    let contents = read_in_path(content_path.as_path()).unwrap();
+
+    let target_id = workspace.add_module(contents, target);
 
     let mut parser = HashParser::new();
 
@@ -97,10 +100,10 @@ fn handle_test(input: TestingInput) {
         .unwrap();
 
     // Now parse the module and store the result
-    let result = parser.parse(SourceId::Module(target_id), &mut sources, &pool);
+    let result = parser.parse(SourceId::Module(target_id), &mut workspace, &pool);
 
     if should_fail {
-        handle_failure_case(input, result, sources).unwrap();
+        handle_failure_case(input, result, workspace).unwrap();
     } else {
         // Check whether the result fails or not, depending on if the file_path begins
         // with 'should_fail'...

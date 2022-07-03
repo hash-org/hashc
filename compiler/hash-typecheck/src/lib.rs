@@ -5,7 +5,7 @@
 //!
 //! @@Todo(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(generic_associated_types)]
+#![feature(generic_associated_types, decl_macro)]
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};
@@ -59,7 +59,7 @@ impl Tc<'_> for TcImpl {
     fn check_interactive(
         &mut self,
         interactive_id: hash_source::InteractiveId,
-        sources: &hash_pipeline::sources::Sources,
+        workspace: &hash_pipeline::sources::Workspace,
         state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
@@ -69,11 +69,12 @@ impl Tc<'_> for TcImpl {
             global_storage: &mut state.global_storage,
             core_defs: &state.core_defs,
             local_storage: &mut state.prev_local_storage,
+            source_map: &workspace.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(
             storage.storages_mut(),
             hash_source::SourceId::Interactive(interactive_id),
-            sources,
+            workspace.node_map(),
         );
         match tc_visitor.visit_source() {
             Ok(source_term) => {
@@ -92,7 +93,7 @@ impl Tc<'_> for TcImpl {
     fn check_module(
         &mut self,
         module_id: hash_source::ModuleId,
-        sources: &hash_pipeline::sources::Sources,
+        sources: &hash_pipeline::sources::Workspace,
         state: &mut Self::State,
         _job_params: &hash_pipeline::settings::CompilerJobParams,
     ) -> CompilerResult<()> {
@@ -101,13 +102,14 @@ impl Tc<'_> for TcImpl {
         let mut local_storage = LocalStorage::new(&mut state.global_storage);
         let mut storage = StorageRefMut {
             global_storage: &mut state.global_storage,
-            core_defs: &state.core_defs,
             local_storage: &mut local_storage,
+            core_defs: &state.core_defs,
+            source_map: &sources.source_map,
         };
         let mut tc_visitor = TcVisitor::new_in_source(
             storage.storages_mut(),
             hash_source::SourceId::Module(module_id),
-            sources,
+            sources.node_map(),
         );
 
         match tc_visitor.visit_source() {

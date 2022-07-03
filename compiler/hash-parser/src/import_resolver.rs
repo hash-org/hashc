@@ -3,42 +3,65 @@
 use std::path::{Path, PathBuf};
 
 use crossbeam_channel::Sender;
-use hash_pipeline::fs::{resolve_path, ImportError};
+use hash_pipeline::fs::{read_in_path, resolve_path, ImportError};
 use hash_source::{location::SourceLocation, SourceId};
 
 use crate::ParserAction;
 
-pub struct ImportResolver {
+/// The [ImportResolver] contains internal logic for resolving the path
+/// and contents of a module import, in order to prepare it for lexing
+/// and parsing.
+pub struct ImportResolver<'p> {
+    /// The associated [SourceId] with the import resolution.
     source_id: SourceId,
-    root_dir: PathBuf,
+    /// Working directory from where the import path resolution occurs.
+    root_dir: &'p Path,
+    /// The parser message queue sender.
     sender: Sender<ParserAction>,
 }
 
-impl ImportResolver {
-    pub fn new(source_id: SourceId, root_dir: PathBuf, sender: Sender<ParserAction>) -> Self {
+impl<'p> ImportResolver<'p> {
+    /// Create a new [ImportResolver] with a specified [SourceId], working
+    /// directory and a message queue sender.
+    pub(crate) fn new(
+        source_id: SourceId,
+        root_dir: &'p Path,
+        sender: Sender<ParserAction>,
+    ) -> Self {
         Self { root_dir, sender, source_id }
     }
 
-    pub fn current_source_id(&self) -> SourceId {
+    /// Get the [SourceId] associated with the current [ImportResolver]
+    pub(crate) fn current_source_id(&self) -> SourceId {
         self.source_id
     }
 
-    pub fn parse_import(
+    /// Function to perform import resolution. It will attempt to resolve the
+    /// contents of the provided `import_path`, resolve the contents of the
+    /// module, and then proceed to send a [ParserAction::ParseImport]
+    /// through the message queue.
+    pub(crate) fn resolve_import(
         &self,
         import_path: &Path,
         source_location: SourceLocation,
     ) -> Result<PathBuf, ImportError> {
+        // Read the contents of the file
         let resolved_path = resolve_path(import_path, &self.root_dir, Some(source_location))?;
+        let contents = read_in_path(&resolved_path)?;
+
+        // Send over the resolved path and the contents of the file
         self.sender
             .send(ParserAction::ParseImport {
                 resolved_path: resolved_path.clone(),
+                contents,
                 sender: self.sender.clone(),
             })
             .unwrap();
         Ok(resolved_path)
     }
 
-    pub fn into_sender(self) -> Sender<ParserAction> {
+    /// Yield a [Sender<ParserAction>] whilst consuming self.
+    pub(crate) fn into_sender(self) -> Sender<ParserAction> {
         self.sender
     }
 }

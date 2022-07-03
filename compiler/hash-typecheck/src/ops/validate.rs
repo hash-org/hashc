@@ -7,6 +7,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
+        macros::tc_panic,
         params::ParamListKind,
     },
     ops::params::validate_param_list_ordering,
@@ -77,17 +78,17 @@ impl Term {
 }
 
 /// Can resolve the type of a given term, as another term.
-pub struct Validator<'gs, 'ls, 'cd> {
-    storage: StorageRefMut<'gs, 'ls, 'cd>,
+pub struct Validator<'gs, 'ls, 'cd, 's> {
+    storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorage for Validator<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for Validator<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> crate::storage::StorageRef {
         self.storage.storages()
     }
 }
 
-impl<'gs, 'ls, 'cd> AccessToStorageMut for Validator<'gs, 'ls, 'cd> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Validator<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
@@ -119,8 +120,8 @@ enum SelfMode {
     Required,
 }
 
-impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
-    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd>) -> Self {
+impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
+    pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }
 
@@ -340,7 +341,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 }
                 MergeKind::Level1 { nominal_attached: _ } => {
                     // Merge was already specified to be level 1, error!
-                    Err(TcError::MergeShouldBeLevel2 {
+                    Err(TcError::MergeShouldBeLevel1 {
                         merge_term: merge_term_id,
                         offending_term: merge_element_term_id,
                     })
@@ -357,7 +358,7 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                 }
                 (MergeKind::Level2, _) => {
                     // Merge was already specified to be level 2, error!
-                    Err(TcError::MergeShouldBeLevel1 {
+                    Err(TcError::MergeShouldBeLevel2 {
                         merge_term: merge_term_id,
                         offending_term: merge_element_term_id,
                     })
@@ -438,17 +439,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                     *merge_kind = ensure_merge_is_level1(None)?;
                     Ok(())
                 }
-                // Nominals:
-                Level1Term::NominalDef(_) => {
-                    // Checking a nominal:
+                // Nominals, tuples, functions:
+                Level1Term::NominalDef(_) | Level1Term::Tuple(_) | Level1Term::Fn(_) => {
                     *merge_kind = ensure_merge_is_level1(Some(merge_element_term_id))?;
                     Ok(())
                 }
-                // Cannot attach a tuple to a merge
-                // @@Design: can we possibly allow this?
-                Level1Term::Tuple(_) => invalid_merge_element(),
-                // Cannot attach a function type to a merge
-                Level1Term::Fn(_) => invalid_merge_element(),
             },
             // Type functions are not allowed
             Term::TyFn(_) | Term::TyFnTy(_) => invalid_merge_element(),
@@ -609,7 +604,11 @@ impl<'gs, 'ls, 'cd> Validator<'gs, 'ls, 'cd> {
                             Ok(result)
                         }
                         // This isn't a user error, it is a compiler error:
-                        None => panic!("Found non-function type in function literal term!"),
+                        None => tc_panic!(
+                            simplified_term_id,
+                            self,
+                            "Found non-function type in function literal term!"
+                        ),
                     }
                 }
                 Level0Term::EnumVariant(_) => {

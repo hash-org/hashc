@@ -87,7 +87,7 @@ pub struct AstGen<'stream, 'resolver> {
 
     /// Instance of an [ImportResolver] to notify the parser of encountered
     /// imports.
-    resolver: &'resolver ImportResolver,
+    resolver: &'resolver ImportResolver<'resolver>,
 }
 
 /// Implementation of the [AstGen] with accompanying functions to parse specific
@@ -208,7 +208,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         match self.stream.get(offset) {
             Some(token) => token.span,
-            None => (*self.stream.last().unwrap()).span,
+            None => self.stream.last().unwrap().span,
         }
     }
 

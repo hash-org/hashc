@@ -11,7 +11,7 @@ use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast::{self};
 use hash_lexer::Lexer;
 use hash_pipeline::{
-    sources::{Module, Sources},
+    sources::{Module, Workspace},
     traits::Parser,
     CompilerResult,
 };
@@ -22,34 +22,29 @@ use parser::{error::ParseError, AstGen};
 use source::ParseSource;
 use std::{env, path::PathBuf};
 
+/// Messages that are passed from parser workers into the general message queue.
 #[derive(Debug)]
 pub enum ParserAction {
+    /// An error occurred during the parsing or lexing of a module.
     Error(ParseError),
-    ParseImport { resolved_path: PathBuf, sender: Sender<ParserAction> },
-    SetInteractiveInfo { interactive_id: InteractiveId, node: ast::AstNode<ast::BodyBlock> },
+    /// A worker has specified that a module should be put in the queue for
+    /// lexing and parsing.
+    ParseImport { resolved_path: PathBuf, contents: String, sender: Sender<ParserAction> },
+    /// A worker has completed processing an interactive block and now provides
+    /// the generated AST.
+    SetInteractiveNode { interactive_id: InteractiveId, node: ast::AstNode<ast::BodyBlock> },
+    /// A worker has completed processing an module and now provides the
+    /// generated AST.
     SetModuleNode { module_id: ModuleId, node: ast::AstNode<ast::Module> },
-    SetModuleContents { module_id: ModuleId, contents: String },
 }
 
+/// Parse a specific source specified by [ParseSource].
 fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let source_id = source.source_id();
-    let contents = match source.contents() {
-        Ok(source) => source,
-        Err(err) => {
-            return sender.send(ParserAction::Error(err)).unwrap();
-        }
-    };
+    let contents = source.contents();
 
-    let current_dir = source.current_dir();
-
+    // Lex the contents of the module or interactive block
     let mut lexer = Lexer::new(&contents, source_id);
-
-    // We need to send the source either way
-    if let SourceId::Module(module_id) = source_id {
-        sender
-            .send(ParserAction::SetModuleContents { contents: contents.to_string(), module_id })
-            .unwrap();
-    }
 
     let tokens = match lexer.tokenise() {
         Ok(source) => source,
@@ -59,22 +54,23 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     };
     let trees = lexer.into_token_trees();
 
-    let resolver = ImportResolver::new(source_id, current_dir, sender);
+    // Create a new import resolver in the event of more modules that
+    // are encountered whilst parsing this module.
+    let resolver = ImportResolver::new(source_id, source.current_dir(), sender);
+
     let gen = AstGen::new(&tokens, &trees, &resolver);
 
-    let action = match &source {
-        ParseSource::Module { module_id, .. } => match gen.parse_module() {
+    // Perform the parsing operation now... and send the result through the
+    // message queue, regardless of it being an error or not.
+    let action = match &source.source_id() {
+        SourceId::Module(id) => match gen.parse_module() {
             Err(err) => ParserAction::Error(err.into()),
-            Ok(node) => ParserAction::SetModuleNode { module_id: *module_id, node },
+            Ok(node) => ParserAction::SetModuleNode { module_id: *id, node },
         },
-        ParseSource::Interactive { interactive_id, .. } => {
-            match gen.parse_expression_from_interactive() {
-                Err(err) => ParserAction::Error(err.into()),
-                Ok(node) => {
-                    ParserAction::SetInteractiveInfo { interactive_id: *interactive_id, node }
-                }
-            }
-        }
+        SourceId::Interactive(id) => match gen.parse_expression_from_interactive() {
+            Err(err) => ParserAction::Error(err.into()),
+            Ok(node) => ParserAction::SetInteractiveNode { interactive_id: *id, node },
+        },
     };
 
     let sender = resolver.into_sender();
@@ -82,25 +78,26 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 }
 
 /// Implementation structure for the parser.
+#[derive(Debug, Default)]
 pub struct HashParser;
 
-impl Default for HashParser {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<'pool> HashParser {
-    /// Create a new Hash parser with the self hosted backend.
+    /// Create a new [HashParser].
     pub fn new() -> Self {
         Self
     }
 
-    pub fn parse_main(
+    /// Entry point of the parsing job. This will parse the initial entry point
+    /// on the main thread to get a map of any dependencies, and then it
+    /// will initiate the thread pool message queue. Parser workers add more
+    /// `jobs` by sending [ParserAction::ParseImport] messages through the
+    /// channel, and other workers set the parsed contents of the modules.
+    /// When all message senders go out of scope, the parser finishes executing
+    fn begin(
         &mut self,
-        sources: &mut Sources,
         entry_point_id: SourceId,
         current_dir: PathBuf,
+        workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> Vec<ParseError> {
         let mut errors = Vec::new();
@@ -109,30 +106,30 @@ impl<'pool> HashParser {
         assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
 
         // Parse the entry point
-        let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);
+        let entry_source_kind = ParseSource::from_source(entry_point_id, workspace, current_dir);
         parse_source(entry_source_kind, sender);
 
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
-                    ParserAction::SetInteractiveInfo { interactive_id, node } => {
-                        sources.get_interactive_block_mut(interactive_id).set_node(node);
-                    }
-                    ParserAction::SetModuleContents { module_id, contents } => {
-                        let module = sources.get_module_mut(module_id);
-                        module.set_contents(contents);
+                    ParserAction::SetInteractiveNode { interactive_id, node } => {
+                        workspace
+                            .node_map_mut()
+                            .get_interactive_block_mut(interactive_id)
+                            .set_node(node);
                     }
                     ParserAction::SetModuleNode { module_id, node } => {
-                        let module = sources.get_module_mut(module_id);
-                        module.set_node(node);
+                        workspace.node_map_mut().get_module_mut(module_id).set_node(node);
                     }
-                    ParserAction::ParseImport { resolved_path, sender } => {
-                        if sources.get_module_id_by_path(&resolved_path).is_some() {
+                    ParserAction::ParseImport { resolved_path, contents, sender } => {
+                        if workspace.get_module_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 
-                        let module_id = sources.add_module(Module::new(resolved_path.clone()));
-                        let source = ParseSource::from_module(module_id, sources);
+                        let module_id =
+                            workspace.add_module(contents, Module::new(resolved_path.clone()));
+
+                        let source = ParseSource::from_module(module_id, workspace);
                         scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {
@@ -147,20 +144,28 @@ impl<'pool> HashParser {
 }
 
 impl<'pool> Parser<'pool> for HashParser {
+    /// Entry point of the parser. Initialises a job from the specified
+    /// `entry_point`, and calls [HashParser::begin].
     fn parse(
         &mut self,
         target: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
         let current_dir =
             env::current_dir().map_err(ParseError::from).map_err(|err| vec![Report::from(err)])?;
-        let errors = self.parse_main(sources, target, current_dir, pool);
 
-        // @@Todo: merge errors
-        match errors.into_iter().next() {
-            Some(err) => Err(vec![err.into()]),
-            None => Ok(()),
+        // Parse and collect any errors that occurred
+        let errors: Vec<_> = self
+            .begin(target, current_dir, workspace, pool)
+            .into_iter()
+            .map(|err| err.create_report())
+            .collect();
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
         }
     }
 }

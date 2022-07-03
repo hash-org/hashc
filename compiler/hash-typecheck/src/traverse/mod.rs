@@ -6,7 +6,9 @@ use crate::{
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         location::LocationTarget,
-        primitives::{Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility},
+        primitives::{
+            Arg, Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId, Visibility,
+        },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -14,7 +16,8 @@ use hash_ast::{
     ast::{OwnsAstNode, RefKind},
     visitor::{self, walk, AstVisitor},
 };
-use hash_pipeline::sources::{SourceRef, Sources};
+use hash_pipeline::sources::{NodeMap, SourceRef};
+use hash_reporting::macros::panic_on_span;
 use hash_source::{
     identifier::Identifier,
     location::{SourceLocation, Span},
@@ -25,9 +28,9 @@ use hash_source::{
 ///
 /// Contains typechecker state that is accessed while traversing.
 pub struct TcVisitor<'gs, 'ls, 'cd, 'src> {
-    pub storage: StorageRefMut<'gs, 'ls, 'cd>,
+    pub storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
     pub source_id: SourceId,
-    pub sources: &'src Sources,
+    pub node_map: &'src NodeMap,
 }
 
 impl<'gs, 'ls, 'cd, 'src> AccessToStorage for TcVisitor<'gs, 'ls, 'cd, 'src> {
@@ -46,17 +49,17 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Create a new [TcVisitor] with the given state, traversing the given
     /// source from [Sources].
     pub fn new_in_source(
-        storage: StorageRefMut<'gs, 'ls, 'cd>,
+        storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
         source_id: SourceId,
-        sources: &'src Sources,
+        node_map: &'src NodeMap,
     ) -> Self {
-        TcVisitor { storage, source_id, sources }
+        TcVisitor { storage, source_id, node_map }
     }
 
     /// Visits the source passed in as an argument to [Self::new], and returns
     /// the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
-        let source = self.sources.get_source(self.source_id);
+        let source = self.node_map.get_source(self.source_id);
         match source {
             SourceRef::Interactive(interactive_source) => {
                 self.visit_body_block(&(), interactive_source.node_ref())
@@ -399,7 +402,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             node.bound.as_ref().map(|bound| bound.span()).unwrap_or_else(|| node.name.span()),
         );
         // The type of the param is the given bound, or Type if no bound was given.
-        let ty = bound.unwrap_or_else(|| self.builder().create_any_ty_term());
+        let runtime_instantiable_trt = self.core_defs().runtime_instantiable_trt;
+        let ty = bound.unwrap_or_else(|| self.builder().create_trt_term(runtime_instantiable_trt));
         self.location_store_mut().add_location_to_target(ty, location);
 
         Ok(Param { ty, name: Some(name), default_value: default })
@@ -436,10 +440,32 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_type_function_call(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionCall>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionCall>,
     ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
-        todo!()
+        let walk::TypeFunctionCall { args, subject } =
+            walk::walk_type_function_call(self, ctx, node)?;
+
+        // These should be converted to args
+        let args = self.builder().create_args(
+            args.iter().map(|param_arg| Arg { name: param_arg.name, value: param_arg.ty }),
+            ParamOrigin::TyFn,
+        );
+
+        // Add all the locations to the args:
+        for (index, entry) in node.body().args.iter().enumerate() {
+            let location = self.source_location(entry.span());
+            self.location_store_mut().add_location_to_target((args, index), location);
+        }
+
+        // Create the type function call term:
+        let app_ty_fn_term = self.builder().create_app_ty_fn_term(subject, args);
+
+        // Add the location of the term to the location storage
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(app_ty_fn_term, location);
+
+        Ok(self.validator().validate_term(app_ty_fn_term)?.simplified_term_id)
     }
 
     type NamedTypeRet = TermId;
@@ -503,10 +529,18 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_merged_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedType>,
     ) -> Result<Self::MergedTypeRet, Self::Error> {
-        todo!()
+        let walk::MergedType(elements) = walk::walk_merged_type(self, ctx, node)?;
+
+        let merge_term = self.builder().create_merge_term(elements);
+
+        // Add location
+        let merge_term_location = self.source_location(node.span());
+        self.builder().add_location_to_target(merge_term, merge_term_location);
+
+        Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
     }
 
     type TypeFunctionDefRet = TermId;
@@ -603,7 +637,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
         let term = builder.create_tuple_ty_term(members);
 
-        // add the location of the term to the location storage
+        // Add the location of the term to the location storage
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(term, location);
 
@@ -1006,9 +1040,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_for_loop_block(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
-        panic!("hit for-block whilst performing typechecking");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared for-block whilst performing typechecking"
+        );
     }
 
     type WhileLoopBlockRet = TermId;
@@ -1016,9 +1054,41 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_while_loop_block(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
-        panic!("hit while-block whilst performing typechecking");
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared while-block whilst performing typechecking"
+        );
+    }
+
+    type IfClauseRet = TermId;
+
+    fn visit_if_clause(
+        &mut self,
+        _ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
+    ) -> Result<Self::IfClauseRet, Self::Error> {
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared if-clause whilst performing typechecking"
+        );
+    }
+
+    type IfBlockRet = TermId;
+
+    fn visit_if_block(
+        &mut self,
+        _ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
+    ) -> Result<Self::IfBlockRet, Self::Error> {
+        panic_on_span!(
+            self.source_location(node.span()),
+            self.source_map(),
+            "hit non de-sugared if-block whilst performing typechecking"
+        );
     }
 
     type ModBlockRet = TermId;
@@ -1039,26 +1109,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         todo!()
-    }
-
-    type IfClauseRet = TermId;
-
-    fn visit_if_clause(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
-    ) -> Result<Self::IfClauseRet, Self::Error> {
-        panic!("hit if-clause whilst performing typechecking");
-    }
-
-    type IfBlockRet = TermId;
-
-    fn visit_if_block(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
-    ) -> Result<Self::IfBlockRet, Self::Error> {
-        panic!("hit if-block whilst performing typechecking");
     }
 
     type BodyBlockRet = TermId;
@@ -1083,7 +1133,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
                 Ok(self.validator().validate_term(expr_id)?.simplified_term_id)
             }
-            None => Ok(self.builder().create_void_ty_term()),
+            None => {
+                let builder = self.builder();
+                Ok(builder.create_rt_term(builder.create_void_ty_term()))
+            }
         }
     }
 
