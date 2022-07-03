@@ -24,6 +24,8 @@ use hash_source::{
     SourceId,
 };
 
+mod sequence;
+
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
 /// Contains typechecker state that is accessed while traversing.
@@ -684,52 +686,22 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::MapLiteral { entries } = walk::walk_map_literal(self, ctx, node)?;
         let map_inner_ty = self.core_defs().map_ty_fn;
 
-        // @@CopyPasta
-        // Unify the key types first...
-        let mut key_term = self.builder().create_unresolved_term();
-        let mut keys = entries.iter().map(|(k, _)| k).peekable();
-
-        while let Some(key) = keys.next() {
-            let element_ty = self.typer().ty_of_term(*key)?;
-            let sub = self.unifier().unify_terms(element_ty, key_term)?;
-
-            // apply the substitution on the `shared_term`
-            key_term = self.substituter().apply_sub_to_term(&sub, key_term);
-
-            // Only add the position to the last term...
-            if keys.peek().is_none() {
-                self.location_store_mut().copy_location(element_ty, key_term);
-            }
-        }
-
-        // @@CopyPasta
-        // Unify the values types
-        let mut value_term = self.builder().create_unresolved_term();
-        let values = entries.iter().map(|(_, v)| v).into_iter().peekable();
-
-        for value in values {
-            let element_ty = self.typer().ty_of_term(*value)?;
-            let sub = self.unifier().unify_terms(element_ty, value_term)?;
-
-            // apply the substitution on the `value_term`
-            value_term = self.substituter().apply_sub_to_term(&sub, value_term);
-
-            // Only add the position to the last term...
-            if keys.peek().is_none() {
-                self.location_store_mut().copy_location(element_ty, value_term);
-            }
-        }
+        // Unify the key and value types...
+        let key_ty =
+            self.unify_term_sequence(entries.iter().map(|(k, _)| *k).collect::<Vec<_>>())?;
+        let val_ty =
+            self.unify_term_sequence(entries.iter().map(|(v, _)| *v).collect::<Vec<_>>())?;
 
         let builder = self.builder();
-        let list_ty = builder.create_app_ty_fn_term(
+        let map_ty = builder.create_app_ty_fn_term(
             map_inner_ty,
             builder.create_args(
-                [builder.create_arg("K", key_term), builder.create_arg("V", value_term)],
+                [builder.create_arg("K", key_ty), builder.create_arg("V", val_ty)],
                 ParamOrigin::TyFn,
             ),
         );
 
-        let term = self.builder().create_rt_term(list_ty);
+        let term = builder.create_rt_term(map_ty);
 
         // add the location of the term to the location storage
         let location = self.source_location(node.span());
@@ -760,34 +732,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::ListLiteral { elements } = walk::walk_list_literal(self, ctx, node)?;
 
         let list_inner_ty = self.core_defs().list_ty_fn;
-
-        // @@CopyPasta
-        // Create a shared term that is used to verify all elements within the
-        // list can be unified with one another, and then iterate over all of the
-        // elements.
-        let mut shared_term = self.builder().create_unresolved_term();
-        let mut elements = elements.into_iter().peekable();
-
-        while let Some(element) = elements.next() {
-            let element_ty = self.typer().ty_of_term(element)?;
-            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
-
-            // apply the substitution on the `shared_term`
-            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
-
-            // Only add the position to the last term...
-            if elements.peek().is_none() {
-                self.location_store_mut().copy_location(element_ty, shared_term);
-            }
-        }
+        let element_ty = self.unify_term_sequence(elements)?;
 
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
             list_inner_ty,
-            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TyFn),
+            builder.create_args([builder.create_arg("T", element_ty)], ParamOrigin::TyFn),
         );
 
-        let term = self.builder().create_rt_term(list_ty);
+        let term = builder.create_rt_term(list_ty);
 
         // add the location of the term to the location storage
         let location = self.source_location(node.span());
@@ -806,34 +759,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::SetLiteral { elements } = walk::walk_set_literal(self, ctx, node)?;
 
         let set_inner_ty = self.core_defs().set_ty_fn;
-
-        // Create a shared term that is used to verify all elements within the
-        // set can be unified with one another, and then iterate over all of the
-        // elements.
-        let mut shared_term = self.builder().create_unresolved_term();
-        let mut elements = elements.into_iter().peekable();
-
-        // @@Todo: factor this out into a separate function like `unify_variadic_params`
-        while let Some(element) = elements.next() {
-            let element_ty = self.typer().ty_of_term(element)?;
-            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
-
-            // apply the substitution on the `shared_term`
-            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
-
-            // Only add the position to the last term...
-            if elements.peek().is_none() {
-                self.location_store_mut().copy_location(element_ty, shared_term);
-            }
-        }
+        let element_ty = self.unify_term_sequence(elements)?;
 
         let builder = self.builder();
-        let list_ty = builder.create_app_ty_fn_term(
+        let set_ty = builder.create_app_ty_fn_term(
             set_inner_ty,
-            builder.create_args([builder.create_arg("T", shared_term)], ParamOrigin::TyFn),
+            builder.create_args([builder.create_arg("T", element_ty)], ParamOrigin::TyFn),
         );
 
-        let term = self.builder().create_rt_term(list_ty);
+        let term = builder.create_rt_term(set_ty);
 
         // add the location of the term to the location storage
         let location = self.source_location(node.span());
