@@ -35,6 +35,18 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Unifier<'gs, 'ls, 'cd, 's> {
     }
 }
 
+/// Whether to substitute parameter names for argument values, or just unify the
+/// types of the parameters with the types of the arguments.
+///
+/// The former is to be used for type function calls, while the latter is to be
+/// used for runtime runtime calls.
+pub enum UnifyParamsWithArgsMode {
+    /// Substitute parameter names for argument values.
+    SubstituteParamNamesForArgValues,
+    /// Unify the types of the parameters with the types of the arguments.
+    UnifyParamTypesWithArgTypes,
+}
+
 impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
@@ -118,6 +130,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         params_id: ParamsId,
         args_id: ArgsId,
         parent: TermId,
+        mode: UnifyParamsWithArgsMode,
     ) -> TcResult<Sub> {
         let params = self.params_store().get(params_id).clone();
         let args = self.args_store().get(args_id).clone();
@@ -128,12 +141,22 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         for (param, arg) in pairs.into_iter() {
             // Ensure their types unify:
             let ty_of_arg = self.typer().ty_of_term(arg.value)?;
-            let _ = self.unify_terms(ty_of_arg, param.ty)?;
+            let ty_sub = self.unify_terms(ty_of_arg, param.ty)?;
 
-            // Add the parameter substituted for the argument to the substitution, if a
-            // parameter name is given:
-            if let Some(name) = param.name {
-                sub.add_pair(self.builder().create_var(name).into(), arg.value);
+            match mode {
+                UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues => {
+                    // Add the parameter substituted for the argument to the substitution, if a
+                    // parameter name is given:
+                    if let Some(name) = param.name {
+                        sub.add_pair(self.builder().create_var(name).into(), arg.value);
+                    }
+                    // @@Correctness: should we also perform the lower branch
+                    // here?
+                }
+                UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes => {
+                    // Add the ty sub to the sub
+                    sub = self.get_super_sub(&sub, &ty_sub)?;
+                }
             }
         }
         Ok(sub)
@@ -326,11 +349,13 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             ty_fn_ty.params,
                             src_app_ty_fn.args,
                             target_id,
+                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
                         let args_target_sub = self.unify_params_with_args(
                             ty_fn_ty.params,
                             target_app_ty_fn.args,
                             src_id,
+                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
 
                         // Unify all the created substitutions

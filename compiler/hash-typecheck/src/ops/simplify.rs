@@ -1,5 +1,9 @@
 //! Contains functionality to simplify terms into more concrete terms.
-use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
+use super::{
+    substitute::Substituter,
+    unify::{Unifier, UnifyParamsWithArgsMode},
+    AccessToOps, AccessToOpsMut,
+};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -526,6 +530,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     ty_fn.general_params,
                     apply_ty_fn.args,
                     simplified_subject_id,
+                    UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                 )?;
 
                 // Try to match each of the cases:
@@ -534,6 +539,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         case.params,
                         apply_ty_fn.args,
                         simplified_subject_id,
+                        UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                     ) {
                         Ok(sub) => {
                             // Successful, add the return value to result, subbed with the
@@ -609,6 +615,56 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Use the given term in function call subject position.
+    ///
+    /// The following terms can be used as this:
+    /// - Function literals (`FnLit(..)`)
+    /// - Runtime values of function type (`Rt(FnTy(..))`)
+    /// - Enum variants with members (`EnumVariant(..)`)
+    /// - Struct definitions (`NominalDef(StructDef(..))`)
+    ///
+    /// *Note*: Expects the term to be simplified.
+    pub fn use_term_as_fn_call_subject(&mut self, term_id: TermId) -> TcResult<FnTy> {
+        let reader = self.reader();
+        let term = reader.get_term(term_id);
+
+        match term {
+            Term::Merge(_) => {
+                // Try to recurse into the inner terms. Make sure there is one result otherwise
+                // there is an ambiguity.
+                todo!()
+            }
+            Term::AppSub(_) => {
+                // Recurse to inner and then apply sub
+                todo!()
+            }
+            Term::Unresolved(_) => {
+                // @@Future: Here maybe create a function type with unknown args and return?
+                // For now error:
+                todo!()
+            }
+            Term::Level1(_) => {
+                // Ensure it is a struct def
+                todo!()
+            }
+            Term::Level0(_) => {
+                // Ensure it is either an enum variant, or Rt(Fn(..)) or
+                // FnLit(..)
+                todo!()
+            }
+
+            // Cannot be used as function call subjects:
+            Term::Level2(_) => todo!(),
+            Term::Level3(_) => todo!(),
+            Term::AppTyFn(_) => todo!(),
+            Term::TyFn(_) => todo!(),
+            Term::TyFnTy(_) => todo!(),
+            Term::Root => todo!(),
+            Term::Var(_) => todo!(),
+            Term::Access(_) => todo!(),
+        }
+    }
+
     /// Simplify the given term, just returning the original if no
     /// simplification occurred.
     pub(crate) fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
@@ -616,7 +672,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     }
 
     /// Simplify the given [Level0Term], if possible.
-    pub(crate) fn simplify_level0_term(&mut self, term: &Level0Term) -> TcResult<Option<TermId>> {
+    pub(crate) fn simplify_level0_term(
+        &mut self,
+        term: &Level0Term,
+        originating_term: TermId,
+    ) -> TcResult<Option<TermId>> {
         match term {
             // For Rt(..), try to simplify the inner term:
             Level0Term::Rt(inner) => {
@@ -642,16 +702,22 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Level0Term::FnCall(fn_call) => {
                 // Apply the function:
 
-                let reader = self.reader();
-                let _fn_ty = match reader.get_term(fn_call.subject).clone() {
-                    Term::Level0(Level0Term::FnLit(fn_lit)) => fn_lit.fn_ty,
-                    _ => panic!("Expected a function literal"),
-                };
+                // Must be a function:
+                let fn_ty = self.use_term_as_fn_call_subject(fn_call.subject)?;
 
                 // Unify params with args:
-                // self.unifier().unify_params_with_args(params_id, args_id, parent)?;
+                let params_sub = self.unifier().unify_params_with_args(
+                    fn_ty.params,
+                    fn_call.args,
+                    originating_term,
+                    UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
+                )?;
 
-                todo!()
+                // Apply the substitution to the return value:
+                let subbed_return_value =
+                    self.substituter().apply_sub_to_term(&params_sub, fn_ty.return_ty);
+
+                Ok(Some(subbed_return_value))
             }
         }
     }
@@ -946,7 +1012,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Level3(term) => self.simplify_level3_term(&term),
             Term::Level2(term) => self.simplify_level2_term(&term),
             Term::Level1(term) => self.simplify_level1_term(&term),
-            Term::Level0(term) => self.simplify_level0_term(&term),
+            Term::Level0(term) => self.simplify_level0_term(&term, term_id),
             // Root cannot be simplified:
             Term::Root => Ok(None),
         }?;
