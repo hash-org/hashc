@@ -284,11 +284,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             builder.create_args([builder.create_arg("T", inner_expr)], ParamOrigin::TyFn);
         let ref_ty = builder.create_app_ty_fn_term(ref_def, ref_args);
 
+        let term = builder.create_rt_term(ref_ty);
+
         // Add location to the type:
         let ref_expr_span = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(ref_ty, ref_expr_span);
+        self.location_store_mut().add_location_to_target(term, ref_expr_span);
 
-        Ok(ref_ty)
+        Ok(term)
     }
 
     type DerefExprRet = TermId;
@@ -299,22 +301,36 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let walk::DerefExpr(inner) = walk::walk_deref_expr(self, ctx, node)?;
+        let inner_ty = self.typer().ty_of_term(inner)?;
+
+        let ref_ty = self.core_defs().reference_ty_fn;
+        let ap_ref_ty = {
+            let builder = self.builder();
+
+            builder.create_app_ty_fn_term(
+                ref_ty,
+                builder.create_args(
+                    [builder.create_arg("T", builder.create_unresolved_term())],
+                    ParamOrigin::TyFn,
+                ),
+            )
+        };
 
         // Attempt to unify this with a `Ref<T>` to see if the `inner_ty` can
         // be dereferenced.
         // @@Todo: deal with `RefMut<T>` and raw references...
-        let dummy = self.core_defs().reference_ty_fn;
+        let result = self.unifier().unify_terms(inner_ty, ap_ref_ty)?;
 
-        // Unify the types, get the substitution result and use that as the return from
-        // the `inner_ty`
-        let result = self.unifier().unify_terms(inner, dummy)?;
+        // get the substitution result and use that as the return from the `inner_ty`
         let inner_ty = result.pairs().next().unwrap().1;
+
+        let term = self.builder().create_rt_term(inner_ty);
 
         // Add the location to the type
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(inner_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(inner_ty)
+        Ok(term)
     }
 
     type UnsafeExprRet = TermId;
@@ -707,11 +723,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
+        let term = builder.create_rt_term(list_ty);
+
         // Add the location to the type
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(list_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(list_ty)
+        Ok(term)
     }
 
     type SetTypeRet = TermId;
@@ -731,11 +749,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
+        let term = builder.create_rt_term(set_ty);
+
         // Add the location to the type
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(set_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(set_ty)
+        Ok(term)
     }
 
     type MapTypeRet = TermId;
@@ -758,11 +778,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             ),
         );
 
+        let term = builder.create_rt_term(map_ty);
+
         // Add the location to the type
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(map_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(map_ty)
+        Ok(term)
     }
 
     type MapLiteralRet = TermId;
@@ -1112,7 +1134,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
-        let walk::LoopBlock(term) = walk::walk_loop_block(self, ctx, node)?;
+        let walk::LoopBlock(_) = walk::walk_loop_block(self, ctx, node)?;
+
+        let void_ty = self.builder().create_void_ty_term();
+        let term = self.builder().create_rt_term(void_ty);
 
         // Add the location of the type as the whole block
         let location = self.source_location(node.span());
@@ -1233,13 +1258,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
-        let walk::ReturnStatement(inner_ty) = walk::walk_return_statement(self, ctx, node)?;
-        let ret_ty = inner_ty.unwrap_or_else(|| self.builder().create_void_ty_term());
+        let walk::ReturnStatement(_) = walk::walk_return_statement(self, ctx, node)?;
+        let builder = self.builder();
+
+        let ret_ty = builder.create_void_ty_term();
+        let term = builder.create_rt_term(ret_ty);
 
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(ret_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(ret_ty)
+        Ok(term)
     }
 
     type BreakStatementRet = TermId;
@@ -1249,12 +1277,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
-        let void_ty = self.builder().create_void_ty_term();
+        let builder = self.builder();
+        let void_ty = builder.create_void_ty_term();
+        let term = builder.create_rt_term(void_ty);
 
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(void_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(void_ty)
+        Ok(term)
     }
 
     type ContinueStatementRet = TermId;
@@ -1264,12 +1294,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
-        let void_ty = self.builder().create_void_ty_term();
+        let builder = self.builder();
+        let void_ty = builder.create_void_ty_term();
+        let term = builder.create_rt_term(void_ty);
 
         let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(void_ty, location);
+        self.location_store_mut().add_location_to_target(term, location);
 
-        Ok(void_ty)
+        Ok(term)
     }
 
     type VisibilityRet = Visibility;
