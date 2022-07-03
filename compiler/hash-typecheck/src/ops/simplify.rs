@@ -7,7 +7,7 @@ use super::{
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
-        macros::tc_panic,
+        macros::{tc_panic, tc_panic_on_many},
         symbol::NameFieldOrigin,
     },
     storage::{
@@ -630,11 +630,38 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
 
+        let cannot_use_as_fn_call_subject = || todo!();
+
         match term {
-            Term::Merge(_) => {
-                // Try to recurse into the inner terms. Make sure there is one result otherwise
-                // there is an ambiguity.
-                todo!()
+            Term::Merge(terms) => {
+                // Recurse into the inner terms:
+                let terms = terms.clone();
+                let results: Vec<_> = terms
+                    .iter()
+                    .map(|item| self.use_term_as_fn_call_subject(*item))
+                    .collect::<TcResult<_>>()?;
+
+                match results.as_slice() {
+                    // Got no results, cannot be used as fn call:
+                    [] => cannot_use_as_fn_call_subject(),
+                    // We only got a single result, so we can use it:
+                    [single_result] => Ok(*single_result),
+                    // Got multiple results, which should not happen:
+                    results => {
+                        let result_terms = results
+                            .iter()
+                            .map(|result| {
+                                self.builder().create_term(Term::Level1(Level1Term::Fn(*result)))
+                            })
+                            .collect::<Vec<_>>();
+                        tc_panic_on_many!(
+                            result_terms,
+                            self,
+                            "Got multiple results when using merge term as fn call subject: {:?}",
+                            results
+                        )
+                    }
+                }
             }
             Term::AppSub(_) => {
                 // Recurse to inner and then apply sub

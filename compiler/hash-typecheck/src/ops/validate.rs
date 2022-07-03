@@ -543,7 +543,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
-                    let tuple_ty = tuple_ty.clone();
+                    let tuple_ty = *tuple_ty;
                     self.validate_params(tuple_ty.members)?;
 
                     let members = self.params_store().get(tuple_ty.members).clone();
@@ -556,7 +556,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 }
                 Level1Term::Fn(fn_ty) => {
                     // Validate parameters and return type
-                    let fn_ty = fn_ty.clone();
+                    let fn_ty = *fn_ty;
                     self.validate_params(fn_ty.params)?;
                     self.validate_term(fn_ty.return_ty)?;
 
@@ -969,7 +969,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(simplified_term_id);
         match term {
-            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty.clone())),
+            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(*fn_ty)),
             _ => Ok(None),
         }
     }

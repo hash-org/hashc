@@ -308,7 +308,7 @@ pub struct StructDef {
 /// An enum variant, containing a variant name and a set of fields.
 ///
 /// Structurally the same as a struct.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct EnumVariant {
     pub name: Identifier,
     pub fields: ParamsId,
@@ -356,7 +356,7 @@ impl NominalDef {
 }
 
 /// A tuple type, containing parameters as members.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TupleTy {
     pub members: ParamsId,
 }
@@ -364,7 +364,7 @@ pub struct TupleTy {
 /// A function type, with a set of input parameters and a return type.
 ///
 /// All the parameter types and return type must be level 0
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FnTy {
     pub params: ParamsId,
     pub return_ty: TermId,
