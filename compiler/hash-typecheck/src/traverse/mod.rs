@@ -678,30 +678,75 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_list_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
     ) -> Result<Self::ListTypeRet, Self::Error> {
-        todo!()
+        let walk::ListType { inner } = walk::walk_list_type(self, ctx, node)?;
+
+        let inner_ty = self.core_defs().list_ty_fn;
+        let builder = self.builder();
+
+        let list_ty = builder.create_app_ty_fn_term(
+            inner_ty,
+            builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
+        );
+
+        // Add the location to the type
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(list_ty, location);
+
+        Ok(list_ty)
     }
 
     type SetTypeRet = TermId;
 
     fn visit_set_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
     ) -> Result<Self::SetTypeRet, Self::Error> {
-        todo!()
+        let walk::SetType { inner } = walk::walk_set_type(self, ctx, node)?;
+
+        let inner_ty = self.core_defs().set_ty_fn;
+        let builder = self.builder();
+
+        let set_ty = builder.create_app_ty_fn_term(
+            inner_ty,
+            builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
+        );
+
+        // Add the location to the type
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(set_ty, location);
+
+        Ok(set_ty)
     }
 
     type MapTypeRet = TermId;
 
     fn visit_map_type(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
     ) -> Result<Self::MapTypeRet, Self::Error> {
-        todo!()
+        let walk::MapType { key, value } = walk::walk_map_type(self, ctx, node)?;
+
+        let inner_ty = self.core_defs().map_ty_fn;
+        let builder = self.builder();
+
+        let map_ty = builder.create_app_ty_fn_term(
+            inner_ty,
+            builder.create_args(
+                [builder.create_arg("K", key), builder.create_arg("V", value)],
+                ParamOrigin::TyFn,
+            ),
+        );
+
+        // Add the location to the type
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(map_ty, location);
+
+        Ok(map_ty)
     }
 
     type MapLiteralRet = TermId;
