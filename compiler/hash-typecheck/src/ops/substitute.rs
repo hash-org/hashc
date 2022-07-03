@@ -357,9 +357,10 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
                 self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
             }
-            Level0Term::FnCall(_) => {
+            Level0Term::FnCall(fn_call) => {
                 // Forward to subject and args:
-                todo!()
+                self.add_free_vars_in_term_to_set(fn_call.subject, result);
+                self.add_free_vars_in_args_to_set(fn_call.args, result);
             }
         }
     }
