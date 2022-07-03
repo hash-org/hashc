@@ -1189,14 +1189,17 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type VisibilityRet = TermId;
+    type VisibilityRet = Visibility;
 
     fn visit_visibility_modifier(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Visibility>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Visibility>,
     ) -> Result<Self::VisibilityRet, Self::Error> {
-        todo!()
+        Ok(match node.body() {
+            hash_ast::ast::Visibility::Public => Visibility::Public,
+            hash_ast::ast::Visibility::Private => Visibility::Private,
+        })
     }
 
     type MutabilityRet = Mutability;
