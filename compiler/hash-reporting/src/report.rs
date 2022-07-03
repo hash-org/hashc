@@ -69,6 +69,8 @@ impl fmt::Display for ReportKind {
 pub enum ReportNoteKind {
     /// A help message or a suggestion.
     Help,
+    /// Information note
+    Info,
     /// Additional information about the diagnostic.
     Note,
 }
@@ -77,6 +79,7 @@ impl fmt::Display for ReportNoteKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ReportNoteKind::Note => write!(f, "note"),
+            ReportNoteKind::Info => write!(f, "info"),
             ReportNoteKind::Help => write!(f, "{}", highlight(Colour::Cyan, "help")),
         }
     }

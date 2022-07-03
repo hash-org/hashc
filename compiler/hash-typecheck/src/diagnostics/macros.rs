@@ -16,6 +16,9 @@ pub macro tc_panic {
     ($term: expr, $storage:expr, $fmt: expr, $($arg:tt)*) => {
         {
             use crate::storage::AccessToStorage;
+            use crate::fmt::PrepareForFormatting;
+            use hash_reporting::{report, builder, writer};
+
             let storages = $storage.storages();
 
             // get the sources and and the location from the term
@@ -23,27 +26,40 @@ pub macro tc_panic {
             let sources = storages.source_map();
 
             // format the message and build the report
-            let message = format!($fmt, $($arg)*);
-            let mut report = hash_reporting::builder::ReportBuilder::new();
+            let mut report = builder::ReportBuilder::new();
             report
-                .with_kind(hash_reporting::report::ReportKind::Internal)
-                .with_message(message);
+                .with_kind(report::ReportKind::Internal)
+                .with_message("The compiler encountered a fatal error");
+                .add_element(report::ReportElement::Note(report::ReportNote::new(
+                    report::ReportNoteKind::Info,
+                    format!("whilst performing operations on the term `{}`", $term.for_formatting(storages.global_storage()))
+                )));
 
             if let Some(location) = term_location {
                 builder
-                    .add_element(hash_reporting::report::ReportElement::CodeBlock(hash_reporting::report::ReportCodeBlock::new(
+                    .add_element(report::ReportElement::CodeBlock(report::ReportCodeBlock::new(
                         location,
                         "here",
                     )));
             }
 
-            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+             // Add the `info` note about why the internal panic occurred
+             report.add_element(report::ReportElement::Note(report::ReportNote::new(
+                report::ReportNoteKind::Info,
+                format!($fmt, $($arg)*)
+            )));
+
+
+            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
     ($term: expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
+            use crate::fmt::PrepareForFormatting;
+            use hash_reporting::{report, builder, writer};
+
             let storages = $storage.storages();
 
             // get the sources and and the location from the term
@@ -51,20 +67,30 @@ pub macro tc_panic {
             let sources = storages.source_map();
 
             // format the message and build the report
-            let mut report = hash_reporting::builder::ReportBuilder::new();
+            let mut report = builder::ReportBuilder::new();
             report
-                .with_kind(hash_reporting::report::ReportKind::Internal)
-                .with_message($fmt);
+                .with_kind(report::ReportKind::Internal)
+                .with_message("The compiler encountered a fatal error")
+                .add_element(report::ReportElement::Note(report::ReportNote::new(
+                    report::ReportNoteKind::Info,
+                    format!("whilst performing operations on the term `{}`", $term.for_formatting(storages.global_storage()))
+                )));
 
-                if let Some(location) = term_location {
-                    report
-                        .add_element(hash_reporting::report::ReportElement::CodeBlock(hash_reporting::report::ReportCodeBlock::new(
-                            location,
-                            "here",
-                        )));
-                }
+            if let Some(location) = term_location {
+                report
+                    .add_element(report::ReportElement::CodeBlock(report::ReportCodeBlock::new(
+                        location,
+                        "here",
+                    )));
+            }
 
-            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            // Add the `info` note about why the internal panic occurred
+            report.add_element(report::ReportElement::Note(report::ReportNote::new(
+                report::ReportNoteKind::Info,
+                $fmt
+            )));
+
+            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     }
@@ -78,59 +104,106 @@ pub macro tc_panic_on_many {
     ($terms: expr, $storage:expr, $fmt: expr, $($arg:tt)*) => {
         {
             use crate::storage::AccessToStorage;
+            use crate::fmt::PrepareForFormatting;
+            use hash_reporting::{report, builder, writer};
+
             let storages = $storage.storages();
             let sources = storages.source_map();
 
-            // Build the report
-            let mut report = hash_reporting::builder::ReportBuilder::new();
+            let terms = $terms
+                .iter()
+                .map(|term| format!("`{}`", term.for_formatting(storages.global_storage())))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            // build the report
+            let mut report = builder::ReportBuilder::new();
             report
-                .with_kind(hash_reporting::report::ReportKind::Internal)
-                .with_message(format!($fmt, $($arg)*));
+                .with_kind(report::ReportKind::Internal)
+                .with_message("The compiler encountered a fatal error")
+                .add_element(report::ReportElement::Note(
+                    report::ReportNote::new(
+                        report::ReportNoteKind::Info,
+                        format!("whilst performing operations on the terms: {}", terms),
+                    ),
+                ));
 
             // Add all of the locations from the terms that we're provided by the macro
             for (index, term) in $terms.iter().enumerate() {
                 let term_location = storages.location_store().get_location(term);
 
                 if let Some(location) = term_location {
-                    report
-                        .add_element(hash_reporting::report::ReportElement::CodeBlock(hash_reporting::report::ReportCodeBlock::new(
+                    report.add_element(report::ReportElement::CodeBlock(
+                        report::ReportCodeBlock::new(
                             location,
-                            format!("{} member here", index)
-                        )));
+                            format!("{} member here", index),
+                        ),
+                    ));
                 }
             }
 
-            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            // Add the `info` note about why the internal panic occurred
+            report.add_element(report::ReportElement::Note(
+                report::ReportNote::new(
+                    report::ReportNoteKind::Info,
+                    format!($fmt, $($arg)*)
+                ),
+            ));
+
+            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
     ($terms:expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
-            let storages = $storage.storages();
+            use crate::fmt::PrepareForFormatting;
+            use hash_reporting::{report, builder, writer};
 
+            let storages = $storage.storages();
             let sources = storages.source_map();
 
+            let terms = $terms
+                .iter()
+                .map(|term| format!("`{}`", term.for_formatting(storages.global_storage())))
+                .collect::<Vec<_>>()
+                .join(", ");
+
             // build the report
-            let mut report = hash_reporting::builder::ReportBuilder::new();
+            let mut report = builder::ReportBuilder::new();
             report
-                .with_kind(hash_reporting::report::ReportKind::Internal)
-                .with_message($fmt);
+                .with_kind(report::ReportKind::Internal)
+                .with_message("The compiler encountered a fatal error")
+                .add_element(report::ReportElement::Note(
+                    report::ReportNote::new(
+                        report::ReportNoteKind::Info,
+                        format!("whilst performing operations on the terms: {}", terms),
+                    ),
+                ));
 
             // Add all of the locations from the terms that we're provided by the macro
             for (index, term) in $terms.iter().enumerate() {
                 let term_location = storages.location_store().get_location(term);
 
                 if let Some(location) = term_location {
-                    report
-                        .add_element(hash_reporting::report::ReportElement::CodeBlock(hash_reporting::report::ReportCodeBlock::new(
+                    report.add_element(report::ReportElement::CodeBlock(
+                        report::ReportCodeBlock::new(
                             location,
-                            format!("{} member here", index)
-                        )));
+                            format!("{} member here", index),
+                        ),
+                    ));
                 }
             }
 
-            eprintln!("{}", hash_reporting::writer::ReportWriter::new(report.build(), sources));
+            // Add the `info` note about why the internal panic occurred
+            report.add_element(report::ReportElement::Note(
+                report::ReportNote::new(
+                    report::ReportNoteKind::Info,
+                    $fmt,
+                ),
+            ));
+
+            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     }
