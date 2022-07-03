@@ -210,10 +210,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_directive_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
-        todo!()
+        // @@Directives: Decide on what to do with directives, but for now walk the
+        // inner types...
+        let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
+
+        Ok(subject)
     }
 
     type ConstructorCallArgRet = TermId;
@@ -260,10 +264,31 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_ref_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefExpr>,
     ) -> Result<Self::RefExprRet, Self::Error> {
-        todo!()
+        let walk::RefExpr { inner_expr, mutability } = walk::walk_ref_expr(self, ctx, node)?;
+
+        // Depending on the `mutability` of the reference, create the relevant type
+        // function application
+        let ref_def = if mutability.is_some() {
+            self.core_defs().reference_mut_ty_fn
+        } else {
+            self.core_defs().reference_ty_fn
+        };
+
+        let builder = self.builder();
+
+        // Create either `RefMut<T>` or `Ref<T>`
+        let ref_args =
+            builder.create_args([builder.create_arg("T", inner_expr)], ParamOrigin::TyFn);
+        let ref_ty = builder.create_app_ty_fn_term(ref_def, ref_args);
+
+        // Add location to the type:
+        let ref_expr_span = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(ref_ty, ref_expr_span);
+
+        Ok(ref_ty)
     }
 
     type DerefExprRet = TermId;
@@ -280,10 +305,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_unsafe_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnsafeExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnsafeExpr>,
     ) -> Result<Self::UnsafeExprRet, Self::Error> {
-        todo!()
+        // @@UnsafeExprs: Decide on what to do with unsafe expressions, but for now walk
+        // the inner types...
+        let walk::UnsafeExpr(subject) = walk::walk_unsafe_expr(self, ctx, node)?;
+        Ok(subject)
     }
 
     type LiteralExprRet = TermId;
