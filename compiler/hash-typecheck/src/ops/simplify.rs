@@ -313,7 +313,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                             None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
                         }
                     }
-                    NominalDef::Struct(_) => unreachable!("Got struct def ID in enum variant!"),
+                    NominalDef::Struct(_) => {
+                        tc_panic!(originating_term, self, "Got struct def ID in enum variant!")
+                    }
                 }
             }
             Level0Term::FnLit(_) => does_not_support_access(access_term),

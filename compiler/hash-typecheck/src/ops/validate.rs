@@ -7,7 +7,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
-        macros::tc_panic,
+        macros::{tc_panic, tc_panic_on_many},
         params::ParamListKind,
     },
     ops::params::validate_param_list_ordering,
@@ -453,7 +453,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Root => invalid_merge_element(),
             // This should have been flattened already:
             Term::Merge(_) => {
-                unreachable!("Merge term should have already been flattened")
+                tc_panic_on_many!(
+                    [merge_element_term_id, merge_term_id],
+                    self,
+                    "Merge term should have already been flattened"
+                )
             }
         }
     }
@@ -873,7 +877,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
             Term::Level0(_) | Term::TyFn(_) => {
                 // This should never happen
-                unreachable!("Found type function definition or level 0 term in type position!")
+                tc_panic!(
+                    term_id,
+                    self,
+                    "Found type function definition or level 0 term in type position!"
+                )
             }
             Term::TyFnTy(_) => {
                 // All good, basically curried type function:
@@ -926,7 +934,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
             Term::Level0(_) | Term::TyFn(_) => {
                 // This should never happen
-                unreachable!("Found type function definition or level 0 term in type position!")
+                tc_panic!(
+                    term_id,
+                    self,
+                    "Found type function definition or level 0 term in type position!"
+                )
             }
             Term::TyFnTy(ty_fn_ty) => {
                 // Type function types are okay to use if their return types can be used here:
