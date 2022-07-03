@@ -323,12 +323,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let merge_element_term = reader.get_term(merge_element_term_id);
 
-        println!(
-            "Validating element {} inside merge {}",
-            self.for_fmt(merge_element_term_id),
-            self.for_fmt(merge_term_id)
-        );
-
         // Error helper:
         let invalid_merge_element = || -> TcResult<()> {
             Err(TcError::InvalidMergeElement { term: merge_element_term_id })
