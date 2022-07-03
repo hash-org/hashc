@@ -5,7 +5,7 @@
 #![feature(generic_associated_types)]
 
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitorMut};
-use hash_pipeline::{sources::Sources, traits::Desugar, CompilerResult};
+use hash_pipeline::{sources::Workspace, traits::Desugar, CompilerResult};
 use hash_source::SourceId;
 use std::collections::HashSet;
 use visitor::AstDesugaring;
@@ -46,13 +46,13 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
     fn desugar(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> hash_pipeline::traits::CompilerResult<()> {
         pool.scope(|scope| {
-            let source_map = &mut sources.source_map;
-            let node_map = &mut sources.node_map;
+            let source_map = &workspace.source_map;
+            let node_map = &mut workspace.node_map;
 
             // De-sugar the target if it isn't already de-sugared
             if !state.contains(&entry_point) {
@@ -91,7 +91,7 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
 
         // Add all of the ids into the cache
         state.insert(entry_point);
-        state.extend(sources.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
+        state.extend(workspace.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         Ok(())
     }

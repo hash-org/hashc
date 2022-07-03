@@ -182,7 +182,7 @@ impl NodeMap {
 }
 
 #[derive(Debug, Default)]
-pub struct Sources {
+pub struct Workspace {
     /// Dependency map between sources and modules.
     dependencies: HashMap<SourceId, HashSet<ModuleId>>,
     /// Stores all of the raw file contents of the interactive blocks and
@@ -192,7 +192,7 @@ pub struct Sources {
     pub node_map: NodeMap,
 }
 
-impl Sources {
+impl Workspace {
     /// Create a new [Sources], initialising all members to be empty.
     pub fn new() -> Self {
         Self {

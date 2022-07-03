@@ -2,7 +2,7 @@
 extern crate test;
 
 use hash_lexer::Lexer;
-use hash_pipeline::sources::{InteractiveBlock, Sources};
+use hash_pipeline::sources::{InteractiveBlock, Workspace};
 use hash_source::SourceId;
 use test::{black_box, Bencher};
 
@@ -19,9 +19,9 @@ macro_rules! bench_func {
             b.bytes = $source.len() as u64;
 
             // make a new sources
-            let mut sources = Sources::new();
+            let mut workspace = Workspace::new();
             let interactive_id =
-                sources.add_interactive_block($source.to_string(), InteractiveBlock::new());
+                workspace.add_interactive_block($source.to_string(), InteractiveBlock::new());
 
             b.iter(|| {
                 // create a new lexer

@@ -18,7 +18,7 @@ use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::SourceId;
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
-use sources::{Module, Sources};
+use sources::{Module, Workspace};
 use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
@@ -60,7 +60,7 @@ pub struct CompilerState<
     V: VirtualMachine<'c>,
 > {
     /// The collected workspace sources for the current job.
-    pub sources: Sources,
+    pub workspace: Workspace,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
     /// The typechecker state.
@@ -111,7 +111,7 @@ where
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
     pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
-        let sources = Sources::new();
+        let sources = Workspace::new();
         // let checker_interactive_state = self.checker.make_interactive_state(&mut
         // checker_state)?; let checker_module_state =
         // self.checker.make_module_state(&mut checker_state)?;
@@ -122,7 +122,7 @@ where
         let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
-            sources,
+            workspace: sources,
             diagnostics: vec![],
             semantic_analysis_state,
             tc_state,
@@ -158,12 +158,12 @@ where
 
     /// Utility function used by AST like stages in order to print the
     /// current [Sources].
-    fn print_sources(&self, sources: &Sources, entry_point: SourceId) {
+    fn print_sources(&self, workspace: &Workspace, entry_point: SourceId) {
         match entry_point {
             SourceId::Interactive(id) => {
                 // If this is an interactive statement, we want to print the statement that was
                 // just parsed.
-                let source = sources.node_map().get_interactive_block(id);
+                let source = workspace.node_map().get_interactive_block(id);
 
                 let tree = AstTreeGenerator.visit_body_block(&(), source.node_ref()).unwrap();
 
@@ -172,7 +172,7 @@ where
             SourceId::Module(_) => {
                 // If this is a module, we want to print all of the generated modules from the
                 // parsing stage
-                for (_, generated_module) in sources.node_map().iter_modules() {
+                for (_, generated_module) in workspace.node_map().iter_modules() {
                     let tree =
                         AstTreeGenerator.visit_module(&(), generated_module.node_ref()).unwrap();
 
@@ -190,11 +190,11 @@ where
     fn parse_source(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         timed(
-            || self.parser.parse(entry_point, sources, self.pool),
+            || self.parser.parse(entry_point, workspace, self.pool),
             log::Level::Debug,
             |time| {
                 self.metrics.insert(CompilerMode::Parse, time);
@@ -204,7 +204,7 @@ where
         // We want to loop through all of the generated modules and print
         // the resultant AST
         if job_params.mode == CompilerMode::Parse && job_params.output_stage_result {
-            self.print_sources(sources, entry_point);
+            self.print_sources(workspace, entry_point);
         }
 
         Ok(())
@@ -214,12 +214,12 @@ where
     fn desugar_sources(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         desugar_state: &mut D::State,
         job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         timed(
-            || self.desugarer.desugar(entry_point, sources, desugar_state, self.pool),
+            || self.desugarer.desugar(entry_point, workspace, desugar_state, self.pool),
             log::Level::Debug,
             |time| {
                 self.metrics.insert(CompilerMode::DeSugar, time);
@@ -229,7 +229,7 @@ where
         // We want to loop through all of the generated modules and print
         // the resultant AST
         if job_params.mode == CompilerMode::DeSugar && job_params.output_stage_result {
-            self.print_sources(sources, entry_point);
+            self.print_sources(workspace, entry_point);
         }
 
         Ok(())
@@ -239,7 +239,7 @@ where
     fn perform_semantic_pass(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         semantic_analyser_state: &mut S::State,
         _job_params: &CompilerJobParams,
     ) -> Result<(), Vec<Report>> {
@@ -247,7 +247,7 @@ where
             || {
                 self.semantic_analyser.perform_pass(
                     entry_point,
-                    sources,
+                    workspace,
                     semantic_analyser_state,
                     self.pool,
                 )
@@ -277,14 +277,14 @@ where
     fn typecheck_source(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         checker_state: &mut C::State,
         job_params: &CompilerJobParams,
     ) -> CompilerResult<()> {
         match entry_point {
             SourceId::Interactive(id) => {
                 timed(
-                    || self.checker.check_interactive(id, sources, checker_state, job_params),
+                    || self.checker.check_interactive(id, workspace, checker_state, job_params),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -293,7 +293,7 @@ where
             }
             SourceId::Module(id) => {
                 timed(
-                    || self.checker.check_module(id, sources, checker_state, job_params),
+                    || self.checker.check_module(id, workspace, checker_state, job_params),
                     log::Level::Debug,
                     |time| {
                         self.metrics.insert(CompilerMode::Typecheck, time);
@@ -346,12 +346,12 @@ where
         compiler_state: &mut CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
     ) -> Result<(), ()> {
-        let result = self.parse_source(entry_point, &mut compiler_state.sources, &job_params);
+        let result = self.parse_source(entry_point, &mut compiler_state.workspace, &job_params);
         self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Parse)?;
 
         let result = self.desugar_sources(
             entry_point,
-            &mut compiler_state.sources,
+            &mut compiler_state.workspace,
             &mut compiler_state.ds_state,
             &job_params,
         );
@@ -360,7 +360,7 @@ where
         // Now perform the semantic pass on the sources
         let result = self.perform_semantic_pass(
             entry_point,
-            &mut compiler_state.sources,
+            &mut compiler_state.workspace,
             &mut compiler_state.semantic_analysis_state,
             &job_params,
         );
@@ -368,7 +368,7 @@ where
 
         let result = self.typecheck_source(
             entry_point,
-            &mut compiler_state.sources,
+            &mut compiler_state.workspace,
             &mut compiler_state.tc_state,
             &job_params,
         );
@@ -402,7 +402,10 @@ where
                     warn_count += 1;
                 }
 
-                eprintln!("{}", ReportWriter::new(diagnostic, compiler_state.sources.source_map()));
+                eprintln!(
+                    "{}",
+                    ReportWriter::new(diagnostic, compiler_state.workspace.source_map())
+                );
             }
 
             // @@Hack: to prevent the compiler from printing this message when the pipeline
@@ -436,7 +439,7 @@ where
         if let Err(err) = filename {
             eprintln!(
                 "{}",
-                ReportWriter::new(err.create_report(), compiler_state.sources.source_map())
+                ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
             );
 
             return compiler_state;
@@ -448,7 +451,7 @@ where
         if let Err(err) = contents {
             eprintln!(
                 "{}",
-                ReportWriter::new(err.create_report(), compiler_state.sources.source_map())
+                ReportWriter::new(err.create_report(), compiler_state.workspace.source_map())
             );
 
             return compiler_state;
@@ -456,7 +459,7 @@ where
 
         // Create the entry point and run!
         let entry_point =
-            compiler_state.sources.add_module(contents.unwrap(), Module::new(filename));
+            compiler_state.workspace.add_module(contents.unwrap(), Module::new(filename));
         self.run(SourceId::Module(entry_point), compiler_state, job_params)
     }
 }

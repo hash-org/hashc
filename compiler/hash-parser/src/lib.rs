@@ -11,7 +11,7 @@ use crossbeam_channel::{unbounded, Sender};
 use hash_ast::ast::{self};
 use hash_lexer::Lexer;
 use hash_pipeline::{
-    sources::{Module, Sources},
+    sources::{Module, Workspace},
     traits::Parser,
     CompilerResult,
 };
@@ -97,7 +97,7 @@ impl<'pool> HashParser {
         &mut self,
         entry_point_id: SourceId,
         current_dir: PathBuf,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> Vec<ParseError> {
         let mut errors = Vec::new();
@@ -106,30 +106,30 @@ impl<'pool> HashParser {
         assert!(pool.current_num_threads() > 1, "Parser loop requires at least 2 workers");
 
         // Parse the entry point
-        let entry_source_kind = ParseSource::from_source(entry_point_id, sources, current_dir);
+        let entry_source_kind = ParseSource::from_source(entry_point_id, workspace, current_dir);
         parse_source(entry_source_kind, sender);
 
         pool.scope(|scope| {
             while let Ok(message) = receiver.recv() {
                 match message {
                     ParserAction::SetInteractiveNode { interactive_id, node } => {
-                        sources
+                        workspace
                             .node_map_mut()
                             .get_interactive_block_mut(interactive_id)
                             .set_node(node);
                     }
                     ParserAction::SetModuleNode { module_id, node } => {
-                        sources.node_map_mut().get_module_mut(module_id).set_node(node);
+                        workspace.node_map_mut().get_module_mut(module_id).set_node(node);
                     }
                     ParserAction::ParseImport { resolved_path, contents, sender } => {
-                        if sources.get_module_id_by_path(&resolved_path).is_some() {
+                        if workspace.get_module_id_by_path(&resolved_path).is_some() {
                             continue;
                         }
 
                         let module_id =
-                            sources.add_module(contents, Module::new(resolved_path.clone()));
+                            workspace.add_module(contents, Module::new(resolved_path.clone()));
 
-                        let source = ParseSource::from_module(module_id, sources);
+                        let source = ParseSource::from_module(module_id, workspace);
                         scope.spawn(move |_| parse_source(source, sender));
                     }
                     ParserAction::Error(err) => {
@@ -149,7 +149,7 @@ impl<'pool> Parser<'pool> for HashParser {
     fn parse(
         &mut self,
         target: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         pool: &'pool rayon::ThreadPool,
     ) -> CompilerResult<()> {
         let current_dir =
@@ -157,7 +157,7 @@ impl<'pool> Parser<'pool> for HashParser {
 
         // Parse and collect any errors that occurred
         let errors: Vec<_> = self
-            .begin(target, current_dir, sources, pool)
+            .begin(target, current_dir, workspace, pool)
             .into_iter()
             .map(|err| err.create_report())
             .collect();

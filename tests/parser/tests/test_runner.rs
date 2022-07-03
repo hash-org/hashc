@@ -5,7 +5,7 @@ use std::fs;
 use hash_parser::HashParser;
 use hash_pipeline::{
     fs::read_in_path,
-    sources::{Module, Sources},
+    sources::{Module, Workspace},
     traits::Parser,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
@@ -33,7 +33,7 @@ lazy_static! {
 fn handle_failure_case(
     input: TestingInput,
     result: Result<(), Vec<Report>>,
-    sources: Sources,
+    sources: Workspace,
 ) -> std::io::Result<()> {
     let content_path = input.path.join("case.hash");
 
@@ -84,12 +84,12 @@ fn handle_test(input: TestingInput) {
     // determine if this test should fail or not
     let should_fail = input.snake_name.starts_with("should_fail");
 
-    let mut sources = Sources::new();
+    let mut workspace = Workspace::new();
     let content_path = input.path.join("case.hash");
     let target = Module::new(content_path.clone());
     let contents = read_in_path(content_path.as_path()).unwrap();
 
-    let target_id = sources.add_module(contents, target);
+    let target_id = workspace.add_module(contents, target);
 
     let mut parser = HashParser::new();
 
@@ -100,10 +100,10 @@ fn handle_test(input: TestingInput) {
         .unwrap();
 
     // Now parse the module and store the result
-    let result = parser.parse(SourceId::Module(target_id), &mut sources, &pool);
+    let result = parser.parse(SourceId::Module(target_id), &mut workspace, &pool);
 
     if should_fail {
-        handle_failure_case(input, result, sources).unwrap();
+        handle_failure_case(input, result, workspace).unwrap();
     } else {
         // Check whether the result fails or not, depending on if the file_path begins
         // with 'should_fail'...

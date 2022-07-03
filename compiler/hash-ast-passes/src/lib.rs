@@ -13,7 +13,7 @@ use crossbeam_channel::unbounded;
 
 use diagnostics::Diagnostic;
 use hash_ast::{ast::OwnsAstNode, visitor::AstVisitor};
-use hash_pipeline::{sources::Sources, traits::SemanticPass, CompilerResult};
+use hash_pipeline::{sources::Workspace, traits::SemanticPass, CompilerResult};
 use hash_reporting::report::Report;
 use hash_source::SourceId;
 use std::collections::HashSet;
@@ -41,14 +41,14 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
     fn perform_pass(
         &mut self,
         entry_point: SourceId,
-        sources: &mut Sources,
+        workspace: &mut Workspace,
         state: &mut Self::State,
         pool: &'pool rayon::ThreadPool,
     ) -> Result<(), Vec<Report>> {
         let (sender, receiver) = unbounded::<Diagnostic>();
 
-        let source_map = &sources.source_map;
-        let node_map = &mut sources.node_map;
+        let source_map = &workspace.source_map;
+        let node_map = &mut workspace.node_map;
 
         pool.scope(|scope| {
             // De-sugar the target if it isn't already de-sugared
@@ -102,7 +102,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
 
         // Add all of the ids into the cache
         state.insert(entry_point);
-        state.extend(sources.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
+        state.extend(workspace.node_map().iter_modules().map(|(id, _)| SourceId::Module(*id)));
 
         // Collect all of the errors
         drop(sender);

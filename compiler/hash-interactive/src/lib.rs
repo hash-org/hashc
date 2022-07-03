@@ -115,7 +115,7 @@ where
         ) => {
             // Add the interactive block to the state
             let interactive_id = compiler_state
-                .sources
+                .workspace
                 .add_interactive_block(expr.to_string(), InteractiveBlock::new());
 
             // Compute the mode of the job based on provided arguments via the interactive

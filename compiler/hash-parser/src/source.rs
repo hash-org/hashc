@@ -3,7 +3,7 @@
 
 use std::{borrow::Cow, path::PathBuf};
 
-use hash_pipeline::sources::Sources;
+use hash_pipeline::sources::Workspace;
 use hash_source::{InteractiveId, ModuleId, SourceId};
 
 /// A [ParseSource] represents the pre-processed information before a module
@@ -22,9 +22,10 @@ pub struct ParseSource {
 
 impl ParseSource {
     /// Create a new [ParseSource] from a [ModuleId].
-    pub fn from_module(module_id: ModuleId, sources: &Sources) -> Self {
-        let module = sources.node_map().get_module(module_id);
-        let contents = sources.source_map().contents_by_id(SourceId::Module(module_id)).to_owned();
+    pub fn from_module(module_id: ModuleId, workspace: &Workspace) -> Self {
+        let module = workspace.node_map().get_module(module_id);
+        let contents =
+            workspace.source_map().contents_by_id(SourceId::Module(module_id)).to_owned();
 
         Self {
             id: SourceId::Module(module_id),
@@ -35,22 +36,22 @@ impl ParseSource {
     /// Create a new [ParseSource] from a [InteractiveId].
     pub fn from_interactive(
         interactive_id: InteractiveId,
-        sources: &Sources,
+        workspace: &Workspace,
         current_dir: PathBuf,
     ) -> Self {
         let contents =
-            sources.source_map().contents_by_id(SourceId::Interactive(interactive_id)).to_owned();
+            workspace.source_map().contents_by_id(SourceId::Interactive(interactive_id)).to_owned();
 
         Self { id: SourceId::Interactive(interactive_id), contents, path: current_dir }
     }
 
     /// Create a [ParseSource] from a general [SourceId]
-    pub fn from_source(source_id: SourceId, sources: &Sources, current_dir: PathBuf) -> Self {
+    pub fn from_source(source_id: SourceId, workspace: &Workspace, current_dir: PathBuf) -> Self {
         match source_id {
             SourceId::Interactive(interactive_id) => {
-                Self::from_interactive(interactive_id, sources, current_dir)
+                Self::from_interactive(interactive_id, workspace, current_dir)
             }
-            SourceId::Module(module_id) => Self::from_module(module_id, sources),
+            SourceId::Module(module_id) => Self::from_module(module_id, workspace),
         }
     }
 
