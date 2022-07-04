@@ -278,6 +278,11 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 }
             }
 
+            // Union: @@Todo
+            (Term::Union(_), Term::Union(_)) => todo!(),
+            (Term::Union(_), Term::Level0(_)) => todo!(),
+            (Term::Level0(_), Term::Union(_)) => todo!(),
+
             // Access:
             (Term::Access(src_access), Term::Access(target_access))
                 if src_access.name == target_access.name =>

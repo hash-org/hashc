@@ -414,6 +414,21 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
 
         match simplified_subject {
+            Term::Union(terms) => {
+                // Try apply the access on each element, and if they all succeed then we get the
+                // union of the results:
+                let results: Vec<_> = terms
+                    .iter()
+                    .map(|term| {
+                        Ok(self
+                            .apply_access_term(&AccessTerm { subject: *term, ..*access_term })?
+                            .unwrap_or(*term))
+                    })
+                    .collect::<TcResult<_>>()?;
+
+                let union_term = self.builder().create_union_term(results);
+                Ok(Some(self.potentially_simplify_term(union_term)?))
+            }
             Term::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means
                 // there is an ambiguity which should be reported.
@@ -559,6 +574,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Merge(_) => {
                 // Cannot apply a merge:
                 // @@Enhancement: this could be allowed in the future.
+                cannot_apply()
+            }
+            Term::Union(_) => {
+                // Cannot apply if it didn't simplify to a type function:
                 cannot_apply()
             }
             Term::Root => {
@@ -766,6 +785,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::TyFnTy(_)
             | Term::Root
             | Term::Var(_)
+            | Term::Union(_)
             | Term::Access(_) => cannot_use_as_fn_call_subject(),
         }
     }
@@ -1014,6 +1034,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
+            // @@Todo
+            Term::Union(_) => todo!(),
             Term::AppSub(apply_sub) => Ok(Some(
                 // @@Performance: add Option<_> to the substituter to return
                 // terms which don't have the variables in them.

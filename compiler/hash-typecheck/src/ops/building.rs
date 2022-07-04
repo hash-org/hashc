@@ -314,6 +314,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Merge(terms.into_iter().collect()))
     }
 
+    /// Create a term [Term::Union] with the given inner terms.
+    pub fn create_union_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
+        self.create_term(Term::Union(terms.into_iter().collect()))
+    }
+
     /// Create the void type term: [Level1Term::Tuple] with no members.
     pub fn create_void_ty_term(&self) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy {

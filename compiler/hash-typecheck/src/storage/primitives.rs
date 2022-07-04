@@ -820,6 +820,14 @@ pub enum Term {
     /// Is level N, where N is the level of the inner types.
     Merge(Vec<TermId>),
 
+    /// Union of multiple types.
+    ///
+    /// Inner types must have the same level. Union is also idempotent,
+    /// associative, and commutative.
+    ///
+    /// Is level N, where N is the level of the inner types.
+    Union(Vec<TermId>),
+
     /// A type function term.
     ///
     /// Is level N, where N is the level of the return term of the function.

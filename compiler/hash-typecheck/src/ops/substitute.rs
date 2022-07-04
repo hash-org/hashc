@@ -215,6 +215,8 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     .collect::<Vec<_>>();
                 self.builder().create_term(Term::Merge(terms))
             }
+            // @@Todo
+            Term::Union(_) => todo!(),
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
                 //
@@ -480,6 +482,8 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     self.add_free_vars_in_term_to_set(*inner_term_id, result);
                 }
             }
+            // @@Todo
+            Term::Union(_) => todo!(),
             Term::TyFn(ty_fn) => {
                 // Add the vars in the subjects and return:
                 self.add_free_vars_in_term_to_set(ty_fn.general_return_ty, result);

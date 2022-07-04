@@ -64,6 +64,7 @@ impl Term {
             | Term::Var(_)
             | Term::Merge(_)
             | Term::TyFn(_)
+            | Term::Union(_)
             | Term::TyFnTy(_)
             | Term::TyFnCall(_) => TermLevel::Unknown,
             Term::AppSub(AppSub { term, .. }) => store.get(*term).get_term_level(store),
@@ -459,6 +460,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Merge term should have already been flattened"
                 )
             }
+            // @@Todo
+            Term::Union(_) => todo!(),
         }
     }
 
@@ -543,6 +546,9 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     Ok(result)
                 }
             }
+
+            // @@Todo
+            Term::Union(_) => todo!(),
 
             // Level 1 terms:
             Term::Level1(level1_term) => match level1_term {
@@ -909,6 +915,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // This should be okay, for example if we are returning some TyFnTy value.
                 Ok(true)
             }
+            // @@Todo
+            Term::Union(_) => todo!(),
         }
     }
 
@@ -965,6 +973,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }
+            // @@Todo
+            Term::Union(_) => todo!(),
         }
     }
 

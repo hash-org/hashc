@@ -328,6 +328,16 @@ impl<'gs> TcFormatter<'gs> {
                 }
                 Ok(())
             }
+            Term::Union(terms) => {
+                opts.is_atomic.set(false);
+                for (i, term_id) in terms.iter().enumerate() {
+                    self.fmt_term_as_single(f, *term_id, opts.clone())?;
+                    if i != terms.len() - 1 {
+                        write!(f, " | ")?;
+                    }
+                }
+                Ok(())
+            }
             Term::TyFn(ty_fn) => {
                 match ty_fn.name {
                     Some(name) if !opts.expand => {
