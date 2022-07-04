@@ -1,8 +1,8 @@
 //! Functionality related to variable substitution inside terms/types.
 use crate::storage::{
     primitives::{
-        AppSub, AppTyFn, Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
-        ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCase, TyFnTy, Var,
+        AppSub, Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId,
+        Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, Var,
     },
     AccessToStorage, AccessToStorageMut, StorageRefMut,
 };
@@ -259,11 +259,11 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     return_ty: subbed_return_ty,
                 }))
             }
-            Term::AppTyFn(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 // Apply the substitution to the subject and arguments.
                 let subbed_subject = self.apply_sub_to_term(sub, app_ty_fn.subject);
                 let subbed_args = self.apply_sub_to_args(sub, app_ty_fn.args);
-                self.builder().create_term(Term::AppTyFn(AppTyFn {
+                self.builder().create_term(Term::TyFnCall(TyFnCall {
                     subject: subbed_subject,
                     args: subbed_args,
                 }))
@@ -503,7 +503,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 // Remove the ones which are bound:
                 self.add_and_remove_free_vars_in_params_from_set(ty_fn_ty.params, result);
             }
-            Term::AppTyFn(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 // Free vars in subject and args
                 self.add_free_vars_in_term_to_set(app_ty_fn.subject, result);
                 self.add_free_vars_in_args_to_set(app_ty_fn.args, result);

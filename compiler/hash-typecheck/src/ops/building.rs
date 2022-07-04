@@ -3,11 +3,12 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, AppSub, AppTyFn, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue,
-        FnCall, FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData,
-        ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
+        AccessOp, AccessTerm, AppSub, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue, FnCall,
+        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
+        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
         ParamOrigin, ParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
-        TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var,
+        Visibility,
     },
     GlobalStorage,
 };
@@ -502,8 +503,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a type function application, given type function value and
     /// arguments.
-    pub fn create_app_ty_fn(&self, subject: TermId, args: ArgsId) -> AppTyFn {
-        AppTyFn { args, subject }
+    pub fn create_app_ty_fn(&self, subject: TermId, args: ArgsId) -> TyFnCall {
+        TyFnCall { args, subject }
     }
 
     /// Create a new unresolved term value, of type [Term::Unresolved].
@@ -547,7 +548,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// This calls [Self::create_app_ty_fn], so its conditions apply here.
     pub fn create_app_ty_fn_term(&self, subject: TermId, args: ArgsId) -> TermId {
         let app_ty_fn = self.create_app_ty_fn(subject, args);
-        self.create_term(Term::AppTyFn(app_ty_fn))
+        self.create_term(Term::TyFnCall(app_ty_fn))
     }
 
     /// Add a [SourceLocation] to a [LocationTarget].

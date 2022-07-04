@@ -42,16 +42,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     type Error = Infallible;
 
-    type ImportRet = ();
-
-    fn visit_import(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Import>,
-    ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(())
-    }
-
     type NameRet = ();
 
     fn visit_name(
@@ -79,6 +69,122 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Literal>,
     ) -> Result<Self::LiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type MapLiteralRet = ();
+
+    fn visit_map_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteral>,
+    ) -> Result<Self::MapLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_map_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type MapLiteralEntryRet = ();
+
+    fn visit_map_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteralEntry>,
+    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
+        let _ = walk_mut::walk_map_literal_entry(self, ctx, node);
+        Ok(())
+    }
+
+    type ListLiteralRet = ();
+
+    fn visit_list_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLiteral>,
+    ) -> Result<Self::ListLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_list_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type SetLiteralRet = ();
+
+    fn visit_set_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLiteral>,
+    ) -> Result<Self::SetLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_set_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type TupleLiteralEntryRet = ();
+
+    fn visit_tuple_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteralEntry>,
+    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
+        let _ = walk_mut::walk_tuple_literal_entry(self, ctx, node);
+        Ok(())
+    }
+
+    type TupleLiteralRet = ();
+
+    fn visit_tuple_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteral>,
+    ) -> Result<Self::TupleLiteralRet, Self::Error> {
+        let _ = walk_mut::walk_tuple_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type StrLiteralRet = ();
+
+    fn visit_str_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StrLiteral>,
+    ) -> Result<Self::StrLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type CharLiteralRet = ();
+
+    fn visit_char_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CharLiteral>,
+    ) -> Result<Self::CharLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type FloatLiteralRet = ();
+
+    fn visit_float_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FloatLiteral>,
+    ) -> Result<Self::FloatLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type BoolLiteralRet = ();
+
+    fn visit_bool_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BoolLiteral>,
+    ) -> Result<Self::BoolLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type IntLiteralRet = ();
+
+    fn visit_int_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IntLiteral>,
+    ) -> Result<Self::IntLiteralRet, Self::Error> {
         Ok(())
     }
 
@@ -110,6 +216,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expression>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
         let _ = walk_mut::walk_expression(self, ctx, node);
+        Ok(())
+    }
+
+    type ImportRet = ();
+
+    fn visit_import(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Import>,
+    ) -> Result<Self::ImportRet, Self::Error> {
         Ok(())
     }
 
@@ -232,13 +348,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type TypeExprRet = ();
+    type TyExprRet = ();
 
-    fn visit_type_expr(
+    fn visit_ty_expr(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeExpr>,
-    ) -> Result<Self::TypeExprRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyExpr>,
+    ) -> Result<Self::TyExprRet, Self::Error> {
         Ok(())
     }
 
@@ -265,231 +381,176 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type TypeRet = ();
+    type TyRet = ();
 
-    fn visit_type(
+    fn visit_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Type>,
-    ) -> Result<Self::TypeRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Ty>,
+    ) -> Result<Self::TyRet, Self::Error> {
         Ok(())
     }
 
-    type NamedFieldTypeRet = ();
+    type TupleTyRet = ();
 
-    fn visit_named_field_type(
+    fn visit_tuple_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedFieldTypeEntry>,
-    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleTy>,
+    ) -> Result<Self::TupleTyRet, Self::Error> {
         Ok(())
     }
 
-    type FnTypeRet = ();
+    type ListTyRet = ();
 
-    fn visit_function_type(
+    fn visit_list_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnType>,
-    ) -> Result<Self::FnTypeRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListTy>,
+    ) -> Result<Self::ListTyRet, Self::Error> {
         Ok(())
     }
 
-    type TypeFunctionParamRet = ();
+    type SetTyRet = ();
 
-    fn visit_type_function_param(
+    fn visit_set_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionParam>,
-    ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetTy>,
+    ) -> Result<Self::SetTyRet, Self::Error> {
         Ok(())
     }
 
-    type TypeFunctionRet = ();
+    type MapTyRet = ();
 
-    fn visit_type_function(
+    fn visit_map_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunction>,
-    ) -> Result<Self::TypeFunctionRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapTy>,
+    ) -> Result<Self::MapTyRet, Self::Error> {
         Ok(())
     }
 
-    type TypeFunctionCallRet = ();
+    type NamedFieldTyRet = ();
 
-    fn visit_type_function_call(
+    fn visit_named_field_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionCall>,
-    ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedFieldTyEntry>,
+    ) -> Result<Self::NamedFieldTyRet, Self::Error> {
         Ok(())
     }
 
-    type NamedTypeRet = ();
+    type FnTyRet = ();
 
-    fn visit_named_type(
+    fn visit_fn_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedType>,
-    ) -> Result<Self::NamedTypeRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnTy>,
+    ) -> Result<Self::FnTyRet, Self::Error> {
         Ok(())
     }
 
-    type RefTypeRet = ();
+    type TyFnParamRet = ();
 
-    fn visit_ref_type(
+    fn visit_ty_fn_param(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefType>,
-    ) -> Result<Self::RefTypeRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnParam>,
+    ) -> Result<Self::TyFnParamRet, Self::Error> {
         Ok(())
     }
 
-    type MergedTypeRet = ();
+    type TyFnRet = ();
 
-    fn visit_merged_type(
+    fn visit_ty_fn_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergedType>,
-    ) -> Result<Self::MergedTypeRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFn>,
+    ) -> Result<Self::TyFnRet, Self::Error> {
         Ok(())
     }
 
-    type MapLiteralRet = ();
+    type TyFnCallRet = ();
 
-    fn visit_map_literal(
+    fn visit_ty_fn_call(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnCall>,
+    ) -> Result<Self::TyFnCallRet, Self::Error> {
+        Ok(())
+    }
+
+    type NamedTyRet = ();
+
+    fn visit_named_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type RefTyRet = ();
+
+    fn visit_ref_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::RefTy>,
+    ) -> Result<Self::RefTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type MergedTyRet = ();
+
+    fn visit_merged_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergedTy>,
+    ) -> Result<Self::MergedTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type TyFnDefRet = ();
+
+    fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteral>,
-    ) -> Result<Self::MapLiteralRet, Self::Error> {
-        let _ = walk_mut::walk_map_literal(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnDef>,
+    ) -> Result<Self::TyFnDefRet, Self::Error> {
+        let _ = walk_mut::walk_ty_fn_def(self, ctx, node);
         Ok(())
     }
 
-    type MapLiteralEntryRet = ();
+    type TyFnDefArgRet = ();
 
-    fn visit_map_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapLiteralEntry>,
-    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
-        let _ = walk_mut::walk_map_literal_entry(self, ctx, node);
-        Ok(())
-    }
-
-    type ListLiteralRet = ();
-
-    fn visit_list_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListLiteral>,
-    ) -> Result<Self::ListLiteralRet, Self::Error> {
-        let _ = walk_mut::walk_list_literal(self, ctx, node);
-        Ok(())
-    }
-
-    type SetLiteralRet = ();
-
-    fn visit_set_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetLiteral>,
-    ) -> Result<Self::SetLiteralRet, Self::Error> {
-        let _ = walk_mut::walk_set_literal(self, ctx, node);
-        Ok(())
-    }
-
-    type TupleLiteralEntryRet = ();
-
-    fn visit_tuple_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteralEntry>,
-    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
-        let _ = walk_mut::walk_tuple_literal_entry(self, ctx, node);
-        Ok(())
-    }
-
-    type TupleLiteralRet = ();
-
-    fn visit_tuple_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleLiteral>,
-    ) -> Result<Self::TupleLiteralRet, Self::Error> {
-        let _ = walk_mut::walk_tuple_literal(self, ctx, node);
-        Ok(())
-    }
-
-    type StrLiteralRet = ();
-
-    fn visit_str_literal(
+    fn visit_ty_fn_def_param(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StrLiteral>,
-    ) -> Result<Self::StrLiteralRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnDefParam>,
+    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
         Ok(())
     }
 
-    type CharLiteralRet = ();
+    type FnDefRet = ();
 
-    fn visit_char_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::CharLiteral>,
-    ) -> Result<Self::CharLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type FloatLiteralRet = ();
-
-    fn visit_float_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FloatLiteral>,
-    ) -> Result<Self::FloatLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type BoolLiteralRet = ();
-
-    fn visit_bool_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BoolLiteral>,
-    ) -> Result<Self::BoolLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type IntLiteralRet = ();
-
-    fn visit_int_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IntLiteral>,
-    ) -> Result<Self::IntLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type FunctionDefRet = ();
-
-    fn visit_function_def(
+    fn visit_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDef>,
-    ) -> Result<Self::FunctionDefRet, Self::Error> {
-        let _ = walk_mut::walk_function_def(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnDef>,
+    ) -> Result<Self::FnDefRet, Self::Error> {
+        let _ = walk_mut::walk_fn_def(self, ctx, node);
         Ok(())
     }
 
-    type FunctionDefParamRet = ();
+    type FnDefParamRet = ();
 
-    fn visit_function_def_param(
+    fn visit_fn_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FunctionDefParam>,
-    ) -> Result<Self::FunctionDefParamRet, Self::Error> {
-        let _ = walk_mut::walk_function_def_param(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnDefParam>,
+    ) -> Result<Self::FnDefParamRet, Self::Error> {
+        let _ = walk_mut::walk_fn_def_param(self, ctx, node);
         Ok(())
     }
 
@@ -579,28 +640,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type IfClauseRet = ();
-
-    fn visit_if_clause(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause>,
-    ) -> Result<Self::IfClauseRet, Self::Error> {
-        // Specifically left empty since this should never fire!
-        Ok(())
-    }
-
-    type IfBlockRet = ();
-
-    fn visit_if_block(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock>,
-    ) -> Result<Self::IfBlockRet, Self::Error> {
-        // Specifically left empty since this should never fire!
-        Ok(())
-    }
-
     type ModBlockRet = ();
 
     fn visit_mod_block(
@@ -620,6 +659,28 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         let _ = walk_mut::walk_impl_block(self, ctx, node);
+        Ok(())
+    }
+
+    type IfClauseRet = ();
+
+    fn visit_if_clause(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfClause>,
+    ) -> Result<Self::IfClauseRet, Self::Error> {
+        // Specifically left empty since this should never fire!
+        Ok(())
+    }
+
+    type IfBlockRet = ();
+
+    fn visit_if_block(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IfBlock>,
+    ) -> Result<Self::IfBlockRet, Self::Error> {
+        // Specifically left empty since this should never fire!
         Ok(())
     }
 
@@ -816,16 +877,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type PatternRet = ();
-
-    fn visit_pattern(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Pattern>,
-    ) -> Result<Self::PatternRet, Self::Error> {
-        Ok(())
-    }
-
     type TraitImplRet = ();
 
     fn visit_trait_impl(
@@ -837,24 +888,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type TypeFunctionDefRet = ();
+    type PatternRet = ();
 
-    fn visit_type_function_def(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDef>,
-    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let _ = walk_mut::walk_type_function_def(self, ctx, node);
-        Ok(())
-    }
-
-    type TypeFunctionDefArgRet = ();
-
-    fn visit_type_function_def_param(
+    fn visit_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TypeFunctionDefParam>,
-    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Pattern>,
+    ) -> Result<Self::PatternRet, Self::Error> {
         Ok(())
     }
 
@@ -905,46 +945,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListPattern>,
     ) -> Result<Self::ListPatternRet, Self::Error> {
-        Ok(())
-    }
-
-    type TupleTypeRet = ();
-
-    fn visit_tuple_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TupleType>,
-    ) -> Result<Self::TupleTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type ListTypeRet = ();
-
-    fn visit_list_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListType>,
-    ) -> Result<Self::ListTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type SetTypeRet = ();
-
-    fn visit_set_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SetType>,
-    ) -> Result<Self::SetTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type MapTypeRet = ();
-
-    fn visit_map_type(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MapType>,
-    ) -> Result<Self::MapTypeRet, Self::Error> {
         Ok(())
     }
 

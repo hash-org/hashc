@@ -115,7 +115,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.parse_variable_or_type_fn_call(Some(start))?
             }
             TokenKind::Lt => self.node_with_joined_span(
-                Expression::new(ExpressionKind::TypeFunctionDef(self.parse_type_function_def()?)),
+                Expression::new(ExpressionKind::TyFnDef(self.parse_type_function_def()?)),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Struct) => self.node_with_joined_span(
@@ -131,7 +131,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Type) => self.node_with_joined_span(
-                Expression::new(ExpressionKind::Type(TypeExpr(self.parse_type()?))),
+                Expression::new(ExpressionKind::Ty(TyExpr(self.parse_type()?))),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Set) => self.node_with_joined_span(
@@ -317,16 +317,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(token) if token.has_kind(TokenKind::Lt) => {
                 match self.peek_resultant_fn(|| self.parse_type_args(false)) {
                     Some(args) => Ok(self.node_with_joined_span(
-                        Expression::new(ExpressionKind::Type(TypeExpr(
-                            self.node_with_joined_span(
-                                Type::TypeFunctionCall(TypeFunctionCall {
-                                    subject: self
-                                        .node_with_span(Type::Named(NamedType { name }), name_span),
-                                    args,
-                                }),
-                                &name_span,
-                            ),
-                        ))),
+                        Expression::new(ExpressionKind::Ty(TyExpr(self.node_with_joined_span(
+                            Ty::TyFnCall(TyFnCall {
+                                subject:
+                                    self.node_with_span(Ty::Named(NamedTy { name }), name_span),
+                                args,
+                            }),
+                            &name_span,
+                        )))),
                         &name_span,
                     )),
                     None => Ok(self.node_with_joined_span(
@@ -392,7 +390,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // different
                     if op == BinOp::As {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::As(CastExpr {
+                            Expression::new(ExpressionKind::Cast(CastExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),
@@ -939,7 +937,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a function definition argument, which is made of an identifier and
     /// a function type.
-    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<FunctionDefParam>> {
+    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<FnDefParam>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -959,7 +957,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(FunctionDefParam { name, ty, default }, &name_span))
+        Ok(self.node_with_joined_span(FnDefParam { name, ty, default }, &name_span))
     }
 
     /// Parse a function literal. Function literals are essentially definitions
@@ -991,11 +989,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         Ok(self.node_with_joined_span(
-            Expression::new(ExpressionKind::FunctionDef(FunctionDef {
-                params,
-                return_ty,
-                fn_body,
-            })),
+            Expression::new(ExpressionKind::FnDef(FnDef { params, return_ty, fn_body })),
             &start,
         ))
     }

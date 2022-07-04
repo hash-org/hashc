@@ -452,11 +452,11 @@ pub struct TyFn {
 /// This translates to a case:
 /// ```ignore
 /// (T: Term::Level2(Ty) = Term::Level1(NominalDef(strDefId)))
-///     -> Term::AppTyFn(ConvValue (a type fn), [Term::Level1(NominalDef(strDefId))])
+///     -> Term::TyFnCall(ConvValue (a type fn), [Term::Level1(NominalDef(strDefId))])
 ///     => Term::Merge([
-///         Term::AppTyFn(DogValue (a type fn), [Term::Level1(NominalDef(strDefId))]),
+///         Term::TyFnCall(DogValue (a type fn), [Term::Level1(NominalDef(strDefId))]),
 ///         Term::ModDef(
-///             origin=TraitImpl(Term::AppTyFn(ConvValue (a type fn),
+///             origin=TraitImpl(Term::TyFnCall(ConvValue (a type fn),
 ///             [Term::Level1(NominalDef(strDefId))])),
 ///             members=...
 ///         )
@@ -497,7 +497,7 @@ pub struct Var {
 /// unifying the instantiated type parameters with the given type arguments of
 /// the function (the `args` field).
 #[derive(Debug, Clone)]
-pub struct AppTyFn {
+pub struct TyFnCall {
     pub subject: TermId,
     pub args: ArgsId,
 }
@@ -833,7 +833,7 @@ pub enum Term {
     /// A type function application.
     ///
     /// Is level N, where N is the level of the resultant application.
-    AppTyFn(AppTyFn),
+    TyFnCall(TyFnCall),
 
     /// Substitution application.
     ///

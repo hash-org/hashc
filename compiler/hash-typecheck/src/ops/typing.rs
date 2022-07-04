@@ -105,7 +105,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::AppTyFn(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 // Here we want to get the type of the subject, and ensure it is a TyFnTy.
                 // Then, we just apply the args to the type function:
                 let ty_id_of_subject = self.ty_of_term(app_ty_fn.subject)?;
