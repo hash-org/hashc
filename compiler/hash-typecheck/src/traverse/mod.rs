@@ -303,8 +303,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::DerefExpr(inner) = walk::walk_deref_expr(self, ctx, node)?;
         let inner_ty = self.typer().ty_of_term(inner)?;
 
-        let ref_ty = self.core_defs().reference_ty_fn;
+        // Create a `Ref<T>` dummy type for unification...
         let ap_ref_ty = {
+            let ref_ty = self.core_defs().reference_ty_fn;
             let builder = self.builder();
 
             builder.create_app_ty_fn_term(
@@ -316,10 +317,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             )
         };
 
+        // Create a `RefMut<T>` dummy type for unification...
+        let ap_ref_mut_ty = {
+            let ref_mut_ty = self.core_defs().reference_mut_ty_fn;
+            let builder = self.builder();
+
+            builder.create_app_ty_fn_term(
+                ref_mut_ty,
+                builder.create_args(
+                    [builder.create_arg("T", builder.create_unresolved_term())],
+                    ParamOrigin::TyFn,
+                ),
+            )
+        };
+
         // Attempt to unify this with a `Ref<T>` to see if the `inner_ty` can
-        // be dereferenced.
-        // @@Todo: deal with `RefMut<T>` and raw references...
-        let result = self.unifier().unify_terms(inner_ty, ap_ref_ty)?;
+        // be dereferenced. If that fails, then try to unify with `RefMut<T>`
+        let result = self
+            .unifier()
+            .unify_terms(inner_ty, ap_ref_ty)
+            .or_else(|_| self.unifier().unify_terms(inner_ty, ap_ref_mut_ty))?;
 
         // get the substitution result and use that as the return from the `inner_ty`
         let inner_ty = result.pairs().next().unwrap().1;
