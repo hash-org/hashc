@@ -973,6 +973,26 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Simplify the given set of terms by performing the following operations
+    /// (where ^ is the separator of the list):
+    ///
+    /// - Applying idempotency: B ^ B ^ C becomes B ^ C
+    /// - Flattening nests: B ^ (C ^ D) becomes B ^ C ^ D
+    /// - Simplifying inner terms:
+    ///  (<T> => (str, T))<i32> ^ C becomes (str, i32) ^ C
+    ///
+    /// This is to be used for merge and union types.
+    pub fn simplify_algebraic_term_list(
+        &mut self,
+        _term_list: &[TermId],
+    ) -> TcResult<Option<Vec<TermId>>> {
+        // @@Todo: we also need a function for unions and a function for merges for
+        // their specific properties (and we need to decide whether to have CNF or DNF
+        // as the simplified default---do we distribute unions over merges or merges
+        // over unions?)
+        todo!()
+    }
+
     /// Simplify the given term, if possible.
     ///
     /// This does not perform all validity checks, some are performed by
@@ -1034,8 +1054,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            // @@Todo
-            Term::Union(_) => todo!(),
+            Term::Union(_) => {
+                // @@Todo
+                todo!()
+            }
             Term::AppSub(apply_sub) => Ok(Some(
                 // @@Performance: add Option<_> to the substituter to return
                 // terms which don't have the variables in them.
