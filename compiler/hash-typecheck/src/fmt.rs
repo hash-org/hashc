@@ -361,7 +361,7 @@ impl<'gs> TcFormatter<'gs> {
                 self.fmt_term(f, ty_fn_ty.return_ty, opts)?;
                 Ok(())
             }
-            Term::AppTyFn(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, app_ty_fn.subject, opts)?;
                 write!(f, "<")?;

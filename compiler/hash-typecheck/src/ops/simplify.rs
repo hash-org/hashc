@@ -14,9 +14,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessTerm, AppTyFn, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term,
-            Level2Term, Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term,
-            TermId, TupleTy, TyFn, TyFnCase, TyFnTy,
+            AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
+            Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term, TermId,
+            TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -471,7 +471,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
+            Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
@@ -479,7 +479,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     }
 
     /// Apply the given type function application structure, if possible.
-    fn apply_ty_fn(&mut self, apply_ty_fn: &AppTyFn) -> TcResult<Option<TermId>> {
+    fn apply_ty_fn(&mut self, apply_ty_fn: &TyFnCall) -> TcResult<Option<TermId>> {
         let potentially_simplified_subject = self.simplify_term(apply_ty_fn.subject)?;
 
         let (subject_simplified, simplified_subject_id) = (
@@ -573,7 +573,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // Cannot apply a definite-level term:
                 cannot_apply()
             }
-            Term::Access(_) | Term::Var(_) | Term::AppTyFn(_) => {
+            Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
                 let simplified_args = self.simplifier().simplify_args(apply_ty_fn.args)?;
 
                 // Return a simplified term if either the subject or the args were simplified.
@@ -761,7 +761,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // (Remember, the term should have already been simplified)
             Term::Level2(_)
             | Term::Level3(_)
-            | Term::AppTyFn(_)
+            | Term::TyFnCall(_)
             | Term::TyFn(_)
             | Term::TyFnTy(_)
             | Term::Root
@@ -1019,7 +1019,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // terms which don't have the variables in them.
                 self.substituter().apply_sub_to_term(&apply_sub.sub, apply_sub.term),
             )),
-            Term::AppTyFn(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
+            Term::TyFnCall(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
             // Resolve the variable to its value, and if it is None it means it can't be simplified
             // because it is unset:

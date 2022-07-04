@@ -324,7 +324,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             }
 
             // Type function application:
-            (Term::AppTyFn(src_app_ty_fn), Term::AppTyFn(target_app_ty_fn)) => {
+            (Term::TyFnCall(src_app_ty_fn), Term::TyFnCall(target_app_ty_fn)) => {
                 // This case would be hit if the subject is a variable, for example.
 
                 // Unify the subjects to ensure they are compatible:
@@ -366,7 +366,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                     _ => Err(TcError::UnsupportedTypeFunctionApplication { subject_id: subject }),
                 }
             }
-            (Term::AppTyFn(_), _) | (_, Term::AppTyFn(_)) => {
+            (Term::TyFnCall(_), _) | (_, Term::TyFnCall(_)) => {
                 // Any other type function application (asymmetric) doesn't unify
                 cannot_unify()
             }

@@ -65,7 +65,7 @@ impl Term {
             | Term::Merge(_)
             | Term::TyFn(_)
             | Term::TyFnTy(_)
-            | Term::AppTyFn(_) => TermLevel::Unknown,
+            | Term::TyFnCall(_) => TermLevel::Unknown,
             Term::AppSub(AppSub { term, .. }) => store.get(*term).get_term_level(store),
             Term::Unresolved(_) => TermLevel::Unknown,
             Term::Root => TermLevel::Level4,
@@ -394,7 +394,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // level 3 and the merge is level 2, which means it is a level 2 term. Their
             // type is level 2, we cannot be sure it won't have a duplicate nominal
             // definition so we cannot accept it.
-            Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => {
+            Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => {
                 let ty_id_of_term = self.typer().ty_of_term(merge_element_term_id)?;
                 let reader = self.reader();
                 let ty_of_term = reader.get_term(ty_id_of_term);
@@ -753,7 +753,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
 
             // Type function application:
-            Term::AppTyFn(app_ty_fn) => {
+            Term::TyFnCall(app_ty_fn) => {
                 // Since this could be typed, it means the application is valid in terms of
                 // unification of type function params with the arguments. Thus, all we need to
                 // do is validate individually the term and the arguments:
@@ -869,7 +869,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
             Term::Merge(terms) => {
                 // Valid if each element is okay to be used as the return type:
                 let terms = terms.clone();
@@ -926,7 +926,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::AppTyFn(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
             Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
                 let terms = terms.clone();
