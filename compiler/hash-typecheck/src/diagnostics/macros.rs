@@ -117,6 +117,6 @@ pub macro tc_panic_on_many {
         }
     },
     ($terms: expr, $storage:expr, $fmt: expr, $($arg:tt)*) => {
-        tc_panic_on_many!($terms, $storage, format!($fmt, $($arg)*));
+        tc_panic_on_many!($terms, $storage, format!($fmt, $($arg)*))
     }
 }

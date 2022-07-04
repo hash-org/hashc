@@ -289,7 +289,7 @@ pub struct ModDef {
 #[derive(Debug, Clone)]
 pub enum StructFields {
     /// An explicit set of fields, as a set of parameters.
-    Explicit(Params),
+    Explicit(ParamsId),
     /// The struct does not have any accessible parameters.
     ///
     /// This is used for core language definitions that will be filled in later
@@ -308,7 +308,7 @@ pub struct StructDef {
 /// An enum variant, containing a variant name and a set of fields.
 ///
 /// Structurally the same as a struct.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct EnumVariant {
     pub name: Identifier,
     pub fields: ParamsId,
@@ -356,7 +356,7 @@ impl NominalDef {
 }
 
 /// A tuple type, containing parameters as members.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TupleTy {
     pub members: ParamsId,
 }
@@ -364,7 +364,7 @@ pub struct TupleTy {
 /// A function type, with a set of input parameters and a return type.
 ///
 /// All the parameter types and return type must be level 0
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FnTy {
     pub params: ParamsId,
     pub return_ty: TermId,
@@ -614,6 +614,15 @@ pub enum Level1Term {
     Fn(FnTy),
 }
 
+// Represents a function call, with a level 0 subject and level 0 arguments.
+//
+// The subject must be either a `Rt(Fn(..))`, or an `FnLit(..)`.
+#[derive(Debug, Clone, Copy)]
+pub struct FnCall {
+    pub subject: TermId,
+    pub args: ArgsId,
+}
+
 /// Represents a function literal, with a function type, as well as a return
 /// value.
 #[derive(Debug, Clone, Copy)]
@@ -630,6 +639,9 @@ pub struct FnLit {
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),
+
+    /// A function call.
+    FnCall(FnCall),
 
     /// A function literal.
     FnLit(FnLit),

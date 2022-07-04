@@ -198,7 +198,7 @@ pub trait OwnsAstNode<T> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AstNodes<T> {
     pub nodes: Vec<AstNode<T>>,
 
@@ -266,14 +266,14 @@ impl<T> DerefMut for AstNode<T> {
 }
 
 /// A single name/symbol.
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub struct Name {
     // The name of the symbol.
     pub ident: Identifier,
 }
 
 /// A namespaced name, i.e. access name.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AccessName {
     /// The list of names that make up the access name.
     pub path: AstNodes<Identifier>,
@@ -290,7 +290,7 @@ impl AccessName {
 }
 
 /// A concrete/"named" type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NamedType {
     /// The name of the type.
     pub name: AstNode<AccessName>,
@@ -306,7 +306,7 @@ pub enum RefKind {
 }
 
 /// A reference type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RefType {
     /// Inner type of the reference type
     pub inner: AstNode<Type>,
@@ -318,26 +318,26 @@ pub struct RefType {
 }
 
 /// An entry within a tuple type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NamedFieldTypeEntry {
     pub name: Option<AstNode<Name>>,
     pub ty: AstNode<Type>,
 }
 
 /// The tuple type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TupleType {
     pub entries: AstNodes<NamedFieldTypeEntry>,
 }
 
 /// The list type, , e.g. `{str}`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ListType {
     pub inner: AstNode<Type>,
 }
 
 /// The set type, , e.g. `{str}`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SetType {
     pub inner: AstNode<Type>,
 }
@@ -345,18 +345,18 @@ pub struct SetType {
 /// The grouped type (essentially a type within parentheses), e.g. `(str)`. It
 /// differs from a tuple that it does not contain a trailing comma which
 /// signifies that this is a single element tuple.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct GroupedType(pub AstNode<Type>);
 
 /// The map type, e.g. `{str: u32}`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MapType {
     pub key: AstNode<Type>,
     pub value: AstNode<Type>,
 }
 
 /// The function type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FnType {
     /// Any defined parameters for the function type
     pub params: AstNodes<NamedFieldTypeEntry>,
@@ -367,7 +367,7 @@ pub struct FnType {
 /// A [TypeFunctionParam] is a parameter that appears within a [TypeFunction].
 /// This specifies that the type function takes a particular parameter with a
 /// specific name, a bound and a default value.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeFunctionParam {
     pub name: AstNode<Name>,
     pub bound: Option<AstNode<Type>>,
@@ -375,7 +375,7 @@ pub struct TypeFunctionParam {
 }
 
 /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeFunction {
     pub params: AstNodes<TypeFunctionParam>,
     pub return_ty: AstNode<Type>,
@@ -385,7 +385,7 @@ pub struct TypeFunction {
 /// function name in the form of a [Type] (which can only be a [NamedType] or a
 /// [GroupedType]) and then followed by arguments. For example: `Conv<u32>` or
 /// `(Foo<bar>)<baz>`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeFunctionCall {
     pub subject: AstNode<Type>,
     // @@Todo: This should probably not use `NamedFieldTypeEntry`.
@@ -394,11 +394,11 @@ pub struct TypeFunctionCall {
 
 /// A merged type meaning that multiple types are considered to be
 /// specified in place of one, e.g. `Conv ~ Eq ~ Print`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MergedType(pub AstNodes<Type>);
 
 /// A type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Tuple(TupleType),
     List(ListType),
@@ -413,14 +413,14 @@ pub enum Type {
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SetLiteral {
     /// The elements of the set literal.
     pub elements: AstNodes<Expression>,
 }
 
 /// A list literal, e.g. `[1, 2, 3]`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ListLiteral {
     /// The elements of the list literal.
     pub elements: AstNodes<Expression>,
@@ -434,7 +434,7 @@ pub struct ListLiteral {
 ///  ^^^   ^^^   ^
 /// name   type  value
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TupleLiteralEntry {
     pub name: Option<AstNode<Name>>,
     pub ty: Option<AstNode<Type>>,
@@ -442,48 +442,48 @@ pub struct TupleLiteralEntry {
 }
 
 /// A tuple literal, e.g. `(1, 'A', "foo")`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TupleLiteral {
     /// The elements of the tuple literal.
     pub elements: AstNodes<TupleLiteralEntry>,
 }
 
 /// A map literal entry, e.g. `"foo": 1`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MapLiteralEntry {
     pub key: AstNode<Expression>,
     pub value: AstNode<Expression>,
 }
 
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MapLiteral {
     /// The elements of the map literal (key-value pairs).
     pub elements: AstNodes<MapLiteralEntry>,
 }
 
 /// A string literal.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StrLiteral(pub StringLiteral);
 
 /// A character literal.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CharLiteral(pub char);
 
 /// An integer literal.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntLiteral(pub u64);
 
 /// A float literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FloatLiteral(pub f64);
 
 /// A boolean literal.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BoolLiteral(pub bool);
 
 /// A literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Str(StrLiteral),
     Char(CharLiteral),
@@ -529,14 +529,14 @@ impl Literal {
 }
 
 /// An alternative pattern, e.g. `Red | Blue`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct OrPattern {
     /// The variants of the "or" pattern
     pub variants: AstNodes<Pattern>,
 }
 
 /// A conditional pattern, e.g. `x if x == 42`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfPattern {
     /// The pattern part of the conditional.
     pub pattern: AstNode<Pattern>,
@@ -545,7 +545,7 @@ pub struct IfPattern {
 }
 
 /// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorPattern {
     /// The name of the enum variant.
     pub name: AstNode<AccessName>,
@@ -556,7 +556,7 @@ pub struct ConstructorPattern {
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
 ///
 /// Used in struct and namespace patterns.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DestructuringPattern {
     /// The name of the field.
     pub name: AstNode<Name>,
@@ -565,21 +565,21 @@ pub struct DestructuringPattern {
 }
 
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NamespacePattern {
     /// The entries of the namespace, as [DestructuringPattern] entries.
     pub fields: AstNodes<DestructuringPattern>,
 }
 
 /// A tuple pattern entry
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TuplePatternEntry {
     pub name: Option<AstNode<Name>>,
     pub pattern: AstNode<Pattern>,
 }
 
 /// A tuple pattern, e.g. `(1, 2, x)`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TuplePattern {
     /// The element of the tuple, as patterns.
     pub fields: AstNodes<TuplePatternEntry>,
@@ -595,34 +595,34 @@ impl TuplePattern {
 }
 
 /// A list pattern, e.g. `[x, 1, ..]`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ListPattern {
     /// The element of the tuple, as patterns.
     pub fields: AstNodes<Pattern>,
 }
 
 /// A string literal pattern.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StrLiteralPattern(pub StringLiteral);
 
 /// A character literal pattern.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CharLiteralPattern(pub char);
 
 /// An integer literal pattern.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntLiteralPattern(pub u64);
 
 /// A float literal pattern.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FloatLiteralPattern(pub f64);
 
 /// A boolean literal pattern.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BoolLiteralPattern(pub bool);
 
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`, `false`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LiteralPattern {
     Str(StrLiteralPattern),
     Char(CharLiteralPattern),
@@ -632,7 +632,7 @@ pub enum LiteralPattern {
 }
 
 /// A pattern name binding.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BindingPattern {
     /// The identifier that the name bind is using
     pub name: AstNode<Name>,
@@ -643,17 +643,17 @@ pub struct BindingPattern {
 }
 
 /// A pattern spread
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SpreadPattern {
     pub name: Option<AstNode<Name>>,
 }
 
 /// The catch-all, i.e "ignore" pattern.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IgnorePattern;
 
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Pattern {
     Constructor(ConstructorPattern),
     Namespace(NamespacePattern),
@@ -710,7 +710,7 @@ impl Display for Mutability {
 /// A type function, e.g. `<T, U: Conv<U>> => ...`.
 ///
 /// Used in struct, enum, trait, and function definitions.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeFunctionDef {
     /// The type arguments of the function.
     pub params: AstNodes<TypeFunctionDefParam>,
@@ -721,7 +721,7 @@ pub struct TypeFunctionDef {
 }
 
 /// An argument within a type function
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeFunctionDefParam {
     /// The name of the argument
     pub name: AstNode<Name>,
@@ -732,7 +732,7 @@ pub struct TypeFunctionDefParam {
 }
 
 /// A declaration, e.g. `x := 3;`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Declaration {
     /// The pattern to bind the right-hand side to.
     pub pattern: AstNode<Pattern>,
@@ -747,7 +747,7 @@ pub struct Declaration {
 
 /// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
 /// impl { ... };`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MergeDeclaration {
     /// The expression to bind the right-hand side to.
     pub decl: AstNode<Expression>,
@@ -895,7 +895,7 @@ impl BinOp {
 }
 
 /// An assign expression, e.g. `x = 4;`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AssignExpression {
     /// The left-hand side of the assignment.
     ///
@@ -908,7 +908,7 @@ pub struct AssignExpression {
 }
 
 /// An assign expression, e.g. `x += 4;`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AssignOpExpression {
     /// The left-hand side of the assignment.
     ///
@@ -927,7 +927,7 @@ pub struct AssignOpExpression {
 }
 
 /// A field of a struct definition, e.g. "name: str".
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StructDefEntry {
     /// The name of the struct field.
     pub name: AstNode<Name>,
@@ -940,14 +940,14 @@ pub struct StructDefEntry {
 }
 
 /// A struct definition, e.g. `struct Foo = { bar: int; };`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StructDef {
     /// The fields of the struct, in the form of [StructDefEntry].
     pub entries: AstNodes<StructDefEntry>,
 }
 
 /// A variant of an enum definition, e.g. `Some(T)`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct EnumDefEntry {
     /// The name of the enum variant.
     pub name: AstNode<Name>,
@@ -956,14 +956,14 @@ pub struct EnumDefEntry {
 }
 
 /// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct EnumDef {
     /// The variants of the enum, in the form of [EnumDefEntry].
     pub entries: AstNodes<EnumDefEntry>,
 }
 
 /// A trait definition, e.g. `add := <T> => trait { add: (T, T) -> T; }`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TraitDef {
     pub members: AstNodes<Expression>,
 }
@@ -971,19 +971,19 @@ pub struct TraitDef {
 /// A return statement.
 ///
 /// Has an optional return expression, which becomes `void` if [None] is given.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ReturnStatement(pub Option<AstNode<Expression>>);
 
 /// Break statement (only in loop context).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BreakStatement;
 
 /// Continue statement (only in loop context).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ContinueStatement;
 
 /// A branch/"case" of a `match` block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MatchCase {
     /// The pattern of the `match` case.
     pub pattern: AstNode<Pattern>,
@@ -994,7 +994,7 @@ pub struct MatchCase {
 }
 
 /// The origin of a match block
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum MatchOrigin {
     If,
     Match,
@@ -1003,7 +1003,7 @@ pub enum MatchOrigin {
 }
 
 /// A `match` block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MatchBlock {
     /// The expression to match on.
     pub subject: AstNode<Expression>,
@@ -1014,7 +1014,7 @@ pub struct MatchBlock {
 }
 
 /// A body block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BodyBlock {
     /// Zero or more statements.
     pub statements: AstNodes<Expression>,
@@ -1022,10 +1022,10 @@ pub struct BodyBlock {
     pub expr: Option<AstNode<Expression>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LoopBlock(pub AstNode<Block>);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ForLoopBlock {
     pub pattern: AstNode<Pattern>,
     pub iterator: AstNode<Expression>,
@@ -1033,7 +1033,7 @@ pub struct ForLoopBlock {
 }
 
 /// A `while` loop, e.g. `while x > 2 { ... }`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct WhileLoopBlock {
     /// The condition of the the `while` loop.
     pub condition: AstNode<Expression>,
@@ -1041,7 +1041,7 @@ pub struct WhileLoopBlock {
     pub body: AstNode<Block>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfClause {
     /// The condition of the `if` block.
     pub condition: AstNode<Expression>,
@@ -1051,21 +1051,21 @@ pub struct IfClause {
 
 /// An `if` block consisting of the condition, block and an optional else clause
 /// e.g. `if x { ... } else { y }`
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfBlock {
     pub clauses: AstNodes<IfClause>,
     /// The else clause.
     pub otherwise: Option<AstNode<Block>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ModBlock(pub AstNode<BodyBlock>);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ImplBlock(pub AstNode<BodyBlock>);
 
 /// A block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Block {
     /// A match block.
     Match(MatchBlock),
@@ -1185,7 +1185,7 @@ impl Block {
 }
 
 /// A function definition parameter.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDefParam {
     /// The name of the argument.
     pub name: AstNode<Name>,
@@ -1200,7 +1200,7 @@ pub struct FunctionDefParam {
 }
 
 /// A function definition.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDef {
     /// The parameters of the function definition.
     pub params: AstNodes<FunctionDefParam>,
@@ -1213,7 +1213,7 @@ pub struct FunctionDef {
 }
 
 /// Function call argument.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorCallArg {
     /// Optional name for the function argument, e.g `f(x = 3);`.
     pub name: Option<AstNode<Name>>,
@@ -1222,14 +1222,14 @@ pub struct ConstructorCallArg {
 }
 
 /// Function call arguments.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorCallArgs {
     pub entries: AstNodes<ConstructorCallArg>,
 }
 
 /// A constructor call expression. This can either be a function
 /// call, a struct instantiation or a enum variant instantiation.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorCallExpr {
     /// An expression which evaluates to a function value.
     pub subject: AstNode<Expression>,
@@ -1238,7 +1238,7 @@ pub struct ConstructorCallExpr {
 }
 
 /// An directive expression.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct DirectiveExpr {
     /// The name of the directive (without the "#").
     pub name: AstNode<Name>,
@@ -1247,7 +1247,7 @@ pub struct DirectiveExpr {
 }
 
 /// A property access expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PropertyAccessExpr {
     /// An expression which evaluates to a struct or tuple value.
     pub subject: AstNode<Expression>,
@@ -1256,7 +1256,7 @@ pub struct PropertyAccessExpr {
 }
 
 /// A typed expression, e.g. `foo as int`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CastExpr {
     /// The annotated type of the expression.
     pub ty: AstNode<Type>,
@@ -1266,21 +1266,21 @@ pub struct CastExpr {
 
 /// Represents a path to a module, given as a string literal to an `import`
 /// call.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Import {
     pub path: StringLiteral,
     pub resolved_path: PathBuf,
 }
 
 /// A variable expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct VariableExpr {
     /// The name of the variable.
     pub name: AstNode<AccessName>,
 }
 
 /// A reference expression with a flag denoting whether it is a raw ref or not
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RefExpr {
     pub inner_expr: AstNode<Expression>,
     /// The kind of reference, either being a normal reference or a `raw`
@@ -1291,31 +1291,31 @@ pub struct RefExpr {
 }
 
 /// A dereference expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TypeExpr(pub AstNode<Type>);
 
 /// A dereference expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DerefExpr(pub AstNode<Expression>);
 
 /// An unsafe expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct UnsafeExpr(pub AstNode<Expression>);
 
 /// A literal.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LiteralExpr(pub AstNode<Literal>);
 
 /// A block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BlockExpr(pub AstNode<Block>);
 
 /// An `import` call.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ImportExpr(pub AstNode<Import>);
 
 /// A trait implementation.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TraitImpl {
     /// The referenced name to the trait
     pub ty: AstNode<Type>,
@@ -1324,7 +1324,7 @@ pub struct TraitImpl {
 }
 
 /// A binary expression `2 + 2`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BinaryExpression {
     pub lhs: AstNode<Expression>,
     pub rhs: AstNode<Expression>,
@@ -1332,14 +1332,14 @@ pub struct BinaryExpression {
 }
 
 /// A unary expression `!a`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct UnaryExpression {
     pub expr: AstNode<Expression>,
     pub operator: AstNode<UnOp>,
 }
 
 /// An index expression `arr[x]`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IndexExpression {
     /// The subject that is being indexed.
     pub subject: AstNode<Expression>,
@@ -1348,7 +1348,7 @@ pub struct IndexExpression {
 }
 
 /// The kind of an expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ExpressionKind {
     ConstructorCall(ConstructorCallExpr),
     Directive(DirectiveExpr),
@@ -1389,7 +1389,7 @@ pub enum ExpressionKind {
 }
 
 /// An expression.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Expression {
     /// The kind of the expression
     pub kind: ExpressionKind,
@@ -1420,7 +1420,7 @@ impl Expression {
 /// A module.
 ///
 /// Represents a parsed `.hash` file.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Module {
     /// The contents of the module, as a list of expressions terminated with a
     /// semi-colon.

@@ -1743,7 +1743,7 @@ pub mod walk {
         })
     }
 
-    pub struct FunctionCallExpr<V: AstVisitor> {
+    pub struct ConstructorCallExpr<V: AstVisitor> {
         pub subject: V::ExpressionRet,
         pub args: V::ConstructorCallArgsRet,
     }
@@ -1752,8 +1752,8 @@ pub mod walk {
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::ConstructorCallExpr>,
-    ) -> Result<FunctionCallExpr<V>, V::Error> {
-        Ok(FunctionCallExpr {
+    ) -> Result<ConstructorCallExpr<V>, V::Error> {
+        Ok(ConstructorCallExpr {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
             args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref())?,
         })

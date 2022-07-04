@@ -142,7 +142,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error> {
-        let walk::FunctionCallExpr { subject, args } =
+        let walk::ConstructorCallExpr { subject, args } =
             walk::walk_constructor_call_expr(self, ctx, node)?;
 
         let children = if !node.args.entries.is_empty() {

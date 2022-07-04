@@ -7,7 +7,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
-        macros::tc_panic,
+        macros::{tc_panic, tc_panic_on_many},
         params::ParamListKind,
     },
     ops::params::validate_param_list_ordering,
@@ -453,7 +453,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Root => invalid_merge_element(),
             // This should have been flattened already:
             Term::Merge(_) => {
-                unreachable!("Merge term should have already been flattened")
+                tc_panic_on_many!(
+                    [merge_element_term_id, merge_term_id],
+                    self,
+                    "Merge term should have already been flattened"
+                )
             }
         }
     }
@@ -515,31 +519,36 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         match term {
             // Merge:
             Term::Merge(terms) => {
-                // First, validate each term:
-                let terms = terms.clone();
-                for term in terms.iter().copied() {
-                    self.validate_term(term)?;
-                }
+                if let [term] = terms.as_slice() {
+                    // Shortcut: single term:
+                    self.validate_term(*term)
+                } else {
+                    // First, validate each term:
+                    let terms = terms.clone();
+                    for term in terms.iter().copied() {
+                        self.validate_term(term)?;
+                    }
 
-                // Validate the level of each term against the merge restrictions (see
-                // [Self::validate_merge_element] docs).
-                let mut merge_kind = MergeKind::Unknown;
-                for merge_element_term_id in terms.iter().copied() {
-                    self.validate_merge_element(
-                        &mut merge_kind,
-                        simplified_term_id,
-                        merge_element_term_id,
-                    )?;
-                }
+                    // Validate the level of each term against the merge restrictions (see
+                    // [Self::validate_merge_element] docs).
+                    let mut merge_kind = MergeKind::Unknown;
+                    for merge_element_term_id in terms.iter().copied() {
+                        self.validate_merge_element(
+                            &mut merge_kind,
+                            simplified_term_id,
+                            merge_element_term_id,
+                        )?;
+                    }
 
-                Ok(result)
+                    Ok(result)
+                }
             }
 
             // Level 1 terms:
             Term::Level1(level1_term) => match level1_term {
                 Level1Term::Tuple(tuple_ty) => {
                     // Validate each parameter
-                    let tuple_ty = tuple_ty.clone();
+                    let tuple_ty = *tuple_ty;
                     self.validate_params(tuple_ty.members)?;
 
                     let members = self.params_store().get(tuple_ty.members).clone();
@@ -552,7 +561,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 }
                 Level1Term::Fn(fn_ty) => {
                     // Validate parameters and return type
-                    let fn_ty = fn_ty.clone();
+                    let fn_ty = *fn_ty;
                     self.validate_params(fn_ty.params)?;
                     self.validate_term(fn_ty.return_ty)?;
 
@@ -617,6 +626,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // simplification always checks the enum exists and contains the given variant
                     // name. Furthermore, there are no inner terms to validate.
                     Ok(result)
+                }
+                Level0Term::FnCall(_) => {
+                    tc_panic!(
+                        simplified_term_id,
+                        self,
+                        "Function call in validation should have been simplified!"
+                    )
                 }
             },
 
@@ -822,6 +838,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         // why wouldn't they be allowed? Is there a use case for this?
                         Ok(false)
                     }
+                    Level0Term::FnCall(_) => {
+                        tc_panic!(
+                        term_id,
+                        self,
+                        "Function call in checking for type function return validity should have been simplified!"
+                    )
+                    }
                 }
             }
             _ => Ok(true),
@@ -859,7 +882,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
             Term::Level0(_) | Term::TyFn(_) => {
                 // This should never happen
-                unreachable!("Found type function definition or level 0 term in type position!")
+                tc_panic!(
+                    term_id,
+                    self,
+                    "Found type function definition or level 0 term in type position!"
+                )
             }
             Term::TyFnTy(_) => {
                 // All good, basically curried type function:
@@ -912,7 +939,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
             Term::Level0(_) | Term::TyFn(_) => {
                 // This should never happen
-                unreachable!("Found type function definition or level 0 term in type position!")
+                tc_panic!(
+                    term_id,
+                    self,
+                    "Found type function definition or level 0 term in type position!"
+                )
             }
             Term::TyFnTy(ty_fn_ty) => {
                 // Type function types are okay to use if their return types can be used here:
@@ -943,7 +974,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(simplified_term_id);
         match term {
-            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(fn_ty.clone())),
+            Term::Level1(Level1Term::Fn(fn_ty)) => Ok(Some(*fn_ty)),
             _ => Ok(None),
         }
     }
