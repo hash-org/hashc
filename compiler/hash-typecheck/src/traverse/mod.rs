@@ -359,6 +359,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Attempt to unify this with a `Ref<T>` to see if the `inner_ty` can
         // be dereferenced. If that fails, then try to unify with `RefMut<T>`
+        //
+        // @@Todo(feds01): Add a custom error type that says the desired type cannot be
+        // dereferenced
         let result = self
             .unifier()
             .unify_terms(inner_ty, ap_ref_ty)
