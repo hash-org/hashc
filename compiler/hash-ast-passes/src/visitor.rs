@@ -35,16 +35,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     type Error = Infallible;
 
-    type ImportRet = ();
-
-    fn visit_import(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
-    ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(())
-    }
-
     type NameRet = ();
 
     fn visit_name(
@@ -72,6 +62,122 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::Literal>,
     ) -> Result<Self::LiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type MapLiteralRet = ();
+
+    fn visit_map_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteral>,
+    ) -> Result<Self::MapLiteralRet, Self::Error> {
+        let _ = walk::walk_map_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type MapLiteralEntryRet = ();
+
+    fn visit_map_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteralEntry>,
+    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
+        let _ = walk::walk_map_literal_entry(self, ctx, node);
+        Ok(())
+    }
+
+    type ListLiteralRet = ();
+
+    fn visit_list_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLiteral>,
+    ) -> Result<Self::ListLiteralRet, Self::Error> {
+        let _ = walk::walk_list_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type SetLiteralRet = ();
+
+    fn visit_set_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
+    ) -> Result<Self::SetLiteralRet, Self::Error> {
+        let _ = walk::walk_set_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type TupleLiteralEntryRet = ();
+
+    fn visit_tuple_literal_entry(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLiteralEntry>,
+    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
+        let _ = walk::walk_tuple_literal_entry(self, ctx, node);
+        Ok(())
+    }
+
+    type TupleLiteralRet = ();
+
+    fn visit_tuple_literal(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLiteral>,
+    ) -> Result<Self::TupleLiteralRet, Self::Error> {
+        let _ = walk::walk_tuple_literal(self, ctx, node);
+        Ok(())
+    }
+
+    type StrLiteralRet = ();
+
+    fn visit_str_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteral>,
+    ) -> Result<Self::StrLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type CharLiteralRet = ();
+
+    fn visit_char_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteral>,
+    ) -> Result<Self::CharLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type FloatLiteralRet = ();
+
+    fn visit_float_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteral>,
+    ) -> Result<Self::FloatLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type BoolLiteralRet = ();
+
+    fn visit_bool_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteral>,
+    ) -> Result<Self::BoolLiteralRet, Self::Error> {
+        Ok(())
+    }
+
+    type IntLiteralRet = ();
+
+    fn visit_int_literal(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteral>,
+    ) -> Result<Self::IntLiteralRet, Self::Error> {
         Ok(())
     }
 
@@ -252,6 +358,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type ImportRet = ();
+
+    fn visit_import(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
+    ) -> Result<Self::ImportRet, Self::Error> {
+        Ok(())
+    }
+
     type ImportExprRet = ();
 
     fn visit_import_expr(
@@ -269,26 +385,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::Ty>,
     ) -> Result<Self::TyRet, Self::Error> {
-        Ok(())
-    }
-
-    type NamedFieldTypeRet = ();
-
-    fn visit_named_field_ty(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
-        Ok(())
-    }
-
-    type FnTypeRet = ();
-
-    fn visit_fn_ty(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
-    ) -> Result<Self::FnTypeRet, Self::Error> {
         Ok(())
     }
 
@@ -329,6 +425,26 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
     ) -> Result<Self::MapTypeRet, Self::Error> {
+        Ok(())
+    }
+
+    type NamedFieldTypeRet = ();
+
+    fn visit_named_field_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
+    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+        Ok(())
+    }
+
+    type FnTypeRet = ();
+
+    fn visit_fn_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
+    ) -> Result<Self::FnTypeRet, Self::Error> {
         Ok(())
     }
 
@@ -392,119 +508,24 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type MapLiteralRet = ();
+    type TyFnDefRet = ();
 
-    fn visit_map_literal(
+    fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteral>,
-    ) -> Result<Self::MapLiteralRet, Self::Error> {
-        let _ = walk::walk_map_literal(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
+    ) -> Result<Self::TyFnDefRet, Self::Error> {
+        let _ = walk::walk_ty_fn_def(self, ctx, node);
         Ok(())
     }
 
-    type MapLiteralEntryRet = ();
+    type TyFnDefArgRet = ();
 
-    fn visit_map_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteralEntry>,
-    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
-        let _ = walk::walk_map_literal_entry(self, ctx, node);
-        Ok(())
-    }
-
-    type ListLiteralRet = ();
-
-    fn visit_list_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLiteral>,
-    ) -> Result<Self::ListLiteralRet, Self::Error> {
-        let _ = walk::walk_list_literal(self, ctx, node);
-        Ok(())
-    }
-
-    type SetLiteralRet = ();
-
-    fn visit_set_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
-    ) -> Result<Self::SetLiteralRet, Self::Error> {
-        let _ = walk::walk_set_literal(self, ctx, node);
-        Ok(())
-    }
-
-    type TupleLiteralEntryRet = ();
-
-    fn visit_tuple_literal_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLiteralEntry>,
-    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
-        let _ = walk::walk_tuple_literal_entry(self, ctx, node);
-        Ok(())
-    }
-
-    type TupleLiteralRet = ();
-
-    fn visit_tuple_literal(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLiteral>,
-    ) -> Result<Self::TupleLiteralRet, Self::Error> {
-        let _ = walk::walk_tuple_literal(self, ctx, node);
-        Ok(())
-    }
-
-    type StrLiteralRet = ();
-
-    fn visit_str_literal(
+    fn visit_ty_fn_def_param(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteral>,
-    ) -> Result<Self::StrLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type CharLiteralRet = ();
-
-    fn visit_char_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteral>,
-    ) -> Result<Self::CharLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type FloatLiteralRet = ();
-
-    fn visit_float_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteral>,
-    ) -> Result<Self::FloatLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type BoolLiteralRet = ();
-
-    fn visit_bool_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteral>,
-    ) -> Result<Self::BoolLiteralRet, Self::Error> {
-        Ok(())
-    }
-
-    type IntLiteralRet = ();
-
-    fn visit_int_literal(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteral>,
-    ) -> Result<Self::IntLiteralRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
+    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
         Ok(())
     }
 
@@ -589,34 +610,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type BreakStatementRet = ();
-
-    fn visit_break_statement(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
-    ) -> Result<Self::BreakStatementRet, Self::Error> {
-        if !self.is_in_loop {
-            self.append_error(AnalysisErrorKind::UsingBreakOutsideLoop, node.span());
-        }
-
-        Ok(())
-    }
-
-    type ContinueStatementRet = ();
-
-    fn visit_continue_statement(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
-    ) -> Result<Self::ContinueStatementRet, Self::Error> {
-        if !self.is_in_loop {
-            self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node.span());
-        }
-
-        Ok(())
-    }
-
     type ForLoopBlockRet = ();
 
     fn visit_for_loop_block(
@@ -645,6 +638,28 @@ impl AstVisitor for SemanticAnalyser<'_> {
         );
     }
 
+    type ModBlockRet = ();
+
+    fn visit_mod_block(
+        &mut self,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
+    ) -> Result<Self::ModBlockRet, Self::Error> {
+        self.check_constant_body_block(&node.body().0, BlockOrigin::Mod);
+        Ok(())
+    }
+
+    type ImplBlockRet = ();
+
+    fn visit_impl_block(
+        &mut self,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
+    ) -> Result<Self::ImplBlockRet, Self::Error> {
+        self.check_constant_body_block(&node.body().0, BlockOrigin::Impl);
+        Ok(())
+    }
+
     type IfClauseRet = ();
 
     fn visit_if_clause(
@@ -671,28 +686,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
             self.source_map,
             "hit non de-sugared if-block whilst performing semantic analysis"
         );
-    }
-
-    type ModBlockRet = ();
-
-    fn visit_mod_block(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
-    ) -> Result<Self::ModBlockRet, Self::Error> {
-        self.check_constant_body_block(&node.body().0, BlockOrigin::Mod);
-        Ok(())
-    }
-
-    type ImplBlockRet = ();
-
-    fn visit_impl_block(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
-    ) -> Result<Self::ImplBlockRet, Self::Error> {
-        self.check_constant_body_block(&node.body().0, BlockOrigin::Impl);
-        Ok(())
     }
 
     type BodyBlockRet = ();
@@ -735,6 +728,34 @@ impl AstVisitor for SemanticAnalyser<'_> {
         }
 
         let _ = walk::walk_return_statement(self, ctx, node);
+        Ok(())
+    }
+
+    type BreakStatementRet = ();
+
+    fn visit_break_statement(
+        &mut self,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
+    ) -> Result<Self::BreakStatementRet, Self::Error> {
+        if !self.is_in_loop {
+            self.append_error(AnalysisErrorKind::UsingBreakOutsideLoop, node.span());
+        }
+
+        Ok(())
+    }
+
+    type ContinueStatementRet = ();
+
+    fn visit_continue_statement(
+        &mut self,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
+    ) -> Result<Self::ContinueStatementRet, Self::Error> {
+        if !self.is_in_loop {
+            self.append_error(AnalysisErrorKind::UsingContinueOutsideLoop, node.span());
+        }
+
         Ok(())
     }
 
@@ -899,18 +920,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type PatternRet = ();
-
-    fn visit_pattern(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
-    ) -> Result<Self::PatternRet, Self::Error> {
-        let _ = walk::walk_pattern(self, ctx, node);
-
-        Ok(())
-    }
-
     type TraitImplRet = ();
 
     fn visit_trait_impl(
@@ -922,24 +931,15 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type TyFnDefRet = ();
+    type PatternRet = ();
 
-    fn visit_ty_fn_def(
+    fn visit_pattern(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
-    ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let _ = walk::walk_ty_fn_def(self, ctx, node);
-        Ok(())
-    }
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
+    ) -> Result<Self::PatternRet, Self::Error> {
+        let _ = walk::walk_pattern(self, ctx, node);
 
-    type TyFnDefArgRet = ();
-
-    fn visit_ty_fn_def_param(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
         Ok(())
     }
 
