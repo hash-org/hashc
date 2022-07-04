@@ -388,63 +388,63 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type TupleTypeRet = ();
+    type TupleTyRet = ();
 
     fn visit_tuple_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleTy>,
-    ) -> Result<Self::TupleTypeRet, Self::Error> {
+    ) -> Result<Self::TupleTyRet, Self::Error> {
         Ok(())
     }
 
-    type ListTypeRet = ();
+    type ListTyRet = ();
 
     fn visit_list_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::ListTy>,
-    ) -> Result<Self::ListTypeRet, Self::Error> {
+    ) -> Result<Self::ListTyRet, Self::Error> {
         Ok(())
     }
 
-    type SetTypeRet = ();
+    type SetTyRet = ();
 
     fn visit_set_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::SetTy>,
-    ) -> Result<Self::SetTypeRet, Self::Error> {
+    ) -> Result<Self::SetTyRet, Self::Error> {
         Ok(())
     }
 
-    type MapTypeRet = ();
+    type MapTyRet = ();
 
     fn visit_map_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
-    ) -> Result<Self::MapTypeRet, Self::Error> {
+    ) -> Result<Self::MapTyRet, Self::Error> {
         Ok(())
     }
 
-    type NamedFieldTypeRet = ();
+    type NamedFieldTyRet = ();
 
     fn visit_named_field_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+    ) -> Result<Self::NamedFieldTyRet, Self::Error> {
         Ok(())
     }
 
-    type FnTypeRet = ();
+    type FnTyRet = ();
 
     fn visit_fn_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
-    ) -> Result<Self::FnTypeRet, Self::Error> {
+    ) -> Result<Self::FnTyRet, Self::Error> {
         Ok(())
     }
 
@@ -460,7 +460,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     type TyFnRet = ();
 
-    fn visit_ty_fn(
+    fn visit_ty_fn_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
@@ -498,13 +498,13 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type MergedTypeRet = ();
+    type MergedTyRet = ();
 
     fn visit_merged_ty(
         &mut self,
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedTy>,
-    ) -> Result<Self::MergedTypeRet, Self::Error> {
+    ) -> Result<Self::MergedTyRet, Self::Error> {
         Ok(())
     }
 

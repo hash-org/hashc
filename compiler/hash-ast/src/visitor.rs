@@ -266,47 +266,47 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::Ty>,
     ) -> Result<Self::TyRet, Self::Error>;
 
-    type TupleTypeRet;
+    type TupleTyRet;
     fn visit_tuple_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TupleTy>,
-    ) -> Result<Self::TupleTypeRet, Self::Error>;
+    ) -> Result<Self::TupleTyRet, Self::Error>;
 
-    type ListTypeRet;
+    type ListTyRet;
     fn visit_list_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ListTy>,
-    ) -> Result<Self::ListTypeRet, Self::Error>;
+    ) -> Result<Self::ListTyRet, Self::Error>;
 
-    type SetTypeRet;
+    type SetTyRet;
     fn visit_set_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::SetTy>,
-    ) -> Result<Self::SetTypeRet, Self::Error>;
+    ) -> Result<Self::SetTyRet, Self::Error>;
 
-    type MapTypeRet;
+    type MapTyRet;
     fn visit_map_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MapTy>,
-    ) -> Result<Self::MapTypeRet, Self::Error>;
+    ) -> Result<Self::MapTyRet, Self::Error>;
 
-    type NamedFieldTypeRet;
+    type NamedFieldTyRet;
     fn visit_named_field_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTypeRet, Self::Error>;
+    ) -> Result<Self::NamedFieldTyRet, Self::Error>;
 
-    type FnTypeRet;
+    type FnTyRet;
     fn visit_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::FnTy>,
-    ) -> Result<Self::FnTypeRet, Self::Error>;
+    ) -> Result<Self::FnTyRet, Self::Error>;
 
     type TyFnParamRet;
     fn visit_ty_fn_param(
@@ -316,7 +316,7 @@ pub trait AstVisitor: Sized {
     ) -> Result<Self::TyFnParamRet, Self::Error>;
 
     type TyFnRet;
-    fn visit_ty_fn(
+    fn visit_ty_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TyFn>,
@@ -343,12 +343,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::RefTy>,
     ) -> Result<Self::RefTyRet, Self::Error>;
 
-    type MergedTypeRet;
+    type MergedTyRet;
     fn visit_merged_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergedTy>,
-    ) -> Result<Self::MergedTypeRet, Self::Error>;
+    ) -> Result<Self::MergedTyRet, Self::Error>;
 
     type TyFnDefRet;
     fn visit_ty_fn_def(
@@ -980,47 +980,47 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::Ty>,
     ) -> Result<Self::TyRet, Self::Error>;
 
-    type TupleTypeRet;
+    type TupleTyRet;
     fn visit_tuple_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::TupleTy>,
-    ) -> Result<Self::TupleTypeRet, Self::Error>;
+    ) -> Result<Self::TupleTyRet, Self::Error>;
 
-    type ListTypeRet;
+    type ListTyRet;
     fn visit_list_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::ListTy>,
-    ) -> Result<Self::ListTypeRet, Self::Error>;
+    ) -> Result<Self::ListTyRet, Self::Error>;
 
-    type SetTypeRet;
+    type SetTyRet;
     fn visit_set_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::SetTy>,
-    ) -> Result<Self::SetTypeRet, Self::Error>;
+    ) -> Result<Self::SetTyRet, Self::Error>;
 
-    type MapTypeRet;
+    type MapTyRet;
     fn visit_map_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::MapTy>,
-    ) -> Result<Self::MapTypeRet, Self::Error>;
+    ) -> Result<Self::MapTyRet, Self::Error>;
 
-    type NamedFieldTypeRet;
+    type NamedFieldTyRet;
     fn visit_named_field_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTypeRet, Self::Error>;
+    ) -> Result<Self::NamedFieldTyRet, Self::Error>;
 
-    type FnTypeRet;
+    type FnTyRet;
     fn visit_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::FnTy>,
-    ) -> Result<Self::FnTypeRet, Self::Error>;
+    ) -> Result<Self::FnTyRet, Self::Error>;
 
     type TyFnParamRet;
     fn visit_ty_fn_param(
@@ -1030,39 +1030,39 @@ pub trait AstVisitorMut: Sized {
     ) -> Result<Self::TyFnParamRet, Self::Error>;
 
     type TyFnRet;
-    fn visit_ty_fn(
+    fn visit_ty_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::TyFn>,
     ) -> Result<Self::TyFnRet, Self::Error>;
 
-    type TypeFnCallRet;
+    type TyFnCallRet;
     fn visit_ty_fn_call(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::TyFnCall>,
-    ) -> Result<Self::TypeFnCallRet, Self::Error>;
+    ) -> Result<Self::TyFnCallRet, Self::Error>;
 
-    type NamedTypeRet;
+    type NamedTyRet;
     fn visit_named_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::NamedTy>,
-    ) -> Result<Self::NamedTypeRet, Self::Error>;
+    ) -> Result<Self::NamedTyRet, Self::Error>;
 
-    type RefTypeRet;
+    type RefTyRet;
     fn visit_ref_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::RefTy>,
-    ) -> Result<Self::RefTypeRet, Self::Error>;
+    ) -> Result<Self::RefTyRet, Self::Error>;
 
-    type MergedTypeRet;
+    type MergedTyRet;
     fn visit_merged_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::MergedTy>,
-    ) -> Result<Self::MergedTypeRet, Self::Error>;
+    ) -> Result<Self::MergedTyRet, Self::Error>;
 
     type TyFnDefRet;
     fn visit_ty_fn_def(
@@ -1499,7 +1499,7 @@ pub mod walk {
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
         LiteralExpr(V::LiteralExprRet),
-        Typed(V::CastExprRet),
+        Cast(V::CastExprRet),
         Block(V::BlockExprRet),
         Import(V::ImportExprRet),
         StructDef(V::StructDefRet),
@@ -1507,7 +1507,7 @@ pub mod walk {
         TyFnDef(V::TyFnDefRet),
         TraitDef(V::TraitDefRet),
         FnDef(V::FnDefRet),
-        Type(V::TyExprRet),
+        Ty(V::TyExprRet),
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
@@ -1529,8 +1529,8 @@ pub mod walk {
             ast::ExpressionKind::ConstructorCall(inner) => Expression::ConstructorCall(
                 visitor.visit_constructor_call_expr(ctx, node.with_body(inner))?,
             ),
-            ast::ExpressionKind::Type(inner) => {
-                Expression::Type(visitor.visit_ty_expr(ctx, node.with_body(inner))?)
+            ast::ExpressionKind::Ty(inner) => {
+                Expression::Ty(visitor.visit_ty_expr(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::Directive(inner) => {
                 Expression::Directive(visitor.visit_directive_expr(ctx, node.with_body(inner))?)
@@ -1559,8 +1559,8 @@ pub mod walk {
             ast::ExpressionKind::LiteralExpr(inner) => {
                 Expression::LiteralExpr(visitor.visit_literal_expr(ctx, node.with_body(inner))?)
             }
-            ast::ExpressionKind::As(inner) => {
-                Expression::Typed(visitor.visit_cast_expr(ctx, node.with_body(inner))?)
+            ast::ExpressionKind::Cast(inner) => {
+                Expression::Cast(visitor.visit_cast_expr(ctx, node.with_body(inner))?)
             }
             ast::ExpressionKind::Block(inner) => {
                 Expression::Block(visitor.visit_block_expr(ctx, node.with_body(inner))?)
@@ -1661,7 +1661,7 @@ pub mod walk {
             Expression::Deref(r) => r,
             Expression::Unsafe(r) => r,
             Expression::LiteralExpr(r) => r,
-            Expression::Typed(r) => r,
+            Expression::Cast(r) => r,
             Expression::Block(r) => r,
             Expression::Import(r) => r,
             Expression::StructDef(r) => r,
@@ -1670,7 +1670,7 @@ pub mod walk {
             Expression::TraitDef(r) => r,
             Expression::TraitImpl(r) => r,
             Expression::FnDef(r) => r,
-            Expression::Type(r) => r,
+            Expression::Ty(r) => r,
             Expression::Return(r) => r,
             Expression::Break(r) => r,
             Expression::Continue(r) => r,
@@ -2291,7 +2291,7 @@ pub mod walk {
     }
 
     pub struct FnTy<V: AstVisitor> {
-        pub params: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub params: V::CollectionContainer<V::NamedFieldTyRet>,
         pub return_ty: V::TyRet,
     }
 
@@ -2310,7 +2310,7 @@ pub mod walk {
     }
 
     pub struct TupleTy<V: AstVisitor> {
-        pub entries: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub entries: V::CollectionContainer<V::NamedFieldTyRet>,
     }
 
     pub fn walk_tuple_ty<V: AstVisitor>(
@@ -2419,7 +2419,7 @@ pub mod walk {
 
     pub struct TyFnCall<V: AstVisitor> {
         pub subject: V::TyRet,
-        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub args: V::CollectionContainer<V::NamedFieldTyRet>,
     }
 
     pub fn walk_ty_fn_call<V: AstVisitor>(
@@ -2482,14 +2482,14 @@ pub mod walk {
     }
 
     pub enum Ty<V: AstVisitor> {
-        Fn(V::FnTypeRet),
-        Tuple(V::TupleTypeRet),
-        List(V::ListTypeRet),
-        Set(V::SetTypeRet),
-        Map(V::MapTypeRet),
+        Fn(V::FnTyRet),
+        Tuple(V::TupleTyRet),
+        List(V::ListTyRet),
+        Set(V::SetTyRet),
+        Map(V::MapTyRet),
         Named(V::NamedTyRet),
         Ref(V::RefTyRet),
-        Merged(V::MergedTypeRet),
+        Merged(V::MergedTyRet),
         TyFn(V::TyFnRet),
         TyFnCall(V::TyFnCallRet),
     }
@@ -2508,7 +2508,7 @@ pub mod walk {
             ast::Ty::Named(r) => Ty::Named(visitor.visit_named_ty(ctx, node.with_body(r))?),
             ast::Ty::Ref(r) => Ty::Ref(visitor.visit_ref_ty(ctx, node.with_body(r))?),
             ast::Ty::Merged(r) => Ty::Merged(visitor.visit_merged_ty(ctx, node.with_body(r))?),
-            ast::Ty::TyFn(r) => Ty::TyFn(visitor.visit_ty_fn(ctx, node.with_body(r))?),
+            ast::Ty::TyFn(r) => Ty::TyFn(visitor.visit_ty_fn_ty(ctx, node.with_body(r))?),
             ast::Ty::TyFnCall(r) => Ty::TyFnCall(visitor.visit_ty_fn_call(ctx, node.with_body(r))?),
         })
     }
@@ -2520,14 +2520,14 @@ pub mod walk {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitor<
-            FnTypeRet = Ret,
-            TupleTypeRet = Ret,
-            ListTypeRet = Ret,
-            SetTypeRet = Ret,
-            MapTypeRet = Ret,
+            FnTyRet = Ret,
+            TupleTyRet = Ret,
+            ListTyRet = Ret,
+            SetTyRet = Ret,
+            MapTyRet = Ret,
             NamedTyRet = Ret,
             RefTyRet = Ret,
-            MergedTypeRet = Ret,
+            MergedTyRet = Ret,
             TyFnRet = Ret,
             TyFnCallRet = Ret,
         >,
@@ -3218,7 +3218,7 @@ pub mod walk_mut {
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
         LiteralExpr(V::LiteralExprRet),
-        Typed(V::CastExprRet),
+        Cast(V::CastExprRet),
         Block(V::BlockExprRet),
         Import(V::ImportExprRet),
         StructDef(V::StructDefRet),
@@ -3226,7 +3226,7 @@ pub mod walk_mut {
         TyFnDef(V::TyFnDefRet),
         TraitDef(V::TraitDefRet),
         FnDef(V::FnDefRet),
-        Type(V::TyExprRet),
+        Ty(V::TyExprRet),
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
@@ -3251,8 +3251,8 @@ pub mod walk_mut {
             ast::ExpressionKind::ConstructorCall(inner) => Expression::ConstructorCall(
                 visitor.visit_constructor_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExpressionKind::Type(inner) => {
-                Expression::Type(visitor.visit_ty_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            ast::ExpressionKind::Ty(inner) => {
+                Expression::Ty(visitor.visit_ty_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
             }
             ast::ExpressionKind::Directive(inner) => Expression::Directive(
                 visitor.visit_directive_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
@@ -3281,9 +3281,9 @@ pub mod walk_mut {
             ast::ExpressionKind::LiteralExpr(inner) => Expression::LiteralExpr(
                 visitor.visit_literal_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExpressionKind::As(inner) => Expression::Typed(
-                visitor.visit_cast_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
-            ),
+            ast::ExpressionKind::Cast(inner) => {
+                Expression::Cast(visitor.visit_cast_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
             ast::ExpressionKind::Block(inner) => Expression::Block(
                 visitor.visit_block_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
@@ -3383,7 +3383,7 @@ pub mod walk_mut {
             Expression::Deref(r) => r,
             Expression::Unsafe(r) => r,
             Expression::LiteralExpr(r) => r,
-            Expression::Typed(r) => r,
+            Expression::Cast(r) => r,
             Expression::Block(r) => r,
             Expression::Import(r) => r,
             Expression::StructDef(r) => r,
@@ -3392,7 +3392,7 @@ pub mod walk_mut {
             Expression::TraitDef(r) => r,
             Expression::TraitImpl(r) => r,
             Expression::FnDef(r) => r,
-            Expression::Type(r) => r,
+            Expression::Ty(r) => r,
             Expression::Return(r) => r,
             Expression::Break(r) => r,
             Expression::Continue(r) => r,
@@ -3569,14 +3569,14 @@ pub mod walk_mut {
         })
     }
 
-    pub struct TypeExpr<V: AstVisitorMut>(pub V::TyRet);
+    pub struct TyExpr<V: AstVisitorMut>(pub V::TyRet);
 
-    pub fn walk_type_expr<V: AstVisitorMut>(
+    pub fn walk_ty_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::TyExpr>,
-    ) -> Result<TypeExpr<V>, V::Error> {
-        Ok(TypeExpr(visitor.visit_ty(ctx, node.0.ast_ref_mut())?))
+    ) -> Result<TyExpr<V>, V::Error> {
+        Ok(TyExpr(visitor.visit_ty(ctx, node.0.ast_ref_mut())?))
     }
 
     pub struct BlockExpr<V: AstVisitorMut>(pub V::BlockRet);
@@ -4051,7 +4051,7 @@ pub mod walk_mut {
     }
 
     pub struct FnTy<V: AstVisitorMut> {
-        pub params: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub params: V::CollectionContainer<V::NamedFieldTyRet>,
         pub return_ty: V::TyRet,
     }
 
@@ -4070,7 +4070,7 @@ pub mod walk_mut {
     }
 
     pub struct TupleTy<V: AstVisitorMut> {
-        pub entries: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub entries: V::CollectionContainer<V::NamedFieldTyRet>,
     }
 
     pub fn walk_tuple_ty<V: AstVisitorMut>(
@@ -4173,7 +4173,7 @@ pub mod walk_mut {
 
     pub struct TyFnCall<V: AstVisitorMut> {
         pub subject: V::TyRet,
-        pub args: V::CollectionContainer<V::NamedFieldTypeRet>,
+        pub args: V::CollectionContainer<V::NamedFieldTyRet>,
     }
 
     pub fn walk_ty_fn_call<V: AstVisitorMut>(
@@ -4236,19 +4236,19 @@ pub mod walk_mut {
     }
 
     pub enum Ty<V: AstVisitorMut> {
-        Fn(V::FnTypeRet),
-        Tuple(V::TupleTypeRet),
-        List(V::ListTypeRet),
-        Set(V::SetTypeRet),
-        Map(V::MapTypeRet),
-        Named(V::NamedTypeRet),
-        Ref(V::RefTypeRet),
-        Merged(V::MergedTypeRet),
-        TypeFn(V::TyFnRet),
-        TypeFnCall(V::TypeFnCallRet),
+        Fn(V::FnTyRet),
+        Tuple(V::TupleTyRet),
+        List(V::ListTyRet),
+        Set(V::SetTyRet),
+        Map(V::MapTyRet),
+        Named(V::NamedTyRet),
+        Ref(V::RefTyRet),
+        Merged(V::MergedTyRet),
+        TyFn(V::TyFnRet),
+        TyFnCall(V::TyFnCallRet),
     }
 
-    pub fn walk_type<V: AstVisitorMut>(
+    pub fn walk_ty<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::Ty>,
@@ -4274,34 +4274,34 @@ pub mod walk_mut {
                 Ty::Merged(visitor.visit_merged_ty(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::Ty::TyFn(r) => {
-                Ty::TypeFn(visitor.visit_ty_fn(ctx, AstNodeRefMut::new(r, span, id))?)
+                Ty::TyFn(visitor.visit_ty_fn_ty(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::Ty::TyFnCall(r) => {
-                Ty::TypeFnCall(visitor.visit_ty_fn_call(ctx, AstNodeRefMut::new(r, span, id))?)
+                Ty::TyFnCall(visitor.visit_ty_fn_call(ctx, AstNodeRefMut::new(r, span, id))?)
             }
         })
     }
 
-    pub fn walk_type_same_children<V, Ret>(
+    pub fn walk_ty_same_children<V, Ret>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRefMut<ast::Ty>,
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitorMut<
-            FnTypeRet = Ret,
-            TupleTypeRet = Ret,
-            ListTypeRet = Ret,
-            SetTypeRet = Ret,
-            MapTypeRet = Ret,
-            NamedTypeRet = Ret,
-            RefTypeRet = Ret,
-            MergedTypeRet = Ret,
+            FnTyRet = Ret,
+            TupleTyRet = Ret,
+            ListTyRet = Ret,
+            SetTyRet = Ret,
+            MapTyRet = Ret,
+            NamedTyRet = Ret,
+            RefTyRet = Ret,
+            MergedTyRet = Ret,
             TyFnRet = Ret,
-            TypeFnCallRet = Ret,
+            TyFnCallRet = Ret,
         >,
     {
-        Ok(match walk_type(visitor, ctx, node)? {
+        Ok(match walk_ty(visitor, ctx, node)? {
             Ty::Fn(r) => r,
             Ty::Tuple(r) => r,
             Ty::List(r) => r,
@@ -4310,8 +4310,8 @@ pub mod walk_mut {
             Ty::Named(r) => r,
             Ty::Ref(r) => r,
             Ty::Merged(r) => r,
-            Ty::TypeFn(r) => r,
-            Ty::TypeFnCall(r) => r,
+            Ty::TyFn(r) => r,
+            Ty::TyFnCall(r) => r,
         })
     }
 

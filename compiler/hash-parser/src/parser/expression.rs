@@ -131,7 +131,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Type) => self.node_with_joined_span(
-                Expression::new(ExpressionKind::Type(TyExpr(self.parse_type()?))),
+                Expression::new(ExpressionKind::Ty(TyExpr(self.parse_type()?))),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Set) => self.node_with_joined_span(
@@ -317,7 +317,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(token) if token.has_kind(TokenKind::Lt) => {
                 match self.peek_resultant_fn(|| self.parse_type_args(false)) {
                     Some(args) => Ok(self.node_with_joined_span(
-                        Expression::new(ExpressionKind::Type(TyExpr(self.node_with_joined_span(
+                        Expression::new(ExpressionKind::Ty(TyExpr(self.node_with_joined_span(
                             Ty::TyFnCall(TyFnCall {
                                 subject:
                                     self.node_with_span(Ty::Named(NamedTy { name }), name_span),
@@ -390,7 +390,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // different
                     if op == BinOp::As {
                         lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::As(CastExpr {
+                            Expression::new(ExpressionKind::Cast(CastExpr {
                                 expr: lhs,
                                 ty: self.parse_type()?,
                             })),

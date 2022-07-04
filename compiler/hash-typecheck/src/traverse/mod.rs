@@ -693,13 +693,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_ty_same_children(self, ctx, node)
     }
 
-    type TupleTypeRet = TermId;
+    type TupleTyRet = TermId;
 
     fn visit_tuple_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleTy>,
-    ) -> Result<Self::TupleTypeRet, Self::Error> {
+    ) -> Result<Self::TupleTyRet, Self::Error> {
         let walk::TupleTy { entries } = walk::walk_tuple_ty(self, ctx, node)?;
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
@@ -720,13 +720,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type ListTypeRet = TermId;
+    type ListTyRet = TermId;
 
     fn visit_list_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListTy>,
-    ) -> Result<Self::ListTypeRet, Self::Error> {
+    ) -> Result<Self::ListTyRet, Self::Error> {
         let walk::ListTy { inner } = walk::walk_list_ty(self, ctx, node)?;
 
         let inner_ty = self.core_defs().list_ty_fn;
@@ -746,13 +746,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type SetTypeRet = TermId;
+    type SetTyRet = TermId;
 
     fn visit_set_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetTy>,
-    ) -> Result<Self::SetTypeRet, Self::Error> {
+    ) -> Result<Self::SetTyRet, Self::Error> {
         let walk::SetTy { inner } = walk::walk_set_ty(self, ctx, node)?;
 
         let inner_ty = self.core_defs().set_ty_fn;
@@ -772,13 +772,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type MapTypeRet = TermId;
+    type MapTyRet = TermId;
 
     fn visit_map_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
-    ) -> Result<Self::MapTypeRet, Self::Error> {
+    ) -> Result<Self::MapTyRet, Self::Error> {
         let walk::MapTy { key, value } = walk::walk_map_ty(self, ctx, node)?;
 
         let inner_ty = self.core_defs().map_ty_fn;
@@ -801,13 +801,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type NamedFieldTypeRet = Param;
+    type NamedFieldTyRet = Param;
 
     fn visit_named_field_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
+    ) -> Result<Self::NamedFieldTyRet, Self::Error> {
         let walk::NamedFieldTyEntry { ty, name } = walk::walk_named_field_ty(self, ctx, node)?;
 
         // Add the location of the type
@@ -817,13 +817,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(Param { ty, name, default_value: None })
     }
 
-    type FnTypeRet = TermId;
+    type FnTyRet = TermId;
 
     fn visit_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
-    ) -> Result<Self::FnTypeRet, Self::Error> {
+    ) -> Result<Self::FnTyRet, Self::Error> {
         let walk::FnTy { params, return_ty } = walk::walk_fn_ty(self, ctx, node)?;
         let params = self.builder().create_params(params, ParamOrigin::Fn);
 
@@ -867,7 +867,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type TyFnRet = TermId;
 
-    fn visit_ty_fn(
+    fn visit_ty_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
@@ -986,13 +986,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(ref_ty)?.simplified_term_id)
     }
 
-    type MergedTypeRet = TermId;
+    type MergedTyRet = TermId;
 
     fn visit_merged_ty(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedTy>,
-    ) -> Result<Self::MergedTypeRet, Self::Error> {
+    ) -> Result<Self::MergedTyRet, Self::Error> {
         let walk::MergedTy(elements) = walk::walk_merged_ty(self, ctx, node)?;
 
         let merge_term = self.builder().create_merge_term(elements);
