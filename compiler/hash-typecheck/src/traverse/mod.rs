@@ -412,14 +412,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type TypeExprRet = TermId;
+    type TyExprRet = TermId;
 
-    fn visit_type_expr(
+    fn visit_ty_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeExpr>,
-    ) -> Result<Self::TypeExprRet, Self::Error> {
-        Ok(walk::walk_type_expr(self, ctx, node)?.0)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyExpr>,
+    ) -> Result<Self::TyExprRet, Self::Error> {
+        Ok(walk::walk_ty_expr(self, ctx, node)?.0)
     }
 
     type BlockExprRet = TermId;
@@ -442,24 +442,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(walk::walk_import_expr(self, ctx, node)?.0)
     }
 
-    type TypeRet = TermId;
+    type TyRet = TermId;
 
-    fn visit_type(
+    fn visit_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Type>,
-    ) -> Result<Self::TypeRet, Self::Error> {
-        walk::walk_type_same_children(self, ctx, node)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Ty>,
+    ) -> Result<Self::TyRet, Self::Error> {
+        walk::walk_ty_same_children(self, ctx, node)
     }
 
     type NamedFieldTypeRet = Param;
 
-    fn visit_named_field_type(
+    fn visit_named_field_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTypeEntry>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
     ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
-        let walk::NamedFieldTypeEntry { ty, name } = walk::walk_named_field_type(self, ctx, node)?;
+        let walk::NamedFieldTyEntry { ty, name } = walk::walk_named_field_ty(self, ctx, node)?;
 
         // Add the location of the type
         let location = self.source_location(node.ty.span());
@@ -470,12 +470,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type FnTypeRet = TermId;
 
-    fn visit_function_type(
+    fn visit_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnType>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnTy>,
     ) -> Result<Self::FnTypeRet, Self::Error> {
-        let walk::FnType { params, return_ty } = walk::walk_function_type(self, ctx, node)?;
+        let walk::FnTy { params, return_ty } = walk::walk_fn_ty(self, ctx, node)?;
         let params = self.builder().create_params(params, ParamOrigin::Fn);
 
         // Add all the locations to the parameters:
@@ -494,15 +494,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
-    type TypeFunctionParamRet = Param;
+    type TyFnParamRet = Param;
 
-    fn visit_type_function_param(
+    fn visit_ty_fn_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionParam>,
-    ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
-        let walk::TypeFunctionParam { name, bound, default } =
-            walk::walk_type_function_param(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnParam>,
+    ) -> Result<Self::TyFnParamRet, Self::Error> {
+        let walk::TyFnParam { name, bound, default } = walk::walk_ty_fn_param(self, ctx, node)?;
 
         // The location of the param type is either the bound or the name (since <T>
         // means <T: Type>):
@@ -517,21 +516,21 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(Param { ty, name: Some(name), default_value: default })
     }
 
-    type TypeFunctionRet = TermId;
+    type TyFnRet = TermId;
 
-    fn visit_type_function(
+    fn visit_ty_fn(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunction>,
-    ) -> Result<Self::TypeFunctionRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
+    ) -> Result<Self::TyFnRet, Self::Error> {
         let params_list = Self::try_collect_items(
             ctx,
-            node.params.iter().map(|a| self.visit_type_function_param(ctx, a.ast_ref())),
+            node.params.iter().map(|a| self.visit_ty_fn_param(ctx, a.ast_ref())),
         )?;
         let params = self.builder().create_params(params_list, ParamOrigin::TyFn);
 
         let param_scope = self.scope_resolver().enter_ty_param_scope(params);
-        let return_value = self.visit_type(ctx, node.return_ty.ast_ref())?;
+        let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
         self.scopes_mut().pop_the_scope(param_scope);
 
         // Add all the locations to the parameters:
@@ -550,15 +549,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(ty_fn_ty_term)?.simplified_term_id)
     }
 
-    type TypeFunctionCallRet = TermId;
+    type TyFnCallRet = TermId;
 
-    fn visit_type_function_call(
+    fn visit_ty_fn_call(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionCall>,
-    ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
-        let walk::TypeFunctionCall { args, subject } =
-            walk::walk_type_function_call(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnCall>,
+    ) -> Result<Self::TyFnCallRet, Self::Error> {
+        let walk::TyFnCall { args, subject } = walk::walk_ty_fn_call(self, ctx, node)?;
 
         // These should be converted to args
         let args = self.builder().create_args(
@@ -582,13 +580,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(app_ty_fn_term)?.simplified_term_id)
     }
 
-    type NamedTypeRet = TermId;
+    type NamedTyRet = TermId;
 
-    fn visit_named_type(
+    fn visit_named_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedType>,
-    ) -> Result<Self::NamedTypeRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
         if node.name.path.len() == 1 && *node.name.path[0].body() == Identifier::from("_") {
             // Infer type if it is an underscore:
             let infer_term = self.builder().create_unresolved_term();
@@ -596,19 +594,19 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.builder().add_location_to_target(infer_term, infer_term_location);
             Ok(infer_term)
         } else {
-            let var = walk::walk_named_type(self, ctx, node)?.name;
+            let var = walk::walk_named_ty(self, ctx, node)?.name;
             Ok(self.validator().validate_term(var)?.simplified_term_id)
         }
     }
 
-    type RefTypeRet = TermId;
+    type RefTyRet = TermId;
 
-    fn visit_ref_type(
+    fn visit_ref_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefType>,
-    ) -> Result<Self::RefTypeRet, Self::Error> {
-        let walk::RefType { inner, mutability, kind } = walk::walk_ref_type(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::RefTy>,
+    ) -> Result<Self::RefTyRet, Self::Error> {
+        let walk::RefTy { inner, mutability, kind } = walk::walk_ref_ty(self, ctx, node)?;
 
         // Either mutable or immutable, raw or normal, depending on what was given:
         let ref_def = match (kind, mutability) {
@@ -641,12 +639,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type MergedTypeRet = TermId;
 
-    fn visit_merged_type(
+    fn visit_merged_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedType>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedTy>,
     ) -> Result<Self::MergedTypeRet, Self::Error> {
-        let walk::MergedType(elements) = walk::walk_merged_type(self, ctx, node)?;
+        let walk::MergedTy(elements) = walk::walk_merged_ty(self, ctx, node)?;
 
         let merge_term = self.builder().create_merge_term(elements);
 
@@ -657,17 +655,17 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
     }
 
-    type TypeFunctionDefRet = TermId;
+    type TyFnDefRet = TermId;
 
-    fn visit_type_function_def(
+    fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDef>,
-    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
+    ) -> Result<Self::TyFnDefRet, Self::Error> {
         // Traverse the parameters:
         let param_elements = Self::try_collect_items(
             ctx,
-            node.params.iter().map(|t| self.visit_type_function_def_param(ctx, t.ast_ref())),
+            node.params.iter().map(|t| self.visit_ty_fn_def_param(ctx, t.ast_ref())),
         )?;
         let params = self.builder().create_params(param_elements, ParamOrigin::TyFn);
 
@@ -682,7 +680,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Traverse return type and return value:
         let return_ty =
-            node.return_ty.as_ref().map(|t| self.visit_type(ctx, t.ast_ref())).transpose()?;
+            node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
         let expression = self.visit_expression(ctx, node.expr.ast_ref())?;
 
         // Create the type function type term:
@@ -708,30 +706,30 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(simplified_ty_fn_term)
     }
 
-    type TypeFunctionDefArgRet = Param;
+    type TyFnDefArgRet = Param;
 
-    fn visit_type_function_def_param(
+    fn visit_ty_fn_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TypeFunctionDefParam>,
-    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
+    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
         // Same as type function param:
-        let type_function_param = hash_ast::ast::TypeFunctionParam {
+        let type_function_param = hash_ast::ast::TyFnParam {
             name: node.name.clone(),
             bound: node.ty.clone(),
             default: node.default.clone(),
         };
-        self.visit_type_function_param(ctx, node.with_body(&type_function_param))
+        self.visit_ty_fn_param(ctx, node.with_body(&type_function_param))
     }
 
     type TupleTypeRet = TermId;
 
-    fn visit_tuple_type(
+    fn visit_tuple_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleType>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleTy>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
-        let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
+        let walk::TupleTy { entries } = walk::walk_tuple_ty(self, ctx, node)?;
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
 
@@ -753,12 +751,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type ListTypeRet = TermId;
 
-    fn visit_list_type(
+    fn visit_list_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListType>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListTy>,
     ) -> Result<Self::ListTypeRet, Self::Error> {
-        let walk::ListType { inner } = walk::walk_list_type(self, ctx, node)?;
+        let walk::ListTy { inner } = walk::walk_list_ty(self, ctx, node)?;
 
         let inner_ty = self.core_defs().list_ty_fn;
         let builder = self.builder();
@@ -779,12 +777,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type SetTypeRet = TermId;
 
-    fn visit_set_type(
+    fn visit_set_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetType>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetTy>,
     ) -> Result<Self::SetTypeRet, Self::Error> {
-        let walk::SetType { inner } = walk::walk_set_type(self, ctx, node)?;
+        let walk::SetTy { inner } = walk::walk_set_ty(self, ctx, node)?;
 
         let inner_ty = self.core_defs().set_ty_fn;
         let builder = self.builder();
@@ -805,12 +803,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type MapTypeRet = TermId;
 
-    fn visit_map_type(
+    fn visit_map_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapType>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapTy>,
     ) -> Result<Self::MapTypeRet, Self::Error> {
-        let walk::MapType { key, value } = walk::walk_map_type(self, ctx, node)?;
+        let walk::MapTy { key, value } = walk::walk_map_ty(self, ctx, node)?;
 
         let inner_ty = self.core_defs().map_ty_fn;
         let builder = self.builder();
@@ -1073,20 +1071,20 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type FunctionDefRet = TermId;
+    type FnDefRet = TermId;
 
-    fn visit_function_def(
+    fn visit_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDef>,
-    ) -> Result<Self::FunctionDefRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDef>,
+    ) -> Result<Self::FnDefRet, Self::Error> {
         let args: Vec<_> = node
             .params
             .iter()
-            .map(|a| self.visit_function_def_param(ctx, a.ast_ref()))
+            .map(|a| self.visit_fn_def_param(ctx, a.ast_ref()))
             .collect::<TcResult<_>>()?;
         let return_ty =
-            node.return_ty.as_ref().map(|t| self.visit_type(ctx, t.ast_ref())).transpose()?;
+            node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
 
         let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
         let param_scope = self.scope_resolver().enter_rt_param_scope(params_potentially_unresolved);
@@ -1121,14 +1119,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
-    type FunctionDefParamRet = Param;
-    fn visit_function_def_param(
+    type FnDefParamRet = Param;
+    fn visit_fn_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FunctionDefParam>,
-    ) -> Result<Self::FunctionDefParamRet, Self::Error> {
-        let walk::FunctionDefParam { name, default, ty } =
-            walk::walk_function_def_param(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDefParam>,
+    ) -> Result<Self::FnDefParamRet, Self::Error> {
+        let walk::FnDefParam { name, default, ty } = walk::walk_fn_def_param(self, ctx, node)?;
 
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
         let value_or_unresolved = self.builder().or_unresolved_term(default);

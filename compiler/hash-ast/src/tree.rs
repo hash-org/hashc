@@ -229,13 +229,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TypeExprRet = TreeNode;
-    fn visit_type_expr(
+    type TyExprRet = TreeNode;
+    fn visit_ty_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeExpr>,
-    ) -> Result<Self::TypeExprRet, Self::Error> {
-        let walk::TypeExpr(ty) = walk::walk_type_expr(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyExpr>,
+    ) -> Result<Self::TyExprRet, Self::Error> {
+        let walk::TyExpr(ty) = walk::walk_ty_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch("type", vec![ty]))
     }
@@ -259,12 +259,12 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type NamedFieldTypeRet = TreeNode;
-    fn visit_named_field_type(
+    fn visit_named_field_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamedFieldTypeEntry>,
+        node: ast::AstNodeRef<ast::NamedFieldTyEntry>,
     ) -> Result<Self::NamedFieldTypeRet, Self::Error> {
-        let walk::NamedFieldTypeEntry { name, ty } = walk::walk_named_field_type(self, ctx, node)?;
+        let walk::NamedFieldTyEntry { name, ty } = walk::walk_named_field_ty(self, ctx, node)?;
 
         if let Some(name) = name {
             Ok(TreeNode::branch(
@@ -276,55 +276,55 @@ impl AstVisitor for AstTreeGenerator {
         }
     }
 
-    type TypeRet = TreeNode;
-    fn visit_type(
+    type TyRet = TreeNode;
+    fn visit_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Type>,
-    ) -> Result<Self::TypeRet, Self::Error> {
-        walk::walk_type_same_children(self, ctx, node)
+        node: ast::AstNodeRef<ast::Ty>,
+    ) -> Result<Self::TyRet, Self::Error> {
+        walk::walk_ty_same_children(self, ctx, node)
     }
 
     type TupleTypeRet = TreeNode;
-    fn visit_tuple_type(
+    fn visit_tuple_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleType>,
+        node: ast::AstNodeRef<ast::TupleTy>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
-        let walk::TupleType { entries } = walk::walk_tuple_type(self, ctx, node)?;
+        let walk::TupleTy { entries } = walk::walk_tuple_ty(self, ctx, node)?;
 
         Ok(TreeNode::branch("tuple", entries))
     }
 
     type ListTypeRet = TreeNode;
-    fn visit_list_type(
+    fn visit_list_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListType>,
+        node: ast::AstNodeRef<ast::ListTy>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
-        let walk::ListType { inner } = walk::walk_list_type(self, ctx, node)?;
+        let walk::ListTy { inner } = walk::walk_list_ty(self, ctx, node)?;
 
         Ok(TreeNode::branch("list", vec![inner]))
     }
 
     type SetTypeRet = TreeNode;
-    fn visit_set_type(
+    fn visit_set_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SetType>,
+        node: ast::AstNodeRef<ast::SetTy>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
-        let walk::SetType { inner: key } = walk::walk_set_type(self, ctx, node)?;
+        let walk::SetTy { inner: key } = walk::walk_set_ty(self, ctx, node)?;
 
         Ok(TreeNode::branch("set", vec![key]))
     }
 
     type MapTypeRet = TreeNode;
-    fn visit_map_type(
+    fn visit_map_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapType>,
+        node: ast::AstNodeRef<ast::MapTy>,
     ) -> Result<Self::TupleTypeRet, Self::Error> {
-        let walk::MapType { key, value } = walk::walk_map_type(self, ctx, node)?;
+        let walk::MapTy { key, value } = walk::walk_map_ty(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "map",
@@ -333,12 +333,12 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type FnTypeRet = TreeNode;
-    fn visit_function_type(
+    fn visit_fn_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FnType>,
+        node: ast::AstNodeRef<ast::FnTy>,
     ) -> Result<Self::FnTypeRet, Self::Error> {
-        let walk::FnType { params, return_ty } = walk::walk_function_type(self, ctx, node)?;
+        let walk::FnTy { params, return_ty } = walk::walk_fn_ty(self, ctx, node)?;
 
         let return_child = TreeNode::branch("return", vec![return_ty]);
 
@@ -353,23 +353,23 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("function", children))
     }
 
-    type NamedTypeRet = TreeNode;
-    fn visit_named_type(
+    type NamedTyRet = TreeNode;
+    fn visit_named_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamedType>,
-    ) -> Result<Self::NamedTypeRet, Self::Error> {
-        let walk::NamedType { name } = walk::walk_named_type(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::NamedTy>,
+    ) -> Result<Self::NamedTyRet, Self::Error> {
+        let walk::NamedTy { name } = walk::walk_named_ty(self, ctx, node)?;
         Ok(TreeNode::leaf(labelled("named", name.label, "\"")))
     }
 
-    type RefTypeRet = TreeNode;
-    fn visit_ref_type(
+    type RefTyRet = TreeNode;
+    fn visit_ref_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::RefType>,
-    ) -> Result<Self::RefTypeRet, Self::Error> {
-        let walk::RefType { inner, mutability, .. } = walk::walk_ref_type(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::RefTy>,
+    ) -> Result<Self::RefTyRet, Self::Error> {
+        let walk::RefTy { inner, mutability, .. } = walk::walk_ref_ty(self, ctx, node)?;
 
         let label = if node.kind.as_ref().map_or(false, |t| *t.body() == ast::RefKind::Raw) {
             "raw_ref"
@@ -395,23 +395,22 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MergedTypeRet = TreeNode;
-    fn visit_merged_type(
+    fn visit_merged_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MergedType>,
+        node: ast::AstNodeRef<ast::MergedTy>,
     ) -> Result<Self::MergedTypeRet, Self::Error> {
-        let walk::MergedType(tys) = walk::walk_merged_type(self, ctx, node)?;
+        let walk::MergedTy(tys) = walk::walk_merged_ty(self, ctx, node)?;
         Ok(TreeNode::branch("merged", tys))
     }
 
-    type TypeFunctionCallRet = TreeNode;
-    fn visit_type_function_call(
+    type TyFnCallRet = TreeNode;
+    fn visit_ty_fn_call(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionCall>,
-    ) -> Result<Self::TypeFunctionCallRet, Self::Error> {
-        let walk::TypeFunctionCall { subject, args } =
-            walk::walk_type_function_call(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyFnCall>,
+    ) -> Result<Self::TyFnCallRet, Self::Error> {
+        let walk::TyFnCall { subject, args } = walk::walk_ty_fn_call(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function_call",
@@ -419,14 +418,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TypeFunctionParamRet = TreeNode;
-    fn visit_type_function_param(
+    type TyFnParamRet = TreeNode;
+    fn visit_ty_fn_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionParam>,
-    ) -> Result<Self::TypeFunctionParamRet, Self::Error> {
-        let walk::TypeFunctionParam { name, bound, default } =
-            walk::walk_type_function_param(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyFnParam>,
+    ) -> Result<Self::TyFnParamRet, Self::Error> {
+        let walk::TyFnParam { name, bound, default } = walk::walk_ty_fn_param(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "param",
@@ -437,14 +435,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TypeFunctionRet = TreeNode;
-    fn visit_type_function(
+    type TyFnRet = TreeNode;
+    fn visit_ty_fn(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunction>,
-    ) -> Result<Self::TypeFunctionRet, Self::Error> {
-        let walk::TypeFunction { params: args, return_ty } =
-            walk::walk_type_function(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyFn>,
+    ) -> Result<Self::TyFnRet, Self::Error> {
+        let walk::TyFn { params: args, return_ty } = walk::walk_ty_fn(self, ctx, node)?;
 
         let return_child = TreeNode::branch("return", vec![return_ty]);
 
@@ -575,14 +572,13 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
-    type FunctionDefRet = TreeNode;
-    fn visit_function_def(
+    type FnDefRet = TreeNode;
+    fn visit_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDef>,
-    ) -> Result<Self::FunctionDefRet, Self::Error> {
-        let walk::FunctionDef { args, fn_body, return_ty } =
-            walk::walk_function_def(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::FnDef>,
+    ) -> Result<Self::FnDefRet, Self::Error> {
+        let walk::FnDef { args, fn_body, return_ty } = walk::walk_fn_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "function_def",
@@ -593,14 +589,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type FunctionDefParamRet = TreeNode;
-    fn visit_function_def_param(
+    type FnDefParamRet = TreeNode;
+    fn visit_fn_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FunctionDefParam>,
-    ) -> Result<Self::FunctionDefParamRet, Self::Error> {
-        let walk::FunctionDefParam { name, ty, default } =
-            walk::walk_function_def_param(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::FnDefParam>,
+    ) -> Result<Self::FnDefParamRet, Self::Error> {
+        let walk::FnDefParam { name, ty, default } = walk::walk_fn_def_param(self, ctx, node)?;
         Ok(TreeNode::branch(
             "param",
             iter::once(TreeNode::branch("name", vec![name]))
@@ -1015,14 +1010,14 @@ impl AstVisitor for AstTreeGenerator {
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type TypeFunctionDefRet = TreeNode;
-    fn visit_type_function_def(
+    type TyFnDefRet = TreeNode;
+    fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionDef>,
-    ) -> Result<Self::TypeFunctionDefRet, Self::Error> {
-        let walk::TypeFunctionDef { params: args, return_ty, expression } =
-            walk::walk_type_function_def(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyFnDef>,
+    ) -> Result<Self::TyFnDefRet, Self::Error> {
+        let walk::TyFnDef { params: args, return_ty, expression } =
+            walk::walk_ty_fn_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
@@ -1033,14 +1028,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TypeFunctionDefArgRet = TreeNode;
-    fn visit_type_function_def_param(
+    type TyFnDefArgRet = TreeNode;
+    fn visit_ty_fn_def_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TypeFunctionDefParam>,
-    ) -> Result<Self::TypeFunctionDefArgRet, Self::Error> {
-        let walk::TypeFunctionDefParam { name, ty, default } =
-            walk::walk_type_function_def_param(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyFnDefParam>,
+    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
+        let walk::TyFnDefParam { name, ty, default } = walk::walk_ty_fn_def_param(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "param",

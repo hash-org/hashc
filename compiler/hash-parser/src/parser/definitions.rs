@@ -88,7 +88,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [TypeFunctionDef]. Type functions specify logic at the type
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
-    pub fn parse_type_function_def(&self) -> AstGenResult<TypeFunctionDef> {
+    pub fn parse_type_function_def(&self) -> AstGenResult<TyFnDef> {
         let mut params = AstNodes::empty();
 
         // We can't do this because the parse_separated_fn() function expects a token
@@ -132,13 +132,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_arrow()?;
         let expr = self.parse_expression_with_precedence(0)?;
 
-        Ok(TypeFunctionDef { params, return_ty, expr })
+        Ok(TyFnDef { params, return_ty, expr })
     }
 
     // Parse a [TypeFunctionDefParam] which consists the name of the argument and
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
-    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TypeFunctionDefParam>> {
+    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TyFnDefParam>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
@@ -157,7 +157,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        Ok(self.node_with_joined_span(TypeFunctionDefParam { name, ty, default }, &start))
+        Ok(self.node_with_joined_span(TyFnDefParam { name, ty, default }, &start))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with

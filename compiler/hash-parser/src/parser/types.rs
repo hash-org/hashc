@@ -9,7 +9,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Type]. This includes all forms of a [Type]. This function
     /// does not deal with any kind of [Type] annotation or [TypeFunctionDef]
     /// syntax.
-    pub(crate) fn parse_type(&self) -> AstGenResult<AstNode<Type>> {
+    pub(crate) fn parse_type(&self) -> AstGenResult<AstNode<Ty>> {
         let start = self.current_location();
         let initial_ty = self.parse_singular_type()?;
 
@@ -25,7 +25,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
 
-            return Ok(self.node_with_joined_span(Type::Merged(MergedType(inner_tys)), &start));
+            return Ok(self.node_with_joined_span(Ty::Merged(MergedTy(inner_tys)), &start));
         }
 
         Ok(initial_ty)
@@ -34,7 +34,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [Type]. This includes only singular forms of a type. This means
     /// that [Type::Merged] variant is not handled because it makes the
     /// `parse_type` function carry context from one call to the other.
-    fn parse_singular_type(&self) -> AstGenResult<AstNode<Type>> {
+    fn parse_singular_type(&self) -> AstGenResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(AstGenErrorKind::ExpectedType, None, None, Some(self.next_location()))
         })?;
@@ -54,13 +54,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
                     .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
 
-                Type::Ref(RefType { inner: self.parse_type()?, kind, mutability })
+                Ty::Ref(RefTy { inner: self.parse_type()?, kind, mutability })
             }
             TokenKind::Ident(id) => {
                 self.skip_token();
 
                 let name = self.parse_access_name(self.node_with_span(*id, start))?;
-                Type::Named(NamedType { name })
+                Ty::Named(NamedTy { name })
             }
 
             // Map or set type
@@ -80,9 +80,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let value_ty = gen.parse_type()?;
                         gen.verify_is_empty()?;
 
-                        Type::Map(MapType { key: key_ty, value: value_ty })
+                        Ty::Map(MapTy { key: key_ty, value: value_ty })
                     }
-                    None => Type::Set(SetType { inner: key_ty }),
+                    None => Ty::Set(SetTy { inner: key_ty }),
                     Some(_) => gen.expected_eof()?,
                 }
             }
@@ -97,7 +97,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 let inner_type = gen.parse_type()?;
                 gen.verify_is_empty()?;
 
-                Type::List(ListType { inner: inner_type })
+                Ty::List(ListTy { inner: inner_type })
             }
 
             // Tuple or function type
@@ -117,8 +117,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // variants is followed by a `<`, this means that this has to be a type
         // function call and therefore we no longer allow for any other variants to be
         // present
-        let ty = if matches!(ty, Type::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
-            Type::TypeFunctionCall(TypeFunctionCall {
+        let ty = if matches!(ty, Ty::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
+            Ty::TyFnCall(TyFnCall {
                 subject: self.node_with_joined_span(ty, &start),
                 args: self.parse_type_args(true)?,
             })
@@ -138,7 +138,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn parse_type_args(
         &self,
         lt_eaten: bool,
-    ) -> AstGenResult<AstNodes<NamedFieldTypeEntry>> {
+    ) -> AstGenResult<AstNodes<NamedFieldTyEntry>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {
             self.parse_token(TokenKind::Lt)?;
@@ -172,7 +172,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let arg_span =
                 name.as_ref().map_or_else(|| ty.span(), |node| node.span().join(ty.span()));
 
-            type_args.push(self.node_with_span(NamedFieldTypeEntry { name, ty }, arg_span));
+            type_args.push(self.node_with_span(NamedFieldTyEntry { name, ty }, arg_span));
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
@@ -201,7 +201,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// arbitrary number of comma separated types followed by a return
     /// [Type] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
-    fn parse_function_or_tuple_type(&self) -> AstGenResult<Type> {
+    fn parse_function_or_tuple_type(&self) -> AstGenResult<Ty> {
         let mut params = AstNodes::empty();
 
         let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
@@ -231,7 +231,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                             _ => (None, gen.parse_type()?),
                         };
 
-                        Ok(gen.node_with_joined_span(NamedFieldTypeEntry { name, ty }, &start))
+                        Ok(gen.node_with_joined_span(NamedFieldTyEntry { name, ty }, &start))
                     },
                     || gen.parse_token(TokenKind::Comma),
                 )?;
@@ -247,7 +247,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek_resultant_fn(|| self.parse_thin_arrow()) {
             Some(_) => {
                 // Parse the return type here, and then give the function name
-                Ok(Type::Fn(FnType { params, return_ty: self.parse_type()? }))
+                Ok(Ty::Fn(FnTy { params, return_ty: self.parse_type()? }))
             }
             None => {
                 // If there is only one entry in the params, and the last token in the entry is
@@ -257,7 +257,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     return Ok(field.ty.into_body());
                 }
 
-                Ok(Type::Tuple(TupleType { entries: params }))
+                Ok(Ty::Tuple(TupleTy { entries: params }))
             }
         }
     }
@@ -265,7 +265,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parses a [Type::TypeFunction] with the pre-condition that the initial
     /// subject type is parsed and passed into the function. This function
     /// only deals with the argument part of the function.
-    fn parse_type_function(&self) -> AstGenResult<Type> {
+    fn parse_type_function(&self) -> AstGenResult<Ty> {
         // Since this is only called from `parse_singular_type` we know that this should
         // only be fired when the next token is a an `<`
         debug_assert!(matches!(self.next_token(), Some(Token { kind: TokenKind::Lt, .. })));
@@ -291,7 +291,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 None => None,
             };
 
-            args.push(self.node_with_span(TypeFunctionParam { name, bound, default }, span));
+            args.push(self.node_with_span(TyFnParam { name, bound, default }, span));
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
@@ -317,9 +317,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_thin_arrow()?;
         let return_ty = self.parse_type()?;
 
-        Ok(Type::TypeFunction(TypeFunction {
-            params: AstNodes::new(args, Some(arg_span)),
-            return_ty,
-        }))
+        Ok(Ty::TyFn(TyFn { params: AstNodes::new(args, Some(arg_span)), return_ty }))
     }
 }

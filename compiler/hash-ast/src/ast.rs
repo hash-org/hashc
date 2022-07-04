@@ -291,7 +291,7 @@ impl AccessName {
 
 /// A concrete/"named" type.
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamedType {
+pub struct NamedTy {
     /// The name of the type.
     pub name: AstNode<AccessName>,
 }
@@ -307,9 +307,9 @@ pub enum RefKind {
 
 /// A reference type.
 #[derive(Debug, PartialEq, Clone)]
-pub struct RefType {
+pub struct RefTy {
     /// Inner type of the reference type
-    pub inner: AstNode<Type>,
+    pub inner: AstNode<Ty>,
     /// Whether this reference is a `raw` reference or normal reference (normal
     /// by default).
     pub kind: Option<AstNode<RefKind>>,
@@ -319,97 +319,97 @@ pub struct RefType {
 
 /// An entry within a tuple type.
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamedFieldTypeEntry {
+pub struct NamedFieldTyEntry {
     pub name: Option<AstNode<Name>>,
-    pub ty: AstNode<Type>,
+    pub ty: AstNode<Ty>,
 }
 
 /// The tuple type.
 #[derive(Debug, PartialEq, Clone)]
-pub struct TupleType {
-    pub entries: AstNodes<NamedFieldTypeEntry>,
+pub struct TupleTy {
+    pub entries: AstNodes<NamedFieldTyEntry>,
 }
 
 /// The list type, , e.g. `{str}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct ListType {
-    pub inner: AstNode<Type>,
+pub struct ListTy {
+    pub inner: AstNode<Ty>,
 }
 
 /// The set type, , e.g. `{str}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct SetType {
-    pub inner: AstNode<Type>,
+pub struct SetTy {
+    pub inner: AstNode<Ty>,
 }
 
 /// The grouped type (essentially a type within parentheses), e.g. `(str)`. It
 /// differs from a tuple that it does not contain a trailing comma which
 /// signifies that this is a single element tuple.
 #[derive(Debug, PartialEq, Clone)]
-pub struct GroupedType(pub AstNode<Type>);
+pub struct GroupedTy(pub AstNode<Ty>);
 
 /// The map type, e.g. `{str: u32}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct MapType {
-    pub key: AstNode<Type>,
-    pub value: AstNode<Type>,
+pub struct MapTy {
+    pub key: AstNode<Ty>,
+    pub value: AstNode<Ty>,
 }
 
 /// The function type.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FnType {
+pub struct FnTy {
     /// Any defined parameters for the function type
-    pub params: AstNodes<NamedFieldTypeEntry>,
+    pub params: AstNodes<NamedFieldTyEntry>,
     /// Optional return type
-    pub return_ty: AstNode<Type>,
+    pub return_ty: AstNode<Ty>,
 }
 
-/// A [TypeFunctionParam] is a parameter that appears within a [TypeFunction].
+/// A [TyFnParam] is a parameter that appears within a [TyFn].
 /// This specifies that the type function takes a particular parameter with a
 /// specific name, a bound and a default value.
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeFunctionParam {
+pub struct TyFnParam {
     pub name: AstNode<Name>,
-    pub bound: Option<AstNode<Type>>,
-    pub default: Option<AstNode<Type>>,
+    pub bound: Option<AstNode<Ty>>,
+    pub default: Option<AstNode<Ty>>,
 }
 
 /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeFunction {
-    pub params: AstNodes<TypeFunctionParam>,
-    pub return_ty: AstNode<Type>,
+pub struct TyFn {
+    pub params: AstNodes<TyFnParam>,
+    pub return_ty: AstNode<Ty>,
 }
 
 /// A type function call specifies a call to a type function with the specified
-/// function name in the form of a [Type] (which can only be a [NamedType] or a
-/// [GroupedType]) and then followed by arguments. For example: `Conv<u32>` or
+/// function name in the form of a [Ty] (which can only be a [NamedTy] or a
+/// [GroupedTy]) and then followed by arguments. For example: `Conv<u32>` or
 /// `(Foo<bar>)<baz>`
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeFunctionCall {
-    pub subject: AstNode<Type>,
+pub struct TyFnCall {
+    pub subject: AstNode<Ty>,
     // @@Todo: This should probably not use `NamedFieldTypeEntry`.
-    pub args: AstNodes<NamedFieldTypeEntry>,
+    pub args: AstNodes<NamedFieldTyEntry>,
 }
 
 /// A merged type meaning that multiple types are considered to be
 /// specified in place of one, e.g. `Conv ~ Eq ~ Print`
 #[derive(Debug, PartialEq, Clone)]
-pub struct MergedType(pub AstNodes<Type>);
+pub struct MergedTy(pub AstNodes<Ty>);
 
 /// A type.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Type {
-    Tuple(TupleType),
-    List(ListType),
-    Set(SetType),
-    Map(MapType),
-    Fn(FnType),
-    Named(NamedType),
-    Ref(RefType),
-    Merged(MergedType),
-    TypeFunction(TypeFunction),
-    TypeFunctionCall(TypeFunctionCall),
+pub enum Ty {
+    Tuple(TupleTy),
+    List(ListTy),
+    Set(SetTy),
+    Map(MapTy),
+    Fn(FnTy),
+    Named(NamedTy),
+    Ref(RefTy),
+    Merged(MergedTy),
+    TyFn(TyFn),
+    TyFnCall(TyFnCall),
 }
 
 /// A set literal, e.g. `{1, 2, 3}`.
@@ -437,7 +437,7 @@ pub struct ListLiteral {
 #[derive(Debug, PartialEq, Clone)]
 pub struct TupleLiteralEntry {
     pub name: Option<AstNode<Name>>,
-    pub ty: Option<AstNode<Type>>,
+    pub ty: Option<AstNode<Ty>>,
     pub value: AstNode<Expression>,
 }
 
@@ -711,24 +711,24 @@ impl Display for Mutability {
 ///
 /// Used in struct, enum, trait, and function definitions.
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeFunctionDef {
+pub struct TyFnDef {
     /// The type arguments of the function.
-    pub params: AstNodes<TypeFunctionDefParam>,
+    pub params: AstNodes<TyFnDefParam>,
     /// Optional return type of the type function
-    pub return_ty: Option<AstNode<Type>>,
+    pub return_ty: Option<AstNode<Ty>>,
     /// The body of the type function,
     pub expr: AstNode<Expression>,
 }
 
 /// An argument within a type function
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeFunctionDefParam {
+pub struct TyFnDefParam {
     /// The name of the argument
     pub name: AstNode<Name>,
     /// The argument bounds.
-    pub ty: Option<AstNode<Type>>,
+    pub ty: Option<AstNode<Ty>>,
     /// Default type assigned to the parameter
-    pub default: Option<AstNode<Type>>,
+    pub default: Option<AstNode<Ty>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -738,7 +738,7 @@ pub struct Declaration {
     pub pattern: AstNode<Pattern>,
 
     /// Any associated type with the expression
-    pub ty: Option<AstNode<Type>>,
+    pub ty: Option<AstNode<Ty>>,
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
@@ -934,7 +934,7 @@ pub struct StructDefEntry {
     /// The type of the struct field.
     ///
     /// Will be inferred if [None].
-    pub ty: Option<AstNode<Type>>,
+    pub ty: Option<AstNode<Ty>>,
     /// The default value of the struct field, if any.
     pub default: Option<AstNode<Expression>>,
 }
@@ -952,7 +952,7 @@ pub struct EnumDefEntry {
     /// The name of the enum variant.
     pub name: AstNode<Name>,
     /// The arguments of the enum variant, if any.
-    pub args: AstNodes<Type>,
+    pub args: AstNodes<Ty>,
 }
 
 /// An enum definition, e.g. `enum Option = <T> => { Some(T); None; };`.
@@ -1186,11 +1186,11 @@ impl Block {
 
 /// A function definition parameter.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FunctionDefParam {
+pub struct FnDefParam {
     /// The name of the argument.
     pub name: AstNode<Name>,
     /// The type of the argument, if any.
-    pub ty: Option<AstNode<Type>>,
+    pub ty: Option<AstNode<Ty>>,
     /// Default value of the argument if provided.
     ///
     /// If the value is provided, this makes it a named argument
@@ -1201,13 +1201,13 @@ pub struct FunctionDefParam {
 
 /// A function definition.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FunctionDef {
+pub struct FnDef {
     /// The parameters of the function definition.
-    pub params: AstNodes<FunctionDefParam>,
+    pub params: AstNodes<FnDefParam>,
     /// The return type of the function definition.
     ///
     /// Will be inferred if [None].
-    pub return_ty: Option<AstNode<Type>>,
+    pub return_ty: Option<AstNode<Ty>>,
     /// The body/contents of the function, in the form of an expression.
     pub fn_body: AstNode<Expression>,
 }
@@ -1259,7 +1259,7 @@ pub struct PropertyAccessExpr {
 #[derive(Debug, PartialEq, Clone)]
 pub struct CastExpr {
     /// The annotated type of the expression.
-    pub ty: AstNode<Type>,
+    pub ty: AstNode<Ty>,
     /// The expression being typed.
     pub expr: AstNode<Expression>,
 }
@@ -1292,7 +1292,7 @@ pub struct RefExpr {
 
 /// A dereference expression.
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeExpr(pub AstNode<Type>);
+pub struct TyExpr(pub AstNode<Ty>);
 
 /// A dereference expression.
 #[derive(Debug, PartialEq, Clone)]
@@ -1318,7 +1318,7 @@ pub struct ImportExpr(pub AstNode<Import>);
 #[derive(Debug, PartialEq, Clone)]
 pub struct TraitImpl {
     /// The referenced name to the trait
-    pub ty: AstNode<Type>,
+    pub ty: AstNode<Ty>,
     /// The implementation of the trait.
     pub implementation: AstNodes<Expression>,
 }
@@ -1364,10 +1364,10 @@ pub enum ExpressionKind {
     Import(ImportExpr),
     StructDef(StructDef),
     EnumDef(EnumDef),
-    TypeFunctionDef(TypeFunctionDef),
+    TyFnDef(TyFnDef),
     TraitDef(TraitDef),
-    FunctionDef(FunctionDef),
-    Type(TypeExpr),
+    FnDef(FnDef),
+    Type(TyExpr),
     Return(ReturnStatement),
     Break(BreakStatement),
     Continue(ContinueStatement),
