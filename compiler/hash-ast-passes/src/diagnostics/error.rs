@@ -8,7 +8,7 @@ use hash_reporting::{
 };
 use hash_source::location::SourceLocation;
 
-use super::{BlockOrigin, PatternOrigin};
+use super::{BlockOrigin, FieldOrigin, PatternOrigin};
 
 /// An error that can occur during the semantic pass
 pub struct AnalysisError {
@@ -58,6 +58,10 @@ pub(crate) enum AnalysisErrorKind {
     /// When bindings declare themselves to be `pub` or `priv` within
     /// non-constant blocks like function bodies.
     IllegalBindingVisibilityModifier { modifier: Visibility, origin: BlockOrigin },
+    /// When a field within a struct, tuple or other form is missing both a type
+    /// annotation and a default value, which means that there is not enough
+    /// information at later stages to deduce the type of the field.
+    InsufficientTypeAnnotations { origin: FieldOrigin },
 }
 
 impl From<AnalysisError> for Report {
@@ -167,6 +171,23 @@ impl From<AnalysisError> for Report {
                     .add_element(ReportElement::Note(ReportNote::new(
                         ReportNoteKind::Help,
                         "consider removing the visibility modifier",
+                    )));
+            }
+            AnalysisErrorKind::InsufficientTypeAnnotations { origin } => {
+                builder
+                    .with_message(format!("`{}` field does not have enough information", origin));
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        err.location,
+                        format!(
+                            "this {} field is missing a type annotation and a default value",
+                            origin
+                        ),
+                    )))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Help,
+                        format!("consider giving this {} field a type annotation", origin),
                     )));
             }
         };
