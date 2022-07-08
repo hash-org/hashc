@@ -310,6 +310,19 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         todo!()
     }
 
+    /// Ensure the element `union_element_term_id` of the union with the given
+    /// `union_term_id` is level 1.
+    /// Furthermore, if it is level 1, the union should only have zero or one
+    /// nominal definition attached.
+    fn validate_union_element(
+        &self,
+        _simplified_term_id: TermId,
+        _union_element_term_id: TermId,
+    ) -> TcResult<()> {
+        // @@Todo
+        todo!()
+    }
+
     /// Ensure the element `merge_element_term_id` of the merge with the given
     /// `merge_term_id` is either level 2 (along with the merge being all
     /// level 2), or level 1 (along with the merge being all level 1).
@@ -460,8 +473,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Merge term should have already been flattened"
                 )
             }
-            // @@Todo
-            Term::Union(_) => todo!(),
+            Term::Union(_) => {
+                // For now invalid
+                // @@Enhancement: implement union-merge simplification
+                invalid_merge_element()
+            }
         }
     }
 
@@ -547,8 +563,27 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 }
             }
 
-            // @@Todo
-            Term::Union(_) => todo!(),
+            // Union
+            Term::Union(terms) => {
+                if let [term] = terms.as_slice() {
+                    // Shortcut: single term:
+                    self.validate_term(*term)
+                } else {
+                    // First, validate each term:
+                    let terms = terms.clone();
+                    for term in terms.iter().copied() {
+                        self.validate_term(term)?;
+                    }
+
+                    // Validate the level of each term against the union restrictions (see
+                    // [Self::validate_union_element] docs).
+                    for union_element_term_id in terms.iter().copied() {
+                        self.validate_union_element(simplified_term_id, union_element_term_id)?;
+                    }
+
+                    Ok(result)
+                }
+            }
 
             // Level 1 terms:
             Term::Level1(level1_term) => match level1_term {
