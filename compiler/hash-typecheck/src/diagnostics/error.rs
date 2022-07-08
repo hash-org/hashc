@@ -61,6 +61,8 @@ pub enum TcError {
     },
     /// The given term cannot be used in a merge operation.
     InvalidMergeElement { term: TermId },
+    /// The given term cannot be used in a union operation.
+    InvalidUnionElement { term: TermId },
     /// The given term cannot be used as a type function parameter type.
     InvalidTypeFunctionParameterType { param_ty: TermId },
     /// The given term cannot be used as a type function return type.

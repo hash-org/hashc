@@ -312,13 +312,56 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
     /// Ensure the element `union_element_term_id` of the union with the given
     /// `union_term_id` is level 1, with each element containing 1 nominal.
-    fn validate_union_element(
+    pub(crate) fn validate_union_element(
         &self,
-        _simplified_term_id: TermId,
-        _union_element_term_id: TermId,
+        union_term_id: TermId,
+        union_element_term_id: TermId,
     ) -> TcResult<()> {
-        // @@Todo
-        todo!()
+        let reader = self.reader();
+        let union_element_term = reader.get_term(union_element_term_id);
+
+        // Error helper:
+        let invalid_union_element = || -> TcResult<()> {
+            Err(TcError::InvalidUnionElement { term: union_element_term_id })
+        };
+
+        // Ensure the level of the term is valid:
+        match union_element_term {
+            Term::AppSub(app_sub) => {
+                // Ensure the inner one is valid, substitution doesn't matter:
+                self.validate_union_element(union_term_id, app_sub.term)
+            }
+            Term::Level1(level1_term) => match level1_term {
+                // Checking a nominal
+                Level1Term::NominalDef(_) => Ok(()),
+                // Not checking a nominal:
+                Level1Term::Tuple(_) | Level1Term::Fn(_) | Level1Term::ModDef(_) => {
+                    invalid_union_element()
+                }
+            },
+            // Unclear if this fits the requirements, so we reject it:
+            Term::Unresolved(_) => {
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: union_element_term_id })
+            }
+            Term::Merge(_)
+            | Term::Level3(_)
+            | Term::Level2(_)
+            | Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::Level0(_)
+            | Term::Root
+            | Term::TyFnCall(_)
+            | Term::Access(_)
+            | Term::Var(_) => invalid_union_element(),
+            // This should have been flattened already:
+            Term::Union(_) => {
+                tc_panic_on_many!(
+                    [union_element_term_id, union_term_id],
+                    self,
+                    "Union term should have already been flattened"
+                )
+            }
+        }
     }
 
     /// Ensure the element `merge_element_term_id` of the merge with the given
