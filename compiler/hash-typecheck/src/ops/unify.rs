@@ -284,10 +284,43 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 }
             }
 
-            // Union: @@Todo
-            (Term::Union(_), Term::Union(_)) => todo!(),
-            (Term::Union(_), Term::Level0(_)) => todo!(),
-            (Term::Level0(_), Term::Union(_)) => todo!(),
+            // Union:
+            (_, Term::Union(inner_target)) => {
+                // Try to merge each individual term in source, with target. If any one
+                // succeeds, then the whole thing should succeed.
+                let mut first_error = None;
+                for inner_target_id in inner_target {
+                    match self.unify_terms(inner_target_id, target_id) {
+                        Ok(result) => {
+                            return Ok(result);
+                        }
+                        Err(e) if first_error.is_none() => {
+                            first_error = Some(e);
+                            continue;
+                        }
+                        _ => continue,
+                    }
+                }
+                match first_error {
+                    Some(first_error) => Err(first_error),
+                    None => cannot_unify(),
+                }
+            }
+            (Term::Union(inner_src), _) => {
+                // Try to merge source with each individual term in target. If all succeed,
+                // then the whole thing should succeed.
+                let mut subs = Sub::empty();
+                for inner_src_id in inner_src {
+                    match self.unify_terms(src_id, inner_src_id) {
+                        Ok(result) => {
+                            subs = self.unify_subs(&subs, &result)?;
+                            continue;
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Ok(subs)
+            }
 
             // Access:
             (Term::Access(src_access), Term::Access(target_access))
