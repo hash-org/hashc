@@ -89,6 +89,19 @@ impl CoreDefs {
         let any_ty = builder.create_any_ty_term();
         builder.add_pub_member_to_scope("AnyType", builder.create_trt_kind_term(), any_ty);
 
+        // Marker trait for types that are runtime instantiable
+        // We call this "Type" because that's what people usually mean when they say
+        // "type".
+        let runtime_instantiable_trt = builder.create_trt_def("Type", [], []);
+
+        // Never type
+        let never_ty = builder.create_never_ty_term();
+        builder.add_pub_member_to_scope(
+            "never",
+            builder.create_trt_term(runtime_instantiable_trt),
+            never_ty,
+        );
+
         // Reference types
         let reference_ty_fn = builder.create_ty_fn_term(
             Some("Ref"),
@@ -185,11 +198,6 @@ impl CoreDefs {
             ],
             [],
         );
-
-        // Marker trait for types that are runtime instantiable
-        // We call this "Type" because that's what people usually mean when they say
-        // "type".
-        let runtime_instantiable_trt = builder.create_trt_def("Type", [], []);
 
         // Collection types
         let list_ty_fn = builder.create_ty_fn_term(

@@ -252,7 +252,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
                 for inner_target_id in inner_target {
-                    match self.unify_terms(src_id, inner_target_id) {
+                    match self.unify_terms(simplified_src_id, inner_target_id) {
                         Ok(result) => {
                             subs = self.unify_subs(&subs, &result)?;
                             continue;
@@ -267,7 +267,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
                 for inner_src_id in inner_src {
-                    match self.unify_terms(inner_src_id, target_id) {
+                    match self.unify_terms(inner_src_id, simplified_target_id) {
                         Ok(result) => {
                             return Ok(result);
                         }
@@ -290,7 +290,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // succeeds, then the whole thing should succeed.
                 let mut first_error = None;
                 for inner_target_id in inner_target {
-                    match self.unify_terms(src_id, inner_target_id) {
+                    match self.unify_terms(simplified_src_id, inner_target_id) {
                         Ok(result) => {
                             return Ok(result);
                         }
@@ -311,7 +311,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // then the whole thing should succeed.
                 let mut subs = Sub::empty();
                 for inner_src_id in inner_src {
-                    match self.unify_terms(inner_src_id, target_id) {
+                    match self.unify_terms(inner_src_id, simplified_target_id) {
                         Ok(result) => {
                             subs = self.unify_subs(&subs, &result)?;
                             continue;

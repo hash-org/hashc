@@ -329,14 +329,20 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::Union(terms) => {
-                opts.is_atomic.set(false);
-                for (i, term_id) in terms.iter().enumerate() {
-                    self.fmt_term_as_single(f, *term_id, opts.clone())?;
-                    if i != terms.len() - 1 {
-                        write!(f, " | ")?;
+                if terms.is_empty() {
+                    opts.is_atomic.set(true);
+                    write!(f, "never")?;
+                    Ok(())
+                } else {
+                    opts.is_atomic.set(false);
+                    for (i, term_id) in terms.iter().enumerate() {
+                        self.fmt_term_as_single(f, *term_id, opts.clone())?;
+                        if i != terms.len() - 1 {
+                            write!(f, " | ")?;
+                        }
                     }
+                    Ok(())
                 }
-                Ok(())
             }
             Term::TyFn(ty_fn) => {
                 match ty_fn.name {
