@@ -95,7 +95,7 @@ impl CoreDefs {
         let runtime_instantiable_trt = builder.create_trt_def("Type", [], []);
 
         // Never type
-        let never_ty = builder.create_never_ty_term();
+        let never_ty = builder.create_never_term();
         builder.add_pub_member_to_scope(
             "never",
             builder.create_trt_term(runtime_instantiable_trt),

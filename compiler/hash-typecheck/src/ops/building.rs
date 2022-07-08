@@ -326,8 +326,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         })))
     }
 
-    /// Create the never type term: [Term::Union] with no members.
-    pub fn create_never_ty_term(&self) -> TermId {
+    /// Create the never term: [Term::Union] with no members.
+    pub fn create_never_term(&self) -> TermId {
         self.create_term(Term::Union(vec![]))
     }
 
