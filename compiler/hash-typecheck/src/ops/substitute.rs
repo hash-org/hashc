@@ -215,8 +215,14 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     .collect::<Vec<_>>();
                 self.builder().create_term(Term::Merge(terms))
             }
-            // @@Todo
-            Term::Union(_) => todo!(),
+            Term::Union(terms) => {
+                // Apply the substitution to each element of the union.
+                let terms = terms
+                    .into_iter()
+                    .map(|term| self.apply_sub_to_term(sub, term))
+                    .collect::<Vec<_>>();
+                self.builder().create_term(Term::Union(terms))
+            }
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
                 //
