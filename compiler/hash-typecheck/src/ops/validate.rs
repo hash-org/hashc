@@ -14,8 +14,8 @@ use crate::{
     storage::{
         primitives::{
             AppSub, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId,
-            ModDefOrigin, Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term,
-            TermId, TrtDefId,
+            ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
+            ScopeKind, StructFields, Sub, Term, TermId, TrtDefId,
         },
         terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -303,10 +303,28 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
-    pub(crate) fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
-        // Ensure all members have level 1 types/level 0 default values and the default
-        // values are of the given type.
-        todo!()
+    pub(crate) fn validate_nominal_def(&mut self, nominal_def_id: NominalDefId) -> TcResult<()> {
+        match self.nominal_def_store().get(nominal_def_id) {
+            NominalDef::Struct(struct_def) => {
+                // Ensure all members types of the fields for the struct are
+                // runtime-instantiable by ensuring that the type of the field
+                // term implements the rti trait.
+                if let StructFields::Explicit(fields_id) = struct_def.fields {
+                    let fields = self.params_store().get(fields_id).clone();
+
+                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+                    for field in fields.positional().iter() {
+                        let field_ty = self.typer().ty_of_term(field.ty)?;
+                        let dummy_rt = self.builder().create_trt_term(rti_trt);
+
+                        self.unifier().unify_terms(field_ty, dummy_rt)?;
+                    }
+                }
+
+                Ok(())
+            }
+            NominalDef::Enum(_) => todo!(),
+        }
     }
 
     /// Ensure the element `merge_element_term_id` of the merge with the given

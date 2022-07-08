@@ -7,8 +7,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, ArgsId, Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId,
-            Visibility,
+            Arg, ArgsId, Member, MemberData, ModDefOrigin, Mutability, Param, ParamOrigin, Sub,
+            TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -27,6 +27,21 @@ use hash_source::{
 
 mod sequence;
 
+/// Internal state that the [TcVisitor] uses when traversing the
+/// given sources.
+#[derive(Default)]
+pub struct TcVisitorState {
+    /// Pattern hint from declaration
+    pub declaration_name_hint: Option<Identifier>,
+}
+
+impl TcVisitorState {
+    /// Create a new [TcVisitorState]
+    pub fn new() -> Self {
+        Self { declaration_name_hint: None }
+    }
+}
+
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
 /// Contains typechecker state that is accessed while traversing.
@@ -34,6 +49,7 @@ pub struct TcVisitor<'gs, 'ls, 'cd, 'src> {
     pub storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
     pub source_id: SourceId,
     pub node_map: &'src NodeMap,
+    pub state: TcVisitorState,
 }
 
 impl<'gs, 'ls, 'cd, 'src> AccessToStorage for TcVisitor<'gs, 'ls, 'cd, 'src> {
@@ -56,7 +72,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         source_id: SourceId,
         node_map: &'src NodeMap,
     ) -> Self {
-        TcVisitor { storage, source_id, node_map }
+        TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
     }
 
     /// Visits the source passed in as an argument to [Self::new], and returns
@@ -1393,7 +1409,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // @@Todo: deal with other kinds of patterns:
         let name = match pattern {
-            PatternHint::Binding { name } => name,
+            PatternHint::Binding { name } => {
+                self.state.declaration_name_hint = Some(name);
+                name
+            }
         };
 
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
@@ -1488,24 +1507,91 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type StructDefEntryRet = TermId;
+    type StructDefEntryRet = Param;
 
     fn visit_struct_def_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        todo!()
+        let walk::StructDefEntry { name, ty, default } =
+            walk::walk_struct_def_entry(self, ctx, node)?;
+
+        // Try and figure out a known term...
+        let (ty, default_value) = match (ty, default) {
+            (Some(annotation_ty), Some(default_value)) => {
+                let default_ty = self.typer().ty_of_term(default_value)?;
+
+                // Here, we have to unify both of the provided types...
+                let sub = self.unifier().unify_terms(default_ty, annotation_ty)?;
+
+                // @@Naming
+                let ds_sub = self.substituter().apply_sub_to_term(&sub, default_value);
+                let as_sub = self.substituter().apply_sub_to_term(&sub, annotation_ty);
+
+                (ds_sub, Some(as_sub))
+            }
+            (None, Some(default_value)) => {
+                let default_ty = self.typer().ty_of_term(default_value)?;
+                (default_ty, Some(default_value))
+            }
+            (Some(annot_ty), None) => (annot_ty, None),
+            (None, None) => panic_on_span!(
+                self.source_location(node.span()),
+                self.source_map(),
+                "tc: found struct-def field with no value and type annotation"
+            ),
+        };
+
+        // Append location to value term
+        let ty_span = if node.ty.is_some() {
+            node.ty.as_ref().map(|n| n.span())
+        } else {
+            node.default.as_ref().map(|n| n.span())
+        };
+
+        // @@Note: This should never fail since we panic above if there is no span!
+        if let Some(ty_span) = ty_span {
+            let value_location = self.source_location(ty_span);
+            self.location_store_mut().add_location_to_target(ty, value_location);
+        }
+
+        Ok(Param { name: Some(name), ty, default_value })
     }
 
     type StructDefRet = TermId;
 
     fn visit_struct_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        todo!()
+        let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
+
+        // create the params
+        let fields = self.builder().create_params(entries, ParamOrigin::Struct);
+
+        // add the location of each parameter
+        for (index, param) in node.entries.iter().enumerate() {
+            let location = self.source_location(param.span());
+            self.location_store_mut().add_location_to_target((fields, index), location);
+        }
+
+        // take the declaration hint here...
+        let name = self.state.declaration_name_hint.take();
+
+        let builder = self.builder();
+        let nominal_id = builder.create_struct_def(name, fields, vec![]);
+        let term = builder.create_nominal_def_term(nominal_id);
+
+        // validate the constructed nominal def
+        self.validator().validate_nominal_def(nominal_id)?;
+
+        // add location to the struct definition
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type EnumDefEntryRet = TermId;
@@ -1732,9 +1818,31 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_module(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        todo!()
+        let source_id = self.source_id;
+        let members = self.builder().create_constant_scope(vec![]);
+        self.scopes_mut().append(members);
+
+        let _ = walk::walk_module(self, ctx, node)?;
+
+        // @@todo(feds01): actually get the filename of the module
+        let mod_def = self.builder().create_named_mod_def(
+            "foo",
+            ModDefOrigin::Source(source_id),
+            members,
+            vec![],
+        );
+
+        let term = self.builder().create_mod_def_term(mod_def);
+
+        // Add location tot the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        self.scopes_mut().pop_the_scope(members);
+
+        Ok(term)
     }
 }

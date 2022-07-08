@@ -1174,7 +1174,7 @@ mod test_super {
                 ParamOrigin::TyFn,
             ),
         );
-        let dog_def = builder.create_struct_def(
+        let dog_def = builder.create_named_struct_def(
             "Dog",
             builder.create_params(
                 [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],

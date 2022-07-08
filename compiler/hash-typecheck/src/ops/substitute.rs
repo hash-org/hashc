@@ -707,7 +707,5 @@ mod tests {
         for inner_free_var in &inner_free_vars_list {
             println!("{}", inner_free_var.for_formatting(storage_ref.global_storage()));
         }
-
-        println!();
     }
 }

@@ -158,6 +158,18 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// This adds the name to the scope.
     pub fn create_struct_def(
         &self,
+        struct_name: Option<impl Into<Identifier>>,
+        fields: ParamsId,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> NominalDefId {
+        match struct_name {
+            Some(name) => self.create_named_struct_def(name, fields, bound_vars),
+            None => self.create_nameless_struct_def(fields, bound_vars),
+        }
+    }
+
+    pub fn create_named_struct_def(
+        &self,
         struct_name: impl Into<Identifier>,
         fields: ParamsId,
         bound_vars: impl IntoIterator<Item = Var>,
@@ -168,7 +180,22 @@ impl<'gs> PrimitiveBuilder<'gs> {
             fields: StructFields::Explicit(fields),
             bound_vars: bound_vars.into_iter().collect(),
         }));
+
         self.add_nominal_def_to_scope(name, def_id);
+        def_id
+    }
+
+    pub fn create_nameless_struct_def(
+        &self,
+        fields: ParamsId,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> NominalDefId {
+        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
+            name: None,
+            fields: StructFields::Explicit(fields),
+            bound_vars: bound_vars.into_iter().collect(),
+        }));
+
         def_id
     }
 
