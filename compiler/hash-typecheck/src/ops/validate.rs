@@ -311,9 +311,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     }
 
     /// Ensure the element `union_element_term_id` of the union with the given
-    /// `union_term_id` is level 1.
-    /// Furthermore, if it is level 1, the union should only have zero or one
-    /// nominal definition attached.
+    /// `union_term_id` is level 1, with each element containing 1 nominal.
     fn validate_union_element(
         &self,
         _simplified_term_id: TermId,
@@ -433,6 +431,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Unresolved(_) => {
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: merge_element_term_id })
             }
+            // Union allowed if each inner term is allowed
+            Term::Union(terms) => {
+                for term_id in terms.clone() {
+                    self.validate_merge_element(merge_kind, merge_term_id, term_id)?;
+                }
+                Ok(())
+            }
             // Level 3 terms are not allowed:
             Term::Level3(_) => invalid_merge_element(),
             // Level 2 terms are allowed:
@@ -472,11 +477,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     self,
                     "Merge term should have already been flattened"
                 )
-            }
-            Term::Union(_) => {
-                // For now invalid
-                // @@Enhancement: implement union-merge simplification
-                invalid_merge_element()
             }
         }
     }
