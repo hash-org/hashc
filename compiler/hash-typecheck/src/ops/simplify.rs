@@ -1072,7 +1072,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Term::Union(terms) => Some(terms.clone()),
                     _ => None,
                 })?
-                .map(|result| self.builder().create_merge_term(result))),
+                .map(|result| self.builder().create_union_term(result))),
             Term::AppSub(apply_sub) => Ok(Some(
                 // @@Performance: add Option<_> to the substituter to return
                 // terms which don't have the variables in them.

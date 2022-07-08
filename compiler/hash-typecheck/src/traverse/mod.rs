@@ -905,6 +905,18 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnCall>,
     ) -> Result<Self::TyFnCallRet, Self::Error> {
+        // @@Hack: unions until we get first class union syntax
+        if let hash_ast::ast::Ty::Named(named_ty) = node.subject.body() {
+            if named_ty.name.path.len() == 1 && named_ty.name.path[0].body() == &"Union".into() {
+                let args: Vec<_> = node
+                    .args
+                    .iter()
+                    .map(|arg| self.visit_named_field_ty(ctx, arg.ast_ref()))
+                    .collect::<TcResult<_>>()?;
+                let union_term = self.builder().create_union_term(args.iter().map(|arg| arg.ty));
+                return Ok(self.validator().validate_term(union_term)?.simplified_term_id);
+            }
+        }
         let walk::TyFnCall { args, subject } = walk::walk_ty_fn_call(self, ctx, node)?;
 
         // These should be converted to args

@@ -263,7 +263,7 @@ impl<'gs> TcFormatter<'gs> {
         match term {
             Level2Term::Trt(trt_def_id) => self.fmt_trt_def(f, *trt_def_id, opts),
             Level2Term::AnyTy => {
-                write!(f, "Type")
+                write!(f, "AnyType")
             }
         }
     }

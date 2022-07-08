@@ -476,9 +476,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
             // Union allowed if each inner term is allowed
             Term::Union(terms) => {
-                for term_id in terms.clone() {
-                    self.validate_merge_element(merge_kind, merge_term_id, term_id)?;
+                let mut initial_merge_kind = *merge_kind;
+                let terms = terms.clone();
+                for term_id in terms.iter() {
+                    self.validate_merge_element(&mut initial_merge_kind, merge_term_id, *term_id)?;
                 }
+                ensure_merge_is_level1(Some(merge_element_term_id))?;
                 Ok(())
             }
             // Level 3 terms are not allowed:
