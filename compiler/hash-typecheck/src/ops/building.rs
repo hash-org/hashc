@@ -326,6 +326,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         })))
     }
 
+    /// Create the never type term: [Term::Union] with no members.
+    pub fn create_never_ty_term(&self) -> TermId {
+        self.create_term(Term::Union(vec![]))
+    }
+
     /// Create a tuple type term [Level1Term::Tuple].
     pub fn create_tuple_ty_term(&self, members: ParamsId) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy { members })))
