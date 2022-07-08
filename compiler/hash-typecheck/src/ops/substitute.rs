@@ -488,8 +488,12 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     self.add_free_vars_in_term_to_set(*inner_term_id, result);
                 }
             }
-            // @@Todo
-            Term::Union(_) => todo!(),
+            Term::Union(terms) => {
+                // Free vars in each term:
+                for inner_term_id in terms {
+                    self.add_free_vars_in_term_to_set(*inner_term_id, result);
+                }
+            }
             Term::TyFn(ty_fn) => {
                 // Add the vars in the subjects and return:
                 self.add_free_vars_in_term_to_set(ty_fn.general_return_ty, result);

@@ -911,7 +911,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
             Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
-            Term::Merge(terms) => {
+            Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
                 let terms = terms.clone();
                 for term in terms {
@@ -950,8 +950,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // This should be okay, for example if we are returning some TyFnTy value.
                 Ok(true)
             }
-            // @@Todo
-            Term::Union(_) => todo!(),
         }
     }
 
@@ -970,7 +968,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
             Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
-            Term::Merge(terms) => {
+            Term::Union(terms) | Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
                 let terms = terms.clone();
                 for term in terms {
@@ -1008,8 +1006,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }
-            // @@Todo
-            Term::Union(_) => todo!(),
         }
     }
 
