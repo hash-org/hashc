@@ -210,6 +210,12 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         Ok(cumulative_sub)
     }
 
+    /// Terms are equal if they unify both ways without any substitutions.
+    pub(crate) fn terms_are_equal(&mut self, a: TermId, b: TermId) -> bool {
+        self.unify_terms(a, b).contains(&Sub::empty())
+            && self.unify_terms(b, a).contains(&Sub::empty())
+    }
+
     /// Unify the two given terms, producing a substitution.
     ///
     /// The relation between src and target is that src must be a subtype (or

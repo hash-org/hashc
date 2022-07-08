@@ -680,7 +680,7 @@ impl From<SubSubject> for Term {
 
 /// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a
 /// term.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Sub {
     data: HashMap<SubSubject, TermId>,
 }
