@@ -1033,11 +1033,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     // Try to merge the two terms if they are the same:
                     if self.unifier().terms_are_equal(first, second) {
                         simplified_once = true;
-                        merged[*first_idx] = Some(first);
+                        merged[*first_idx] = merged[*first_idx].map(|_| first);
                         merged[*second_idx] = None;
                     } else {
-                        merged[*first_idx] = Some(first);
-                        merged[*second_idx] = Some(second);
+                        merged[*first_idx] = merged[*first_idx].map(|_| first);
+                        merged[*second_idx] = merged[*second_idx].map(|_| second);
                     }
                 }
                 _ => unreachable!(),
@@ -1046,7 +1046,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let result: Vec<_> = merged.into_iter().flatten().collect();
 
         // Only return if it has been simplified
-        if simplified_once {
+        if !simplified_once {
             Ok(None)
         } else {
             Ok(Some(result))
