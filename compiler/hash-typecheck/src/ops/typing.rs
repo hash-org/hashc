@@ -118,6 +118,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         let sub = self.unifier().unify_params_with_args(
                             ty_fn_ty.params,
                             app_ty_fn.args,
+                            term_id,
                             ty_id_of_subject,
                             UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
@@ -137,7 +138,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
                 let var_member = self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?;
-                Ok(self.infer_member_data(var_member.data)?.ty)
+                Ok(self.infer_member_data(var_member.member.data)?.ty)
             }
             Term::TyFn(ty_fn) => {
                 // The type of a type function is a type function type:

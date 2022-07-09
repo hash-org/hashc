@@ -180,3 +180,9 @@ impl From<(ArgsId, usize)> for LocationTarget {
         Self::Arg(id, index)
     }
 }
+
+impl From<(ScopeId, usize)> for LocationTarget {
+    fn from((id, index): (ScopeId, usize)) -> Self {
+        Self::Declaration(id, index)
+    }
+}

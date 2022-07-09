@@ -8,7 +8,7 @@ use super::{
 use crate::{
     fmt::PrepareForFormatting,
     storage::{
-        primitives::{Arg, Param},
+        primitives::{Arg, Param, ParamOrigin},
         AccessToStorage, StorageRef,
     },
 };
@@ -17,6 +17,7 @@ use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
+use hash_utils::printing::SequenceDisplay;
 
 /// A [TcError] with attached typechecker storage.
 pub(crate) struct TcErrorWithStorage<'gs, 'ls, 'cd, 's> {
@@ -226,43 +227,130 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::MismatchingArgParamLength { args, params, target } => {
-                let params = err.params_store().get(*params);
-                let args = err.args_store().get(*args);
+            TcError::MismatchingArgParamLength {
+                args_id,
+                params_id,
+                params_subject,
+                args_subject,
+            } => {
+                let params = err.params_store().get(*params_id);
+                let args = err.args_store().get(*args_id);
 
-                builder.with_error_code(HashErrorCode::ParameterLengthMismatch).with_message(
-                    format!(
-                        "type function application expects `{}` arguments, however `{}` arguments were given",
-                        params.len(),
-                        args.len()
-                    ),
-                );
+                builder.with_error_code(HashErrorCode::ParameterLengthMismatch);
 
-                // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(target) {
-                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                        location,
-                        format!(
-                            "this expects `{}` arguments.",
-                            target.for_formatting(err.global_storage()),
-                        ),
-                    )));
+                match params.origin() {
+                    ParamOrigin::Struct => {
+                        // @@ErrorReporting: Get the name of the struct...
+
+                        if params.len() > args.len() {
+                            let p = ParamListKind::Params(*params_id);
+                            let a = ParamListKind::Args(*args_id);
+                            let missing_fields = p.compute_missing_fields(a, err.global_storage());
+
+                            builder.with_message(format!(
+                                "struct literal is missing the fields {}",
+                                SequenceDisplay::all(missing_fields.as_slice())
+                            ));
+
+                            // Add note about what fields are missing from the struct
+                            if let Some(location) = err.location_store().get_location(args_subject)
+                            {
+                                builder.add_element(ReportElement::CodeBlock(
+                                    ReportCodeBlock::new(
+                                        location,
+                                        format!(
+                                            "missing {}",
+                                            SequenceDisplay::all(missing_fields.as_slice())
+                                        ),
+                                    ),
+                                ));
+                            }
+                        } else {
+                            // Compute fields that shouldn't be present here...
+                            let p = ParamListKind::Params(*params_id);
+                            let a = ParamListKind::Args(*args_id);
+                            let extra_fields = a.compute_missing_fields(p, err.global_storage());
+
+                            builder.with_message(format!(
+                                "struct literal does not have the fields {}",
+                                SequenceDisplay::all(extra_fields.as_slice())
+                            ));
+
+                            // Add note about what fields shouldn't be there
+                            // @@Future: It would be nice to highlight the exact fields and just
+                            // show them specifically rather than the whole subject expression...
+                            if let Some(location) = err.location_store().get_location(args_subject)
+                            {
+                                builder.add_element(ReportElement::CodeBlock(
+                                    ReportCodeBlock::new(
+                                        location,
+                                        format!(
+                                            "fields {} do not exist on this struct",
+                                            SequenceDisplay::all(extra_fields.as_slice())
+                                        ),
+                                    ),
+                                ));
+                            }
+                        }
+
+                        // Provide information about the location of the target type if available
+                        if let Some(location) = err.location_store().get_location(params_subject) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                "the struct is defined here",
+                            )));
+                        }
+                    }
+                    _ => {
+                        // @@ErrorReporting: get more customised messages for other variant
+                        // mismatch...
+                        builder.with_message(format!(
+                            "{} expects `{}` arguments, however `{}` arguments were given",
+                            params.origin(),
+                            params.len(),
+                            args.len()
+                        ));
+
+                        // Provide information about the location of the target type if available
+                        if let Some(location) = err.location_store().get_location(args_subject) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location, "here",
+                            )));
+                        }
+
+                        // Provide information about the location of the target type if available
+                        if let Some(location) = err.location_store().get_location(params_subject) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                format!("this expects `{}` arguments.", params.len()),
+                            )));
+                        }
+                    }
                 }
             }
-            TcError::ParamNotFound { params, name } => {
+            TcError::ParamNotFound { args_id, params_id, params_subject, name } => {
                 builder
                     .with_error_code(HashErrorCode::UnresolvedSymbol)
-                    .with_message(format!("parameter with name `{}` is not defined", name,));
+                    .with_message(format!("parameter with name `{}` is not defined", name));
 
                 // find the parameter and report the location
-                let params = err.params_store().get(*params);
-                let (_, param) = params.get_by_name(*name).unwrap();
+                let params = err.params_store().get(*params_id);
+                let args = err.args_store().get(*args_id);
+                let (id, _) = args.get_by_name(*name).unwrap();
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(param.ty) {
+                if let Some(location) = err.location_store().get_location((*args_id, id)) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("parameter `{}` not defined", name,),
+                        format!("argument `{}` not defined", name,),
+                    )));
+                }
+
+                // Provide information about the location of the target type if available
+                if let Some(location) = err.location_store().get_location(params_subject) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("the {} is defined here", params.origin()),
                     )));
                 }
             }

@@ -446,7 +446,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
 
-        // We need to add the location to the term
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(name, location);
 
@@ -518,7 +517,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Set location:
         let fn_call_location = self.source_location(node.span());
-        self.builder().add_location_to_target(return_term, fn_call_location);
+        self.builder().add_location_to_target(return_term_ty, fn_call_location);
 
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
@@ -1432,12 +1431,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Add the member to scope:
         let current_scope_id = self.scopes().current_scope();
-        self.scope_store_mut().get_mut(current_scope_id).add(Member {
+        let member_id = self.scope_store_mut().get_mut(current_scope_id).add(Member {
             name,
             data: MemberData::from_ty_and_value(Some(ty), value),
             mutability: Mutability::Immutable,
             visibility: Visibility::Private,
         });
+
+        let location = self.source_location(node.pattern.span());
+        self.location_store_mut().add_location_to_target((current_scope_id, member_id), location);
 
         // Declaration should return its value if any:
         match value {

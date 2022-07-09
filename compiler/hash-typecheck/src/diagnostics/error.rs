@@ -31,10 +31,15 @@ pub enum TcError {
     /// The given value cannot be used as a type.
     CannotUseValueAsTy { value: TermId },
     /// The given arguments do not match the length of the target parameters.
-    MismatchingArgParamLength { args: ArgsId, params: ParamsId, target: TermId },
+    MismatchingArgParamLength {
+        args_id: ArgsId,
+        params_id: ParamsId,
+        params_subject: TermId,
+        args_subject: TermId,
+    },
     /// The parameter with the given name is not found in the given parameter
     /// list.
-    ParamNotFound { params: ParamsId, name: Identifier },
+    ParamNotFound { args_id: ArgsId, params_id: ParamsId, params_subject: TermId, name: Identifier },
     /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
     ParamGivenTwice { param_kind: ParamListKind, index: usize },

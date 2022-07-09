@@ -239,7 +239,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     if let Some(scope_member) = scope.get(trt_member.name) {
                         // Infer the type of the scope member:
                         let scope_member_data =
-                            self.typer().infer_member_data(scope_member.data)?;
+                            self.typer().infer_member_data(scope_member.0.data)?;
 
                         // Apply the substitution to the trait member first:
                         let trt_member_ty_subbed =

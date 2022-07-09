@@ -662,9 +662,7 @@ mod tests {
             ),
         );
 
-        println!();
-
-        println!("{}", target.for_formatting(storage_ref.global_storage()));
+        println!("\n{}", target.for_formatting(storage_ref.global_storage()));
 
         let builder = storage_ref.builder();
         let sub = Sub::from_pairs([(

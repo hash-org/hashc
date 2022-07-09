@@ -1,9 +1,9 @@
 //! Error-related data structures for errors that in regards to parameters and
 //! arguments within any type that uses parameters.
 
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
-use hash_source::location::SourceLocation;
+use hash_source::{identifier::Identifier, location::SourceLocation};
 
 use crate::storage::{
     location::LocationStore,
@@ -52,6 +52,29 @@ impl ParamListKind {
             ParamListKind::Params(id) => store.params_store.get(*id).origin(),
             ParamListKind::Args(id) => store.args_store.get(*id).origin(),
         }
+    }
+
+    /// Get the names fields within the [ParamListKind]
+    pub(crate) fn names(&self, store: &GlobalStorage) -> HashSet<Identifier> {
+        match self {
+            ParamListKind::Params(id) => store.params_store.get(*id).names(),
+            ParamListKind::Args(id) => store.args_store.get(*id).names(),
+        }
+    }
+
+    /// Function used to compute the missing fields from another
+    /// [ParamListKind]. This does not compute a difference as it doesn't
+    /// consider items that are present in the other [ParamListKind] and not
+    /// in the current list as `missing`.
+    pub(crate) fn compute_missing_fields(
+        &self,
+        other: Self,
+        store: &GlobalStorage,
+    ) -> Vec<Identifier> {
+        let lhs_names = self.names(store);
+        let rhs_names = other.names(store);
+
+        lhs_names.difference(&rhs_names).into_iter().copied().collect()
     }
 }
 
