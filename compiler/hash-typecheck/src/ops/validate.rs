@@ -312,6 +312,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 if let StructFields::Explicit(fields_id) = struct_def.fields {
                     let fields = self.params_store().get(fields_id).clone();
 
+                    // Validate the ordering and the number of times parameter field names
+                    // are specified, although the ordering shouldn't matter
+                    validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
+
                     let rti_trt = self.core_defs().runtime_instantiable_trt;
                     for field in fields.positional().iter() {
                         let field_ty = self.typer().ty_of_term(field.ty)?;
