@@ -225,17 +225,24 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// This adds the name to the scope.
     pub fn create_enum_def(
         &self,
-        enum_name: impl Into<Identifier>,
+        enum_name: Option<impl Into<Identifier>>,
         variants: impl IntoIterator<Item = EnumVariant>,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
-        let name = enum_name.into();
+        let name = enum_name.map(|name| name.into());
+
+        // let name = enum_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Enum(EnumDef {
-            name: Some(name),
+            name,
             variants: variants.into_iter().map(|variant| (variant.name, variant)).collect(),
             bound_vars: bound_vars.into_iter().collect(),
         }));
-        self.add_nominal_def_to_scope(name, def_id);
+
+        // Only add the enum def to the scope if it has a name...
+        if let Some(name) = name {
+            self.add_nominal_def_to_scope(name, def_id);
+        }
+
         def_id
     }
 

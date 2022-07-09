@@ -7,8 +7,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, ArgsId, Member, MemberData, ModDefOrigin, Mutability, Param, ParamOrigin, Sub,
-            TermId, Visibility,
+            Arg, ArgsId, EnumVariant, Member, MemberData, ModDefOrigin, Mutability, Param,
+            ParamOrigin, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -1597,24 +1597,48 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type EnumDefEntryRet = TermId;
+    type EnumDefEntryRet = EnumVariant;
 
     fn visit_enum_def_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        todo!()
+        let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
+
+        // Create the enum variant parameters
+        let params = args.iter().map(|arg| Param { name: None, ty: *arg, default_value: None });
+
+        let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
+
+        Ok(EnumVariant { name, fields })
     }
 
     type EnumDefRet = TermId;
 
     fn visit_enum_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        todo!()
+        let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
+
+        // take the declaration hint here...
+        let name = self.state.declaration_name_hint.take();
+
+        let builder = self.builder();
+        // @@Todo(feds01): `bound` variables
+        let nominal_id = builder.create_enum_def(name, entries, vec![]);
+        let term = builder.create_nominal_def_term(nominal_id);
+
+        // validate the constructed nominal def
+        self.validator().validate_nominal_def(nominal_id)?;
+
+        // add location to the struct definition
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type TraitDefRet = TermId;
