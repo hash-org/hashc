@@ -1,4 +1,6 @@
 //! Hash Compiler source location definitions.
+#![feature(path_file_prefix)]
+
 use bimap::BiMap;
 use slotmap::{new_key_type, SlotMap};
 use std::path::{Path, PathBuf};
@@ -27,6 +29,11 @@ impl SourceId {
     /// Check whether the [SourceId] points to a module.
     pub fn is_module(&self) -> bool {
         matches!(self, Self::Module(_))
+    }
+
+    /// Check whether the [SourceId] points to a interactive block.
+    pub fn is_interactive(&self) -> bool {
+        matches!(self, Self::Interactive(_))
     }
 }
 
@@ -63,6 +70,35 @@ impl SourceMap {
         match source_id {
             SourceId::Interactive(_) => Path::new("<interactive>"),
             SourceId::Module(id) => self.module_paths.get_by_left(&id).unwrap().as_path(),
+        }
+    }
+
+    /// Get the name of a [SourceId] by extracting the path and further
+    /// retrieving the stem of the filename as the name of the module. This
+    /// function adheres to the rules of module naming conventions which are
+    /// specified within the documentation book.
+    pub fn source_name(&self, source_id: SourceId) -> &str {
+        let path = self.path_by_id(source_id);
+
+        // for interactive, there is no file and so we just default to using the whole
+        // path
+        if source_id.is_interactive() {
+            path.to_str().unwrap()
+        } else {
+            let prefix = path.file_prefix().unwrap();
+
+            // deal with `index.hash` case...
+            if prefix == "index" {
+                if let Some(parent) = path.parent() {
+                    // Now we should be at the `parent` direct
+                    return parent.file_name().unwrap_or(prefix).to_str().unwrap();
+                }
+            }
+
+            // If it is a normal filename, then just use the resultant prefix, or default
+            // to this if trying to extract the name of the parent fails... for example
+            // `/index.hash`
+            prefix.to_str().unwrap()
         }
     }
 

@@ -79,6 +79,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
         let source = self.node_map.get_source(self.source_id);
+
         match source {
             SourceRef::Interactive(interactive_source) => {
                 self.visit_body_block(&(), interactive_source.node_ref())
@@ -1829,9 +1830,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let _ = walk::walk_module(self, ctx, node)?;
 
-        // @@todo(feds01): actually get the filename of the module
+        // Get the end of the filename for the module and use this as the name of the
+        // module
+        let name = self.source_map().source_name(self.source_id).to_owned();
+
         let mod_def = self.builder().create_named_mod_def(
-            "foo",
+            name,
             ModDefOrigin::Source(source_id),
             members,
             vec![],
