@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:36
 1 |   str_eq: (str, str) -> str = (a, b) = a == b;
   |                                      ^ here
-  = note: Unexpectedly encountered a `=`. Consider adding a ';'
+  = note: Unexpectedly encountered a `=`. Consider adding a `;`
