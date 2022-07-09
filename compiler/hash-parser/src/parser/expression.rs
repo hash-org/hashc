@@ -572,8 +572,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         span: Span,
     ) -> AstGenResult<AstNode<Expression>> {
         let gen = self.from_stream(tree, span);
-        let mut args =
-            self.node_with_span(ConstructorCallArgs { entries: AstNodes::empty() }, span);
+        let mut args = vec![];
 
         while gen.has_token() {
             let start = gen.next_location();
@@ -596,7 +595,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Now here we expect an expression...
             let value = gen.parse_expression_with_precedence(0)?;
 
-            args.entries.nodes.push(gen.node_with_span(ConstructorCallArg { name, value }, start));
+            args.push(gen.node_with_span(ConstructorCallArg { name, value }, start));
 
             // now we eat the next token, checking that it is a comma
             match gen.peek() {
@@ -610,14 +609,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 None => break,
             };
         }
-
         gen.verify_is_empty()?;
 
-        let span = subject.span();
+        let subject_span = subject.span();
 
-        Ok(gen.node_with_joined_span(
-            Expression::new(ExpressionKind::ConstructorCall(ConstructorCallExpr { subject, args })),
-            &span,
+        Ok(self.node_with_joined_span(
+            Expression::new(ExpressionKind::ConstructorCall(ConstructorCallExpr {
+                subject,
+                args: self.node_with_span(
+                    ConstructorCallArgs { entries: AstNodes::new(args, Some(span)) },
+                    span,
+                ),
+            })),
+            &subject_span,
         ))
     }
 
