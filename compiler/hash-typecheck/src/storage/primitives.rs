@@ -68,6 +68,14 @@ pub struct Member {
     pub mutability: Mutability,
 }
 
+/// A member of a scope, i.e. a variable or a type definition.
+#[derive(Debug, Clone, Copy)]
+pub struct ScopeMember {
+    pub member: Member,
+    pub index: usize,
+    pub scope_id: ScopeId,
+}
+
 /// A scope is either a variable scope or a constant scope.
 ///
 /// Examples of variable scopes are:
@@ -110,14 +118,19 @@ impl Scope {
 
     /// Add a member to the scope, overwriting any existing member with the same
     /// name.
-    pub fn add(&mut self, member: Member) {
+    pub fn add(&mut self, member: Member) -> usize {
         self.members.push(member);
-        self.member_names.insert(member.name, self.members.len() - 1);
+        let index = self.members.len() - 1;
+
+        self.member_names.insert(member.name, index);
+        index
     }
 
     /// Get a member by name.
-    pub fn get(&self, member_name: Identifier) -> Option<Member> {
-        Some(self.members[self.member_names.get(&member_name).copied()?])
+    pub fn get(&self, member_name: Identifier) -> Option<(Member, usize)> {
+        let index = self.member_names.get(&member_name).copied()?;
+
+        Some((self.members[index], index))
     }
 
     /// Iterate through all the members in insertion order (oldest first).
@@ -211,6 +224,11 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     pub fn get_by_name(&self, name: Identifier) -> Option<(usize, &ParamType)> {
         let param_index = *self.name_map.get(&name)?;
         Some((param_index, self.positional().get(param_index)?))
+    }
+
+    /// Get all the names of the fields within the [ParamList
+    pub fn names(&self) -> HashSet<Identifier> {
+        self.name_map.keys().cloned().collect::<HashSet<_>>()
     }
 }
 
@@ -317,8 +335,11 @@ pub struct EnumVariant {
 /// An enum definition, containing a binding name and a set of variants.
 #[derive(Debug, Clone)]
 pub struct EnumDef {
+    /// The name of the `EnumDef`, useful for error reporting
     pub name: Option<Identifier>,
+    /// Any free variables that occur within the `variants` of the [EnumDef].
     pub bound_vars: BoundVars,
+    /// All of the defined variants that occur within the [EnumDef].
     pub variants: HashMap<Identifier, EnumVariant>,
 }
 

@@ -176,7 +176,7 @@ impl From<AstGenError> for ParseError {
                 } else {
                     let expected_items = expected.into_inner();
 
-                    let slice_display = SequenceDisplay(expected_items.as_slice());
+                    let slice_display = SequenceDisplay::either(expected_items.as_slice());
                     let expected_items_msg = format!(". Consider adding {}", slice_display);
                     base_message.push_str(&expected_items_msg);
                 }

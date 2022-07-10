@@ -129,13 +129,21 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         &mut self,
         params_id: ParamsId,
         args_id: ArgsId,
-        parent: TermId,
+        params_subject: TermId,
+        args_subject: TermId,
         mode: UnifyParamsWithArgsMode,
     ) -> TcResult<Sub> {
         let params = self.params_store().get(params_id).clone();
         let args = self.args_store().get(args_id).clone();
 
-        let pairs = pair_args_with_params(&params, &args, parent, params_id, args_id)?;
+        let pairs = pair_args_with_params(
+            &params,
+            &args,
+            params_id,
+            args_id,
+            params_subject,
+            args_subject,
+        )?;
         let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {
@@ -380,12 +388,14 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                         let args_src_sub = self.unify_params_with_args(
                             ty_fn_ty.params,
                             src_app_ty_fn.args,
+                            src_id,
                             target_id,
                             UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
                         let args_target_sub = self.unify_params_with_args(
                             ty_fn_ty.params,
                             target_app_ty_fn.args,
+                            target_id,
                             src_id,
                             UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;

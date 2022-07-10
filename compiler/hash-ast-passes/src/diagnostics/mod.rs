@@ -1,4 +1,5 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
+#![allow(dead_code)]
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
 use hash_reporting::report::Report;
@@ -70,6 +71,34 @@ impl Default for BlockOrigin {
 }
 
 impl Display for BlockOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str())
+    }
+}
+
+/// Denotes where an error occurred in regards to a field within a defined
+/// structural type which contains fields, such as `struct`, `tuple`, or
+/// `function literal`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum FieldOrigin {
+    Struct,
+    Tuple,
+    FnLiteral,
+}
+
+impl FieldOrigin {
+    /// Convert the [BlockOrigin] into a string which can be used for displaying
+    /// within error messages.
+    fn to_str(self) -> &'static str {
+        match self {
+            FieldOrigin::Struct => "struct",
+            FieldOrigin::Tuple => "tuple",
+            FieldOrigin::FnLiteral => "function literal",
+        }
+    }
+}
+
+impl Display for FieldOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
     }

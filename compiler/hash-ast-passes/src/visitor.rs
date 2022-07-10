@@ -17,7 +17,8 @@ use hash_reporting::macros::panic_on_span;
 use crate::{
     analysis::SemanticAnalyser,
     diagnostics::{
-        error::AnalysisErrorKind, warning::AnalysisWarningKind, BlockOrigin, PatternOrigin,
+        error::AnalysisErrorKind, warning::AnalysisWarningKind, BlockOrigin, FieldOrigin,
+        PatternOrigin,
     },
 };
 
@@ -875,6 +876,17 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
         let _ = walk::walk_struct_def_entry(self, ctx, node);
+
+        // If both the type definition is missing and the default expression assignment
+        // to the struct-def field, then a type cannot be inferred and is thus
+        // ambiguous.
+        if node.ty.is_none() && node.default.is_none() {
+            self.append_error(
+                AnalysisErrorKind::InsufficientTypeAnnotations { origin: FieldOrigin::Struct },
+                node.span(),
+            );
+        }
+
         Ok(())
     }
 

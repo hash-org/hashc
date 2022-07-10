@@ -14,8 +14,8 @@ use crate::{
     storage::{
         primitives::{
             AppSub, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId,
-            ModDefOrigin, Mutability, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind, Sub, Term,
-            TermId, TrtDefId,
+            ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
+            ScopeKind, StructFields, Sub, Term, TermId, TrtDefId,
         },
         terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -240,7 +240,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     if let Some(scope_member) = scope.get(trt_member.name) {
                         // Infer the type of the scope member:
                         let scope_member_data =
-                            self.typer().infer_member_data(scope_member.data)?;
+                            self.typer().infer_member_data(scope_member.0.data)?;
 
                         // Apply the substitution to the trait member first:
                         let trt_member_ty_subbed =
@@ -304,10 +304,58 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     }
 
     /// Validate the nominal definition of the given [NominalDefId]
-    pub(crate) fn validate_nominal_def(&mut self, _nominal_def_id: NominalDefId) -> TcResult<()> {
-        // Ensure all members have level 1 types/level 0 default values and the default
-        // values are of the given type.
-        todo!()
+    pub(crate) fn validate_nominal_def(&mut self, nominal_def_id: NominalDefId) -> TcResult<()> {
+        match self.nominal_def_store().get(nominal_def_id) {
+            NominalDef::Struct(struct_def) => {
+                // Ensure all members types of the fields for the struct are
+                // runtime-instantiable by ensuring that the type of the field
+                // term implements the rti trait.
+                if let StructFields::Explicit(fields_id) = struct_def.fields {
+                    let fields = self.params_store().get(fields_id).clone();
+
+                    // Validate the ordering and the number of times parameter field names
+                    // are specified, although the ordering shouldn't matter
+                    validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
+
+                    // Validate all fields of an struct def implement `RtInstantiable`
+                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+                    for field in fields.positional().iter() {
+                        let field_ty = self.typer().ty_of_term(field.ty)?;
+                        let dummy_rt = self.builder().create_trt_term(rti_trt);
+
+                        self.unifier().unify_terms(field_ty, dummy_rt)?;
+                    }
+                }
+
+                Ok(())
+            }
+            NominalDef::Enum(enum_def) => {
+                for (_, variant) in enum_def.variants.clone().iter() {
+                    let variant_fields = self.params_store().get(variant.fields).clone();
+
+                    // Validate the ordering and the number of times parameter field names
+                    // are specified, although the ordering shouldn't matter
+                    //
+                    // @@Unnecessary?
+                    validate_param_list_ordering(
+                        &variant_fields,
+                        ParamListKind::Params(variant.fields),
+                    )?;
+
+                    // Validate all fields of an struct def implement `RtInstantiable`
+                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+
+                    for field in variant_fields.positional().iter() {
+                        let field_ty = self.typer().ty_of_term(field.ty)?;
+                        let dummy_rt = self.builder().create_trt_term(rti_trt);
+
+                        self.unifier().unify_terms(field_ty, dummy_rt)?;
+                    }
+                }
+
+                Ok(())
+            }
+        }
     }
 
     /// Ensure the element `union_element_term_id` of the union with the given

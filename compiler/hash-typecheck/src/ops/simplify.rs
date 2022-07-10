@@ -328,6 +328,13 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let name_var = self.builder().create_var_term(access_term.name);
                 let result = self.simplifier().simplify_term(name_var)?;
 
+                if let Some(member) = self.scope_store().get(mod_def_scope).get(access_term.name) {
+                    if let Some(inner_term) = result {
+                        self.location_store_mut()
+                            .copy_location((mod_def_scope, member.1), inner_term)
+                    }
+                }
+
                 // Pop back the scope
                 self.scopes_mut().pop_the_scope(mod_def_scope);
 
@@ -522,6 +529,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let _ = self.unifier().unify_params_with_args(
                     ty_fn.general_params,
                     apply_ty_fn.args,
+                    apply_ty_fn.subject,
                     simplified_subject_id,
                     UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                 )?;
@@ -531,6 +539,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     match self.unifier().unify_params_with_args(
                         case.params,
                         apply_ty_fn.args,
+                        apply_ty_fn.subject,
                         simplified_subject_id,
                         UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                     ) {
@@ -835,6 +844,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let params_sub = self.unifier().unify_params_with_args(
                     fn_ty.params,
                     fn_call.args,
+                    fn_call.subject,
                     originating_term,
                     UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                 )?;
@@ -1084,10 +1094,16 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // because it is unset:
             Term::Var(var) => {
                 // First resolve the name:
-                let maybe_resolved_term_id =
-                    self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?.data.value();
+                let scope_member =
+                    self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?;
+
+                let maybe_resolved_term_id = scope_member.member.data.value();
+
                 // Try to simplify it
                 if let Some(resolved_term_id) = maybe_resolved_term_id {
+                    self.location_store_mut()
+                        .copy_location((scope_member.scope_id, scope_member.index), term_id);
+
                     Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
                 } else {
                     Ok(None)
@@ -1233,7 +1249,7 @@ mod test_super {
                 ParamOrigin::TyFn,
             ),
         );
-        let dog_def = builder.create_struct_def(
+        let dog_def = builder.create_named_struct_def(
             "Dog",
             builder.create_params(
                 [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],

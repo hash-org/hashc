@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:5
 1 |   a::b:c()
   |       ^ here
-  = note: Expected an operator. Consider adding either a '.', '=', or ';'.
+  = note: Expected an operator. Consider adding either a `.`, `=`, or `;`

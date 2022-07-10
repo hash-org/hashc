@@ -28,8 +28,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a [StructDefEntry].
     pub fn parse_struct_def_entry(&self) -> AstGenResult<AstNode<StructDefEntry>> {
-        let start = self.current_location();
         let name = self.parse_name()?;
+        let name_span = name.span();
 
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Colon) => {
@@ -48,11 +48,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &start))
+        Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &name_span))
     }
 
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
-    /// followed by parenthesees with inner enum fields defined.
+    /// followed by parentheses with inner enum fields defined.
     pub fn parse_enum_def(&self) -> AstGenResult<EnumDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Enum)));
 

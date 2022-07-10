@@ -1,10 +1,16 @@
 //! Functionality related to variable substitution inside terms/types.
-use crate::storage::{
-    primitives::{
-        AppSub, Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId,
-        Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, Var,
+use hash_source::identifier::CORE_IDENTIFIERS;
+
+use crate::{
+    diagnostics::error::{TcError, TcResult},
+    storage::{
+        primitives::{
+            AppSub, Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
+            ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            Var,
+        },
+        AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
-    AccessToStorage, AccessToStorageMut, StorageRefMut,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -587,6 +593,27 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         self.add_free_vars_in_term_to_set(term_id, &mut result);
         result
     }
+
+    /// Get the set of variables that exist in the given term. This function
+    /// will proceed an error if it hits an un-resolved free variable since this
+    /// cannot appear within certain contexts, e.g. nominal definitions.
+    pub fn get_vars_in_term(&self, term_id: TermId) -> TcResult<HashSet<Var>> {
+        let mut result = HashSet::new();
+        self.add_free_vars_in_term_to_set(term_id, &mut result);
+
+        result
+            .into_iter()
+            .map(|var| match var {
+                SubSubject::Var(var) => Ok(var),
+                SubSubject::Unresolved(_) => Err(TcError::UnresolvedVariable {
+                    // @@Correctness: it's unclear if we can even get an identifier here? Or if we
+                    // should make an identifier from the provided `ResolutionId`
+                    name: CORE_IDENTIFIERS.underscore,
+                    value: term_id,
+                }),
+            })
+            .collect::<TcResult<_>>()
+    }
 }
 
 #[cfg(test)]
@@ -676,9 +703,7 @@ mod tests {
             ),
         );
 
-        println!();
-
-        println!("{}", target.for_formatting(storage_ref.global_storage()));
+        println!("\n{}", target.for_formatting(storage_ref.global_storage()));
 
         let builder = storage_ref.builder();
         let sub = Sub::from_pairs([(
@@ -721,7 +746,5 @@ mod tests {
         for inner_free_var in &inner_free_vars_list {
             println!("{}", inner_free_var.for_formatting(storage_ref.global_storage()));
         }
-
-        println!();
     }
 }

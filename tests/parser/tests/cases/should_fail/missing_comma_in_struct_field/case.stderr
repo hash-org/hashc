@@ -4,4 +4,4 @@ error: Failed to parse
 5 |       age = 12, 
   |       ^^^ here
 6 |       gender = false
-  = note: Unexpectedly encountered the identifier `age`. Consider adding a ','
+  = note: Unexpectedly encountered the identifier `age`. Consider adding a `,`

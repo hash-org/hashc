@@ -364,7 +364,7 @@ where
             &mut compiler_state.semantic_analysis_state,
             &job_params,
         );
-        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::Typecheck)?;
+        self.maybe_terminate(result, compiler_state, &job_params, CompilerMode::SemanticPass)?;
 
         let result = self.typecheck_source(
             entry_point,

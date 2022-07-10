@@ -7,7 +7,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::error::{TcError, TcResult},
     storage::{
-        primitives::{Member, ParamsId, ScopeId, TermId, Visibility},
+        primitives::{ParamsId, ScopeId, ScopeMember, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -48,12 +48,12 @@ impl<'gs, 'ls, 'cd, 's> ScopeResolver<'gs, 'ls, 'cd, 's> {
         &self,
         name: Identifier,
         term: TermId,
-    ) -> TcResult<Member> {
+    ) -> TcResult<ScopeMember> {
         // Here, we have to look in the scopes:
         for scope_id in self.scopes().iter_up() {
             match self.reader().get_scope(scope_id).get(name) {
                 // Found in this scope, return the member.
-                Some(result) => return Ok(result),
+                Some((member, index)) => return Ok(ScopeMember { member, scope_id, index }),
                 // Continue to the next (higher) scope:
                 None => continue,
             }

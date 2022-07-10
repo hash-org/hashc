@@ -18,9 +18,10 @@ use std::collections::HashSet;
 pub(crate) fn pair_args_with_params<'p, 'a>(
     params: &'p Params,
     args: &'a Args,
-    parent: TermId,
     params_id: ParamsId,
     args_id: ArgsId,
+    params_subject: TermId,
+    args_subject: TermId,
 ) -> TcResult<Vec<(&'p Param, &'a Arg)>> {
     let mut result = vec![];
 
@@ -32,9 +33,10 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
     // Ensure the length of params and args is the same
     if params.positional().len() != args.positional().len() {
         return Err(TcError::MismatchingArgParamLength {
-            args: args_id,
-            params: params_id,
-            target: parent,
+            args_id,
+            params_id,
+            params_subject,
+            args_subject,
         });
     }
 
@@ -61,7 +63,15 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                         }
                     }
                     None => {
-                        return Err(TcError::ParamNotFound { params: params_id, name: arg_name })
+                        // We want to show the location of the argument that doesn't exist, the name
+                        // of the argument and where the initial parameter
+                        // constructor is defined...
+                        return Err(TcError::ParamNotFound {
+                            params_subject,
+                            args_id,
+                            params_id,
+                            name: arg_name,
+                        });
                     }
                 }
             }

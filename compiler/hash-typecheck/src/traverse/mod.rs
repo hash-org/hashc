@@ -1,14 +1,16 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
 
+use std::collections::HashSet;
+
 use crate::{
     diagnostics::error::{TcError, TcResult},
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, ArgsId, Member, MemberData, Mutability, Param, ParamOrigin, Sub, TermId,
-            Visibility,
+            Arg, ArgsId, BoundVars, EnumVariant, Member, MemberData, ModDefOrigin, Mutability,
+            Param, ParamOrigin, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -27,6 +29,21 @@ use hash_source::{
 
 mod sequence;
 
+/// Internal state that the [TcVisitor] uses when traversing the
+/// given sources.
+#[derive(Default)]
+pub struct TcVisitorState {
+    /// Pattern hint from declaration
+    pub declaration_name_hint: Option<Identifier>,
+}
+
+impl TcVisitorState {
+    /// Create a new [TcVisitorState]
+    pub fn new() -> Self {
+        Self { declaration_name_hint: None }
+    }
+}
+
 /// Traverses the AST and adds types to it, while checking it for correctness.
 ///
 /// Contains typechecker state that is accessed while traversing.
@@ -34,6 +51,7 @@ pub struct TcVisitor<'gs, 'ls, 'cd, 'src> {
     pub storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
     pub source_id: SourceId,
     pub node_map: &'src NodeMap,
+    pub state: TcVisitorState,
 }
 
 impl<'gs, 'ls, 'cd, 'src> AccessToStorage for TcVisitor<'gs, 'ls, 'cd, 'src> {
@@ -56,13 +74,14 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         source_id: SourceId,
         node_map: &'src NodeMap,
     ) -> Self {
-        TcVisitor { storage, source_id, node_map }
+        TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
     }
 
     /// Visits the source passed in as an argument to [Self::new], and returns
     /// the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
         let source = self.node_map.get_source(self.source_id);
+
         match source {
             SourceRef::Interactive(interactive_source) => {
                 self.visit_body_block(&(), interactive_source.node_ref())
@@ -430,7 +449,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
 
-        // We need to add the location to the term
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(name, location);
 
@@ -502,7 +520,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Set location:
         let fn_call_location = self.source_location(node.span());
-        self.builder().add_location_to_target(return_term, fn_call_location);
+        self.builder().add_location_to_target(return_term_ty, fn_call_location);
 
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
@@ -1405,7 +1423,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // @@Todo: deal with other kinds of patterns:
         let name = match pattern {
-            PatternHint::Binding { name } => name,
+            PatternHint::Binding { name } => {
+                self.state.declaration_name_hint = Some(name);
+                name
+            }
         };
 
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
@@ -1425,12 +1446,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Add the member to scope:
         let current_scope_id = self.scopes().current_scope();
-        self.scope_store_mut().get_mut(current_scope_id).add(Member {
+        let member_id = self.scope_store_mut().get_mut(current_scope_id).add(Member {
             name,
             data: MemberData::from_ty_and_value(Some(ty), value),
             mutability: Mutability::Immutable,
             visibility: Visibility::Private,
         });
+
+        let location = self.source_location(node.pattern.span());
+        self.location_store_mut().add_location_to_target((current_scope_id, member_id), location);
 
         // Declaration should return its value if any:
         match value {
@@ -1500,44 +1524,157 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type StructDefEntryRet = TermId;
+    type StructDefEntryRet = Param;
 
     fn visit_struct_def_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
     ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        todo!()
+        let walk::StructDefEntry { name, ty, default } =
+            walk::walk_struct_def_entry(self, ctx, node)?;
+
+        // Try and figure out a known term...
+        let (ty, default_value) = match (ty, default) {
+            (Some(annotation_ty), Some(default_value)) => {
+                let default_ty = self.typer().ty_of_term(default_value)?;
+
+                // Here, we have to unify both of the provided types...
+                let sub = self.unifier().unify_terms(default_ty, annotation_ty)?;
+
+                // @@Naming
+                let ds_sub = self.substituter().apply_sub_to_term(&sub, default_value);
+                let as_sub = self.substituter().apply_sub_to_term(&sub, annotation_ty);
+
+                (ds_sub, Some(as_sub))
+            }
+            (None, Some(default_value)) => {
+                let default_ty = self.typer().ty_of_term(default_value)?;
+                (default_ty, Some(default_value))
+            }
+            (Some(annot_ty), None) => (annot_ty, None),
+            (None, None) => panic_on_span!(
+                self.source_location(node.span()),
+                self.source_map(),
+                "tc: found struct-def field with no value and type annotation"
+            ),
+        };
+
+        // Append location to value term
+        let ty_span = if node.ty.is_some() {
+            node.ty.as_ref().map(|n| n.span())
+        } else {
+            node.default.as_ref().map(|n| n.span())
+        };
+
+        // @@Note: This should never fail since we panic above if there is no span!
+        if let Some(ty_span) = ty_span {
+            let value_location = self.source_location(ty_span);
+            self.location_store_mut().add_location_to_target(ty, value_location);
+        }
+
+        Ok(Param { name: Some(name), ty, default_value })
     }
 
     type StructDefRet = TermId;
 
     fn visit_struct_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDef>,
     ) -> Result<Self::StructDefRet, Self::Error> {
-        todo!()
+        let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
+
+        // we need to figure out the bounds for the current definition
+        let mut bounds = HashSet::new();
+
+        for entry in entries.iter() {
+            bounds.extend(self.substituter().get_vars_in_term(entry.ty)?);
+        }
+
+        // create the params
+        let fields = self.builder().create_params(entries, ParamOrigin::Struct);
+
+        // add the location of each parameter
+        for (index, param) in node.entries.iter().enumerate() {
+            let location = self.source_location(param.span());
+            self.location_store_mut().add_location_to_target((fields, index), location);
+        }
+
+        // take the declaration hint here...
+        let name = self.state.declaration_name_hint.take();
+
+        let builder = self.builder();
+        let nominal_id = builder.create_struct_def(name, fields, bounds);
+        let term = builder.create_nominal_def_term(nominal_id);
+
+        // validate the constructed nominal def
+        self.validator().validate_nominal_def(nominal_id)?;
+
+        // add location to the struct definition
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
-    type EnumDefEntryRet = TermId;
+    type EnumDefEntryRet = (EnumVariant, BoundVars);
 
     fn visit_enum_def_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
-        todo!()
+        let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
+        let mut vars = HashSet::new();
+
+        // Create the enum variant parameters
+        let params = args
+            .iter()
+            .map(|arg| -> TcResult<_> {
+                vars.extend(self.substituter().get_vars_in_term(*arg)?);
+
+                Ok(Param { name: None, ty: *arg, default_value: None })
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+
+        let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
+
+        Ok((EnumVariant { name, fields }, vars))
     }
 
     type EnumDefRet = TermId;
 
     fn visit_enum_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDef>,
     ) -> Result<Self::EnumDefRet, Self::Error> {
-        todo!()
+        let walk::EnumDef { entries } = walk::walk_enum_def(self, ctx, node)?;
+
+        // take the declaration hint here...
+        let name = self.state.declaration_name_hint.take();
+
+        let builder = self.builder();
+
+        // We need to collect all of the bound variables that are within the members
+        let bound_vars = entries
+            .iter()
+            .map(|(_, vars)| vars)
+            .fold(HashSet::new(), |acc, vars| acc.union(vars).cloned().collect());
+        let variants = entries.into_iter().map(|(variants, _)| variants);
+
+        let nominal_id = builder.create_enum_def(name, variants, bound_vars);
+        let term = builder.create_nominal_def_term(nominal_id);
+
+        // validate the constructed nominal def
+        self.validator().validate_nominal_def(nominal_id)?;
+
+        // add location to the struct definition
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type TraitDefRet = TermId;
@@ -1744,9 +1881,34 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_module(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        todo!()
+        let source_id = self.source_id;
+        let members = self.builder().create_constant_scope(vec![]);
+        self.scopes_mut().append(members);
+
+        let _ = walk::walk_module(self, ctx, node)?;
+
+        // Get the end of the filename for the module and use this as the name of the
+        // module
+        let name = self.source_map().source_name(self.source_id).to_owned();
+
+        let mod_def = self.builder().create_named_mod_def(
+            name,
+            ModDefOrigin::Source(source_id),
+            members,
+            vec![],
+        );
+
+        let term = self.builder().create_mod_def_term(mod_def);
+
+        // Add location tot the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        self.scopes_mut().pop_the_scope(members);
+
+        Ok(term)
     }
 }

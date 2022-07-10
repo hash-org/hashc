@@ -15,8 +15,14 @@ use hash_utils_testing_macros::generate_tests;
 use lazy_static::lazy_static;
 use regex::Regex;
 
+extern crate static_assertions;
+
 /// Whether or not the UI tests should re-generate the output.
-const REGENERATE_OUTPUT: bool = true;
+const REGENERATE_OUTPUT: bool = false;
+
+// Assert that `REGENERATE_OUTPUT` isn't set to `true` in normal running
+// conditions
+static_assertions::const_assert!(!REGENERATE_OUTPUT);
 
 /// This is the ANSI Regular expression matcher. This will match all the
 /// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
