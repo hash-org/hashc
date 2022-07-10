@@ -680,7 +680,7 @@ impl From<SubSubject> for Term {
 
 /// A substitution containing pairs of `(SubSubject, TermId)` to be applied to a
 /// term.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Sub {
     data: HashMap<SubSubject, TermId>,
 }
@@ -819,6 +819,14 @@ pub enum Term {
     ///
     /// Is level N, where N is the level of the inner types.
     Merge(Vec<TermId>),
+
+    /// Union of multiple types.
+    ///
+    /// Inner types must have the same level. Union is also idempotent,
+    /// associative, and commutative.
+    ///
+    /// Is level N, where N is the level of the inner types.
+    Union(Vec<TermId>),
 
     /// A type function term.
     ///

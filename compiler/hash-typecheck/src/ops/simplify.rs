@@ -22,6 +22,7 @@ use crate::{
     },
 };
 use hash_source::identifier::Identifier;
+use itertools::Itertools;
 
 /// Can perform simplification on terms.
 pub struct Simplifier<'gs, 'ls, 'cd, 's> {
@@ -414,6 +415,21 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
 
         match simplified_subject {
+            Term::Union(terms) => {
+                // Try apply the access on each element, and if they all succeed then we get the
+                // union of the results:
+                let results: Vec<_> = terms
+                    .iter()
+                    .map(|term| {
+                        Ok(self
+                            .apply_access_term(&AccessTerm { subject: *term, ..*access_term })?
+                            .unwrap_or(*term))
+                    })
+                    .collect::<TcResult<_>>()?;
+
+                let union_term = self.builder().create_union_term(results);
+                Ok(Some(self.potentially_simplify_term(union_term)?))
+            }
             Term::Merge(terms) => {
                 // Apply the access to each result. If there are multiple results, it means
                 // there is an ambiguity which should be reported.
@@ -559,6 +575,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Merge(_) => {
                 // Cannot apply a merge:
                 // @@Enhancement: this could be allowed in the future.
+                cannot_apply()
+            }
+            Term::Union(_) => {
+                // Cannot apply if it didn't simplify to a type function:
                 cannot_apply()
             }
             Term::Root => {
@@ -766,6 +786,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::TyFnTy(_)
             | Term::Root
             | Term::Var(_)
+            | Term::Union(_)
             | Term::Access(_) => cannot_use_as_fn_call_subject(),
         }
     }
@@ -953,6 +974,85 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Simplify the given set of terms by performing the following operations
+    /// (where ^ is the separator of the list):
+    ///
+    /// - Applying idempotency: B ^ B ^ C becomes B ^ C
+    /// - Flattening nests: B ^ (C ^ D) becomes B ^ C ^ D
+    /// - Simplifying inner terms:
+    ///  (<T> => (str, T))<i32> ^ C becomes (str, i32) ^ C
+    /// - Distributivity: @@Todo, @@Enhancement
+    ///
+    /// This is to be used for merge and union types.
+    pub fn simplify_algebraic_term_list(
+        &mut self,
+        term_list: &[TermId],
+        is_nested: impl Fn(&Term) -> Option<Vec<TermId>>,
+    ) -> TcResult<Option<Vec<TermId>>> {
+        let mut simplified_once = false;
+
+        // Flatten nests (associativity);
+        // Also simplify inner terms
+        let flattened = term_list
+            .iter()
+            .copied()
+            .map(|term_id| {
+                // Check if the term is a nested list, and if so flatten it:
+                let simplified_term_id = self
+                    .simplifier()
+                    .simplify_term(term_id)?
+                    .map(|x| {
+                        simplified_once = true;
+                        x
+                    })
+                    .unwrap_or(term_id);
+                let reader = self.reader();
+                let term = reader.get_term(simplified_term_id);
+                match is_nested(term) {
+                    // It is a merge, flatten it (this also means the merge has been
+                    // simplified):
+                    Some(terms) => {
+                        simplified_once = true;
+                        Ok(terms)
+                    }
+                    // Not a merge, just return a single-element vector:
+                    _ => Ok(vec![simplified_term_id]),
+                }
+            })
+            .try_fold(vec![], |mut all_terms, nested_terms| {
+                // Combine all the nested terms
+                all_terms.extend(nested_terms?);
+                Ok(all_terms)
+            })?;
+
+        // Merge equal terms (idempotency)
+        let mut merged: Vec<_> = flattened.into_iter().map(Some).collect();
+        for terms in term_list.iter().enumerate().combinations(2) {
+            match terms.as_slice() {
+                [(first_idx, &first), (second_idx, &second)] => {
+                    // Try to merge the two terms if they are the same:
+                    if self.unifier().terms_are_equal(first, second) {
+                        simplified_once = true;
+                        merged[*first_idx] = merged[*first_idx].map(|_| first);
+                        merged[*second_idx] = None;
+                    } else {
+                        merged[*first_idx] = merged[*first_idx].map(|_| first);
+                        merged[*second_idx] = merged[*second_idx].map(|_| second);
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        let result: Vec<_> = merged.into_iter().flatten().collect();
+
+        // Only return if it has been simplified
+        if !simplified_once {
+            Ok(None)
+        } else {
+            Ok(Some(result))
+        }
+    }
+
     /// Simplify the given term, if possible.
     ///
     /// This does not perform all validity checks, some are performed by
@@ -961,59 +1061,18 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         // @@Performance: we can cache the result of the simplification in a hashmap.
         let value = self.reader().get_term(term_id).clone();
         let new_term = match value {
-            Term::Merge(inner) => {
-                // Simplify each element of the merge:
-
-                // Shortcut if it is a single element:
-                if inner.len() == 1 {
-                    self.simplify_term(inner[0])
-                } else {
-                    // Keep track of if any terms have been simplified.
-                    let mut simplified_once = false;
-                    let inner = inner;
-                    let inner_simplified = inner
-                        .iter()
-                        .copied()
-                        .map(|term_id| {
-                            // Simplify the current term:
-                            let simplified_term_id =
-                                self.simplify_term(term_id)?.map(|simplified_term_id| {
-                                    simplified_once = true;
-                                    simplified_term_id
-                                });
-
-                            // Check if the simplified term is a merge, and if so flatten it:
-                            let reader = self.reader();
-                            let simplified_term =
-                                reader.get_term(simplified_term_id.unwrap_or(term_id));
-                            match simplified_term {
-                                // It is a merge, flatten it (this also means the merge has been
-                                // simplified):
-                                Term::Merge(terms) => {
-                                    simplified_once = true;
-                                    Ok(terms.clone())
-                                }
-                                // Not a merge, just return a single-element vector:
-                                _ => Ok(vec![simplified_term_id.unwrap_or(term_id)]),
-                            }
-                        })
-                        .try_fold(vec![], |mut all_terms, nested_terms| {
-                            // Combine all the nested terms
-                            all_terms.extend(nested_terms?);
-                            Ok(all_terms)
-                        })?;
-
-                    // @@Enhancement: here we can also collapse degenerate elements
-
-                    if simplified_once {
-                        // If any of them have been simplified, create a new term
-                        Ok(Some(self.builder().create_merge_term(inner_simplified)))
-                    } else {
-                        // No simplification occurred
-                        Ok(None)
-                    }
-                }
-            }
+            Term::Merge(inner) => Ok(self
+                .simplify_algebraic_term_list(&inner, |term| match term {
+                    Term::Merge(terms) => Some(terms.clone()),
+                    _ => None,
+                })?
+                .map(|result| self.builder().create_merge_term(result))),
+            Term::Union(inner) => Ok(self
+                .simplify_algebraic_term_list(&inner, |term| match term {
+                    Term::Union(terms) => Some(terms.clone()),
+                    _ => None,
+                })?
+                .map(|result| self.builder().create_union_term(result))),
             Term::AppSub(apply_sub) => Ok(Some(
                 // @@Performance: add Option<_> to the substituter to return
                 // terms which don't have the variables in them.

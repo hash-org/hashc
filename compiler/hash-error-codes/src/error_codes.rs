@@ -43,4 +43,5 @@ error_codes! {
     NoMatchingTraitImplementations = 53,
     InvalidPropertyAccessOfNonMethod = 54,
     TraitImplMissingMember = 55,
+    InvalidUnionElement = 56,
 }

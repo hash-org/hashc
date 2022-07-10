@@ -151,6 +151,12 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     terms.iter().map(|term| self.ty_of_term(*term)).collect::<TcResult<_>>()?;
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
+            Term::Union(_) => {
+                // The type of a union is "RuntimeInstantiable":
+                // @@Future: relax this
+                let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
+                Ok(self.builder().create_trt_term(rt_instantiable_def))
+            }
             Term::AppSub(app_sub) => {
                 // The type of an AppSub is the type of the subject, with the substitution
                 // applied:

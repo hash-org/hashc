@@ -215,6 +215,14 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     .collect::<Vec<_>>();
                 self.builder().create_term(Term::Merge(terms))
             }
+            Term::Union(terms) => {
+                // Apply the substitution to each element of the union.
+                let terms = terms
+                    .into_iter()
+                    .map(|term| self.apply_sub_to_term(sub, term))
+                    .collect::<Vec<_>>();
+                self.builder().create_term(Term::Union(terms))
+            }
             Term::TyFn(ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
                 //
@@ -475,6 +483,12 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 self.add_free_vars_in_term_to_set(term.subject, result);
             }
             Term::Merge(terms) => {
+                // Free vars in each term:
+                for inner_term_id in terms {
+                    self.add_free_vars_in_term_to_set(*inner_term_id, result);
+                }
+            }
+            Term::Union(terms) => {
                 // Free vars in each term:
                 for inner_term_id in terms {
                     self.add_free_vars_in_term_to_set(*inner_term_id, result);

@@ -263,7 +263,7 @@ impl<'gs> TcFormatter<'gs> {
         match term {
             Level2Term::Trt(trt_def_id) => self.fmt_trt_def(f, *trt_def_id, opts),
             Level2Term::AnyTy => {
-                write!(f, "Type")
+                write!(f, "AnyType")
             }
         }
     }
@@ -327,6 +327,22 @@ impl<'gs> TcFormatter<'gs> {
                     }
                 }
                 Ok(())
+            }
+            Term::Union(terms) => {
+                if terms.is_empty() {
+                    opts.is_atomic.set(true);
+                    write!(f, "never")?;
+                    Ok(())
+                } else {
+                    opts.is_atomic.set(false);
+                    for (i, term_id) in terms.iter().enumerate() {
+                        self.fmt_term_as_single(f, *term_id, opts.clone())?;
+                        if i != terms.len() - 1 {
+                            write!(f, " | ")?;
+                        }
+                    }
+                    Ok(())
+                }
             }
             Term::TyFn(ty_fn) => {
                 match ty_fn.name {

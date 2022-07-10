@@ -3,9 +3,9 @@
 //! This brings light to the world by ensuring the correctness of the crude and
 //! dangerous Hash program that is given as input to the compiler.
 //!
-//! @@Todo(kontheocharis): write docs about the stages of the typechecker.
+//! @@Docs(kontheocharis): write docs about the stages of the typechecker.
 
-#![feature(generic_associated_types, decl_macro)]
+#![feature(generic_associated_types, decl_macro, slice_pattern, option_result_contains)]
 
 use diagnostics::reporting::TcErrorWithStorage;
 use hash_pipeline::{traits::Tc, CompilerResult};

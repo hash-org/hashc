@@ -64,6 +64,7 @@ impl Term {
             | Term::Var(_)
             | Term::Merge(_)
             | Term::TyFn(_)
+            | Term::Union(_)
             | Term::TyFnTy(_)
             | Term::TyFnCall(_) => TermLevel::Unknown,
             Term::AppSub(AppSub { term, .. }) => store.get(*term).get_term_level(store),
@@ -309,6 +310,60 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         todo!()
     }
 
+    /// Ensure the element `union_element_term_id` of the union with the given
+    /// `union_term_id` is level 1, with each element containing 1 nominal.
+    pub(crate) fn validate_union_element(
+        &self,
+        union_term_id: TermId,
+        union_element_term_id: TermId,
+    ) -> TcResult<()> {
+        let reader = self.reader();
+        let union_element_term = reader.get_term(union_element_term_id);
+
+        // Error helper:
+        let invalid_union_element = || -> TcResult<()> {
+            Err(TcError::InvalidUnionElement { term: union_element_term_id })
+        };
+
+        // Ensure the level of the term is valid:
+        match union_element_term {
+            Term::AppSub(app_sub) => {
+                // Ensure the inner one is valid, substitution doesn't matter:
+                self.validate_union_element(union_term_id, app_sub.term)
+            }
+            Term::Level1(level1_term) => match level1_term {
+                // Checking a nominal
+                Level1Term::NominalDef(_) => Ok(()),
+                // Not checking a nominal:
+                Level1Term::Tuple(_) | Level1Term::Fn(_) | Level1Term::ModDef(_) => {
+                    invalid_union_element()
+                }
+            },
+            // Unclear if this fits the requirements, so we reject it:
+            Term::Unresolved(_) => {
+                Err(TcError::NeedMoreTypeAnnotationsToResolve { term: union_element_term_id })
+            }
+            Term::Merge(_)
+            | Term::Level3(_)
+            | Term::Level2(_)
+            | Term::TyFn(_)
+            | Term::TyFnTy(_)
+            | Term::Level0(_)
+            | Term::Root
+            | Term::TyFnCall(_)
+            | Term::Access(_)
+            | Term::Var(_) => invalid_union_element(),
+            // This should have been flattened already:
+            Term::Union(_) => {
+                tc_panic_on_many!(
+                    [union_element_term_id, union_term_id],
+                    self,
+                    "Union term should have already been flattened"
+                )
+            }
+        }
+    }
+
     /// Ensure the element `merge_element_term_id` of the merge with the given
     /// `merge_term_id` is either level 2 (along with the merge being all
     /// level 2), or level 1 (along with the merge being all level 1).
@@ -418,6 +473,16 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // Unclear if this fits the requirements, so we reject it:
             Term::Unresolved(_) => {
                 Err(TcError::NeedMoreTypeAnnotationsToResolve { term: merge_element_term_id })
+            }
+            // Union allowed if each inner term is allowed
+            Term::Union(terms) => {
+                let mut initial_merge_kind = *merge_kind;
+                let terms = terms.clone();
+                for term_id in terms.iter() {
+                    self.validate_merge_element(&mut initial_merge_kind, merge_term_id, *term_id)?;
+                }
+                ensure_merge_is_level1(Some(merge_element_term_id))?;
+                Ok(())
             }
             // Level 3 terms are not allowed:
             Term::Level3(_) => invalid_merge_element(),
@@ -538,6 +603,28 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                             simplified_term_id,
                             merge_element_term_id,
                         )?;
+                    }
+
+                    Ok(result)
+                }
+            }
+
+            // Union
+            Term::Union(terms) => {
+                if let [term] = terms.as_slice() {
+                    // Shortcut: single term:
+                    self.validate_term(*term)
+                } else {
+                    // First, validate each term:
+                    let terms = terms.clone();
+                    for term in terms.iter().copied() {
+                        self.validate_term(term)?;
+                    }
+
+                    // Validate the level of each term against the union restrictions (see
+                    // [Self::validate_union_element] docs).
+                    for union_element_term_id in terms.iter().copied() {
+                        self.validate_union_element(simplified_term_id, union_element_term_id)?;
                     }
 
                     Ok(result)
@@ -870,7 +957,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
             Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
-            Term::Merge(terms) => {
+            Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
                 let terms = terms.clone();
                 for term in terms {
@@ -927,7 +1014,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
             Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
-            Term::Merge(terms) => {
+            Term::Union(terms) | Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
                 let terms = terms.clone();
                 for term in terms {

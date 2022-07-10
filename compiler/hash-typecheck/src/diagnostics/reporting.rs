@@ -481,6 +481,25 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     // used within this position
                 }
             }
+            TcError::InvalidUnionElement { term } => {
+                builder
+                    .with_error_code(HashErrorCode::InvalidUnionElement)
+                    .with_message("invalid element within a union");
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "cannot use the type `{}` within a union",
+                            term.for_formatting(err.global_storage()),
+                        ),
+                    )));
+
+                    // @@Todo(feds01): add more helpful information about why
+                    // this particular type cannot be used
+                    // within this position
+                }
+            }
             TcError::InvalidTypeFunctionParameterType { param_ty } => {
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
