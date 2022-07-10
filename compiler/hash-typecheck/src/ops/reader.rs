@@ -1,7 +1,6 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
 
-
 use crate::storage::{
     primitives::{
         Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Scope, ScopeId,
