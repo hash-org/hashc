@@ -4,7 +4,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic,
+    },
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         location::LocationTarget,
@@ -12,7 +15,7 @@ use crate::{
             Arg, ArgsId, BoundVars, EnumVariant, Member, MemberData, ModDefOrigin, Mutability,
             Param, ParamOrigin, Sub, TermId, Visibility,
         },
-        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
+        AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
 };
 use hash_ast::{
@@ -80,14 +83,21 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Visits the source passed in as an argument to [Self::new], and returns
     /// the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
-        let source = self.node_map.get_source(self.source_id);
-
-        match source {
+        let source_id = self.source_id;
+        let source = self.node_map.get_source(source_id);
+        let result = match source {
             SourceRef::Interactive(interactive_source) => {
                 self.visit_body_block(&(), interactive_source.node_ref())
             }
             SourceRef::Module(module_source) => self.visit_module(&(), module_source.node_ref()),
-        }
+        }?;
+
+        // Add the result to the checked sources.
+        // @@Correctness: the visitor will loop infinitely if there are circular module
+        // dependencies. Need to find a way to prevent this.
+        self.checked_sources_mut().mark_checked(source_id, result);
+
+        Ok(result)
     }
 
     /// Create a [SourceLocation] from a [Span]
@@ -685,10 +695,56 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_import(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        todo!()
+        // Try resolve the path of the import to a SourceId:
+        let import_module_id = self.source_map().get_module_id_by_path(&node.resolved_path);
+        match import_module_id {
+            Some(import_module_id) => {
+                // Resolve the ModDef corresponding to the SourceId if it exists:
+                match self.checked_sources().get_source_mod_def(SourceId::Module(import_module_id))
+                {
+                    Some(already_checked_mod_term) => {
+                        // Already exists, meaning this module has been checked before:
+                        Ok(already_checked_mod_term)
+                    }
+                    None => {
+                        // Module has not been checked before, time to check it:
+
+                        // First, create a new storage reference for the child module:
+                        let node_map = self.node_map;
+                        let storage_ref_mut = self.storages_mut();
+                        let mut child_local_storage =
+                            LocalStorage::new(storage_ref_mut.global_storage);
+                        let storage_ref_mut = StorageRefMut {
+                            local_storage: &mut child_local_storage,
+                            ..storage_ref_mut
+                        };
+
+                        // Visit the child module
+                        let mut child_visitor = TcVisitor::new_in_source(
+                            storage_ref_mut,
+                            SourceId::Module(import_module_id),
+                            node_map,
+                        );
+                        let module_term = child_visitor.visit_source()?;
+                        Ok(module_term)
+                    }
+                }
+            }
+            None => {
+                // This should never happen because all modules should have been parsed by now.
+                let unresolved_import_term = self.builder().create_unresolved_term();
+                let import_location = self.source_location(node.span());
+                self.builder().add_location_to_target(unresolved_import_term, import_location);
+                tc_panic!(
+                    unresolved_import_term,
+                    self,
+                    "Found import path that hasn't been resolved to a module!"
+                )
+            }
+        }
     }
 
     type ImportExprRet = TermId;
