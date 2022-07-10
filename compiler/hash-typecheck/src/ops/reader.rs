@@ -1,6 +1,5 @@
 //! Contains helpers to read various things stored in [crate::storage] with
 //! ease.
-use hash_source::SourceId;
 
 use crate::storage::{
     primitives::{
@@ -60,11 +59,5 @@ impl<'gs> PrimitiveReader<'gs> {
     /// Get the trait definition with the given [TrtDefId].
     pub fn get_trt_def(&self, trt_def_id: TrtDefId) -> &TrtDef {
         self.gs.trt_def_store.get(trt_def_id)
-    }
-
-    /// Get the module definition ID of the given source, if it has already been
-    /// checked.
-    pub fn get_source_term(&self, source_id: SourceId) -> Option<ModDefId> {
-        self.gs.checked_sources.source_type_id(source_id)
     }
 }
