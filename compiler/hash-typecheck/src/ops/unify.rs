@@ -268,14 +268,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 let mut first_error = None;
                 for inner_src_id in inner_src {
                     match self.unify_terms(inner_src_id, simplified_target_id) {
-                        Ok(result) => {
-                            return Ok(result);
-                        }
-                        Err(e) if first_error.is_none() => {
-                            first_error = Some(e);
-                            continue;
-                        }
-                        _ => continue,
+                        Ok(result) => return Ok(result),
+                        Err(e) => first_error = first_error.or(Some(e)),
                     }
                 }
                 match first_error {
@@ -291,14 +285,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 let mut first_error = None;
                 for inner_target_id in inner_target {
                     match self.unify_terms(simplified_src_id, inner_target_id) {
-                        Ok(result) => {
-                            return Ok(result);
-                        }
-                        Err(e) if first_error.is_none() => {
-                            first_error = Some(e);
-                            continue;
-                        }
-                        _ => continue,
+                        Ok(result) => return Ok(result),
+                        Err(e) => first_error = first_error.or(Some(e)),
                     }
                 }
                 match first_error {

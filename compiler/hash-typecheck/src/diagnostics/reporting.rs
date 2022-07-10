@@ -496,8 +496,8 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
 
                     // @@Todo(feds01): add more helpful information about why
-                    // this particular type cannot be
-                    // used within this position
+                    // this particular type cannot be used
+                    // within this position
                 }
             }
             TcError::InvalidTypeFunctionParameterType { param_ty } => {
