@@ -316,6 +316,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // are specified, although the ordering shouldn't matter
                     validate_param_list_ordering(&fields, ParamListKind::Params(fields_id))?;
 
+                    // Validate all fields of an struct def implement `RtInstantiable`
                     let rti_trt = self.core_defs().runtime_instantiable_trt;
                     for field in fields.positional().iter() {
                         let field_ty = self.typer().ty_of_term(field.ty)?;
@@ -327,7 +328,32 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                 Ok(())
             }
-            NominalDef::Enum(_) => todo!(),
+            NominalDef::Enum(enum_def) => {
+                for (_, variant) in enum_def.variants.clone().iter() {
+                    let variant_fields = self.params_store().get(variant.fields).clone();
+
+                    // Validate the ordering and the number of times parameter field names
+                    // are specified, although the ordering shouldn't matter
+                    //
+                    // @@Unnecessary?
+                    validate_param_list_ordering(
+                        &variant_fields,
+                        ParamListKind::Params(variant.fields),
+                    )?;
+
+                    // Validate all fields of an struct def implement `RtInstantiable`
+                    let rti_trt = self.core_defs().runtime_instantiable_trt;
+
+                    for field in variant_fields.positional().iter() {
+                        let field_ty = self.typer().ty_of_term(field.ty)?;
+                        let dummy_rt = self.builder().create_trt_term(rti_trt);
+
+                        self.unifier().unify_terms(field_ty, dummy_rt)?;
+                    }
+                }
+
+                Ok(())
+            }
         }
     }
 
