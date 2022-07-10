@@ -335,8 +335,11 @@ pub struct EnumVariant {
 /// An enum definition, containing a binding name and a set of variants.
 #[derive(Debug, Clone)]
 pub struct EnumDef {
+    /// The name of the `EnumDef`, useful for error reporting
     pub name: Option<Identifier>,
+    /// Any free variables that occur within the `variants` of the [EnumDef].
     pub bound_vars: BoundVars,
+    /// All of the defined variants that occur within the [EnumDef].
     pub variants: HashMap<Identifier, EnumVariant>,
 }
 
