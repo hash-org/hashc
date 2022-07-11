@@ -142,7 +142,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
 /// Represents a kind of pattern, with information about it.
 #[derive(Clone, Debug)]
 pub enum PatternHint {
-    Binding { name: Identifier },
+    Binding { name: Identifier, mutability: Mutability, visibility: Visibility },
 }
 
 /// Implementation of [visitor::AstVisitor] for [TcVisitor], to traverse the AST
@@ -1489,10 +1489,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::Declaration { pattern, ty, value } = walk::walk_declaration(self, ctx, node)?;
 
         // @@Todo: deal with other kinds of patterns:
-        let name = match pattern {
-            PatternHint::Binding { name } => {
+        let PatternHint::Binding { name, mutability, visibility } = match pattern {
+            PatternHint::Binding { name, .. } => {
                 self.state.declaration_name_hint = Some(name);
-                name
+                pattern
             }
         };
 
@@ -1516,8 +1516,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let member_id = self.scope_store_mut().get_mut(current_scope_id).add(Member {
             name,
             data: MemberData::from_ty_and_value(Some(ty), value),
-            mutability: Mutability::Immutable,
-            visibility: Visibility::Private,
+            mutability,
+            visibility,
         });
 
         self.copy_location_from_node_to_target(
@@ -1964,7 +1964,17 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        Ok(PatternHint::Binding { name: node.name.body().ident })
+        Ok(PatternHint::Binding {
+            name: node.name.body().ident,
+            mutability: match node.mutability.as_ref().map(|x| *x.body()) {
+                Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
+                Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
+            },
+            visibility: match node.visibility.as_ref().map(|x| *x.body()) {
+                Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
+                Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
+            },
+        })
     }
 
     type SpreadPatternRet = PatternHint;
