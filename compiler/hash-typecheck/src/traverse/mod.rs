@@ -1166,9 +1166,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let hint_return_ty = self.state.fn_def_return_ty;
         let return_ty_or_unresolved = self.builder().or_unresolved_term(hint_return_ty);
 
-        // @@Todo: handle the case where body is void but still valid
-        let ty_of_body = self.typer().ty_of_term(fn_body)?;
-        let body_sub = self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?;
+        let body_sub = {
+            let ty_of_body = self.typer().ty_of_term(fn_body)?;
+            match hint_return_ty {
+                Some(_) => {
+                    // Try to unify ty_of_body with void, and if so, then ty of
+                    // body should be unresolved:
+                    let void = self.builder().create_void_ty_term();
+                    match self.unifier().unify_terms(ty_of_body, void) {
+                        Ok(_) => Sub::empty(),
+                        Err(_) => {
+                            // Must be returning the same type:
+                            self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?
+                        }
+                    }
+                }
+                None => self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?,
+            }
+        };
 
         let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
         let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
