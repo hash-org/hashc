@@ -38,12 +38,14 @@ mod sequence;
 pub struct TcVisitorState {
     /// Pattern hint from declaration
     pub declaration_name_hint: Option<Identifier>,
+    /// Return type for functions with return statements
+    pub fn_def_return_ty: Option<TermId>,
 }
 
 impl TcVisitorState {
     /// Create a new [TcVisitorState]
     pub fn new() -> Self {
-        Self { declaration_name_hint: None }
+        Self::default()
     }
 }
 
@@ -1151,15 +1153,37 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let return_ty =
             node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
 
+        // Add return type to hint if given
+        if let Some(return_ty) = return_ty {
+            let _ = self.state.fn_def_return_ty.insert(return_ty);
+        }
+
         let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
         let param_scope = self.scope_resolver().enter_rt_param_scope(params_potentially_unresolved);
 
         let fn_body = self.visit_expression(ctx, node.fn_body.ast_ref())?;
 
-        // @@Todo: deal with `return` statements inside the body
-        let return_ty_or_unresolved = self.builder().or_unresolved_term(return_ty);
-        let ty_of_body = self.typer().ty_of_term(fn_body)?;
-        let body_sub = self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?;
+        let hint_return_ty = self.state.fn_def_return_ty;
+        let return_ty_or_unresolved = self.builder().or_unresolved_term(hint_return_ty);
+
+        let body_sub = {
+            let ty_of_body = self.typer().ty_of_term(fn_body)?;
+            match hint_return_ty {
+                Some(_) => {
+                    // Try to unify ty_of_body with void, and if so, then ty of
+                    // body should be unresolved:
+                    let void = self.builder().create_void_ty_term();
+                    match self.unifier().unify_terms(ty_of_body, void) {
+                        Ok(_) => Sub::empty(),
+                        Err(_) => {
+                            // Must be returning the same type:
+                            self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?
+                        }
+                    }
+                }
+                None => self.unifier().unify_terms(ty_of_body, return_ty_or_unresolved)?,
+            }
+        };
 
         let return_value = self.substituter().apply_sub_to_term(&body_sub, fn_body);
         let return_ty = self.substituter().apply_sub_to_term(&body_sub, return_ty_or_unresolved);
@@ -1178,6 +1202,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
 
         self.copy_location_from_node_to_target(node, fn_ty_term);
+
+        // Clear return type
+        let _ = self.state.fn_def_return_ty.take();
 
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
@@ -1400,15 +1427,28 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ReturnStatement>,
     ) -> Result<Self::ReturnStatementRet, Self::Error> {
-        let walk::ReturnStatement(_) = walk::walk_return_statement(self, ctx, node)?;
-        let builder = self.builder();
+        let walk::ReturnStatement(return_term) = walk::walk_return_statement(self, ctx, node)?;
 
-        let ret_ty = builder.create_void_ty_term();
-        let term = builder.create_rt_term(ret_ty);
+        // Add the given return value's type to the return type hint.
+        // Return term is either given or void.
+        let return_term = return_term.unwrap_or_else(|| {
+            let builder = self.builder();
+            let term = builder.create_rt_term(builder.create_void_ty_term());
+            self.copy_location_from_node_to_target(node, term);
+            term
+        });
+        let return_ty = self.typer().ty_of_term(return_term)?;
+        let already_given_return_ty =
+            self.state.fn_def_return_ty.unwrap_or_else(|| self.builder().create_unresolved_term());
+        let return_ty_sub = self.unifier().unify_terms(return_ty, already_given_return_ty)?;
+        let unified_return_ty =
+            self.substituter().apply_sub_to_term(&return_ty_sub, already_given_return_ty);
+        let _ = self.state.fn_def_return_ty.insert(unified_return_ty);
 
-        self.copy_location_from_node_to_target(node, term);
-
-        Ok(term)
+        // Return never as the return expression shouldn't evaluate to anything.
+        let never_term = self.builder().create_never_term();
+        self.copy_location_from_node_to_target(node, never_term);
+        Ok(never_term)
     }
 
     type BreakStatementRet = TermId;
