@@ -236,6 +236,10 @@ impl<T> AstNodes<T> {
     pub fn span(&self) -> Option<Span> {
         self.span.or_else(|| Some(self.nodes.first()?.span().join(self.nodes.last()?.span())))
     }
+
+    pub fn ast_ref_iter(&self) -> impl Iterator<Item = AstNodeRef<T>> {
+        self.nodes.iter().map(|x| x.ast_ref())
+    }
 }
 
 impl<T> Deref for AstNodes<T> {
