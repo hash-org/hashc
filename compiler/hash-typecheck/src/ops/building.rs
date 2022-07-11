@@ -424,39 +424,44 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_scope(Scope::new(ScopeKind::Constant, members))
     }
 
-    /// Create a trait definition with no name, and the given members.
-    pub fn create_nameless_trait_def(
-        &self,
-        members: impl Iterator<Item = Member>,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> TrtDefId {
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
-            name: None,
-            members: self.create_constant_scope(members),
-            bound_vars: bound_vars.into_iter().collect(),
-        });
-        trt_def_id
-    }
-
-    /// Create a trait definition with the given name, and members.
-    ///
-    /// This adds the name to the scope.
+    /// Create a trait definition either being named or nameless.
     pub fn create_trt_def(
         &self,
-        trait_name: impl Into<Identifier>,
+        trait_name: Option<impl Into<Identifier>>,
         members: impl IntoIterator<Item = Member>,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
-        let name = trait_name.into();
+        let name = trait_name.map(|t| t.into());
         let members = self.create_constant_scope(members);
+
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
-            name: Some(name),
+            name,
             members,
             bound_vars: bound_vars.into_iter().collect(),
         });
         let trt_def_ty = self.create_trt_kind_term();
         let trt_def_value = self.create_trt_term(trt_def_id);
-        self.add_pub_member_to_scope(name, trt_def_ty, trt_def_value);
+
+        if let Some(name) = name {
+            self.add_pub_member_to_scope(name, trt_def_ty, trt_def_value);
+        }
+
+        trt_def_id
+    }
+
+    /// Create a trait definition with no name, and the given members.
+    pub fn create_nameless_trt_def(
+        &self,
+        members: impl Iterator<Item = Member>,
+        bound_vars: impl IntoIterator<Item = Var>,
+    ) -> TrtDefId {
+        let members = self.create_constant_scope(members);
+
+        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
+            name: None,
+            members,
+            bound_vars: bound_vars.into_iter().collect(),
+        });
         trt_def_id
     }
 

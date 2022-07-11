@@ -92,7 +92,7 @@ impl CoreDefs {
         // Marker trait for types that are runtime instantiable
         // We call this "Type" because that's what people usually mean when they say
         // "type".
-        let runtime_instantiable_trt = builder.create_trt_def("Type", [], []);
+        let runtime_instantiable_trt = builder.create_trt_def(Some("Type"), [], []);
 
         // Never type
         let never_ty = builder.create_never_term();
@@ -152,7 +152,7 @@ impl CoreDefs {
 
         // Hash and Eq traits
         let hash_trt = builder.create_trt_def(
-            "Hash",
+            Some("Hash"),
             [
                 builder.create_uninitialised_constant_member(
                     "Self",
@@ -174,7 +174,7 @@ impl CoreDefs {
             [],
         );
         let eq_trt = builder.create_trt_def(
-            "Eq",
+            Some("Eq"),
             [
                 builder.create_uninitialised_constant_member(
                     "Self",

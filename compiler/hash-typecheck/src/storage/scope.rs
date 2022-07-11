@@ -17,8 +17,8 @@ impl ScopeStore {
     }
 
     /// Create a scope, returning its assigned [ScopeId].
-    pub fn create(&mut self, ty: Scope) -> ScopeId {
-        self.data.insert(ty)
+    pub fn create(&mut self, scope: Scope) -> ScopeId {
+        self.data.insert(scope)
     }
 
     /// Get a scope by [ScopeId].
@@ -26,15 +26,15 @@ impl ScopeStore {
     /// If the scope is not found, this function will panic. However, this
     /// shouldn't happen because the only way to acquire a scope is to use
     /// [Self::create], and scopes cannot be deleted.
-    pub fn get(&self, ty_id: ScopeId) -> &Scope {
-        self.data.get(ty_id).unwrap()
+    pub fn get(&self, scope_id: ScopeId) -> &Scope {
+        self.data.get(scope_id).unwrap()
     }
 
     /// Get a scope by [ScopeId], mutably.
     ///
     /// If the scope is not found, this function will panic.
-    pub fn get_mut(&mut self, ty_id: ScopeId) -> &mut Scope {
-        self.data.get_mut(ty_id).unwrap()
+    pub fn get_mut(&mut self, scope_id: ScopeId) -> &mut Scope {
+        self.data.get_mut(scope_id).unwrap()
     }
 }
 
