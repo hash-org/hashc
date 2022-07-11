@@ -2001,6 +2001,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         );
 
         let term = self.builder().create_mod_def_term(mod_def);
+        self.validator().validate_mod_def(mod_def, term)?;
 
         // Add location tot the term
         let location = self.source_location(node.span());
