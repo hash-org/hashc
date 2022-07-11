@@ -1325,7 +1325,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Validate the definition
         self.validator().validate_mod_def(mod_def, term)?;
 
-        // Add location tot the term
+        // Add location to the term
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(term, location);
 
@@ -1336,10 +1336,28 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_impl_block(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        todo!()
+        let members = self.builder().create_constant_scope(vec![]);
+        self.scopes_mut().append(members);
+
+        let _ = walk::walk_impl_block(self, ctx, node)?;
+
+        let name = self.state.declaration_name_hint.take();
+        let trait_impl =
+            self.builder().create_mod_def(name, ModDefOrigin::AnonImpl, members, vec![]);
+
+        let term = self.builder().create_mod_def_term(trait_impl);
+        self.validator().validate_mod_def(trait_impl, term)?;
+
+        // Add location to the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        self.scopes_mut().pop_the_scope(members);
+
+        Ok(term)
     }
 
     type IfClauseRet = TermId;
@@ -1790,10 +1808,28 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_trait_impl(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        todo!()
+        let members = self.builder().create_constant_scope(vec![]);
+        self.scopes_mut().append(members);
+
+        let walk::TraitImpl { ty, .. } = walk::walk_trait_impl(self, ctx, node)?;
+
+        let name = self.state.declaration_name_hint.take();
+        let trait_impl =
+            self.builder().create_mod_def(name, ModDefOrigin::TrtImpl(ty), members, vec![]);
+
+        let term = self.builder().create_mod_def_term(trait_impl);
+        self.validator().validate_mod_def(trait_impl, term)?;
+
+        // Add location to the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        self.scopes_mut().pop_the_scope(members);
+
+        Ok(term)
     }
 
     type PatternRet = PatternHint;
@@ -2003,7 +2039,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_mod_def_term(mod_def);
         self.validator().validate_mod_def(mod_def, term)?;
 
-        // Add location tot the term
+        // Add location to the term
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(term, location);
 
