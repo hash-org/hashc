@@ -836,13 +836,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // Apply the function:
 
                 // Must be a function:
-                let fn_ty = self.use_term_as_fn_call_subject(fn_call.subject)?;
+                let simplified_subject = self.potentially_simplify_term(fn_call.subject)?;
+                let fn_ty = self.use_term_as_fn_call_subject(simplified_subject)?;
 
                 // Unify params with args:
                 let params_sub = self.unifier().unify_params_with_args(
                     fn_ty.params,
                     fn_call.args,
-                    fn_call.subject,
+                    simplified_subject,
                     originating_term,
                     UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                 )?;

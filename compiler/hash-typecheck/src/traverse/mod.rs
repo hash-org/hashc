@@ -1594,10 +1594,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // We just translate this to a function call:
         let builder = self.builder();
-        let index_fn_call_args = builder.create_args(
-            [builder.create_nameless_arg(subject), builder.create_nameless_arg(index_expr)],
-            ParamOrigin::Fn,
-        );
+        let index_fn_call_args =
+            builder.create_args([builder.create_nameless_arg(index_expr)], ParamOrigin::Fn);
         let index_fn_call_subject = builder.create_prop_access(subject, "index");
         let index_fn_call = builder.create_fn_call_term(index_fn_call_subject, index_fn_call_args);
 
