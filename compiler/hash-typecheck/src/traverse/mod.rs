@@ -1306,10 +1306,30 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_mod_block(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        todo!()
+        // create a scope for the module definition
+        let members = self.builder().create_constant_scope(vec![]);
+        self.scopes_mut().append(members);
+
+        let _ = walk::walk_mod_block(self, ctx, node)?;
+
+        // Take the name hint from the defined declaration and use it as
+        // the name for the module definition.
+        let name = self.state.declaration_name_hint.take();
+
+        let mod_def = self.builder().create_mod_def(name, ModDefOrigin::Mod, members, vec![]);
+        let term = self.builder().create_mod_def_term(mod_def);
+
+        // Validate the definition
+        self.validator().validate_mod_def(mod_def, term)?;
+
+        // Add location tot the term
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type ImplBlockRet = TermId;
