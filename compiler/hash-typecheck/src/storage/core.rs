@@ -185,7 +185,7 @@ impl CoreDefs {
 
         // Index trait
         let index_trt = builder.create_trt_def(
-            "Index",
+            Some("Index"),
             [
                 builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
                 builder.create_uninitialised_constant_member("Index", ty_term, Visibility::Public),
