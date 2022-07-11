@@ -347,8 +347,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             {
                 // Unify inner, then unify the resultant substitution with the ones given here:
                 let inner_sub = self.unify_terms(src_app_sub.term, target_app_sub.term)?;
-                let unified_app_subs = self.unify_subs(&src_app_sub.sub, &target_app_sub.sub)?;
-                self.unify_subs(&unified_app_subs, &inner_sub)
+                self.unify_subs(&src_app_sub.sub, &inner_sub)
             }
             (Term::AppSub(_), _) | (_, Term::AppSub(_)) => {
                 // Otherwise they don't unify (since we start with simplified terms)

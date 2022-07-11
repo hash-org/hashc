@@ -553,10 +553,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_property_access_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyAccessExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyAccessExpr>,
     ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
-        todo!()
+        let walk::PropertyAccessExpr { subject, property } =
+            walk::walk_property_access_expr(self, ctx, node)?;
+        let term = self.builder().create_prop_access(subject, property);
+        self.copy_location_from_node_to_target(node, term);
+        Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
     type RefExprRet = TermId;
@@ -1590,12 +1594,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // We just translate this to a function call:
         let builder = self.builder();
-        let index_fn_call_args =
-            builder.create_args([builder.create_arg("value", index_expr)], ParamOrigin::Fn);
-        let index_fn_call = builder.create_fn_call_term(subject, index_fn_call_args);
+        let index_fn_call_args = builder.create_args(
+            [builder.create_nameless_arg(subject), builder.create_nameless_arg(index_expr)],
+            ParamOrigin::Fn,
+        );
+        let index_fn_call_subject = builder.create_prop_access(subject, "index");
+        let index_fn_call = builder.create_fn_call_term(index_fn_call_subject, index_fn_call_args);
 
         // Add locations:
         self.copy_location_from_node_to_target(node, index_fn_call);
+        self.copy_location_from_node_to_target(node.subject.ast_ref(), index_fn_call_subject);
         self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
 
         // @@ErrorReporting: We could provide customised error reporting here.
