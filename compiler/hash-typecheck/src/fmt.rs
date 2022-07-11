@@ -2,9 +2,9 @@
 //! debug output.
 use crate::storage::{
     primitives::{
-        ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefId,
-        ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, ScopeId, StructDef, Sub,
-        SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, MemberData,
+        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, ScopeId, StructDef,
+        Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -311,7 +311,11 @@ impl<'gs> TcFormatter<'gs> {
             Term::Access(access_term) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, access_term.subject, opts)?;
-                write!(f, "::{}", access_term.name)?;
+                let op = match access_term.op {
+                    AccessOp::Namespace => "::",
+                    AccessOp::Property => ".",
+                };
+                write!(f, "{}{}", op, access_term.name)?;
                 Ok(())
             }
             Term::Var(var) => {

@@ -4,7 +4,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::error::{TcError, TcResult},
     storage::{
-        primitives::{ParamsId, ScopeId, ScopeMember, TermId, Visibility},
+        primitives::{ParamsId, ScopeId, ScopeMember, Sub, SubSubject, TermId, Visibility},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -79,6 +79,28 @@ impl<'gs, 'ls, 'cd, 's> ScopeResolver<'gs, 'ls, 'cd, 's> {
             }));
         self.scopes_mut().append(param_scope);
         param_scope
+    }
+
+    /// Enter a substitution, which is a scope that contains all the mappings in
+    /// the given substitution.
+    ///
+    /// This is creates a constant scope, and assigns each domain element of
+    /// type [SubSubject::Var] to its corresponding range element.
+    pub(crate) fn enter_sub_param_scope(&mut self, sub: &Sub) -> ScopeId {
+        let builder = self.builder();
+        let sub_scope =
+            builder.create_constant_scope(sub.pairs().filter_map(|(domain_el, range_el)| {
+                match domain_el {
+                    SubSubject::Var(var) => Some(builder.create_constant_member_infer_ty(
+                        var.name,
+                        range_el,
+                        Visibility::Private,
+                    )),
+                    SubSubject::Unresolved(_) => None,
+                }
+            }));
+        self.scopes_mut().append(sub_scope);
+        sub_scope
     }
 
     /// Enter a parameter scope, which is a scope that contains all the given

@@ -19,7 +19,7 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{OwnsAstNode, RefKind},
+    ast::{AstNodeRef, OwnsAstNode, RefKind},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -100,9 +100,42 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         Ok(result)
     }
 
-    /// Create a [SourceLocation] from a [Span]
+    /// Create a [SourceLocation] from a [Span].
     pub(crate) fn source_location(&self, span: Span) -> SourceLocation {
         SourceLocation { span, source_id: self.source_id }
+    }
+
+    /// Create a [SourceLocation] at the given [hash_ast::ast::AstNode].
+    pub(crate) fn source_location_at_node<N>(&self, node: AstNodeRef<N>) -> SourceLocation {
+        let node_span = node.span();
+        self.source_location(node_span)
+    }
+
+    /// Copy the [SourceLocation] of the given [hash_ast::ast::AstNode] to the
+    /// given [LocationTarget].
+    pub(crate) fn copy_location_from_node_to_target<N>(
+        &mut self,
+        node: AstNodeRef<N>,
+        target: impl Into<LocationTarget>,
+    ) {
+        let location = self.source_location_at_node(node);
+        self.location_store_mut().add_location_to_target(target, location);
+    }
+
+    /// Copy the [SourceLocation] of the given [hash_ast::ast::AstNode] list to
+    /// the given [LocationTarget] list represented by a type `Target` where
+    /// `(Target, usize)` implements [Into<LocationTarget>].
+    pub(crate) fn copy_location_from_nodes_to_targets<'n, N: 'n, Target>(
+        &mut self,
+        nodes: impl IntoIterator<Item = AstNodeRef<'n, N>>,
+        targets: Target,
+    ) where
+        (Target, usize): Into<LocationTarget>,
+        Target: Copy,
+    {
+        for (index, param) in nodes.into_iter().enumerate() {
+            self.copy_location_from_node_to_target(param, (targets, index));
+        }
     }
 }
 
@@ -205,8 +238,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = builder.create_rt_term(map_ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -244,8 +276,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = builder.create_rt_term(list_ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -271,8 +302,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = builder.create_rt_term(set_ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -291,8 +321,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let value_ty = self.typer().ty_of_term(value)?;
 
         // Append location to value term
-        let value_location = self.source_location(node.value.span());
-        self.location_store_mut().add_location_to_target(value_ty, value_location);
+        self.copy_location_from_node_to_target(node.value.ast_ref(), value_ty);
 
         // Check that the type of the value and the type annotation match and then apply
         // the substitution onto ty
@@ -317,15 +346,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let params = builder.create_params(elements, ParamOrigin::Tuple);
         let term = builder.create_rt_term(builder.create_tuple_ty_term(params));
 
-        // add the location of each parameter
-        for (index, param) in node.elements.iter().enumerate() {
-            let location = self.source_location(param.span());
-            self.location_store_mut().add_location_to_target((params, index), location);
-        }
-
-        // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        // add the location of each parameter, and the term, to the location storage
+        self.copy_location_from_nodes_to_targets(node.elements.ast_ref_iter(), params);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -342,8 +365,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -360,8 +382,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -378,8 +399,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -396,8 +416,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -414,8 +433,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(ty);
 
         // add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -459,8 +477,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::VariableExprRet, Self::Error> {
         let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
 
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(name, location);
+        self.copy_location_from_node_to_target(node, name);
 
         let TermValidation { simplified_term_id, .. } = self.validator().validate_term(name)?;
         Ok(simplified_term_id)
@@ -506,10 +523,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let args = self.builder().create_args(entries, ParamOrigin::Unknown);
 
         // Add locations:
-        for (index, arg) in node.entries.iter().enumerate() {
-            let location = self.source_location(arg.span());
-            self.location_store_mut().add_location_to_target((args, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), args);
 
         Ok(args)
     }
@@ -529,8 +543,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let return_term = self.builder().create_rt_term(return_term_ty);
 
         // Set location:
-        let fn_call_location = self.source_location(node.span());
-        self.builder().add_location_to_target(return_term_ty, fn_call_location);
+        self.copy_location_from_node_to_target(node, return_term);
+        self.copy_location_from_node_to_target(node, return_term_ty);
 
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
@@ -539,10 +553,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_property_access_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyAccessExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyAccessExpr>,
     ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
-        todo!()
+        let walk::PropertyAccessExpr { subject, property } =
+            walk::walk_property_access_expr(self, ctx, node)?;
+        let term = self.builder().create_prop_access(subject, property);
+        self.copy_location_from_node_to_target(node, term);
+        Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
     type RefExprRet = TermId;
@@ -572,8 +590,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = builder.create_rt_term(ref_ty);
 
         // Add location to the type:
-        let ref_expr_span = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, ref_expr_span);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -632,8 +649,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(inner_ty);
 
         // Add the location to the type
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -736,8 +752,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             None => {
                 // This should never happen because all modules should have been parsed by now.
                 let unresolved_import_term = self.builder().create_unresolved_term();
-                let import_location = self.source_location(node.span());
-                self.builder().add_location_to_target(unresolved_import_term, import_location);
+                self.copy_location_from_node_to_target(node, unresolved_import_term);
                 tc_panic!(
                     unresolved_import_term,
                     self,
@@ -778,18 +793,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
 
-        // We have to append locations to each of the parameters
-        for (index, entry) in node.body().entries.iter().enumerate() {
-            let location = self.source_location(entry.span());
-            self.location_store_mut().add_location_to_target((members, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), members);
 
         let builder = self.builder();
         let term = builder.create_tuple_ty_term(members);
 
-        // Add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -813,9 +822,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let term = builder.create_rt_term(list_ty);
 
-        // Add the location to the type
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -839,9 +846,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let term = builder.create_rt_term(set_ty);
 
-        // Add the location to the type
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -868,9 +873,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let term = builder.create_rt_term(map_ty);
 
-        // Add the location to the type
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -883,11 +886,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
     ) -> Result<Self::NamedFieldTyRet, Self::Error> {
         let walk::NamedFieldTyEntry { ty, name } = walk::walk_named_field_ty(self, ctx, node)?;
-
-        // Add the location of the type
-        let location = self.source_location(node.ty.span());
-        self.location_store_mut().add_location_to_target(ty, location);
-
+        self.copy_location_from_node_to_target(node, ty);
         Ok(Param { ty, name, default_value: None })
     }
 
@@ -902,17 +901,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let params = self.builder().create_params(params, ParamOrigin::Fn);
 
         // Add all the locations to the parameters:
-        for (index, param) in node.params.iter().enumerate() {
-            let location = self.source_location(param.span());
-            self.location_store_mut().add_location_to_target((params, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Create the function type term:
         let fn_ty_term = self.builder().create_fn_ty_term(params, return_ty);
 
         // Add location to the type:
-        let fn_ty_location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(fn_ty_term, fn_ty_location);
+        self.copy_location_from_node_to_target(node, fn_ty_term);
 
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
@@ -957,17 +952,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.scopes_mut().pop_the_scope(param_scope);
 
         // Add all the locations to the parameters:
-        for (index, param) in node.params.iter().enumerate() {
-            let location = self.source_location(param.span());
-            self.location_store_mut().add_location_to_target((params, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Create the type function type term:
         let ty_fn_ty_term = self.builder().create_ty_fn_ty_term(params, return_value);
 
         // Add location to the type:
-        let fn_ty_location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(ty_fn_ty_term, fn_ty_location);
+        self.copy_location_from_node_to_target(node, ty_fn_ty_term);
 
         Ok(self.validator().validate_term(ty_fn_ty_term)?.simplified_term_id)
     }
@@ -1000,17 +991,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         );
 
         // Add all the locations to the args:
-        for (index, entry) in node.body().args.iter().enumerate() {
-            let location = self.source_location(entry.span());
-            self.location_store_mut().add_location_to_target((args, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.args.ast_ref_iter(), args);
 
         // Create the type function call term:
         let app_ty_fn_term = self.builder().create_app_ty_fn_term(subject, args);
 
         // Add the location of the term to the location storage
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(app_ty_fn_term, location);
+        self.copy_location_from_node_to_target(node, app_ty_fn_term);
 
         Ok(self.validator().validate_term(app_ty_fn_term)?.simplified_term_id)
     }
@@ -1025,8 +1012,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         if node.name.path.len() == 1 && *node.name.path[0].body() == Identifier::from("_") {
             // Infer type if it is an underscore:
             let infer_term = self.builder().create_unresolved_term();
-            let infer_term_location = self.source_location(node.span());
-            self.builder().add_location_to_target(infer_term, infer_term_location);
+            self.copy_location_from_node_to_target(node, infer_term);
             Ok(infer_term)
         } else {
             let var = walk::walk_named_ty(self, ctx, node)?.name;
@@ -1059,15 +1045,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 self.core_defs().raw_reference_mut_ty_fn
             }
         };
-        let ref_ty_location = self.source_location(node.span());
-        let inner_ty_location = self.source_location(node.inner.span());
         let builder = self.builder();
         let ref_args = builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn);
         let ref_ty = builder.create_app_ty_fn_term(ref_def, ref_args);
 
         // Add locations:
-        builder.add_location_to_target(ref_ty, ref_ty_location);
-        builder.add_location_to_target(LocationTarget::Arg(ref_args, 0), inner_ty_location);
+        self.copy_location_from_node_to_target(node, ref_ty);
+        self.copy_location_from_node_to_target(node.inner.ast_ref(), (ref_args, 0));
 
         Ok(self.validator().validate_term(ref_ty)?.simplified_term_id)
     }
@@ -1084,8 +1068,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let merge_term = self.builder().create_merge_term(elements);
 
         // Add location
-        let merge_term_location = self.source_location(node.span());
-        self.builder().add_location_to_target(merge_term, merge_term_location);
+        self.copy_location_from_node_to_target(node, merge_term);
 
         Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
     }
@@ -1105,10 +1088,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let params = self.builder().create_params(param_elements, ParamOrigin::TyFn);
 
         // Add all the locations to the parameters:
-        for (index, param) in node.params.iter().enumerate() {
-            let location = self.source_location(param.span());
-            self.location_store_mut().add_location_to_target((params, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Enter parameter scope:
         let param_scope = self.scope_resolver().enter_ty_param_scope(params);
@@ -1130,8 +1110,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.builder().create_nameless_ty_fn_term(params, ty_fn_return_ty, ty_fn_return_value);
 
         // Add location to the type function:
-        let fn_ty_location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(ty_fn_term, fn_ty_location);
+        self.copy_location_from_node_to_target(node, ty_fn_term);
 
         let simplified_ty_fn_term = self.validator().validate_term(ty_fn_term)?.simplified_term_id;
 
@@ -1188,11 +1167,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.substituter().apply_sub_to_params(&body_sub, params_potentially_unresolved);
 
         // Add all the locations to the parameters
-        // @@Todo(feds01): re-factor this into a helper function
-        for (index, param) in node.params.iter().enumerate() {
-            let location = self.source_location(param.span());
-            self.location_store_mut().add_location_to_target((params, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Remove the scope of the params after the body has been checked.
         self.scopes_mut().pop_the_scope(param_scope);
@@ -1201,6 +1176,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let fn_ty_term =
             builder.create_fn_lit_term(builder.create_fn_ty_term(params, return_ty), return_value);
+
+        self.copy_location_from_node_to_target(node, fn_ty_term);
 
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
@@ -1268,8 +1245,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_rt_term(void_ty);
 
         // Add the location of the type as the whole block
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1326,8 +1303,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.validator().validate_mod_def(mod_def, term)?;
 
         // Add location to the term
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1430,8 +1406,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let ret_ty = builder.create_void_ty_term();
         let term = builder.create_rt_term(ret_ty);
 
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1447,8 +1422,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let void_ty = builder.create_void_ty_term();
         let term = builder.create_rt_term(void_ty);
 
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1464,8 +1438,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let void_ty = builder.create_void_ty_term();
         let term = builder.create_rt_term(void_ty);
 
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1547,8 +1520,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             visibility: Visibility::Private,
         });
 
-        let location = self.source_location(node.pattern.span());
-        self.location_store_mut().add_location_to_target((current_scope_id, member_id), location);
+        self.copy_location_from_node_to_target(
+            node.pattern.ast_ref(),
+            (current_scope_id, member_id),
+        );
 
         // Declaration should return its value if any:
         match value {
@@ -1612,10 +1587,25 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_index_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpression>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
-        todo!()
+        let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, ctx, node)?;
+
+        // We just translate this to a function call:
+        let builder = self.builder();
+        let index_fn_call_args =
+            builder.create_args([builder.create_nameless_arg(index_expr)], ParamOrigin::Fn);
+        let index_fn_call_subject = builder.create_prop_access(subject, "index");
+        let index_fn_call = builder.create_fn_call_term(index_fn_call_subject, index_fn_call_args);
+
+        // Add locations:
+        self.copy_location_from_node_to_target(node, index_fn_call);
+        self.copy_location_from_node_to_target(node.subject.ast_ref(), index_fn_call_subject);
+        self.copy_location_from_node_to_target(node.index_expr.ast_ref(), (index_fn_call_args, 0));
+
+        // @@ErrorReporting: We could provide customised error reporting here.
+        Ok(self.validator().validate_term(index_fn_call)?.simplified_term_id)
     }
 
     type StructDefEntryRet = Param;
@@ -1690,10 +1680,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let fields = self.builder().create_params(entries, ParamOrigin::Struct);
 
         // add the location of each parameter
-        for (index, param) in node.entries.iter().enumerate() {
-            let location = self.source_location(param.span());
-            self.location_store_mut().add_location_to_target((fields, index), location);
-        }
+        self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), fields);
 
         // take the declaration hint here...
         let name = self.state.declaration_name_hint.take();
@@ -1706,8 +1693,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.validator().validate_nominal_def(nominal_id)?;
 
         // add location to the struct definition
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1765,8 +1751,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.validator().validate_nominal_def(nominal_id)?;
 
         // add location to the struct definition
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -2040,8 +2025,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.validator().validate_mod_def(mod_def, term)?;
 
         // Add location to the term
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        self.copy_location_from_node_to_target(node, term);
 
         self.scopes_mut().pop_the_scope(members);
 

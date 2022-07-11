@@ -292,6 +292,22 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
+    /// Create a public member with the given name and value, with inferred
+    /// type.
+    pub fn create_constant_member_infer_ty(
+        &self,
+        name: impl Into<Identifier>,
+        value: TermId,
+        visibility: Visibility,
+    ) -> Member {
+        Member {
+            name: name.into(),
+            data: MemberData::InitialisedWithInferredTy { value },
+            visibility,
+            mutability: Mutability::Immutable,
+        }
+    }
+
     /// Create a public member with the given name, type and value.
     pub fn create_constant_member(
         &self,
@@ -589,6 +605,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create an argument with the given name and value.
     pub fn create_arg(&self, name: impl Into<Identifier>, value: TermId) -> Arg {
         Arg { name: Some(name.into()), value }
+    }
+
+    /// Create a nameless argument with the given value.
+    pub fn create_nameless_arg(&self, value: TermId) -> Arg {
+        Arg { name: None, value }
     }
 
     /// Create a type function application type, given type function value and

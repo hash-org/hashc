@@ -97,14 +97,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     }
 
     /// Convert an accessed type (or any other type for that matter) along with
-    /// a subject type, into a method call type.
+    /// a subject type, into a method call term.
     ///
     /// This is done by first ensuring that the accessed type is a function
     /// type. Then the first argument of the function type (self) is unified
     /// with the subject type. If that succeeds, a method function type is
     /// created, which is the same as the resolved function type without the
     /// first parameter (with the substitution from the unification applied).
-    fn turn_accessed_ty_and_subject_ty_into_method_ty(
+    fn turn_accessed_ty_and_subject_ty_into_method(
         &mut self,
         accessed_ty: TermId,
         subject_ty: TermId,
@@ -143,13 +143,13 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let builder = self.builder();
 
                 // Return the substituted type without the first parameter:
-                Ok(builder.create_fn_ty_term(
+                Ok(builder.create_rt_term(builder.create_fn_ty_term(
                     builder.create_params(
                         subbed_params.into_positional().into_iter().skip(1),
                         ParamOrigin::Fn,
                     ),
                     fn_ty.return_ty,
-                ))
+                )))
             }
             _ => {
                 // Invalid because it is not a method:
@@ -249,7 +249,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     // To get the function type, we need to get the type of the result.
                     let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
                     // Then we can try turn this into a method call
-                    return Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                    return Some(self.turn_accessed_ty_and_subject_ty_into_method(
                         ty_of_ty_access_result,
                         *ty_term_id,
                         access_term.subject,
@@ -274,7 +274,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 match accessed_result {
                     Some(accessed_result) => {
                         // Now we can try turn this into a method call
-                        Some(self.turn_accessed_ty_and_subject_ty_into_method_ty(
+                        Some(self.turn_accessed_ty_and_subject_ty_into_method(
                             accessed_result,
                             *ty_term_id,
                             access_term.subject,
@@ -462,18 +462,16 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Term::AppSub(app_sub) => {
-                // Apply the access on the subject:
+                // Add substitution to the scope:
+                let sub_scope = self.scope_resolver().enter_sub_param_scope(&app_sub.sub);
+
                 let inner_applied_term =
                     self.apply_access_term(&AccessTerm { subject: app_sub.term, ..*access_term })?;
-                match inner_applied_term {
-                    Some(inner_applied_term) => {
-                        // Successful access operation, apply the substitution on the result:
-                        Ok(Some(
-                            self.substituter().apply_sub_to_term(&app_sub.sub, inner_applied_term),
-                        ))
-                    }
-                    None => Ok(None), // Access resulted in no change
-                }
+
+                // Pop back the scope
+                self.scopes_mut().pop_the_scope(sub_scope);
+
+                Ok(inner_applied_term)
             }
             Term::Level3(level3_term) => {
                 self.apply_access_to_level3_term(&level3_term, access_term)
@@ -838,13 +836,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // Apply the function:
 
                 // Must be a function:
-                let fn_ty = self.use_term_as_fn_call_subject(fn_call.subject)?;
+                let simplified_subject = self.potentially_simplify_term(fn_call.subject)?;
+                let fn_ty = self.use_term_as_fn_call_subject(simplified_subject)?;
 
                 // Unify params with args:
                 let params_sub = self.unifier().unify_params_with_args(
                     fn_ty.params,
                     fn_call.args,
-                    fn_call.subject,
+                    simplified_subject,
                     originating_term,
                     UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                 )?;
