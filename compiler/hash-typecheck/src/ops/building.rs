@@ -432,10 +432,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
         let name = trait_name.map(|t| t.into());
+        let members = self.create_constant_scope(members);
 
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name,
-            members: self.create_constant_scope(members),
+            members,
             bound_vars: bound_vars.into_iter().collect(),
         });
         let trt_def_ty = self.create_trt_kind_term();
@@ -454,9 +455,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         members: impl Iterator<Item = Member>,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
+        let members = self.create_constant_scope(members);
+
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name: None,
-            members: self.create_constant_scope(members),
+            members,
             bound_vars: bound_vars.into_iter().collect(),
         });
         trt_def_id
