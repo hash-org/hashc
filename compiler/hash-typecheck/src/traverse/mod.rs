@@ -1757,10 +1757,33 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_trait_def(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        todo!()
+        // take the declaration hint here...
+        let trait_name = self.state.declaration_name_hint.take();
+
+        // create a scope for the module definition
+        let scope_id = self.builder().create_constant_scope(vec![]);
+        self.scopes_mut().append(scope_id);
+
+        let _ = walk::walk_trait_def(self, ctx, node)?;
+
+        // we need to get all of the current members from the scope and then pop it.
+        self.scopes_mut().pop_the_scope(scope_id);
+        let members = self.scope_store().get(scope_id).members.clone();
+
+        let def_id = self.builder().create_trt_def(trait_name, members, vec![]);
+        let term = self.builder().create_trt_term(def_id);
+
+        // validate the constructed nominal def
+        self.validator().validate_trt_def(def_id)?;
+
+        // add location to the struct definition
+        let location = self.source_location(node.span());
+        self.location_store_mut().add_location_to_target(term, location);
+
+        Ok(term)
     }
 
     type TraitImplRet = TermId;
