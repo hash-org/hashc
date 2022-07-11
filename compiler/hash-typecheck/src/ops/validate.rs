@@ -1,6 +1,4 @@
 //! Contains utilities to validate terms.
-#![allow(dead_code)]
-
 use std::fmt::Display;
 
 use super::{AccessToOps, AccessToOpsMut};

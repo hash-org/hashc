@@ -1,8 +1,5 @@
 //! Functionality related to resolving variables in scopes.
 
-// @@Temporary
-#![allow(dead_code)]
-
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::error::{TcError, TcResult},
