@@ -13,7 +13,8 @@ type =
   | function_type
   | type_function_call
   | type_function
-  | merged_types
+  | merge_type
+  | union_type
   | ref_type
 
 tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )+ type ")" )
@@ -39,7 +40,8 @@ type_function_param = ident ( ":" type )? ( "=" type )?
 
 type_function = "<" ( type_function_param "," )* type_function_param? ">" "->" type
 
-merged_types = ( type "~" )+ type
+merge_type = ( type "~" )+ type
+union_type = ( type "|" )+ type
 
 ref_type = "&" ( "raw" )? ( "mut" )? type
 ```

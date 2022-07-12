@@ -1068,21 +1068,36 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(ref_ty)?.simplified_term_id)
     }
 
-    type MergedTyRet = TermId;
+    type MergeTyRet = TermId;
 
-    fn visit_merged_ty(
+    fn visit_merge_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error> {
-        let walk::MergedTy(elements) = walk::walk_merged_ty(self, ctx, node)?;
-
-        let merge_term = self.builder().create_merge_term(elements);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error> {
+        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, ctx, node)?;
+        let merge_term = self.builder().create_merge_term(vec![lhs, rhs]);
 
         // Add location
         self.copy_location_from_node_to_target(node, merge_term);
 
         Ok(self.validator().validate_term(merge_term)?.simplified_term_id)
+    }
+
+    type UnionTyRet = TermId;
+
+    fn visit_union_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error> {
+        let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, ctx, node)?;
+        let union_term = self.builder().create_union_term(vec![lhs, rhs]);
+
+        // Add location
+        self.copy_location_from_node_to_target(node, union_term);
+
+        Ok(self.validator().validate_term(union_term)?.simplified_term_id)
     }
 
     type TyFnDefRet = TermId;

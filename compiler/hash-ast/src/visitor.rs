@@ -350,12 +350,19 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::RefTy>,
     ) -> Result<Self::RefTyRet, Self::Error>;
 
-    type MergedTyRet;
-    fn visit_merged_ty(
+    type MergeTyRet;
+    fn visit_merge_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error>;
+        node: ast::AstNodeRef<ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error>;
+
+    type UnionTyRet;
+    fn visit_union_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error>;
 
     type TyFnDefRet;
     fn visit_ty_fn_def(
@@ -1078,12 +1085,19 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::RefTy>,
     ) -> Result<Self::RefTyRet, Self::Error>;
 
-    type MergedTyRet;
-    fn visit_merged_ty(
+    type MergeTyRet;
+    fn visit_merge_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error>;
+
+    type UnionTyRet;
+    fn visit_union_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error>;
 
     type TyFnDefRet;
     fn visit_ty_fn_def(
@@ -2462,19 +2476,37 @@ pub mod walk {
         })
     }
 
-    pub struct MergedTy<V: AstVisitor>(pub V::CollectionContainer<V::TyRet>);
-
-    pub fn walk_merged_ty<V: AstVisitor>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::MergedTy>,
-    ) -> Result<MergedTy<V>, V::Error> {
-        Ok(MergedTy(V::try_collect_items(
-            ctx,
-            node.0.iter().map(|a| visitor.visit_ty(ctx, a.ast_ref())),
-        )?))
+    pub struct MergeTy<V: AstVisitor> {
+        pub lhs: V::TyRet,
+        pub rhs: V::TyRet,
     }
 
+    pub fn walk_merge_ty<V: AstVisitor>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::MergeTy>,
+    ) -> Result<MergeTy<V>, V::Error> {
+        Ok(MergeTy {
+            lhs: visitor.visit_ty(ctx, node.lhs.ast_ref())?,
+            rhs: visitor.visit_ty(ctx, node.rhs.ast_ref())?,
+        })
+    }
+
+    pub struct UnionTy<V: AstVisitor> {
+        pub lhs: V::TyRet,
+        pub rhs: V::TyRet,
+    }
+
+    pub fn walk_union_ty<V: AstVisitor>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::UnionTy>,
+    ) -> Result<UnionTy<V>, V::Error> {
+        Ok(UnionTy {
+            lhs: visitor.visit_ty(ctx, node.lhs.ast_ref())?,
+            rhs: visitor.visit_ty(ctx, node.rhs.ast_ref())?,
+        })
+    }
     pub struct TyFnCall<V: AstVisitor> {
         pub subject: V::TyRet,
         pub args: V::CollectionContainer<V::NamedFieldTyRet>,
@@ -2547,7 +2579,8 @@ pub mod walk {
         Map(V::MapTyRet),
         Named(V::NamedTyRet),
         Ref(V::RefTyRet),
-        Merged(V::MergedTyRet),
+        Merge(V::MergeTyRet),
+        Union(V::UnionTyRet),
         TyFn(V::TyFnRet),
         TyFnCall(V::TyFnCallRet),
     }
@@ -2565,7 +2598,8 @@ pub mod walk {
             ast::Ty::Map(r) => Ty::Map(visitor.visit_map_ty(ctx, node.with_body(r))?),
             ast::Ty::Named(r) => Ty::Named(visitor.visit_named_ty(ctx, node.with_body(r))?),
             ast::Ty::Ref(r) => Ty::Ref(visitor.visit_ref_ty(ctx, node.with_body(r))?),
-            ast::Ty::Merged(r) => Ty::Merged(visitor.visit_merged_ty(ctx, node.with_body(r))?),
+            ast::Ty::Merge(r) => Ty::Merge(visitor.visit_merge_ty(ctx, node.with_body(r))?),
+            ast::Ty::Union(r) => Ty::Union(visitor.visit_union_ty(ctx, node.with_body(r))?),
             ast::Ty::TyFn(r) => Ty::TyFn(visitor.visit_ty_fn_ty(ctx, node.with_body(r))?),
             ast::Ty::TyFnCall(r) => Ty::TyFnCall(visitor.visit_ty_fn_call(ctx, node.with_body(r))?),
         })
@@ -2585,7 +2619,8 @@ pub mod walk {
             MapTyRet = Ret,
             NamedTyRet = Ret,
             RefTyRet = Ret,
-            MergedTyRet = Ret,
+            MergeTyRet = Ret,
+            UnionTyRet = Ret,
             TyFnRet = Ret,
             TyFnCallRet = Ret,
         >,
@@ -2598,7 +2633,8 @@ pub mod walk {
             Ty::Map(r) => r,
             Ty::Named(r) => r,
             Ty::Ref(r) => r,
-            Ty::Merged(r) => r,
+            Ty::Merge(r) => r,
+            Ty::Union(r) => r,
             Ty::TyFn(r) => r,
             Ty::TyFnCall(r) => r,
         })
@@ -4262,17 +4298,20 @@ pub mod walk_mut {
         })
     }
 
-    pub struct MergedTy<V: AstVisitorMut>(pub V::CollectionContainer<V::TyRet>);
+    pub struct MergeTy<V: AstVisitorMut> {
+        pub lhs: V::TyRet,
+        pub rhs: V::TyRet,
+    }
 
-    pub fn walk_merged_ty<V: AstVisitorMut>(
+    pub fn walk_merge_ty<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::MergedTy>,
-    ) -> Result<MergedTy<V>, V::Error> {
-        Ok(MergedTy(V::try_collect_items(
-            ctx,
-            node.0.iter_mut().map(|a| visitor.visit_ty(ctx, a.ast_ref_mut())),
-        )?))
+        mut node: ast::AstNodeRefMut<ast::MergeTy>,
+    ) -> Result<MergeTy<V>, V::Error> {
+        Ok(MergeTy {
+            lhs: visitor.visit_ty(ctx, node.lhs.ast_ref_mut())?,
+            rhs: visitor.visit_ty(ctx, node.rhs.ast_ref_mut())?,
+        })
     }
 
     pub struct TyFnCall<V: AstVisitorMut> {
@@ -4347,7 +4386,8 @@ pub mod walk_mut {
         Map(V::MapTyRet),
         Named(V::NamedTyRet),
         Ref(V::RefTyRet),
-        Merged(V::MergedTyRet),
+        Merge(V::MergeTyRet),
+        Union(V::UnionTyRet),
         TyFn(V::TyFnRet),
         TyFnCall(V::TyFnCallRet),
     }
@@ -4374,8 +4414,11 @@ pub mod walk_mut {
                 Ty::Named(visitor.visit_named_ty(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::Ty::Ref(r) => Ty::Ref(visitor.visit_ref_ty(ctx, AstNodeRefMut::new(r, span, id))?),
-            ast::Ty::Merged(r) => {
-                Ty::Merged(visitor.visit_merged_ty(ctx, AstNodeRefMut::new(r, span, id))?)
+            ast::Ty::Merge(r) => {
+                Ty::Merge(visitor.visit_merge_ty(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::Ty::Union(r) => {
+                Ty::Union(visitor.visit_union_ty(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::Ty::TyFn(r) => {
                 Ty::TyFn(visitor.visit_ty_fn_ty(ctx, AstNodeRefMut::new(r, span, id))?)
@@ -4400,7 +4443,8 @@ pub mod walk_mut {
             MapTyRet = Ret,
             NamedTyRet = Ret,
             RefTyRet = Ret,
-            MergedTyRet = Ret,
+            MergeTyRet = Ret,
+            UnionTyRet = Ret,
             TyFnRet = Ret,
             TyFnCallRet = Ret,
         >,
@@ -4413,7 +4457,8 @@ pub mod walk_mut {
             Ty::Map(r) => r,
             Ty::Named(r) => r,
             Ty::Ref(r) => r,
-            Ty::Merged(r) => r,
+            Ty::Merge(r) => r,
+            Ty::Union(r) => r,
             Ty::TyFn(r) => r,
             Ty::TyFnCall(r) => r,
         })

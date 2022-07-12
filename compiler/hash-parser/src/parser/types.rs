@@ -1,39 +1,61 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
-use hash_ast::{ast::*, ast_nodes};
+use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Parse a [Type]. This includes all forms of a [Type]. This function
-    /// does not deal with any kind of [Type] annotation or [TypeFunctionDef]
+    /// Parse a [Ty]. This includes all forms of a [Ty]. This function
+    /// does not deal with any kind of [Ty] annotation or [TyFnDef]
     /// syntax.
     pub(crate) fn parse_type(&self) -> AstGenResult<AstNode<Ty>> {
-        let start = self.current_location();
-        let initial_ty = self.parse_singular_type()?;
-
-        if self.parse_token_fast(TokenKind::Tilde).is_some() {
-            let mut inner_tys = ast_nodes!(initial_ty);
-
-            loop {
-                inner_tys.nodes.push(self.parse_singular_type()?);
-
-                match self.parse_token_fast(TokenKind::Tilde) {
-                    Some(_) => continue,
-                    None => break,
-                }
-            }
-
-            return Ok(self.node_with_joined_span(Ty::Merged(MergedTy(inner_tys)), &start));
-        }
-
-        Ok(initial_ty)
+        self.parse_type_with_precedence(0)
     }
 
-    /// Parse a [Type]. This includes only singular forms of a type. This means
-    /// that [Type::Merged] variant is not handled because it makes the
-    /// `parse_type` function carry context from one call to the other.
+    /// Parse a [Ty] with precedence in mind. The type notation within hash
+    /// contains [TyOp] operators which are binary operators for type terms.
+    /// This function implements the same precedence algorithm for correctly
+    /// forming binary type expressions.
+    fn parse_type_with_precedence(&self, min_prec: u8) -> AstGenResult<AstNode<Ty>> {
+        let mut lhs = self.parse_singular_type()?;
+        let lhs_span = lhs.span();
+
+        loop {
+            let (op, consumed_tokens) = self.parse_type_operator();
+
+            match op {
+                Some(op) => {
+                    let (l_prec, r_prec) = op.infix_binding_power();
+
+                    // If the precedence from this operator is lower than our `min_prec` we
+                    // need to backtrack...
+                    if l_prec < min_prec {
+                        break;
+                    }
+
+                    self.offset.update(|x| x + consumed_tokens as usize);
+
+                    // Now recurse and get the `rhs` of the operator.
+                    let rhs = self.parse_type_with_precedence(r_prec)?;
+
+                    // transform the operator into an `UnaryTy` or `MergeTy` based on the operator
+                    lhs =
+                        match op {
+                            BinTyOp::Union => self
+                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), &lhs_span),
+                            BinTyOp::Merge => self
+                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), &lhs_span),
+                        }
+                }
+                _ => break,
+            }
+        }
+
+        Ok(lhs)
+    }
+
+    /// Parse a [Ty]. This includes only singular forms of a type.
     fn parse_singular_type(&self) -> AstGenResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(AstGenErrorKind::ExpectedType, None, None, Some(self.next_location()))
@@ -199,7 +221,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parses a [Type::Fn] which involves a parenthesis token tree with some
     /// arbitrary number of comma separated types followed by a return
-    /// [Type] that is preceded by an `thin-arrow` (->) after the
+    /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
     fn parse_function_or_tuple_type(&self) -> AstGenResult<Ty> {
         let mut params = AstNodes::empty();
