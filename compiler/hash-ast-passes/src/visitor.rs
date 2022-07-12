@@ -510,13 +510,23 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type MergedTyRet = ();
+    type MergeTyRet = ();
 
-    fn visit_merged_ty(
+    fn visit_merge_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type UnionTyRet = ();
+
+    fn visit_union_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error> {
         Ok(())
     }
 
