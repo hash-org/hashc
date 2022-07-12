@@ -1068,16 +1068,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(ref_ty)?.simplified_term_id)
     }
 
-    type MergedTyRet = TermId;
+    type MergeTyRet = TermId;
 
-    fn visit_merged_ty(
+    fn visit_merge_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error> {
-        let walk::MergedTy { lhs, rhs } = walk::walk_merged_ty(self, ctx, node)?;
-
-        // @@Todo: do we need to potentially flatten the lhs and rhs?
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error> {
+        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, ctx, node)?;
         let merge_term = self.builder().create_merge_term(vec![lhs, rhs]);
 
         // Add location
@@ -1094,8 +1092,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
     ) -> Result<Self::UnionTyRet, Self::Error> {
         let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, ctx, node)?;
-
-        // @@Todo: do we need to potentially flatten the lhs and rhs?
         let union_term = self.builder().create_union_term(vec![lhs, rhs]);
 
         // Add location

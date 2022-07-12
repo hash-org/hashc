@@ -66,10 +66,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Function to parse a [TyOp] which returns a type operator if one is
     /// present, and the number of tokens consumed. If no type operator follows,
     /// then the consumed tokens count will be 0.
-    pub(crate) fn parse_type_operator(&self) -> (Option<TyOp>, u8) {
+    pub(crate) fn parse_type_operator(&self) -> (Option<BinTyOp>, u8) {
         match self.peek() {
-            Some(token) if token.has_kind(TokenKind::Pipe) => (Some(TyOp::Union), 1),
-            Some(token) if token.has_kind(TokenKind::Tilde) => (Some(TyOp::Merge), 1),
+            Some(token) if token.has_kind(TokenKind::Pipe) => (Some(BinTyOp::Union), 1),
+            Some(token) if token.has_kind(TokenKind::Tilde) => (Some(BinTyOp::Merge), 1),
             _ => (None, 0),
         }
     }

@@ -594,16 +594,16 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type MergedTyRet = TreeNode;
-    fn visit_merged_ty(
+    type MergeTyRet = TreeNode;
+    fn visit_merge_ty(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error> {
-        let walk::MergedTy { lhs, rhs } = walk::walk_merged_ty(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error> {
+        let walk::MergeTy { lhs, rhs } = walk::walk_merge_ty(self, ctx, node)?;
 
         Ok(TreeNode::branch(
-            "merged_ty",
+            "merge_ty",
             vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
         ))
     }

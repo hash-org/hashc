@@ -40,14 +40,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     let rhs = self.parse_type_with_precedence(r_prec)?;
 
                     // transform the operator into an `UnaryTy` or `MergeTy` based on the operator
-                    lhs = match op {
-                        TyOp::Union => {
-                            self.node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), &lhs_span)
+                    lhs =
+                        match op {
+                            BinTyOp::Union => self
+                                .node_with_joined_span(Ty::Union(UnionTy { lhs, rhs }), &lhs_span),
+                            BinTyOp::Merge => self
+                                .node_with_joined_span(Ty::Merge(MergeTy { lhs, rhs }), &lhs_span),
                         }
-                        TyOp::Merge => {
-                            self.node_with_joined_span(Ty::Merged(MergedTy { lhs, rhs }), &lhs_span)
-                        }
-                    }
                 }
                 _ => break,
             }
@@ -56,9 +55,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(lhs)
     }
 
-    /// Parse a [Ty]. This includes only singular forms of a type. This means
-    /// that [Type::Merged] variant is not handled because it makes the
-    /// `parse_type` function carry context from one call to the other.
+    /// Parse a [Ty]. This includes only singular forms of a type.
     fn parse_singular_type(&self) -> AstGenResult<AstNode<Ty>> {
         let token = self.peek().ok_or_else(|| {
             self.make_error(AstGenErrorKind::ExpectedType, None, None, Some(self.next_location()))

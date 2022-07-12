@@ -513,13 +513,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type MergedTyRet = ();
+    type MergeTyRet = ();
 
-    fn visit_merged_ty(
+    fn visit_merge_ty(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergedTy>,
-    ) -> Result<Self::MergedTyRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeTy>,
+    ) -> Result<Self::MergeTyRet, Self::Error> {
         Ok(())
     }
 
