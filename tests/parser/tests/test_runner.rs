@@ -15,14 +15,8 @@ use hash_utils_testing_macros::generate_tests;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-extern crate static_assertions;
-
 /// Whether or not the UI tests should re-generate the output.
 const REGENERATE_OUTPUT: bool = false;
-
-// Assert that `REGENERATE_OUTPUT` isn't set to `true` in normal running
-// conditions
-static_assertions::const_assert!(!REGENERATE_OUTPUT);
 
 /// This is the ANSI Regular expression matcher. This will match all the
 /// specified ANSI escape codes that are used by the [`hash_reporting`] crate.
@@ -118,3 +112,20 @@ fn handle_test(input: TestingInput) {
 }
 // "case.hash" is the test pattern.
 generate_tests!("./cases/", r"^case\.hash$", "self", handle_test);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ensure_regenerate_output_is_disabled() {
+        assert!(
+            !REGENERATE_OUTPUT,
+            "
+        Verify that the `REGENERATE_OUTPUT` module flag is not accidentally left
+        on making all of the test cases that observe compiler output
+        automatically overwrite old results with current ones.
+        "
+        );
+    }
+}
