@@ -870,6 +870,12 @@ pub enum Term {
     /// substitution has been applied.
     AppSub(AppSub),
 
+    /// Type of a term
+    ///
+    /// Equivalent to calling `ty_of_term` on [crate::ops::typing::Typer] before
+    /// simplification.
+    TyOf(TermId),
+
     /// Not yet resolved.
     ///
     /// Unknown level (but not 0), to be determined by unification.

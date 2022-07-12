@@ -118,6 +118,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn ensure_regenerate_output_is_disabled() {
         assert!(
             !REGENERATE_OUTPUT,

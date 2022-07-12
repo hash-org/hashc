@@ -540,6 +540,12 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Root unifies with root and nothing else:
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
+
+            // Typeof unifies if the inner terms unify.
+            (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
+                self.unify_terms(src_inner, dest_inner)
+            }
+            (_, Term::TyOf(_)) | (Term::TyOf(_), _) => cannot_unify(),
         }
     }
 }

@@ -298,6 +298,11 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     term: subbed_term,
                 }))
             }
+            Term::TyOf(term) => {
+                // Apply sub to inner:
+                let subbed_term = self.apply_sub_to_term(sub, term);
+                self.builder().create_ty_of_term(subbed_term)
+            }
             // Definite-level terms:
             Term::Level3(term) => self.apply_sub_to_level3_term(sub, term),
             Term::Level2(term) => self.apply_sub_to_level2_term(sub, term),
@@ -541,6 +546,10 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 for range_el in app_sub.sub.range() {
                     self.add_free_vars_in_term_to_set(range_el, result);
                 }
+            }
+            Term::TyOf(term) => {
+                // Add free vars in the inner term
+                self.add_free_vars_in_term_to_set(*term, result);
             }
             // Definite-level terms:
             Term::Level3(term) => {
