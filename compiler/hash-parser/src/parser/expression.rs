@@ -404,7 +404,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let rhs = self.parse_expression_with_precedence(r_prec)?;
                         self.is_compound_expr.set(true);
 
-                        // transform the operator into an `BinaryExpr`
+                        //v transform the operator into an `BinaryExpr`
                         lhs = self.node_with_joined_span(
                             Expression::new(ExpressionKind::BinaryExpr(BinaryExpression {
                                 lhs,

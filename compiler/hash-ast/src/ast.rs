@@ -855,6 +855,8 @@ pub enum BinOp {
     Mod,
     /// 'as'
     As,
+    /// `~`
+    Merge,
 }
 
 impl Display for BinOp {
@@ -880,6 +882,7 @@ impl Display for BinOp {
             BinOp::Div => write!(f, "/"),
             BinOp::Mod => write!(f, "%"),
             BinOp::As => write!(f, "as"),
+            BinOp::Merge => write!(f, "~"),
         }
     }
 }
@@ -899,6 +902,7 @@ impl BinOp {
             BinOp::Mul | BinOp::Div | BinOp::Mod => (17, 18),
             BinOp::Exp => (20, 19),
             BinOp::As => (21, 22),
+            BinOp::Merge => (23, 24),
         }
     }
 
@@ -1428,6 +1432,8 @@ pub enum ExpressionKind {
     /// An expression that captures a variable or a pattern being assigned with
     /// the application of a binary operator, such as `x += 3`.
     AssignOp(AssignOpExpression),
+    /// A merge declaration is one that adds an implementation for a particular
+    /// trait/struct to an already declared item, such as `x ~= impl { ... }`
     MergeDeclaration(MergeDeclaration),
     TraitImpl(TraitImpl),
     /// Binary Expression composed of a left and right hand-side with a binary

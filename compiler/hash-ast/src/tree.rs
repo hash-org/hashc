@@ -938,7 +938,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type AssignOpExpressionRet = TreeNode;
-
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -1026,6 +1025,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type EnumDefEntryRet = TreeNode;
+
     fn visit_enum_def_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -1039,7 +1039,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type EnumDefRet = TreeNode;
-
     fn visit_enum_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1106,6 +1105,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type NamespacePatternRet = TreeNode;
+
     fn visit_namespace_pattern(
         &mut self,
         ctx: &Self::Ctx,
@@ -1116,7 +1116,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type TuplePatternEntryRet = TreeNode;
-
     fn visit_tuple_pattern_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -1295,6 +1294,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type ModuleRet = TreeNode;
+
     fn visit_module(
         &mut self,
         ctx: &Self::Ctx,
