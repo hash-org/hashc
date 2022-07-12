@@ -246,6 +246,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
         def_id
     }
 
+    /// Create a [Term::TypeOf].
+    pub fn create_ty_of_term(&self, inner: TermId) -> TermId {
+        self.create_term(Term::TyOf(inner))
+    }
+
     /// Add a member to the scope, marking it as public.
     ///
     /// All other methods call this one to actually add members to the scope.

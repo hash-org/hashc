@@ -489,6 +489,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::TyFn(_) => does_not_support_access(access_term),
             Term::TyFnTy(_) => does_not_support_access(access_term),
             Term::Root => does_not_support_access(access_term),
+            Term::TyOf(_) => does_not_support_access(access_term),
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
@@ -568,11 +569,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Ok(Some(self.builder().create_term(Term::Merge(results))))
                 }
             }
-            Term::AppSub(_) => {
-                // We should never have this happen, because any type functions should have been
-                // simplified already:
-                cannot_apply()
-            }
             Term::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
                 // @@Enhancement: here we can unify the unresolved term with a type function
@@ -584,20 +580,16 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // @@Enhancement: this could be allowed in the future.
                 cannot_apply()
             }
-            Term::Union(_) => {
+            Term::AppSub(_)
+            | Term::Union(_)
+            | Term::Root
+            | Term::TyFnTy(_)
+            | Term::Level3(_)
+            | Term::Level2(_)
+            | Term::Level1(_)
+            | Term::Level0(_)
+            | Term::TyOf(_) => {
                 // Cannot apply if it didn't simplify to a type function:
-                cannot_apply()
-            }
-            Term::Root => {
-                // Cannot apply root:
-                cannot_apply()
-            }
-            Term::TyFnTy(_) => {
-                // Cannot apply a type function type:
-                cannot_apply()
-            }
-            Term::Level3(_) | Term::Level2(_) | Term::Level1(_) | Term::Level0(_) => {
-                // Cannot apply a definite-level term:
                 cannot_apply()
             }
             Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
@@ -794,6 +786,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Root
             | Term::Var(_)
             | Term::Union(_)
+            | Term::TyOf(_)
             | Term::Access(_) => cannot_use_as_fn_call_subject(),
         }
     }
@@ -1182,6 +1175,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         return_ty: simplified_return_ty.unwrap_or(ty_fn_ty.return_ty),
                     })))),
                 }
+            }
+            Term::TyOf(term) => {
+                // Get the type of the term:
+                Ok(Some(self.typer().ty_of_term(term)?))
             }
             Term::Unresolved(_) => {
                 // Cannot do anything here:

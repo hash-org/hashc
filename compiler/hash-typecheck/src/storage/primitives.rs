@@ -870,6 +870,11 @@ pub enum Term {
     /// substitution has been applied.
     AppSub(AppSub),
 
+    /// Type of a term
+    ///
+    /// Simplifies to calling `ty_of_term` on the inner term.
+    TyOf(TermId),
+
     /// Not yet resolved.
     ///
     /// Unknown level (but not 0), to be determined by unification.
