@@ -1593,6 +1593,22 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
+    type MergeExprRet = TermId;
+
+    fn visit_merge_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeExpr>,
+    ) -> Result<Self::MergeExprRet, Self::Error> {
+        let walk::MergeExpr { lhs, rhs } = walk::walk_merge_expr(self, ctx, node)?;
+
+        let term = self.builder().create_merge_term(vec![lhs, rhs]);
+
+        self.copy_location_from_node_to_target(node, term);
+
+        Ok(term)
+    }
+
     type AssignExpressionRet = TermId;
 
     fn visit_assign_expr(

@@ -905,6 +905,21 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
 
+    type MergeExprRet = TreeNode;
+
+    fn visit_merge_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::MergeExpr>,
+    ) -> Result<Self::MergeExprRet, Self::Error> {
+        let walk::MergeExpr { lhs, rhs } = walk::walk_merge_expr(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "merge_expr",
+            vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
+        ))
+    }
+
     type AssignExpressionRet = TreeNode;
 
     fn visit_assign_expr(
@@ -920,7 +935,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type AssignOpExpressionRet = TreeNode;
-
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -1008,6 +1022,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type EnumDefEntryRet = TreeNode;
+
     fn visit_enum_def_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -1021,7 +1036,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type EnumDefRet = TreeNode;
-
     fn visit_enum_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1088,6 +1102,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type NamespacePatternRet = TreeNode;
+
     fn visit_namespace_pattern(
         &mut self,
         ctx: &Self::Ctx,
@@ -1098,7 +1113,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type TuplePatternEntryRet = TreeNode;
-
     fn visit_tuple_pattern_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -1277,6 +1291,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type ModuleRet = TreeNode;
+
     fn visit_module(
         &mut self,
         ctx: &Self::Ctx,

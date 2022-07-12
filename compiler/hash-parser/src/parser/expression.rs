@@ -404,15 +404,23 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let rhs = self.parse_expression_with_precedence(r_prec)?;
                         self.is_compound_expr.set(true);
 
-                        // transform the operator into an OperatorFn
-                        lhs = self.node_with_joined_span(
-                            Expression::new(ExpressionKind::BinaryExpr(BinaryExpression {
-                                lhs,
-                                rhs,
-                                operator: self.node_with_span(op, op_span),
-                            })),
-                            &lhs_span,
-                        );
+                        // If this is a merge expression, we have to declare that this is a
+                        // `MergeExpr`...
+                        lhs = if op == BinOp::Merge {
+                            self.node_with_joined_span(
+                                Expression::new(ExpressionKind::Merge(MergeExpr { lhs, rhs })),
+                                &lhs_span,
+                            )
+                        } else {
+                            self.node_with_joined_span(
+                                Expression::new(ExpressionKind::BinaryExpr(BinaryExpression {
+                                    lhs,
+                                    rhs,
+                                    operator: self.node_with_span(op, op_span),
+                                })),
+                                &lhs_span,
+                            )
+                        }
                     }
                 }
                 _ => break,

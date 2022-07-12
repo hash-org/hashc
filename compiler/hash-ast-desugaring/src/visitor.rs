@@ -781,6 +781,17 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type MergeExprRet = ();
+
+    fn visit_merge_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MergeExpr>,
+    ) -> Result<Self::MergeExprRet, Self::Error> {
+        let _ = walk_mut::walk_merge_expr(self, ctx, node);
+        Ok(())
+    }
+
     type AssignExpressionRet = ();
 
     fn visit_assign_expr(

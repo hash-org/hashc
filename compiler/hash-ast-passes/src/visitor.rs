@@ -824,6 +824,17 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type MergeExprRet = ();
+
+    fn visit_merge_expr(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MergeExpr>,
+    ) -> Result<Self::MergeExprRet, Self::Error> {
+        let _ = walk::walk_merge_expr(self, ctx, node);
+        Ok(())
+    }
+
     type AssignExpressionRet = ();
 
     fn visit_assign_expr(
