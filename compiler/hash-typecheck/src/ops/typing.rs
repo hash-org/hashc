@@ -165,8 +165,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
             }
             Term::Unresolved(_) => {
-                // The type of an unresolved variable is unresolved:
-                Ok(self.builder().create_unresolved_term())
+                // The type of an unresolved variable X is typeof(X):
+                Ok(self.builder().create_ty_of_term(term_id))
             }
             Term::Level3(level3_term) => match level3_term {
                 Level3Term::TrtKind => {
