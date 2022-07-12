@@ -923,21 +923,6 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
 
-    type MergeExprRet = TreeNode;
-
-    fn visit_merge_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MergeExpr>,
-    ) -> Result<Self::MergeExprRet, Self::Error> {
-        let walk::MergeExpr { lhs, rhs } = walk::walk_merge_expr(self, ctx, node)?;
-
-        Ok(TreeNode::branch(
-            "merge_expr",
-            vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
-        ))
-    }
-
     type AssignExpressionRet = TreeNode;
 
     fn visit_assign_expr(

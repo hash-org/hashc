@@ -791,16 +791,6 @@ pub struct MergeDeclaration {
     pub value: AstNode<Expression>,
 }
 
-/// A merge expression.
-#[derive(Debug, PartialEq, Clone)]
-pub struct MergeExpr {
-    /// The left-hand side expression of the merge expr.
-    pub lhs: AstNode<Expression>,
-
-    /// The right-hand side expression of the merge expr.
-    pub rhs: AstNode<Expression>,
-}
-
 /// Unary operators that are defined within the core of the language.
 #[derive(Debug, Clone)]
 pub enum UnOp {
@@ -1445,9 +1435,6 @@ pub enum ExpressionKind {
     /// A merge declaration is one that adds an implementation for a particular
     /// trait/struct to an already declared item, such as `x ~= impl { ... }`
     MergeDeclaration(MergeDeclaration),
-    /// A merge expression is one that combines the types of multiple
-    /// expressions into one.
-    Merge(MergeExpr),
     TraitImpl(TraitImpl),
     /// Binary Expression composed of a left and right hand-side with a binary
     /// operator
