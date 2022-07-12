@@ -76,8 +76,9 @@ pub enum AstGenErrorKind {
     /// Expected an expression after a type annotation within named tuples
     ExpectedValueAfterTyAnnotation,
     /// After a dot operator, the parser expects either a property access or an
-    /// infix call which is an extended version of a property access.
-    InfixCall,
+    /// infix-like method call which is an extended version of a property
+    /// access.
+    MethodCall,
     /// When the `import()` directive is used, the only argument should be a
     /// string path. @@Future: @@CompTime: This could likely change in the
     /// future.
@@ -142,8 +143,8 @@ impl From<AstGenError> for ParseError {
             }
             AstGenErrorKind::ExpectedFnBody => "Expected a function body".to_string(),
             AstGenErrorKind::ExpectedType => "Expected a type annotation".to_string(),
-            AstGenErrorKind::InfixCall => {
-                "Expected field name access or an infix function call".to_string()
+            AstGenErrorKind::MethodCall => {
+                "Expected field name access or a method call".to_string()
             }
             AstGenErrorKind::ImportPath => {
                 "Expected an import path which should be a string".to_string()

@@ -551,6 +551,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
 
+    type MethodCallExprRet = TermId;
+
+    fn visit_method_call_expr(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MethodCallExpr>,
+    ) -> Result<Self::MethodCallExprRet, Self::Error> {
+        todo!()
+    }
+
     type PropertyAccessExprRet = TermId;
 
     fn visit_property_access_expr(
@@ -1158,7 +1168,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type FnDefRet = TermId;
-
     fn visit_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1229,6 +1238,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type FnDefParamRet = Param;
+
     fn visit_fn_def_param(
         &mut self,
         ctx: &Self::Ctx,
@@ -1516,7 +1526,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MutabilityRet = Mutability;
-
     fn visit_mutability_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1529,6 +1538,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type RefKindRet = RefKind;
+
     fn visit_ref_kind(
         &mut self,
         _: &Self::Ctx,

@@ -102,9 +102,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             )
         })?;
 
-        // ::CompoundExpressions: firstly, we have to get the initial part of the
-        // expression, and then we can check if there are any additional parts
-        // in the forms of either property accesses, indexing or infix function calls
+        // Firstly, we have to get the initial part of the expression,
+        // and then we can check if there are any additional parts in the
+        // forms of either property accesses, indexing or method calls
         let subject = match &token.kind {
             kind if kind.is_unary_op() => return self.parse_unary_expression(),
 
@@ -425,7 +425,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Provided an initial subject expression that is parsed by the parent
     /// caller, this function will check if there are any additional
     /// components to the expression; in the form of either property access,
-    /// infix function calls, indexing, etc.
+    /// method calls, indexing, etc.
     pub(crate) fn parse_singular_expression(
         &self,
         subject: AstNode<Expression>,
@@ -439,41 +439,19 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // or a function call...
         while let Some(next_token) = self.peek() {
             match &next_token.kind {
-                // Property access or infix function call
+                // Property access or method call
                 TokenKind::Dot => {
                     self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
+                    let name_or_fn_call = self.parse_name_or_method_call()?;
 
-                    let name_or_fn_call = self.parse_name_or_infix_call()?;
-                    let kind = name_or_fn_call.into_body().into_kind();
-
-                    match kind {
-                        // The current behaviour is that the lhs is inserted as the first argument:
-                        //
-                        // `foo.bar()` transpiles to `bar(foo)`
-                        //
-                        // Additionally, if the RHS has arguments, they are shifted for the LHS to
-                        // be inserted as the first argument...
-                        //
-                        // `foo.bar(baz)` transpiles to `bar(foo, baz)`
-                        ExpressionKind::ConstructorCall(ConstructorCallExpr {
-                            subject,
-                            mut args,
-                        }) => {
-                            let span = lhs_expr.span();
-
-                            // insert lhs_expr first...
-                            args.entries.nodes.insert(
-                                0,
-                                self.node_with_span(
-                                    ConstructorCallArg { name: None, value: lhs_expr },
-                                    span,
-                                ),
-                            );
-
+                    match name_or_fn_call.into_body().into_kind() {
+                        ExpressionKind::ConstructorCall(ConstructorCallExpr { subject, args }) => {
                             lhs_expr = self.node_with_joined_span(
-                                Expression::new(ExpressionKind::ConstructorCall(
-                                    ConstructorCallExpr { subject, args },
-                                )),
+                                Expression::new(ExpressionKind::MethodCall(MethodCallExpr {
+                                    subject: lhs_expr,
+                                    call_subject: subject,
+                                    args,
+                                })),
                                 &start,
                             );
                         }
@@ -492,7 +470,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                                 span,
                             );
                         }
-                        _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
+                        _ => self.error(AstGenErrorKind::MethodCall, None, None)?,
                     }
                 }
                 // Array index access syntax: ident[...]
@@ -825,9 +803,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse an single name or a function call that is applied on the left hand
-    /// side expression. Infix calls and name are only separated by infix
+    /// side expression. Infix calls and name are only separated by method
     /// calls having parentheses at the end of the name.
-    pub(crate) fn parse_name_or_infix_call(&self) -> AstGenResult<AstNode<Expression>> {
+    pub(crate) fn parse_name_or_method_call(&self) -> AstGenResult<AstNode<Expression>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
 
         match &self.next_token() {
@@ -849,7 +827,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     _ => Ok(subject),
                 }
             }
-            _ => self.error(AstGenErrorKind::InfixCall, None, None)?,
+            _ => self.error(AstGenErrorKind::MethodCall, None, None)?,
         }
     }
 
