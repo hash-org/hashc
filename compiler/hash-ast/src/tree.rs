@@ -577,8 +577,26 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MergedTy>,
     ) -> Result<Self::MergedTyRet, Self::Error> {
-        let walk::MergedTy(tys) = walk::walk_merged_ty(self, ctx, node)?;
-        Ok(TreeNode::branch("merged", tys))
+        let walk::MergedTy { lhs, rhs } = walk::walk_merged_ty(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "merged_ty",
+            vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
+        ))
+    }
+
+    type UnionTyRet = TreeNode;
+    fn visit_union_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error> {
+        let walk::UnionTy { lhs, rhs } = walk::walk_union_ty(self, ctx, node)?;
+
+        Ok(TreeNode::branch(
+            "union",
+            vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],
+        ))
     }
 
     type TyFnDefRet = TreeNode;

@@ -63,6 +63,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
+    /// Function to parse a [TyOp] which returns a type operator if one is
+    /// present, and the number of tokens consumed. If no type operator follows,
+    /// then the consumed tokens count will be 0.
+    pub(crate) fn parse_type_operator(&self) -> (Option<TyOp>, u8) {
+        match self.peek() {
+            Some(token) if token.has_kind(TokenKind::Pipe) => (Some(TyOp::Union), 1),
+            Some(token) if token.has_kind(TokenKind::Tilde) => (Some(TyOp::Merge), 1),
+            _ => (None, 0),
+        }
+    }
+
     /// Function to parse a fat arrow component '=>' in any given context.
     pub(crate) fn parse_arrow(&self) -> AstGenResult<()> {
         // Essentially, we want to re-map the error into a more concise one given

@@ -397,9 +397,39 @@ pub struct TyFnCall {
 }
 
 /// A merged type meaning that multiple types are considered to be
-/// specified in place of one, e.g. `Conv ~ Eq ~ Print`
+/// specified in place of one, e.g. `Conv ~ Eq`
 #[derive(Debug, PartialEq, Clone)]
-pub struct MergedTy(pub AstNodes<Ty>);
+pub struct MergedTy {
+    pub lhs: AstNode<Ty>,
+    pub rhs: AstNode<Ty>,
+}
+
+/// A merged type meaning that multiple types are considered to be
+/// specified in place of one, e.g. `f64 | i64`
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnionTy {
+    pub lhs: AstNode<Ty>,
+    pub rhs: AstNode<Ty>,
+}
+
+/// Binary type operators enumeration.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum TyOp {
+    /// The union of two types, essentially an or, e.g `f64 | u64`
+    Union,
+    /// The intersection between two types, essentially an `and`, `Ord ~ Eq`
+    Merge,
+}
+
+impl TyOp {
+    /// Compute the precedence for an operator
+    pub fn infix_binding_power(&self) -> (u8, u8) {
+        match self {
+            TyOp::Merge => (2, 3),
+            TyOp::Union => (4, 5),
+        }
+    }
+}
 
 /// A type.
 #[derive(Debug, PartialEq, Clone)]
@@ -412,6 +442,7 @@ pub enum Ty {
     Named(NamedTy),
     Ref(RefTy),
     Merged(MergedTy),
+    Union(UnionTy),
     TyFn(TyFn),
     TyFnCall(TyFnCall),
 }

@@ -509,6 +509,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type UnionTyRet = ();
+
+    fn visit_union_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error> {
+        Ok(())
+    }
+
     type TyFnDefRet = ();
 
     fn visit_ty_fn_def(

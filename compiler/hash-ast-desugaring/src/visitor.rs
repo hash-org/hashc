@@ -511,6 +511,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type UnionTyRet = ();
+
+    fn visit_union_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnionTy>,
+    ) -> Result<Self::UnionTyRet, Self::Error> {
+        Ok(())
+    }
+
     type TyFnDefRet = ();
 
     fn visit_ty_fn_def(

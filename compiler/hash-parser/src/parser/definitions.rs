@@ -85,7 +85,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(EnumDefEntry { name, args }, &name_span))
     }
 
-    /// Parse a [TypeFunctionDef]. Type functions specify logic at the type
+    /// Parse a [TyFnDef]. Type functions specify logic at the type
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
     pub fn parse_type_function_def(&self) -> AstGenResult<TyFnDef> {
@@ -135,7 +135,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(TyFnDef { params, return_ty, expr })
     }
 
-    // Parse a [TypeFunctionDefParam] which consists the name of the argument and
+    // Parse a [TyFnDefParam] which consists the name of the argument and
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
     fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TyFnDefParam>> {

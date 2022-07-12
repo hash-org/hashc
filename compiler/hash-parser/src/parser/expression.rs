@@ -398,13 +398,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         );
 
                         // since we don't descend, we still need to update the precedence to
-                        // being 'r_prec'.
+                        // being `r_prec`.
                         min_prec = r_prec;
                     } else {
                         let rhs = self.parse_expression_with_precedence(r_prec)?;
                         self.is_compound_expr.set(true);
 
-                        // transform the operator into an OperatorFn
+                        // transform the operator into an `BinaryExpr`
                         lhs = self.node_with_joined_span(
                             Expression::new(ExpressionKind::BinaryExpr(BinaryExpression {
                                 lhs,
