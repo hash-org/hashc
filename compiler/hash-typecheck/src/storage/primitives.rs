@@ -872,8 +872,7 @@ pub enum Term {
 
     /// Type of a term
     ///
-    /// Equivalent to calling `ty_of_term` on [crate::ops::typing::Typer] before
-    /// simplification.
+    /// Simplifies to calling `ty_of_term` on the inner term.
     TyOf(TermId),
 
     /// Not yet resolved.
