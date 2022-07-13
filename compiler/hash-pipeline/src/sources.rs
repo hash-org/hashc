@@ -46,6 +46,19 @@ impl ast::OwnsAstNode<ast::BodyBlock> for InteractiveBlock {
     }
 }
 
+/// The [ModuleKind] enumeration describes what kind of module this is. If it is
+/// a [ModuleKind::Prelude], then certain things are allowed within this module
+/// in order to allow for `compiler` magic to interact with the prelude file.
+#[derive(Debug, Clone, Copy)]
+pub enum ModuleKind {
+    /// Any normal module that is within a workspace, including modules within
+    /// the standard library.
+    Normal,
+    /// The `prelude` module, which allows for various features that are
+    /// normally disallowed.
+    Prelude,
+}
+
 /// Represents a module that was added to the [Sources]. [Module] holds
 /// meta data about the module, such as the path. It also holds the
 /// parsed [ast::AstNode<ast::Module>] within the data structure. This is
@@ -57,18 +70,30 @@ pub struct Module {
     path: PathBuf,
     /// The generated AST for the module, set when parsing is complete.
     node: Option<ast::AstNode<ast::Module>>,
+    /// The kind of module, either being `normal` or `prelude` like.
+    kind: ModuleKind,
 }
 
 impl Module {
     /// Create a new [Module] with a specified `path` and the `node being set to
     /// [None].
     pub fn new(path: PathBuf) -> Self {
-        Self { path, node: None }
+        Self { path, node: None, kind: ModuleKind::Normal }
+    }
+
+    /// Create a new [Module] with a specified `path` and kind.
+    pub fn new_with_kind(path: PathBuf, kind: ModuleKind) -> Self {
+        Self { path, node: None, kind }
     }
 
     /// Get that `path` from the [Module].
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Get that [ModuleKind] from the [Module].
+    pub fn kind(&self) -> ModuleKind {
+        self.kind
     }
 
     /// Set the `node` for given [Module]
@@ -190,6 +215,9 @@ pub struct Workspace {
     pub source_map: SourceMap,
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
+    /// Whether or not this workspace has handled the bootstrapping of the
+    /// prelude which should happen for any workspace.
+    pub bootstrapped: bool,
 }
 
 impl Workspace {
@@ -199,6 +227,7 @@ impl Workspace {
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
             dependencies: HashMap::new(),
+            bootstrapped: false,
         }
     }
 

@@ -12,7 +12,7 @@ pub mod traits;
 
 use std::{collections::HashMap, env, time::Duration};
 
-use fs::{read_in_path, resolve_path};
+use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
 use hash_source::SourceId;
@@ -61,6 +61,8 @@ pub struct CompilerState<
 > {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
+    /// If the current job has an error
+    pub job_has_error: bool,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
     /// The typechecker state.
@@ -111,10 +113,7 @@ where
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
     pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
-        let sources = Workspace::new();
-        // let checker_interactive_state = self.checker.make_interactive_state(&mut
-        // checker_state)?; let checker_module_state =
-        // self.checker.make_module_state(&mut checker_state)?;
+        let workspace = Workspace::new();
 
         let ds_state = self.desugarer.make_state()?;
         let semantic_analysis_state = self.semantic_analyser.make_state()?;
@@ -122,7 +121,8 @@ where
         let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
-            workspace: sources,
+            workspace,
+            job_has_error: false,
             diagnostics: vec![],
             semantic_analysis_state,
             tc_state,
@@ -164,7 +164,6 @@ where
                 // If this is an interactive statement, we want to print the statement that was
                 // just parsed.
                 let source = workspace.node_map().get_interactive_block(id);
-
                 let tree = AstTreeGenerator.visit_body_block(&(), source.node_ref()).unwrap();
 
                 println!("{}", TreeWriter::new(&tree));
@@ -324,6 +323,7 @@ where
             // Some diagnostics might not be errors and all just warnings, in this
             // situation, we don't have to terminate execution
             if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
+                compiler_state.job_has_error = true;
                 return Err(());
             }
         }
@@ -385,6 +385,26 @@ where
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, V> {
+        // @@Cleanup: maybe move this to some kind of bootstrapping function
+        compiler_state.job_has_error = false;
+
+        // If we haven't bootstrapped this workspace yet, it means that we still
+        // need to load in the `prelude` module and have it ready for any other sources
+        if !compiler_state.workspace.bootstrapped {
+            compiler_state.workspace.bootstrapped = true;
+            compiler_state = self.run_on_filename(
+                PRELUDE.to_string(),
+                compiler_state,
+                CompilerJobParams::default(),
+            );
+
+            // We can't continue here since the prelude failed to load...
+            if compiler_state.job_has_error {
+                compiler_state.workspace.bootstrapped = false;
+                return compiler_state;
+            }
+        }
+
         let result = self.run_pipeline(entry_point, &mut compiler_state, job_params);
 
         // we can print the diagnostics here
@@ -426,6 +446,10 @@ where
         compiler_state
     }
 
+    /// Run the compiler pipeline on a file specified by the path on the disk.
+    /// This essentially performs the required steps of loading in a module
+    /// off the disk, store it within the [Workspace] and invoke
+    /// [`Self::run`]
     pub fn run_on_filename(
         &mut self,
         filename: String,

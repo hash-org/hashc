@@ -12,10 +12,10 @@ use thiserror::Error;
 
 /// The location of a build directory of this package, this used to resolve
 /// where the standard library is located at.
-static BUILD_DIR: &str = env!("CARGO_MANIFEST_DIR");
+static STDLIB: &str = env!("STDLIB_PATH");
 
 /// Name of the prelude module
-static PRELUDE: &str = "prelude";
+pub static PRELUDE: &str = concat!(env!("STDLIB_PATH"), "/", "prelude");
 
 /// Import error is an abstraction to represent errors that are in relevance to
 /// IO operations rather than parsing operations.
@@ -137,8 +137,7 @@ pub fn resolve_path(
     let path = path.as_ref();
     let wd = wd.as_ref();
 
-    let stdlib_path: PathBuf = [BUILD_DIR, "..", "stdlib"].iter().collect();
-    let modules = get_stdlib_modules(stdlib_path);
+    let modules = get_stdlib_modules(STDLIB);
 
     // check if the given path is equal to any of the standard library paths
     if modules.contains(&path.to_path_buf()) {
@@ -170,7 +169,7 @@ pub fn resolve_path(
         Err(ImportError {
             filename: path.to_path_buf(),
             message:
-                "This directory likely doesn't have a 'index.hash' module, consider creating one."
+                "This directory likely doesn't have a `index.hash` module, consider creating one."
                     .to_string(),
             src: location,
         })
