@@ -120,7 +120,7 @@ fn main() {
                 compiler.run_on_filename(path, compiler_state, job_settings);
             }
             None => {
-                hash_interactive::init(compiler)?;
+                hash_interactive::init(compiler, compiler_state)?;
             }
         };
 
