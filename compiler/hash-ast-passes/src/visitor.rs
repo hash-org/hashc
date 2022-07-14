@@ -13,9 +13,8 @@ use hash_ast::{
     },
     visitor::{walk, AstVisitor},
 };
-use hash_pipeline::sources::ModuleKind;
 use hash_reporting::macros::panic_on_span;
-use hash_source::identifier::CORE_IDENTIFIERS;
+use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};
 
 use crate::{
     analysis::SemanticAnalyser,
@@ -237,15 +236,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         let _ = walk::walk_directive_expr(self, ctx, node);
 
+        let module_kind = self.source_map.module_kind_by_id(self.source_id);
+
         // Here we should check if in the event that an `intrinsics` directive
         // is being used only within the `prelude` module.
         if node.name.is(CORE_IDENTIFIERS.intrinsics) {
-            if !matches!(self.module_kind, Some(ModuleKind::Prelude)) {
+            if !matches!(module_kind, Some(ModuleKind::Prelude)) {
                 self.append_error(
-                    AnalysisErrorKind::DisallowedDirective {
-                        name: node.name.ident,
-                        module_kind: self.module_kind,
-                    },
+                    AnalysisErrorKind::DisallowedDirective { name: node.name.ident, module_kind },
                     node.name.span(),
                 );
 

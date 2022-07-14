@@ -11,15 +11,15 @@ use hash_ast_passes::HashSemanticAnalysis;
 use hash_parser::HashParser;
 use hash_pipeline::{
     settings::{CompilerJobParams, CompilerMode, CompilerSettings},
-    sources::ModuleKind,
     Compiler,
 };
 use hash_reporting::errors::CompilerError;
+use hash_source::ModuleKind;
 use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::{num::NonZeroUsize, panic, process::exit};
+use std::{num::NonZeroUsize, panic};
 
 use crate::{
     args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},
@@ -97,7 +97,7 @@ fn main() {
 
     let mut compiler =
         Compiler::new(parser, desugarer, semantic_analyser, checker, vm, &pool, compiler_settings);
-    let compiler_state = compiler.bootstrap().unwrap_or_else(|_| exit(-1));
+    let compiler_state = compiler.bootstrap();
 
     execute(|| {
         match entry_point {

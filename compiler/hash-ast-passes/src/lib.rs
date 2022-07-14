@@ -57,7 +57,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     let source = node_map.get_interactive_block_mut(id);
 
                     // setup a visitor and the context
-                    let mut visitor = SemanticAnalyser::new(source_map, entry_point, None);
+                    let mut visitor = SemanticAnalyser::new(source_map, entry_point);
 
                     visitor.visit_body_block(&(), source.node_ref()).unwrap();
                     visitor.send_generated_messages(&sender);
@@ -74,7 +74,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     continue;
                 }
 
-                let mut visitor = SemanticAnalyser::new(source_map, source_id, Some(module.kind()));
+                let mut visitor = SemanticAnalyser::new(source_map, source_id);
 
                 // Check that all of the root scope statements are only declarations
                 let errors = visitor.visit_module(&(), module.node_ref()).unwrap();
@@ -91,8 +91,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     let sender = sender.clone();
 
                     scope.spawn(move |_| {
-                        let mut visitor =
-                            SemanticAnalyser::new(source_map, source_id, Some(module.kind()));
+                        let mut visitor = SemanticAnalyser::new(source_map, source_id);
 
                         visitor.visit_expression(&(), expr.ast_ref()).unwrap();
                         visitor.send_generated_messages(&sender);

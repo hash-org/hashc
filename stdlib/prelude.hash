@@ -5,123 +5,47 @@
 // Description: Critical runtime module that is imported into any Hash
 // runtime by default. This module defines all the bindings between the
 // compiler interals and the program runtime.
+Intrinsics := #intrinsics mod {
+    // Output a line to standard output
+    pub print : (msg: str) -> void;
+ 
+    // Read a line from standard input
+    pub input : () -> str;
 
-// Output a line to standard output
-print := (msg: str) -> void => intrinsic_print(msg);
+    // Panic - kill the process and exit with a message.
+    pub panic : (msg: str) -> void;
 
-// Read a line from standard input
-input := () -> str => intrinsic_input();
-
-// Panic
-// Kill the process and exit with a message.
-panic := (msg: str) -> never => #intrinsic_panic(msg);
-
-// Unreachable case filling
-// For when you do a match case and need to provide a '_' case
-// you should use the 'unreachable' function
-unreachable := () -> never => panic("Reached unreachable case!");
-
-// Convert type A to type B
-Conv := <A, B> => trait {
-    conv : (item: A) -> B;
+    // The following are implemented for all numeric primitives:
+    //
 };
 
-// we provide a number of implementations for converting types
 
-// Blanket to string
-Conv ~= <T> => impl Conv<T, str> {
-    conv := (_) => "<unknown>";
+// Equality
+Eq := <T> => trait {
+    eq: (&T, &T) -> bool;
 };
 
-Conv ~= impl Conv<u64, f64> {
-    conv := (item) => intrinsic_conv_to_float(num);
+// Ordering
+// Implemented for numeric primitives and strings.
+Ordering := enum( Lt, Eq, Gt, );
+
+// Eq ~= impl Eq<Ordering> {
+//     eq := (a, b) => match (a, b) {
+//         (Eq, Eq) => true;
+//         (Lt, Lt) => true;
+//         (Gt, Gt) => true;
+//         _ => false;
+//     };
+// };
+
+Ord := <T> => trait {
+    ord: (a: T, b: T) -> Ordering;
 };
-
-// Fallible conversion methods for float, int, char from a `str`
-Conv ~= impl Conv<str, Result<float, str>> {
-    conv := (s) => #intrinsic_conv_to_float(s);
-};
-
-Conv ~= impl Conv<str, Result<int, str>> {
-    conv := (s) => intrinsic_conv_to_int(s);
-};
-
-Conv ~= impl Conv<int, Result<char, str>> {
-    conv := (s) => intrinsic_conv_to_char(s);
-};
-
-Conv ~= impl Conv<char, int> {  
-    conv := (ch) => intrinsic_conv_to_int(ch); 
-};
-
-Conv ~= impl Conv<float, int> { 
-    conv := (num) => intrinsic_conv_to_int(num); 
-};
-
-Conv ~= impl Conv<str, Result<int, str>> {
-    conv := (s) => intrinsic_conv_to_int(s);
-};
-
-Conv ~= impl Conv<bool, str> {
-    conv := (x) => match x {
-    true => "true";
-    false => "false";
-    };
-};
-
-Conv ~= impl Conv<int, str> { conv := (num) => intrinsic_conv_to_str(num); };
-Conv ~= impl Conv<float, str> { conv := (num) => intrinsic_conv_to_str(num); };
-Conv ~= impl Conv<char, str> { conv := (ch) => intrinsic_conv_to_str(ch); };
-Conv ~= impl Conv<void, str> { conv := (v) => ""; };
-
-Conv ~= impl Conv<{A:B}, str> { 
-    conv := (map) => intrinsic_conv_map_to_str(
-        map, 
-        (a) => conv<A, str>(a), 
-        (b) => conv<B, str>(b)
-    ); 
-};
-
-Conv ~= impl Conv<{A}, str> {
-    conv := (set) => intrinsic_conv_bracketted_to_str(set, (a) => conv<A, str>(a));
-};
-
-Conv ~= impl Conv<[A], str> {
-    conv := (arr) => intrinsic_conv_bracketted_to_str(arr, (a) => conv<A, str>(a)); 
-}; 
-
-// Tuples conv: @@TODO
-
-// Trait to get the size of an item, such as a bracktted type or a string
-Size := <A> => trait {
-    size : (item: A) -> usize;
-};
-
-Size ~= impl Size<[T]>    { size := (item) => intrinsic_size(item); };
-Size ~= impl Size<str>    { size := (item) => intrinsic_size(item); };
-Size ~= impl Size<{T}>    { size := (item) => intrinsic_size(item); };
-Size ~= impl Size<{K: V}> { size := (item) => intrinsic_size(item); };
 
 
 // Convert some type `T` into a `u64`. Hashing trait.
 Hash := <T> => trait {
-    hash : (item: T) -> u64;
-};
-
-Hash ~= impl Hash<int> { 
-    hash := (num) => #intrinsic_hash(num); 
-};
-
-Hash ~= impl Hash<float> { 
-    hash := (num) => #intrinsic_hash(num); 
-};
-
-Hash ~= impl Hash<char> { 
-    hash := (ch) => #intrinsic_hash(ch); 
-};
-
-Hash ~= impl Hash<str> { 
-    hash := (string) => #intrinsic_hash(string); 
+    hash : (item: &T) -> u64;
 };
 
 // Add operator (+)
@@ -130,223 +54,271 @@ Add := <T> => trait {
     add: (T, T) -> T;
 };
 
-Add ~= impl Add<int>   { add := (left, right) => intrinsic_add(left, right); };
-Add ~= impl Add<float> { add := (left, right) => intrinsic_add(left, right); };
-Add ~= impl Add<str>   { add := (left, right) => intrinsic_add(left, right);  };
-
-// adding sets and maps together
-// Add ~= impl Add<[A]>   { add := (left, right) => intrinsic_add(left, right); };
-// Add ~= impl Add<{A}>   { add := (left, right) => intrinsic_set_add(left, right); };
-// Add ~= impl Add<{A: B}>   { add := (left, right) => intrinsic_map_add(left, right); };
-
-// The following are implemented for all numeric primitives:
-
 // Subtract operator (-)
 Sub := <T> => trait {
     sub: (T, T) -> T;
 };
-
-Sub ~= impl Sub<int>   { sub := (left, right) => intrinsic_sub(left, right); };
-Sub ~= impl Sub<float> { sub := (left, right) => intrinsic_sub(left, right); };
 
 // Multiply operator (*)
 Mul := <T> => trait {
     mul: (T, T) -> T;
 };
 
-Mul ~= impl Mul<int>   { mul := (left, right) => intrinsic_mul(left, right); };
-Mul ~= impl Mul<float> { mul := (left, right) => intrinsic_mul(left, right); };
+// Mul ~= impl Mul<int>   { mul := (left, right) => intrinsic_mul(left, right); };
+// Mul ~= impl Mul<float> { mul := (left, right) => intrinsic_mul(left, right); };
 
 // Divide operator (/)
 Div := <T> => trait {
     div: (T, T) -> T;
 };
 
-Div ~= impl Div<int>   { div := (left, right) => intrinsic_div(left, right); };
-Div ~= impl Div<float> { div := (left, right) => intrinsic_div(left, right); };
+// Div ~= impl Div<int>   { div := (left, right) => intrinsic_div(left, right); };
+// Div ~= impl Div<float> { div := (left, right) => intrinsic_div(left, right); };
 
 // Modulus operator (%)
 Mod := <T> => trait {
     modulo: (T, T) -> T;
 };
 
-Mod ~= impl Mod<int>   { modulo := (left, right) => intrinsic_mod(left, right); };
-Mod ~= impl Mod<float> { modulo := (left, right) => intrinsic_mod(left, right); };
+// Mod ~= impl Mod<int>   { modulo := (left, right) => intrinsic_mod(left, right); };
+// Mod ~= impl Mod<float> { modulo := (left, right) => intrinsic_mod(left, right); };
 
-// Negation
+// Negation (-)
 Neg := <T> => trait {
     neg: (T) -> T;
 };
 
-Neg ~= impl Neg<int>   { neg := (item) => intrinsic_neg(item); };
-Neg ~= impl Neg<float> { neg := (item) => intrinsic_neg(item); };
-
-// Bitwise operations
-BitShr := <T> => trait {bit_shr : (T, T) -> T;};
-BitShl := <T> => trait {bit_shl : (T, T) -> T;};
-BitOr  := <T> => trait {bit_or  : (T, T) -> T;};
-BitXor := <T> => trait {bit_xor : (T, T) -> T;};
-
-BitNot := <T> => trait {bit_not : (T) -> T;};
-BitAnd := <T> => trait {bit_and : (T, T) -> T;};
-
-BitShr := impl BitShr<int> {bit_shr := (a, b) => #intrinsic_bit_shr(a, b); };
-BitShl := impl BitShl<int> {bit_shl := (a, b) => #intrinsic_bit_shl(a, b); };
-BitOr  := impl BitOr <int> {bit_or  := (a, b)=> #intrinsic_bit_or(b); };
-BitXor := impl BitXor<int> {bit_xor := (a, b)=> #intrinsic_bit_xor(b); };
-
-BitNot := impl BitNot<int> {bit_not := (a) => #intrinsic_bit_not(a); };
-BitAnd := impl BitAnd<int> {bit_and := (a) => #intrinsic_bit_and(a); };
+// Neg ~= impl Neg<int>   { neg := (item) => intrinsic_neg(item); };
+// Neg ~= impl Neg<float> { neg := (item) => intrinsic_neg(item); };
 
 
-// Equality
-Eq := <T> => trait {
-    eq: (T, T) -> bool;
+// // Bitwise shift right (<<)
+BitShr := <T> => trait {
+    bit_shr: (T, T) -> T; 
 };
 
+// BitShr := impl BitShr<int> {bit_shr := (a, b) => #intrinsic_bit_shr(a, b); };
 
-Eq ~= impl Eq<int> {
-    eq := (a, b) => intrinsic_eq(a, b);
+// Bitwise shift left (>>)
+BitShl := <T> => trait {
+    bit_shl: (T, T) -> T; 
 };
 
-Eq ~= impl Eq<char> {
-    eq := (a, b) => intrinsic_eq(a, b);
+// BitShl := impl BitShl<int> {bit_shl := (a, b) => #intrinsic_bit_shl(a, b); };
+
+// Bitwise or (|)
+BitOr  := <T> => trait {
+    bit_or: (T, T) -> T; 
 };
 
-Eq ~= impl Eq<float> {
-    eq := (a, b) => intrinsic_eq(a, b);
+// BitOr  := impl BitOr <int> {bit_or  := (a, b)=> #intrinsic_bit_or(b); };
+
+// Bitwise exclusice or (^)
+BitXor := <T> => trait {
+    bit_xor: (T, T) -> T; 
 };
 
-Eq ~= impl Eq<str> {
-    eq := (a, b) => intrinsic_eq(a, b);
+// BitXor := impl BitXor<int> {bit_xor := (a, b)=> #intrinsic_bit_xor(b); };
+
+// Bitwise not (~)
+BitNot := <T> => trait { 
+    bit_not: (T) -> T; 
 };
 
-Eq ~= <A: Eq> => impl Eq<[A]> {
-    eq := (a, b) => intrinsic_eq_bracketted(a, b, (x, y) => eq<A>(x, y));
+// BitNot := impl BitNot<int> {bit_not := (a) => #intrinsic_bit_not(a); };
+
+// Bitwise and (&)
+BitAnd := trait { 
+    Self: Type;
+
+    bit_and: (Self, Self) -> Self; 
 };
 
-// @@TODO: I think these are still flaky
-// let eq<{A}> where eq<A>, hash<A> = (a, b) => #intrinsic_eq_bracketted(a, b, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
-// let eq<{A:B}> where eq<A>, hash<A>, eq<B> = (a, b) => #intrinsic_eq_map(a, b, (a) => hash<A>(a), (x, y) => eq<A>(x, y), (x, y) => eq<B>(x, y));
-
-
-// Ordering
-// Implemented for numeric primitives and strings.
-Ordering := enum( Lt, Eq, Gt, );
-
-Eq ~= impl Eq<Ordering> {
-    eq := (a, b) => match (a, b) {
-        (Eq, Eq) => true;
-        (Lt, Lt) => true;
-        (Gt, Gt) => true;
-        _ => false;
-    };
+BitAnd := impl BitAnd {
+    Self := u64;
+    // @@BUG: should fail here bruv
+    bit_and := (a: u64, b: u32) => 'c'; 
 };
 
-pub _int_to_ord := (i: int) -> Ordering => match i {
-    0 => Eq;
-    1 => Lt; 
-    x if x == -1 => Gt;
-    _ => unreachable();
+// Convert type A to type B
+Conv := <A, B> => trait {
+    conv : (item: A) -> B;
 };
 
+// we provide a number of implementations for converting types
 
-Ord := <T> => trait {
-    ord: (a: T, b: T) -> Ordering;
-};
+// // Enum primitive conv
+// Conv ~= <A: Conv<str>, B: Conv<str>> => impl Conv<Result<A, B>, str> {
+//     conv := (res: Result<A, B>) => match res { 
+//         Ok(a) => "Ok(" + conv(a) + ")"; 
+//         Err(b) => "Err(" + conv(b) + ")"; 
+//     };
+// };
+
+// Conv ~= <A: Conv<str>> => impl Conv<Option<A>, str> {
+//     conv := (res) => match res { 
+//         Some(a) => "Somw(" + conv(a) + ")"; 
+//         None => "None"; 
+//     };
+// };
+
+// Conv ~= impl Conv<u64, f64> {
+//     conv := (item) => intrinsic_conv_to_float(num);
+// };
+
+// // Fallible conversion methods for float, int, char from a `str`
+// Conv ~= impl Conv<str, Result<float, str>> {
+//     conv := (s) => #intrinsic_conv_to_float(s);
+// };
+
+// Conv ~= impl Conv<str, Result<int, str>> {
+//     conv := (s) => intrinsic_conv_to_int(s);
+// };
+
+// Conv ~= impl Conv<int, Result<char, str>> {
+//     conv := (s) => intrinsic_conv_to_char(s);
+// };
+
+// Conv ~= impl Conv<char, int> {  
+//     conv := (ch) => intrinsic_conv_to_int(ch); 
+// };
+
+// Conv ~= impl Conv<float, int> { 
+//     conv := (num) => intrinsic_conv_to_int(num); 
+// };
+
+// Conv ~= impl Conv<str, Result<int, str>> {
+//     conv := (s) => intrinsic_conv_to_int(s);
+// };
+
+// Conv ~= impl Conv<bool, str> {
+//     conv := (x) => match x {
+//     true => "true";
+//     false => "false";
+//     };
+// };
+
+// Conv ~= impl Conv<int, str> { conv := (num) => intrinsic_conv_to_str(num); };
+// Conv ~= impl Conv<float, str> { conv := (num) => intrinsic_conv_to_str(num); };
+// Conv ~= impl Conv<char, str> { conv := (ch) => intrinsic_conv_to_str(ch); };
+// Conv ~= impl Conv<void, str> { conv := (v) => ""; };
+
+// Conv ~= impl Conv<{A:B}, str> { 
+//     conv := (map) => intrinsic_conv_map_to_str(
+//         map, 
+//         (a) => conv<A, str>(a), 
+//         (b) => conv<B, str>(b)
+//     ); 
+// };
+
+// Conv ~= impl Conv<{A}, str> {
+//     conv := (set) => intrinsic_conv_bracketted_to_str(set, (a) => conv<A, str>(a));
+// };
+
+// Conv ~= impl Conv<[A], str> {
+//     conv := (arr) => intrinsic_conv_bracketted_to_str(arr, (a) => conv<A, str>(a)); 
+// }; 
+
+// Hash ~= impl Hash<int> { 
+//     hash := (num) => #intrinsic_hash(num); 
+// };
+
+// Hash ~= impl Hash<float> { 
+//     hash := (num) => #intrinsic_hash(num); 
+// };
+
+// Hash ~= impl Hash<char> { 
+//     hash := (ch) => #intrinsic_hash(ch); 
+// };
+
+// Hash ~= impl Hash<str> { 
+//     hash := (string) => #intrinsic_hash(string); 
+// };
 
 
-Ord ~= impl Ord<int> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
-Ord ~= impl Ord<char> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
-Ord ~= impl Ord<float> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
-Ord ~= impl Ord<str> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
+
+// Index := <T, I, O> => trait {
+//     index : (T, I) -> O;
+// };
+
+// IndexMut := <T, I> => trait {
+//     index_mut : (T, I, O) -> void;
+// };
+
+// Add ~= impl Add<int>   { add := (left, right) => intrinsic_add(left, right); };
+// Add ~= impl Add<float> { add := (left, right) => intrinsic_add(left, right); };
+// Add ~= impl Add<str>   { add := (left, right) => intrinsic_add(left, right); };
+// Sub ~= impl Sub<int>   { sub := (left, right) => intrinsic_sub(left, right); };
+// Sub ~= impl Sub<float> { sub := (left, right) => intrinsic_sub(left, right); };
+
+// Eq ~= impl Eq<int> {
+//     eq := (a, b) => intrinsic_eq(a, b);
+// };
+
+// Eq ~= impl Eq<char> {
+//     eq := (a, b) => intrinsic_eq(a, b);
+// };
+
+// Eq ~= impl Eq<float> {
+//     eq := (a, b) => intrinsic_eq(a, b);
+// };
+
+// Eq ~= impl Eq<str> {
+//     eq := (a, b) => intrinsic_eq(a, b);
+// };
+
+// Eq ~= <A: Eq> => impl Eq<[A]> {
+//     eq := (a, b) => intrinsic_eq_bracketted(a, b, (x, y) => eq<A>(x, y));
+// };
+
+// pub _int_to_ord := (i: int) -> Ordering => match i {
+//     0 => Eq;
+//     1 => Lt; 
+//     x if x == -1 => Gt;
+//     _ => unreachable();
+// };
+
+
+// Ord ~= impl Ord<int> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
+// Ord ~= impl Ord<char> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
+// Ord ~= impl Ord<float> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
+// Ord ~= impl Ord<str> { ord := (a, b) => _int_to_ord(intrinsic_ord(a, b)); };
 
 // Indexing
 // Implemented for maps and lists.
 
-Index := <T, I, O> => trait {
-    index : (T, I) -> O;
-};
 
-IndexMut := <T, I> => trait {
-    index_mut : (T, I, O) -> void;
-};
+// Index ~= impl Index<[T], usize, T> { index := (arr, index) => intrinsic_index_get(arr, index); }; 
+// Index ~= impl Index<{A:B}, A, B> { index := (map, index) => intrinsic_index_map_get(map, index); }; 
 
+// IndexMut ~= impl IndexMut<[T], usize, T> { index := (arr, index, value) => intrinsic_index_mut(arr, index, value); }; 
+// IndexMut ~= impl IndexMut<{A:B}, A, B> { index := (map, index, value) => intrinsic_index_map_mut(map, index, value); }; 
 
-Index ~= impl Index<[T], usize, T> { index := (arr, index) => intrinsic_index_get(arr, index); }; 
-Index ~= impl Index<{A:B}, A, B> { index := (map, index) => intrinsic_index_map_get(map, index); }; 
-
-IndexMut ~= impl IndexMut<[T], usize, T> { index := (arr, index, value) => intrinsic_index_mut(arr, index, value); }; 
-IndexMut ~= impl IndexMut<{A:B}, A, B> { index := (map, index, value) => intrinsic_index_map_mut(map, index, value); }; 
-
-// Index a string, returning a character
-Index ~= impl Index<str, int, char> { 
-    index := (string, idx) => intrinsic_index_get(string, idx); 
-};
+// // Index a string, returning a character
+// Index ~= impl Index<str, int, char> { 
+//     index := (string, idx) => intrinsic_index_get(string, idx); 
+// };
 
 
 // append an item to a list
-Sequence := <A: Eq> => trait { 
-    inner := type A;
+// Sequence := <A: Eq> => trait { 
+//     inner := type A;
 
-    try_get : (Self, usize) -> Option<A>;
-    push: (Self, A) -> void;
-    push_front: (Self, A) -> void;
-    pop: (Self) -> A;
-    contains: (Self, A) -> bool;
-    insert: (Self, A, usize) -> void;
-    remove: (Self, usize) -> void;
-};
+//     try_get : (Self, usize) -> Option<A>;
+//     push: (Self, A) -> void;
+//     push_front: (Self, A) -> void;
+//     pop: (Self) -> A;
+//     contains: (Self, A) -> bool;
+//     insert: (Self, A, usize) -> void;
+//     remove: (Self, usize) -> void;
+// };
 
-Sequence ~= impl Sequence<[A]> {
-    try_get := (list, item) => intrinsic_list_try_get(list, item);
-    push := (list, item) => intrinsic_list_push(list, item);
-    push_front := (list, item) => intrinsic_list_push_front(list, item);
-    pop := (list) => intrinsic_list_pop(list);
-    contains := (list, item) => intrinsic_contains(list, item);
-    insert := (list, item, index) => intrinsic_list_insert(list, item, index);
-    remove := (list, index) => intrinsic_list_remove(list, index);
-};
-
-// checking if items exist within a bracketted type
-// trait contains = <B, A> => (B, A) => bool;
-
-// let contains<[A], A> where eq<A> = (arr, item) => #intrinsic_contains(arr, item);
-
-// let contains<{A}, A> where eq<A>, hash<A> = (arr, item) => #intrinsic_bracketted_contains(arr, item, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
-
-// let contains<{A:B}, A> where eq<A>, hash<A> = (arr, item) => #intrinsic_bracketted_contains(arr, item, (a) => hash<A>(a), (x, y) => eq<A>(x, y));
-
-// // Delete a key from a map, and return its value.
-// trait remove = <C, A, B> => (C, A) => B;
-
-// let remove<[A], A, A> where eq<A> = (arr, key) => #intrinsic_list_remove(arr, key, (x, y) => eq<A>(x, y));
-
-// let remove<{A:B}, A, B> where eq<A>, hash<A> = (map, key) => #intrinsic_bracketted_remove(map, key,  (a) => hash<A>(a), (x, y) => eq<A>(x, y));
-
-// let remove<{A}, A, A> where eq<A>, hash<A> = (set, key) => #intrinsic_bracketted_remove(set, key,  (a) => hash<A>(a), (x, y) => eq<A>(x, y));
-
-// Index a map a key, returning a value if the key exists
-// trait try_get = <A, B> where eq<A>, hash<A> => ({A:B}, A) => Option<B>; //@@TODO: should we add this?
-// let try_get<A, B> where eq<A>, hash<A>;
-
-
-// Enum primitive conv
-Conv ~= <A: Conv<str>, B: Conv<str>> => impl Conv<Result<A, B>, str> {
-    conv := (res: Result<A, B>) => match res { 
-        Ok(a) => "Ok(" + conv(a) + ")"; 
-        Err(b) => "Err(" + conv(b) + ")"; 
-    };
-};
-
-Conv ~= <A: Conv<str>> => impl Conv<Option<A>, str> {
-    conv := (res) => match res { 
-        Some(a) => "Somw(" + conv(a) + ")"; 
-        None => "None"; 
-    };
-};
-
-
-// @@TODO: Potentially move this to `string.hash`?
-// Slice a string at [begin, end)
-slice := (string: str, start: usize, end: usize) -> str => intrinsic_slice(string, start, end);
+// Sequence ~= impl Sequence<[A]> {
+//     try_get := (list, item) => intrinsic_list_try_get(list, item);
+//     push := (list, item) => intrinsic_list_push(list, item);
+//     push_front := (list, item) => intrinsic_list_push_front(list, item);
+//     pop := (list) => intrinsic_list_pop(list);
+//     contains := (list, item) => intrinsic_contains(list, item);
+//     insert := (list, item, index) => intrinsic_list_insert(list, item, index);
+//     remove := (list, index) => intrinsic_list_remove(list, index);
+// };

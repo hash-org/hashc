@@ -2,7 +2,6 @@
 //! definition with some shared functions to append diagnostics to the analyser.
 
 use crossbeam_channel::Sender;
-use hash_pipeline::sources::ModuleKind;
 use hash_source::{
     location::{SourceLocation, Span},
     SourceId, SourceMap,
@@ -34,17 +33,11 @@ pub struct SemanticAnalyser<'s> {
     /// The current scope of the traversal, representing which block the
     /// analyser is walking.
     pub(crate) current_block: BlockOrigin,
-    /// The kind of module that the semantic analysis is currently traversing.
-    pub(crate) module_kind: Option<ModuleKind>,
 }
 
 impl<'s> SemanticAnalyser<'s> {
     /// Create a new semantic analyser
-    pub fn new(
-        source_map: &'s SourceMap,
-        source_id: SourceId,
-        module_kind: Option<ModuleKind>,
-    ) -> Self {
+    pub fn new(source_map: &'s SourceMap, source_id: SourceId) -> Self {
         Self {
             is_in_loop: false,
             is_in_function: false,
@@ -53,7 +46,6 @@ impl<'s> SemanticAnalyser<'s> {
             source_id,
             source_map,
             current_block: BlockOrigin::Root,
-            module_kind,
         }
     }
 

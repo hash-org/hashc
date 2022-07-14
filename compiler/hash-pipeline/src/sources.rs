@@ -1,7 +1,7 @@
 //! Hash Compiler sources map and interfaces for accessing and storing
 //! job sources.
 use hash_ast::ast;
-use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
+use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
 use std::{
     collections::{
         hash_map::{Iter, IterMut},
@@ -46,19 +46,6 @@ impl ast::OwnsAstNode<ast::BodyBlock> for InteractiveBlock {
     }
 }
 
-/// The [ModuleKind] enumeration describes what kind of module this is. If it is
-/// a [ModuleKind::Prelude], then certain things are allowed within this module
-/// in order to allow for `compiler` magic to interact with the prelude file.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum ModuleKind {
-    /// Any normal module that is within a workspace, including modules within
-    /// the standard library.
-    Normal,
-    /// The `prelude` module, which allows for various features that are
-    /// normally disallowed.
-    Prelude,
-}
-
 /// Represents a module that was added to the [Sources]. [Module] holds
 /// meta data about the module, such as the path. It also holds the
 /// parsed [ast::AstNode<ast::Module>] within the data structure. This is
@@ -70,30 +57,18 @@ pub struct Module {
     path: PathBuf,
     /// The generated AST for the module, set when parsing is complete.
     node: Option<ast::AstNode<ast::Module>>,
-    /// The kind of module, either being `normal` or `prelude` like.
-    kind: ModuleKind,
 }
 
 impl Module {
     /// Create a new [Module] with a specified `path` and the `node being set to
     /// [None].
     pub fn new(path: PathBuf) -> Self {
-        Self { path, node: None, kind: ModuleKind::Normal }
+        Self { path, node: None }
     }
 
-    /// Create a new [Module] with a specified `path` and kind.
-    pub fn new_with_kind(path: PathBuf, kind: ModuleKind) -> Self {
-        Self { path, node: None, kind }
-    }
-
-    /// Get that `path` from the [Module].
+    /// Get the `path` from the [Module].
     pub fn path(&self) -> &Path {
         &self.path
-    }
-
-    /// Get that [ModuleKind] from the [Module].
-    pub fn kind(&self) -> ModuleKind {
-        self.kind
     }
 
     /// Set the `node` for given [Module]
@@ -244,8 +219,8 @@ impl Workspace {
     /// Add a module to the [Sources] by providing the contents and the
     /// [Module]. Returns the created [ModuleId] from adding it to the
     /// source map.
-    pub fn add_module(&mut self, contents: String, module: Module) -> ModuleId {
-        let id = self.source_map.add_module(module.path.to_owned(), contents);
+    pub fn add_module(&mut self, contents: String, module: Module, kind: ModuleKind) -> ModuleId {
+        let id = self.source_map.add_module(module.path.to_owned(), contents, kind);
         self.node_map.add_module(id, module);
 
         id

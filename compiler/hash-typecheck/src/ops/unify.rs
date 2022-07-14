@@ -259,6 +259,9 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 self.unify_terms(src_inner, dest_inner)
             }
             (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner).clone() {
+                // When the `src_inner` is an unresolved term, the unification between the target
+                // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
+                // that the inner term is runtime instantiable...
                 Term::Unresolved(inner)
                     if self.validator().term_is_runtime_instantiable(simplified_target_id)? =>
                 {
@@ -269,6 +272,9 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 _ => cannot_unify(),
             },
             (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner).clone() {
+                // When the `target_inner` is an unresolved term, the unification between the target
+                // will yield a substitution `unresolved` -> `Rt(inner)`, so we need to verify
+                // that the inner term is runtime instantiable...
                 Term::Unresolved(inner)
                     if self.validator().term_is_runtime_instantiable(simplified_src_id)? =>
                 {

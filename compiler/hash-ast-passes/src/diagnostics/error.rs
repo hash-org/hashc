@@ -2,12 +2,11 @@
 
 use hash_ast::ast::Visibility;
 use hash_error_codes::error_codes::HashErrorCode;
-use hash_pipeline::sources::ModuleKind;
 use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_source::{identifier::Identifier, location::SourceLocation};
+use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind};
 
 use super::{
     directives::DirectiveArgument,
@@ -204,15 +203,15 @@ impl From<AnalysisError> for Report {
                     )));
             }
             AnalysisErrorKind::DisallowedDirective { name, module_kind } => {
-                builder.with_message(format!(
-                    "the `{}` directive is disallowed within a non-prelude context",
-                    name
-                ));
-
                 let origin = match module_kind {
                     Some(_) => "this module",
                     None => "an interactive",
                 };
+
+                builder.with_message(format!(
+                    "the `{}` directive is disallowed within {} context",
+                    name, origin
+                ));
 
                 // Show the location where the directive is being used...
                 builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(

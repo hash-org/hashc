@@ -1,7 +1,5 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-
-use ::if_chain::if_chain;
 use std::collections::HashSet;
 
 use crate::{
@@ -23,12 +21,12 @@ use hash_ast::{
     ast::{AstNodeRef, OwnsAstNode, RefKind},
     visitor::{self, walk, AstVisitor},
 };
-use hash_pipeline::sources::{ModuleKind, NodeMap, SourceRef};
+use hash_pipeline::sources::{NodeMap, SourceRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
     identifier::{Identifier, CORE_IDENTIFIERS},
     location::{SourceLocation, Span},
-    SourceId,
+    ModuleKind, SourceId,
 };
 
 mod sequence;
@@ -42,8 +40,6 @@ pub struct TcVisitorState {
     /// Return type for functions with return statements
     pub fn_def_return_ty: Option<TermId>,
     /// If the current traversal is within the intrinsic directive scope.
-    /// The flag remains `true` only for inner expression of the directive, and
-    /// will then be disabled after walking the inner directive expression.
     pub within_intrinsics_directive: bool,
 }
 
@@ -501,7 +497,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // If the current specified directive is `intrinsics`, then we have to enable
         // the flag `within_intrinsics_directive` which changes the way that `mod`
-        // blocks are validated and there members appended to the scope
+        // blocks are validated and changes the parsing of the declarations inside the
+        // mod block.
         if node.name.is(CORE_IDENTIFIERS.intrinsics) {
             self.state.within_intrinsics_directive = true;
         }
@@ -1123,7 +1120,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
-        // Take the declaration hint
         let declaration_hint = self.state.declaration_name_hint.take();
 
         // Traverse the parameters:
@@ -1613,7 +1609,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let current_scope_id = self.scopes().current_scope();
 
         if value.is_none() && self.state.within_intrinsics_directive {
-            // @@Hack: this should be filled in...
+            // @@Todo: see #391
             value = Some(self.builder().create_rt_term(ty));
         }
 
@@ -2121,15 +2117,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Decide on whether we are creating a new scope, or if we are going to use the
         // global scope. If we're within the `prelude` module, we need to append
         // all members into the global scope rather than creating a new scope
-        let members = if_chain! {
-            if let SourceId::Module(id) = self.source_id;
-            let module_kind = self.node_map.get_module(id).kind();
-            if module_kind == ModuleKind::Prelude;
-            then {
-                self.global_storage().root_scope
-            } else {
-                self.builder().create_constant_scope(vec![])
-            }
+        let members = if let Some(ModuleKind::Prelude) =
+            self.source_map().module_kind_by_id(self.source_id)
+        {
+            self.global_storage().root_scope
+        } else {
+            self.builder().create_constant_scope(vec![])
         };
 
         self.scopes_mut().append(members);

@@ -15,10 +15,10 @@ use std::{collections::HashMap, env, time::Duration};
 use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_source::SourceId;
+use hash_source::{ModuleKind, SourceId};
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
-use sources::{Module, ModuleKind, Workspace};
+use sources::{Module, Workspace};
 use traits::{Desugar, Parser, SemanticPass, Tc, VirtualMachine};
 
 pub type CompilerResult<T> = Result<T, Vec<Report>>;
@@ -61,8 +61,6 @@ pub struct CompilerState<
 > {
     /// The collected workspace sources for the current job.
     pub workspace: Workspace,
-    /// If the current job has an error
-    pub job_has_error: bool,
     /// Any diagnostics that were collected from any stage
     pub diagnostics: Vec<Report>,
     /// The typechecker state.
@@ -122,7 +120,6 @@ where
 
         Ok(CompilerState {
             workspace,
-            job_has_error: false,
             diagnostics: vec![],
             semantic_analysis_state,
             tc_state,
@@ -323,7 +320,6 @@ where
             // Some diagnostics might not be errors and all just warnings, in this
             // situation, we don't have to terminate execution
             if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
-                compiler_state.job_has_error = true;
                 return Err(());
             }
         }
@@ -379,8 +375,8 @@ where
 
     /// Function to bootstrap the pipeline. This function invokes a job within
     /// the pipeline in order to load the prelude before any modules run.
-    pub fn bootstrap(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
-        let mut compiler_state = self.create_state()?;
+    pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, S, C, V> {
+        let mut compiler_state = self.create_state().unwrap();
 
         // we need to load in the `prelude` module and have it ready for any other
         // sources
@@ -391,12 +387,13 @@ where
             CompilerJobParams::default(),
         );
 
-        // @@Hack: this returns an empty error list, but it just signals to the outside
-        // world to abort...
-        match compiler_state.job_has_error {
-            false => Ok(compiler_state),
-            true => Err(vec![]),
+        // The prelude shouldn't generate any errors, otherwise we just failed to
+        // bootstrap
+        if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
+            panic!("Failed to bootstrap compiler");
         }
+
+        compiler_state
     }
 
     /// Run a job within the compiler pipeline with the provided state, entry
@@ -407,7 +404,6 @@ where
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, V> {
-        // @@Cleanup: maybe move this to some kind of bootstrapping function
         let result = self.run_pipeline(entry_point, &mut compiler_state, job_params);
 
         // we can print the diagnostics here
@@ -486,9 +482,8 @@ where
         };
 
         // Create the entry point and run!
-        let entry_point = compiler_state
-            .workspace
-            .add_module(contents.unwrap(), Module::new_with_kind(filename, kind));
+        let entry_point =
+            compiler_state.workspace.add_module(contents.unwrap(), Module::new(filename), kind);
 
         self.run(SourceId::Module(entry_point), compiler_state, job_params)
     }
