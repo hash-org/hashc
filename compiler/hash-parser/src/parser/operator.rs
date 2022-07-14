@@ -25,9 +25,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Since the 'as' keyword is also a binary operator, we have to handle it here...
             TokenKind::Keyword(Keyword::As) => (Some(BinOp::As), 1),
             TokenKind::Tilde => match self.peek_second() {
-                Some(token) if token.kind == TokenKind::Eq =>(None, 0), // merge declaration
-                _ =>  (Some(BinOp::Merge), 1),
-            }
+                Some(token) if token.kind == TokenKind::Eq => (None, 0), // merge declaration
+                _ => (Some(BinOp::Merge), 1),
+            },
             TokenKind::Eq => match self.peek_second() {
                 Some(token) if token.kind == TokenKind::Eq => (Some(BinOp::EqEq), 2),
                 _ => (None, 0),

@@ -540,6 +540,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-utils",
+ "if_chain",
  "itertools",
  "slotmap",
 ]

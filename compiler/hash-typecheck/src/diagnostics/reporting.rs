@@ -46,7 +46,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
         match &err.error {
             TcError::CannotUnify { src, target } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
-                    "types mismatch wanted `{}`, but got `{}`",
+                    "types mismatch, wanted `{}`, but got `{}`",
                     target.for_formatting(err.global_storage()),
                     src.for_formatting(err.global_storage())
                 ));
@@ -510,7 +510,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
-                            "The property `{}` cannot be accessed from `{}`, it does not support property. accessing",
+                            "the property `{}` cannot be accessed from `{}`, it does not support property accessing",
                             name,
                             value.for_formatting(err.global_storage()),
                         ),

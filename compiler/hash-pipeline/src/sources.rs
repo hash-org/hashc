@@ -49,7 +49,7 @@ impl ast::OwnsAstNode<ast::BodyBlock> for InteractiveBlock {
 /// The [ModuleKind] enumeration describes what kind of module this is. If it is
 /// a [ModuleKind::Prelude], then certain things are allowed within this module
 /// in order to allow for `compiler` magic to interact with the prelude file.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ModuleKind {
     /// Any normal module that is within a workspace, including modules within
     /// the standard library.
