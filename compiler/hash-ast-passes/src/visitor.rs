@@ -1269,7 +1269,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
         let error_indices =
-            self.check_statements_are_declarative(&node.contents, BlockOrigin::Root);
+            self.check_members_are_declarative(node.contents.ast_ref_iter(), BlockOrigin::Root);
 
         Ok(error_indices)
     }

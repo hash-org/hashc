@@ -449,11 +449,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_trt_def(
         &self,
         trait_name: Option<impl Into<Identifier>>,
-        members: impl IntoIterator<Item = Member>,
+        members: ScopeId,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
         let name = trait_name.map(|t| t.into());
-        let members = self.create_constant_scope(members);
 
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name,

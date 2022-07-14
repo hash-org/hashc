@@ -29,7 +29,10 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 
-mod sequence;
+use self::scopes::VisitConstantScope;
+
+pub mod scopes;
+pub mod sequence;
 
 /// Internal state that the [TcVisitor] uses when traversing the
 /// given sources.
@@ -1357,16 +1360,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        let members = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(members);
+        // create a scope for the module definition
+        let VisitConstantScope { scope_name, scope_id, .. } =
+            self.visit_constant_scope(ctx, node.0.members(), None)?;
 
-        // Take the name hint from the defined declaration and use it as
-        // the name for the module definition.
-        let name = self.state.declaration_name_hint.take();
-
-        let _ = walk::walk_mod_block(self, ctx, node)?;
-
-        let mod_def = self.builder().create_mod_def(name, ModDefOrigin::Mod, members, vec![]);
+        // @@Todo: bound variables
+        let mod_def =
+            self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id, vec![]);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1375,7 +1375,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Add location to the term
         self.copy_location_from_node_to_target(node, term);
-        self.scopes_mut().pop_the_scope(members);
 
         Ok(term)
     }
@@ -1387,22 +1386,20 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
-        let members = self.builder().create_constant_scope(vec![]);
+        // create a scope for the module definition
+        let VisitConstantScope { scope_name, scope_id, .. } =
+            self.visit_constant_scope(ctx, node.0.members(), None)?;
 
-        self.scopes_mut().append(members);
-        let _ = walk::walk_impl_block(self, ctx, node)?;
+        // @@Todo: bound variables
+        let mod_def =
+            self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id, vec![]);
+        let term = self.builder().create_mod_def_term(mod_def);
 
-        let name = self.state.declaration_name_hint.take();
-        let trait_impl =
-            self.builder().create_mod_def(name, ModDefOrigin::AnonImpl, members, vec![]);
-
-        let term = self.builder().create_mod_def_term(trait_impl);
-        self.validator().validate_mod_def(trait_impl, term, false)?;
+        // Validate the definition
+        self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
-        self.scopes_mut().pop_the_scope(members);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1863,28 +1860,19 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitDef>,
     ) -> Result<Self::TraitDefRet, Self::Error> {
-        // take the declaration hint here...
-        let trait_name = self.state.declaration_name_hint.take();
-
         // create a scope for the module definition
-        let scope_id = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(scope_id);
+        let VisitConstantScope { scope_name, scope_id, .. } =
+            self.visit_constant_scope(ctx, node.members.ast_ref_iter(), None)?;
 
-        let _ = walk::walk_trait_def(self, ctx, node)?;
+        // @@Todo: bound variables
+        let trt_def = self.builder().create_trt_def(scope_name, scope_id, vec![]);
+        let term = self.builder().create_trt_term(trt_def);
 
-        // we need to get all of the current members from the scope and then pop it.
-        self.scopes_mut().pop_the_scope(scope_id);
-        let members = self.scope_store().get(scope_id).members.clone();
+        // Validate the definition
+        self.validator().validate_trt_def(trt_def)?;
 
-        let def_id = self.builder().create_trt_def(trait_name, members, vec![]);
-        let term = self.builder().create_trt_term(def_id);
-
-        // validate the constructed nominal def
-        self.validator().validate_trt_def(def_id)?;
-
-        // add location to the struct definition
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
+        // Add location to the term
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -1896,23 +1884,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TraitImpl>,
     ) -> Result<Self::TraitImplRet, Self::Error> {
-        let members = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(members);
+        let trait_term = self.visit_ty(ctx, node.ty.ast_ref())?;
 
-        let walk::TraitImpl { ty, .. } = walk::walk_trait_impl(self, ctx, node)?;
+        // create a scope for the module definition
+        let VisitConstantScope { scope_name, scope_id, .. } =
+            self.visit_constant_scope(ctx, node.implementation.ast_ref_iter(), None)?;
 
-        let name = self.state.declaration_name_hint.take();
-        let trait_impl =
-            self.builder().create_mod_def(name, ModDefOrigin::TrtImpl(ty), members, vec![]);
+        // @@Todo: bound variables
+        let mod_def = self.builder().create_mod_def(
+            scope_name,
+            ModDefOrigin::TrtImpl(trait_term),
+            scope_id,
+            vec![],
+        );
+        let term = self.builder().create_mod_def_term(mod_def);
 
-        let term = self.builder().create_mod_def_term(trait_impl);
-        self.validator().validate_mod_def(trait_impl, term, false)?;
+        // Validate the definition
+        self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
-        let location = self.source_location(node.span());
-        self.location_store_mut().add_location_to_target(term, location);
-
-        self.scopes_mut().pop_the_scope(members);
+        self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
     }
@@ -2125,18 +2116,17 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.builder().create_constant_scope(vec![])
         };
 
-        self.scopes_mut().append(members);
-        let _ = walk::walk_module(self, ctx, node)?;
-
         // Get the end of the filename for the module and use this as the name of the
         // module
         let name = self.source_map().source_name(self.source_id).to_owned();
+        let VisitConstantScope { scope_id, .. } =
+            self.visit_constant_scope(ctx, node.contents.ast_ref_iter(), Some(members))?;
 
         let source_id = self.source_id;
         let mod_def = self.builder().create_named_mod_def(
             name,
             ModDefOrigin::Source(source_id),
-            members,
+            scope_id,
             vec![],
         );
 
@@ -2145,9 +2135,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Add location to the term
         self.copy_location_from_node_to_target(node, term);
-
-        self.scopes_mut().pop_the_scope(members);
-
         Ok(term)
     }
 }

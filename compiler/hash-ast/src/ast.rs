@@ -1068,6 +1068,14 @@ pub struct BodyBlock {
     pub expr: Option<AstNode<Expression>>,
 }
 
+impl BodyBlock {
+    /// Get the members of the body block: the list of statements as well as the
+    /// optional ending expression.
+    pub fn members(&self) -> impl Iterator<Item = AstNodeRef<Expression>> + '_ {
+        self.statements.ast_ref_iter().chain(self.expr.as_ref().map(|x| x.ast_ref()))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct LoopBlock(pub AstNode<Block>);
 
