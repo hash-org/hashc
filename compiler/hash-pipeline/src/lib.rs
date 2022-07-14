@@ -488,7 +488,7 @@ where
         // Create the entry point and run!
         let entry_point = compiler_state
             .workspace
-            .add_module(contents.unwrap(), Module::new_with_kind(filename.clone(), kind));
+            .add_module(contents.unwrap(), Module::new_with_kind(filename, kind));
 
         self.run(SourceId::Module(entry_point), compiler_state, job_params)
     }

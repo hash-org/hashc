@@ -3,22 +3,27 @@
 //! traversal, the visitor calls various functions that are defined on the
 //! analyser to perform a variety of semantic checks.
 
+use ::if_chain::if_chain;
 use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
-        BindingPattern, DestructuringPattern, ExpressionKind, LiteralExpr, Mutability, Pattern,
-        TuplePatternEntry,
+        BindingPattern, Block, BlockExpr, DestructuringPattern, ExpressionKind, LiteralExpr,
+        Mutability, Pattern, TuplePatternEntry,
     },
     visitor::{walk, AstVisitor},
 };
+use hash_pipeline::sources::ModuleKind;
 use hash_reporting::macros::panic_on_span;
+use hash_source::identifier::CORE_IDENTIFIERS;
 
 use crate::{
     analysis::SemanticAnalyser,
     diagnostics::{
-        error::AnalysisErrorKind, warning::AnalysisWarningKind, BlockOrigin, FieldOrigin,
-        PatternOrigin,
+        directives::DirectiveArgument,
+        error::AnalysisErrorKind,
+        origins::{BlockOrigin, FieldOrigin, PatternOrigin},
+        warning::AnalysisWarningKind,
     },
 };
 
@@ -231,6 +236,44 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
         let _ = walk::walk_directive_expr(self, ctx, node);
+
+        // Here we should check if in the event that an `intrinsics` directive
+        // is being used only within the `prelude` module.
+        if node.name.is(CORE_IDENTIFIERS.intrinsics) {
+            if !matches!(self.module_kind, Some(ModuleKind::Prelude)) {
+                self.append_error(
+                    AnalysisErrorKind::DisallowedDirective {
+                        name: node.name.ident,
+                        module_kind: self.module_kind,
+                    },
+                    node.name.span(),
+                );
+
+                // exit early as we don't care about if the arguments of the directive are
+                // invalid in an invalid module context.
+                return Ok(());
+            }
+
+            // @@Cleanup @@Hardcoded: we check here that this particular directive
+            // expression must be a `mod` block since otherwise the directive
+            // wouldn't make sense...
+            if_chain! {
+                if let ExpressionKind::Block(BlockExpr(block)) = node.subject.kind();
+                if matches!(block.body(), Block::Mod(_));
+                then {}
+                else {
+                    self.append_error(
+                        AnalysisErrorKind::InvalidDirectiveArgument {
+                            name: node.name.ident,
+                            expected: DirectiveArgument::ModBlock,
+                            given: node.subject.kind().into()
+                        },
+                        node.subject.span(),
+                    );
+                }
+            }
+        }
+
         Ok(())
     }
 
