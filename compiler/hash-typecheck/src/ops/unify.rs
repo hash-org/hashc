@@ -211,7 +211,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             let ty_sub = self.unify_terms(src_param.ty, target_param.ty)?;
 
             // Add to cumulative substitution
-            cumulative_sub = self.get_super_sub(&cumulative_sub, &ty_sub)?;
+            cumulative_sub.extend(&ty_sub);
         }
 
         // Return the cumulative substitution of all the parameter types:
@@ -253,6 +253,31 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // Substitute source for target
                 Ok(Sub::from_pairs([(unresolved_target, simplified_src_id)]))
             }
+
+            // Typeof unifies if the inner terms unify.
+            (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
+                self.unify_terms(src_inner, dest_inner)
+            }
+            (Term::TyOf(src_inner), _) => match self.term_store().get(src_inner).clone() {
+                Term::Unresolved(inner)
+                    if self.validator().term_is_runtime_instantiable(simplified_target_id)? =>
+                {
+                    let instantiated_target = self.builder().create_rt_term(simplified_target_id);
+
+                    Ok(Sub::from_pairs([(inner, instantiated_target)]))
+                }
+                _ => cannot_unify(),
+            },
+            (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner).clone() {
+                Term::Unresolved(inner)
+                    if self.validator().term_is_runtime_instantiable(simplified_src_id)? =>
+                {
+                    let instantiated_source = self.builder().create_rt_term(simplified_src_id);
+
+                    Ok(Sub::from_pairs([(inner, instantiated_source)]))
+                }
+                _ => cannot_unify(),
+            },
 
             // Merging:
             (_, Term::Merge(inner_target)) => {
@@ -540,12 +565,6 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Root unifies with root and nothing else:
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
-
-            // Typeof unifies if the inner terms unify.
-            (Term::TyOf(src_inner), Term::TyOf(dest_inner)) => {
-                self.unify_terms(src_inner, dest_inner)
-            }
-            (_, Term::TyOf(_)) | (Term::TyOf(_), _) => cannot_unify(),
         }
     }
 }
