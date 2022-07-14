@@ -10,7 +10,7 @@ use crate::storage::{
     GlobalStorage,
 };
 use core::fmt;
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, fmt::Display, rc::Rc};
 
 // Contains various options regarding the formatting of terms.
 #[derive(Debug, Clone)]
@@ -534,6 +534,7 @@ pub trait PrepareForFormatting: Sized {
     }
 }
 
+impl<T: PrepareForFormatting> PrepareForFormatting for Option<T> {}
 impl PrepareForFormatting for TermId {}
 impl PrepareForFormatting for TrtDefId {}
 impl PrepareForFormatting for ModDefId {}
@@ -591,5 +592,25 @@ impl fmt::Display for ForFormatting<'_, ScopeId> {
 impl fmt::Display for ForFormatting<'_, &Sub> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_sub(f, self.t)
+    }
+}
+
+impl<'gs, T: PrepareForFormatting + Clone> fmt::Display for ForFormatting<'gs, Option<T>>
+where
+    ForFormatting<'gs, T>: Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.t.as_ref() {
+            Some(t) => {
+                write!(
+                    f,
+                    "Some({})",
+                    t.clone().for_formatting_with_opts(self.global_storage, self.opts.clone())
+                )
+            }
+            None => {
+                write!(f, "None")
+            }
+        }
     }
 }
