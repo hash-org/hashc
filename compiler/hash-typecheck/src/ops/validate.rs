@@ -270,6 +270,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         &mut self,
         mod_def_id: ModDefId,
         originating_term_id: TermId,
+        allow_uninitialised: bool,
     ) -> TcResult<()> {
         let reader = self.reader();
         let mod_def = reader.get_mod_def(mod_def_id);
@@ -278,7 +279,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
         // Validate all members:
         // Bound vars should already be in scope.
-        self.validate_constant_scope(mod_def_members, false)?;
+        self.validate_constant_scope(mod_def_members, allow_uninitialised)?;
 
         // Ensure if it is a trait impl it implements all the trait members.
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {

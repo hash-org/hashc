@@ -25,7 +25,7 @@ use hash_ast::{
 use hash_pipeline::sources::{NodeMap, SourceRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
-    identifier::Identifier,
+    identifier::{Identifier, CORE_IDENTIFIERS},
     location::{SourceLocation, Span},
     SourceId,
 };
@@ -40,6 +40,10 @@ pub struct TcVisitorState {
     pub declaration_name_hint: Option<Identifier>,
     /// Return type for functions with return statements
     pub fn_def_return_ty: Option<TermId>,
+    /// If the current traversal is within the intrinsic directive scope.
+    /// The flag remains `true` only for inner expression of the directive, and
+    /// will then be disabled after walking the inner directive expression.
+    pub within_intrinsics_directive: bool,
 }
 
 impl TcVisitorState {
@@ -492,6 +496,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        // If the current specified directive is `intrinsics`, then we have to enable
+        // the flag `within_intrinsics_directive` which changes the way that `mod`
+        // blocks are validated and there members appended to the scope
+        if node.name.is(CORE_IDENTIFIERS.intrinsics) {
+            self.state.within_intrinsics_directive = true;
+        }
+
         // @@Directives: Decide on what to do with directives, but for now walk the
         // inner types...
         let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
@@ -1338,11 +1349,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
+        let is_within_intrinsics = self.state.within_intrinsics_directive;
+
         // create a scope for the module definition
         let members = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(members);
 
+        self.scopes_mut().append(members);
         let _ = walk::walk_mod_block(self, ctx, node)?;
+        self.scopes_mut().pop_the_scope(members);
 
         // Take the name hint from the defined declaration and use it as
         // the name for the module definition.
@@ -1352,7 +1366,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
-        self.validator().validate_mod_def(mod_def, term)?;
+        self.validator().validate_mod_def(mod_def, term, is_within_intrinsics)?;
 
         // Add location to the term
         self.copy_location_from_node_to_target(node, term);
@@ -1368,22 +1382,21 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         let members = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(members);
 
+        self.scopes_mut().append(members);
         let _ = walk::walk_impl_block(self, ctx, node)?;
+        self.scopes_mut().pop_the_scope(members);
 
         let name = self.state.declaration_name_hint.take();
         let trait_impl =
             self.builder().create_mod_def(name, ModDefOrigin::AnonImpl, members, vec![]);
 
         let term = self.builder().create_mod_def_term(trait_impl);
-        self.validator().validate_mod_def(trait_impl, term)?;
+        self.validator().validate_mod_def(trait_impl, term, false)?;
 
         // Add location to the term
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(term, location);
-
-        self.scopes_mut().pop_the_scope(members);
 
         Ok(term)
     }
@@ -1871,7 +1884,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.builder().create_mod_def(name, ModDefOrigin::TrtImpl(ty), members, vec![]);
 
         let term = self.builder().create_mod_def_term(trait_impl);
-        self.validator().validate_mod_def(trait_impl, term)?;
+        self.validator().validate_mod_def(trait_impl, term, false)?;
 
         // Add location to the term
         let location = self.source_location(node.span());
@@ -2097,7 +2110,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         );
 
         let term = self.builder().create_mod_def_term(mod_def);
-        self.validator().validate_mod_def(mod_def, term)?;
+        self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
         self.copy_location_from_node_to_target(node, term);
