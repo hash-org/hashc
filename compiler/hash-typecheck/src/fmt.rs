@@ -1,5 +1,6 @@
 //! Contains utilities to format types for displaying in error messages and
 //! debug output.
+
 use crate::storage::{
     primitives::{
         AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, MemberData,
@@ -417,6 +418,16 @@ impl<'gs> TcFormatter<'gs> {
             Term::Root => {
                 opts.is_atomic.set(true);
                 write!(f, "Root")
+            }
+            Term::TyOf(term) => {
+                write!(
+                    f,
+                    "typeof({})",
+                    term.for_formatting_with_opts(
+                        self.global_storage,
+                        TcFormatOpts { expand: opts.expand, ..TcFormatOpts::default() }
+                    )
+                )
             }
         }
     }

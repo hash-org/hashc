@@ -62,6 +62,7 @@ impl Term {
             | Term::Var(_)
             | Term::Merge(_)
             | Term::TyFn(_)
+            | Term::TyOf(_)
             | Term::Union(_)
             | Term::TyFnTy(_)
             | Term::TyFnCall(_) => TermLevel::Unknown,
@@ -397,6 +398,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             | Term::TyFnTy(_)
             | Term::Level0(_)
             | Term::Root
+            | Term::TyOf(_)
             | Term::TyFnCall(_)
             | Term::Access(_)
             | Term::Var(_) => invalid_union_element(),
@@ -563,6 +565,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Level0(_) => invalid_merge_element(),
             // Root is not allowed
             Term::Root => invalid_merge_element(),
+            // Unsimplifiable typeof is not allowed
+            Term::TyOf(_) => invalid_merge_element(),
             // This should have been flattened already:
             Term::Merge(_) => {
                 tc_panic_on_many!(
@@ -886,6 +890,9 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 Ok(result)
             }
 
+            // Typeof: recurse to inner
+            Term::TyOf(term) => self.validate_term(*term),
+
             // Type function application:
             Term::TyFnCall(app_ty_fn) => {
                 // Since this could be typed, it means the application is valid in terms of
@@ -1003,7 +1010,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::TyOf(_) | Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
             Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
                 let terms = terms.clone();
@@ -1095,7 +1102,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             Term::Level2(_) | Term::Level3(_) => Ok(true),
             // Level 1 terms are not ok (because their instances are runtime)
             Term::Level1(_) => Ok(false),
-            Term::Root => {
+            Term::TyOf(_) | Term::Root => {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }

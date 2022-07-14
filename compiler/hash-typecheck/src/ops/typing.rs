@@ -165,8 +165,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
             }
             Term::Unresolved(_) => {
-                // The type of an unresolved variable is unresolved:
-                Ok(self.builder().create_unresolved_term())
+                // The type of an unresolved variable X is typeof(X):
+                Ok(self.builder().create_ty_of_term(term_id))
             }
             Term::Level3(level3_term) => match level3_term {
                 Level3Term::TrtKind => {
@@ -220,8 +220,15 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            // The type of root is root
-            Term::Root => Ok(self.builder().create_root_term()),
+            Term::TyOf(_) => {
+                // Since this is simplified already, all we can do is wrap it again..
+                Ok(self.builder().create_ty_of_term(term_id))
+            }
+            // The type of root is typeof(root)
+            Term::Root => {
+                let builder = self.builder();
+                Ok(builder.create_ty_of_term(builder.create_root_term()))
+            }
         }?;
 
         self.location_store_mut().copy_location(term_id, new_term);
