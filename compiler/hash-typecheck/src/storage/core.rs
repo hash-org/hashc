@@ -106,6 +106,14 @@ impl CoreDefs {
             never_ty,
         );
 
+        // Void type
+        let void_ty = builder.create_void_ty_term();
+        builder.add_pub_member_to_scope(
+            "void",
+            builder.create_trt_term(runtime_instantiable_trt),
+            void_ty,
+        );
+
         // Reference types
         let reference_ty_fn = builder.create_ty_fn_term(
             Some("Ref"),

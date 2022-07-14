@@ -12,10 +12,10 @@ pub mod traits;
 
 use std::{collections::HashMap, env, time::Duration};
 
-use fs::{read_in_path, resolve_path};
+use fs::{read_in_path, resolve_path, PRELUDE};
 use hash_ast::{ast::OwnsAstNode, tree::AstTreeGenerator, visitor::AstVisitor};
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_source::SourceId;
+use hash_source::{ModuleKind, SourceId};
 use hash_utils::{path::adjust_canonicalization, timed, tree_writing::TreeWriter};
 use settings::{CompilerJobParams, CompilerMode, CompilerSettings};
 use sources::{Module, Workspace};
@@ -111,10 +111,7 @@ where
     /// Internally, this calls the [Tc] state making functions and saves it
     /// into the created [CompilerState].
     pub fn create_state(&mut self) -> CompilerResult<CompilerState<'c, 'pool, D, S, C, V>> {
-        let sources = Workspace::new();
-        // let checker_interactive_state = self.checker.make_interactive_state(&mut
-        // checker_state)?; let checker_module_state =
-        // self.checker.make_module_state(&mut checker_state)?;
+        let workspace = Workspace::new();
 
         let ds_state = self.desugarer.make_state()?;
         let semantic_analysis_state = self.semantic_analyser.make_state()?;
@@ -122,7 +119,7 @@ where
         let vm_state = self.vm.make_state()?;
 
         Ok(CompilerState {
-            workspace: sources,
+            workspace,
             diagnostics: vec![],
             semantic_analysis_state,
             tc_state,
@@ -164,7 +161,6 @@ where
                 // If this is an interactive statement, we want to print the statement that was
                 // just parsed.
                 let source = workspace.node_map().get_interactive_block(id);
-
                 let tree = AstTreeGenerator.visit_body_block(&(), source.node_ref()).unwrap();
 
                 println!("{}", TreeWriter::new(&tree));
@@ -377,6 +373,29 @@ where
         Ok(())
     }
 
+    /// Function to bootstrap the pipeline. This function invokes a job within
+    /// the pipeline in order to load the prelude before any modules run.
+    pub fn bootstrap(&mut self) -> CompilerState<'c, 'pool, D, S, C, V> {
+        let mut compiler_state = self.create_state().unwrap();
+
+        // we need to load in the `prelude` module and have it ready for any other
+        // sources
+        compiler_state = self.run_on_filename(
+            PRELUDE.to_string(),
+            ModuleKind::Prelude,
+            compiler_state,
+            CompilerJobParams::default(),
+        );
+
+        // The prelude shouldn't generate any errors, otherwise we just failed to
+        // bootstrap
+        if compiler_state.diagnostics.iter().any(|r| r.is_error()) {
+            panic!("Failed to bootstrap compiler");
+        }
+
+        compiler_state
+    }
+
     /// Run a job within the compiler pipeline with the provided state, entry
     /// point and the specified job parameters.
     pub fn run(
@@ -426,9 +445,14 @@ where
         compiler_state
     }
 
+    /// Run the compiler pipeline on a file specified by the path on the disk.
+    /// This essentially performs the required steps of loading in a module
+    /// off the disk, store it within the [Workspace] and invoke
+    /// [`Self::run`]
     pub fn run_on_filename(
         &mut self,
         filename: String,
+        kind: ModuleKind,
         mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
         job_params: CompilerJobParams,
     ) -> CompilerState<'c, 'pool, D, S, C, V> {
@@ -459,7 +483,8 @@ where
 
         // Create the entry point and run!
         let entry_point =
-            compiler_state.workspace.add_module(contents.unwrap(), Module::new(filename));
+            compiler_state.workspace.add_module(contents.unwrap(), Module::new(filename), kind);
+
         self.run(SourceId::Module(entry_point), compiler_state, job_params)
     }
 }

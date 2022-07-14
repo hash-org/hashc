@@ -86,12 +86,16 @@ pub struct IdentifierMap<'c> {
 /// generating the AST.
 pub struct CoreIdentifiers {
     pub underscore: Identifier,
+    pub intrinsics: Identifier,
 }
 
 impl CoreIdentifiers {
     /// Create the core identifiers inside the given [IdentifierMap].
     pub fn from_ident_map(ident_map: &IdentifierMap) -> Self {
-        Self { underscore: ident_map.create_ident("_") }
+        Self {
+            underscore: ident_map.create_ident("_"),
+            intrinsics: ident_map.create_ident("intrinsics"),
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 //! Hash Compiler sources map and interfaces for accessing and storing
 //! job sources.
 use hash_ast::ast;
-use hash_source::{InteractiveId, ModuleId, SourceId, SourceMap};
+use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId, SourceMap};
 use std::{
     collections::{
         hash_map::{Iter, IterMut},
@@ -66,7 +66,7 @@ impl Module {
         Self { path, node: None }
     }
 
-    /// Get that `path` from the [Module].
+    /// Get the `path` from the [Module].
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -219,8 +219,8 @@ impl Workspace {
     /// Add a module to the [Sources] by providing the contents and the
     /// [Module]. Returns the created [ModuleId] from adding it to the
     /// source map.
-    pub fn add_module(&mut self, contents: String, module: Module) -> ModuleId {
-        let id = self.source_map.add_module(module.path.to_owned(), contents);
+    pub fn add_module(&mut self, contents: String, module: Module, kind: ModuleKind) -> ModuleId {
+        let id = self.source_map.add_module(module.path.to_owned(), contents, kind);
         self.node_map.add_module(id, module);
 
         id

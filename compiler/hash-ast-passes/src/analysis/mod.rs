@@ -9,8 +9,9 @@ use hash_source::{
 
 use crate::diagnostics::{
     error::{AnalysisError, AnalysisErrorKind},
+    origins::BlockOrigin,
     warning::{AnalysisWarning, AnalysisWarningKind},
-    BlockOrigin, Diagnostic,
+    Diagnostic,
 };
 
 mod block;

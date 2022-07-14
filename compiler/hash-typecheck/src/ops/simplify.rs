@@ -337,7 +337,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Pop back the scope
                 self.scopes_mut().pop_the_scope(mod_def_scope);
-
                 Ok(result)
             }
             // Nominals:
@@ -420,6 +419,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     fn apply_access_term(&mut self, access_term: &AccessTerm) -> TcResult<Option<TermId>> {
         let simplified_subject_id = self.potentially_simplify_term(access_term.subject)?;
         let simplified_subject = self.reader().get_term(simplified_subject_id).clone();
+
+        // Overwrite the the `subject` with `simplified_subject_id`
+        let access_term = &AccessTerm { subject: simplified_subject_id, ..*access_term };
 
         match simplified_subject {
             Term::Union(terms) => {

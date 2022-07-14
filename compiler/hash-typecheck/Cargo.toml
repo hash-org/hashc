@@ -8,6 +8,7 @@ edition = "2021"
 slotmap = "1.0"
 dashmap = "5.1"
 itertools = "0.10"
+if_chain = "1.0.2"
 
 hash-ast = { path = "../hash-ast" }
 hash-source = { path = "../hash-source" }

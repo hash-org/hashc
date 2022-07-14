@@ -406,6 +406,7 @@ dependencies = [
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
+ "if_chain",
  "rayon",
 ]
 
@@ -539,6 +540,7 @@ dependencies = [
  "hash-reporting",
  "hash-source",
  "hash-utils",
+ "if_chain",
  "itertools",
  "slotmap",
 ]
@@ -600,6 +602,12 @@ checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "if_chain"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
 
 [[package]]
 name = "indexmap"

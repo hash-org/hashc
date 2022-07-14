@@ -6,9 +6,12 @@ use hash_reporting::{
     builder::ReportBuilder,
     report::{Report, ReportCodeBlock, ReportElement, ReportKind, ReportNote, ReportNoteKind},
 };
-use hash_source::location::SourceLocation;
+use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind};
 
-use super::{BlockOrigin, FieldOrigin, PatternOrigin};
+use super::{
+    directives::DirectiveArgument,
+    origins::{BlockOrigin, FieldOrigin, PatternOrigin},
+};
 
 /// An error that can occur during the semantic pass
 pub struct AnalysisError {
@@ -62,6 +65,15 @@ pub(crate) enum AnalysisErrorKind {
     /// annotation and a default value, which means that there is not enough
     /// information at later stages to deduce the type of the field.
     InsufficientTypeAnnotations { origin: FieldOrigin },
+    /// When a directive is not allowed in the current module or context
+    DisallowedDirective { name: Identifier, module_kind: Option<ModuleKind> },
+    /// When a directive is expecting a particular expression, but received an
+    /// unexpected kind...
+    InvalidDirectiveArgument {
+        name: Identifier,
+        expected: DirectiveArgument,
+        given: DirectiveArgument,
+    },
 }
 
 impl From<AnalysisError> for Report {
@@ -189,6 +201,35 @@ impl From<AnalysisError> for Report {
                         ReportNoteKind::Help,
                         format!("consider giving this {} field a type annotation", origin),
                     )));
+            }
+            AnalysisErrorKind::DisallowedDirective { name, module_kind } => {
+                let origin = match module_kind {
+                    Some(_) => "this module",
+                    None => "an interactive",
+                };
+
+                builder.with_message(format!(
+                    "the `{}` directive is disallowed within {} context",
+                    name, origin
+                ));
+
+                // Show the location where the directive is being used...
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    err.location,
+                    format!("`{}` cannot be used within {} context", name, origin),
+                )));
+            }
+            AnalysisErrorKind::InvalidDirectiveArgument { name, expected, given } => {
+                builder.with_message(format!(
+                    "the `{}` directive expects a {} as an argument",
+                    name, expected
+                ));
+
+                // Show the location where the directive is being used...
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    err.location,
+                    format!("a {} cannot be given to the `{}` directive", given, name),
+                )));
             }
         };
 

@@ -9,7 +9,7 @@ use hash_pipeline::{
     traits::Parser,
 };
 use hash_reporting::{report::Report, writer::ReportWriter};
-use hash_source::SourceId;
+use hash_source::{ModuleKind, SourceId};
 use hash_utils::testing::TestingInput;
 use hash_utils_testing_macros::generate_tests;
 use lazy_static::lazy_static;
@@ -89,7 +89,7 @@ fn handle_test(input: TestingInput) {
     let target = Module::new(content_path.clone());
     let contents = read_in_path(content_path.as_path()).unwrap();
 
-    let target_id = workspace.add_module(contents, target);
+    let target_id = workspace.add_module(contents, target, ModuleKind::Normal);
 
     let mut parser = HashParser::new();
 

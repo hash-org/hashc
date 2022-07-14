@@ -8,7 +8,7 @@ use hash_ast::{
     visitor::AstVisitor,
 };
 
-use crate::diagnostics::{error::AnalysisErrorKind, BlockOrigin};
+use crate::diagnostics::{error::AnalysisErrorKind, origins::BlockOrigin};
 
 use super::SemanticAnalyser;
 

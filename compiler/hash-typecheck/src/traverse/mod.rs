@@ -1,6 +1,5 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-
 use std::collections::HashSet;
 
 use crate::{
@@ -25,9 +24,9 @@ use hash_ast::{
 use hash_pipeline::sources::{NodeMap, SourceRef};
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
-    identifier::Identifier,
+    identifier::{Identifier, CORE_IDENTIFIERS},
     location::{SourceLocation, Span},
-    SourceId,
+    ModuleKind, SourceId,
 };
 
 mod sequence;
@@ -40,6 +39,8 @@ pub struct TcVisitorState {
     pub declaration_name_hint: Option<Identifier>,
     /// Return type for functions with return statements
     pub fn_def_return_ty: Option<TermId>,
+    /// If the current traversal is within the intrinsic directive scope.
+    pub within_intrinsics_directive: bool,
 }
 
 impl TcVisitorState {
@@ -492,9 +493,21 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DirectiveExpr>,
     ) -> Result<Self::DirectiveExprRet, Self::Error> {
+        let old_intrinsics_state = self.state.within_intrinsics_directive;
+
+        // If the current specified directive is `intrinsics`, then we have to enable
+        // the flag `within_intrinsics_directive` which changes the way that `mod`
+        // blocks are validated and changes the parsing of the declarations inside the
+        // mod block.
+        if node.name.is(CORE_IDENTIFIERS.intrinsics) {
+            self.state.within_intrinsics_directive = true;
+        }
+
         // @@Directives: Decide on what to do with directives, but for now walk the
         // inner types...
         let walk::DirectiveExpr { subject, .. } = walk::walk_directive_expr(self, ctx, node)?;
+
+        self.state.within_intrinsics_directive = old_intrinsics_state;
 
         Ok(subject)
     }
@@ -1107,6 +1120,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
+        let declaration_hint = self.state.declaration_name_hint.take();
+
         // Traverse the parameters:
         let param_elements = Self::try_collect_items(
             ctx,
@@ -1133,8 +1148,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let ty_fn_return_ty = self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
         let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, expression);
 
-        let ty_fn_term =
-            self.builder().create_nameless_ty_fn_term(params, ty_fn_return_ty, ty_fn_return_value);
+        let ty_fn_term = self.builder().create_ty_fn_term(
+            declaration_hint,
+            params,
+            ty_fn_return_ty,
+            ty_fn_return_value,
+        );
 
         // Add location to the type function:
         self.copy_location_from_node_to_target(node, ty_fn_term);
@@ -1338,24 +1357,25 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModBlock>,
     ) -> Result<Self::ModBlockRet, Self::Error> {
-        // create a scope for the module definition
         let members = self.builder().create_constant_scope(vec![]);
         self.scopes_mut().append(members);
-
-        let _ = walk::walk_mod_block(self, ctx, node)?;
 
         // Take the name hint from the defined declaration and use it as
         // the name for the module definition.
         let name = self.state.declaration_name_hint.take();
 
+        let _ = walk::walk_mod_block(self, ctx, node)?;
+
         let mod_def = self.builder().create_mod_def(name, ModDefOrigin::Mod, members, vec![]);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
-        self.validator().validate_mod_def(mod_def, term)?;
+        let is_within_intrinsics = self.state.within_intrinsics_directive;
+        self.validator().validate_mod_def(mod_def, term, is_within_intrinsics)?;
 
         // Add location to the term
         self.copy_location_from_node_to_target(node, term);
+        self.scopes_mut().pop_the_scope(members);
 
         Ok(term)
     }
@@ -1368,8 +1388,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ImplBlock>,
     ) -> Result<Self::ImplBlockRet, Self::Error> {
         let members = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(members);
 
+        self.scopes_mut().append(members);
         let _ = walk::walk_impl_block(self, ctx, node)?;
 
         let name = self.state.declaration_name_hint.take();
@@ -1377,12 +1397,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.builder().create_mod_def(name, ModDefOrigin::AnonImpl, members, vec![]);
 
         let term = self.builder().create_mod_def_term(trait_impl);
-        self.validator().validate_mod_def(trait_impl, term)?;
+        self.validator().validate_mod_def(trait_impl, term, false)?;
 
         // Add location to the term
         let location = self.source_location(node.span());
         self.location_store_mut().add_location_to_target(term, location);
-
         self.scopes_mut().pop_the_scope(members);
 
         Ok(term)
@@ -1462,9 +1481,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.copy_location_from_node_to_target(node, term);
             term
         });
+
         let return_ty = self.typer().ty_of_term(return_term)?;
         let already_given_return_ty =
             self.state.fn_def_return_ty.unwrap_or_else(|| self.builder().create_unresolved_term());
+
         let return_ty_sub = self.unifier().unify_terms(return_ty, already_given_return_ty)?;
         let unified_return_ty =
             self.substituter().apply_sub_to_term(&return_ty_sub, already_given_return_ty);
@@ -1472,8 +1493,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Return never as the return expression shouldn't evaluate to anything.
         let never_term = self.builder().create_never_term();
-        self.copy_location_from_node_to_target(node, never_term);
-        Ok(never_term)
+        let term = self.builder().create_rt_term(never_term);
+
+        self.copy_location_from_node_to_target(node, term);
+        Ok(term)
     }
 
     type BreakStatementRet = TermId;
@@ -1550,8 +1573,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        // @@Todo: deal with mutability and visibility
-        let walk::Declaration { pattern, ty, value } = walk::walk_declaration(self, ctx, node)?;
+        let pattern = self.visit_pattern(ctx, node.pattern.ast_ref())?;
 
         // @@Todo: deal with other kinds of patterns:
         let PatternHint::Binding { name, mutability, visibility } = match pattern {
@@ -1560,6 +1582,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 pattern
             }
         };
+
+        let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
+        let value =
+            node.value.as_ref().map(|t| self.visit_expression(ctx, t.ast_ref())).transpose()?;
+
+        // Clear the declaration hint
+        self.state.declaration_name_hint.take();
 
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
 
@@ -1573,11 +1602,17 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         };
 
         // Apply the substitution on the type and value
-        let value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
+        let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
         // Add the member to scope:
         let current_scope_id = self.scopes().current_scope();
+
+        if value.is_none() && self.state.within_intrinsics_directive {
+            // @@Todo: see #391
+            value = Some(self.builder().create_rt_term(ty));
+        }
+
         let member_id = self.scope_store_mut().get_mut(current_scope_id).add(Member {
             name,
             data: MemberData::from_ty_and_value(Some(ty), value),
@@ -1871,7 +1906,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.builder().create_mod_def(name, ModDefOrigin::TrtImpl(ty), members, vec![]);
 
         let term = self.builder().create_mod_def_term(trait_impl);
-        self.validator().validate_mod_def(trait_impl, term)?;
+        self.validator().validate_mod_def(trait_impl, term, false)?;
 
         // Add location to the term
         let location = self.source_location(node.span());
@@ -2079,16 +2114,25 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let source_id = self.source_id;
-        let members = self.builder().create_constant_scope(vec![]);
-        self.scopes_mut().append(members);
+        // Decide on whether we are creating a new scope, or if we are going to use the
+        // global scope. If we're within the `prelude` module, we need to append
+        // all members into the global scope rather than creating a new scope
+        let members = if let Some(ModuleKind::Prelude) =
+            self.source_map().module_kind_by_id(self.source_id)
+        {
+            self.global_storage().root_scope
+        } else {
+            self.builder().create_constant_scope(vec![])
+        };
 
+        self.scopes_mut().append(members);
         let _ = walk::walk_module(self, ctx, node)?;
 
         // Get the end of the filename for the module and use this as the name of the
         // module
         let name = self.source_map().source_name(self.source_id).to_owned();
 
+        let source_id = self.source_id;
         let mod_def = self.builder().create_named_mod_def(
             name,
             ModDefOrigin::Source(source_id),
@@ -2097,7 +2141,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         );
 
         let term = self.builder().create_mod_def_term(mod_def);
-        self.validator().validate_mod_def(mod_def, term)?;
+        self.validator().validate_mod_def(mod_def, term, false)?;
 
         // Add location to the term
         self.copy_location_from_node_to_target(node, term);

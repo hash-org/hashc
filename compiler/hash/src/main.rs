@@ -14,6 +14,7 @@ use hash_pipeline::{
     Compiler,
 };
 use hash_reporting::errors::CompilerError;
+use hash_source::ModuleKind;
 use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
@@ -96,7 +97,7 @@ fn main() {
 
     let mut compiler =
         Compiler::new(parser, desugarer, semantic_analyser, checker, vm, &pool, compiler_settings);
-    let compiler_state = compiler.create_state().unwrap();
+    let compiler_state = compiler.bootstrap();
 
     execute(|| {
         match entry_point {
@@ -117,10 +118,10 @@ fn main() {
                     _ => CompilerJobParams::default(),
                 };
 
-                compiler.run_on_filename(path, compiler_state, job_settings);
+                compiler.run_on_filename(path, ModuleKind::Normal, compiler_state, job_settings);
             }
             None => {
-                hash_interactive::init(compiler)?;
+                hash_interactive::init(compiler, compiler_state)?;
             }
         };
 

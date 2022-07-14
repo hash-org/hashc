@@ -16,7 +16,7 @@ use hash_pipeline::{
     CompilerResult,
 };
 use hash_reporting::report::Report;
-use hash_source::{InteractiveId, ModuleId, SourceId};
+use hash_source::{InteractiveId, ModuleId, ModuleKind, SourceId};
 use import_resolver::ImportResolver;
 use parser::{error::ParseError, AstGen};
 use source::ParseSource;
@@ -56,7 +56,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.
-    let resolver = ImportResolver::new(source_id, source.current_dir(), sender);
+    let resolver = ImportResolver::new(source_id, source.path(), sender);
 
     let gen = AstGen::new(&tokens, &trees, &resolver);
 
@@ -126,8 +126,11 @@ impl<'pool> HashParser {
                             continue;
                         }
 
-                        let module_id =
-                            workspace.add_module(contents, Module::new(resolved_path.clone()));
+                        let module_id = workspace.add_module(
+                            contents,
+                            Module::new(resolved_path.clone()),
+                            ModuleKind::Normal,
+                        );
 
                         let source = ParseSource::from_module(module_id, workspace);
                         scope.spawn(move |_| parse_source(source, sender));

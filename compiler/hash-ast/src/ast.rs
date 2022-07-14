@@ -270,10 +270,18 @@ impl<T> DerefMut for AstNode<T> {
 }
 
 /// A single name/symbol.
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, Debug, Clone, Copy)]
 pub struct Name {
     // The name of the symbol.
     pub ident: Identifier,
+}
+
+impl Name {
+    /// Function to check whether a [Name] has a particular associated name with
+    /// it.
+    pub fn is(&self, other: impl Into<Identifier>) -> bool {
+        self.ident == other.into()
+    }
 }
 
 /// A namespaced name, i.e. access name.

@@ -3,7 +3,10 @@
 
 use bimap::BiMap;
 use slotmap::{new_key_type, SlotMap};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 pub mod identifier;
 pub mod location;
@@ -37,6 +40,19 @@ impl SourceId {
     }
 }
 
+/// The [ModuleKind] enumeration describes what kind of module this is. If it is
+/// a [ModuleKind::Prelude], then certain things are allowed within this module
+/// in order to allow for `compiler` magic to interact with the prelude file.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ModuleKind {
+    /// Any normal module that is within a workspace, including modules within
+    /// the standard library.
+    Normal,
+    /// The `prelude` module, which allows for various features that are
+    /// normally disallowed.
+    Prelude,
+}
+
 /// This data structure is used to store and organise the sources of the
 /// [Module]s and [InteractiveBlock]s. It separates the contents of the sources
 /// from the other data structures due to the need to sometimes only read the
@@ -49,7 +65,9 @@ pub struct SourceMap {
     module_paths: BiMap<ModuleId, PathBuf>,
     ///  A map between [ModuleId] and the actual sources of the module.
     module_content_map: SlotMap<ModuleId, String>,
-    ///  A map between [InteractiveId] and the actual sources of the interactive
+    /// A map between [ModuleId] and the kind of module
+    module_kind_map: HashMap<ModuleId, ModuleKind>,
+    /// A map between [InteractiveId] and the actual sources of the interactive
     /// block.
     interactive_content_map: SlotMap<InteractiveId, String>,
 }
@@ -59,6 +77,7 @@ impl SourceMap {
     pub fn new() -> Self {
         Self {
             module_paths: BiMap::new(),
+            module_kind_map: HashMap::new(),
             module_content_map: SlotMap::with_key(),
             interactive_content_map: SlotMap::with_key(),
         }
@@ -117,12 +136,22 @@ impl SourceMap {
         }
     }
 
+    /// Get the [ModuleKind] by [SourceId]. If the `id` is
+    /// [SourceId::Interactive], then the resultant [ModuleKind] is [None].
+    pub fn module_kind_by_id(&self, source_id: SourceId) -> Option<ModuleKind> {
+        match source_id {
+            SourceId::Interactive(_) => None,
+            SourceId::Module(id) => self.module_kind_map.get(&id).cloned(),
+        }
+    }
+
     /// Add a module to the [SourceMap]
-    pub fn add_module(&mut self, path: PathBuf, contents: String) -> ModuleId {
+    pub fn add_module(&mut self, path: PathBuf, contents: String, kind: ModuleKind) -> ModuleId {
         let id = self.module_content_map.insert(contents);
 
         // Create references for the paths reverse
         self.module_paths.insert(id, path);
+        self.module_kind_map.insert(id, kind);
         id
     }
 

@@ -271,6 +271,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         &mut self,
         mod_def_id: ModDefId,
         originating_term_id: TermId,
+        allow_uninitialised: bool,
     ) -> TcResult<()> {
         let reader = self.reader();
         let mod_def = reader.get_mod_def(mod_def_id);
@@ -279,7 +280,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
         // Validate all members:
         // Bound vars should already be in scope.
-        self.validate_constant_scope(mod_def_members, false)?;
+        self.validate_constant_scope(mod_def_members, allow_uninitialised)?;
 
         // Ensure if it is a trait impl it implements all the trait members.
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
@@ -868,7 +869,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
                     let return_value_ty = self.typer().ty_of_simplified_term(case.return_value)?;
-                    let _ = self.unifier().unify_terms(case.return_ty, return_value_ty)?;
+                    let _ = self.unifier().unify_terms(return_value_ty, case.return_ty)?;
 
                     // Ensure the return value of each case is a subtype of the general return type.
                     let _ = self.unifier().unify_terms(

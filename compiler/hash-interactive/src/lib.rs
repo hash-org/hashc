@@ -36,6 +36,7 @@ pub fn goodbye() {
 /// REPL.
 pub fn init<'c, 'pool, P, D, S, C, V>(
     mut compiler: Compiler<'pool, P, D, S, C, V>,
+    mut compiler_state: CompilerState<'c, 'pool, D, S, C, V>,
 ) -> CompilerResult<()>
 where
     'pool: 'c,
@@ -49,7 +50,6 @@ where
     print_version();
 
     let mut rl = Editor::<()>::new();
-    let mut compiler_state = compiler.create_state().unwrap();
 
     loop {
         let line = rl.readline(">>> ");
