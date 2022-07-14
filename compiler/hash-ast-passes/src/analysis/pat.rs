@@ -3,7 +3,7 @@
 
 use hash_ast::ast::{AstNodes, Pattern, TuplePatternEntry};
 
-use crate::diagnostics::{error::AnalysisErrorKind, PatternOrigin};
+use crate::diagnostics::{error::AnalysisErrorKind, origins::PatternOrigin};
 
 use super::SemanticAnalyser;
 
