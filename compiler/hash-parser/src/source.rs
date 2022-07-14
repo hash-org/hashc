@@ -66,7 +66,7 @@ impl ParseSource {
     }
 
     /// Get the `associated_path` with the [ParseSource]
-    pub fn current_dir(&self) -> &PathBuf {
+    pub fn path(&self) -> &PathBuf {
         &self.path
     }
 }

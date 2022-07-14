@@ -215,9 +215,6 @@ pub struct Workspace {
     pub source_map: SourceMap,
     /// Stores all of the generated AST for modules and nodes
     pub node_map: NodeMap,
-    /// Whether or not this workspace has handled the bootstrapping of the
-    /// prelude which should happen for any workspace.
-    pub bootstrapped: bool,
 }
 
 impl Workspace {
@@ -227,7 +224,6 @@ impl Workspace {
             node_map: NodeMap::new(),
             source_map: SourceMap::new(),
             dependencies: HashMap::new(),
-            bootstrapped: false,
         }
     }
 

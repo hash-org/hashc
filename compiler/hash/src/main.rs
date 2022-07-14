@@ -11,6 +11,7 @@ use hash_ast_passes::HashSemanticAnalysis;
 use hash_parser::HashParser;
 use hash_pipeline::{
     settings::{CompilerJobParams, CompilerMode, CompilerSettings},
+    sources::ModuleKind,
     Compiler,
 };
 use hash_reporting::errors::CompilerError;
@@ -18,7 +19,7 @@ use hash_typecheck::TcImpl;
 use hash_vm::vm::{Interpreter, InterpreterOptions};
 use log::LevelFilter;
 use logger::CompilerLogger;
-use std::{num::NonZeroUsize, panic};
+use std::{num::NonZeroUsize, panic, process::exit};
 
 use crate::{
     args::{AstGenMode, CheckMode, CompilerOptions, DeSugarMode, IrGenMode, SubCmd},
@@ -96,7 +97,7 @@ fn main() {
 
     let mut compiler =
         Compiler::new(parser, desugarer, semantic_analyser, checker, vm, &pool, compiler_settings);
-    let compiler_state = compiler.create_state().unwrap();
+    let compiler_state = compiler.bootstrap().unwrap_or_else(|_| exit(-1));
 
     execute(|| {
         match entry_point {
@@ -117,7 +118,7 @@ fn main() {
                     _ => CompilerJobParams::default(),
                 };
 
-                compiler.run_on_filename(path, compiler_state, job_settings);
+                compiler.run_on_filename(path, ModuleKind::Normal, compiler_state, job_settings);
             }
             None => {
                 hash_interactive::init(compiler, compiler_state)?;
