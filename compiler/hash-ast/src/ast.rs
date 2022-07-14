@@ -276,6 +276,14 @@ pub struct Name {
     pub ident: Identifier,
 }
 
+impl Name {
+    /// Function to check whether a [Name] has a particular associated name with
+    /// it.
+    pub fn is(&self, other: impl Into<Identifier>) -> bool {
+        self.ident == other.into()
+    }
+}
+
 /// A namespaced name, i.e. access name.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AccessName {
