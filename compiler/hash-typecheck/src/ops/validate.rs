@@ -869,7 +869,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
                     let return_value_ty = self.typer().ty_of_simplified_term(case.return_value)?;
-                    let _ = self.unifier().unify_terms(case.return_ty, return_value_ty)?;
+                    let _ = self.unifier().unify_terms(return_value_ty, case.return_ty)?;
 
                     // Ensure the return value of each case is a subtype of the general return type.
                     let _ = self.unifier().unify_terms(
