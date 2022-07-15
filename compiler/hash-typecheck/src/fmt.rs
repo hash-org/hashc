@@ -3,9 +3,9 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, MemberData,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, ScopeId, StructDef,
-        Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
+        MemberData, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId,
+        ScopeId, StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -219,6 +219,20 @@ impl<'gs> TcFormatter<'gs> {
                 self.fmt_term_as_single(f, fn_call.subject, TcFormatOpts::default())?;
                 write!(f, "({})", fn_call.args.for_formatting(self.global_storage))?;
                 Ok(())
+            }
+            Level0Term::Lit(lit_term) => {
+                opts.is_atomic.set(true);
+                match lit_term {
+                    LitTerm::Str(str) => {
+                        write!(f, "\"{}\"", str)
+                    }
+                    LitTerm::Int(int) => {
+                        write!(f, "{}", int)
+                    }
+                    LitTerm::Char(char) => {
+                        write!(f, "\'{}\'", char)
+                    }
+                }
             }
         }
     }

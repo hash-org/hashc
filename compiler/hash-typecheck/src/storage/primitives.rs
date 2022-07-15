@@ -1,6 +1,7 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
 use hash_source::{identifier::Identifier, SourceId};
+use num_bigint::BigInt;
 use slotmap::new_key_type;
 use std::{
     collections::{HashMap, HashSet},
@@ -585,6 +586,14 @@ pub struct AccessTerm {
     pub op: AccessOp,
 }
 
+/// A literal term, which is level 0.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LitTerm {
+    Str(String),
+    Int(BigInt),
+    Char(char),
+}
+
 /// A level 3 term.
 ///
 /// Type of: traits, for example: `trait(..)`.
@@ -656,7 +665,7 @@ pub struct FnLit {
 ///
 /// Type of: nothing.
 /// Value of: values, for example `3`, `Result::Ok(3)`, etc.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),
@@ -669,6 +678,9 @@ pub enum Level0Term {
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),
+
+    /// A literal term
+    Lit(LitTerm),
 }
 
 /// The subject of a substitution, either a variable or an unresolved term.
@@ -937,7 +949,9 @@ pub enum Pattern {
     /// Binding pattern.
     Binding(BindingPattern),
     /// Literal pattern, of the given term.
-    Literal(TermId),
+    ///
+    /// The inner term must be `Term::Level0(Level0Term::Lit)`.
+    Lit(TermId),
     /// Tuple pattern.
     Tuple(PatternParams),
     /// Constructor pattern.

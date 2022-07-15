@@ -288,7 +288,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         value: access_term.subject,
                         // @@Hack: this feels a bit hacky and there should be an easier
                         // way to yield the origin rather than inspecting the term.
-                        origin: NameFieldOrigin::from_term(&Term::Level0(*term), self.term_store()),
+                        origin: NameFieldOrigin::from_term(
+                            &Term::Level0(term.clone()),
+                            self.term_store(),
+                        ),
                     }),
                 }
             }
@@ -301,6 +304,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     self,
                     "Function call in access apply should have already been simplified!"
                 )
+            }
+            Level0Term::Lit(_) => {
+                // Create an Rt(..) of the value wrapped, and use that as the subject.
+                let term = &Level0Term::Rt(self.typer().ty_of_term(originating_term)?);
+                self.apply_access_to_level0_term(term, access_term, originating_term)
             }
         }
     }
@@ -775,6 +783,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Level0Term::FnCall(_) => {
                         tc_panic!(term_id, self, "Function call should have already been simplified away when resolving function call subject")
                     }
+                    Level0Term::Lit(_) => cannot_use_as_fn_call_subject(),
                 }
             }
 
@@ -849,6 +858,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 Ok(Some(subbed_return_value))
             }
+            Level0Term::Lit(_) => Ok(None),
         }
     }
 
