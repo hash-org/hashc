@@ -3,9 +3,10 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, MemberData,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, ScopeId, StructDef,
-        Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
+        MemberData, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId,
+        Pattern, PatternId, PatternParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId,
+        TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -219,6 +220,20 @@ impl<'gs> TcFormatter<'gs> {
                 self.fmt_term_as_single(f, fn_call.subject, TcFormatOpts::default())?;
                 write!(f, "({})", fn_call.args.for_formatting(self.global_storage))?;
                 Ok(())
+            }
+            Level0Term::Lit(lit_term) => {
+                opts.is_atomic.set(true);
+                match lit_term {
+                    LitTerm::Str(str) => {
+                        write!(f, "\"{}\"", str)
+                    }
+                    LitTerm::Int(int) => {
+                        write!(f, "{}", int)
+                    }
+                    LitTerm::Char(char) => {
+                        write!(f, "\'{}\'", char)
+                    }
+                }
             }
         }
     }
@@ -503,6 +518,116 @@ impl<'gs> TcFormatter<'gs> {
             },
         }
     }
+
+    /// Format the given [PatternParams] with the given formatter.
+    pub fn fmt_pattern_params(
+        &self,
+        f: &mut fmt::Formatter,
+        pattern_params_id: PatternParamsId,
+    ) -> fmt::Result {
+        let pattern_params = self.global_storage.pattern_params_store.get(pattern_params_id);
+
+        for (i, param) in pattern_params.positional().iter().enumerate() {
+            match param.name {
+                Some(param_name) => {
+                    write!(
+                        f,
+                        "{} = {}",
+                        param_name,
+                        param.pattern.for_formatting(self.global_storage)
+                    )?;
+                }
+                None => {
+                    self.fmt_pattern(f, param.pattern, TcFormatOpts::default())?;
+                }
+            }
+            if i != pattern_params.positional().len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn fmt_pattern_as_single(
+        &self,
+        f: &mut fmt::Formatter,
+        pattern_id: PatternId,
+        opts: TcFormatOpts,
+    ) -> fmt::Result {
+        let pattern_fmt =
+            format!("{}", pattern_id.for_formatting_with_opts(self.global_storage, opts.clone()));
+        if !opts.is_atomic.get() {
+            write!(f, "(")?;
+        }
+        write!(f, "{}", pattern_fmt)?;
+        if !opts.is_atomic.get() {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+
+    /// Format a [Pattern](crate::storage::primitives::Pattern) indexed by the
+    /// given [PatternId].
+    pub fn fmt_pattern(
+        &self,
+        f: &mut fmt::Formatter,
+        pattern_id: PatternId,
+        opts: TcFormatOpts,
+    ) -> fmt::Result {
+        let pattern = self.global_storage.pattern_store.get(pattern_id);
+        match pattern {
+            Pattern::Binding(binding) => {
+                let mutability = match binding.mutability {
+                    Mutability::Mutable => "mut ",
+                    Mutability::Immutable => "",
+                };
+                let visibility = match binding.visibility {
+                    Visibility::Public => "pub ",
+                    Visibility::Private => "priv ",
+                };
+                let name = binding.name;
+                opts.is_atomic.set(false);
+                write!(f, "{}{}{}", visibility, mutability, name)
+            }
+            Pattern::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
+            Pattern::Tuple(tuple_pattern) => {
+                opts.is_atomic.set(true);
+                write!(f, "({})", tuple_pattern.for_formatting(self.global_storage))
+            }
+            Pattern::Constructor(constructor_pattern) => {
+                opts.is_atomic.set(true);
+                self.fmt_term_as_single(f, constructor_pattern.subject, opts)?;
+                write!(f, "({})", constructor_pattern.params.for_formatting(self.global_storage))
+            }
+            Pattern::Or(patterns) => {
+                if patterns.is_empty() {
+                    opts.is_atomic.set(true);
+                    write!(f, "{{empty or pattern}}")?;
+                    Ok(())
+                } else {
+                    opts.is_atomic.set(false);
+                    for (i, pattern_id) in patterns.iter().enumerate() {
+                        self.fmt_pattern_as_single(f, *pattern_id, opts.clone())?;
+                        if i != patterns.len() - 1 {
+                            write!(f, " | ")?;
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            Pattern::If(if_pattern) => {
+                opts.is_atomic.set(false);
+                self.fmt_pattern_as_single(f, if_pattern.pattern, opts.clone())?;
+                write!(f, " if ",)?;
+                self.fmt_term_as_single(f, if_pattern.condition, opts)?;
+                Ok(())
+            }
+            Pattern::Ignore => {
+                write!(f, "_")
+            }
+        }
+    }
 }
 
 /// Wraps a type `T` in a structure that contains information to be able to
@@ -542,6 +667,8 @@ impl PrepareForFormatting for NominalDefId {}
 impl PrepareForFormatting for ParamsId {}
 impl PrepareForFormatting for ArgsId {}
 impl PrepareForFormatting for ScopeId {}
+impl PrepareForFormatting for PatternParamsId {}
+impl PrepareForFormatting for PatternId {}
 impl PrepareForFormatting for &Sub {}
 
 // Convenience implementations of Display for the types that implement
@@ -574,6 +701,18 @@ impl fmt::Display for ForFormatting<'_, NominalDefId> {
 impl fmt::Display for ForFormatting<'_, ParamsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_params(f, self.t)
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, PatternParamsId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_pattern_params(f, self.t)
+    }
+}
+
+impl fmt::Display for ForFormatting<'_, PatternId> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        TcFormatter::new(self.global_storage).fmt_pattern(f, self.t, self.opts.clone())
     }
 }
 

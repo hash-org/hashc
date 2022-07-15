@@ -143,7 +143,12 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
     /// Apply the given substitution to the given [Level0Term], producing a new
     /// [Level0Term] with the substituted variables.
-    pub fn apply_sub_to_level0_term(&mut self, sub: &Sub, term: Level0Term) -> TermId {
+    pub fn apply_sub_to_level0_term(
+        &mut self,
+        sub: &Sub,
+        term: Level0Term,
+        original_term: TermId,
+    ) -> TermId {
         match term {
             Level0Term::Rt(ty_term_id) => {
                 // Apply to the type of the runtime value
@@ -174,6 +179,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_args = self.apply_sub_to_args(sub, fn_call.args);
                 self.builder().create_fn_call_term(subbed_subject, subbed_args)
             }
+            Level0Term::Lit(_) => original_term,
         }
     }
 
@@ -307,7 +313,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
             Term::Level3(term) => self.apply_sub_to_level3_term(sub, term),
             Term::Level2(term) => self.apply_sub_to_level2_term(sub, term),
             Term::Level1(term) => self.apply_sub_to_level1_term(sub, term),
-            Term::Level0(term) => self.apply_sub_to_level0_term(sub, term),
+            Term::Level0(term) => self.apply_sub_to_level0_term(sub, term, term_id),
         };
 
         self.location_store_mut().copy_location(term_id, new_term);
@@ -388,6 +394,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 self.add_free_vars_in_term_to_set(fn_call.subject, result);
                 self.add_free_vars_in_args_to_set(fn_call.args, result);
             }
+            Level0Term::Lit(_) => {}
         }
     }
 

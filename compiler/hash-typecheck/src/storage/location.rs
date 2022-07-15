@@ -7,12 +7,12 @@ use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
 use hash_source::location::SourceLocation;
 
-use super::primitives::{ArgsId, ParamsId, ScopeId, TermId};
+use super::primitives::{ArgsId, ParamsId, PatternId, PatternParamsId, ScopeId, TermId};
 
 /// An index into the location map.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum LocationTarget {
-    /// A term within stores a [TermId]
+    /// A term.
     Term(TermId),
     /// A parameter key includes the parent [ParamsId] and an index to which
     /// parameter
@@ -23,6 +23,11 @@ pub enum LocationTarget {
     /// A declaration key includes the parent [ScopeId] and an index to which
     /// declaration
     Declaration(ScopeId, usize),
+    /// A pattern parameter key includes the parent [ParamsPatternId] and an
+    /// index to which parameter
+    ParamPattern(PatternParamsId, usize),
+    /// A pattern.
+    Pattern(PatternId),
 }
 
 /// Stores the source location of various targets in the AST tree.
@@ -54,17 +59,17 @@ pub struct LocationStore {
     /// A map between [ScopeId] and all of the [SourceLocation]s indexed by the
     /// inner offset.
     declaration_map: HashMap<ScopeId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
+    /// A map between [ParamPatternsId] and all of the [SourceLocation]s indexed
+    /// by the inner offset.
+    param_pattern_map: HashMap<PatternParamsId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
+    /// A map between [PatternId] to [SourceLocation]
+    pattern_map: HashMap<PatternId, SourceLocation>,
 }
 
 impl LocationStore {
     /// Create a new [LocationStore]
     pub fn new() -> Self {
-        Self {
-            term_map: HashMap::new(),
-            param_map: HashMap::new(),
-            declaration_map: HashMap::new(),
-            arg_map: HashMap::new(),
-        }
+        Self::default()
     }
 
     /// Add a [SourceLocation] to a specified [LocationTarget]
@@ -98,6 +103,16 @@ impl LocationStore {
                     .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
                 map.borrow_mut().insert(index, location);
             }
+            LocationTarget::ParamPattern(param_pattern, index) => {
+                let map = self
+                    .param_pattern_map
+                    .entry(param_pattern)
+                    .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
+                map.borrow_mut().insert(index, location);
+            }
+            LocationTarget::Pattern(pattern) => {
+                self.pattern_map.insert(pattern, location);
+            }
         };
     }
 
@@ -111,6 +126,10 @@ impl LocationStore {
             LocationTarget::Arg(arg, index) => Some(*self.arg_map.get(&arg)?.borrow().get(&index)?),
             LocationTarget::Declaration(scope, index) => {
                 Some(*self.declaration_map.get(&scope)?.borrow().get(&index)?)
+            }
+            LocationTarget::Pattern(pattern) => self.pattern_map.get(&pattern).copied(),
+            LocationTarget::ParamPattern(param_pattern, index) => {
+                Some(*self.param_pattern_map.get(&param_pattern)?.borrow().get(&index)?)
             }
         }
     }

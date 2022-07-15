@@ -18,6 +18,7 @@ use self::{
     mods::ModDefStore,
     nominals::NominalDefStore,
     params::ParamsStore,
+    patterns::{PatternParamsStore, PatternStore},
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
@@ -31,6 +32,7 @@ pub mod location;
 pub mod mods;
 pub mod nominals;
 pub mod params;
+pub mod patterns;
 pub mod primitives;
 pub mod scope;
 pub mod sources;
@@ -48,6 +50,8 @@ pub struct GlobalStorage {
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
+    pub pattern_store: PatternStore,
+    pub pattern_params_store: PatternParamsStore,
     pub checked_sources: CheckedSources,
     /// Used to create the first scope when creating a LocalStorage.
     ///
@@ -69,6 +73,8 @@ impl GlobalStorage {
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
+            pattern_store: PatternStore::new(),
+            pattern_params_store: PatternParamsStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -173,6 +179,14 @@ pub trait AccessToStorage {
         &self.global_storage().mod_def_store
     }
 
+    fn pattern_store(&self) -> &PatternStore {
+        &self.global_storage().pattern_store
+    }
+
+    fn pattern_params_store(&self) -> &PatternParamsStore {
+        &self.global_storage().pattern_params_store
+    }
+
     fn checked_sources(&self) -> &CheckedSources {
         &self.global_storage().checked_sources
     }
@@ -243,6 +257,14 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn mod_def_store_mut(&mut self) -> &mut ModDefStore {
         &mut self.global_storage_mut().mod_def_store
+    }
+
+    fn pattern_store_mut(&mut self) -> &mut PatternStore {
+        &mut self.global_storage_mut().pattern_store
+    }
+
+    fn pattern_params_store_mut(&mut self) -> &mut PatternParamsStore {
+        &mut self.global_storage_mut().pattern_params_store
     }
 
     fn checked_sources_mut(&mut self) -> &mut CheckedSources {
