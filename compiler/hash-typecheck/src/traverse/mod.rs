@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{AstNodeRef, BinOp, OwnsAstNode, RefKind},
+    ast::{AstNodeRef, BinOp, OwnsAstNode, RefKind, UnOp},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -1733,20 +1733,37 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             BinOp::LtEq => lazy_operator_fn(self, "lt_eq")?,
         };
 
-        let TermValidation { simplified_term_id, .. } = self.validator().validate_term(term)?;
-        self.copy_location_from_node_to_target(node, simplified_term_id);
+        self.copy_location_from_node_to_target(node, term);
 
-        Ok(simplified_term_id)
+        Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
     type UnaryExpressionRet = TermId;
 
     fn visit_unary_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpression>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
-        todo!()
+        let walk::UnaryExpression { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
+
+        let mut operator_fn = |trait_fn_name: &str| {
+            let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
+            self.copy_location_from_node_to_target(node.operator.ast_ref(), prop_access);
+
+            let builder = self.builder();
+            builder.create_fn_call_term(prop_access, builder.create_args([], ParamOrigin::Fn))
+        };
+
+        // Convert the unary operator into a method call on the `expr`
+        let term = match node.operator.body() {
+            UnOp::BitNot => operator_fn("bit_not"),
+            UnOp::Not => operator_fn("not"),
+            UnOp::Neg => operator_fn("neg"),
+        };
+
+        self.copy_location_from_node_to_target(node, term);
+        Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
     type IndexExpressionRet = TermId;
