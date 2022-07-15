@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{AstNodeRef, OwnsAstNode, RefKind},
+    ast::{AstNodeRef, BinOp, OwnsAstNode, RefKind},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -441,24 +441,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type BinaryOperatorRet = TermId;
+    type BinaryOperatorRet = ();
 
     fn visit_binary_operator(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinOp>,
     ) -> Result<Self::BinaryOperatorRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 
-    type UnaryOperatorRet = TermId;
+    type UnaryOperatorRet = ();
 
     fn visit_unary_operator(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnOp>,
     ) -> Result<Self::UnaryOperatorRet, Self::Error> {
-        todo!()
+        Ok(())
     }
 
     type ExpressionRet = TermId;
@@ -1667,10 +1667,76 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_binary_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpression>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpression>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
-        todo!()
+        let walk::BinaryExpression { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
+
+        let mut operator_fn = |trait_fn_name: &str| {
+            let prop_access = self.builder().create_prop_access(lhs, trait_fn_name);
+            self.copy_location_from_node_to_target(node.operator.ast_ref(), prop_access);
+
+            let builder = self.builder();
+            builder.create_fn_call_term(
+                prop_access,
+                builder.create_args([builder.create_nameless_arg(rhs)], ParamOrigin::Fn),
+            )
+        };
+
+        let lazy_operator_fn = |visitor: &mut Self, trait_name: &str| -> TcResult<TermId> {
+            let lhs_ty = visitor.typer().ty_of_term(lhs)?;
+            let rhs_ty = visitor.typer().ty_of_term(rhs)?;
+
+            let builder = visitor.builder();
+
+            // () => lhs
+            let fn_ty =
+                builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), lhs_ty);
+            let lhs = builder.create_fn_lit_term(fn_ty, lhs);
+
+            // () => rhs
+            let fn_ty =
+                builder.create_fn_ty_term(builder.create_params([], ParamOrigin::Fn), rhs_ty);
+            let rhs = builder.create_fn_lit_term(fn_ty, rhs);
+
+            // (() => lhs).trait_name()
+            let prop_access = builder.create_prop_access(lhs, trait_name);
+
+            // (() => lhs).trait_name(() => rhs)
+            Ok(builder.create_fn_call_term(
+                prop_access,
+                builder.create_args([builder.create_nameless_arg(rhs)], ParamOrigin::Fn),
+            ))
+        };
+
+        let term = match node.operator.body() {
+            BinOp::Merge => self.builder().create_merge_term([lhs, rhs]),
+            BinOp::As => unreachable!(),
+            BinOp::EqEq => operator_fn("eq"),
+            BinOp::NotEq => operator_fn("not_eq"),
+            BinOp::BitOr => operator_fn("bit_or"),
+            BinOp::Or => operator_fn("or"),
+            BinOp::BitAnd => operator_fn("bit_and"),
+            BinOp::And => operator_fn("and"),
+            BinOp::BitXor => operator_fn("bit_xor"),
+            BinOp::Exp => operator_fn("exp"),
+            BinOp::Shr => operator_fn("bit_shr"),
+            BinOp::Shl => operator_fn("bit_shl"),
+            BinOp::Add => operator_fn("add"),
+            BinOp::Sub => operator_fn("sub"),
+            BinOp::Mul => operator_fn("mul"),
+            BinOp::Div => operator_fn("div"),
+            BinOp::Mod => operator_fn("modulo"),
+            BinOp::Gt => lazy_operator_fn(self, "gt")?,
+            BinOp::GtEq => lazy_operator_fn(self, "gt_eq")?,
+            BinOp::Lt => lazy_operator_fn(self, "lt")?,
+            BinOp::LtEq => lazy_operator_fn(self, "lt_eq")?,
+        };
+
+        let TermValidation { simplified_term_id, .. } = self.validator().validate_term(term)?;
+        self.copy_location_from_node_to_target(node, simplified_term_id);
+
+        Ok(simplified_term_id)
     }
 
     type UnaryExpressionRet = TermId;
