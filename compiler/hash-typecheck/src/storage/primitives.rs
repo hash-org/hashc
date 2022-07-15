@@ -897,6 +897,60 @@ pub enum Term {
     Root,
 }
 
+/// A binding pattern, which is essentially a declaration left-hand side.
+#[derive(Clone, Debug, Copy)]
+pub struct BindingPattern {
+    pub name: Identifier,
+    pub mutability: Mutability,
+    pub visibility: Visibility,
+}
+
+/// A pattern of a parameter, used for tuple patterns and constructor patterns.
+#[derive(Clone, Debug, Copy)]
+pub struct ParamPattern {
+    pub name: Option<Identifier>,
+    pub pattern: PatternId,
+}
+
+/// A pattern of parameters.
+pub type ParamsPattern = ParamList<ParamPattern>;
+
+/// A constructor pattern, used for enum variants and structs.
+#[derive(Clone, Debug, Copy)]
+pub struct ConstructorPattern {
+    pub subject: TermId,
+    pub params: ParamsPatternId,
+}
+
+/// A conditional pattern, containing a pattern and an condition.
+#[derive(Clone, Debug, Copy)]
+pub struct IfPattern {
+    pub pattern: PatternId,
+    pub condition: TermId,
+}
+
+/// Represents a pattern in the language.
+///
+/// @@Todo: list patterns, spread patterns
+#[derive(Clone, Debug)]
+pub enum Pattern {
+    /// Binding pattern.
+    Binding(BindingPattern),
+    /// Literal pattern, of the given term.
+    Literal(TermId),
+    /// Tuple pattern.
+    Tuple(ParamsPattern),
+    /// Constructor pattern.
+    Constructor(ConstructorPattern),
+    /// A set of patterns that are OR-ed together. If any one of them matches
+    /// then the whole pattern matches.
+    Or(Vec<PatternId>),
+    /// A conditional pattern.
+    If(IfPattern),
+    /// A wildcard pattern, ignoring the subject and always matching.
+    Ignore,
+}
+
 // IDs for all the primitives to be stored on mapped storage.
 
 new_key_type! {
@@ -932,6 +986,16 @@ new_key_type! {
 new_key_type! {
     /// The ID of a [Params]
     pub struct ParamsId;
+}
+
+new_key_type! {
+    /// The ID of a [Pattern]
+    pub struct PatternId;
+}
+
+new_key_type! {
+    /// The ID of a [ParamsPattern]
+    pub struct ParamsPatternId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

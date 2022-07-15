@@ -11,8 +11,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, ArgsId, BoundVars, EnumVariant, Member, MemberData, ModDefOrigin, Mutability,
-            Param, ParamOrigin, Sub, TermId, Visibility,
+            Arg, ArgsId, BindingPattern, BoundVars, EnumVariant, Member, MemberData, ModDefOrigin,
+            Mutability, Param, ParamOrigin, Pattern, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -143,12 +143,6 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
             self.copy_location_from_node_to_target(param, (targets, index));
         }
     }
-}
-
-/// Represents a kind of pattern, with information about it.
-#[derive(Clone, Debug)]
-pub enum PatternHint {
-    Binding { name: Identifier, mutability: Mutability, visibility: Visibility },
 }
 
 /// Implementation of [visitor::AstVisitor] for [TcVisitor], to traverse the AST
@@ -1286,24 +1280,38 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_block_same_children(self, ctx, node)
     }
 
-    type MatchCaseRet = TermId;
+    type MatchCaseRet = (Pattern, TermId);
 
     fn visit_match_case(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        todo!()
+        // Enter a scope for the pattern
+        let match_case_scope = self.builder().create_variable_scope([]);
+        self.scopes_mut().append(match_case_scope);
+
+        let pattern = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+        let case_body = self.visit_expression(ctx, node.expr.ast_ref())?;
+
+        self.scopes_mut().pop_the_scope(match_case_scope);
+        Ok((pattern, case_body))
     }
 
     type MatchBlockRet = TermId;
 
     fn visit_match_block(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchBlock>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
-        todo!()
+        let walk::MatchBlock { cases, .. } = walk::walk_match_block(self, ctx, node)?;
+
+        // @@Todo: ensure the subject unifies with each match case branch once patterns
+        // are implemented properly.
+
+        let return_ty = self.builder().create_union_term(cases.iter().map(|(_, body)| *body));
+        Ok(self.validator().validate_term(return_ty)?.simplified_term_id)
     }
 
     type LoopBlockRet = TermId;
@@ -1573,11 +1581,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let pattern = self.visit_pattern(ctx, node.pattern.ast_ref())?;
 
         // @@Todo: deal with other kinds of patterns:
-        let PatternHint::Binding { name, mutability, visibility } = match pattern {
-            PatternHint::Binding { name, .. } => {
+        let BindingPattern { name, mutability, visibility } = match pattern {
+            Pattern::Binding(pat @ BindingPattern { name, .. }) => {
                 self.state.declaration_name_hint = Some(name);
-                pattern
+                pat
             }
+            _ => todo!(),
         };
 
         let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
@@ -1991,7 +2000,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type PatternRet = PatternHint;
+    type PatternRet = Pattern;
 
     fn visit_pattern(
         &mut self,
@@ -2001,7 +2010,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type ConstructorPatternRet = PatternHint;
+    type ConstructorPatternRet = Pattern;
 
     fn visit_constructor_pattern(
         &mut self,
@@ -2011,7 +2020,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type NamespacePatternRet = PatternHint;
+    type NamespacePatternRet = Pattern;
 
     fn visit_namespace_pattern(
         &mut self,
@@ -2031,7 +2040,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type TuplePatternRet = PatternHint;
+    type TuplePatternRet = Pattern;
 
     fn visit_tuple_pattern(
         &mut self,
@@ -2041,7 +2050,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type ListPatternRet = PatternHint;
+    type ListPatternRet = Pattern;
 
     fn visit_list_pattern(
         &mut self,
@@ -2051,7 +2060,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type StrLiteralPatternRet = PatternHint;
+    type StrLiteralPatternRet = Pattern;
 
     fn visit_str_literal_pattern(
         &mut self,
@@ -2061,7 +2070,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type CharLiteralPatternRet = PatternHint;
+    type CharLiteralPatternRet = Pattern;
 
     fn visit_char_literal_pattern(
         &mut self,
@@ -2071,7 +2080,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IntLiteralPatternRet = PatternHint;
+    type IntLiteralPatternRet = Pattern;
 
     fn visit_int_literal_pattern(
         &mut self,
@@ -2081,7 +2090,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type FloatLiteralPatternRet = PatternHint;
+    type FloatLiteralPatternRet = Pattern;
 
     fn visit_float_literal_pattern(
         &mut self,
@@ -2091,7 +2100,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type BoolLiteralPatternRet = PatternHint;
+    type BoolLiteralPatternRet = Pattern;
 
     fn visit_bool_literal_pattern(
         &mut self,
@@ -2101,7 +2110,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type LiteralPatternRet = PatternHint;
+    type LiteralPatternRet = Pattern;
 
     fn visit_literal_pattern(
         &mut self,
@@ -2111,7 +2120,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type OrPatternRet = PatternHint;
+    type OrPatternRet = Pattern;
 
     fn visit_or_pattern(
         &mut self,
@@ -2121,7 +2130,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IfPatternRet = PatternHint;
+    type IfPatternRet = Pattern;
 
     fn visit_if_pattern(
         &mut self,
@@ -2131,14 +2140,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type BindingPatternRet = PatternHint;
+    type BindingPatternRet = Pattern;
 
     fn visit_binding_pattern(
         &mut self,
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        Ok(PatternHint::Binding {
+        Ok(Pattern::Binding(BindingPattern {
             name: node.name.body().ident,
             mutability: match node.mutability.as_ref().map(|x| *x.body()) {
                 Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
@@ -2148,10 +2157,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
                 Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
             },
-        })
+        }))
     }
 
-    type SpreadPatternRet = PatternHint;
+    type SpreadPatternRet = Pattern;
 
     fn visit_spread_pattern(
         &mut self,
@@ -2161,7 +2170,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IgnorePatternRet = PatternHint;
+    type IgnorePatternRet = Pattern;
 
     fn visit_ignore_pattern(
         &mut self,
@@ -2171,7 +2180,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type DestructuringPatternRet = PatternHint;
+    type DestructuringPatternRet = Pattern;
 
     fn visit_destructuring_pattern(
         &mut self,
