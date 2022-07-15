@@ -388,8 +388,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     // if the operator is a non-functional, (e.g. as) we need to perform a different
                     // conversion where we transform the AstNode into a
                     // different
-                    // @@Todo: Use `ExpressionKind::TypeExpr` rather than relying on
-                    // `ExpressionKind::CastExpr`...
                     if op == BinOp::As {
                         lhs = self.node_with_joined_span(
                             Expression::new(ExpressionKind::Cast(CastExpr {
