@@ -210,12 +210,12 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
 
     type ExpressionRet = ();
 
-    fn visit_expression(
+    fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expression>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expr>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
-        let _ = walk_mut::walk_expression(self, ctx, node);
+        let _ = walk_mut::walk_expr(self, ctx, node);
         Ok(())
     }
 
@@ -806,7 +806,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpression>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let _ = walk_mut::walk_assign_statement(self, ctx, node);
         Ok(())
@@ -817,7 +817,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpression>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
         let _ = walk_mut::walk_assign_op_statement(self, ctx, node);
         Ok(())
@@ -828,7 +828,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpression>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpr>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
         let _ = walk_mut::walk_binary_expr(self, ctx, node);
         Ok(())
@@ -839,7 +839,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpression>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
         let _ = walk_mut::walk_unary_expr(self, ctx, node);
         Ok(())
@@ -850,7 +850,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpression>,
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         let _ = walk_mut::walk_index_expr(self, ctx, node);
         Ok(())

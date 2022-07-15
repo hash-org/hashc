@@ -83,7 +83,7 @@ impl<'pool> Desugar<'pool> for AstDesugarer {
                 for expr in module.node_mut().contents.iter_mut() {
                     scope.spawn(|_| {
                         let mut desugarer = AstDesugaring::new(source_map, SourceId::Module(*id));
-                        desugarer.visit_expression(&(), expr.ast_ref_mut()).unwrap()
+                        desugarer.visit_expr(&(), expr.ast_ref_mut()).unwrap()
                     })
                 }
             }

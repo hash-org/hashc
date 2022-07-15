@@ -399,7 +399,7 @@ pub struct TyFn {
 /// `(Foo<bar>)<baz>`
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFnCall {
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
     // @@Todo: This should probably not use `NamedFieldTypeEntry`.
     pub args: AstNodes<NamedFieldTyEntry>,
 }
@@ -458,14 +458,14 @@ pub enum Ty {
 #[derive(Debug, PartialEq, Clone)]
 pub struct SetLiteral {
     /// The elements of the set literal.
-    pub elements: AstNodes<Expression>,
+    pub elements: AstNodes<Expr>,
 }
 
 /// A list literal, e.g. `[1, 2, 3]`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ListLiteral {
     /// The elements of the list literal.
-    pub elements: AstNodes<Expression>,
+    pub elements: AstNodes<Expr>,
 }
 
 /// An entry within a tuple type, which may contain an optional name
@@ -480,7 +480,7 @@ pub struct ListLiteral {
 pub struct TupleLiteralEntry {
     pub name: Option<AstNode<Name>>,
     pub ty: Option<AstNode<Ty>>,
-    pub value: AstNode<Expression>,
+    pub value: AstNode<Expr>,
 }
 
 /// A tuple literal, e.g. `(1, 'A', "foo")`.
@@ -493,8 +493,8 @@ pub struct TupleLiteral {
 /// A map literal entry, e.g. `"foo": 1`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct MapLiteralEntry {
-    pub key: AstNode<Expression>,
-    pub value: AstNode<Expression>,
+    pub key: AstNode<Expr>,
+    pub value: AstNode<Expr>,
 }
 
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
@@ -545,9 +545,9 @@ impl Literal {
     /// implements short circuiting behaviour and thus should check if the
     /// literal is constant in the minimal time possible.
     pub fn is_constant(&self) -> bool {
-        let is_expr_literal_and_const = |expr: &AstNode<Expression>| -> bool {
+        let is_expr_literal_and_const = |expr: &AstNode<Expr>| -> bool {
             match expr.kind() {
-                ExpressionKind::LiteralExpr(LiteralExpr(lit)) => lit.is_constant(),
+                ExprKind::LiteralExpr(LiteralExpr(lit)) => lit.is_constant(),
                 _ => false,
             }
         };
@@ -583,7 +583,7 @@ pub struct IfPattern {
     /// The pattern part of the conditional.
     pub pattern: AstNode<Pattern>,
     /// The expression part of the conditional.
-    pub condition: AstNode<Expression>,
+    pub condition: AstNode<Expr>,
 }
 
 /// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
@@ -759,7 +759,7 @@ pub struct TyFnDef {
     /// Optional return type of the type function
     pub return_ty: Option<AstNode<Ty>>,
     /// The body of the type function,
-    pub expr: AstNode<Expression>,
+    pub body: AstNode<Expr>,
 }
 
 /// An argument within a type function
@@ -784,7 +784,7 @@ pub struct Declaration {
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
-    pub value: Option<AstNode<Expression>>,
+    pub value: Option<AstNode<Expr>>,
 }
 
 /// A merge declaration (adding implementations to traits/structs), e.g. `x ~=
@@ -792,11 +792,11 @@ pub struct Declaration {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MergeDeclaration {
     /// The expression to bind the right-hand side to.
-    pub decl: AstNode<Expression>,
+    pub decl: AstNode<Expr>,
 
     /// Any value that is assigned to the binding, simply
     /// an expression.
-    pub value: AstNode<Expression>,
+    pub value: AstNode<Expr>,
 }
 
 /// Unary operators that are defined within the core of the language.
@@ -942,28 +942,28 @@ impl BinOp {
 
 /// An assign expression, e.g. `x = 4;`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct AssignExpression {
+pub struct AssignExpr {
     /// The left-hand side of the assignment.
     ///
     /// This should resolve to either a variable or a struct field.
-    pub lhs: AstNode<Expression>,
+    pub lhs: AstNode<Expr>,
     /// The right-hand side of the assignment.
     ///
     /// The value will be assigned to the left-hand side.
-    pub rhs: AstNode<Expression>,
+    pub rhs: AstNode<Expr>,
 }
 
 /// An assign expression, e.g. `x += 4;`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct AssignOpExpression {
+pub struct AssignOpExpr {
     /// The left-hand side of the assignment.
     ///
     /// This should resolve to either a variable or a struct field.
-    pub lhs: AstNode<Expression>,
+    pub lhs: AstNode<Expr>,
     /// The right-hand side of the assignment.
     ///
     /// The value will be assigned to the left-hand side.
-    pub rhs: AstNode<Expression>,
+    pub rhs: AstNode<Expr>,
 
     /// Operator that is applied with the assignment on the lhs with the rhs
     /// value.
@@ -982,7 +982,7 @@ pub struct StructDefEntry {
     /// Will be inferred if [None].
     pub ty: Option<AstNode<Ty>>,
     /// The default value of the struct field, if any.
-    pub default: Option<AstNode<Expression>>,
+    pub default: Option<AstNode<Expr>>,
 }
 
 /// A struct definition, e.g. `struct Foo = { bar: int; };`.
@@ -1011,14 +1011,14 @@ pub struct EnumDef {
 /// A trait definition, e.g. `add := <T> => trait { add: (T, T) -> T; }`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct TraitDef {
-    pub members: AstNodes<Expression>,
+    pub members: AstNodes<Expr>,
 }
 
 /// A return statement.
 ///
 /// Has an optional return expression, which becomes `void` if [None] is given.
 #[derive(Debug, PartialEq, Clone)]
-pub struct ReturnStatement(pub Option<AstNode<Expression>>);
+pub struct ReturnStatement(pub Option<AstNode<Expr>>);
 
 /// Break statement (only in loop context).
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -1036,7 +1036,7 @@ pub struct MatchCase {
     /// The expression corresponding to the match case.
     ///
     /// Will be executed if the pattern succeeds.
-    pub expr: AstNode<Expression>,
+    pub expr: AstNode<Expr>,
 }
 
 /// The origin of a match block
@@ -1052,7 +1052,7 @@ pub enum MatchOrigin {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MatchBlock {
     /// The expression to match on.
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
     /// The match cases to execute.
     pub cases: AstNodes<MatchCase>,
     /// Whether the match block represents a for, while, if or match statement
@@ -1063,15 +1063,15 @@ pub struct MatchBlock {
 #[derive(Debug, PartialEq, Clone)]
 pub struct BodyBlock {
     /// Zero or more statements.
-    pub statements: AstNodes<Expression>,
+    pub statements: AstNodes<Expr>,
     /// Zero or one expression.
-    pub expr: Option<AstNode<Expression>>,
+    pub expr: Option<AstNode<Expr>>,
 }
 
 impl BodyBlock {
     /// Get the members of the body block: the list of statements as well as the
     /// optional ending expression.
-    pub fn members(&self) -> impl Iterator<Item = AstNodeRef<Expression>> + '_ {
+    pub fn members(&self) -> impl Iterator<Item = AstNodeRef<Expr>> + '_ {
         self.statements.ast_ref_iter().chain(self.expr.as_ref().map(|x| x.ast_ref()))
     }
 }
@@ -1082,7 +1082,7 @@ pub struct LoopBlock(pub AstNode<Block>);
 #[derive(Debug, PartialEq, Clone)]
 pub struct ForLoopBlock {
     pub pattern: AstNode<Pattern>,
-    pub iterator: AstNode<Expression>,
+    pub iterator: AstNode<Expr>,
     pub body: AstNode<Block>,
 }
 
@@ -1090,7 +1090,7 @@ pub struct ForLoopBlock {
 #[derive(Debug, PartialEq, Clone)]
 pub struct WhileLoopBlock {
     /// The condition of the the `while` loop.
-    pub condition: AstNode<Expression>,
+    pub condition: AstNode<Expr>,
     /// The body of the `while` loop.
     pub body: AstNode<Block>,
 }
@@ -1098,7 +1098,7 @@ pub struct WhileLoopBlock {
 #[derive(Debug, PartialEq, Clone)]
 pub struct IfClause {
     /// The condition of the `if` block.
-    pub condition: AstNode<Expression>,
+    pub condition: AstNode<Expr>,
     /// The body of the `if-statement`
     pub body: AstNode<Block>,
 }
@@ -1250,7 +1250,7 @@ pub struct FnDefParam {
     /// If the value is provided, this makes it a named argument
     /// which means that they can be specified by putting the name of the
     /// argument.
-    pub default: Option<AstNode<Expression>>,
+    pub default: Option<AstNode<Expr>>,
 }
 
 /// A function definition.
@@ -1263,7 +1263,7 @@ pub struct FnDef {
     /// Will be inferred if [None].
     pub return_ty: Option<AstNode<Ty>>,
     /// The body/contents of the function, in the form of an expression.
-    pub fn_body: AstNode<Expression>,
+    pub fn_body: AstNode<Expr>,
 }
 
 /// Function call argument.
@@ -1272,7 +1272,7 @@ pub struct ConstructorCallArg {
     /// Optional name for the function argument, e.g `f(x = 3);`.
     pub name: Option<AstNode<Name>>,
     /// Each argument of the function call, as an expression.
-    pub value: AstNode<Expression>,
+    pub value: AstNode<Expr>,
 }
 
 /// Function call arguments.
@@ -1286,7 +1286,7 @@ pub struct ConstructorCallArgs {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorCallExpr {
     /// An expression which evaluates to a function value.
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
     /// Arguments to the function, in the form of [ConstructorCallArgs].
     pub args: AstNode<ConstructorCallArgs>,
 }
@@ -1297,9 +1297,9 @@ pub struct ConstructorCallExpr {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MethodCallExpr {
     /// The expression that the method is being called on.
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
     /// The subject expression of the method call.
-    pub call_subject: AstNode<Expression>,
+    pub call_subject: AstNode<Expr>,
     /// Arguments to the method, in the form of [ConstructorCallArgs].
     pub args: AstNode<ConstructorCallArgs>,
 }
@@ -1310,7 +1310,7 @@ pub struct DirectiveExpr {
     /// The name of the directive (without the "#").
     pub name: AstNode<Name>,
     /// An expression which is referenced in the directive
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
 }
 
 /// A the kind of access an [AccessExpr] has
@@ -1326,7 +1326,7 @@ pub enum AccessKind {
 #[derive(Debug, PartialEq, Clone)]
 pub struct AccessExpr {
     /// An expression which evaluates to a struct or tuple value.
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
     /// The property of the subject to access.
     pub property: AstNode<Name>,
     /// The kind of access, either namespacing or property
@@ -1339,7 +1339,7 @@ pub struct CastExpr {
     /// The annotated type of the expression.
     pub ty: AstNode<Ty>,
     /// The expression being typed.
-    pub expr: AstNode<Expression>,
+    pub expr: AstNode<Expr>,
 }
 
 /// Represents a path to a module, given as a string literal to an `import`
@@ -1360,7 +1360,7 @@ pub struct VariableExpr {
 /// A reference expression with a flag denoting whether it is a raw ref or not
 #[derive(Debug, PartialEq, Clone)]
 pub struct RefExpr {
-    pub inner_expr: AstNode<Expression>,
+    pub inner_expr: AstNode<Expr>,
     /// The kind of reference, either being a normal reference or a `raw`
     /// reference
     pub kind: RefKind,
@@ -1374,11 +1374,11 @@ pub struct TyExpr(pub AstNode<Ty>);
 
 /// A dereference expression.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DerefExpr(pub AstNode<Expression>);
+pub struct DerefExpr(pub AstNode<Expr>);
 
 /// An unsafe expression.
 #[derive(Debug, PartialEq, Clone)]
-pub struct UnsafeExpr(pub AstNode<Expression>);
+pub struct UnsafeExpr(pub AstNode<Expr>);
 
 /// A literal.
 #[derive(Debug, PartialEq, Clone)]
@@ -1398,36 +1398,36 @@ pub struct TraitImpl {
     /// The referenced name to the trait
     pub ty: AstNode<Ty>,
     /// The implementation of the trait.
-    pub implementation: AstNodes<Expression>,
+    pub implementation: AstNodes<Expr>,
 }
 
 /// A binary expression `2 + 2`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct BinaryExpression {
-    pub lhs: AstNode<Expression>,
-    pub rhs: AstNode<Expression>,
+pub struct BinaryExpr {
+    pub lhs: AstNode<Expr>,
+    pub rhs: AstNode<Expr>,
     pub operator: AstNode<BinOp>,
 }
 
 /// A unary expression `!a`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct UnaryExpression {
-    pub expr: AstNode<Expression>,
+pub struct UnaryExpr {
+    pub expr: AstNode<Expr>,
     pub operator: AstNode<UnOp>,
 }
 
 /// An index expression `arr[x]`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct IndexExpression {
+pub struct IndexExpr {
     /// The subject that is being indexed.
-    pub subject: AstNode<Expression>,
+    pub subject: AstNode<Expr>,
     /// The expression that is the index.
-    pub index_expr: AstNode<Expression>,
+    pub index_expr: AstNode<Expr>,
 }
 
 /// The kind of an expression.
 #[derive(Debug, PartialEq, Clone)]
-pub enum ExpressionKind {
+pub enum ExprKind {
     ConstructorCall(ConstructorCallExpr),
     MethodCall(MethodCallExpr),
     Directive(DirectiveExpr),
@@ -1452,49 +1452,49 @@ pub enum ExpressionKind {
     Break(BreakStatement),
     Continue(ContinueStatement),
     /// Expression to index a subject e.g. `arr[x]`
-    Index(IndexExpression),
+    Index(IndexExpr),
     /// An expression that captures a variable or a pattern being assigned
     /// to a right hand-side expression such as `x = 3`.
-    Assign(AssignExpression),
+    Assign(AssignExpr),
     /// An expression that captures a variable or a pattern being assigned with
     /// the application of a binary operator, such as `x += 3`.
-    AssignOp(AssignOpExpression),
+    AssignOp(AssignOpExpr),
     /// A merge declaration is one that adds an implementation for a particular
     /// trait/struct to an already declared item, such as `x ~= impl { ... }`
     MergeDeclaration(MergeDeclaration),
     TraitImpl(TraitImpl),
     /// Binary Expression composed of a left and right hand-side with a binary
     /// operator
-    BinaryExpr(BinaryExpression),
+    BinaryExpr(BinaryExpr),
     /// Unary Expression composed of a unary operator and an expression
-    UnaryExpr(UnaryExpression),
+    UnaryExpr(UnaryExpr),
 }
 
 /// An expression.
 #[derive(Debug, PartialEq, Clone)]
-pub struct Expression {
+pub struct Expr {
     /// The kind of the expression
-    pub kind: ExpressionKind,
+    pub kind: ExprKind,
 }
 
-impl Expression {
-    /// Create a new [Expression] with a specific [ExpressionKind].
-    pub fn new(kind: ExpressionKind) -> Self {
+impl Expr {
+    /// Create a new [Expr] with a specific [ExprKind].
+    pub fn new(kind: ExprKind) -> Self {
         Self { kind }
     }
 
-    /// Convert the [Expression] into an [ExpressionKind]
-    pub fn into_kind(self) -> ExpressionKind {
+    /// Convert the [Expr] into an [ExprKind]
+    pub fn into_kind(self) -> ExprKind {
         self.kind
     }
 
-    /// Get the [ExpressionKind] of the expression
-    pub fn kind(&self) -> &ExpressionKind {
+    /// Get the [ExprKind] of the expression
+    pub fn kind(&self) -> &ExprKind {
         &self.kind
     }
 
-    /// Get the [ExpressionKind] of the expression
-    pub fn kind_mut(&mut self) -> &mut ExpressionKind {
+    /// Get the [ExprKind] of the expression
+    pub fn kind_mut(&mut self) -> &mut ExprKind {
         &mut self.kind
     }
 }
@@ -1506,5 +1506,5 @@ impl Expression {
 pub struct Module {
     /// The contents of the module, as a list of expressions terminated with a
     /// semi-colon.
-    pub contents: AstNodes<Expression>,
+    pub contents: AstNodes<Expr>,
 }

@@ -4,7 +4,7 @@
 use std::{collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodeRef, BodyBlock, Expression, ExpressionKind},
+    ast::{AstNodeRef, BodyBlock, Expr, ExprKind},
     visitor::AstVisitor,
 };
 
@@ -24,16 +24,14 @@ impl SemanticAnalyser<'_> {
     /// further checks.
     pub(crate) fn check_members_are_declarative<'s>(
         &mut self,
-        members: impl Iterator<Item = AstNodeRef<'s, Expression>>,
+        members: impl Iterator<Item = AstNodeRef<'s, Expr>>,
         origin: BlockOrigin,
     ) -> HashSet<usize> {
         let mut error_indices = HashSet::new();
 
         for (index, statement) in members.enumerate() {
-            if !matches!(
-                statement.kind(),
-                ExpressionKind::Declaration(_) | ExpressionKind::MergeDeclaration(_)
-            ) {
+            if !matches!(statement.kind(), ExprKind::Declaration(_) | ExprKind::MergeDeclaration(_))
+            {
                 self.append_error(
                     AnalysisErrorKind::NonDeclarativeExpression { origin },
                     statement.span(),
@@ -62,7 +60,7 @@ impl SemanticAnalyser<'_> {
         // statements.
         for (index, statement) in body.statements.iter().enumerate() {
             if errors.contains(&index) {
-                self.visit_expression(&(), statement.ast_ref()).unwrap();
+                self.visit_expr(&(), statement.ast_ref()).unwrap();
             }
         }
 

@@ -56,12 +56,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// This function follows a similar process as parsing a [Namespace],
     /// however it parses the namespace and turns it into a
-    /// [ExpressionKind::Access] which specifies how the members are
+    /// [ExprKind::Access] which specifies how the members are
     /// accessed.
     pub(crate) fn parse_ns_access(
         &self,
         name: Option<AstNode<Name>>,
-    ) -> AstGenResult<AstNode<Expression>> {
+    ) -> AstGenResult<AstNode<Expr>> {
         let name = match name {
             Some(name) => name,
             None => self.parse_name()?,
@@ -90,17 +90,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let name_span = name.span();
 
         // The base case of the `access` is just a variable expression
-        let mut lhs = self.node_with_span(
-            Expression::new(ExpressionKind::Variable(VariableExpr { name })),
-            name_span,
-        );
+        let mut lhs =
+            self.node_with_span(Expr::new(ExprKind::Variable(VariableExpr { name })), name_span);
 
         // Iterate backwards and build up each part of the access backwards
         for node in path_iter {
             let span = lhs.span().join(node.span());
 
             lhs = self.node_with_joined_span(
-                Expression::new(ExpressionKind::Access(AccessExpr {
+                Expr::new(ExprKind::Access(AccessExpr {
                     subject: lhs,
                     property: node,
                     kind: AccessKind::Namespace,

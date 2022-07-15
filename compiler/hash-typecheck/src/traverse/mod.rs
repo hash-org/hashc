@@ -466,12 +466,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type ExpressionRet = TermId;
 
-    fn visit_expression(
+    fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
-        walk::walk_expression_same_children(self, ctx, node)
+        walk::walk_expr_same_children(self, ctx, node)
     }
 
     type VariableExprRet = TermId;
@@ -1146,15 +1146,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Traverse return type and return value:
         let return_ty =
             node.return_ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
-        let expression = self.visit_expression(ctx, node.expr.ast_ref())?;
+        let body = self.visit_expr(ctx, node.body.ast_ref())?;
 
         // Create the type function type term:
         let ty_fn_return_ty = self.builder().or_unresolved_term(return_ty);
-        let ty_of_ty_fn_return_value = self.typer().ty_of_term(expression)?;
+        let ty_of_ty_fn_return_value = self.typer().ty_of_term(body)?;
         let return_ty_sub =
             self.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
         let ty_fn_return_ty = self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
-        let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, expression);
+        let ty_fn_return_value = self.substituter().apply_sub_to_term(&return_ty_sub, body);
 
         let ty_fn_term = self.builder().create_ty_fn_term(
             declaration_hint,
@@ -1212,7 +1212,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let params_potentially_unresolved = self.builder().create_params(args, ParamOrigin::Fn);
         let param_scope = self.scope_resolver().enter_rt_param_scope(params_potentially_unresolved);
 
-        let fn_body = self.visit_expression(ctx, node.fn_body.ast_ref())?;
+        let fn_body = self.visit_expr(ctx, node.fn_body.ast_ref())?;
 
         let hint_return_ty = self.state.fn_def_return_ty;
         let return_ty_or_unresolved = self.builder().or_unresolved_term(hint_return_ty);
@@ -1446,7 +1446,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::BodyBlockRet, Self::Error> {
         // Traverse each statement
         for statement in node.statements.iter() {
-            let statement_id = self.visit_expression(ctx, statement.ast_ref())?;
+            let statement_id = self.visit_expr(ctx, statement.ast_ref())?;
             self.validator().validate_term(statement_id)?;
             // @@Design: do we check that the return type is void? Should we
             // warn if it isn't?
@@ -1455,7 +1455,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Traverse the ending expression, if any, or return void.
         match &node.expr {
             Some(expr) => {
-                let expr_id = self.visit_expression(ctx, expr.ast_ref())?;
+                let expr_id = self.visit_expr(ctx, expr.ast_ref())?;
 
                 Ok(self.validator().validate_term(expr_id)?.simplified_term_id)
             }
@@ -1586,8 +1586,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         };
 
         let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
-        let value =
-            node.value.as_ref().map(|t| self.visit_expression(ctx, t.ast_ref())).transpose()?;
+        let value = node.value.as_ref().map(|t| self.visit_expr(ctx, t.ast_ref())).transpose()?;
 
         // Clear the declaration hint
         self.state.declaration_name_hint.take();
@@ -1650,7 +1649,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_assign_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpression>,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExpressionRet, Self::Error> {
         todo!()
     }
@@ -1660,7 +1659,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_assign_op_expr(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpression>,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
         todo!()
     }
@@ -1670,7 +1669,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
         let walk::BinaryExpression { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
 
@@ -1745,7 +1744,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
         let walk::UnaryExpression { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
 
@@ -1773,7 +1772,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, ctx, node)?;
 

@@ -67,7 +67,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             Err(err) => ParserAction::Error(err.into()),
             Ok(node) => ParserAction::SetModuleNode { module_id: *id, node },
         },
-        SourceId::Interactive(id) => match gen.parse_expression_from_interactive() {
+        SourceId::Interactive(id) => match gen.parse_expr_from_interactive() {
             Err(err) => ParserAction::Error(err.into()),
             Ok(node) => ParserAction::SetInteractiveNode { interactive_id: *id, node },
         },

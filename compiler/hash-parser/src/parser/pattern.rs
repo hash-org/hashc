@@ -54,7 +54,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
                 self.skip_token();
 
-                let condition = self.parse_expression_with_precedence(0)?;
+                let condition = self.parse_expr_with_precedence(0)?;
 
                 Ok(self
                     .node_with_joined_span(Pattern::If(IfPattern { pattern, condition }), &start))
