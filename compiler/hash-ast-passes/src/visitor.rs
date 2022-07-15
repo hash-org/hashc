@@ -52,10 +52,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     type AccessNameRet = ();
 
-    fn visit_access_name(
+    fn visit_namespace(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessName>,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Namespace>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(())
     }
@@ -323,14 +323,24 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type PropertyAccessExprRet = ();
+    type AccessExprRet = ();
 
-    fn visit_property_access_expr(
+    fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyAccessExpr>,
-    ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
-        let _ = walk::walk_property_access_expr(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error> {
+        let _ = walk::walk_access_expr(self, ctx, node);
+        Ok(())
+    }
+
+    type AccessKindRet = ();
+
+    fn visit_access_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AccessKind,
+    ) -> Result<Self::AccessKindRet, Self::Error> {
         Ok(())
     }
 

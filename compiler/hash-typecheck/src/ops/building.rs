@@ -261,6 +261,17 @@ impl<'gs> PrimitiveBuilder<'gs> {
         }
     }
 
+    /// Create a [Term::Access] with the given subject and name, and an access
+    /// operator.
+    pub fn create_access(
+        &self,
+        subject_id: TermId,
+        name: impl Into<Identifier>,
+        op: AccessOp,
+    ) -> TermId {
+        self.create_term(Term::Access(AccessTerm { subject: subject_id, name: name.into(), op }))
+    }
+
     /// Create a [Term::Access] with the given subject and name, and namespace
     /// operator.
     pub fn create_ns_access(&self, subject_id: TermId, name: impl Into<Identifier>) -> TermId {

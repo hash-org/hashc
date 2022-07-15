@@ -57,7 +57,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
     fn visit_access_name(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessName>,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Namespace>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(())
     }
@@ -295,14 +295,24 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type PropertyAccessExprRet = ();
+    type AccessExprRet = ();
 
-    fn visit_property_access_expr(
+    fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::PropertyAccessExpr>,
-    ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error> {
         let _ = walk_mut::walk_property_access_expr(self, ctx, node);
+        Ok(())
+    }
+
+    type AccessKindRet = ();
+
+    fn visit_access_kind(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AccessKind,
+    ) -> Result<Self::AccessKindRet, Self::Error> {
         Ok(())
     }
 

@@ -81,7 +81,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Ident(id) => {
                 self.skip_token();
 
-                let name = self.parse_access_name(self.node_with_span(*id, start))?;
+                let name = self.node_with_span(Name { ident: *id }, start);
                 Ty::Named(NamedTy { name })
             }
 
@@ -141,7 +141,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // present
         let ty = if matches!(ty, Ty::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
             Ty::TyFnCall(TyFnCall {
-                subject: self.node_with_joined_span(ty, &start),
+                subject: self.node_with_joined_span(
+                    Expression::new(ExpressionKind::Ty(TyExpr(
+                        self.node_with_joined_span(ty, &start),
+                    ))),
+                    &start,
+                ),
                 args: self.parse_type_args(true)?,
             })
         } else {

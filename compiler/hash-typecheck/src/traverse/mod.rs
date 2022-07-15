@@ -7,18 +7,18 @@ use crate::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    ops::{validate::TermValidation, AccessToOpsMut},
+    ops::AccessToOpsMut,
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, ArgsId, BoundVars, EnumVariant, Member, MemberData, ModDefOrigin, Mutability,
-            Param, ParamOrigin, Sub, TermId, Visibility,
+            AccessOp, Arg, ArgsId, BoundVars, EnumVariant, Member, MemberData, ModDefOrigin,
+            Mutability, Param, ParamOrigin, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
 };
 use hash_ast::{
-    ast::{AstNodeRef, BinOp, OwnsAstNode, RefKind, UnOp},
+    ast::{AccessKind, AstNodeRef, BinOp, OwnsAstNode, RefKind, UnOp},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -182,10 +182,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     type AccessNameRet = TermId;
 
-    fn visit_access_name(
+    fn visit_namespace(
         &mut self,
         _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessName>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Namespace>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         // Accumulate all the names into an access term:
         let mut names = node.path.iter();
@@ -481,12 +481,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::VariableExpr>,
     ) -> Result<Self::VariableExprRet, Self::Error> {
-        let walk::VariableExpr { name, .. } = walk::walk_variable_expr(self, ctx, node)?;
+        let walk::VariableExpr { name } = walk::walk_variable_expr(self, ctx, node)?;
 
-        self.copy_location_from_node_to_target(node, name);
+        let term = self.builder().create_var_term(name);
+        self.copy_location_from_node_to_target(node, term);
 
-        let TermValidation { simplified_term_id, .. } = self.validator().validate_term(name)?;
-        Ok(simplified_term_id)
+        Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
     type DirectiveExprRet = TermId;
@@ -577,18 +577,30 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type PropertyAccessExprRet = TermId;
+    type AccessExprRet = TermId;
 
-    fn visit_property_access_expr(
+    fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::PropertyAccessExpr>,
-    ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
-        let walk::PropertyAccessExpr { subject, property } =
-            walk::walk_property_access_expr(self, ctx, node)?;
-        let term = self.builder().create_prop_access(subject, property);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error> {
+        let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, ctx, node)?;
+        let term = self.builder().create_access(subject, property, kind);
         self.copy_location_from_node_to_target(node, term);
         Ok(self.validator().validate_term(term)?.simplified_term_id)
+    }
+
+    type AccessKindRet = AccessOp;
+
+    fn visit_access_kind(
+        &mut self,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AccessKind,
+    ) -> Result<Self::AccessKindRet, Self::Error> {
+        match node {
+            AccessKind::Namespace => Ok(AccessOp::Namespace),
+            AccessKind::Property => Ok(AccessOp::Property),
+        }
     }
 
     type RefExprRet = TermId;
@@ -998,18 +1010,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnCall>,
     ) -> Result<Self::TyFnCallRet, Self::Error> {
-        // @@Hack: unions until we get first class union syntax
-        if let hash_ast::ast::Ty::Named(named_ty) = node.subject.body() {
-            if named_ty.name.path.len() == 1 && named_ty.name.path[0].body() == &"Union".into() {
-                let args: Vec<_> = node
-                    .args
-                    .iter()
-                    .map(|arg| self.visit_named_field_ty(ctx, arg.ast_ref()))
-                    .collect::<TcResult<_>>()?;
-                let union_term = self.builder().create_union_term(args.iter().map(|arg| arg.ty));
-                return Ok(self.validator().validate_term(union_term)?.simplified_term_id);
-            }
-        }
         let walk::TyFnCall { args, subject } = walk::walk_ty_fn_call(self, ctx, node)?;
 
         // These should be converted to args
@@ -1037,13 +1037,18 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
-        if node.name.path.len() == 1 && *node.name.path[0].body() == Identifier::from("_") {
-            // Infer type if it is an underscore:
+        let walk::NamedTy { name } = walk::walk_named_ty(self, ctx, node)?;
+
+        // Infer type if it is an underscore:
+        if name == CORE_IDENTIFIERS.underscore {
             let infer_term = self.builder().create_unresolved_term();
             self.copy_location_from_node_to_target(node, infer_term);
+
             Ok(infer_term)
         } else {
-            let var = walk::walk_named_ty(self, ctx, node)?.name;
+            let var = self.builder().create_var_term(name);
+            self.copy_location_from_node_to_target(node, var);
+
             Ok(self.validator().validate_term(var)?.simplified_term_id)
         }
     }

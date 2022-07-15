@@ -3,7 +3,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use hash_ast::{ast::*, ast_nodes};
-use hash_source::{identifier::Identifier, location::Span};
+use hash_source::location::Span;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, TokenKindVector};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -111,8 +111,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Handle primitive literals
             kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(ident) => {
-                let start = self.node_with_span(*ident, token.span);
-                self.parse_variable_or_type_fn_call(Some(start))?
+                let start = self.node_with_span(Name { ident: *ident }, token.span);
+                self.parse_access_or_type_fn_call(Some(start))?
             }
             TokenKind::Lt => self.node_with_joined_span(
                 Expression::new(ExpressionKind::TyFnDef(self.parse_type_function_def()?)),
@@ -287,26 +287,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_singular_expression(subject)
     }
 
-    fn parse_variable_or_type_fn_call(
+    fn parse_access_or_type_fn_call(
         &self,
-        start: Option<AstNode<Identifier>>,
+        start: Option<AstNode<Name>>,
     ) -> AstGenResult<AstNode<Expression>> {
-        let name = match start {
-            Some(node) => self.parse_access_name(node)?,
-            None => match self.peek() {
-                Some(Token { kind: TokenKind::Ident(ident), span }) => {
-                    self.skip_token();
-                    self.parse_access_name(self.node_with_span(*ident, *span))?
-                }
-                token => self.error_with_location(
-                    AstGenErrorKind::AccessName,
-                    None,
-                    token.map(|t| t.kind),
-                    token.map_or_else(|| self.next_location(), |tok| tok.span),
-                )?,
-            },
-        };
-
+        let name = self.parse_ns_access(start)?;
         let name_span = name.span();
 
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
@@ -318,25 +303,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 match self.peek_resultant_fn(|| self.parse_type_args(false)) {
                     Some(args) => Ok(self.node_with_joined_span(
                         Expression::new(ExpressionKind::Ty(TyExpr(self.node_with_joined_span(
-                            Ty::TyFnCall(TyFnCall {
-                                subject:
-                                    self.node_with_span(Ty::Named(NamedTy { name }), name_span),
-                                args,
-                            }),
+                            Ty::TyFnCall(TyFnCall { subject: name, args }),
                             &name_span,
                         )))),
                         &name_span,
                     )),
-                    None => Ok(self.node_with_joined_span(
-                        Expression::new(ExpressionKind::Variable(VariableExpr { name })),
-                        &name_span,
-                    )),
+                    None => Ok(name),
                 }
             }
-            _ => Ok(self.node_with_joined_span(
-                Expression::new(ExpressionKind::Variable(VariableExpr { name })),
-                &name_span,
-            )),
+            _ => Ok(name),
         }
     }
 
@@ -428,13 +403,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// method calls, indexing, etc.
     pub(crate) fn parse_singular_expression(
         &self,
-        subject: AstNode<Expression>,
+        mut subject: AstNode<Expression>,
     ) -> AstGenResult<AstNode<Expression>> {
-        // record the starting span
-        let start = self.current_location();
-
-        let mut lhs_expr = subject;
-
         // so here we need to peek to see if this is either a index_access, field access
         // or a function call...
         while let Some(next_token) = self.peek() {
@@ -442,57 +412,28 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // Property access or method call
                 TokenKind::Dot => {
                     self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
-                    let name_or_fn_call = self.parse_name_or_method_call()?;
-
-                    match name_or_fn_call.into_body().into_kind() {
-                        ExpressionKind::ConstructorCall(ConstructorCallExpr { subject, args }) => {
-                            lhs_expr = self.node_with_joined_span(
-                                Expression::new(ExpressionKind::MethodCall(MethodCallExpr {
-                                    subject: lhs_expr,
-                                    call_subject: subject,
-                                    args,
-                                })),
-                                &start,
-                            );
-                        }
-                        ExpressionKind::Variable(VariableExpr { name }) => {
-                            // @@Cleanup: This produces an AstNode<AccessName> whereas we just want
-                            // the single name...
-                            let ident = name.body().path[0].body();
-                            let span = name.span();
-
-                            let node = self.node_with_span(Name { ident: *ident }, span);
-
-                            lhs_expr = self.node_with_span(
-                                Expression::new(ExpressionKind::PropertyAccess(
-                                    PropertyAccessExpr { subject: lhs_expr, property: node },
-                                )),
-                                span,
-                            );
-                        }
-                        _ => self.error(AstGenErrorKind::MethodCall, None, None)?,
-                    }
+                    subject = self.parse_name_or_method_call(subject)?;
                 }
                 // Array index access syntax: ident[...]
                 TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                     self.skip_token();
 
                     let tree = self.token_trees.get(*tree_index).unwrap();
-                    lhs_expr = self.parse_array_index(lhs_expr, tree, self.current_location())?;
+                    subject = self.parse_array_index(subject, tree, self.current_location())?;
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree_index) => {
                     self.skip_token();
 
                     let tree = self.token_trees.get(*tree_index).unwrap();
-                    lhs_expr =
-                        self.parse_constructor_call(lhs_expr, tree, self.current_location())?;
+                    subject =
+                        self.parse_constructor_call(subject, tree, self.current_location())?;
                 }
                 _ => break,
             }
         }
 
-        Ok(lhs_expr)
+        Ok(subject)
     }
 
     /// Parsing module import statement which are in the form of a function
@@ -519,7 +460,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         gen.verify_is_empty()?;
 
         // Attempt to add the module via the resolver
-        let import_path = PathBuf::from_str(path.into()).unwrap_or_else(|err| match err {});
+        let import_path = PathBuf::from_str(path.into()).unwrap();
         let resolved_import_path =
             self.resolver.resolve_import(&import_path, self.source_location(span));
 
@@ -805,13 +746,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse an single name or a function call that is applied on the left hand
     /// side expression. Infix calls and name are only separated by method
     /// calls having parentheses at the end of the name.
-    pub(crate) fn parse_name_or_method_call(&self) -> AstGenResult<AstNode<Expression>> {
+    pub(crate) fn parse_name_or_method_call(
+        &self,
+        _subject: AstNode<Expression>,
+    ) -> AstGenResult<AstNode<Expression>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
 
         match &self.next_token() {
             Some(Token { kind: TokenKind::Ident(id), span: id_span }) => {
-                let subject =
-                    self.parse_variable_or_type_fn_call(Some(self.node_with_span(*id, *id_span)))?;
+                let subject = self.parse_access_or_type_fn_call(Some(
+                    self.node_with_span(Name { ident: *id }, *id_span),
+                ))?;
 
                 match self.peek() {
                     Some(Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span }) => {

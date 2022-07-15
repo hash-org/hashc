@@ -85,7 +85,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 // otherwise it must follow that it is either a enum or struct
                 // pattern, if not we report it as an error since access names
                 // cannot be used as binding patterns on their own...
-                let name = self.parse_access_name(self.node_with_span(*ident, *span))?;
+                let name = self.parse_ns(self.node_with_span(*ident, *span))?;
 
                 match self.peek() {
                     // a `constructor` pattern

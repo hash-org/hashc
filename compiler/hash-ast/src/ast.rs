@@ -286,12 +286,12 @@ impl Name {
 
 /// A namespaced name, i.e. access name.
 #[derive(Debug, PartialEq, Clone)]
-pub struct AccessName {
+pub struct Namespace {
     /// The list of names that make up the access name.
     pub path: AstNodes<Identifier>,
 }
 
-impl AccessName {
+impl Namespace {
     pub fn path(&self) -> Vec<Identifier> {
         self.path.iter().map(|part| *part.body()).collect::<Vec<_>>()
     }
@@ -305,7 +305,7 @@ impl AccessName {
 #[derive(Debug, PartialEq, Clone)]
 pub struct NamedTy {
     /// The name of the type.
-    pub name: AstNode<AccessName>,
+    pub name: AstNode<Name>,
 }
 
 /// Reference kind representing either a raw reference or a normal reference.
@@ -399,7 +399,7 @@ pub struct TyFn {
 /// `(Foo<bar>)<baz>`
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFnCall {
-    pub subject: AstNode<Ty>,
+    pub subject: AstNode<Expression>,
     // @@Todo: This should probably not use `NamedFieldTypeEntry`.
     pub args: AstNodes<NamedFieldTyEntry>,
 }
@@ -590,7 +590,7 @@ pub struct IfPattern {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorPattern {
     /// The name of the enum variant.
-    pub name: AstNode<AccessName>,
+    pub name: AstNode<Namespace>,
     /// The arguments of the enum variant as patterns.
     pub fields: AstNodes<TuplePatternEntry>,
 }
@@ -1313,13 +1313,24 @@ pub struct DirectiveExpr {
     pub subject: AstNode<Expression>,
 }
 
+/// A the kind of access an [AccessExpr] has
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum AccessKind {
+    /// A namespace access, i.e. `a::b`
+    Namespace,
+    /// A property access, i.e. `a.b`
+    Property,
+}
+
 /// A property access expression.
 #[derive(Debug, PartialEq, Clone)]
-pub struct PropertyAccessExpr {
+pub struct AccessExpr {
     /// An expression which evaluates to a struct or tuple value.
     pub subject: AstNode<Expression>,
     /// The property of the subject to access.
     pub property: AstNode<Name>,
+    /// The kind of access, either namespacing or property
+    pub kind: AccessKind,
 }
 
 /// A typed expression, e.g. `foo as int`.
@@ -1343,7 +1354,7 @@ pub struct Import {
 #[derive(Debug, PartialEq, Clone)]
 pub struct VariableExpr {
     /// The name of the variable.
-    pub name: AstNode<AccessName>,
+    pub name: AstNode<Name>,
 }
 
 /// A reference expression with a flag denoting whether it is a raw ref or not
@@ -1414,7 +1425,6 @@ pub struct IndexExpression {
     pub index_expr: AstNode<Expression>,
 }
 
-//@@Todo(feds01): add `MergeExpr`...
 /// The kind of an expression.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExpressionKind {
@@ -1423,7 +1433,8 @@ pub enum ExpressionKind {
     Directive(DirectiveExpr),
     Declaration(Declaration),
     Variable(VariableExpr),
-    PropertyAccess(PropertyAccessExpr),
+    /// Either a property access or a namespace access
+    Access(AccessExpr),
     Ref(RefExpr),
     Deref(DerefExpr),
     Unsafe(UnsafeExpr),

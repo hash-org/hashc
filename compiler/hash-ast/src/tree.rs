@@ -43,10 +43,10 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type AccessNameRet = TreeNode;
-    fn visit_access_name(
+    fn visit_namespace(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AccessName>,
+        node: ast::AstNodeRef<ast::Namespace>,
     ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(TreeNode::leaf(
             node.path.iter().map(|p| (*p.body()).into()).intersperse("::").collect::<String>(),
@@ -302,21 +302,33 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("method_call", children))
     }
 
-    type PropertyAccessExprRet = TreeNode;
-    fn visit_property_access_expr(
+    type AccessExprRet = TreeNode;
+    fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::PropertyAccessExpr>,
-    ) -> Result<Self::PropertyAccessExprRet, Self::Error> {
-        let walk::PropertyAccessExpr { subject, property } =
-            walk::walk_property_access_expr(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error> {
+        let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
-            "property_access",
+            "access",
             vec![
                 TreeNode::branch("subject", vec![subject]),
                 TreeNode::branch("property", vec![property]),
+                TreeNode::branch("kind", vec![kind]),
             ],
         ))
+    }
+
+    type AccessKindRet = TreeNode;
+    fn visit_access_kind(
+        &mut self,
+        _: &Self::Ctx,
+        node: ast::AccessKind,
+    ) -> Result<Self::AccessKindRet, Self::Error> {
+        match node {
+            ast::AccessKind::Property => Ok(TreeNode::leaf("property")),
+            ast::AccessKind::Namespace => Ok(TreeNode::leaf("namespace")),
+        }
     }
 
     type RefExprRet = TreeNode;
@@ -724,6 +736,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type LoopBlockRet = TreeNode;
+
     fn visit_loop_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -747,7 +760,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type WhileLoopBlockRet = TreeNode;
-
     fn visit_while_loop_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -894,6 +906,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type DeclarationRet = TreeNode;
+
     fn visit_declaration(
         &mut self,
         ctx: &Self::Ctx,
@@ -924,7 +937,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type AssignExpressionRet = TreeNode;
-
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -1012,6 +1024,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type StructDefRet = TreeNode;
+
     fn visit_struct_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1025,7 +1038,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type EnumDefEntryRet = TreeNode;
-
     fn visit_enum_def_entry(
         &mut self,
         ctx: &Self::Ctx,
@@ -1086,6 +1098,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type ConstructorPatternRet = TreeNode;
+
     fn visit_constructor_pattern(
         &mut self,
         ctx: &Self::Ctx,
@@ -1105,7 +1118,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type NamespacePatternRet = TreeNode;
-
     fn visit_namespace_pattern(
         &mut self,
         ctx: &Self::Ctx,
@@ -1283,6 +1295,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type DestructuringPatternRet = TreeNode;
+
     fn visit_destructuring_pattern(
         &mut self,
         ctx: &Self::Ctx,

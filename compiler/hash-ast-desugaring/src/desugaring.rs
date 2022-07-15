@@ -2,12 +2,11 @@
 //! implementation.
 use hash_ast::{
     ast::{
-        AccessName, AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral,
-        BoolLiteralPattern, BreakStatement, ConstructorCallArg, ConstructorCallArgs,
-        ConstructorCallExpr, ConstructorPattern, Expression, ExpressionKind, ForLoopBlock, IfBlock,
-        IfClause, IfPattern, IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock,
-        MatchBlock, MatchCase, MatchOrigin, Pattern, TuplePatternEntry, VariableExpr,
-        WhileLoopBlock,
+        AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral, BoolLiteralPattern,
+        BreakStatement, ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr,
+        ConstructorPattern, Expression, ExpressionKind, ForLoopBlock, IfBlock, IfClause, IfPattern,
+        IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock, MatchBlock, MatchCase,
+        MatchOrigin, Name, Namespace, Pattern, TuplePatternEntry, VariableExpr, WhileLoopBlock,
     },
     ast_nodes,
 };
@@ -60,10 +59,10 @@ impl<'s> AstDesugaring<'s> {
 
         let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
 
-        let make_access_name = |label: &str| -> AstNode<AccessName> {
+        let make_access_name = |label: &str| -> AstNode<Namespace> {
             // Create the identifier within the map...
             AstNode::new(
-                AccessName { path: ast_nodes![AstNode::new(label.into(), iter_span)] },
+                Namespace { path: ast_nodes![AstNode::new(label.into(), iter_span)] },
                 iter_span,
             )
         };
@@ -118,7 +117,7 @@ impl<'s> AstDesugaring<'s> {
                     Expression::new(ExpressionKind::ConstructorCall(ConstructorCallExpr {
                         subject: AstNode::new(
                             Expression::new(ExpressionKind::Variable(VariableExpr {
-                                name: make_access_name("next"),
+                                name: AstNode::new(Name { ident: "next".into() }, iter_span),
                             })),
                             iter_span,
                         ),
