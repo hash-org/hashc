@@ -360,9 +360,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteral>,
     ) -> Result<Self::StrLiteralRet, Self::Error> {
-        let str_def = self.core_defs().str_ty;
-        let ty = self.builder().create_nominal_def_term(str_def);
-        let term = self.builder().create_rt_term(ty);
+        let term = self.builder().create_lit_term(node.0.to_string());
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
@@ -377,9 +375,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteral>,
     ) -> Result<Self::CharLiteralRet, Self::Error> {
-        let char_def = self.core_defs().char_ty;
-        let ty = self.builder().create_nominal_def_term(char_def);
-        let term = self.builder().create_rt_term(ty);
+        let term = self.builder().create_lit_term(node.0);
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
@@ -411,14 +407,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteral>,
     ) -> Result<Self::BoolLiteralRet, Self::Error> {
-        let bool_def = self.core_defs().bool_ty;
-        let ty = self.builder().create_nominal_def_term(bool_def);
-        let term = self.builder().create_rt_term(ty);
+        let term = self.builder().create_var_term(if node.0 { "true" } else { "false" });
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);
 
-        Ok(term)
+        Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
     type IntLiteralRet = TermId;
@@ -428,9 +422,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteral>,
     ) -> Result<Self::IntLiteralRet, Self::Error> {
-        let i32_def = self.core_defs().i32_ty;
-        let ty = self.builder().create_nominal_def_term(i32_def);
-        let term = self.builder().create_rt_term(ty);
+        let term = self.builder().create_lit_term(node.0);
 
         // add the location of the term to the location storage
         self.copy_location_from_node_to_target(node, term);

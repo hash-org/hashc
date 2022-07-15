@@ -594,6 +594,36 @@ pub enum LitTerm {
     Char(char),
 }
 
+impl From<&str> for LitTerm {
+    fn from(s: &str) -> Self {
+        LitTerm::Str(s.to_owned())
+    }
+}
+
+impl From<String> for LitTerm {
+    fn from(s: String) -> Self {
+        LitTerm::Str(s)
+    }
+}
+
+impl From<u64> for LitTerm {
+    fn from(s: u64) -> Self {
+        LitTerm::Int(s.into())
+    }
+}
+
+impl From<i64> for LitTerm {
+    fn from(s: i64) -> Self {
+        LitTerm::Int(s.into())
+    }
+}
+
+impl From<char> for LitTerm {
+    fn from(s: char) -> Self {
+        LitTerm::Char(s)
+    }
+}
+
 /// A level 3 term.
 ///
 /// Type of: traits, for example: `trait(..)`.
