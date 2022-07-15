@@ -142,9 +142,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let ty = if matches!(ty, Ty::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
             Ty::TyFnCall(TyFnCall {
                 subject: self.node_with_joined_span(
-                    Expression::new(ExpressionKind::Ty(TyExpr(
-                        self.node_with_joined_span(ty, &start),
-                    ))),
+                    Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, &start)))),
                     &start,
                 ),
                 args: self.parse_type_args(true)?,

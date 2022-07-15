@@ -38,7 +38,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // firstly check if the first token signals a beginning of a statement, we can
         // tell this by checking for keywords that must begin a statement...
         while self.has_token() {
-            let (has_semi, statement) = self.parse_top_level_expression(false)?;
+            let (has_semi, statement) = self.parse_top_level_expr(false)?;
 
             match (has_semi, self.peek()) {
                 (true, _) => block.statements.nodes.push(statement),
@@ -65,7 +65,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         self.parse_token(TokenKind::Keyword(Keyword::In))?;
 
-        let iterator = self.parse_expression_with_precedence(0)?;
+        let iterator = self.parse_expr_with_precedence(0)?;
         let body = self.parse_block()?;
 
         Ok(self.node_with_joined_span(Block::For(ForLoopBlock { pattern, iterator, body }), &start))
@@ -77,7 +77,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let start = self.current_location();
 
-        let condition = self.parse_expression_with_precedence(0)?;
+        let condition = self.parse_expr_with_precedence(0)?;
         let body = self.parse_block()?;
 
         Ok(self.node_with_joined_span(Block::While(WhileLoopBlock { condition, body }), &start))
@@ -90,7 +90,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let pattern = self.parse_pattern()?;
 
         self.parse_arrow()?;
-        let expr = self.parse_expression_with_precedence(0)?;
+        let expr = self.parse_expr_with_precedence(0)?;
 
         Ok(self.node_with_joined_span(MatchCase { pattern, expr }, &start))
     }
@@ -101,7 +101,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Match)));
 
         let start = self.current_location();
-        let subject = self.parse_expression_with_precedence(0)?;
+        let subject = self.parse_expr_with_precedence(0)?;
 
         let mut cases = AstNodes::empty();
 
@@ -151,7 +151,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
             clauses.push(self.node_with_joined_span(
                 IfClause {
-                    condition: self.parse_expression_with_precedence(0)?,
+                    condition: self.parse_expr_with_precedence(0)?,
                     body: self.parse_block()?,
                 },
                 &if_span,

@@ -62,7 +62,7 @@ pub enum AstGenErrorKind {
     /// a binary expression.
     ExpectedOperator,
     /// Expected an expression.
-    ExpectedExpression,
+    ExpectedExpr,
     /// Expected a '=>' at the current location. This error can occur in a
     /// number of places; including but not limited to: after type
     /// arguments, lambda definition, trait bound annotation, etc.
@@ -135,7 +135,7 @@ impl From<AstGenError> for ParseError {
                 "Expected value assignment after type annotation within named tuple".to_string()
             }
             AstGenErrorKind::ExpectedOperator => "Expected an operator".to_string(),
-            AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
+            AstGenErrorKind::ExpectedExpr => "Expected an expression".to_string(),
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {

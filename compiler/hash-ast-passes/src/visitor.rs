@@ -8,8 +8,8 @@ use std::{collections::HashSet, convert::Infallible, mem};
 
 use hash_ast::{
     ast::{
-        BindingPattern, Block, BlockExpr, DestructuringPattern, ExpressionKind, LiteralExpr,
-        Mutability, Pattern, TuplePatternEntry,
+        BindingPattern, Block, BlockExpr, DestructuringPattern, ExprKind, LiteralExpr, Mutability,
+        Pattern, TuplePatternEntry,
     },
     visitor::{walk, AstVisitor},
 };
@@ -208,12 +208,12 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     type ExpressionRet = ();
 
-    fn visit_expression(
+    fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
     ) -> Result<Self::ExpressionRet, Self::Error> {
-        let _ = walk::walk_expression(self, ctx, node);
+        let _ = walk::walk_expr(self, ctx, node);
         Ok(())
     }
 
@@ -256,7 +256,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
             // expression must be a `mod` block since otherwise the directive
             // wouldn't make sense...
             if_chain! {
-                if let ExpressionKind::Block(BlockExpr(block)) = node.subject.kind();
+                if let ExprKind::Block(BlockExpr(block)) = node.subject.kind();
                 if matches!(block.body(), Block::Mod(_));
                 then {}
                 else {
@@ -773,7 +773,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         // constant literals
         for statement in node.statements.iter() {
             match statement.kind() {
-                ExpressionKind::LiteralExpr(LiteralExpr(lit)) if lit.body().is_constant() => {
+                ExprKind::LiteralExpr(LiteralExpr(lit)) if lit.body().is_constant() => {
                     self.append_warning(AnalysisWarningKind::UselessExpression, statement.span());
                 }
                 _ => {}
@@ -890,7 +890,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExpressionRet, Self::Error> {
         let _ = walk::walk_assign_statement(self, ctx, node);
         Ok(())
@@ -901,7 +901,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
     ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
         let _ = walk::walk_assign_op_statement(self, ctx, node);
         Ok(())
@@ -912,7 +912,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
     ) -> Result<Self::BinaryExpressionRet, Self::Error> {
         let _ = walk::walk_binary_expr(self, ctx, node);
         Ok(())
@@ -923,7 +923,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
     ) -> Result<Self::UnaryExpressionRet, Self::Error> {
         let _ = walk::walk_unary_expr(self, ctx, node);
         Ok(())
@@ -934,7 +934,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpression>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         let _ = walk::walk_index_expr(self, ctx, node);
         Ok(())
