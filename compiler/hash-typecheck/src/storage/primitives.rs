@@ -954,6 +954,12 @@ pub struct PatternParam {
     pub pattern: PatternId,
 }
 
+impl GetNameOpt for PatternParam {
+    fn get_name_opt(&self) -> Option<Identifier> {
+        self.name
+    }
+}
+
 /// A pattern of parameters.
 pub type PatternParams = ParamList<PatternParam>;
 
@@ -983,7 +989,7 @@ pub enum Pattern {
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
     Lit(TermId),
     /// Tuple pattern.
-    Tuple(PatternParams),
+    Tuple(PatternParamsId),
     /// Constructor pattern.
     Constructor(ConstructorPattern),
     /// A set of patterns that are OR-ed together. If any one of them matches
