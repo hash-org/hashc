@@ -93,7 +93,8 @@ impl CoreDefs {
         // Marker trait for types that are runtime instantiable
         // We call this "Type" because that's what people usually mean when they say
         // "type".
-        let runtime_instantiable_trt = builder.create_trt_def(Some("Type"), [], []);
+        let runtime_instantiable_trt =
+            builder.create_trt_def(Some("Type"), builder.create_constant_scope([]), []);
 
         // Helper for general type bound
         let ty_term = builder.create_trt_term(runtime_instantiable_trt);
@@ -153,7 +154,7 @@ impl CoreDefs {
         // Hash and Eq traits
         let hash_trt = builder.create_trt_def(
             Some("Hash"),
-            [
+            builder.create_constant_scope([
                 builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
                 builder.create_uninitialised_constant_member(
                     "hash",
@@ -166,12 +167,12 @@ impl CoreDefs {
                     ),
                     Visibility::Public,
                 ),
-            ],
+            ]),
             [],
         );
         let eq_trt = builder.create_trt_def(
             Some("Eq"),
-            [
+            builder.create_constant_scope([
                 builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
                 builder.create_uninitialised_constant_member(
                     "eq",
@@ -187,14 +188,14 @@ impl CoreDefs {
                     ),
                     Visibility::Public,
                 ),
-            ],
+            ]),
             [],
         );
 
         // Index trait
         let index_trt = builder.create_trt_def(
             Some("Index"),
-            [
+            builder.create_constant_scope([
                 builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
                 builder.create_uninitialised_constant_member("Index", ty_term, Visibility::Public),
                 builder.create_uninitialised_constant_member("Output", ty_term, Visibility::Public),
@@ -212,7 +213,7 @@ impl CoreDefs {
                     ),
                     Visibility::Public,
                 ),
-            ],
+            ]),
             [],
         );
 

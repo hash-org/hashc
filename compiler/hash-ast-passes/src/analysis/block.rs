@@ -4,7 +4,7 @@
 use std::{collections::HashSet, mem};
 
 use hash_ast::{
-    ast::{AstNodes, BodyBlock, Expression, ExpressionKind},
+    ast::{AstNodeRef, BodyBlock, Expression, ExpressionKind},
     visitor::AstVisitor,
 };
 
@@ -22,14 +22,14 @@ impl SemanticAnalyser<'_> {
     /// the erroneous statements in the provided [AstNodes<Expression>]. This is
     /// so that the caller can later 'skip' these statements when performing
     /// further checks.
-    pub(crate) fn check_statements_are_declarative(
+    pub(crate) fn check_members_are_declarative<'s>(
         &mut self,
-        statements: &AstNodes<Expression>,
+        members: impl Iterator<Item = AstNodeRef<'s, Expression>>,
         origin: BlockOrigin,
     ) -> HashSet<usize> {
         let mut error_indices = HashSet::new();
 
-        for (index, statement) in statements.iter().enumerate() {
+        for (index, statement) in members.enumerate() {
             if !matches!(
                 statement.kind(),
                 ExpressionKind::Declaration(_) | ExpressionKind::MergeDeclaration(_)
@@ -53,9 +53,7 @@ impl SemanticAnalyser<'_> {
     ///
     /// - No member can declare themselves to be `mutable`
     pub(crate) fn check_constant_body_block(&mut self, body: &BodyBlock, origin: BlockOrigin) {
-        assert!(body.expr.is_none());
-
-        let errors = self.check_statements_are_declarative(&body.statements, origin);
+        let errors = self.check_members_are_declarative(body.members(), origin);
 
         // We need to set the block to being whatever the origin is set to!
         let old_block_origin = mem::replace(&mut self.current_block, origin);
