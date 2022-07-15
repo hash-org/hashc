@@ -2,27 +2,23 @@
 // The Hash programming language standard library sources.
 //
 // Module: "prelude"
+//
 // Description: Critical runtime module that is imported into any Hash
 // runtime by default. This module defines all the bindings between the
 // compiler interals and the program runtime.
+
 Intrinsics := #intrinsics mod {
-    // Output a line to standard output
-    pub print : (msg: str) -> void;
- 
-    // Read a line from standard input
-    pub input : () -> str;
-
-    // Panic - kill the process and exit with a message.
-    pub panic : (msg: str) -> void;
-
-    // The following are implemented for all numeric primitives:
-    //
+    pub add_i32 : (a: i32, b: i32) -> i32;
 };
 
 
 // Equality
 Eq := <T> => trait {
     eq: (&T, &T) -> bool;
+};
+
+NotEq := <T ~ Eq> => trait {
+    not_eq: (a: &T, b: &T) -> bool => eq(a, b);
 };
 
 // Ordering
@@ -40,6 +36,10 @@ Ordering := enum( Lt, Eq, Gt, );
 
 Ord := <T> => trait {
     ord: (a: T, b: T) -> Ordering;
+    // gt := (a: T, b: T) => a.ord(b) == Ordering::Gt;
+    // lt := (a: T, b: T) => a.ord(b) == Ordering::Lt;
+    // gt_eq := (a: T, b: T) => a.ord(b) != Ordering::Lt;
+    // lt_eq := (a: T, b: T) => a.ord(b) != Ordering::Gt;
 };
 
 
@@ -50,8 +50,16 @@ Hash := <T> => trait {
 
 // Add operator (+)
 // Implemented for all numeric primitives, strings, lists.
-Add := <T> => trait {
-    add: (T, T) -> T;
+Add := trait {
+    Self: Type;
+
+    add: (Self, Self) -> Self;
+};
+
+i32 := i32 ~ impl Add {
+    Self := i32;
+
+    add := (a: i32, b: i32) => Intrinsics::add_i32(a, b);
 };
 
 // Subtract operator (-)
@@ -90,6 +98,14 @@ Neg := <T> => trait {
 
 // Neg ~= impl Neg<int>   { neg := (item) => intrinsic_neg(item); };
 // Neg ~= impl Neg<float> { neg := (item) => intrinsic_neg(item); };
+
+And := <T> => trait {
+    and: (T, T) -> bool;
+};
+
+Or := <T> => trait {
+    or: (T, T) -> bool;
+};
 
 
 // // Bitwise shift right (<<)
@@ -134,10 +150,8 @@ BitAnd := trait {
     bit_and: (Self, Self) -> Self; 
 };
 
-BitAnd := impl BitAnd {
-    Self := u64;
-    // @@BUG: should fail here bruv
-    bit_and := (a: u64, b: u32) => 'c'; 
+Exp := <A, B> => trait { 
+    exp: (A, B) -> A; 
 };
 
 // Convert type A to type B
