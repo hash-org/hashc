@@ -84,7 +84,7 @@ pub enum AstGenErrorKind {
     /// future.
     ImportPath,
     /// Expected an identifier after a name qualifier '::'.
-    AccessName,
+    Namespace,
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
     /// Malformed spread pattern (if for any reason there is a problem with
@@ -150,7 +150,7 @@ impl From<AstGenError> for ParseError {
                 "Expected an import path which should be a string".to_string()
             }
             AstGenErrorKind::ErroneousImport(err) => err.to_string(),
-            AstGenErrorKind::AccessName => {
+            AstGenErrorKind::Namespace => {
                 "Expected identifier after a name access qualifier '::'".to_string()
             }
             AstGenErrorKind::MalformedSpreadPattern(dots) => {

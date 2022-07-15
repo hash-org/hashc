@@ -1,5 +1,5 @@
 error: Failed to parse
- --> $DIR/case.hash:1:6
+ --> $DIR/case.hash:1:7
 1 |   a::b:::c<int>();
-  |        ^ here
-  = note: Expected identifier after a name access qualifier '::'.
+  |         ^ here
+  = note: Expected an identifier.

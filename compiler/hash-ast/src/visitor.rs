@@ -43,10 +43,10 @@ pub trait AstVisitor: Sized {
     ) -> Result<Self::NameRet, Self::Error>;
 
     type AccessNameRet;
-    fn visit_access_name(
+    fn visit_namespace(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::AccessName>,
+        node: ast::AstNodeRef<ast::Namespace>,
     ) -> Result<Self::AccessNameRet, Self::Error>;
 
     type LiteralRet;
@@ -196,12 +196,19 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::MethodCallExpr>,
     ) -> Result<Self::MethodCallExprRet, Self::Error>;
 
-    type PropertyAccessExprRet;
-    fn visit_property_access_expr(
+    type AccessExprRet;
+    fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::PropertyAccessExpr>,
-    ) -> Result<Self::PropertyAccessExprRet, Self::Error>;
+        node: ast::AstNodeRef<ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error>;
+
+    type AccessKindRet;
+    fn visit_access_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AccessKind,
+    ) -> Result<Self::AccessKindRet, Self::Error>;
 
     type RefExprRet;
     fn visit_ref_expr(
@@ -774,7 +781,7 @@ pub trait AstVisitorMut: Sized {
     fn visit_access_name(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::AccessName>,
+        node: ast::AstNodeRefMut<ast::Namespace>,
     ) -> Result<Self::AccessNameRet, Self::Error>;
 
     type LiteralRet;
@@ -931,12 +938,19 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::MethodCallExpr>,
     ) -> Result<Self::MethodCallExprRet, Self::Error>;
 
-    type PropertyAccessExprRet;
-    fn visit_property_access_expr(
+    type AccessExprRet;
+    fn visit_access_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::PropertyAccessExpr>,
-    ) -> Result<Self::PropertyAccessExprRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::AccessExpr>,
+    ) -> Result<Self::AccessExprRet, Self::Error>;
+
+    type AccessKindRet;
+    fn visit_access_kind(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AccessKind,
+    ) -> Result<Self::AccessKindRet, Self::Error>;
 
     type RefExprRet;
     fn visit_ref_expr(
@@ -1523,7 +1537,7 @@ pub mod walk {
         Directive(V::DirectiveExprRet),
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
-        PropertyAccess(V::PropertyAccessExprRet),
+        Access(V::AccessExprRet),
         Ref(V::RefExprRet),
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
@@ -1573,9 +1587,9 @@ pub mod walk {
             ast::ExpressionKind::Variable(inner) => {
                 Expression::Variable(visitor.visit_variable_expr(ctx, node.with_body(inner))?)
             }
-            ast::ExpressionKind::PropertyAccess(inner) => Expression::PropertyAccess({
-                visitor.visit_property_access_expr(ctx, node.with_body(inner))?
-            }),
+            ast::ExpressionKind::Access(inner) => {
+                Expression::Access(visitor.visit_access_expr(ctx, node.with_body(inner))?)
+            }
             ast::ExpressionKind::MethodCall(inner) => Expression::MethodCall({
                 visitor.visit_method_call_expr(ctx, node.with_body(inner))?
             }),
@@ -1658,7 +1672,7 @@ pub mod walk {
             MergeDeclarationRet = Ret,
             VariableExprRet = Ret,
             MethodCallExprRet = Ret,
-            PropertyAccessExprRet = Ret,
+            AccessExprRet = Ret,
             RefExprRet = Ret,
             DerefExprRet = Ret,
             UnsafeExprRet = Ret,
@@ -1689,7 +1703,7 @@ pub mod walk {
             Expression::Declaration(r) => r,
             Expression::MergeDeclaration(r) => r,
             Expression::Variable(r) => r,
-            Expression::PropertyAccess(r) => r,
+            Expression::Access(r) => r,
             Expression::MethodCall(r) => r,
             Expression::Ref(r) => r,
             Expression::Deref(r) => r,
@@ -1717,7 +1731,7 @@ pub mod walk {
     }
 
     pub struct VariableExpr<V: AstVisitor> {
-        pub name: V::AccessNameRet,
+        pub name: V::NameRet,
     }
 
     pub fn walk_variable_expr<V: AstVisitor>(
@@ -1725,7 +1739,7 @@ pub mod walk {
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::VariableExpr>,
     ) -> Result<VariableExpr<V>, V::Error> {
-        Ok(VariableExpr { name: visitor.visit_access_name(ctx, node.name.ast_ref())? })
+        Ok(VariableExpr { name: visitor.visit_name(ctx, node.name.ast_ref())? })
     }
 
     pub struct DirectiveExpr<V: AstVisitor> {
@@ -1811,19 +1825,21 @@ pub mod walk {
         })
     }
 
-    pub struct PropertyAccessExpr<V: AstVisitor> {
+    pub struct AccessExpr<V: AstVisitor> {
         pub subject: V::ExpressionRet,
         pub property: V::NameRet,
+        pub kind: V::AccessKindRet,
     }
 
-    pub fn walk_property_access_expr<V: AstVisitor>(
+    pub fn walk_access_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::PropertyAccessExpr>,
-    ) -> Result<PropertyAccessExpr<V>, V::Error> {
-        Ok(PropertyAccessExpr {
+        node: ast::AstNodeRef<ast::AccessExpr>,
+    ) -> Result<AccessExpr<V>, V::Error> {
+        Ok(AccessExpr {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
             property: visitor.visit_name(ctx, node.property.ast_ref())?,
+            kind: visitor.visit_access_kind(ctx, node.kind.clone())?,
         })
     }
 
@@ -2419,7 +2435,7 @@ pub mod walk {
     }
 
     pub struct NamedTy<V: AstVisitor> {
-        pub name: V::AccessNameRet,
+        pub name: V::NameRet,
     }
 
     pub fn walk_named_ty<V: AstVisitor>(
@@ -2427,7 +2443,7 @@ pub mod walk {
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::NamedTy>,
     ) -> Result<NamedTy<V>, V::Error> {
-        Ok(NamedTy { name: visitor.visit_access_name(ctx, node.name.ast_ref())? })
+        Ok(NamedTy { name: visitor.visit_name(ctx, node.name.ast_ref())? })
     }
 
     pub struct RefTy<V: AstVisitor> {
@@ -2488,7 +2504,7 @@ pub mod walk {
         })
     }
     pub struct TyFnCall<V: AstVisitor> {
-        pub subject: V::TyRet,
+        pub subject: V::ExpressionRet,
         pub args: V::CollectionContainer<V::NamedFieldTyRet>,
     }
 
@@ -2498,7 +2514,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::TyFnCall>,
     ) -> Result<TyFnCall<V>, V::Error> {
         Ok(TyFnCall {
-            subject: visitor.visit_ty(ctx, node.subject.ast_ref())?,
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
                 node.args.iter().map(|a| visitor.visit_named_field_ty(ctx, a.ast_ref())),
@@ -2727,7 +2743,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::ConstructorPattern>,
     ) -> Result<ConstructorPattern<V>, V::Error> {
         Ok(ConstructorPattern {
-            name: visitor.visit_access_name(ctx, node.name.ast_ref())?,
+            name: visitor.visit_namespace(ctx, node.name.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
                 node.fields.iter().map(|a| visitor.visit_tuple_pattern_entry(ctx, a.ast_ref())),
@@ -3287,7 +3303,7 @@ pub mod walk_mut {
         Directive(V::DirectiveExprRet),
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
-        PropertyAccess(V::PropertyAccessExprRet),
+        PropertyAccess(V::AccessExprRet),
         MethodCall(V::MethodCallExprRet),
         Ref(V::RefExprRet),
         Deref(V::DerefExprRet),
@@ -3341,8 +3357,8 @@ pub mod walk_mut {
             ast::ExpressionKind::Variable(inner) => Expression::Variable(
                 visitor.visit_variable_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExpressionKind::PropertyAccess(inner) => Expression::PropertyAccess({
-                visitor.visit_property_access_expr(ctx, AstNodeRefMut::new(inner, span, id))?
+            ast::ExpressionKind::Access(inner) => Expression::PropertyAccess({
+                visitor.visit_access_expr(ctx, AstNodeRefMut::new(inner, span, id))?
             }),
             ast::ExpressionKind::MethodCall(inner) => Expression::MethodCall({
                 visitor.visit_method_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?
@@ -3425,7 +3441,7 @@ pub mod walk_mut {
             DeclarationRet = Ret,
             MergeDeclarationRet = Ret,
             VariableExprRet = Ret,
-            PropertyAccessExprRet = Ret,
+            AccessExprRet = Ret,
             MethodCallExprRet = Ret,
             RefExprRet = Ret,
             DerefExprRet = Ret,
@@ -3485,7 +3501,7 @@ pub mod walk_mut {
     }
 
     pub struct VariableExpr<V: AstVisitorMut> {
-        pub name: V::AccessNameRet,
+        pub name: V::NameRet,
     }
 
     pub fn walk_variable_expr<V: AstVisitorMut>(
@@ -3493,7 +3509,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::VariableExpr>,
     ) -> Result<VariableExpr<V>, V::Error> {
-        Ok(VariableExpr { name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())? })
+        Ok(VariableExpr { name: visitor.visit_name(ctx, node.name.ast_ref_mut())? })
     }
 
     pub struct DirectiveExpr<V: AstVisitorMut> {
@@ -3593,7 +3609,7 @@ pub mod walk_mut {
     pub fn walk_property_access_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::PropertyAccessExpr>,
+        mut node: ast::AstNodeRefMut<ast::AccessExpr>,
     ) -> Result<PropertyAccessExpr<V>, V::Error> {
         Ok(PropertyAccessExpr {
             subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
@@ -4225,7 +4241,7 @@ pub mod walk_mut {
     }
 
     pub struct NamedTy<V: AstVisitorMut> {
-        pub name: V::AccessNameRet,
+        pub name: V::NameRet,
     }
 
     pub fn walk_named_ty<V: AstVisitorMut>(
@@ -4233,7 +4249,7 @@ pub mod walk_mut {
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::NamedTy>,
     ) -> Result<NamedTy<V>, V::Error> {
-        Ok(NamedTy { name: visitor.visit_access_name(ctx, node.name.ast_ref_mut())? })
+        Ok(NamedTy { name: visitor.visit_name(ctx, node.name.ast_ref_mut())? })
     }
 
     pub struct RefTy<V: AstVisitorMut> {
@@ -4273,7 +4289,7 @@ pub mod walk_mut {
     }
 
     pub struct TyFnCall<V: AstVisitorMut> {
-        pub subject: V::TyRet,
+        pub subject: V::ExpressionRet,
         pub args: V::CollectionContainer<V::NamedFieldTyRet>,
     }
 
@@ -4283,7 +4299,7 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::TyFnCall>,
     ) -> Result<TyFnCall<V>, V::Error> {
         Ok(TyFnCall {
-            subject: visitor.visit_ty(ctx, node.subject.ast_ref_mut())?,
+            subject: visitor.visit_expression(ctx, node.subject.ast_ref_mut())?,
             args: V::try_collect_items(
                 ctx,
                 node.args.iter_mut().map(|a| visitor.visit_named_field_ty(ctx, a.ast_ref_mut())),
