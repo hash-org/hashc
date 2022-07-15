@@ -907,19 +907,19 @@ pub struct BindingPattern {
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
-pub struct ParamPattern {
+pub struct PatternParam {
     pub name: Option<Identifier>,
     pub pattern: PatternId,
 }
 
 /// A pattern of parameters.
-pub type ParamsPattern = ParamList<ParamPattern>;
+pub type PatternParams = ParamList<PatternParam>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
 pub struct ConstructorPattern {
     pub subject: TermId,
-    pub params: ParamsPatternId,
+    pub params: PatternParamsId,
 }
 
 /// A conditional pattern, containing a pattern and an condition.
@@ -939,7 +939,7 @@ pub enum Pattern {
     /// Literal pattern, of the given term.
     Literal(TermId),
     /// Tuple pattern.
-    Tuple(ParamsPattern),
+    Tuple(PatternParams),
     /// Constructor pattern.
     Constructor(ConstructorPattern),
     /// A set of patterns that are OR-ed together. If any one of them matches
@@ -995,7 +995,7 @@ new_key_type! {
 
 new_key_type! {
     /// The ID of a [ParamsPattern]
-    pub struct ParamsPatternId;
+    pub struct PatternParamsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
 use hash_source::location::SourceLocation;
 
-use super::primitives::{ArgsId, ParamsId, ParamsPatternId, PatternId, ScopeId, TermId};
+use super::primitives::{ArgsId, ParamsId, PatternId, PatternParamsId, ScopeId, TermId};
 
 /// An index into the location map.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub enum LocationTarget {
     Declaration(ScopeId, usize),
     /// A pattern parameter key includes the parent [ParamsPatternId] and an
     /// index to which parameter
-    ParamPattern(ParamsPatternId, usize),
+    ParamPattern(PatternParamsId, usize),
     /// A pattern.
     Pattern(PatternId),
 }
@@ -61,7 +61,7 @@ pub struct LocationStore {
     declaration_map: HashMap<ScopeId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
     /// A map between [ParamPatternsId] and all of the [SourceLocation]s indexed
     /// by the inner offset.
-    param_pattern_map: HashMap<ParamsPatternId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
+    param_pattern_map: HashMap<PatternParamsId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
     /// A map between [PatternId] to [SourceLocation]
     pattern_map: HashMap<PatternId, SourceLocation>,
 }

@@ -1,8 +1,7 @@
 //! Contains structures to keep track of patterns and information relating to
 //! them.
+use super::primitives::{Pattern, PatternId, PatternParams, PatternParamsId};
 use slotmap::SlotMap;
-
-use super::primitives::{Pattern, PatternId};
 
 /// Stores patterns, indexed by [PatternId]s.
 #[derive(Debug, Default)]
