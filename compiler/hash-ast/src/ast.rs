@@ -1291,19 +1291,6 @@ pub struct ConstructorCallExpr {
     pub args: AstNode<ConstructorCallArgs>,
 }
 
-/// A method call is one that is being called on the left hand-side
-/// subject as the `self` parameter. For example `a.b()` where `b`
-/// is a method on `a` (takes in the `self` parameter within an `impl` block).
-#[derive(Debug, PartialEq, Clone)]
-pub struct MethodCallExpr {
-    /// The expression that the method is being called on.
-    pub subject: AstNode<Expr>,
-    /// The subject expression of the method call.
-    pub call_subject: AstNode<Expr>,
-    /// Arguments to the method, in the form of [ConstructorCallArgs].
-    pub args: AstNode<ConstructorCallArgs>,
-}
-
 /// An directive expression.
 #[derive(PartialEq, Debug, Clone)]
 pub struct DirectiveExpr {
@@ -1438,7 +1425,6 @@ pub struct IndexExpr {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExprKind {
     ConstructorCall(ConstructorCallExpr),
-    MethodCall(MethodCallExpr),
     Directive(DirectiveExpr),
     Declaration(Declaration),
     Variable(VariableExpr),

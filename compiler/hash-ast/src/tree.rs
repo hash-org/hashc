@@ -277,28 +277,6 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("constructor", children))
     }
 
-    type MethodCallExprRet = TreeNode;
-    fn visit_method_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MethodCallExpr>,
-    ) -> Result<Self::MethodCallExprRet, Self::Error> {
-        let walk::MethodCallExpr { subject, call_subject, args } =
-            walk::walk_method_call_expr(self, ctx, node)?;
-
-        let mut children = vec![
-            TreeNode::branch("subject", vec![subject]),
-            TreeNode::branch("call_subject", vec![call_subject]),
-        ];
-
-        // Only append the args node if it isn't empty
-        if !node.args.entries.is_empty() {
-            children.push(args);
-        }
-
-        Ok(TreeNode::branch("method_call", children))
-    }
-
     type AccessExprRet = TreeNode;
     fn visit_access_expr(
         &mut self,

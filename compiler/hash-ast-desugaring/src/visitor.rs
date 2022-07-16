@@ -283,18 +283,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type MethodCallExprRet = ();
-
-    fn visit_method_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::MethodCallExpr>,
-    ) -> Result<Self::MethodCallExprRet, Self::Error> {
-        let _ = walk_mut::walk_method_call_expr(self, ctx, node);
-
-        Ok(())
-    }
-
     type AccessExprRet = ();
 
     fn visit_access_expr(

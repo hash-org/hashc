@@ -189,13 +189,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
-    type MethodCallExprRet;
-    fn visit_method_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MethodCallExpr>,
-    ) -> Result<Self::MethodCallExprRet, Self::Error>;
-
     type AccessExprRet;
     fn visit_access_expr(
         &mut self,
@@ -931,13 +924,6 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::ConstructorCallExpr>,
     ) -> Result<Self::ConstructorCallExprRet, Self::Error>;
 
-    type MethodCallExprRet;
-    fn visit_method_call_expr(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::MethodCallExpr>,
-    ) -> Result<Self::MethodCallExprRet, Self::Error>;
-
     type AccessExprRet;
     fn visit_access_expr(
         &mut self,
@@ -1533,7 +1519,6 @@ pub mod walk {
 
     pub enum Expression<V: AstVisitor> {
         ConstructorCall(V::ConstructorCallExprRet),
-        MethodCall(V::MethodCallExprRet),
         Directive(V::DirectiveExprRet),
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
@@ -1590,9 +1575,6 @@ pub mod walk {
             ast::ExprKind::Access(inner) => {
                 Expression::Access(visitor.visit_access_expr(ctx, node.with_body(inner))?)
             }
-            ast::ExprKind::MethodCall(inner) => Expression::MethodCall({
-                visitor.visit_method_call_expr(ctx, node.with_body(inner))?
-            }),
             ast::ExprKind::Ref(inner) => {
                 Expression::Ref(visitor.visit_ref_expr(ctx, node.with_body(inner))?)
             }
@@ -1671,7 +1653,6 @@ pub mod walk {
             DeclarationRet = Ret,
             MergeDeclarationRet = Ret,
             VariableExprRet = Ret,
-            MethodCallExprRet = Ret,
             AccessExprRet = Ret,
             RefExprRet = Ret,
             DerefExprRet = Ret,
@@ -1704,7 +1685,6 @@ pub mod walk {
             Expression::MergeDeclaration(r) => r,
             Expression::Variable(r) => r,
             Expression::Access(r) => r,
-            Expression::MethodCall(r) => r,
             Expression::Ref(r) => r,
             Expression::Deref(r) => r,
             Expression::Unsafe(r) => r,
@@ -1803,24 +1783,6 @@ pub mod walk {
     ) -> Result<ConstructorCallExpr<V>, V::Error> {
         Ok(ConstructorCallExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref())?,
-            args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref())?,
-        })
-    }
-
-    pub struct MethodCallExpr<V: AstVisitor> {
-        pub subject: V::ExpressionRet,
-        pub call_subject: V::ExpressionRet,
-        pub args: V::ConstructorCallArgsRet,
-    }
-
-    pub fn walk_method_call_expr<V: AstVisitor>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::MethodCallExpr>,
-    ) -> Result<MethodCallExpr<V>, V::Error> {
-        Ok(MethodCallExpr {
-            subject: visitor.visit_expr(ctx, node.subject.ast_ref())?,
-            call_subject: visitor.visit_expr(ctx, node.call_subject.ast_ref())?,
             args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref())?,
         })
     }
@@ -3296,7 +3258,6 @@ pub mod walk_mut {
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
         PropertyAccess(V::AccessExprRet),
-        MethodCall(V::MethodCallExprRet),
         Ref(V::RefExprRet),
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
@@ -3351,9 +3312,6 @@ pub mod walk_mut {
             ),
             ast::ExprKind::Access(inner) => Expression::PropertyAccess({
                 visitor.visit_access_expr(ctx, AstNodeRefMut::new(inner, span, id))?
-            }),
-            ast::ExprKind::MethodCall(inner) => Expression::MethodCall({
-                visitor.visit_method_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?
             }),
             ast::ExprKind::Ref(inner) => {
                 Expression::Ref(visitor.visit_ref_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
@@ -3434,7 +3392,6 @@ pub mod walk_mut {
             MergeDeclarationRet = Ret,
             VariableExprRet = Ret,
             AccessExprRet = Ret,
-            MethodCallExprRet = Ret,
             RefExprRet = Ret,
             DerefExprRet = Ret,
             UnsafeExprRet = Ret,
@@ -3466,7 +3423,6 @@ pub mod walk_mut {
             Expression::MergeDeclaration(r) => r,
             Expression::Variable(r) => r,
             Expression::PropertyAccess(r) => r,
-            Expression::MethodCall(r) => r,
             Expression::Ref(r) => r,
             Expression::Deref(r) => r,
             Expression::Unsafe(r) => r,
@@ -3571,24 +3527,6 @@ pub mod walk_mut {
     ) -> Result<ConstructorCallExpr<V>, V::Error> {
         Ok(ConstructorCallExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref_mut())?,
-            args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref_mut())?,
-        })
-    }
-
-    pub struct MethodCallExpr<V: AstVisitorMut> {
-        pub subject: V::ExpressionRet,
-        pub call_subject: V::ExpressionRet,
-        pub args: V::ConstructorCallArgsRet,
-    }
-
-    pub fn walk_method_call_expr<V: AstVisitorMut>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::MethodCallExpr>,
-    ) -> Result<MethodCallExpr<V>, V::Error> {
-        Ok(MethodCallExpr {
-            subject: visitor.visit_expr(ctx, node.subject.ast_ref_mut())?,
-            call_subject: visitor.visit_expr(ctx, node.call_subject.ast_ref_mut())?,
             args: visitor.visit_constructor_call_args(ctx, node.args.ast_ref_mut())?,
         })
     }
