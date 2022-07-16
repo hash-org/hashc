@@ -1839,7 +1839,7 @@ pub mod walk {
         Ok(AccessExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref())?,
             property: visitor.visit_name(ctx, node.property.ast_ref())?,
-            kind: visitor.visit_access_kind(ctx, node.kind.clone())?,
+            kind: visitor.visit_access_kind(ctx, node.kind)?,
         })
     }
 

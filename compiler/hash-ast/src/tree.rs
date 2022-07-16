@@ -305,13 +305,13 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let walk::AccessExpr { subject, property, kind } = walk::walk_access_expr(self, ctx, node)?;
+        let walk::AccessExpr { subject, .. } = walk::walk_access_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "access",
             vec![
                 TreeNode::branch("subject", vec![subject]),
-                TreeNode::branch("property", vec![property]),
-                TreeNode::branch("kind", vec![kind]),
+                TreeNode::leaf(labelled("property", node.property.ident, "\"")),
+                TreeNode::leaf(labelled("kind", node.kind, "\"")),
             ],
         ))
     }
@@ -381,7 +381,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::CastExprRet, Self::Error> {
         let walk::AsExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
-            "typed_expr",
+            "cast",
             vec![TreeNode::branch("subject", vec![expr]), TreeNode::branch("type", vec![ty])],
         ))
     }
@@ -394,7 +394,7 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::TyExprRet, Self::Error> {
         let walk::TyExpr(ty) = walk::walk_ty_expr(self, ctx, node)?;
 
-        Ok(TreeNode::branch("type", vec![ty]))
+        Ok(TreeNode::branch("type_expr", vec![ty]))
     }
 
     type BlockExprRet = TreeNode;

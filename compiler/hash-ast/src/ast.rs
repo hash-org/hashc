@@ -1314,12 +1314,21 @@ pub struct DirectiveExpr {
 }
 
 /// A the kind of access an [AccessExpr] has
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AccessKind {
     /// A namespace access, i.e. `a::b`
     Namespace,
     /// A property access, i.e. `a.b`
     Property,
+}
+
+impl Display for AccessKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AccessKind::Namespace => write!(f, "namespace"),
+            AccessKind::Property => write!(f, "property"),
+        }
+    }
 }
 
 /// A property access expression.

@@ -60,16 +60,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// accessed.
     pub(crate) fn parse_ns_access(
         &self,
-        name: Option<AstNode<Name>>,
+        mut subject: AstNode<Expr>,
+        initial_node: bool,
     ) -> AstGenResult<AstNode<Expr>> {
-        let name = match name {
-            Some(name) => name,
-            None => self.parse_name()?,
-        };
-
         // Collect the path into a vector of names as it is easier to create
         // the `Access` expr from a list rather than continuing to recurse.
-        let mut path = vec![name];
+        let mut path = vec![];
+
+        if initial_node {
+            path.push(self.parse_name()?);
+        }
 
         loop {
             match (self.peek(), self.peek_second()) {
@@ -83,23 +83,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         }
 
-        let mut path_iter = path.into_iter();
-
-        // We just need to put this one one the name
-        let name = path_iter.next().unwrap();
-        let name_span = name.span();
-
         // The base case of the `access` is just a variable expression
-        let mut lhs =
-            self.node_with_span(Expr::new(ExprKind::Variable(VariableExpr { name })), name_span);
-
         // Iterate backwards and build up each part of the access backwards
-        for node in path_iter {
-            let span = lhs.span().join(node.span());
+        for node in path.into_iter() {
+            let span = subject.span().join(node.span());
 
-            lhs = self.node_with_joined_span(
+            subject = self.node_with_joined_span(
                 Expr::new(ExprKind::Access(AccessExpr {
-                    subject: lhs,
+                    subject,
                     property: node,
                     kind: AccessKind::Namespace,
                 })),
@@ -107,6 +98,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             );
         }
 
-        Ok(lhs)
+        Ok(subject)
     }
 }
