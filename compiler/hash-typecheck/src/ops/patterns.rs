@@ -140,7 +140,13 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
             Pattern::Or(_) => {
                 todo!()
             }
-            Pattern::If(_) => todo!(),
+            Pattern::If(if_pattern) => {
+                // Recurse to inner, but never say it is redundant:
+                match self.match_pattern_with_term(if_pattern.pattern, term_id)? {
+                    Some(result) => Ok(Some(result)),
+                    None => Ok(Some(vec![])),
+                }
+            }
         }
     }
 }
