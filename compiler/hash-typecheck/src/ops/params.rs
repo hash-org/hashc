@@ -5,24 +5,26 @@ use crate::{
         error::{TcError, TcResult},
         params::ParamListKind,
     },
-    storage::primitives::{
-        Arg, Args, ArgsId, GetNameOpt, Param, ParamList, Params, ParamsId, TermId,
+    storage::{
+        location::LocationTarget,
+        primitives::{ArgsId, GetNameOpt, Param, ParamList, Params, ParamsId},
     },
 };
 use std::collections::HashSet;
 
-/// Pair the given parameters with the given arguments.
+/// Pair the given parameters with the given parameter list (either args, or
+/// pattern params).
 ///
-/// This does not perform any typechecking, it simply matches parameters and
-/// arguments by position or name.
-pub(crate) fn pair_args_with_params<'p, 'a>(
+/// This does not perform any typechecking, it simply matches parameters by
+/// position or name.
+pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     params: &'p Params,
-    args: &'a Args,
+    args: &'a ParamList<T>,
     params_id: ParamsId,
     args_id: ArgsId,
-    params_subject: TermId,
-    args_subject: TermId,
-) -> TcResult<Vec<(&'p Param, &'a Arg)>> {
+    params_subject: impl Into<LocationTarget>,
+    args_subject: impl Into<LocationTarget>,
+) -> TcResult<Vec<(&'p Param, &'a T)>> {
     let mut result = vec![];
 
     // Keep track of used params to ensure no parameter is given twice.
@@ -32,11 +34,12 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
 
     // Ensure the length of params and args is the same
     if params.positional().len() != args.positional().len() {
+        // @@Todo: for pattern params, use a more specialised error here
         return Err(TcError::MismatchingArgParamLength {
             args_id,
             params_id,
-            params_subject,
-            args_subject,
+            params_subject: params_subject.into(),
+            args_subject: args_subject.into(),
         });
     }
 
@@ -45,7 +48,7 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
     // Keep track of the first non-positional argument
     let mut done_positional = false;
     for (i, arg) in args.positional().iter().enumerate() {
-        match arg.name {
+        match arg.get_name_opt() {
             Some(arg_name) => {
                 // Named argument
                 done_positional = true;
@@ -67,7 +70,7 @@ pub(crate) fn pair_args_with_params<'p, 'a>(
                         // of the argument and where the initial parameter
                         // constructor is defined...
                         return Err(TcError::ParamNotFound {
-                            params_subject,
+                            params_subject: params_subject.into(),
                             args_id,
                             params_id,
                             name: arg_name,

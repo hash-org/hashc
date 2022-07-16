@@ -1,6 +1,9 @@
 //! Error-related data structures for errors that occur during typechecking.
 
-use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, PatternId, TermId, TyFnCase};
+use crate::storage::{
+    location::LocationTarget,
+    primitives::{AccessTerm, ArgsId, ParamsId, PatternId, TermId, TyFnCase},
+};
 use hash_source::identifier::Identifier;
 
 use super::{
@@ -32,8 +35,8 @@ pub enum TcError {
     CannotUnifyParams {
         src_params_id: ParamsId,
         target_params_id: ParamsId,
-        src: TermId,
-        target: TermId,
+        src: LocationTarget,
+        target: LocationTarget,
         reason: ParamUnificationErrorReason,
     },
     /// The given term should be a type function but it isn't.
@@ -44,12 +47,17 @@ pub enum TcError {
     MismatchingArgParamLength {
         args_id: ArgsId,
         params_id: ParamsId,
-        params_subject: TermId,
-        args_subject: TermId,
+        params_subject: LocationTarget,
+        args_subject: LocationTarget,
     },
     /// The parameter with the given name is not found in the given parameter
     /// list.
-    ParamNotFound { args_id: ArgsId, params_id: ParamsId, params_subject: TermId, name: Identifier },
+    ParamNotFound {
+        args_id: ArgsId,
+        params_id: ParamsId,
+        params_subject: LocationTarget,
+        name: Identifier,
+    },
     /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
     ParamGivenTwice { param_kind: ParamListKind, index: usize },

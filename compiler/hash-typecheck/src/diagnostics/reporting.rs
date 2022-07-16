@@ -86,7 +86,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         builder
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
                             .with_message(format!(
-                                "{} expects `{}` arguments, however `{}` arguments were given",
+                                "{} expects {} arguments, however {} arguments were given",
                                 origin,
                                 target_args.len(),
                                 src_args.len()
@@ -97,7 +97,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
-                                    "this {} expects `{}` arguments.",
+                                    "this {} expects {} arguments...",
                                     origin,
                                     target_args.len(),
                                 ),
@@ -108,7 +108,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         if let Some(location) = err.location_store().get_location(src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                "incorrect number of arguments here",
+                                format!("...but got {} arguments here", src_args.len()),
                             )));
                         }
                     }
@@ -207,18 +207,18 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         builder
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
                             .with_message(format!(
-                                "{} expects `{}` arguments, however `{}` arguments were given",
+                                "{} expects {} parameters, however {} parameters were given",
                                 origin,
                                 target_params.len(),
                                 src_params.len()
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(target) {
+                        if let Some(location) = err.location_store().get_location(*target) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
-                                    "this {} expects `{}` arguments.",
+                                    "this {} expects {} parameters...",
                                     origin,
                                     target_params.len(),
                                 ),
@@ -226,10 +226,10 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         }
 
                         // Provide information about the source of the unification error
-                        if let Some(location) = err.location_store().get_location(src) {
+                        if let Some(location) = err.location_store().get_location(*src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                "incorrect number of arguments here",
+                                format!("...but got {} parameters here", src_params.len()),
                             )));
                         }
                     }
@@ -374,7 +374,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                             ));
 
                             // Add note about what fields are missing from the struct
-                            if let Some(location) = err.location_store().get_location(args_subject)
+                            if let Some(location) = err.location_store().get_location(*args_subject)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -400,7 +400,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                             // Add note about what fields shouldn't be there
                             // @@Future: It would be nice to highlight the exact fields and just
                             // show them specifically rather than the whole subject expression...
-                            if let Some(location) = err.location_store().get_location(args_subject)
+                            if let Some(location) = err.location_store().get_location(*args_subject)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -415,7 +415,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(params_subject) {
+                        if let Some(location) = err.location_store().get_location(*params_subject) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 "the struct is defined here",
@@ -425,25 +425,28 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     _ => {
                         // @@ErrorReporting: get more customised messages for other variant
                         // mismatch...
-                        builder.with_message(format!(
-                            "{} expects `{}` arguments, however `{}` arguments were given",
-                            params.origin(),
-                            params.len(),
-                            args.len()
-                        ));
+                        builder
+                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
+                            .with_message(format!(
+                                "{} expects {} arguments, however {} arguments were given",
+                                params.origin(),
+                                params.len(),
+                                args.len()
+                            ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(args_subject) {
+                        if let Some(location) = err.location_store().get_location(*args_subject) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                                location, "here",
+                                location,
+                                format!("got {} arguments here...", args.len()),
                             )));
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(params_subject) {
+                        if let Some(location) = err.location_store().get_location(*params_subject) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("this expects `{}` arguments.", params.len()),
+                                format!("...but this expects {} arguments.", params.len()),
                             )));
                         }
                     }
@@ -468,7 +471,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(params_subject) {
+                if let Some(location) = err.location_store().get_location(*params_subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("the {} is defined here", params.origin()),

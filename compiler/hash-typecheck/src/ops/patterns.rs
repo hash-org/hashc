@@ -1,7 +1,9 @@
 //! Functionality related to pattern matching.
 
+use itertools::Itertools;
+
 use crate::{
-    diagnostics::error::TcResult,
+    diagnostics::{error::TcResult, macros::tc_panic},
     ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{Member, MemberData, Pattern, PatternId, TermId},
@@ -9,7 +11,7 @@ use crate::{
     },
 };
 
-use super::AccessToOps;
+use super::{params::pair_args_with_params, AccessToOps};
 
 /// Contains functions related to pattern matching.
 pub struct PatternMatcher<'gs, 'ls, 'cd, 's> {
@@ -65,13 +67,53 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
                     Err(_) => Ok(None),
                 }
             }
-            Pattern::Tuple(_) => {
+            Pattern::Tuple(tuple_pattern_params_id) => {
                 // Get the term of the tuple and try to unify it with the subject:
                 let tuple_term = self.typer().term_of_pattern(pattern_id)?;
                 match self.unifier().unify_terms(tuple_term, simplified_term_id) {
                     Ok(_) => {
-                        // @@Todo: Get the vars:
-                        Ok(Some(vec![]))
+                        let tuple_pattern_params =
+                            self.reader().get_pattern_params(tuple_pattern_params_id).clone();
+
+                        // First, we get the tuple pattern parameters in the form of args (for
+                        // `pair_args_with_params` error reporting):
+                        let tuple_pattern_params_as_args_id =
+                            self.typer().args_of_pattern_params(tuple_pattern_params_id)?;
+
+                        // We get the subject tuple's parameters:
+                        let subject_params_id = self
+                            .typer()
+                            .params_ty_of_tuple_term(simplified_term_id)?
+                            .unwrap_or_else(|| {
+                                tc_panic!(simplified_term_id, self, "This is not a tuple term.")
+                            });
+                        let subject_params = self.reader().get_params(subject_params_id).clone();
+
+                        // For each param pair: accumulate the bound members
+                        let bound_members = pair_args_with_params(
+                            &subject_params,
+                            &tuple_pattern_params,
+                            subject_params_id,
+                            tuple_pattern_params_as_args_id,
+                            term_id,
+                            pattern_id,
+                        )?
+                        .into_iter()
+                        .map(|(param, pattern_param)| {
+                            let param_value = param
+                                .default_value
+                                .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+
+                            // @@Todo: retain information about useless patterns
+                            Ok(self
+                                .match_pattern_with_term(pattern_param.pattern, param_value)?
+                                .into_iter()
+                                .flatten()
+                                .collect::<Vec<_>>())
+                        })
+                        .flatten_ok()
+                        .collect::<TcResult<Vec<_>>>()?;
+                        Ok(Some(bound_members))
                     }
                     Err(_) => Ok(None),
                 }

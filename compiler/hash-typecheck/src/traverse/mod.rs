@@ -2122,7 +2122,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
         let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
-        let members = self.builder().create_pattern_params(elements, ParamOrigin::Unknown);
+        let members = self.builder().create_pattern_params(elements, ParamOrigin::Tuple);
         let tuple_pattern = self.builder().create_tuple_pattern(members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);

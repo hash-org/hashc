@@ -7,6 +7,7 @@ use crate::{
         params::ParamUnificationErrorReason,
     },
     storage::{
+        location::LocationTarget,
         primitives::{
             ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,
         },
@@ -224,8 +225,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         &mut self,
         src_params_id: ParamsId,
         target_params_id: ParamsId,
-        src_id: TermId,
-        target_id: TermId,
+        src: impl Into<LocationTarget>,
+        target: impl Into<LocationTarget>,
     ) -> TcResult<Sub> {
         let src_params = self.params_store().get(src_params_id).clone();
         let target_params = self.params_store().get(target_params_id).clone();
@@ -235,8 +236,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 src_params_id,
                 target_params_id,
                 reason,
-                src: src_id,
-                target: target_id,
+                src: src.into(),
+                target: target.into(),
             })
         };
 

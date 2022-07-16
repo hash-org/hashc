@@ -241,7 +241,7 @@ impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamT
 }
 
 /// An argument to a parameter.
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Copy)]
 pub struct Arg {
     pub name: Option<Identifier>,
     pub value: TermId,
@@ -258,7 +258,7 @@ pub type Args = ParamList<Arg>;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// default value.
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Copy)]
 pub struct Param {
     pub name: Option<Identifier>,
     pub ty: TermId,
