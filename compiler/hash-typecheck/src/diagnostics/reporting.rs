@@ -73,6 +73,127 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
+            TcError::CannotUnifyArgs { src_args_id, target_args_id, reason, src, target } => {
+                let src_args = err.args_store().get(*src_args_id);
+                let target_args = err.args_store().get(*target_args_id);
+
+                // It doesn't matter whether we use `src` or `target` since they should be the
+                // same
+                let origin = src_args.origin();
+
+                match &reason {
+                    ParamUnificationErrorReason::LengthMismatch => {
+                        builder
+                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
+                            .with_message(format!(
+                                "{} expects `{}` arguments, however `{}` arguments were given",
+                                origin,
+                                target_args.len(),
+                                src_args.len()
+                            ));
+
+                        // Provide information about the location of the target type if available
+                        if let Some(location) = err.location_store().get_location(target) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                format!(
+                                    "this {} expects `{}` arguments.",
+                                    origin,
+                                    target_args.len(),
+                                ),
+                            )));
+                        }
+
+                        // Provide information about the source of the unification error
+                        if let Some(location) = err.location_store().get_location(src) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                "incorrect number of arguments here",
+                            )));
+                        }
+                    }
+                    ParamUnificationErrorReason::NameMismatch(index) => {
+                        // We know that the error occurred at the particular index of both argument
+                        // lists.
+                        builder
+                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
+                            .with_message(format!("{} argument names are mis-matching", origin,));
+
+                        let src_arg = &src_args.positional()[*index];
+                        let target_arg = &target_args.positional()[*index];
+
+                        // Generate error messages for both the source and target terms, and
+                        // optionally a suggestion.
+                        let (src_message, target_message, suggestion) =
+                            match (src_arg.name, target_arg.name) {
+                                (Some(src_name), Some(target_name)) => (
+                                    format!("this argument should be named `{}`", target_name),
+                                    "argument is specified as being named".to_string(),
+                                    format!(
+                                        "consider renaming `{}` to `{}`",
+                                        src_name, target_name
+                                    ),
+                                ),
+                                (Some(src_name), None) => (
+                                    format!("this argument shouldn't be named `{}`", src_name),
+                                    "argument is not named".to_string(),
+                                    "consider removing the name from the argument".to_string(),
+                                ),
+                                (None, Some(target_name)) => (
+                                    format!("this argument should be named `{}`", target_name),
+                                    "argument is specified as being named".to_string(),
+                                    format!(
+                                        "consider adding `{}` as the name to the argument",
+                                        target_name
+                                    ),
+                                ),
+                                _ => unreachable!(),
+                            };
+
+                        let src_location =
+                            err.location_store().get_location((*src_args_id, *index));
+                        let target_location =
+                            err.location_store().get_location((*target_args_id, *index));
+
+                        // Provide information about the location of the target type if available.
+                        // If the location is not available, we just attach
+                        // it to as a note.
+                        if let Some(location) = target_location {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                target_message,
+                            )));
+                        } else {
+                            builder.add_element(ReportElement::Note(ReportNote::new(
+                                ReportNoteKind::Note,
+                                target_message,
+                            )));
+                        }
+
+                        // Provide information about the source of the unification error. If the
+                        // source is not available (which is unlikely and
+                        // possibly an invariant?), then add it as a note to
+                        // the report.
+                        if let Some(location) = src_location {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                src_message,
+                            )));
+                        } else {
+                            builder.add_element(ReportElement::Note(ReportNote::new(
+                                ReportNoteKind::Note,
+                                src_message,
+                            )));
+                        }
+
+                        // Append the suggestion
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            ReportNoteKind::Help,
+                            suggestion,
+                        )));
+                    }
+                }
+            }
             TcError::CannotUnifyParams { src_params_id, target_params_id, reason, src, target } => {
                 let src_params = err.params_store().get(*src_params_id);
                 let target_params = err.params_store().get(*target_params_id);

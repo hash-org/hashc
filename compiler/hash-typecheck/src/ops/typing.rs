@@ -10,8 +10,8 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-            MemberData, ModDefOrigin, Param, ParamOrigin, ParamsId, Pattern, PatternId,
-            PatternParamsId, Term, TermId,
+            MemberData, ModDefOrigin, Param, ParamsId, Pattern, PatternId, PatternParamsId, Term,
+            TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -222,6 +222,11 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     Level0Term::FnCall(_) => {
                         tc_panic!(term_id, self, "Function call should have been simplified away when trying to get the type of the term!")
                     }
+                    Level0Term::Tuple(tuple_lit) => {
+                        // Get the type of the tuple arguments as parameters:
+                        let params = self.params_of_args(tuple_lit.members)?;
+                        Ok(self.builder().create_tuple_ty_term(params))
+                    }
                     Level0Term::Lit(lit_term) => {
                         // This gets the type of the literal
 
@@ -253,17 +258,31 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         Ok(new_term)
     }
 
+    /// From the given [ArgsId], infer a [ParamsId] describing the the
+    /// arguments.
+    pub(crate) fn params_of_args(&mut self, args_id: ArgsId) -> TcResult<ParamsId> {
+        let args = self.reader().get_args(args_id).clone();
+        let origin = args.origin();
+        let params: Vec<_> = args
+            .into_positional()
+            .into_iter()
+            .map(|arg| {
+                Ok(Param { name: arg.name, ty: self.ty_of_term(arg.value)?, default_value: None })
+            })
+            .collect::<TcResult<_>>()?;
+
+        Ok(self.builder().create_params(params, origin))
+    }
+
     /// From the given [PatternParamsId], infer a [ArgsId] describing the the
     /// arguments.
     pub(crate) fn args_of_pattern_params(
         &mut self,
         pattern_params_id: PatternParamsId,
-        origin: ParamOrigin,
     ) -> TcResult<ArgsId> {
-        let param_types: Vec<_> = self
-            .reader()
-            .get_pattern_params(pattern_params_id)
-            .clone()
+        let pattern_params = self.reader().get_pattern_params(pattern_params_id).clone();
+        let origin = pattern_params.origin();
+        let param_types: Vec<_> = pattern_params
             .into_positional()
             .into_iter()
             .map(|param| Ok(Arg { name: param.name, value: self.term_of_pattern(param.pattern)? }))
@@ -277,12 +296,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     pub(crate) fn params_of_pattern_params(
         &mut self,
         pattern_params_id: PatternParamsId,
-        origin: ParamOrigin,
     ) -> TcResult<ParamsId> {
-        let param_types: Vec<_> = self
-            .reader()
-            .get_pattern_params(pattern_params_id)
-            .clone()
+        let pattern_params = self.reader().get_pattern_params(pattern_params_id).clone();
+        let origin = pattern_params.origin();
+        let param_types: Vec<_> = pattern_params
             .into_positional()
             .into_iter()
             .map(|param| {
@@ -320,14 +337,14 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Pattern::Tuple(tuple_pattern) => {
                 // For each parameter, get its type, and then create a tuple
                 // type:
-                let params_id = self.params_of_pattern_params(tuple_pattern, ParamOrigin::Tuple)?;
+                let params_id = self.args_of_pattern_params(tuple_pattern)?;
                 let builder = self.builder();
-                Ok(builder.create_rt_term(builder.create_tuple_ty_term(params_id)))
+                Ok(builder.create_tuple_lit_term(params_id))
             }
             Pattern::Constructor(constructor_pattern) => match constructor_pattern.params {
                 Some(params) => {
                     // We have params to apply
-                    let args_id = self.args_of_pattern_params(params, ParamOrigin::Unknown)?;
+                    let args_id = self.args_of_pattern_params(params)?;
                     let builder = self.builder();
                     Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
                 }

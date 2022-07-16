@@ -179,6 +179,10 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_args = self.apply_sub_to_args(sub, fn_call.args);
                 self.builder().create_fn_call_term(subbed_subject, subbed_args)
             }
+            Level0Term::Tuple(tuple_lit) => {
+                let subbed_args = self.apply_sub_to_args(sub, tuple_lit.members);
+                self.builder().create_tuple_lit_term(subbed_args)
+            }
             Level0Term::Lit(_) => original_term,
         }
     }
@@ -393,6 +397,9 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 // Forward to subject and args:
                 self.add_free_vars_in_term_to_set(fn_call.subject, result);
                 self.add_free_vars_in_args_to_set(fn_call.args, result);
+            }
+            Level0Term::Tuple(tuple_lit) => {
+                self.add_free_vars_in_args_to_set(tuple_lit.members, result);
             }
             Level0Term::Lit(_) => {}
         }

@@ -16,7 +16,7 @@ use crate::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
             Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term, TermId,
-            TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -304,6 +304,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     self,
                     "Function call in access apply should have already been simplified!"
                 )
+            }
+            Level0Term::Tuple(TupleLit { members }) => {
+                let tuple_members = self.args_store().get(*members);
+                if let Some((_, member)) = tuple_members.get_by_name(access_term.name) {
+                    Ok(Some(member.value))
+                } else {
+                    name_not_found(access_term, NameFieldOrigin::Tuple)
+                }
             }
             Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
@@ -784,6 +792,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         tc_panic!(term_id, self, "Function call should have already been simplified away when resolving function call subject")
                     }
                     Level0Term::Lit(_) => cannot_use_as_fn_call_subject(),
+                    Level0Term::Tuple(_) => cannot_use_as_fn_call_subject(),
                 }
             }
 
@@ -857,6 +866,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     self.substituter().apply_sub_to_term(&params_sub, fn_ty.return_ty);
 
                 Ok(Some(self.builder().create_rt_term(subbed_return_value)))
+            }
+            Level0Term::Tuple(TupleLit { members }) => {
+                // Simplify inner terms:
+                let simplified_members = self.simplify_args(*members)?;
+                match simplified_members {
+                    Some(members) => Ok(Some(self.builder().create_tuple_lit_term(members))),
+                    None => Ok(None),
+                }
             }
             Level0Term::Lit(_) => Ok(None),
         }

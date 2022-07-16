@@ -16,9 +16,19 @@ pub type TcResult<T> = Result<T, TcError>;
 pub enum TcError {
     /// Cannot unify the two terms.
     CannotUnify { src: TermId, target: TermId },
+    /// Cannot unify the two argument lists. This can occur if the names
+    /// don't match of the arguments or if the number of arguments isn't the
+    /// same.
+    CannotUnifyArgs {
+        src_args_id: ArgsId,
+        target_args_id: ArgsId,
+        src: TermId,
+        target: TermId,
+        reason: ParamUnificationErrorReason,
+    },
     /// Cannot unify the two parameter lists. This can occur if the names
     /// don't match of the parameters or if the number of parameters isn't the
-    /// same.
+    /// same, or the types mismatch.
     CannotUnifyParams {
         src_params_id: ParamsId,
         target_params_id: ParamsId,

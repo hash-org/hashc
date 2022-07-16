@@ -225,15 +225,19 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(true);
                 match lit_term {
                     LitTerm::Str(str) => {
-                        write!(f, "\"{}\"", str)
+                        write!(f, "{{literal \"{}\"}}", str)
                     }
                     LitTerm::Int(int) => {
-                        write!(f, "{}", int)
+                        write!(f, "{{literal {}}}", int)
                     }
                     LitTerm::Char(char) => {
-                        write!(f, "\'{}\'", char)
+                        write!(f, "{{literal \'{}\'}}", char)
                     }
                 }
+            }
+            Level0Term::Tuple(tuple_lit) => {
+                opts.is_atomic.set(true);
+                write!(f, "{{literal ({})}}", tuple_lit.members.for_formatting(self.global_storage))
             }
         }
     }

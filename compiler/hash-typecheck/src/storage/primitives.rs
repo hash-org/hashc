@@ -691,6 +691,12 @@ pub struct FnLit {
     pub return_value: TermId,
 }
 
+/// A tuple literal, containing arguments as members.
+#[derive(Debug, Clone, Copy)]
+pub struct TupleLit {
+    pub members: ArgsId,
+}
+
 /// A level 0 term.
 ///
 /// Type of: nothing.
@@ -708,6 +714,9 @@ pub enum Level0Term {
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),
+
+    /// Tuple literal.
+    Tuple(TupleLit),
 
     /// A literal term
     Lit(LitTerm),

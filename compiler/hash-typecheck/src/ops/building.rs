@@ -8,8 +8,8 @@ use crate::storage::{
         Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
         ModPattern, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamOrigin, ParamsId,
         Pattern, PatternId, PatternParam, PatternParamsId, Scope, ScopeId, ScopeKind, StructDef,
-        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCall, TyFnCase,
-        TyFnTy, UnresolvedTerm, Var, Visibility,
+        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall,
+        TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -393,6 +393,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
         })))
     }
 
+    /// Create the void term: [Level0Term::Tuple] with no members.
+    pub fn create_void_term(&self) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Tuple(TupleLit {
+            members: self.create_args([], ParamOrigin::Tuple),
+        })))
+    }
+
     /// Create the never term: [Term::Union] with no members.
     pub fn create_never_term(&self) -> TermId {
         self.create_term(Term::Union(vec![]))
@@ -401,6 +408,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a tuple type term [Level1Term::Tuple].
     pub fn create_tuple_ty_term(&self, members: ParamsId) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy { members })))
+    }
+
+    /// Create a tuple literal term [Level0Term::Tuple].
+    pub fn create_tuple_lit_term(&self, members: ArgsId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Tuple(TupleLit { members })))
     }
 
     /// Create a [Level0Term::Rt] of the given type.

@@ -776,6 +776,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // @@Todo: ensure that integers are not too large
                     Ok(result)
                 }
+                Level0Term::Tuple(tuple_lit) => {
+                    self.validate_args(tuple_lit.members)?;
+                    // Validate its type to ensure members are runtime instantiable:
+                    self.validate_term(term_ty_id)?;
+                    Ok(result)
+                }
             },
 
             // Access
@@ -991,6 +997,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     )
                     }
                     Level0Term::Lit(_) => Ok(false),
+                    Level0Term::Tuple(_) => Ok(false),
                 }
             }
             _ => Ok(true),

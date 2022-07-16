@@ -309,7 +309,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type TupleLiteralEntryRet = Param;
+    type TupleLiteralEntryRet = Arg;
 
     fn visit_tuple_literal_entry(
         &mut self,
@@ -328,11 +328,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Check that the type of the value and the type annotation match and then apply
         // the substitution onto ty
         let ty_sub = self.unifier().unify_terms(value_ty, ty_or_unresolved)?;
-        let ty = self.substituter().apply_sub_to_term(&ty_sub, ty_or_unresolved);
-
         let value = self.substituter().apply_sub_to_term(&ty_sub, value);
 
-        Ok(Param { name, ty, default_value: Some(value) })
+        Ok(Arg { name, value })
     }
 
     type TupleLiteralRet = TermId;
@@ -345,8 +343,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
         let builder = self.builder();
 
-        let params = builder.create_params(elements, ParamOrigin::Tuple);
-        let term = builder.create_rt_term(builder.create_tuple_ty_term(params));
+        let params = builder.create_args(elements, ParamOrigin::Tuple);
+        let term = builder.create_tuple_lit_term(params);
 
         // add the location of each parameter, and the term, to the location storage
         self.copy_location_from_nodes_to_targets(node.elements.ast_ref_iter(), params);
@@ -1354,15 +1352,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::LoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
         let walk::LoopBlock(_) = walk::walk_loop_block(self, ctx, node)?;
-
-        let void_ty = self.builder().create_void_ty_term();
-        let term = self.builder().create_rt_term(void_ty);
+        let void_term = self.builder().create_void_term();
 
         // Add the location of the type as the whole block
-        self.copy_location_from_node_to_target(node, term);
-        self.copy_location_from_node_to_target(node, term);
+        self.copy_location_from_node_to_target(node, void_term);
+        self.copy_location_from_node_to_target(node, void_term);
 
-        Ok(term)
+        Ok(void_term)
     }
 
     type ForLoopBlockRet = TermId;
@@ -1496,7 +1492,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             }
             None => {
                 let builder = self.builder();
-                Ok(builder.create_rt_term(builder.create_void_ty_term()))
+                Ok(builder.create_void_term())
             }
         }
     }
@@ -1514,7 +1510,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Return term is either given or void.
         let return_term = return_term.unwrap_or_else(|| {
             let builder = self.builder();
-            let term = builder.create_rt_term(builder.create_void_ty_term());
+            let term = builder.create_void_term();
             self.copy_location_from_node_to_target(node, term);
             term
         });
@@ -1544,8 +1540,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BreakStatement>,
     ) -> Result<Self::BreakStatementRet, Self::Error> {
         let builder = self.builder();
-        let void_ty = builder.create_void_ty_term();
-        let term = builder.create_rt_term(void_ty);
+        let term = builder.create_void_term();
 
         self.copy_location_from_node_to_target(node, term);
 
@@ -1560,8 +1555,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ContinueStatement>,
     ) -> Result<Self::ContinueStatementRet, Self::Error> {
         let builder = self.builder();
-        let void_ty = builder.create_void_ty_term();
-        let term = builder.create_rt_term(void_ty);
+        let term = builder.create_void_term();
 
         self.copy_location_from_node_to_target(node, term);
 
