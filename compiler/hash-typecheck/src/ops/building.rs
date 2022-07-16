@@ -4,8 +4,8 @@ use crate::storage::{
     location::LocationTarget,
     primitives::{
         AccessOp, AccessTerm, AppSub, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue, FnCall,
-        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Member, MemberData, ModDef,
-        ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
+        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, Member, MemberData,
+        ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
         ParamOrigin, ParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
         TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var,
         Visibility,
@@ -405,6 +405,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a [Level0Term::Rt] of the given type.
     pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
+    }
+
+    /// Create a [Level0Term::Lit] of the given value.
+    pub fn create_lit_term(&self, literal: impl Into<LitTerm>) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Lit(literal.into())))
     }
 
     /// Create a [Level0Term::FnLit] of the given function type and return

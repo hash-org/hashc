@@ -1,6 +1,7 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
 use hash_source::{identifier::Identifier, SourceId};
+use num_bigint::BigInt;
 use slotmap::new_key_type;
 use std::{
     collections::{HashMap, HashSet},
@@ -585,6 +586,44 @@ pub struct AccessTerm {
     pub op: AccessOp,
 }
 
+/// A literal term, which is level 0.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LitTerm {
+    Str(String),
+    Int(BigInt),
+    Char(char),
+}
+
+impl From<&str> for LitTerm {
+    fn from(s: &str) -> Self {
+        LitTerm::Str(s.to_owned())
+    }
+}
+
+impl From<String> for LitTerm {
+    fn from(s: String) -> Self {
+        LitTerm::Str(s)
+    }
+}
+
+impl From<u64> for LitTerm {
+    fn from(s: u64) -> Self {
+        LitTerm::Int(s.into())
+    }
+}
+
+impl From<i64> for LitTerm {
+    fn from(s: i64) -> Self {
+        LitTerm::Int(s.into())
+    }
+}
+
+impl From<char> for LitTerm {
+    fn from(s: char) -> Self {
+        LitTerm::Char(s)
+    }
+}
+
 /// A level 3 term.
 ///
 /// Type of: traits, for example: `trait(..)`.
@@ -656,7 +695,7 @@ pub struct FnLit {
 ///
 /// Type of: nothing.
 /// Value of: values, for example `3`, `Result::Ok(3)`, etc.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Level0Term {
     /// A runtime value, has some Level 1 term as type (the inner data).
     Rt(TermId),
@@ -669,6 +708,9 @@ pub enum Level0Term {
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),
+
+    /// A literal term
+    Lit(LitTerm),
 }
 
 /// The subject of a substitution, either a variable or an unresolved term.
@@ -897,6 +939,68 @@ pub enum Term {
     Root,
 }
 
+/// A binding pattern, which is essentially a declaration left-hand side.
+#[derive(Clone, Debug, Copy)]
+pub struct BindingPattern {
+    pub name: Identifier,
+    pub mutability: Mutability,
+    pub visibility: Visibility,
+}
+
+/// A pattern of a parameter, used for tuple patterns and constructor patterns.
+#[derive(Clone, Debug, Copy)]
+pub struct PatternParam {
+    pub name: Option<Identifier>,
+    pub pattern: PatternId,
+}
+
+impl GetNameOpt for PatternParam {
+    fn get_name_opt(&self) -> Option<Identifier> {
+        self.name
+    }
+}
+
+/// A pattern of parameters.
+pub type PatternParams = ParamList<PatternParam>;
+
+/// A constructor pattern, used for enum variants and structs.
+#[derive(Clone, Debug, Copy)]
+pub struct ConstructorPattern {
+    pub subject: TermId,
+    pub params: PatternParamsId,
+}
+
+/// A conditional pattern, containing a pattern and an condition.
+#[derive(Clone, Debug, Copy)]
+pub struct IfPattern {
+    pub pattern: PatternId,
+    pub condition: TermId,
+}
+
+/// Represents a pattern in the language.
+///
+/// @@Todo: list patterns, spread patterns
+#[derive(Clone, Debug)]
+pub enum Pattern {
+    /// Binding pattern.
+    Binding(BindingPattern),
+    /// Literal pattern, of the given term.
+    ///
+    /// The inner term must be `Term::Level0(Level0Term::Lit)`.
+    Lit(TermId),
+    /// Tuple pattern.
+    Tuple(PatternParamsId),
+    /// Constructor pattern.
+    Constructor(ConstructorPattern),
+    /// A set of patterns that are OR-ed together. If any one of them matches
+    /// then the whole pattern matches.
+    Or(Vec<PatternId>),
+    /// A conditional pattern.
+    If(IfPattern),
+    /// A wildcard pattern, ignoring the subject and always matching.
+    Ignore,
+}
+
 // IDs for all the primitives to be stored on mapped storage.
 
 new_key_type! {
@@ -932,6 +1036,16 @@ new_key_type! {
 new_key_type! {
     /// The ID of a [Params]
     pub struct ParamsId;
+}
+
+new_key_type! {
+    /// The ID of a [Pattern]
+    pub struct PatternId;
+}
+
+new_key_type! {
+    /// The ID of a [ParamsPattern]
+    pub struct PatternParamsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

@@ -6,8 +6,8 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, MemberData, ModDefOrigin,
-            Term, TermId,
+            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, MemberData,
+            ModDefOrigin, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -217,6 +217,20 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     }
                     Level0Term::FnCall(_) => {
                         tc_panic!(term_id, self, "Function call should have been simplified away when trying to get the type of the term!")
+                    }
+                    Level0Term::Lit(lit_term) => {
+                        // This gets the type of the literal
+
+                        let var_to_resolve = match lit_term {
+                            LitTerm::Str(_) => "str",
+                            LitTerm::Int(_) => {
+                                // @@Todo: do some more sophisticated inferring here
+                                "i32"
+                            }
+                            LitTerm::Char(_) => "char",
+                        };
+                        let term = self.builder().create_var_term(var_to_resolve);
+                        Ok(self.simplifier().potentially_simplify_term(term)?)
                     }
                 }
             }

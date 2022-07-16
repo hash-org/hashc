@@ -772,6 +772,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         "Function call in validation should have been simplified!"
                     )
                 }
+                Level0Term::Lit(_) => {
+                    // @@Todo: ensure that integers are not too large
+                    Ok(result)
+                }
             },
 
             // Access
@@ -986,6 +990,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         "Function call in checking for type function return validity should have been simplified!"
                     )
                     }
+                    Level0Term::Lit(_) => Ok(false),
                 }
             }
             _ => Ok(true),
