@@ -1007,7 +1007,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
         // Flatten nests (associativity);
         // Also simplify inner terms
-        let flattened = term_list
+        let flattened: Vec<TermId> = term_list
             .iter()
             .copied()
             .map(|term_id| {
@@ -1033,15 +1033,12 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     _ => Ok(vec![simplified_term_id]),
                 }
             })
-            .try_fold(vec![], |mut all_terms, nested_terms| {
-                // Combine all the nested terms
-                all_terms.extend(nested_terms?);
-                Ok(all_terms)
-            })?;
+            .flatten_ok()
+            .collect::<TcResult<_>>()?;
 
         // Merge equal terms (idempotency)
-        let mut merged: Vec<_> = flattened.into_iter().map(Some).collect();
-        for terms in term_list.iter().enumerate().combinations(2) {
+        let mut merged: Vec<_> = flattened.iter().copied().map(Some).collect();
+        for terms in flattened.iter().enumerate().combinations(2) {
             match terms.as_slice() {
                 [(first_idx, &first), (second_idx, &second)] => {
                     // Try to merge the two terms if they are the same:

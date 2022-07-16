@@ -1289,7 +1289,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.scopes_mut().append(match_case_scope);
 
         let pattern = self.visit_pattern(ctx, node.pattern.ast_ref())?;
-        let case_body = self.visit_expression(ctx, node.expr.ast_ref())?;
+        let case_body = self.visit_expr(ctx, node.expr.ast_ref())?;
 
         self.scopes_mut().pop_the_scope(match_case_scope);
         Ok((pattern, case_body))
