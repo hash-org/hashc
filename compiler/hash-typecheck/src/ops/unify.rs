@@ -632,7 +632,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             target_id,
                         )
                     }
-                    (Level0Term::Lit(_) | Level0Term::Tuple(_), _) => {
+                    (Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::EnumVariant(_), _) => {
                         // Try to get the type of the src literal, and the type of the target, and
                         // unify:
                         let src_lit_ty = self.typer().ty_of_simplified_term(simplified_src_id)?;

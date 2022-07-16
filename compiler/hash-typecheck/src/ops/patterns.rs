@@ -54,19 +54,23 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
 
         let pattern = self.reader().get_pattern(pattern_id).clone();
         match pattern {
+            // Binding: Add the binding as a member
             Pattern::Binding(binding) => Ok(Some(vec![Member {
                 name: binding.name,
                 mutability: binding.mutability,
                 visibility: binding.visibility,
                 data: MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
             }])),
+            // Ignore: No bindings but always matches
             Pattern::Ignore => Ok(Some(vec![])),
+            // Lit: Unify the literal with the subject
             Pattern::Lit(lit_term) => {
                 match self.unifier().unify_terms(lit_term, simplified_term_id) {
                     Ok(_) => Ok(Some(vec![])),
                     Err(_) => Ok(None),
                 }
             }
+            // Tuple: Unify the tuple with the subject, and then recurse to inner patterns
             Pattern::Tuple(tuple_pattern_params_id) => {
                 // Get the term of the tuple and try to unify it with the subject:
                 let tuple_term = self.typer().term_of_pattern(pattern_id)?;

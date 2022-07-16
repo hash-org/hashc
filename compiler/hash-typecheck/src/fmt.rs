@@ -603,7 +603,10 @@ impl<'gs> TcFormatter<'gs> {
             Pattern::Constructor(constructor_pattern) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, constructor_pattern.subject, opts)?;
-                write!(f, "({})", constructor_pattern.params.for_formatting(self.global_storage))
+                if let Some(params) = constructor_pattern.params {
+                    write!(f, "({})", params.for_formatting(self.global_storage))?;
+                }
+                Ok(())
             }
             Pattern::Or(patterns) => {
                 if patterns.is_empty() {
