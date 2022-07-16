@@ -316,6 +316,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
                     Ok(Sub::from_pairs([(inner, instantiated_target)]))
                 }
+                // If the inner is not runtime instantiable, it succeeds but with no substitution.
+                Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
             (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner).clone() {
@@ -329,6 +331,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
                     Ok(Sub::from_pairs([(inner, instantiated_source)]))
                 }
+                // If the inner is not runtime instantiable, it succeeds but with no substitution.
+                Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
 

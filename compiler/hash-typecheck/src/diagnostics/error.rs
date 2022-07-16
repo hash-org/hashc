@@ -128,4 +128,6 @@ pub enum TcError {
     },
     /// Given match case is never going to match the subject.
     UselessMatchCase { match_case_pattern: PatternId, subject: TermId },
+    /// Cannot use pattern matching in a declaration without an assignment
+    CannotPatternMatchWithoutAssignment { pattern: PatternId },
 }

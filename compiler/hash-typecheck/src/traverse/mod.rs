@@ -1607,13 +1607,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let pattern_id = self.visit_pattern(ctx, node.pattern.ast_ref())?;
         let pattern = self.reader().get_pattern(pattern_id).clone();
 
-        // @@Todo: deal with other kinds of patterns:
-        let BindingPattern { name, mutability, visibility } = match pattern {
-            Pattern::Binding(pat @ BindingPattern { name, .. }) => {
-                self.state.declaration_name_hint = Some(name);
-                pat
-            }
-            _ => todo!(),
+        // Set the declaration hit if it is just a binding pattern:
+        if let Pattern::Binding(BindingPattern { name, .. }) = pattern {
+            self.state.declaration_name_hint = Some(name);
         };
 
         let ty = node.ty.as_ref().map(|t| self.visit_ty(ctx, t.ast_ref())).transpose()?;
@@ -1637,31 +1633,64 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let mut value = value.map(|value| self.substituter().apply_sub_to_term(&sub, value));
         let ty = self.substituter().apply_sub_to_term(&sub, ty_or_unresolved);
 
-        // Add the member to scope:
-        let current_scope_id = self.scopes().current_scope();
-
         if value.is_none() && self.state.within_intrinsics_directive {
             // @@Todo: see #391
             value = Some(self.builder().create_rt_term(ty));
         }
 
-        let member_id = self.scope_store_mut().get_mut(current_scope_id).add(Member {
-            name,
-            data: MemberData::from_ty_and_value(Some(ty), value),
-            mutability,
-            visibility,
-        });
+        // Get the declaration member(s)
+        let members = match value {
+            Some(value) => {
+                // If there is a value, match it with the pattern and acquire the members to add
+                // to the scope.
+                match self.pattern_matcher().match_pattern_with_term(pattern_id, value)? {
+                    Some(members) => members,
+                    None => {
+                        return Err(TcError::UselessMatchCase {
+                            match_case_pattern: pattern_id,
+                            subject: value,
+                        })
+                    }
+                }
+            }
+            None => {
+                if let Pattern::Binding(BindingPattern { name, mutability, visibility }) = pattern {
+                    // Add the member without a value:
+                    vec![Member {
+                        name,
+                        data: MemberData::from_ty_and_value(Some(ty), None),
+                        mutability,
+                        visibility,
+                    }]
+                } else {
+                    // If there is no value, one cannot use pattern matching!
+                    return Err(TcError::CannotPatternMatchWithoutAssignment {
+                        pattern: pattern_id,
+                    });
+                }
+            }
+        };
 
-        self.copy_location_from_node_to_target(
-            node.pattern.ast_ref(),
-            (current_scope_id, member_id),
-        );
+        // Add the members to scope:
+        let current_scope_id = self.scopes().current_scope();
+        let member_indexes = members
+            .iter()
+            .map(|member| self.scope_store_mut().get_mut(current_scope_id).add(*member))
+            .collect::<Vec<_>>();
+
+        // Add the locations of all members:
+        for member_idx in &member_indexes {
+            self.copy_location_from_node_to_target(
+                node.pattern.ast_ref(),
+                (current_scope_id, *member_idx),
+            );
+        }
 
         // Declaration should return its value if any:
         match value {
             Some(value) => Ok(value),
             // Void if no value:
-            None => Ok(self.builder().create_void_ty_term()),
+            None => Ok(self.builder().create_void_term()),
         }
     }
 

@@ -1016,8 +1016,6 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     subject.for_formatting(err.global_storage())
                 ));
 
-                // Now get the spans for the two terms and add them to the
-                // report
                 if let Some(location) = err.location_store().get_location(subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
@@ -1029,6 +1027,22 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...and this pattern will never match the subject".to_string(),
+                    )));
+                }
+            }
+            TcError::CannotPatternMatchWithoutAssignment { pattern } => {
+                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(
+                    "declaration left-hand side cannot contain a pattern if no value is provided"
+                        .to_string(),
+                );
+
+                if let Some(location) = err.location_store().get_location(pattern) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "pattern `{}` is given here on an unset declaration",
+                            pattern.for_formatting(err.global_storage())
+                        ),
                     )));
                 }
             }
