@@ -1,4 +1,7 @@
 //! Contains operations to get the type of a term.
+
+#![allow(dead_code)] // @@Todo: remove
+
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -6,8 +9,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, MemberData,
-            ModDefOrigin, Term, TermId,
+            AccessOp, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
+            MemberData, ModDefOrigin, Param, ParamOrigin, ParamsId, Pattern, PatternId,
+            PatternParamsId, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -247,5 +251,99 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
 
         self.location_store_mut().copy_location(term_id, new_term);
         Ok(new_term)
+    }
+
+    /// From the given [PatternParamsId], infer a [ArgsId] describing the the
+    /// arguments.
+    pub(crate) fn args_of_pattern_params(
+        &mut self,
+        pattern_params_id: PatternParamsId,
+        origin: ParamOrigin,
+    ) -> TcResult<ArgsId> {
+        let param_types: Vec<_> = self
+            .pattern_params_store()
+            .get(pattern_params_id)
+            .clone()
+            .into_positional()
+            .into_iter()
+            .map(|param| Ok(Arg { name: param.name, value: self.term_of_pattern(param.pattern)? }))
+            .collect::<TcResult<_>>()?;
+
+        Ok(self.builder().create_args(param_types, origin))
+    }
+
+    /// From the given [PatternParamsId], infer a [ParamsId] describing the type
+    /// of the arguments.
+    pub(crate) fn params_of_pattern_params(
+        &mut self,
+        pattern_params_id: PatternParamsId,
+        origin: ParamOrigin,
+    ) -> TcResult<ParamsId> {
+        let param_types: Vec<_> = self
+            .pattern_params_store()
+            .get(pattern_params_id)
+            .clone()
+            .into_positional()
+            .into_iter()
+            .map(|param| {
+                let pattern_term = self.term_of_pattern(param.pattern)?;
+                Ok(Param {
+                    name: param.name,
+                    default_value: None,
+                    ty: self.ty_of_term(pattern_term)?,
+                })
+            })
+            .collect::<TcResult<_>>()?;
+
+        Ok(self.builder().create_params(param_types, origin))
+    }
+
+    /// Get the type of the given pattern, as a term.
+    pub(crate) fn ty_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
+        let pattern_term = self.term_of_pattern(pattern_id)?;
+        self.ty_of_term(pattern_term)
+    }
+
+    /// Get the term of the given pattern, whose type is the type of the pattern
+    /// subject.
+    pub(crate) fn term_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
+        let pattern = self.pattern_store().get(pattern_id).clone();
+        match pattern {
+            Pattern::Ignore | Pattern::Binding(_) => {
+                // We don't know this; it depends on the subject:
+                Ok(self.builder().create_unresolved_term())
+            }
+            Pattern::Lit(lit_term) => {
+                // The term of a literal pattern is the literal (lol):
+                Ok(lit_term)
+            }
+            Pattern::Tuple(tuple_pattern) => {
+                // For each parameter, get its type, and then create a tuple
+                // type:
+                let params_id = self.params_of_pattern_params(tuple_pattern, ParamOrigin::Tuple)?;
+                let builder = self.builder();
+                Ok(builder.create_rt_term(builder.create_tuple_ty_term(params_id)))
+            }
+            Pattern::Constructor(constructor_pattern) => {
+                let args_id =
+                    self.args_of_pattern_params(constructor_pattern.params, ParamOrigin::Unknown)?;
+                let builder = self.builder();
+                Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
+            }
+            Pattern::Or(patterns) => {
+                // Get the inner pattern types:
+                let pattern_types: Vec<_> = patterns
+                    .into_iter()
+                    .map(|pattern| self.ty_of_pattern(pattern))
+                    .collect::<TcResult<_>>()?;
+                // Create a union type:
+                let builder = self.builder();
+                Ok(builder.create_rt_term(builder.create_union_term(pattern_types)))
+            }
+            Pattern::If(pattern_if) => {
+                // Forward to the pattern
+                self.term_of_pattern(pattern_if.pattern)
+            }
+        }
     }
 }
