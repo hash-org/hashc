@@ -128,7 +128,7 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
             }
             Pattern::Constructor(_) => {
                 // Get the term of the constructor and try to unify it with the subject:
-                let tuple_term = self.typer().term_of_pattern(pattern_id)?;
+                let constructor_term = self.typer().term_of_pattern(pattern_id)?;
                 match self.unifier().unify_terms(tuple_term, simplified_term_id) {
                     Ok(_) => {
                         // @@Todo: Get the vars:
