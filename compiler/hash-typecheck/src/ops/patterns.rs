@@ -35,6 +35,7 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
     /// members), or `None` if it doesn't match. If the types mismatch, it
     /// returns an error.
     pub fn match_pattern_with_term(
+        &mut self,
         _pattern: PatternId,
         _term: TermId,
     ) -> TcResult<Option<Vec<Member>>> {

@@ -888,6 +888,29 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
+            TcError::UselessMatchCase { match_case_pattern, subject } => {
+                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
+                    "match case `{}` is redundant when matching on `{}`",
+                    match_case_pattern.for_formatting(err.global_storage()),
+                    subject.for_formatting(err.global_storage())
+                ));
+
+                // Now get the spans for the two terms and add them to the
+                // report
+                if let Some(location) = err.location_store().get_location(subject) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "the match subject is given here...",
+                    )));
+                }
+
+                if let Some(location) = err.location_store().get_location(match_case_pattern) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "...and this pattern will never match the subject".to_string(),
+                    )));
+                }
+            }
         };
 
         builder.build()

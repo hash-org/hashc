@@ -29,6 +29,7 @@ use hash_source::{
     location::{SourceLocation, Span},
     ModuleKind, SourceId,
 };
+use itertools::Itertools;
 
 use self::scopes::VisitConstantScope;
 
@@ -1276,22 +1277,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_block_same_children(self, ctx, node)
     }
 
-    type MatchCaseRet = (PatternId, TermId);
-
+    type MatchCaseRet = ();
     fn visit_match_case(
         &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        // Enter a scope for the pattern
-        let match_case_scope = self.builder().create_variable_scope([]);
-        self.scopes_mut().append(match_case_scope);
-
-        let pattern = self.visit_pattern(ctx, node.pattern.ast_ref())?;
-        let case_body = self.visit_expr(ctx, node.expr.ast_ref())?;
-
-        self.scopes_mut().pop_the_scope(match_case_scope);
-        Ok((pattern, case_body))
+        // Handled in match
+        Ok(())
     }
 
     type MatchBlockRet = TermId;
@@ -1301,16 +1294,54 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::MatchBlock>,
     ) -> Result<Self::MatchBlockRet, Self::Error> {
-        let walk::MatchBlock { cases, .. } = walk::walk_match_block(self, ctx, node)?;
+        let walk::MatchBlock { subject, .. } = walk::walk_match_block(self, ctx, node)?;
 
-        // @@Todo: ensure the subject unifies with each match case branch once patterns
-        // are implemented properly.
+        let mut redundant_errors = vec![];
+        let match_return_values: Vec<_> = node
+            .cases
+            .ast_ref_iter()
+            .map(|case| {
+                // Try to match the pattern with the case
+                let case_pattern = self.visit_pattern(ctx, case.pattern.ast_ref())?;
+                let case_match =
+                    self.pattern_matcher().match_pattern_with_term(case_pattern, subject)?;
+                match case_match {
+                    Some(members_to_add) => {
+                        // Enter a new scope and add the members
+                        let match_case_scope = self.builder().create_variable_scope(members_to_add);
+                        self.scopes_mut().append(match_case_scope);
 
-        let case_bodies: Vec<_> = cases
-            .iter()
-            .map(|(_, body)| self.typer().ty_of_term(*body))
+                        // Traverse the body with the bound variables:
+                        let case_body = self.visit_expr(ctx, case.expr.ast_ref())?;
+
+                        // Remove the scope:
+                        self.scopes_mut().pop_the_scope(match_case_scope);
+                        Ok(Some(case_body))
+                    }
+                    None => {
+                        // Does not match, indicate that the case is useless!
+                        redundant_errors.push(TcError::UselessMatchCase {
+                            match_case_pattern: case_pattern,
+                            subject,
+                        });
+                        Ok(None)
+                    }
+                }
+            })
+            .flatten_ok()
             .collect::<TcResult<_>>()?;
-        let return_ty = self.builder().create_union_term(case_bodies);
+
+        if !redundant_errors.is_empty() {
+            // @@Todo: return all errors, and make them warnings instead of hard errors
+            return Err(redundant_errors[0].clone());
+        }
+
+        let match_return_types: Vec<_> = match_return_values
+            .iter()
+            .copied()
+            .map(|value| self.typer().ty_of_term(value))
+            .collect::<TcResult<_>>()?;
+        let return_ty = self.builder().create_union_term(match_return_types);
         let return_term = self.builder().create_rt_term(return_ty);
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }

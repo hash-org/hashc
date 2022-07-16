@@ -1,6 +1,6 @@
 //! Error-related data structures for errors that occur during typechecking.
 
-use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId, TyFnCase};
+use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, PatternId, TermId, TyFnCase};
 use hash_source::identifier::Identifier;
 
 use super::{
@@ -116,4 +116,6 @@ pub enum TcError {
         // "terms".
         trt_def_missing_member_term_id: TermId,
     },
+    /// Given match case is never going to match the subject.
+    UselessMatchCase { match_case_pattern: PatternId, subject: TermId },
 }
