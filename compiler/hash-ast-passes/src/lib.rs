@@ -93,7 +93,7 @@ impl<'pool> SemanticPass<'pool> for HashSemanticAnalysis {
                     scope.spawn(move |_| {
                         let mut visitor = SemanticAnalyser::new(source_map, source_id);
 
-                        visitor.visit_expression(&(), expr.ast_ref()).unwrap();
+                        visitor.visit_expr(&(), expr.ast_ref()).unwrap();
                         visitor.send_generated_messages(&sender);
                     });
                 }

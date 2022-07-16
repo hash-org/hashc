@@ -62,7 +62,7 @@ pub enum AstGenErrorKind {
     /// a binary expression.
     ExpectedOperator,
     /// Expected an expression.
-    ExpectedExpression,
+    ExpectedExpr,
     /// Expected a '=>' at the current location. This error can occur in a
     /// number of places; including but not limited to: after type
     /// arguments, lambda definition, trait bound annotation, etc.
@@ -84,7 +84,7 @@ pub enum AstGenErrorKind {
     /// future.
     ImportPath,
     /// Expected an identifier after a name qualifier '::'.
-    AccessName,
+    Namespace,
     /// If an imported module has errors, it should be reported
     ErroneousImport(ImportError),
     /// Malformed spread pattern (if for any reason there is a problem with
@@ -135,7 +135,7 @@ impl From<AstGenError> for ParseError {
                 "Expected value assignment after type annotation within named tuple".to_string()
             }
             AstGenErrorKind::ExpectedOperator => "Expected an operator".to_string(),
-            AstGenErrorKind::ExpectedExpression => "Expected an expression".to_string(),
+            AstGenErrorKind::ExpectedExpr => "Expected an expression".to_string(),
             AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {
@@ -150,7 +150,7 @@ impl From<AstGenError> for ParseError {
                 "Expected an import path which should be a string".to_string()
             }
             AstGenErrorKind::ErroneousImport(err) => err.to_string(),
-            AstGenErrorKind::AccessName => {
+            AstGenErrorKind::Namespace => {
                 "Expected identifier after a name access qualifier '::'".to_string()
             }
             AstGenErrorKind::MalformedSpreadPattern(dots) => {

@@ -3,15 +3,15 @@
 
 use std::fmt::Display;
 
-use hash_ast::ast::{Block, BlockExpr, ExpressionKind};
+use hash_ast::ast::{Block, BlockExpr, ExprKind};
 
-/// [DirectiveArgument] is a mapping between [ExpressionKind] to a simplified
+/// [DirectiveArgument] is a mapping between [ExprKind] to a simplified
 /// version for reporting on if a directive received the 'wrong' kind of
-/// argument. Some variants of [ExpressionKind] are collapsed into the general
+/// argument. Some variants of [ExprKind] are collapsed into the general
 /// [DirectiveArgument::Expr] because it is irrelevant from the context of
 /// directive what the expression is.
 ///
-/// Additionally, some of the inner variants of [ExpressionKind::Block] are
+/// Additionally, some of the inner variants of [ExprKind::Block] are
 /// expanded into the [DirectiveArgument] variants as their own standalone
 /// variants.
 pub enum DirectiveArgument {
@@ -49,34 +49,34 @@ pub enum DirectiveArgument {
     Expr,
 }
 
-impl From<&ExpressionKind> for DirectiveArgument {
-    fn from(expr: &ExpressionKind) -> Self {
+impl From<&ExprKind> for DirectiveArgument {
+    fn from(expr: &ExprKind) -> Self {
         match expr {
-            ExpressionKind::ConstructorCall(_) => DirectiveArgument::ConstructorCall,
-            ExpressionKind::Directive(_) => DirectiveArgument::Directive,
-            ExpressionKind::Declaration(_) => DirectiveArgument::Declaration,
-            ExpressionKind::Unsafe(_) => DirectiveArgument::Unsafe,
-            ExpressionKind::LiteralExpr(_) => DirectiveArgument::Literal,
-            ExpressionKind::Cast(_) => DirectiveArgument::Cast,
-            ExpressionKind::Block(BlockExpr(block)) => match block.body() {
+            ExprKind::ConstructorCall(_) => DirectiveArgument::ConstructorCall,
+            ExprKind::Directive(_) => DirectiveArgument::Directive,
+            ExprKind::Declaration(_) => DirectiveArgument::Declaration,
+            ExprKind::Unsafe(_) => DirectiveArgument::Unsafe,
+            ExprKind::LiteralExpr(_) => DirectiveArgument::Literal,
+            ExprKind::Cast(_) => DirectiveArgument::Cast,
+            ExprKind::Block(BlockExpr(block)) => match block.body() {
                 Block::Loop(_) | Block::While(_) | Block::For(_) => DirectiveArgument::Loop,
                 Block::Match(_) | Block::If(_) => DirectiveArgument::Match,
                 Block::Mod(_) => DirectiveArgument::ModBlock,
                 Block::Body(_) => DirectiveArgument::Block,
                 Block::Impl(_) => DirectiveArgument::ImplBlock,
             },
-            ExpressionKind::Import(_) => DirectiveArgument::Import,
-            ExpressionKind::StructDef(_) => DirectiveArgument::StructDef,
-            ExpressionKind::EnumDef(_) => DirectiveArgument::EnumDef,
-            ExpressionKind::TyFnDef(_) => DirectiveArgument::TyFnDef,
-            ExpressionKind::TraitDef(_) => DirectiveArgument::TraitDef,
-            ExpressionKind::FnDef(_) => DirectiveArgument::FnDef,
-            ExpressionKind::Ty(_) => DirectiveArgument::Ty,
-            ExpressionKind::Return(_) => DirectiveArgument::Return,
-            ExpressionKind::Break(_) => DirectiveArgument::Break,
-            ExpressionKind::Continue(_) => DirectiveArgument::Continue,
-            ExpressionKind::MergeDeclaration(_) => DirectiveArgument::MergeDeclaration,
-            ExpressionKind::TraitImpl(_) => DirectiveArgument::TraitImpl,
+            ExprKind::Import(_) => DirectiveArgument::Import,
+            ExprKind::StructDef(_) => DirectiveArgument::StructDef,
+            ExprKind::EnumDef(_) => DirectiveArgument::EnumDef,
+            ExprKind::TyFnDef(_) => DirectiveArgument::TyFnDef,
+            ExprKind::TraitDef(_) => DirectiveArgument::TraitDef,
+            ExprKind::FnDef(_) => DirectiveArgument::FnDef,
+            ExprKind::Ty(_) => DirectiveArgument::Ty,
+            ExprKind::Return(_) => DirectiveArgument::Return,
+            ExprKind::Break(_) => DirectiveArgument::Break,
+            ExprKind::Continue(_) => DirectiveArgument::Continue,
+            ExprKind::MergeDeclaration(_) => DirectiveArgument::MergeDeclaration,
+            ExprKind::TraitImpl(_) => DirectiveArgument::TraitImpl,
             _ => DirectiveArgument::Expr,
         }
     }

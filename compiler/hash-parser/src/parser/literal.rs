@@ -8,9 +8,9 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a
-    /// [ExpressionKind::LiteralExpr] by simply matching on the type of the
+    /// [ExprKind::LiteralExpr] by simply matching on the type of the
     /// expr.
-    pub(crate) fn parse_literal(&self) -> AstNode<Expression> {
+    pub(crate) fn parse_literal(&self) -> AstNode<Expr> {
         let token = self.current_token();
         let literal = self.node_with_span(
             match token.kind {
@@ -25,19 +25,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             token.span,
         );
 
-        self.node_with_span(
-            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(literal))),
-            token.span,
-        )
+        self.node_with_span(Expr::new(ExprKind::LiteralExpr(LiteralExpr(literal))), token.span)
     }
 
     /// Parse a single map entry in a literal.
     pub(crate) fn parse_map_entry(&self) -> AstGenResult<AstNode<MapLiteralEntry>> {
         let start = self.current_location();
 
-        let key = self.parse_expression_with_precedence(0)?;
+        let key = self.parse_expr_with_precedence(0)?;
         self.parse_token(TokenKind::Colon)?;
-        let value = self.parse_expression_with_precedence(0)?;
+        let value = self.parse_expr_with_precedence(0)?;
 
         Ok(self.node_with_joined_span(MapLiteralEntry { key, value }, &start))
     }
@@ -65,7 +62,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let gen = self.parse_delim_tree(Delimiter::Brace, None)?;
 
         let elements = gen.parse_separated_fn(
-            || gen.parse_expression_with_precedence(0),
+            || gen.parse_expr_with_precedence(0),
             || gen.parse_token(TokenKind::Comma),
         )?;
 
@@ -111,7 +108,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     TupleLiteralEntry {
                         name: Some(name),
                         ty,
-                        value: self.parse_expression_with_re_assignment()?.0,
+                        value: self.parse_expr_with_re_assignment()?.0,
                     },
                     &start,
                 ))
@@ -126,7 +123,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 TupleLiteralEntry {
                     name: None,
                     ty: None,
-                    value: self.parse_expression_with_re_assignment()?.0,
+                    value: self.parse_expr_with_re_assignment()?.0,
                 },
                 &start,
             )),
@@ -138,13 +135,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         &self,
         tree: &'stream [Token],
         span: Span,
-    ) -> AstGenResult<AstNode<Expression>> {
+    ) -> AstGenResult<AstNode<Expr>> {
         let gen = self.from_stream(tree, span);
 
         let mut elements = AstNodes::empty();
 
         while gen.has_token() {
-            let expr = gen.parse_expression_with_precedence(0)?;
+            let expr = gen.parse_expr_with_precedence(0)?;
             elements.nodes.push(expr);
 
             match gen.peek() {
@@ -165,7 +162,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_span(
-            Expression::new(ExpressionKind::LiteralExpr(LiteralExpr(
+            Expr::new(ExprKind::LiteralExpr(LiteralExpr(
                 gen.node_with_span(Literal::List(ListLiteral { elements }), span),
             ))),
             span,

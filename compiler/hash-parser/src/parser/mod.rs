@@ -3,7 +3,7 @@
 mod block;
 mod definitions;
 pub mod error;
-mod expression;
+mod expr;
 mod literal;
 mod name;
 mod operator;
@@ -414,7 +414,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let mut contents = vec![];
 
         while self.has_token() {
-            contents.push(self.parse_top_level_expression(true).map(|(_, statement)| statement)?);
+            contents.push(self.parse_top_level_expr(true).map(|(_, statement)| statement)?);
         }
 
         let span = start.join(self.current_location());
@@ -427,7 +427,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// follows that there are an arbitrary number of statements, followed
     /// by an optional final expression which doesn't need to be completed
     /// by a comma...
-    pub(crate) fn parse_expression_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
+    pub(crate) fn parse_expr_from_interactive(&self) -> AstGenResult<AstNode<BodyBlock>> {
         let start = self.current_location();
 
         let body = self.parse_body_block_inner()?;

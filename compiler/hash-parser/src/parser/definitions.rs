@@ -43,7 +43,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             Some(token) if token.has_kind(TokenKind::Eq) => {
                 self.skip_token();
 
-                Some(self.parse_expression_with_precedence(0)?)
+                Some(self.parse_expr_with_precedence(0)?)
             }
             _ => None,
         };
@@ -130,9 +130,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Now that we parse the bound, we're expecting a fat-arrow and then some
         // expression
         self.parse_arrow()?;
-        let expr = self.parse_expression_with_precedence(0)?;
+        let expr = self.parse_expr_with_precedence(0)?;
 
-        Ok(TyFnDef { params, return_ty, expr })
+        Ok(TyFnDef { params, return_ty, body: expr })
     }
 
     // Parse a [TyFnDefParam] which consists the name of the argument and
@@ -165,6 +165,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub fn parse_trait_def(&self) -> AstGenResult<TraitDef> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Trait)));
 
-        Ok(TraitDef { members: self.parse_expressions_from_braces()? })
+        Ok(TraitDef { members: self.parse_exprs_from_braces()? })
     }
 }

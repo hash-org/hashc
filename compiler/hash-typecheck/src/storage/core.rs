@@ -82,6 +82,17 @@ impl CoreDefs {
             ],
             [],
         );
+        let bool_ty_term = builder.create_nominal_def_term(bool_ty);
+        builder.add_pub_member_to_scope(
+            "true",
+            bool_ty_term,
+            builder.create_enum_variant_value_term("true", bool_ty),
+        );
+        builder.add_pub_member_to_scope(
+            "false",
+            bool_ty_term,
+            builder.create_enum_variant_value_term("false", bool_ty),
+        );
 
         // String
         let str_ty = builder.create_opaque_struct_def("str", []);

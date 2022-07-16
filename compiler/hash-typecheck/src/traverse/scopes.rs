@@ -25,7 +25,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     pub(crate) fn visit_constant_scope<'m>(
         &mut self,
         ctx: &<Self as AstVisitor>::Ctx,
-        members: impl Iterator<Item = ast::AstNodeRef<'m, ast::Expression>>,
+        members: impl Iterator<Item = ast::AstNodeRef<'m, ast::Expr>>,
         scope_to_use: Option<ScopeId>,
     ) -> TcResult<VisitConstantScope> {
         // Create a scope and enter it, for adding all the members:
@@ -37,7 +37,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         // Invariant: It is already checked during semantics that only declarations are
         // present in constant scopes.
         for (i, member) in members.enumerate() {
-            self.visit_expression(ctx, member)?;
+            self.visit_expr(ctx, member)?;
 
             // Add location to the declaration
             self.copy_location_from_node_to_target(member, (scope_id, i));
