@@ -7,12 +7,13 @@ use crate::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    ops::AccessToOpsMut,
+    ops::{AccessToOps, AccessToOpsMut},
     storage::{
         location::LocationTarget,
         primitives::{
             AccessOp, Arg, ArgsId, BindingPattern, BoundVars, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, ParamOrigin, Pattern, Sub, TermId, Visibility,
+            ModDefOrigin, Mutability, Param, ParamOrigin, Pattern, PatternId, PatternParam, Sub,
+            TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -1275,7 +1276,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_block_same_children(self, ctx, node)
     }
 
-    type MatchCaseRet = (Pattern, TermId);
+    type MatchCaseRet = (PatternId, TermId);
 
     fn visit_match_case(
         &mut self,
@@ -1578,7 +1579,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let pattern = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+        let pattern_id = self.visit_pattern(ctx, node.pattern.ast_ref())?;
+        let pattern = self.reader().get_pattern(pattern_id).clone();
 
         // @@Todo: deal with other kinds of patterns:
         let BindingPattern { name, mutability, visibility } = match pattern {
@@ -2000,7 +2002,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type PatternRet = Pattern;
+    type PatternRet = PatternId;
 
     fn visit_pattern(
         &mut self,
@@ -2010,47 +2012,72 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_pattern_same_children(self, ctx, node)
     }
 
-    type ConstructorPatternRet = Pattern;
+    type ConstructorPatternRet = PatternId;
 
     fn visit_constructor_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPattern>,
     ) -> Result<Self::ConstructorPatternRet, Self::Error> {
-        todo!()
+        let walk::ConstructorPattern { name, args } =
+            walk::walk_constructor_pattern(self, ctx, node)?;
+        let constructor_params = self.builder().create_pattern_params(args, ParamOrigin::Unknown);
+        let constructor_pattern =
+            self.builder().create_constructor_pattern(name, constructor_params);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
+        self.copy_location_from_node_to_target(node, constructor_pattern);
+
+        Ok(constructor_pattern)
     }
 
-    type NamespacePatternRet = Pattern;
+    type NamespacePatternRet = PatternId;
 
     fn visit_namespace_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePattern>,
     ) -> Result<Self::NamespacePatternRet, Self::Error> {
-        todo!()
+        let walk::NamespacePattern { patterns } = walk::walk_namespace_pattern(self, ctx, node)?;
+        let members = self.builder().create_pattern_params(patterns, ParamOrigin::Unknown);
+        let module_pattern = self.builder().create_mod_pattern(members);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+        self.copy_location_from_node_to_target(node, module_pattern);
+
+        Ok(module_pattern)
     }
 
-    type TuplePatternEntryRet = TermId;
+    type TuplePatternEntryRet = PatternParam;
 
     fn visit_tuple_pattern_entry(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatternEntry>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatternEntry>,
     ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
-        todo!()
+        let walk::TuplePatternEntry { name, pattern } =
+            walk::walk_tuple_pattern_entry(self, ctx, node)?;
+        Ok(PatternParam { name, pattern })
     }
 
-    type TuplePatternRet = Pattern;
+    type TuplePatternRet = PatternId;
 
     fn visit_tuple_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
     ) -> Result<Self::TuplePatternRet, Self::Error> {
-        todo!()
+        let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
+        let members = self.builder().create_pattern_params(elements, ParamOrigin::Unknown);
+        let tuple_pattern = self.builder().create_tuple_pattern(members);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+        self.copy_location_from_node_to_target(node, tuple_pattern);
+
+        Ok(tuple_pattern)
     }
 
-    type ListPatternRet = Pattern;
+    type ListPatternRet = PatternId;
 
     fn visit_list_pattern(
         &mut self,
@@ -2060,37 +2087,55 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type StrLiteralPatternRet = Pattern;
+    type StrLiteralPatternRet = PatternId;
 
     fn visit_str_literal_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteralPattern>,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteralPattern>,
     ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
-        todo!()
+        let lit = self.builder().create_lit_term(node.0.to_string());
+        let lit_pattern = self.builder().create_lit_pattern(lit);
+
+        self.copy_location_from_node_to_target(node, lit);
+        self.copy_location_from_node_to_target(node, lit_pattern);
+
+        Ok(lit_pattern)
     }
 
-    type CharLiteralPatternRet = Pattern;
+    type CharLiteralPatternRet = PatternId;
 
     fn visit_char_literal_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteralPattern>,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteralPattern>,
     ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
-        todo!()
+        let lit = self.builder().create_lit_term(node.0);
+        let lit_pattern = self.builder().create_lit_pattern(lit);
+
+        self.copy_location_from_node_to_target(node, lit);
+        self.copy_location_from_node_to_target(node, lit_pattern);
+
+        Ok(lit_pattern)
     }
 
-    type IntLiteralPatternRet = Pattern;
+    type IntLiteralPatternRet = PatternId;
 
     fn visit_int_literal_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteralPattern>,
+        _: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteralPattern>,
     ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
-        todo!()
+        let lit = self.builder().create_lit_term(node.0);
+        let lit_pattern = self.builder().create_lit_pattern(lit);
+
+        self.copy_location_from_node_to_target(node, lit);
+        self.copy_location_from_node_to_target(node, lit_pattern);
+
+        Ok(lit_pattern)
     }
 
-    type FloatLiteralPatternRet = Pattern;
+    type FloatLiteralPatternRet = PatternId;
 
     fn visit_float_literal_pattern(
         &mut self,
@@ -2100,67 +2145,82 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type BoolLiteralPatternRet = Pattern;
+    type BoolLiteralPatternRet = PatternId;
 
     fn visit_bool_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteralPattern>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteralPattern>,
     ) -> Result<Self::BoolLiteralPatternRet, Self::Error> {
-        todo!()
+        let bool_term = self.builder().create_var_term(if node.0 { "true" } else { "false" });
+        self.copy_location_from_node_to_target(node, bool_term);
+        let bool_term_simplified = self.validator().validate_term(bool_term)?.simplified_term_id;
+
+        let bool_pattern = self.builder().create_constant_pattern(bool_term_simplified);
+        self.copy_location_from_node_to_target(node, bool_pattern);
+
+        Ok(bool_pattern)
     }
 
-    type LiteralPatternRet = Pattern;
+    type LiteralPatternRet = PatternId;
 
     fn visit_literal_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::LiteralPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LiteralPattern>,
     ) -> Result<Self::LiteralPatternRet, Self::Error> {
-        todo!()
+        walk::walk_literal_pattern_same_children(self, ctx, node)
     }
 
-    type OrPatternRet = Pattern;
+    type OrPatternRet = PatternId;
 
     fn visit_or_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPattern>,
     ) -> Result<Self::OrPatternRet, Self::Error> {
-        todo!()
+        let walk::OrPattern { variants } = walk::walk_or_pattern(self, ctx, node)?;
+        let pattern = self.builder().create_or_pattern(variants);
+        self.copy_location_from_node_to_target(node, pattern);
+        Ok(pattern)
     }
 
-    type IfPatternRet = Pattern;
+    type IfPatternRet = PatternId;
 
     fn visit_if_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPattern>,
     ) -> Result<Self::IfPatternRet, Self::Error> {
-        todo!()
+        let walk::IfPattern { condition, pattern } = walk::walk_if_pattern(self, ctx, node)?;
+        let pattern = self.builder().create_if_pattern(pattern, condition);
+        self.copy_location_from_node_to_target(node, pattern);
+        Ok(pattern)
     }
 
-    type BindingPatternRet = Pattern;
+    type BindingPatternRet = PatternId;
 
     fn visit_binding_pattern(
         &mut self,
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
     ) -> Result<Self::BindingPatternRet, Self::Error> {
-        Ok(Pattern::Binding(BindingPattern {
-            name: node.name.body().ident,
-            mutability: match node.mutability.as_ref().map(|x| *x.body()) {
+        let pattern = self.builder().create_binding_pattern(
+            node.name.body().ident,
+            match node.mutability.as_ref().map(|x| *x.body()) {
                 Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
                 Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
             },
-            visibility: match node.visibility.as_ref().map(|x| *x.body()) {
+            match node.visibility.as_ref().map(|x| *x.body()) {
                 Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
                 Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
             },
-        }))
+        );
+        self.copy_location_from_node_to_target(node, pattern);
+        Ok(pattern)
     }
 
-    type SpreadPatternRet = Pattern;
+    type SpreadPatternRet = PatternId;
 
     fn visit_spread_pattern(
         &mut self,
@@ -2170,24 +2230,27 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type IgnorePatternRet = Pattern;
+    type IgnorePatternRet = PatternId;
 
     fn visit_ignore_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePattern>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePattern>,
     ) -> Result<Self::IgnorePatternRet, Self::Error> {
-        todo!()
+        let pattern = self.builder().create_ignore_pattern();
+        self.copy_location_from_node_to_target(node, pattern);
+        Ok(pattern)
     }
 
-    type DestructuringPatternRet = Pattern;
-
+    type DestructuringPatternRet = PatternParam;
     fn visit_destructuring_pattern(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPattern>,
     ) -> Result<Self::DestructuringPatternRet, Self::Error> {
-        todo!()
+        let walk::DestructuringPattern { name, pattern } =
+            walk::walk_destructuring_pattern(self, ctx, node)?;
+        Ok(self.builder().create_pattern_param(name, pattern))
     }
 
     type ModuleRet = TermId;

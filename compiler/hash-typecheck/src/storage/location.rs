@@ -188,6 +188,18 @@ impl From<&TermId> for LocationTarget {
     }
 }
 
+impl From<PatternId> for LocationTarget {
+    fn from(id: PatternId) -> Self {
+        Self::Pattern(id)
+    }
+}
+
+impl From<&PatternId> for LocationTarget {
+    fn from(id: &PatternId) -> Self {
+        Self::Pattern(*id)
+    }
+}
+
 impl From<(ParamsId, usize)> for LocationTarget {
     fn from((id, index): (ParamsId, usize)) -> Self {
         Self::Param(id, index)
@@ -203,5 +215,11 @@ impl From<(ArgsId, usize)> for LocationTarget {
 impl From<(ScopeId, usize)> for LocationTarget {
     fn from((id, index): (ScopeId, usize)) -> Self {
         Self::Declaration(id, index)
+    }
+}
+
+impl From<(PatternParamsId, usize)> for LocationTarget {
+    fn from((id, index): (PatternParamsId, usize)) -> Self {
+        Self::ParamPattern(id, index)
     }
 }

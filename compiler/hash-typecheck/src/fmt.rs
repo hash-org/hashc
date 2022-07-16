@@ -4,9 +4,9 @@
 use crate::storage::{
     primitives::{
         AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-        MemberData, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId,
-        Pattern, PatternId, PatternParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId,
-        TrtDefId, UnresolvedTerm, Visibility,
+        MemberData, ModDefId, ModDefOrigin, ModPattern, Mutability, NominalDef, NominalDefId,
+        ParamsId, Pattern, PatternId, PatternParamsId, ScopeId, StructDef, Sub, SubSubject, Term,
+        TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -625,6 +625,33 @@ impl<'gs> TcFormatter<'gs> {
             }
             Pattern::Ignore => {
                 write!(f, "_")
+            }
+            Pattern::Mod(ModPattern { members }) => {
+                opts.is_atomic.set(true);
+                let pattern_params = self.global_storage.pattern_params_store.get(*members);
+
+                write!(f, "{{ ")?;
+                for (i, param) in pattern_params.positional().iter().enumerate() {
+                    match param.name {
+                        Some(param_name) => {
+                            write!(
+                                f,
+                                "{} as {}",
+                                param_name,
+                                param.pattern.for_formatting(self.global_storage)
+                            )?;
+                        }
+                        None => {
+                            self.fmt_pattern(f, param.pattern, TcFormatOpts::default())?;
+                        }
+                    }
+                    if i != pattern_params.positional().len() - 1 {
+                        write!(f, "; ")?;
+                    }
+                }
+                write!(f, " }}")?;
+
+                Ok(())
             }
         }
     }

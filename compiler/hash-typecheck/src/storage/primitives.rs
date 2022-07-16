@@ -967,7 +967,9 @@ pub type PatternParams = ParamList<PatternParam>;
 #[derive(Clone, Debug, Copy)]
 pub struct ConstructorPattern {
     pub subject: TermId,
-    pub params: PatternParamsId,
+    /// If `params` is `None`, it means that the constructor has no parameters;
+    /// it is a unit.
+    pub params: Option<PatternParamsId>,
 }
 
 /// A conditional pattern, containing a pattern and an condition.
@@ -975,6 +977,13 @@ pub struct ConstructorPattern {
 pub struct IfPattern {
     pub pattern: PatternId,
     pub condition: TermId,
+}
+
+/// A module pattern, containing a list of patterns to be used to match module
+/// members.
+#[derive(Clone, Debug, Copy)]
+pub struct ModPattern {
+    pub members: PatternParamsId,
 }
 
 /// Represents a pattern in the language.
@@ -990,6 +999,8 @@ pub enum Pattern {
     Lit(TermId),
     /// Tuple pattern.
     Tuple(PatternParamsId),
+    /// Module pattern.
+    Mod(ModPattern),
     /// Constructor pattern.
     Constructor(ConstructorPattern),
     /// A set of patterns that are OR-ed together. If any one of them matches

@@ -12,18 +12,15 @@ use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
 pub struct ScopeResolver<'gs, 'ls, 'cd, 's> {
-    /// Inner storage for global, local and core definitions.
     storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
 impl<'gs, 'ls, 'cd, 's> AccessToStorage for ScopeResolver<'gs, 'ls, 'cd, 's> {
-    /// Get the inner storage for resolving.
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
 impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeResolver<'gs, 'ls, 'cd, 's> {
-    /// Get the inner storage for resolving.
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }

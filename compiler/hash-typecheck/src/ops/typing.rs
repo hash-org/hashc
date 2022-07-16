@@ -261,8 +261,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         origin: ParamOrigin,
     ) -> TcResult<ArgsId> {
         let param_types: Vec<_> = self
-            .pattern_params_store()
-            .get(pattern_params_id)
+            .reader()
+            .get_pattern_params(pattern_params_id)
             .clone()
             .into_positional()
             .into_iter()
@@ -280,8 +280,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         origin: ParamOrigin,
     ) -> TcResult<ParamsId> {
         let param_types: Vec<_> = self
-            .pattern_params_store()
-            .get(pattern_params_id)
+            .reader()
+            .get_pattern_params(pattern_params_id)
             .clone()
             .into_positional()
             .into_iter()
@@ -307,9 +307,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     /// Get the term of the given pattern, whose type is the type of the pattern
     /// subject.
     pub(crate) fn term_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
-        let pattern = self.pattern_store().get(pattern_id).clone();
+        let pattern = self.reader().get_pattern(pattern_id).clone();
         match pattern {
-            Pattern::Ignore | Pattern::Binding(_) => {
+            Pattern::Mod(_) | Pattern::Ignore | Pattern::Binding(_) => {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
@@ -324,12 +324,18 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let builder = self.builder();
                 Ok(builder.create_rt_term(builder.create_tuple_ty_term(params_id)))
             }
-            Pattern::Constructor(constructor_pattern) => {
-                let args_id =
-                    self.args_of_pattern_params(constructor_pattern.params, ParamOrigin::Unknown)?;
-                let builder = self.builder();
-                Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
-            }
+            Pattern::Constructor(constructor_pattern) => match constructor_pattern.params {
+                Some(params) => {
+                    // We have params to apply
+                    let args_id = self.args_of_pattern_params(params, ParamOrigin::Unknown)?;
+                    let builder = self.builder();
+                    Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
+                }
+                None => {
+                    // We just use the subject
+                    Ok(constructor_pattern.subject)
+                }
+            },
             Pattern::Or(patterns) => {
                 // Get the inner pattern types:
                 let pattern_types: Vec<_> = patterns
