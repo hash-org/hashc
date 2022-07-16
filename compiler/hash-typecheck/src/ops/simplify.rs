@@ -856,7 +856,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let subbed_return_value =
                     self.substituter().apply_sub_to_term(&params_sub, fn_ty.return_ty);
 
-                Ok(Some(subbed_return_value))
+                Ok(Some(self.builder().create_rt_term(subbed_return_value)))
             }
             Level0Term::Lit(_) => Ok(None),
         }

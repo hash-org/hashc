@@ -543,12 +543,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             walk::walk_constructor_call_expr(self, ctx, node)?;
 
         // Create the function call term:
-        let return_term_ty = self.builder().create_fn_call_term(subject, args);
-        let return_term = self.builder().create_rt_term(return_term_ty);
+        let return_term = self.builder().create_fn_call_term(subject, args);
 
         // Set location:
         self.copy_location_from_node_to_target(node, return_term);
-        self.copy_location_from_node_to_target(node, return_term_ty);
 
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
@@ -1307,8 +1305,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // @@Todo: ensure the subject unifies with each match case branch once patterns
         // are implemented properly.
 
-        let return_ty = self.builder().create_union_term(cases.iter().map(|(_, body)| *body));
-        Ok(self.validator().validate_term(return_ty)?.simplified_term_id)
+        let case_bodies: Vec<_> = cases
+            .iter()
+            .map(|(_, body)| self.typer().ty_of_term(*body))
+            .collect::<TcResult<_>>()?;
+        let return_ty = self.builder().create_union_term(case_bodies);
+        let return_term = self.builder().create_rt_term(return_ty);
+        Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
 
     type LoopBlockRet = TermId;
@@ -1734,10 +1737,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             BinOp::Lt => lazy_operator_fn(self, "lt")?,
             BinOp::LtEq => lazy_operator_fn(self, "lt_eq")?,
         };
+        let simplified = self.validator().validate_term(term)?.simplified_term_id;
 
         self.copy_location_from_node_to_target(node, term);
 
-        Ok(self.validator().validate_term(term)?.simplified_term_id)
+        Ok(simplified)
     }
 
     type UnaryExpressionRet = TermId;
