@@ -1,7 +1,4 @@
 //! Contains operations to get the type of a term.
-
-#![allow(dead_code)] // @@Todo: remove
-
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -289,30 +286,6 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             .collect::<TcResult<_>>()?;
 
         Ok(self.builder().create_args(param_types, origin))
-    }
-
-    /// From the given [PatternParamsId], infer a [ParamsId] describing the type
-    /// of the arguments.
-    pub(crate) fn params_of_pattern_params(
-        &mut self,
-        pattern_params_id: PatternParamsId,
-    ) -> TcResult<ParamsId> {
-        let pattern_params = self.reader().get_pattern_params(pattern_params_id).clone();
-        let origin = pattern_params.origin();
-        let param_types: Vec<_> = pattern_params
-            .into_positional()
-            .into_iter()
-            .map(|param| {
-                let pattern_term = self.term_of_pattern(param.pattern)?;
-                Ok(Param {
-                    name: param.name,
-                    default_value: None,
-                    ty: self.ty_of_term(pattern_term)?,
-                })
-            })
-            .collect::<TcResult<_>>()?;
-
-        Ok(self.builder().create_params(param_types, origin))
     }
 
     /// Get the type of the given pattern, as a term.

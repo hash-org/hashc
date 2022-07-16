@@ -196,23 +196,24 @@ impl<'gs> TcFormatter<'gs> {
         match term {
             Level0Term::Rt(ty_id) => {
                 opts.is_atomic.set(true);
-                write!(f, "{{runtime value of type {}}}", ty_id.for_formatting(self.global_storage))
+                write!(f, "{{value {}}}", ty_id.for_formatting(self.global_storage))
             }
             Level0Term::FnLit(fn_lit) => {
                 opts.is_atomic.set(true);
                 write!(
                     f,
-                    "{{function literal of type {}}}",
-                    fn_lit.fn_ty.for_formatting(self.global_storage)
+                    "{} => {}",
+                    fn_lit.fn_ty.for_formatting(self.global_storage),
+                    fn_lit.return_value.for_formatting(self.global_storage),
                 )
             }
             Level0Term::EnumVariant(enum_variant) => {
                 opts.is_atomic.set(true);
                 write!(
                     f,
-                    "{{enum variant '{}' of {}}}",
+                    "{}::{}",
+                    enum_variant.enum_def_id.for_formatting(self.global_storage),
                     enum_variant.variant_name,
-                    enum_variant.enum_def_id.for_formatting(self.global_storage)
                 )
             }
             Level0Term::FnCall(fn_call) => {
@@ -225,19 +226,19 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(true);
                 match lit_term {
                     LitTerm::Str(str) => {
-                        write!(f, "{{literal \"{}\"}}", str)
+                        write!(f, "\"{}\"", str)
                     }
                     LitTerm::Int(int) => {
-                        write!(f, "{{literal {}}}", int)
+                        write!(f, "{}", int)
                     }
                     LitTerm::Char(char) => {
-                        write!(f, "{{literal \'{}\'}}", char)
+                        write!(f, "\'{}\'", char)
                     }
                 }
             }
             Level0Term::Tuple(tuple_lit) => {
                 opts.is_atomic.set(true);
-                write!(f, "{{literal ({})}}", tuple_lit.members.for_formatting(self.global_storage))
+                write!(f, "({})", tuple_lit.members.for_formatting(self.global_storage))
             }
         }
     }
