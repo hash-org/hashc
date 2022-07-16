@@ -8,12 +8,24 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Name] from the current token stream.
+    #[inline]
     pub fn parse_name(&self) -> AstGenResult<AstNode<Name>> {
+        self.parse_name_with_error(AstGenErrorKind::ExpectedIdentifier)
+    }
+
+    /// Parse a singular [Name] from the current token stream.
+    #[inline]
+    pub fn parse_name_with_error(&self, err: AstGenErrorKind) -> AstGenResult<AstNode<Name>> {
         match self.next_token() {
             Some(Token { kind: TokenKind::Ident(ident), span }) => {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
             }
-            _ => self.error(AstGenErrorKind::ExpectedIdentifier, None, None),
+            token => self.error_with_location(
+                err,
+                None,
+                None,
+                token.map(|tok| tok.span).unwrap_or_else(|| self.next_location()),
+            ),
         }
     }
 
@@ -52,52 +64,5 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let location = start.join(self.current_location());
 
         Ok(self.node_with_span(Namespace { path: AstNodes::new(path, Some(location)) }, location))
-    }
-
-    /// This function follows a similar process as parsing a [Namespace],
-    /// however it parses the namespace and turns it into a
-    /// [ExprKind::Access] which specifies how the members are
-    /// accessed.
-    pub(crate) fn parse_ns_access(
-        &self,
-        mut subject: AstNode<Expr>,
-        initial_node: bool,
-    ) -> AstGenResult<AstNode<Expr>> {
-        // Collect the path into a vector of names as it is easier to create
-        // the `Access` expr from a list rather than continuing to recurse.
-        let mut path = vec![];
-
-        if initial_node {
-            path.push(self.parse_name()?);
-        }
-
-        loop {
-            match (self.peek(), self.peek_second()) {
-                (Some(tok), Some(second_tok))
-                    if tok.has_kind(TokenKind::Colon) && second_tok.has_kind(TokenKind::Colon) =>
-                {
-                    self.offset.update(|current| current + 2); // '::'
-                    path.push(self.parse_name()?);
-                }
-                _ => break,
-            }
-        }
-
-        // The base case of the `access` is just a variable expression
-        // Iterate backwards and build up each part of the access backwards
-        for node in path.into_iter() {
-            let span = subject.span().join(node.span());
-
-            subject = self.node_with_joined_span(
-                Expr::new(ExprKind::Access(AccessExpr {
-                    subject,
-                    property: node,
-                    kind: AccessKind::Namespace,
-                })),
-                &span,
-            );
-        }
-
-        Ok(subject)
     }
 }

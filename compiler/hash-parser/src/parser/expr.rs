@@ -401,11 +401,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             subject = match token.kind {
                 // Property access or method call
                 TokenKind::Dot => {
-                    self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
+                    self.skip_token();
                     self.parse_property_access(subject)?
                 }
-                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) => {
-                    self.parse_ns_access(subject, false)?
+                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
+                {
+                    self.offset.update(|offset| offset + 2);
+                    self.parse_ns_access(subject)?
                 }
                 TokenKind::Lt => match self.maybe_parse_type_fn_call(subject) {
                     (subject, true) => subject,
@@ -741,27 +743,31 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         subject: AstNode<Expr>,
     ) -> AstGenResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
+        let span = subject.span();
 
-        Ok(match self.peek() {
-            Some(Token { kind: TokenKind::Ident(ident), span }) => {
-                self.skip_token();
+        Ok(self.node_with_joined_span(
+            Expr::new(ExprKind::Access(AccessExpr {
+                subject,
+                property: self.parse_name_with_error(AstGenErrorKind::ExpectedPropertyAccess)?,
+                kind: AccessKind::Property,
+            })),
+            &span,
+        ))
+    }
 
-                self.node_with_joined_span(
-                    Expr::new(ExprKind::Access(AccessExpr {
-                        subject,
-                        property: self.node_with_span(Name { ident: *ident }, *span),
-                        kind: AccessKind::Property,
-                    })),
-                    span,
-                )
-            }
-            token => self.error_with_location(
-                AstGenErrorKind::ExpectedPropertyAccess,
-                None,
-                None,
-                token.map(|tok| tok.span).unwrap_or_else(|| self.next_location()),
-            )?,
-        })
+    /// Parse a namespace access expression.
+    pub(crate) fn parse_ns_access(&self, subject: AstNode<Expr>) -> AstGenResult<AstNode<Expr>> {
+        debug_assert!(self.current_token().has_kind(TokenKind::Colon));
+        let span = subject.span();
+
+        Ok(self.node_with_joined_span(
+            Expr::new(ExprKind::Access(AccessExpr {
+                subject,
+                property: self.parse_name()?,
+                kind: AccessKind::Namespace,
+            })),
+            &span,
+        ))
     }
 
     /// Function to either parse an expression that is wrapped in parentheses or
