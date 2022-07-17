@@ -16,7 +16,7 @@ use crate::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
             Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term, TermId,
-            TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -247,7 +247,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 });
                 if let Ok(Some(ty_access_result)) = ty_access_result {
                     // To get the function type, we need to get the type of the result.
-                    let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
+                    let ty_of_ty_access_result = self.typer().infer_ty_of_term(ty_access_result)?;
                     // Then we can try turn this into a method call
                     return Some(self.turn_accessed_ty_and_subject_ty_into_method(
                         ty_of_ty_access_result,
@@ -264,7 +264,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 //
                 // This is possible because traits will return the type of their
                 // members when accessing members.
-                let ty_of_ty_term_id = self.typer().ty_of_term(*ty_term_id)?;
+                let ty_of_ty_term_id = self.typer().infer_ty_of_term(*ty_term_id)?;
                 let accessed_result = self.apply_access_term(&AccessTerm {
                     subject: ty_of_ty_term_id,
                     name: access_term.name,
@@ -305,9 +305,17 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     "Function call in access apply should have already been simplified!"
                 )
             }
+            Level0Term::Tuple(TupleLit { members }) => {
+                let tuple_members = self.args_store().get(*members);
+                if let Some((_, member)) = tuple_members.get_by_name(access_term.name) {
+                    Ok(Some(member.value))
+                } else {
+                    name_not_found(access_term, NameFieldOrigin::Tuple)
+                }
+            }
             Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
-                let term = &Level0Term::Rt(self.typer().ty_of_term(originating_term)?);
+                let term = &Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
                 self.apply_access_to_level0_term(term, access_term, originating_term)
             }
         }
@@ -400,7 +408,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Resolve the type of the name:
                 let name_var = self.builder().create_var_term(access_term.name);
-                let result = self.typer().ty_of_term(name_var)?;
+                let result = self.typer().infer_ty_of_term(name_var)?;
 
                 // Pop back the scope
                 self.scopes_mut().pop_scope();
@@ -784,6 +792,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         tc_panic!(term_id, self, "Function call should have already been simplified away when resolving function call subject")
                     }
                     Level0Term::Lit(_) => cannot_use_as_fn_call_subject(),
+                    Level0Term::Tuple(_) => cannot_use_as_fn_call_subject(),
                 }
             }
 
@@ -857,6 +866,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     self.substituter().apply_sub_to_term(&params_sub, fn_ty.return_ty);
 
                 Ok(Some(self.builder().create_rt_term(subbed_return_value)))
+            }
+            Level0Term::Tuple(TupleLit { members }) => {
+                // Simplify inner terms:
+                let simplified_members = self.simplify_args(*members)?;
+                match simplified_members {
+                    Some(members) => Ok(Some(self.builder().create_tuple_lit_term(members))),
+                    None => Ok(None),
+                }
             }
             Level0Term::Lit(_) => Ok(None),
         }
@@ -932,7 +949,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         // Only return the new args if we simplified them:
         if simplified_once {
             let new_args = self.builder().create_args(result, args.origin());
-            self.location_store_mut().copy_args_locations(args_id, new_args);
+            self.location_store_mut().copy_locations(args_id, new_args);
 
             Ok(Some(new_args))
         } else {
@@ -980,7 +997,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         // Only return the new params if we simplified them:
         if simplified_once {
             let new_params = self.builder().create_params(result, params.origin());
-            self.location_store_mut().copy_params_locations(params_id, new_params);
+            self.location_store_mut().copy_locations(params_id, new_params);
 
             Ok(Some(new_params))
         } else {
@@ -1187,7 +1204,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             }
             Term::TyOf(term) => {
                 // Get the type of the term:
-                Ok(Some(self.typer().ty_of_term(term)?))
+                Ok(Some(self.typer().infer_ty_of_term(term)?))
             }
             Term::Unresolved(_) => {
                 // Cannot do anything here:

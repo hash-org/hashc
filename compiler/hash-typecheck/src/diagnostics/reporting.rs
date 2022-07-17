@@ -73,6 +73,127 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
+            TcError::CannotUnifyArgs { src_args_id, target_args_id, reason, src, target } => {
+                let src_args = err.args_store().get(*src_args_id);
+                let target_args = err.args_store().get(*target_args_id);
+
+                // It doesn't matter whether we use `src` or `target` since they should be the
+                // same
+                let origin = src_args.origin();
+
+                match &reason {
+                    ParamUnificationErrorReason::LengthMismatch => {
+                        builder
+                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
+                            .with_message(format!(
+                                "{} expects {} arguments, however {} arguments were given",
+                                origin,
+                                target_args.len(),
+                                src_args.len()
+                            ));
+
+                        // Provide information about the location of the target type if available
+                        if let Some(location) = err.location_store().get_location(target) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                format!(
+                                    "this {} expects {} arguments...",
+                                    origin,
+                                    target_args.len(),
+                                ),
+                            )));
+                        }
+
+                        // Provide information about the source of the unification error
+                        if let Some(location) = err.location_store().get_location(src) {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                format!("...but got {} arguments here", src_args.len()),
+                            )));
+                        }
+                    }
+                    ParamUnificationErrorReason::NameMismatch(index) => {
+                        // We know that the error occurred at the particular index of both argument
+                        // lists.
+                        builder
+                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
+                            .with_message(format!("{} argument names are mis-matching", origin,));
+
+                        let src_arg = &src_args.positional()[*index];
+                        let target_arg = &target_args.positional()[*index];
+
+                        // Generate error messages for both the source and target terms, and
+                        // optionally a suggestion.
+                        let (src_message, target_message, suggestion) =
+                            match (src_arg.name, target_arg.name) {
+                                (Some(src_name), Some(target_name)) => (
+                                    format!("this argument should be named `{}`", target_name),
+                                    "argument is specified as being named".to_string(),
+                                    format!(
+                                        "consider renaming `{}` to `{}`",
+                                        src_name, target_name
+                                    ),
+                                ),
+                                (Some(src_name), None) => (
+                                    format!("this argument shouldn't be named `{}`", src_name),
+                                    "argument is not named".to_string(),
+                                    "consider removing the name from the argument".to_string(),
+                                ),
+                                (None, Some(target_name)) => (
+                                    format!("this argument should be named `{}`", target_name),
+                                    "argument is specified as being named".to_string(),
+                                    format!(
+                                        "consider adding `{}` as the name to the argument",
+                                        target_name
+                                    ),
+                                ),
+                                _ => unreachable!(),
+                            };
+
+                        let src_location =
+                            err.location_store().get_location((*src_args_id, *index));
+                        let target_location =
+                            err.location_store().get_location((*target_args_id, *index));
+
+                        // Provide information about the location of the target type if available.
+                        // If the location is not available, we just attach
+                        // it to as a note.
+                        if let Some(location) = target_location {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                target_message,
+                            )));
+                        } else {
+                            builder.add_element(ReportElement::Note(ReportNote::new(
+                                ReportNoteKind::Note,
+                                target_message,
+                            )));
+                        }
+
+                        // Provide information about the source of the unification error. If the
+                        // source is not available (which is unlikely and
+                        // possibly an invariant?), then add it as a note to
+                        // the report.
+                        if let Some(location) = src_location {
+                            builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                                location,
+                                src_message,
+                            )));
+                        } else {
+                            builder.add_element(ReportElement::Note(ReportNote::new(
+                                ReportNoteKind::Note,
+                                src_message,
+                            )));
+                        }
+
+                        // Append the suggestion
+                        builder.add_element(ReportElement::Note(ReportNote::new(
+                            ReportNoteKind::Help,
+                            suggestion,
+                        )));
+                    }
+                }
+            }
             TcError::CannotUnifyParams { src_params_id, target_params_id, reason, src, target } => {
                 let src_params = err.params_store().get(*src_params_id);
                 let target_params = err.params_store().get(*target_params_id);
@@ -86,18 +207,18 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         builder
                             .with_error_code(HashErrorCode::ParameterLengthMismatch)
                             .with_message(format!(
-                                "{} expects `{}` arguments, however `{}` arguments were given",
+                                "{} expects {} parameters, however {} parameters were given",
                                 origin,
                                 target_params.len(),
                                 src_params.len()
                             ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(target) {
+                        if let Some(location) = err.location_store().get_location(*target) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 format!(
-                                    "this {} expects `{}` arguments.",
+                                    "this {} expects {} parameters...",
                                     origin,
                                     target_params.len(),
                                 ),
@@ -105,10 +226,10 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         }
 
                         // Provide information about the source of the unification error
-                        if let Some(location) = err.location_store().get_location(src) {
+                        if let Some(location) = err.location_store().get_location(*src) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                "incorrect number of arguments here",
+                                format!("...but got {} parameters here", src_params.len()),
                             )));
                         }
                     }
@@ -253,7 +374,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                             ));
 
                             // Add note about what fields are missing from the struct
-                            if let Some(location) = err.location_store().get_location(args_subject)
+                            if let Some(location) = err.location_store().get_location(*args_subject)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -279,7 +400,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                             // Add note about what fields shouldn't be there
                             // @@Future: It would be nice to highlight the exact fields and just
                             // show them specifically rather than the whole subject expression...
-                            if let Some(location) = err.location_store().get_location(args_subject)
+                            if let Some(location) = err.location_store().get_location(*args_subject)
                             {
                                 builder.add_element(ReportElement::CodeBlock(
                                     ReportCodeBlock::new(
@@ -294,7 +415,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(params_subject) {
+                        if let Some(location) = err.location_store().get_location(*params_subject) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
                                 "the struct is defined here",
@@ -304,25 +425,28 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     _ => {
                         // @@ErrorReporting: get more customised messages for other variant
                         // mismatch...
-                        builder.with_message(format!(
-                            "{} expects `{}` arguments, however `{}` arguments were given",
-                            params.origin(),
-                            params.len(),
-                            args.len()
-                        ));
+                        builder
+                            .with_error_code(HashErrorCode::ParameterLengthMismatch)
+                            .with_message(format!(
+                                "{} expects {} arguments, however {} arguments were given",
+                                params.origin(),
+                                params.len(),
+                                args.len()
+                            ));
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(args_subject) {
+                        if let Some(location) = err.location_store().get_location(*args_subject) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                                location, "here",
+                                location,
+                                format!("got {} arguments here...", args.len()),
                             )));
                         }
 
                         // Provide information about the location of the target type if available
-                        if let Some(location) = err.location_store().get_location(params_subject) {
+                        if let Some(location) = err.location_store().get_location(*params_subject) {
                             builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                                 location,
-                                format!("this expects `{}` arguments.", params.len()),
+                                format!("...but this expects {} arguments.", params.len()),
                             )));
                         }
                     }
@@ -347,7 +471,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
 
                 // Provide information about the location of the target type if available
-                if let Some(location) = err.location_store().get_location(params_subject) {
+                if let Some(location) = err.location_store().get_location(*params_subject) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!("the {} is defined here", params.origin()),
@@ -885,6 +1009,43 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "this cannot be called because it's not function-like",
+                    )));
+                }
+            }
+            TcError::UselessMatchCase { pattern, subject } => {
+                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
+                    "match case `{}` is redundant when matching on `{}`",
+                    pattern.for_formatting(err.global_storage()),
+                    subject.for_formatting(err.global_storage())
+                ));
+
+                if let Some(location) = err.location_store().get_location(subject) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "the match subject is given here...",
+                    )));
+                }
+
+                if let Some(location) = err.location_store().get_location(pattern) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "...and this pattern will never match the subject".to_string(),
+                    )));
+                }
+            }
+            TcError::CannotPatternMatchWithoutAssignment { pattern } => {
+                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(
+                    "declaration left-hand side cannot contain a pattern if no value is provided"
+                        .to_string(),
+                );
+
+                if let Some(location) = err.location_store().get_location(pattern) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!(
+                            "pattern `{}` is given here on an unset declaration",
+                            pattern.for_formatting(err.global_storage())
+                        ),
                     )));
                 }
             }

@@ -3,12 +3,13 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, AppSub, Arg, ArgsId, EnumDef, EnumVariant, EnumVariantValue, FnCall,
-        FnLit, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm, Member, MemberData,
-        ModDef, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, Param, ParamList,
-        ParamOrigin, ParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
-        TermId, TrtDef, TrtDefId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var,
-        Visibility,
+        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPattern, ConstructorPattern, EnumDef,
+        EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPattern, Level0Term, Level1Term,
+        Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
+        ModPattern, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamOrigin, ParamsId,
+        Pattern, PatternId, PatternParam, PatternParamsId, Scope, ScopeId, ScopeKind, StructDef,
+        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall,
+        TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -392,6 +393,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
         })))
     }
 
+    /// Create the void term: [Level0Term::Tuple] with no members.
+    pub fn create_void_term(&self) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Tuple(TupleLit {
+            members: self.create_args([], ParamOrigin::Tuple),
+        })))
+    }
+
     /// Create the never term: [Term::Union] with no members.
     pub fn create_never_term(&self) -> TermId {
         self.create_term(Term::Union(vec![]))
@@ -400,6 +408,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a tuple type term [Level1Term::Tuple].
     pub fn create_tuple_ty_term(&self, members: ParamsId) -> TermId {
         self.create_term(Term::Level1(Level1Term::Tuple(TupleTy { members })))
+    }
+
+    /// Create a tuple literal term [Level0Term::Tuple].
+    pub fn create_tuple_lit_term(&self, members: ArgsId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Tuple(TupleLit { members })))
     }
 
     /// Create a [Level0Term::Rt] of the given type.
@@ -431,6 +444,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a term with the given term value.
     pub fn create_term(&self, term: Term) -> TermId {
         self.gs.borrow_mut().term_store.create(term)
+    }
+
+    /// Create a pattern with the given pattern value.
+    pub fn create_pattern(&self, pattern: Pattern) -> PatternId {
+        self.gs.borrow_mut().pattern_store.create(pattern)
     }
 
     /// Create a [Level1Term::Fn] term with the given parameters and return
@@ -639,6 +657,88 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_app_ty_fn_term(&self, subject: TermId, args: ArgsId) -> TermId {
         let app_ty_fn = self.create_app_ty_fn(subject, args);
         self.create_term(Term::TyFnCall(app_ty_fn))
+    }
+
+    /// Create pattern parameters from the given pattern parameter iterator.
+    pub fn create_pattern_params(
+        &self,
+        params: impl IntoIterator<Item = PatternParam>,
+        origin: ParamOrigin,
+    ) -> PatternParamsId {
+        self.gs
+            .borrow_mut()
+            .pattern_params_store
+            .create(ParamList::new(params.into_iter().collect(), origin))
+    }
+
+    /// Create a pattern parameter
+    pub fn create_pattern_param(
+        &self,
+        name: impl Into<Identifier>,
+        pattern: PatternId,
+    ) -> PatternParam {
+        PatternParam { name: Some(name.into()), pattern }
+    }
+
+    /// Create a constructor pattern.
+    pub fn create_constructor_pattern(
+        &self,
+        subject: TermId,
+        params: PatternParamsId,
+    ) -> PatternId {
+        self.create_pattern(Pattern::Constructor(ConstructorPattern {
+            subject,
+            params: Some(params),
+        }))
+    }
+
+    /// Create a constructor pattern without parameters.
+    pub fn create_constant_pattern(&self, subject: TermId) -> PatternId {
+        self.create_pattern(Pattern::Constructor(ConstructorPattern { subject, params: None }))
+    }
+
+    /// Create a binding pattern.
+    pub fn create_binding_pattern(
+        &self,
+        name: impl Into<Identifier>,
+        mutability: Mutability,
+        visibility: Visibility,
+    ) -> PatternId {
+        self.create_pattern(Pattern::Binding(BindingPattern {
+            name: name.into(),
+            mutability,
+            visibility,
+        }))
+    }
+
+    /// Create a module pattern.
+    pub fn create_mod_pattern(&self, members: PatternParamsId) -> PatternId {
+        self.create_pattern(Pattern::Mod(ModPattern { members }))
+    }
+
+    /// Create a tuple pattern.
+    pub fn create_tuple_pattern(&self, members: PatternParamsId) -> PatternId {
+        self.create_pattern(Pattern::Tuple(members))
+    }
+
+    /// Create a literal pattern.
+    pub fn create_lit_pattern(&self, lit_term: TermId) -> PatternId {
+        self.create_pattern(Pattern::Lit(lit_term))
+    }
+
+    /// Create an OR-pattern.
+    pub fn create_or_pattern(&self, patterns: impl IntoIterator<Item = PatternId>) -> PatternId {
+        self.create_pattern(Pattern::Or(patterns.into_iter().collect()))
+    }
+
+    /// Create a conditional pattern.
+    pub fn create_if_pattern(&self, pattern: PatternId, condition: TermId) -> PatternId {
+        self.create_pattern(Pattern::If(IfPattern { pattern, condition }))
+    }
+
+    /// Create an ignore pattern ("_").
+    pub fn create_ignore_pattern(&self) -> PatternId {
+        self.create_pattern(Pattern::Ignore)
     }
 
     /// Add a [SourceLocation] to a [LocationTarget].

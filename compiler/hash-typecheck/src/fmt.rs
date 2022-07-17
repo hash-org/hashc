@@ -4,9 +4,9 @@
 use crate::storage::{
     primitives::{
         AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-        MemberData, ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId,
-        Pattern, PatternId, PatternParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId,
-        TrtDefId, UnresolvedTerm, Visibility,
+        MemberData, ModDefId, ModDefOrigin, ModPattern, Mutability, NominalDef, NominalDefId,
+        ParamsId, Pattern, PatternId, PatternParamsId, ScopeId, StructDef, Sub, SubSubject, Term,
+        TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -196,23 +196,24 @@ impl<'gs> TcFormatter<'gs> {
         match term {
             Level0Term::Rt(ty_id) => {
                 opts.is_atomic.set(true);
-                write!(f, "{{runtime value of type {}}}", ty_id.for_formatting(self.global_storage))
+                write!(f, "{{value {}}}", ty_id.for_formatting(self.global_storage))
             }
             Level0Term::FnLit(fn_lit) => {
                 opts.is_atomic.set(true);
                 write!(
                     f,
-                    "{{function literal of type {}}}",
-                    fn_lit.fn_ty.for_formatting(self.global_storage)
+                    "{} => {}",
+                    fn_lit.fn_ty.for_formatting(self.global_storage),
+                    fn_lit.return_value.for_formatting(self.global_storage),
                 )
             }
             Level0Term::EnumVariant(enum_variant) => {
                 opts.is_atomic.set(true);
                 write!(
                     f,
-                    "{{enum variant '{}' of {}}}",
+                    "{}::{}",
+                    enum_variant.enum_def_id.for_formatting(self.global_storage),
                     enum_variant.variant_name,
-                    enum_variant.enum_def_id.for_formatting(self.global_storage)
                 )
             }
             Level0Term::FnCall(fn_call) => {
@@ -234,6 +235,10 @@ impl<'gs> TcFormatter<'gs> {
                         write!(f, "\'{}\'", char)
                     }
                 }
+            }
+            Level0Term::Tuple(tuple_lit) => {
+                opts.is_atomic.set(true);
+                write!(f, "({})", tuple_lit.members.for_formatting(self.global_storage))
             }
         }
     }
@@ -598,7 +603,10 @@ impl<'gs> TcFormatter<'gs> {
             Pattern::Constructor(constructor_pattern) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, constructor_pattern.subject, opts)?;
-                write!(f, "({})", constructor_pattern.params.for_formatting(self.global_storage))
+                if let Some(params) = constructor_pattern.params {
+                    write!(f, "({})", params.for_formatting(self.global_storage))?;
+                }
+                Ok(())
             }
             Pattern::Or(patterns) => {
                 if patterns.is_empty() {
@@ -625,6 +633,33 @@ impl<'gs> TcFormatter<'gs> {
             }
             Pattern::Ignore => {
                 write!(f, "_")
+            }
+            Pattern::Mod(ModPattern { members }) => {
+                opts.is_atomic.set(true);
+                let pattern_params = self.global_storage.pattern_params_store.get(*members);
+
+                write!(f, "{{ ")?;
+                for (i, param) in pattern_params.positional().iter().enumerate() {
+                    match param.name {
+                        Some(param_name) => {
+                            write!(
+                                f,
+                                "{} as {}",
+                                param_name,
+                                param.pattern.for_formatting(self.global_storage)
+                            )?;
+                        }
+                        None => {
+                            self.fmt_pattern(f, param.pattern, TcFormatOpts::default())?;
+                        }
+                    }
+                    if i != pattern_params.positional().len() - 1 {
+                        write!(f, "; ")?;
+                    }
+                }
+                write!(f, " }}")?;
+
+                Ok(())
             }
         }
     }

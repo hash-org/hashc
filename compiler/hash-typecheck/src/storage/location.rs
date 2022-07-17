@@ -25,9 +25,53 @@ pub enum LocationTarget {
     Declaration(ScopeId, usize),
     /// A pattern parameter key includes the parent [ParamsPatternId] and an
     /// index to which parameter
-    ParamPattern(PatternParamsId, usize),
+    PatternParam(PatternParamsId, usize),
     /// A pattern.
     Pattern(PatternId),
+}
+
+/// Types that paired with an index, create a [LocationTarget].
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum IndexedLocationTarget {
+    Params(ParamsId),
+    Args(ArgsId),
+    Scope(ScopeId),
+    PatternParams(PatternParamsId),
+}
+
+impl From<ParamsId> for IndexedLocationTarget {
+    fn from(id: ParamsId) -> Self {
+        IndexedLocationTarget::Params(id)
+    }
+}
+
+impl From<ArgsId> for IndexedLocationTarget {
+    fn from(id: ArgsId) -> Self {
+        IndexedLocationTarget::Args(id)
+    }
+}
+
+impl From<PatternParamsId> for IndexedLocationTarget {
+    fn from(id: PatternParamsId) -> Self {
+        IndexedLocationTarget::PatternParams(id)
+    }
+}
+
+impl From<ScopeId> for IndexedLocationTarget {
+    fn from(id: ScopeId) -> Self {
+        IndexedLocationTarget::Scope(id)
+    }
+}
+
+impl From<(IndexedLocationTarget, usize)> for LocationTarget {
+    fn from((target, i): (IndexedLocationTarget, usize)) -> Self {
+        match target {
+            IndexedLocationTarget::Params(params) => LocationTarget::Param(params, i),
+            IndexedLocationTarget::Args(args) => LocationTarget::Arg(args, i),
+            IndexedLocationTarget::PatternParams(params) => LocationTarget::PatternParam(params, i),
+            IndexedLocationTarget::Scope(scope) => LocationTarget::Declaration(scope, i),
+        }
+    }
 }
 
 /// Stores the source location of various targets in the AST tree.
@@ -103,7 +147,7 @@ impl LocationStore {
                     .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
                 map.borrow_mut().insert(index, location);
             }
-            LocationTarget::ParamPattern(param_pattern, index) => {
+            LocationTarget::PatternParam(param_pattern, index) => {
                 let map = self
                     .param_pattern_map
                     .entry(param_pattern)
@@ -128,36 +172,62 @@ impl LocationStore {
                 Some(*self.declaration_map.get(&scope)?.borrow().get(&index)?)
             }
             LocationTarget::Pattern(pattern) => self.pattern_map.get(&pattern).copied(),
-            LocationTarget::ParamPattern(param_pattern, index) => {
+            LocationTarget::PatternParam(param_pattern, index) => {
                 Some(*self.param_pattern_map.get(&param_pattern)?.borrow().get(&index)?)
             }
         }
     }
 
-    /// Copy a parameter set within [LocationStore]. This will copy the internal
-    /// reference of the src [ParamsId] to the `dest` [ParamsId]. This does not
-    /// create a new separate copy of locations.
-    pub fn copy_params_locations(&mut self, src: ParamsId, dest: ParamsId) {
-        if let Some(origin) = self.param_map.get(&src) {
-            self.param_map.insert(dest, origin.clone());
-        }
-    }
+    /// Copy a set of locations from the first [IndexedLocationTarget] to the
+    /// second [IndexedLocationTarget].
+    pub fn copy_locations(
+        &mut self,
+        src: impl Into<IndexedLocationTarget> + Clone,
+        dest: impl Into<IndexedLocationTarget> + Clone,
+    ) {
+        let src = src.into();
+        let dest = dest.into();
 
-    /// Copy a arguments set within [LocationStore]. This will copy the internal
-    /// reference of the src [ArgsId] to the `dest` [ArgsId]. This does not
-    /// create a new separate copy of locations.
-    pub fn copy_args_locations(&mut self, src: ArgsId, dest: ArgsId) {
-        if let Some(origin) = self.arg_map.get(&src) {
-            self.arg_map.insert(dest, origin.clone());
+        macro_rules! insert_dest {
+            ($origin:expr) => {
+                match dest {
+                    IndexedLocationTarget::Params(dest) => {
+                        self.param_map.insert(dest, $origin.clone());
+                    }
+                    IndexedLocationTarget::Args(dest) => {
+                        self.arg_map.insert(dest, $origin.clone());
+                    }
+                    IndexedLocationTarget::PatternParams(dest) => {
+                        self.param_pattern_map.insert(dest, $origin.clone());
+                    }
+                    IndexedLocationTarget::Scope(dest) => {
+                        self.declaration_map.insert(dest, $origin.clone());
+                    }
+                }
+            };
         }
-    }
 
-    /// Copy a declaration set within [LocationStore]. This will copy the
-    /// internal reference of the src [ScopeId] to the `dest` [ScopeId].
-    /// This does not create a new separate copy of locations.
-    pub fn copy_declarations_locations(&mut self, src: ScopeId, dest: ScopeId) {
-        if let Some(origin) = self.declaration_map.get(&src) {
-            self.declaration_map.insert(dest, origin.clone());
+        match src {
+            IndexedLocationTarget::Params(src) => {
+                if let Some(origin) = self.param_map.get(&src) {
+                    insert_dest!(origin);
+                }
+            }
+            IndexedLocationTarget::Args(src) => {
+                if let Some(origin) = self.arg_map.get(&src) {
+                    insert_dest!(origin);
+                }
+            }
+            IndexedLocationTarget::PatternParams(src) => {
+                if let Some(origin) = self.param_pattern_map.get(&src) {
+                    insert_dest!(origin);
+                }
+            }
+            IndexedLocationTarget::Scope(src) => {
+                if let Some(origin) = self.declaration_map.get(&src) {
+                    insert_dest!(origin);
+                }
+            }
         }
     }
 
@@ -188,6 +258,18 @@ impl From<&TermId> for LocationTarget {
     }
 }
 
+impl From<PatternId> for LocationTarget {
+    fn from(id: PatternId) -> Self {
+        Self::Pattern(id)
+    }
+}
+
+impl From<&PatternId> for LocationTarget {
+    fn from(id: &PatternId) -> Self {
+        Self::Pattern(*id)
+    }
+}
+
 impl From<(ParamsId, usize)> for LocationTarget {
     fn from((id, index): (ParamsId, usize)) -> Self {
         Self::Param(id, index)
@@ -203,5 +285,11 @@ impl From<(ArgsId, usize)> for LocationTarget {
 impl From<(ScopeId, usize)> for LocationTarget {
     fn from((id, index): (ScopeId, usize)) -> Self {
         Self::Declaration(id, index)
+    }
+}
+
+impl From<(PatternParamsId, usize)> for LocationTarget {
+    fn from((id, index): (PatternParamsId, usize)) -> Self {
+        Self::PatternParam(id, index)
     }
 }

@@ -3,8 +3,8 @@
 
 use crate::storage::{
     primitives::{
-        Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Scope, ScopeId,
-        Term, TermId, TrtDef, TrtDefId,
+        Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Pattern,
+        PatternId, PatternParams, PatternParamsId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId,
     },
     GlobalStorage,
 };
@@ -31,6 +31,11 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.term_store.get(term_id)
     }
 
+    /// Get the pattern with the given [PatternId].
+    pub fn get_pattern(&self, pattern_id: PatternId) -> &Pattern {
+        self.gs.pattern_store.get(pattern_id)
+    }
+
     /// Get the module definition with the given [ModDefId].
     pub fn get_mod_def(&self, mod_def_id: ModDefId) -> &ModDef {
         self.gs.mod_def_store.get(mod_def_id)
@@ -54,6 +59,11 @@ impl<'gs> PrimitiveReader<'gs> {
     /// Get the params with the given [ParamsId].
     pub fn get_params(&self, params_id: ParamsId) -> &Params {
         self.gs.params_store.get(params_id)
+    }
+
+    /// Get the pattern_params with the given [PatternParamsId].
+    pub fn get_pattern_params(&self, pattern_params_id: PatternParamsId) -> &PatternParams {
+        self.gs.pattern_params_store.get(pattern_params_id)
     }
 
     /// Get the trait definition with the given [TrtDefId].

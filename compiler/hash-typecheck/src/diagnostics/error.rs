@@ -1,6 +1,9 @@
 //! Error-related data structures for errors that occur during typechecking.
 
-use crate::storage::primitives::{AccessTerm, ArgsId, ParamsId, TermId, TyFnCase};
+use crate::storage::{
+    location::LocationTarget,
+    primitives::{AccessTerm, ArgsId, ParamsId, PatternId, TermId, TyFnCase},
+};
 use hash_source::identifier::Identifier;
 
 use super::{
@@ -16,14 +19,26 @@ pub type TcResult<T> = Result<T, TcError>;
 pub enum TcError {
     /// Cannot unify the two terms.
     CannotUnify { src: TermId, target: TermId },
+    // @@Refactor: It would be nice to not have separate variants for `CannotUnifyArgs` and
+    // `CannotUnifyParams`.
+    /// Cannot unify the two argument lists. This can occur if the names
+    /// don't match of the arguments or if the number of arguments isn't the
+    /// same.
+    CannotUnifyArgs {
+        src_args_id: ArgsId,
+        target_args_id: ArgsId,
+        src: TermId,
+        target: TermId,
+        reason: ParamUnificationErrorReason,
+    },
     /// Cannot unify the two parameter lists. This can occur if the names
     /// don't match of the parameters or if the number of parameters isn't the
-    /// same.
+    /// same, or the types mismatch.
     CannotUnifyParams {
         src_params_id: ParamsId,
         target_params_id: ParamsId,
-        src: TermId,
-        target: TermId,
+        src: LocationTarget,
+        target: LocationTarget,
         reason: ParamUnificationErrorReason,
     },
     /// The given term should be a type function but it isn't.
@@ -34,12 +49,17 @@ pub enum TcError {
     MismatchingArgParamLength {
         args_id: ArgsId,
         params_id: ParamsId,
-        params_subject: TermId,
-        args_subject: TermId,
+        params_subject: LocationTarget,
+        args_subject: LocationTarget,
     },
     /// The parameter with the given name is not found in the given parameter
     /// list.
-    ParamNotFound { args_id: ArgsId, params_id: ParamsId, params_subject: TermId, name: Identifier },
+    ParamNotFound {
+        args_id: ArgsId,
+        params_id: ParamsId,
+        params_subject: LocationTarget,
+        name: Identifier,
+    },
     /// There is a argument or parameter (at the index) which is
     /// specified twice in the given argument list.
     ParamGivenTwice { param_kind: ParamListKind, index: usize },
@@ -116,4 +136,8 @@ pub enum TcError {
         // "terms".
         trt_def_missing_member_term_id: TermId,
     },
+    /// Given match case is never going to match the subject.
+    UselessMatchCase { pattern: PatternId, subject: TermId },
+    /// Cannot use pattern matching in a declaration without an assignment
+    CannotPatternMatchWithoutAssignment { pattern: PatternId },
 }

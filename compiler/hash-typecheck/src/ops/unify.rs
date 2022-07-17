@@ -7,6 +7,7 @@ use crate::{
         params::ParamUnificationErrorReason,
     },
     storage::{
+        location::LocationTarget,
         primitives::{
             ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,
         },
@@ -148,7 +149,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
         for (param, arg) in pairs.into_iter() {
             // Ensure their types unify:
-            let ty_of_arg = self.typer().ty_of_term(arg.value)?;
+            let ty_of_arg = self.typer().infer_ty_of_term(arg.value)?;
             let ty_sub = self.unify_terms(ty_of_arg, param.ty)?;
 
             match mode {
@@ -170,6 +171,53 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         Ok(sub)
     }
 
+    /// Unify the two given argument lists, by argument-wise unifying terms.
+    /// The function requires a reference to the parent source and target
+    /// terms in order to give meaningful error messages.
+    pub(crate) fn unify_args(
+        &mut self,
+        src_args_id: ArgsId,
+        target_args_id: ArgsId,
+        src_id: TermId,
+        target_id: TermId,
+    ) -> TcResult<Sub> {
+        let src_args = self.args_store().get(src_args_id).clone();
+        let target_args = self.args_store().get(target_args_id).clone();
+
+        let cannot_unify = |reason: ParamUnificationErrorReason| {
+            Err(TcError::CannotUnifyArgs {
+                src_args_id,
+                target_args_id,
+                reason,
+                src: src_id,
+                target: target_id,
+            })
+        };
+
+        // Ensure the argument lengths match
+        if src_args.positional().len() != target_args.positional().len() {
+            return cannot_unify(ParamUnificationErrorReason::LengthMismatch);
+        }
+
+        // For each argument, ensure it is the same:
+        let mut cumulative_sub = Sub::empty();
+        let pairs = src_args.positional().iter().zip(target_args.positional());
+        for (index, (src_param, target_param)) in pairs.enumerate() {
+            // Names match
+            if src_param.name != target_param.name {
+                return cannot_unify(ParamUnificationErrorReason::NameMismatch(index));
+            }
+            // Values match
+            let ty_sub = self.unify_terms(src_param.value, target_param.value)?;
+
+            // Add to cumulative substitution
+            cumulative_sub.extend(&ty_sub);
+        }
+
+        // Return the cumulative substitution of all the arguments:
+        Ok(cumulative_sub)
+    }
+
     /// Unify the two given parameter lists, by parameter-wise unifying terms.
     /// The function requires a reference to the parent source and target
     /// terms in order to give meaningful error messages.
@@ -177,8 +225,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         &mut self,
         src_params_id: ParamsId,
         target_params_id: ParamsId,
-        src_id: TermId,
-        target_id: TermId,
+        src: impl Into<LocationTarget>,
+        target: impl Into<LocationTarget>,
     ) -> TcResult<Sub> {
         let src_params = self.params_store().get(src_params_id).clone();
         let target_params = self.params_store().get(target_params_id).clone();
@@ -188,8 +236,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 src_params_id,
                 target_params_id,
                 reason,
-                src: src_id,
-                target: target_id,
+                src: src.into(),
+                target: target.into(),
             })
         };
 
@@ -269,6 +317,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
                     Ok(Sub::from_pairs([(inner, instantiated_target)]))
                 }
+                // If the inner is not runtime instantiable, it succeeds but with no substitution.
+                Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
             (_, Term::TyOf(target_inner)) => match self.term_store().get(target_inner).clone() {
@@ -282,6 +332,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
                     Ok(Sub::from_pairs([(inner, instantiated_source)]))
                 }
+                // If the inner is not runtime instantiable, it succeeds but with no substitution.
+                Term::Unresolved(_) => Ok(Sub::empty()),
                 _ => cannot_unify(),
             },
 
@@ -407,7 +459,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                     // Here we use the target's subject but it shouldn't matter.
                     .apply_sub_to_term(&subject_sub, target_app_ty_fn.subject);
 
-                let subject_ty_id = self.typer().ty_of_term(subject)?;
+                let subject_ty_id = self.typer().infer_ty_of_term(subject)?;
                 let reader = self.reader();
                 let subject_ty = reader.get_term(subject_ty_id);
                 match subject_ty {
@@ -562,6 +614,32 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                         } else {
                             cannot_unify()
                         }
+                    }
+                    (Level0Term::Lit(src_lit), Level0Term::Lit(target_lit)) => {
+                        if src_lit == target_lit {
+                            // They are the same literal:
+                            Ok(Sub::empty())
+                        } else {
+                            cannot_unify()
+                        }
+                    }
+                    (Level0Term::Tuple(src_tuple_lit), Level0Term::Tuple(target_tuple_lit)) => {
+                        // Unify each argument:
+                        self.unifier().unify_args(
+                            src_tuple_lit.members,
+                            target_tuple_lit.members,
+                            src_id,
+                            target_id,
+                        )
+                    }
+                    (Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::EnumVariant(_), _) => {
+                        // Try to get the type of the src literal, and the type of the target, and
+                        // unify:
+                        let src_lit_ty =
+                            self.typer().infer_ty_of_simplified_term(simplified_src_id)?;
+                        let target_non_lit_ty =
+                            self.typer().infer_ty_of_simplified_term(simplified_target_id)?;
+                        self.unify_terms(src_lit_ty, target_non_lit_ty)
                     }
                     // Any other level-0 term does not unify:
                     _ => cannot_unify(),

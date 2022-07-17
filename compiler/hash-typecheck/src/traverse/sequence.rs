@@ -26,7 +26,7 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         let mut shared_term = self.builder().create_unresolved_term();
 
         while let Some(element) = elements.next() {
-            let element_ty = self.typer().ty_of_term(element)?;
+            let element_ty = self.typer().infer_ty_of_term(element)?;
             let sub = self.unifier().unify_terms(element_ty, shared_term)?;
 
             // apply the substitution on the `shared_term`

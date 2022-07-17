@@ -241,7 +241,7 @@ impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamT
 }
 
 /// An argument to a parameter.
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Copy)]
 pub struct Arg {
     pub name: Option<Identifier>,
     pub value: TermId,
@@ -258,7 +258,7 @@ pub type Args = ParamList<Arg>;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// default value.
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Copy)]
 pub struct Param {
     pub name: Option<Identifier>,
     pub ty: TermId,
@@ -691,6 +691,12 @@ pub struct FnLit {
     pub return_value: TermId,
 }
 
+/// A tuple literal, containing arguments as members.
+#[derive(Debug, Clone, Copy)]
+pub struct TupleLit {
+    pub members: ArgsId,
+}
+
 /// A level 0 term.
 ///
 /// Type of: nothing.
@@ -708,6 +714,9 @@ pub enum Level0Term {
 
     /// An enum variant, which is either a constant term or a function value.
     EnumVariant(EnumVariantValue),
+
+    /// Tuple literal.
+    Tuple(TupleLit),
 
     /// A literal term
     Lit(LitTerm),
@@ -967,7 +976,9 @@ pub type PatternParams = ParamList<PatternParam>;
 #[derive(Clone, Debug, Copy)]
 pub struct ConstructorPattern {
     pub subject: TermId,
-    pub params: PatternParamsId,
+    /// If `params` is `None`, it means that the constructor has no parameters;
+    /// it is a unit.
+    pub params: Option<PatternParamsId>,
 }
 
 /// A conditional pattern, containing a pattern and an condition.
@@ -975,6 +986,13 @@ pub struct ConstructorPattern {
 pub struct IfPattern {
     pub pattern: PatternId,
     pub condition: TermId,
+}
+
+/// A module pattern, containing a list of patterns to be used to match module
+/// members.
+#[derive(Clone, Debug, Copy)]
+pub struct ModPattern {
+    pub members: PatternParamsId,
 }
 
 /// Represents a pattern in the language.
@@ -990,6 +1008,8 @@ pub enum Pattern {
     Lit(TermId),
     /// Tuple pattern.
     Tuple(PatternParamsId),
+    /// Module pattern.
+    Mod(ModPattern),
     /// Constructor pattern.
     Constructor(ConstructorPattern),
     /// A set of patterns that are OR-ed together. If any one of them matches
