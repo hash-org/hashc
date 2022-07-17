@@ -9,7 +9,7 @@ use crate::{
     },
     ops::{AccessToOps, AccessToOpsMut},
     storage::{
-        location::LocationTarget,
+        location::{IndexedLocationTarget, LocationTarget},
         primitives::{
             AccessOp, Arg, ArgsId, BindingPattern, BoundVars, EnumVariant, Member, MemberData,
             ModDefOrigin, Mutability, Param, ParamOrigin, Pattern, PatternId, PatternParam, Sub,
@@ -133,16 +133,14 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Copy the [SourceLocation] of the given [hash_ast::ast::AstNode] list to
     /// the given [LocationTarget] list represented by a type `Target` where
     /// `(Target, usize)` implements [Into<LocationTarget>].
-    pub(crate) fn copy_location_from_nodes_to_targets<'n, N: 'n, Target>(
+    pub(crate) fn copy_location_from_nodes_to_targets<'n, N: 'n>(
         &mut self,
         nodes: impl IntoIterator<Item = AstNodeRef<'n, N>>,
-        targets: Target,
-    ) where
-        (Target, usize): Into<LocationTarget>,
-        Target: Copy,
-    {
+        targets: impl Into<IndexedLocationTarget> + Clone,
+    ) {
+        let targets = targets.into();
         for (index, param) in nodes.into_iter().enumerate() {
-            self.copy_location_from_node_to_target(param, (targets, index));
+            self.copy_location_from_node_to_target(param, LocationTarget::from((targets, index)));
         }
     }
 }

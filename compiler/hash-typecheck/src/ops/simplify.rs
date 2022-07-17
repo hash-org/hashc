@@ -949,7 +949,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         // Only return the new args if we simplified them:
         if simplified_once {
             let new_args = self.builder().create_args(result, args.origin());
-            self.location_store_mut().copy_args_locations(args_id, new_args);
+            self.location_store_mut().copy_locations(args_id, new_args);
 
             Ok(Some(new_args))
         } else {
@@ -997,7 +997,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         // Only return the new params if we simplified them:
         if simplified_once {
             let new_params = self.builder().create_params(result, params.origin());
-            self.location_store_mut().copy_params_locations(params_id, new_params);
+            self.location_store_mut().copy_locations(params_id, new_params);
 
             Ok(Some(new_params))
         } else {

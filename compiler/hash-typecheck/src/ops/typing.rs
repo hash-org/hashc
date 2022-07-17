@@ -343,7 +343,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             }
             Pattern::Constructor(constructor_pattern) => match constructor_pattern.params {
                 Some(params) => {
-                    // We have params to apply
+                    // We have params to apply, so we need to create an FnCall
                     let args_id = self.args_of_pattern_params(params)?;
                     let builder = self.builder();
                     Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
