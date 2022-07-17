@@ -1316,10 +1316,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                     }
                     None => {
                         // Does not match, indicate that the case is useless!
-                        redundant_errors.push(TcError::UselessMatchCase {
-                            match_case_pattern: case_pattern,
-                            subject,
-                        });
+                        redundant_errors
+                            .push(TcError::UselessMatchCase { pattern: case_pattern, subject });
                         Ok(None)
                     }
                 }
@@ -1645,7 +1643,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                     Some(members) => members,
                     None => {
                         return Err(TcError::UselessMatchCase {
-                            match_case_pattern: pattern_id,
+                            pattern: pattern_id,
                             subject: value,
                         })
                     }

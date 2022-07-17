@@ -1012,10 +1012,10 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::UselessMatchCase { match_case_pattern, subject } => {
+            TcError::UselessMatchCase { pattern, subject } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
                     "match case `{}` is redundant when matching on `{}`",
-                    match_case_pattern.for_formatting(err.global_storage()),
+                    pattern.for_formatting(err.global_storage()),
                     subject.for_formatting(err.global_storage())
                 ));
 
@@ -1026,7 +1026,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
 
-                if let Some(location) = err.location_store().get_location(match_case_pattern) {
+                if let Some(location) = err.location_store().get_location(pattern) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...and this pattern will never match the subject".to_string(),
