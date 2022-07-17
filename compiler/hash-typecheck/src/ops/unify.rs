@@ -149,7 +149,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
         for (param, arg) in pairs.into_iter() {
             // Ensure their types unify:
-            let ty_of_arg = self.typer().ty_of_term(arg.value)?;
+            let ty_of_arg = self.typer().infer_ty_of_term(arg.value)?;
             let ty_sub = self.unify_terms(ty_of_arg, param.ty)?;
 
             match mode {
@@ -459,7 +459,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                     // Here we use the target's subject but it shouldn't matter.
                     .apply_sub_to_term(&subject_sub, target_app_ty_fn.subject);
 
-                let subject_ty_id = self.typer().ty_of_term(subject)?;
+                let subject_ty_id = self.typer().infer_ty_of_term(subject)?;
                 let reader = self.reader();
                 let subject_ty = reader.get_term(subject_ty_id);
                 match subject_ty {
@@ -635,9 +635,10 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                     (Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::EnumVariant(_), _) => {
                         // Try to get the type of the src literal, and the type of the target, and
                         // unify:
-                        let src_lit_ty = self.typer().ty_of_simplified_term(simplified_src_id)?;
+                        let src_lit_ty =
+                            self.typer().infer_ty_of_simplified_term(simplified_src_id)?;
                         let target_non_lit_ty =
-                            self.typer().ty_of_simplified_term(simplified_target_id)?;
+                            self.typer().infer_ty_of_simplified_term(simplified_target_id)?;
                         self.unify_terms(src_lit_ty, target_non_lit_ty)
                     }
                     // Any other level-0 term does not unify:

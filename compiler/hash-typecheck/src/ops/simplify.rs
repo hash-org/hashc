@@ -247,7 +247,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 });
                 if let Ok(Some(ty_access_result)) = ty_access_result {
                     // To get the function type, we need to get the type of the result.
-                    let ty_of_ty_access_result = self.typer().ty_of_term(ty_access_result)?;
+                    let ty_of_ty_access_result = self.typer().infer_ty_of_term(ty_access_result)?;
                     // Then we can try turn this into a method call
                     return Some(self.turn_accessed_ty_and_subject_ty_into_method(
                         ty_of_ty_access_result,
@@ -264,7 +264,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 //
                 // This is possible because traits will return the type of their
                 // members when accessing members.
-                let ty_of_ty_term_id = self.typer().ty_of_term(*ty_term_id)?;
+                let ty_of_ty_term_id = self.typer().infer_ty_of_term(*ty_term_id)?;
                 let accessed_result = self.apply_access_term(&AccessTerm {
                     subject: ty_of_ty_term_id,
                     name: access_term.name,
@@ -315,7 +315,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             }
             Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
-                let term = &Level0Term::Rt(self.typer().ty_of_term(originating_term)?);
+                let term = &Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
                 self.apply_access_to_level0_term(term, access_term, originating_term)
             }
         }
@@ -408,7 +408,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Resolve the type of the name:
                 let name_var = self.builder().create_var_term(access_term.name);
-                let result = self.typer().ty_of_term(name_var)?;
+                let result = self.typer().infer_ty_of_term(name_var)?;
 
                 // Pop back the scope
                 self.scopes_mut().pop_scope();
@@ -1204,7 +1204,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             }
             Term::TyOf(term) => {
                 // Get the type of the term:
-                Ok(Some(self.typer().ty_of_term(term)?))
+                Ok(Some(self.typer().infer_ty_of_term(term)?))
             }
             Term::Unresolved(_) => {
                 // Cannot do anything here:

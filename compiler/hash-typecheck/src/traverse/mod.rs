@@ -318,7 +318,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             walk::walk_tuple_literal_entry(self, ctx, node)?;
 
         let ty_or_unresolved = ty.unwrap_or_else(|| self.builder().create_unresolved_term());
-        let value_ty = self.typer().ty_of_term(value)?;
+        let value_ty = self.typer().infer_ty_of_term(value)?;
 
         // Append location to value term
         self.copy_location_from_node_to_target(node.value.ast_ref(), value_ty);
@@ -625,7 +625,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::DerefExpr>,
     ) -> Result<Self::DerefExprRet, Self::Error> {
         let walk::DerefExpr(inner) = walk::walk_deref_expr(self, ctx, node)?;
-        let inner_ty = self.typer().ty_of_term(inner)?;
+        let inner_ty = self.typer().infer_ty_of_term(inner)?;
 
         // Create a `Ref<T>` dummy type for unification...
         let ap_ref_ty = {
@@ -1132,7 +1132,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // Create the type function type term:
         let ty_fn_return_ty = self.builder().or_unresolved_term(return_ty);
-        let ty_of_ty_fn_return_value = self.typer().ty_of_term(body)?;
+        let ty_of_ty_fn_return_value = self.typer().infer_ty_of_term(body)?;
         let return_ty_sub =
             self.unifier().unify_terms(ty_of_ty_fn_return_value, ty_fn_return_ty)?;
         let ty_fn_return_ty = self.substituter().apply_sub_to_term(&return_ty_sub, ty_fn_return_ty);
@@ -1200,7 +1200,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let return_ty_or_unresolved = self.builder().or_unresolved_term(hint_return_ty);
 
         let body_sub = {
-            let ty_of_body = self.typer().ty_of_term(fn_body)?;
+            let ty_of_body = self.typer().infer_ty_of_term(fn_body)?;
             match hint_return_ty {
                 Some(_) => {
                     // Try to unify ty_of_body with void, and if so, then ty of
@@ -1254,7 +1254,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let ty_or_unresolved = self.builder().or_unresolved_term(ty);
         let value_or_unresolved = self.builder().or_unresolved_term(default);
 
-        let value_ty = self.typer().ty_of_term(value_or_unresolved)?;
+        let value_ty = self.typer().infer_ty_of_term(value_or_unresolved)?;
         let ty_sub = self.unifier().unify_terms(value_ty, ty_or_unresolved)?;
 
         let ty = self.substituter().apply_sub_to_term(&ty_sub, ty_or_unresolved);
@@ -1333,7 +1333,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let match_return_types: Vec<_> = match_return_values
             .iter()
             .copied()
-            .map(|value| self.typer().ty_of_term(value))
+            .map(|value| self.typer().infer_ty_of_term(value))
             .collect::<TcResult<_>>()?;
         let return_ty = self.builder().create_union_term(match_return_types);
         let return_term = self.builder().create_rt_term(return_ty);
@@ -1511,7 +1511,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             term
         });
 
-        let return_ty = self.typer().ty_of_term(return_term)?;
+        let return_ty = self.typer().infer_ty_of_term(return_term)?;
         let already_given_return_ty =
             self.state.fn_def_return_ty.unwrap_or_else(|| self.builder().create_unresolved_term());
 
@@ -1619,7 +1619,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Unify the type of the declaration with the type of the value of the
         // declaration.
         let sub = if let Some(value) = value {
-            let ty_of_value = self.typer().ty_of_term(value)?;
+            let ty_of_value = self.typer().infer_ty_of_term(value)?;
             self.unifier().unify_terms(ty_of_value, ty_or_unresolved)?
         } else {
             Sub::empty()
@@ -1741,8 +1741,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         };
 
         let lazy_operator_fn = |visitor: &mut Self, trait_name: &str| -> TcResult<TermId> {
-            let lhs_ty = visitor.typer().ty_of_term(lhs)?;
-            let rhs_ty = visitor.typer().ty_of_term(rhs)?;
+            let lhs_ty = visitor.typer().infer_ty_of_term(lhs)?;
+            let rhs_ty = visitor.typer().infer_ty_of_term(rhs)?;
 
             let builder = visitor.builder();
 
@@ -1862,7 +1862,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Try and figure out a known term...
         let (ty, default_value) = match (ty, default) {
             (Some(annotation_ty), Some(default_value)) => {
-                let default_ty = self.typer().ty_of_term(default_value)?;
+                let default_ty = self.typer().infer_ty_of_term(default_value)?;
 
                 // Here, we have to unify both of the provided types...
                 let sub = self.unifier().unify_terms(default_ty, annotation_ty)?;
@@ -1874,7 +1874,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 (ds_sub, Some(as_sub))
             }
             (None, Some(default_value)) => {
-                let default_ty = self.typer().ty_of_term(default_value)?;
+                let default_ty = self.typer().infer_ty_of_term(default_value)?;
                 (default_ty, Some(default_value))
             }
             (Some(annot_ty), None) => (annot_ty, None),

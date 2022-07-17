@@ -320,7 +320,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     // Validate all fields of an struct def implement `RtInstantiable`
                     let rti_trt = self.core_defs().runtime_instantiable_trt;
                     for field in fields.positional().iter() {
-                        let field_ty = self.typer().ty_of_term(field.ty)?;
+                        let field_ty = self.typer().infer_ty_of_term(field.ty)?;
                         let dummy_rt = self.builder().create_trt_term(rti_trt);
 
                         self.unifier().unify_terms(field_ty, dummy_rt)?;
@@ -346,7 +346,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     let rti_trt = self.core_defs().runtime_instantiable_trt;
 
                     for field in variant_fields.positional().iter() {
-                        let field_ty = self.typer().ty_of_term(field.ty)?;
+                        let field_ty = self.typer().infer_ty_of_term(field.ty)?;
                         let dummy_rt = self.builder().create_trt_term(rti_trt);
 
                         self.unifier().unify_terms(field_ty, dummy_rt)?;
@@ -499,7 +499,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // type is level 2, we cannot be sure it won't have a duplicate nominal
             // definition so we cannot accept it.
             Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => {
-                let ty_id_of_term = self.typer().ty_of_term(merge_element_term_id)?;
+                let ty_id_of_term = self.typer().infer_ty_of_term(merge_element_term_id)?;
                 let reader = self.reader();
                 let ty_of_term = reader.get_term(ty_id_of_term);
                 match ty_of_term {
@@ -595,7 +595,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                 // Ensure the default value's type can be unified with the given type of the
                 // parameter:
-                let ty_of_default_value = self.typer().ty_of_simplified_term(default_value)?;
+                let ty_of_default_value =
+                    self.typer().infer_ty_of_simplified_term(default_value)?;
                 let _ = self.unifier().unify_terms(ty_of_default_value, param.ty)?;
             }
         }
@@ -623,7 +624,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
 
         // Then, we try get its type:
-        let term_ty_id = self.typer().ty_of_simplified_term(simplified_term_id)?;
+        let term_ty_id = self.typer().infer_ty_of_simplified_term(simplified_term_id)?;
 
         // If both of these succeeded, we can perform a few final checks:
         let reader = self.reader();
@@ -878,7 +879,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                     // Ensure that the return type can be unified with the type of the return value:
                     // @@Safety: should be already simplified from above the match.
-                    let return_value_ty = self.typer().ty_of_simplified_term(case.return_value)?;
+                    let return_value_ty =
+                        self.typer().infer_ty_of_simplified_term(case.return_value)?;
                     let _ = self.unifier().unify_terms(return_value_ty, case.return_ty)?;
 
                     // Ensure the return value of each case is a subtype of the general return type.
@@ -941,7 +943,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     /// *Note*: assumes the term has been simplified and validated.
     pub(crate) fn term_is_runtime_instantiable(&mut self, term_id: TermId) -> TcResult<bool> {
         // Ensure that the type of the term unifies with "RuntimeInstantiable":
-        let ty_id_of_term = self.typer().ty_of_simplified_term(term_id)?;
+        let ty_id_of_term = self.typer().infer_ty_of_simplified_term(term_id)?;
         let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
         let rt_instantiable = self.builder().create_trt_term(rt_instantiable_def);
         match self.unifier().unify_terms(ty_id_of_term, rt_instantiable) {
@@ -964,7 +966,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         term_id: TermId,
     ) -> TcResult<bool> {
         // First ensure its type can be used as a return type:
-        let term_ty_id = self.typer().ty_of_simplified_term(term_id)?;
+        let term_ty_id = self.typer().infer_ty_of_simplified_term(term_id)?;
         if !(self.term_can_be_used_as_ty_fn_return_ty(term_ty_id)?) {
             return Ok(false);
         }

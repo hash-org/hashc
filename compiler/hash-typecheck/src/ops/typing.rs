@@ -54,9 +54,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [Self::ty_of_simplified_term].
-    pub(crate) fn ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn infer_ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
-        let new_term = self.ty_of_simplified_term(simplified_term_id)?;
+        let new_term = self.infer_ty_of_simplified_term(simplified_term_id)?;
 
         Ok(new_term)
     }
@@ -74,7 +74,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(InferredMemberData { ty, value: Some(value) })
             }
             MemberData::InitialisedWithInferredTy { value } => {
-                let ty = self.ty_of_term(value)?;
+                let ty = self.infer_ty_of_term(value)?;
                 Ok(InferredMemberData { ty, value: Some(value) })
             }
         }
@@ -85,13 +85,13 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// **Warning**: This might produce unexpected behaviour if the term is not
     /// simplified.
-    pub(crate) fn ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
+    pub(crate) fn infer_ty_of_simplified_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         let term = self.reader().get_term(term_id).clone();
         let new_term = match term {
             Term::Access(access_term) => {
                 // Here we want to get the type of the subject, and ensure it contains this
                 // property, and if so return it.
-                let ty_id_of_subject = self.ty_of_term(access_term.subject)?;
+                let ty_id_of_subject = self.infer_ty_of_term(access_term.subject)?;
                 match access_term.op {
                     // Only namespace is allowed by this point:
                     AccessOp::Namespace => {
@@ -111,7 +111,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Term::TyFnCall(app_ty_fn) => {
                 // Here we want to get the type of the subject, and ensure it is a TyFnTy.
                 // Then, we just apply the args to the type function:
-                let ty_id_of_subject = self.ty_of_term(app_ty_fn.subject)?;
+                let ty_id_of_subject = self.infer_ty_of_term(app_ty_fn.subject)?;
                 let reader = self.reader();
                 let ty_of_subject = reader.get_term(ty_id_of_subject);
                 match ty_of_subject {
@@ -151,8 +151,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             }
             Term::Merge(terms) => {
                 // The type of a merge is a merge of the inner terms:
-                let tys_of_terms: Vec<_> =
-                    terms.iter().map(|term| self.ty_of_term(*term)).collect::<TcResult<_>>()?;
+                let tys_of_terms: Vec<_> = terms
+                    .iter()
+                    .map(|term| self.infer_ty_of_term(*term))
+                    .collect::<TcResult<_>>()?;
                 Ok(self.builder().create_merge_term(tys_of_terms))
             }
             Term::Union(_) => {
@@ -164,7 +166,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Term::AppSub(app_sub) => {
                 // The type of an AppSub is the type of the subject, with the substitution
                 // applied:
-                let ty_of_subject = self.ty_of_term(app_sub.term)?;
+                let ty_of_subject = self.infer_ty_of_term(app_sub.term)?;
                 Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
             }
             Term::Unresolved(_) => {
@@ -223,7 +225,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     }
                     Level0Term::Tuple(tuple_lit) => {
                         // Get the type of the tuple arguments as parameters:
-                        let params = self.params_of_args(tuple_lit.members, false)?;
+                        let params = self.infer_params_of_args(tuple_lit.members, false)?;
                         Ok(self.builder().create_tuple_ty_term(params))
                     }
                     Level0Term::Lit(lit_term) => {
@@ -262,7 +264,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// This will populate the default values with the values of the args if
     /// `populate_defaults` is true.
-    pub(crate) fn params_of_args(
+    pub(crate) fn infer_params_of_args(
         &mut self,
         args_id: ArgsId,
         populate_defaults: bool,
@@ -275,7 +277,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             .map(|arg| {
                 Ok(Param {
                     name: arg.name,
-                    ty: self.ty_of_term(arg.value)?,
+                    ty: self.infer_ty_of_term(arg.value)?,
                     default_value: if populate_defaults { Some(arg.value) } else { None },
                 })
             })
@@ -293,7 +295,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
 
     /// From the given [PatternParamsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn args_of_pattern_params(
+    pub(crate) fn infer_args_of_pattern_params(
         &mut self,
         pattern_params_id: PatternParamsId,
     ) -> TcResult<ArgsId> {
@@ -302,7 +304,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         let param_types: Vec<_> = pattern_params
             .into_positional()
             .into_iter()
-            .map(|param| Ok(Arg { name: param.name, value: self.term_of_pattern(param.pattern)? }))
+            .map(|param| {
+                Ok(Arg { name: param.name, value: self.get_term_of_pattern(param.pattern)? })
+            })
             .collect::<TcResult<_>>()?;
 
         let args_id = self.builder().create_args(param_types.iter().copied(), origin);
@@ -316,14 +320,14 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     }
 
     /// Get the type of the given pattern, as a term.
-    pub(crate) fn ty_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
-        let pattern_term = self.term_of_pattern(pattern_id)?;
-        self.ty_of_term(pattern_term)
+    pub(crate) fn infer_ty_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
+        let pattern_term = self.get_term_of_pattern(pattern_id)?;
+        self.infer_ty_of_term(pattern_term)
     }
 
     /// Get the term of the given pattern, whose type is the type of the pattern
     /// subject.
-    pub(crate) fn term_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
+    pub(crate) fn get_term_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
         let pattern = self.reader().get_pattern(pattern_id).clone();
         let ty_of_pattern = match pattern {
             Pattern::Mod(_) | Pattern::Ignore | Pattern::Binding(_) => {
@@ -337,14 +341,14 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Pattern::Tuple(tuple_pattern) => {
                 // For each parameter, get its type, and then create a tuple
                 // type:
-                let params_id = self.args_of_pattern_params(tuple_pattern)?;
+                let params_id = self.infer_args_of_pattern_params(tuple_pattern)?;
                 let builder = self.builder();
                 Ok(builder.create_tuple_lit_term(params_id))
             }
             Pattern::Constructor(constructor_pattern) => match constructor_pattern.params {
                 Some(params) => {
                     // We have params to apply, so we need to create an FnCall
-                    let args_id = self.args_of_pattern_params(params)?;
+                    let args_id = self.infer_args_of_pattern_params(params)?;
                     let builder = self.builder();
                     Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
                 }
@@ -357,7 +361,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // Get the inner pattern types:
                 let pattern_types: Vec<_> = patterns
                     .into_iter()
-                    .map(|pattern| self.ty_of_pattern(pattern))
+                    .map(|pattern| self.infer_ty_of_pattern(pattern))
                     .collect::<TcResult<_>>()?;
                 // Create a union type:
                 let builder = self.builder();
@@ -365,7 +369,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             }
             Pattern::If(pattern_if) => {
                 // Forward to the pattern
-                self.term_of_pattern(pattern_if.pattern)
+                self.get_term_of_pattern(pattern_if.pattern)
             }
         }?;
 
@@ -383,17 +387,17 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// This function will populate default values if it can (if the tuple is a
     /// literal).
-    pub(crate) fn params_ty_of_tuple_term(
+    pub(crate) fn get_params_ty_of_tuple_term(
         &mut self,
         tuple_term_id: TermId,
     ) -> TcResult<Option<ParamsId>> {
-        let tuple_ty_id = self.ty_of_simplified_term(tuple_term_id)?;
+        let tuple_ty_id = self.infer_ty_of_simplified_term(tuple_term_id)?;
 
         // First, try to read the value as a tuple literal:
         let tuple_term = self.reader().get_term(tuple_term_id).clone();
         match tuple_term {
             Term::Level0(Level0Term::Tuple(tuple_lit)) => {
-                Ok(Some(self.params_of_args(tuple_lit.members, true)?))
+                Ok(Some(self.infer_params_of_args(tuple_lit.members, true)?))
             }
             _ => {
                 // Otherwise, get the type and try to get the parameters that way:
@@ -404,7 +408,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         terms
                             .iter()
                             .copied()
-                            .map(|term| self.params_ty_of_tuple_term(term))
+                            .map(|term| self.get_params_ty_of_tuple_term(term))
                             .flatten_ok()
                             .next()
                             .transpose()

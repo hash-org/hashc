@@ -46,7 +46,7 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
     ) -> TcResult<Option<Vec<Member>>> {
         let TermValidation { simplified_term_id, term_ty_id } =
             self.validator().validate_term(term_id)?;
-        let pattern_ty = self.typer().ty_of_pattern(pattern_id)?;
+        let pattern_ty = self.typer().infer_ty_of_pattern(pattern_id)?;
 
         // First unify the pattern type with the subject type to ensure the match is
         // valid:
@@ -73,7 +73,7 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
             // Tuple: Unify the tuple with the subject, and then recurse to inner patterns
             Pattern::Tuple(tuple_pattern_params_id) => {
                 // Get the term of the tuple and try to unify it with the subject:
-                let tuple_term = self.typer().term_of_pattern(pattern_id)?;
+                let tuple_term = self.typer().get_term_of_pattern(pattern_id)?;
                 match self.unifier().unify_terms(tuple_term, simplified_term_id) {
                     Ok(_) => {
                         let tuple_pattern_params =
@@ -82,12 +82,12 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
                         // First, we get the tuple pattern parameters in the form of args (for
                         // `pair_args_with_params` error reporting):
                         let tuple_pattern_params_as_args_id =
-                            self.typer().args_of_pattern_params(tuple_pattern_params_id)?;
+                            self.typer().infer_args_of_pattern_params(tuple_pattern_params_id)?;
 
                         // We get the subject tuple's parameters:
                         let subject_params_id = self
                             .typer()
-                            .params_ty_of_tuple_term(simplified_term_id)?
+                            .get_params_ty_of_tuple_term(simplified_term_id)?
                             .unwrap_or_else(|| {
                                 tc_panic!(simplified_term_id, self, "This is not a tuple term.")
                             });
@@ -128,7 +128,7 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
             }
             Pattern::Constructor(_) => {
                 // Get the term of the constructor and try to unify it with the subject:
-                let constructor_term = self.typer().term_of_pattern(pattern_id)?;
+                let constructor_term = self.typer().get_term_of_pattern(pattern_id)?;
                 match self.unifier().unify_terms(constructor_term, simplified_term_id) {
                     Ok(_) => {
                         // @@Todo: Get the vars:
