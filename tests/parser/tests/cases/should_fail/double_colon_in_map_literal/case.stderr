@@ -1,5 +1,5 @@
 error: Failed to parse
- --> $DIR/case.hash:1:14
+ --> $DIR/case.hash:1:15
 1 |   k := map!{ 1::2 };
-  |                ^ here
-  = note: Expected an expression, however received a `:`.
+  |                 ^ here
+  = note: Expected an identifier.

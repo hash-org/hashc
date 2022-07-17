@@ -100,8 +100,13 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             // Handle primitive literals
             kind if kind.is_literal() => self.parse_literal(),
             TokenKind::Ident(ident) => {
-                let start = self.node_with_span(Name { ident: *ident }, token.span);
-                self.parse_access_or_type_fn_call(Some(start))?
+                // Create the variable expr
+                self.node_with_span(
+                    Expr::new(ExprKind::Variable(VariableExpr {
+                        name: self.node_with_span(Name { ident: *ident }, token.span),
+                    })),
+                    token.span,
+                )
             }
             TokenKind::Lt => self.node_with_joined_span(
                 Expr::new(ExprKind::TyFnDef(self.parse_type_function_def()?)),
@@ -269,12 +274,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_singular_expr(subject)
     }
 
-    fn parse_access_or_type_fn_call(
-        &self,
-        start: Option<AstNode<Name>>,
-    ) -> AstGenResult<AstNode<Expr>> {
-        let name = self.parse_ns_access(start)?;
-        let name_span = name.span();
+    /// Parse a [TyFnCall] wrapped within a [TyExpr]. This function tries to
+    /// parse `type_args` by using `parse_type_args`. If this parsing fails,
+    /// it could be that this isn't a type function call, but rather a
+    /// simple binary expression which uses the `<` operator.
+    fn maybe_parse_type_fn_call(&self, subject: AstNode<Expr>) -> (AstNode<Expr>, bool) {
+        let span = subject.span();
 
         // @@Speed: so here we want to be efficient about type_args, we'll just try to
         // see if the next token atom is a 'Lt' rather than using parse_token_atom
@@ -283,17 +288,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Lt) => {
                 match self.peek_resultant_fn(|| self.parse_type_args(false)) {
-                    Some(args) => Ok(self.node_with_joined_span(
-                        Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(
-                            Ty::TyFnCall(TyFnCall { subject: name, args }),
-                            &name_span,
-                        )))),
-                        &name_span,
-                    )),
-                    None => Ok(name),
+                    Some(args) => (
+                        self.node_with_joined_span(
+                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(
+                                Ty::TyFnCall(TyFnCall { subject, args }),
+                                &span,
+                            )))),
+                            &span,
+                        ),
+                        true,
+                    ),
+                    None => (subject, false),
                 }
             }
-            _ => Ok(name),
+            _ => (subject, false),
         }
     }
 
@@ -389,27 +397,36 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     ) -> AstGenResult<AstNode<Expr>> {
         // so here we need to peek to see if this is either a index_access, field access
         // or a function call...
-        while let Some(next_token) = self.peek() {
-            match &next_token.kind {
+        while let Some(token) = self.peek() {
+            subject = match token.kind {
                 // Property access or method call
                 TokenKind::Dot => {
-                    self.skip_token(); // eat the token since there isn't any alternative to being an ident or fn call.
-                    subject = self.parse_name_or_method_call(subject)?;
+                    self.skip_token();
+                    self.parse_property_access(subject)?
                 }
+                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
+                {
+                    self.offset.update(|offset| offset + 2);
+                    self.parse_ns_access(subject)?
+                }
+                TokenKind::Lt => match self.maybe_parse_type_fn_call(subject) {
+                    (subject, true) => subject,
+                    // Essentially break because the type_args failed
+                    (subject, false) => return Ok(subject),
+                },
                 // Array index access syntax: ident[...]
                 TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                     self.skip_token();
 
-                    let tree = self.token_trees.get(*tree_index).unwrap();
-                    subject = self.parse_array_index(subject, tree, self.current_location())?;
+                    let tree = self.token_trees.get(tree_index).unwrap();
+                    self.parse_array_index(subject, tree, self.current_location())?
                 }
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, tree_index) => {
                     self.skip_token();
 
-                    let tree = self.token_trees.get(*tree_index).unwrap();
-                    subject =
-                        self.parse_constructor_call(subject, tree, self.current_location())?;
+                    let tree = self.token_trees.get(tree_index).unwrap();
+                    self.parse_constructor_call(subject, tree, self.current_location())?
                 }
                 _ => break,
             }
@@ -719,37 +736,38 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse an single name or a function call that is applied on the left hand
-    /// side expression. Infix calls and name are only separated by method
-    /// calls having parentheses at the end of the name.
-    pub(crate) fn parse_name_or_method_call(
+    /// Parse a property access expression, in other words an [AccessExpr] with
+    /// the [AccessKind::Property] variant.
+    pub(crate) fn parse_property_access(
         &self,
-        _subject: AstNode<Expr>,
+        subject: AstNode<Expr>,
     ) -> AstGenResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Dot));
+        let span = subject.span();
 
-        match &self.next_token() {
-            Some(Token { kind: TokenKind::Ident(id), span: id_span }) => {
-                let subject = self.parse_access_or_type_fn_call(Some(
-                    self.node_with_span(Name { ident: *id }, *id_span),
-                ))?;
+        Ok(self.node_with_joined_span(
+            Expr::new(ExprKind::Access(AccessExpr {
+                subject,
+                property: self.parse_name_with_error(AstGenErrorKind::ExpectedPropertyAccess)?,
+                kind: AccessKind::Property,
+            })),
+            &span,
+        ))
+    }
 
-                match self.peek() {
-                    Some(Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span }) => {
-                        // Eat the generator now...
-                        self.skip_token();
+    /// Parse a namespace access expression.
+    pub(crate) fn parse_ns_access(&self, subject: AstNode<Expr>) -> AstGenResult<AstNode<Expr>> {
+        debug_assert!(self.current_token().has_kind(TokenKind::Colon));
+        let span = subject.span();
 
-                        // so we know that this is the beginning of the function call, so we have to
-                        // essentially parse an arbitrary number
-                        // of expressions separated by commas as arguments to the call.
-                        let tree = self.token_trees.get(*tree_index).unwrap();
-                        self.parse_constructor_call(subject, tree, *span)
-                    }
-                    _ => Ok(subject),
-                }
-            }
-            _ => self.error(AstGenErrorKind::MethodCall, None, None)?,
-        }
+        Ok(self.node_with_joined_span(
+            Expr::new(ExprKind::Access(AccessExpr {
+                subject,
+                property: self.parse_name()?,
+                kind: AccessKind::Namespace,
+            })),
+            &span,
+        ))
     }
 
     /// Function to either parse an expression that is wrapped in parentheses or
@@ -789,7 +807,6 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             match gen.peek() {
                 Some(token) if token.has_kind(TokenKind::Comma) => {
                     gen.skip_token();
-
                     return Ok(tuple);
                 }
                 None => return Ok(tuple),
@@ -821,7 +838,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                     elements.nodes.push(gen.parse_tuple_literal_entry()?)
                 }
-                Some(token) => gen.error(AstGenErrorKind::ExpectedExpr, None, Some(token.kind))?,
+                Some(token) => gen.error_with_location(
+                    AstGenErrorKind::ExpectedExpr,
+                    None,
+                    Some(token.kind),
+                    token.span,
+                )?,
                 None => break,
             }
         }
