@@ -138,6 +138,9 @@ impl<'gs, 'ls, 'cd, 's> PatternMatcher<'gs, 'ls, 'cd, 's> {
                 }
             }
             Pattern::Or(_) => {
+                // Here we have to get the union of all the pattern terms, and also need to
+                // ensure that the bound variables are the same for each
+                // branch and of the same type
                 todo!()
             }
             Pattern::If(if_pattern) => {
