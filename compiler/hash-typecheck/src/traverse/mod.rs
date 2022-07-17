@@ -549,16 +549,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(return_term)?.simplified_term_id)
     }
 
-    type MethodCallExprRet = TermId;
-
-    fn visit_method_call_expr(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::MethodCallExpr>,
-    ) -> Result<Self::MethodCallExprRet, Self::Error> {
-        todo!()
-    }
-
     type AccessExprRet = TermId;
 
     fn visit_access_expr(

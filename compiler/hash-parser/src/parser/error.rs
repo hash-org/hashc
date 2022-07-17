@@ -78,7 +78,7 @@ pub enum AstGenErrorKind {
     /// After a dot operator, the parser expects either a property access or an
     /// infix-like method call which is an extended version of a property
     /// access.
-    MethodCall,
+    ExpectedPropertyAccess,
     /// When the `import()` directive is used, the only argument should be a
     /// string path. @@Future: @@CompTime: This could likely change in the
     /// future.
@@ -143,7 +143,7 @@ impl From<AstGenError> for ParseError {
             }
             AstGenErrorKind::ExpectedFnBody => "Expected a function body".to_string(),
             AstGenErrorKind::ExpectedType => "Expected a type annotation".to_string(),
-            AstGenErrorKind::MethodCall => {
+            AstGenErrorKind::ExpectedPropertyAccess => {
                 "Expected field name access or a method call".to_string()
             }
             AstGenErrorKind::ImportPath => {
