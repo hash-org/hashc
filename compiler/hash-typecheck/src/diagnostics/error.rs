@@ -19,6 +19,8 @@ pub type TcResult<T> = Result<T, TcError>;
 pub enum TcError {
     /// Cannot unify the two terms.
     CannotUnify { src: TermId, target: TermId },
+    // @@Refactor: It would be nice to not have separate variants for `CannotUnifyArgs` and
+    // `CannotUnifyParams`.
     /// Cannot unify the two argument lists. This can occur if the names
     /// don't match of the arguments or if the number of arguments isn't the
     /// same.
