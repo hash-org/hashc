@@ -1355,7 +1355,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared for-block whilst performing typechecking"
         );
@@ -1369,7 +1369,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared while-block whilst performing typechecking"
         );
@@ -1434,7 +1434,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared if-clause whilst performing typechecking"
         );
@@ -1448,7 +1448,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared if-block whilst performing typechecking"
         );
@@ -1869,7 +1869,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             }
             (Some(annot_ty), None) => (annot_ty, None),
             (None, None) => panic_on_span!(
-                self.source_location(node.span()),
+                self.source_location_at_node(node),
                 self.source_map(),
                 "tc: found struct-def field with no value and type annotation"
             ),
@@ -2180,9 +2180,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_float_literal_pattern(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteralPattern>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
-        todo!()
+        panic_on_span!(
+            self.source_location_at_node(node),
+            self.source_map(),
+            "hit float pattern during typechecking"
+        )
     }
 
     type BoolLiteralPatternRet = PatternId;

@@ -1011,9 +1011,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
     ) -> Result<Self::PatternRet, Self::Error> {
-        let _ = walk::walk_pattern(self, ctx, node);
-
-        Ok(())
+        walk::walk_pattern_same_children(self, ctx, node)
     }
 
     type ConstructorPatternRet = ();
@@ -1138,8 +1136,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
     fn visit_float_literal_pattern(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteralPattern>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteralPattern>,
     ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
+        self.append_error(AnalysisErrorKind::DisallowedFloatPattern, node.span());
+
         Ok(())
     }
 
@@ -1157,10 +1157,10 @@ impl AstVisitor for SemanticAnalyser<'_> {
 
     fn visit_literal_pattern(
         &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::LiteralPattern>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LiteralPattern>,
     ) -> Result<Self::LiteralPatternRet, Self::Error> {
-        Ok(())
+        walk::walk_literal_pattern_same_children(self, ctx, node)
     }
 
     type OrPatternRet = ();
