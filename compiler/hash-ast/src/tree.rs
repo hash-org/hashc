@@ -497,23 +497,6 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("function", children))
     }
 
-    type TyFnParamRet = TreeNode;
-    fn visit_ty_fn_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFnParam>,
-    ) -> Result<Self::TyFnParamRet, Self::Error> {
-        let walk::TyFnParam { name, bound, default } = walk::walk_ty_fn_param(self, ctx, node)?;
-
-        Ok(TreeNode::branch(
-            "param",
-            iter::once(TreeNode::branch("name", vec![name]))
-                .chain(bound.map(|t| TreeNode::branch("type", vec![t])))
-                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
-                .collect(),
-        ))
-    }
-
     type TyFnRet = TreeNode;
     fn visit_ty_fn_ty(
         &mut self,
@@ -627,23 +610,6 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TyFnDefArgRet = TreeNode;
-    fn visit_ty_fn_def_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
-        let walk::TyFnDefParam { name, ty, default } = walk::walk_ty_fn_def_param(self, ctx, node)?;
-
-        Ok(TreeNode::branch(
-            "param",
-            iter::once(TreeNode::branch("name", vec![name]))
-                .chain(ty.map(|t| TreeNode::branch("type", vec![t])))
-                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
-                .collect(),
-        ))
-    }
-
     type FnDefRet = TreeNode;
     fn visit_fn_def(
         &mut self,
@@ -661,13 +627,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type FnDefParamRet = TreeNode;
-    fn visit_fn_def_param(
+    type ParamRet = TreeNode;
+    fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FnDefParam>,
-    ) -> Result<Self::FnDefParamRet, Self::Error> {
-        let walk::FnDefParam { name, ty, default } = walk::walk_fn_def_param(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let walk::Param { name, ty, default } = walk::walk_param(self, ctx, node)?;
         Ok(TreeNode::branch(
             "param",
             iter::once(TreeNode::branch("name", vec![name]))
@@ -978,23 +944,6 @@ impl AstVisitor for AstTreeGenerator {
                 TreeNode::branch("subject", vec![subject]),
                 TreeNode::branch("index_expr", vec![index_expr]),
             ],
-        ))
-    }
-
-    type StructDefEntryRet = TreeNode;
-    fn visit_struct_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructDefEntry>,
-    ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        let walk::StructDefEntry { name, ty, default } =
-            walk::walk_struct_def_entry(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            labelled("field", name.label, "\""),
-            ty.map(|t| TreeNode::branch("type", vec![t]))
-                .into_iter()
-                .chain(default.map(|d| TreeNode::branch("default", vec![d])))
-                .collect(),
         ))
     }
 

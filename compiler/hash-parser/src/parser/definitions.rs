@@ -27,7 +27,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse a [StructDefEntry].
-    pub fn parse_struct_def_entry(&self) -> AstGenResult<AstNode<StructDefEntry>> {
+    pub fn parse_struct_def_entry(&self) -> AstGenResult<AstNode<Param>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -48,7 +48,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(StructDefEntry { name, ty, default }, &name_span))
+        Ok(self.node_with_joined_span(
+            Param { name, ty, default, origin: ParamOrigin::Struct },
+            &name_span,
+        ))
     }
 
     /// Parse an [EnumDef]. The keyword `enum` begins the construct and is
@@ -138,7 +141,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     // Parse a [TyFnDefParam] which consists the name of the argument and
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
-    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<TyFnDefParam>> {
+    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<Param>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
@@ -157,7 +160,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             None => None,
         };
 
-        Ok(self.node_with_joined_span(TyFnDefParam { name, ty, default }, &start))
+        Ok(self.node_with_joined_span(
+            Param {
+                name,
+                ty,
+                default: default.map(|node| {
+                    let span = node.span();
+                    self.node_with_span(Expr::new(ExprKind::Ty(TyExpr(node))), span)
+                }),
+                origin: ParamOrigin::TyFn,
+            },
+            &start,
+        ))
     }
 
     /// Parse a [TraitDef]. A [TraitDef] is essentially a block prefixed with

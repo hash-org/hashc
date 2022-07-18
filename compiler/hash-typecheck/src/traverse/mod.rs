@@ -19,7 +19,7 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{AccessKind, AstNodeRef, BinOp, OwnsAstNode, RefKind, UnOp},
+    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, RefKind, UnOp},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -924,27 +924,30 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
-    type TyFnParamRet = Param;
+    // type TyFnParamRet = Param;
 
-    fn visit_ty_fn_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnParam>,
-    ) -> Result<Self::TyFnParamRet, Self::Error> {
-        let walk::TyFnParam { name, bound, default } = walk::walk_ty_fn_param(self, ctx, node)?;
+    // fn visit_ty_fn_param(
+    //     &mut self,
+    //     ctx: &Self::Ctx,
+    //     node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnParam>,
+    // ) -> Result<Self::TyFnParamRet, Self::Error> {
+    //     let walk::TyFnParam { name, bound, default } =
+    // walk::walk_ty_fn_param(self, ctx, node)?;
 
-        // The location of the param type is either the bound or the name (since <T>
-        // means <T: Type>):
-        let location = self.source_location(
-            node.bound.as_ref().map(|bound| bound.span()).unwrap_or_else(|| node.name.span()),
-        );
-        // The type of the param is the given bound, or Type if no bound was given.
-        let runtime_instantiable_trt = self.core_defs().runtime_instantiable_trt;
-        let ty = bound.unwrap_or_else(|| self.builder().create_trt_term(runtime_instantiable_trt));
-        self.location_store_mut().add_location_to_target(ty, location);
+    //     // The location of the param type is either the bound or the name (since
+    // <T>     // means <T: Type>):
+    //     let location = self.source_location(
+    //         node.bound.as_ref().map(|bound| bound.span()).unwrap_or_else(||
+    // node.name.span()),     );
+    //     // The type of the param is the given bound, or Type if no bound was
+    // given.     let runtime_instantiable_trt =
+    // self.core_defs().runtime_instantiable_trt;     let ty =
+    // bound.unwrap_or_else(||
+    // self.builder().create_trt_term(runtime_instantiable_trt));
+    //     self.location_store_mut().add_location_to_target(ty, location);
 
-        Ok(Param { ty, name: Some(name), default_value: default })
-    }
+    //     Ok(Param { ty, name: Some(name), default_value: default })
+    // }
 
     type TyFnRet = TermId;
 
@@ -953,11 +956,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFn>,
     ) -> Result<Self::TyFnRet, Self::Error> {
-        let params_list = Self::try_collect_items(
+        let params = Self::try_collect_items(
             ctx,
-            node.params.iter().map(|a| self.visit_ty_fn_param(ctx, a.ast_ref())),
+            node.params.iter().map(|a| self.visit_param(ctx, a.ast_ref())),
         )?;
-        let params = self.builder().create_params(params_list, ParamOrigin::TyFn);
+        let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
         let param_scope = self.scope_resolver().enter_ty_param_scope(params);
         let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
@@ -1105,7 +1108,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Traverse the parameters:
         let param_elements = Self::try_collect_items(
             ctx,
-            node.params.iter().map(|t| self.visit_ty_fn_def_param(ctx, t.ast_ref())),
+            node.params.iter().map(|t| self.visit_param(ctx, t.ast_ref())),
         )?;
         let params = self.builder().create_params(param_elements, ParamOrigin::TyFn);
 
@@ -1146,22 +1149,22 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(simplified_ty_fn_term)
     }
 
-    type TyFnDefArgRet = Param;
+    // type TyFnDefArgRet = Param;
 
-    fn visit_ty_fn_def_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
-        // Same as type function param:
-        let type_function_param = hash_ast::ast::TyFnParam {
-            name: node.name.clone(),
-            bound: node.ty.clone(),
-            default: node.default.clone(),
-        };
+    // fn visit_ty_fn_def_param(
+    //     &mut self,
+    //     ctx: &Self::Ctx,
+    //     node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
+    // ) -> Result<Self::TyFnDefArgRet, Self::Error> {
+    //     // Same as type function param:
+    //     let type_function_param = hash_ast::ast::TyFnParam {
+    //         name: node.name.clone(),
+    //         bound: node.ty.clone(),
+    //         default: node.default.clone(),
+    //     };
 
-        self.visit_ty_fn_param(ctx, node.with_body(&type_function_param))
-    }
+    //     self.visit_ty_fn_param(ctx, node.with_body(&type_function_param))
+    // }
 
     type FnDefRet = TermId;
     fn visit_fn_def(
@@ -1172,7 +1175,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let params: Vec<_> = node
             .params
             .iter()
-            .map(|a| self.visit_fn_def_param(ctx, a.ast_ref()))
+            .map(|a| self.visit_param(ctx, a.ast_ref()))
             .collect::<TcResult<_>>()?;
 
         let return_ty =
@@ -1234,54 +1237,64 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
-    type FnDefParamRet = Param;
+    type ParamRet = Param;
 
-    fn visit_fn_def_param(
+    fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDefParam>,
-    ) -> Result<Self::FnDefParamRet, Self::Error> {
-        let walk::FnDefParam { name, default, ty } = walk::walk_fn_def_param(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let walk::Param { .. } = walk::walk_param(self, ctx, node)?;
 
-        // Try and figure out a known term...
-        let (ty, default_value) = match (ty, default) {
-            (Some(annotation_ty), Some(default_value)) => {
-                let default_ty = self.typer().infer_ty_of_term(default_value)?;
-
-                // Here, we have to unify both of the provided types...
-                let sub = self.unifier().unify_terms(default_ty, annotation_ty)?;
-
-                let default_value_sub = self.substituter().apply_sub_to_term(&sub, default_value);
-                let annot_sub = self.substituter().apply_sub_to_term(&sub, annotation_ty);
-
-                (annot_sub, Some(default_value_sub))
-            }
-            (None, Some(default_value)) => {
-                let default_ty = self.typer().infer_ty_of_term(default_value)?;
-                (default_ty, Some(default_value))
-            }
-            (Some(annot_ty), None) => (annot_ty, None),
-            (None, None) => panic_on_span!(
-                self.source_location(node.span()),
-                self.source_map(),
-                "tc: found fn-def parameter with no value and type annotation"
-            ),
-        };
-
-        // Append location to value term
-        let ty_span = if node.ty.is_some() {
-            node.ty.as_ref().map(|n| n.span())
-        } else {
-            node.default.as_ref().map(|n| n.span())
-        };
-
-        // @@Note: This should never fail since we panic above if there is no span!
-        if let Some(ty_span) = ty_span {
-            let value_location = self.source_location(ty_span);
-            self.location_store_mut().add_location_to_target(ty, value_location);
+        match node.origin {
+            ast::ParamOrigin::Struct | ast::ParamOrigin::Fn => todo!(),
+            ast::ParamOrigin::TyFn => todo!(),
         }
 
-        Ok(Param { name: Some(name), ty, default_value })
+        // Try and figure out a known term...
+        // let (ty, default_value) = match (ty, default) {
+        //     (Some(annotation_ty), Some(default_value)) => {
+        //         let default_ty =
+        // self.typer().infer_ty_of_term(default_value)?;
+
+        //         // Here, we have to unify both of the provided types...
+        //         let sub = self.unifier().unify_terms(default_ty,
+        // annotation_ty)?;
+
+        //         let default_value_sub =
+        // self.substituter().apply_sub_to_term(&sub, default_value);
+        //         let annot_sub = self.substituter().apply_sub_to_term(&sub,
+        // annotation_ty);
+
+        //         (annot_sub, Some(default_value_sub))
+        //     }
+        //     (None, Some(default_value)) => {
+        //         let default_ty =
+        // self.typer().infer_ty_of_term(default_value)?;
+        //         (default_ty, Some(default_value))
+        //     }
+        //     (Some(annot_ty), None) => (annot_ty, None),
+        //     (None, None) => panic_on_span!(
+        //         self.source_location(node.span()),
+        //         self.source_map(),
+        //         "tc: found fn-def parameter with no value and type
+        // annotation"     ),
+        // };
+
+        // // Append location to value term
+        // let ty_span = if node.ty.is_some() {
+        //     node.ty.as_ref().map(|n| n.span())
+        // } else {
+        //     node.default.as_ref().map(|n| n.span())
+        // };
+
+        // // @@Note: This should never fail since we panic above if there is no
+        // span! if let Some(ty_span) = ty_span {
+        //     let value_location = self.source_location(ty_span);
+        //     self.location_store_mut().add_location_to_target(ty,
+        // value_location); }
+
+        // Ok(Param { name: Some(name), ty, default_value })
     }
 
     type BlockRet = TermId;
@@ -1868,58 +1881,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         // @@ErrorReporting: We could provide customised error reporting here.
         Ok(self.validator().validate_term(index_fn_call)?.simplified_term_id)
-    }
-
-    type StructDefEntryRet = Param;
-
-    fn visit_struct_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
-    ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        let walk::StructDefEntry { name, ty, default } =
-            walk::walk_struct_def_entry(self, ctx, node)?;
-
-        // Try and figure out a known term...
-        let (ty, default_value) = match (ty, default) {
-            (Some(annotation_ty), Some(default_value)) => {
-                let default_ty = self.typer().infer_ty_of_term(default_value)?;
-
-                // Here, we have to unify both of the provided types...
-                let sub = self.unifier().unify_terms(default_ty, annotation_ty)?;
-
-                // @@Naming
-                let ds_sub = self.substituter().apply_sub_to_term(&sub, default_value);
-                let as_sub = self.substituter().apply_sub_to_term(&sub, annotation_ty);
-
-                (ds_sub, Some(as_sub))
-            }
-            (None, Some(default_value)) => {
-                let default_ty = self.typer().infer_ty_of_term(default_value)?;
-                (default_ty, Some(default_value))
-            }
-            (Some(annot_ty), None) => (annot_ty, None),
-            (None, None) => panic_on_span!(
-                self.source_location(node.span()),
-                self.source_map(),
-                "tc: found struct-def field with no value and type annotation"
-            ),
-        };
-
-        // Append location to value term
-        let ty_span = if node.ty.is_some() {
-            node.ty.as_ref().map(|n| n.span())
-        } else {
-            node.default.as_ref().map(|n| n.span())
-        };
-
-        // @@Note: This should never fail since we panic above if there is no span!
-        if let Some(ty_span) = ty_span {
-            let value_location = self.source_location(ty_span);
-            self.location_store_mut().add_location_to_target(ty, value_location);
-        }
-
-        Ok(Param { name: Some(name), ty, default_value })
     }
 
     type StructDefRet = TermId;

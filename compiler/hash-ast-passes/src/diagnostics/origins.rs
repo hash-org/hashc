@@ -4,6 +4,8 @@
 
 use std::fmt::Display;
 
+use hash_ast::ast;
+
 /// Denotes where a pattern was used as in the parent of the pattern. This is
 /// useful for propagating errors upwards by signalling what is the current
 /// parent of the pattern. This only contains patterns that can be compound
@@ -97,5 +99,14 @@ impl FieldOrigin {
 impl Display for FieldOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
+    }
+}
+
+impl From<ast::ParamOrigin> for FieldOrigin {
+    fn from(origin: ast::ParamOrigin) -> Self {
+        match origin {
+            ast::ParamOrigin::Struct => FieldOrigin::Struct,
+            ast::ParamOrigin::Fn | ast::ParamOrigin::TyFn => FieldOrigin::FnLiteral,
+        }
     }
 }

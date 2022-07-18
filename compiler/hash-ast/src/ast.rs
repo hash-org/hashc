@@ -376,20 +376,12 @@ pub struct FnTy {
     pub return_ty: AstNode<Ty>,
 }
 
-/// A [TyFnParam] is a parameter that appears within a [TyFn].
-/// This specifies that the type function takes a particular parameter with a
-/// specific name, a bound and a default value.
-#[derive(Debug, PartialEq, Clone)]
-pub struct TyFnParam {
-    pub name: AstNode<Name>,
-    pub bound: Option<AstNode<Ty>>,
-    pub default: Option<AstNode<Ty>>,
-}
-
 /// A type function e.g. `<T = u32, E: Conv ~ Eq> -> Result<T, E>`
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFn {
-    pub params: AstNodes<TyFnParam>,
+    /// The parameters of the type function
+    pub params: AstNodes<Param>,
+    /// Return type of the function
     pub return_ty: AstNode<Ty>,
 }
 
@@ -755,22 +747,11 @@ impl Display for Mutability {
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFnDef {
     /// The type arguments of the function.
-    pub params: AstNodes<TyFnDefParam>,
+    pub params: AstNodes<Param>,
     /// Optional return type of the type function
     pub return_ty: Option<AstNode<Ty>>,
     /// The body of the type function,
     pub body: AstNode<Expr>,
-}
-
-/// An argument within a type function
-#[derive(Debug, PartialEq, Clone)]
-pub struct TyFnDefParam {
-    /// The name of the argument
-    pub name: AstNode<Name>,
-    /// The argument bounds.
-    pub ty: Option<AstNode<Ty>>,
-    /// Default type assigned to the parameter
-    pub default: Option<AstNode<Ty>>,
 }
 
 /// A declaration, e.g. `x := 3;`.
@@ -972,24 +953,11 @@ pub struct AssignOpExpr {
     pub operator: AstNode<BinOp>,
 }
 
-/// A field of a struct definition, e.g. "name: str".
-#[derive(Debug, PartialEq, Clone)]
-pub struct StructDefEntry {
-    /// The name of the struct field.
-    pub name: AstNode<Name>,
-    /// The type of the struct field.
-    ///
-    /// Will be inferred if [None].
-    pub ty: Option<AstNode<Ty>>,
-    /// The default value of the struct field, if any.
-    pub default: Option<AstNode<Expr>>,
-}
-
 /// A struct definition, e.g. `struct Foo = { bar: int; };`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructDef {
-    /// The fields of the struct, in the form of [StructDefEntry].
-    pub entries: AstNodes<StructDefEntry>,
+    /// The fields of the struct, in the form of [Param].
+    pub entries: AstNodes<Param>,
 }
 
 /// A variant of an enum definition, e.g. `Some(T)`.
@@ -1238,9 +1206,17 @@ impl Block {
     }
 }
 
+/// Origin of a parameter
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ParamOrigin {
+    Struct,
+    Fn,
+    TyFn,
+}
+
 /// A function definition parameter.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FnDefParam {
+pub struct Param {
     /// The name of the argument.
     pub name: AstNode<Name>,
     /// The type of the argument, if any.
@@ -1251,13 +1227,16 @@ pub struct FnDefParam {
     /// which means that they can be specified by putting the name of the
     /// argument.
     pub default: Option<AstNode<Expr>>,
+    /// The origin of the parameter, whether it is from a struct field, function
+    /// def, type function def, etc.
+    pub origin: ParamOrigin,
 }
 
 /// A function definition.
 #[derive(Debug, PartialEq, Clone)]
 pub struct FnDef {
     /// The parameters of the function definition.
-    pub params: AstNodes<FnDefParam>,
+    pub params: AstNodes<Param>,
     /// The return type of the function definition.
     ///
     /// Will be inferred if [None].

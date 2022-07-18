@@ -21,7 +21,7 @@ use crate::{
     diagnostics::{
         directives::DirectiveArgument,
         error::AnalysisErrorKind,
-        origins::{BlockOrigin, FieldOrigin, PatternOrigin},
+        origins::{BlockOrigin, PatternOrigin},
         warning::AnalysisWarningKind,
     },
 };
@@ -500,16 +500,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type TyFnParamRet = ();
-
-    fn visit_ty_fn_param(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnParam>,
-    ) -> Result<Self::TyFnParamRet, Self::Error> {
-        Ok(())
-    }
-
     type TyFnRet = ();
 
     fn visit_ty_fn_ty(
@@ -581,16 +571,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type TyFnDefArgRet = ();
-
-    fn visit_ty_fn_def_param(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
-        Ok(())
-    }
-
     type FnDefRet = ();
 
     fn visit_fn_def(
@@ -609,14 +589,27 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type FnDefParamRet = ();
+    type ParamRet = ();
 
-    fn visit_fn_def_param(
+    fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FnDefParam>,
-    ) -> Result<Self::FnDefParamRet, Self::Error> {
-        let _ = walk::walk_fn_def_param(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let _ = walk::walk_param(self, ctx, node);
+
+        // If both the type definition is missing and the default expression assignment
+        // to the struct-def field, then a type cannot be inferred and is thus
+        // ambiguous.
+        if node.ty.is_none() && node.default.is_none() {
+            self.append_error(
+                AnalysisErrorKind::InsufficientTypeAnnotations {
+                    origin: node.origin.clone().into(),
+                },
+                node.span(),
+            );
+        }
+
         Ok(())
     }
 
@@ -926,28 +919,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         let _ = walk::walk_index_expr(self, ctx, node);
-        Ok(())
-    }
-
-    type StructDefEntryRet = ();
-
-    fn visit_struct_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StructDefEntry>,
-    ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        let _ = walk::walk_struct_def_entry(self, ctx, node);
-
-        // If both the type definition is missing and the default expression assignment
-        // to the struct-def field, then a type cannot be inferred and is thus
-        // ambiguous.
-        if node.ty.is_none() && node.default.is_none() {
-            self.append_error(
-                AnalysisErrorKind::InsufficientTypeAnnotations { origin: FieldOrigin::Struct },
-                node.span(),
-            );
-        }
-
         Ok(())
     }
 

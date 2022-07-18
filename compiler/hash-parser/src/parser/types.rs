@@ -302,7 +302,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             let span = self.current_location();
             let name = self.parse_name()?;
 
-            let bound = match self.parse_token_fast(TokenKind::Colon) {
+            let ty = match self.parse_token_fast(TokenKind::Colon) {
                 Some(_) => match self.peek() {
                     // Don't try and parse a type if an '=' is followed straight after
                     Some(tok) if tok.has_kind(TokenKind::Eq) => None,
@@ -316,7 +316,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 None => None,
             };
 
-            args.push(self.node_with_span(TyFnParam { name, bound, default }, span));
+            args.push(self.node_with_span(
+                Param {
+                    name,
+                    ty,
+                    default: default.map(|node| {
+                        let span = node.span();
+                        self.node_with_span(Expr::new(ExprKind::Ty(TyExpr(node))), span)
+                    }),
+                    origin: ParamOrigin::TyFn,
+                },
+                span,
+            ));
 
             // Now consider if the bound is closing or continuing with a comma...
             match self.peek() {
