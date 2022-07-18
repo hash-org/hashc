@@ -10,7 +10,6 @@ use crate::{
     diagnostics::{
         error::{TcError, TcResult},
         macros::{tc_panic, tc_panic_on_many},
-        symbol::NameFieldOrigin,
     },
     storage::{
         primitives::{
@@ -74,12 +73,29 @@ fn does_not_support_ns_access(access_term: &AccessTerm) -> TcResult<()> {
 
 // Helper for [Simplifier::apply_access_term] erroring for name not found in
 // value:
-fn name_not_found<T>(access_term: &AccessTerm, origin: NameFieldOrigin) -> TcResult<T> {
+fn name_not_found<T>(access_term: &AccessTerm) -> TcResult<T> {
     Err(TcError::UnresolvedNameInValue {
         name: access_term.name,
         value: access_term.subject,
-        origin,
+        op: access_term.op,
     })
+}
+
+// Helper for converting a [TcError::UnresolvedVariable] into a
+// [TcError::UnresolvedNameInValue] if originating from the given access term.
+fn turn_unresolved_var_err_into_unresolved_in_value_err(
+    access_term: &AccessTerm,
+) -> impl Fn(TcError) -> TcError + '_ {
+    |err| match err {
+        TcError::UnresolvedVariable { name, value: _ } if name == access_term.name => {
+            TcError::UnresolvedNameInValue {
+                name: access_term.name,
+                value: access_term.subject,
+                op: access_term.op,
+            }
+        }
+        _ => err,
+    }
 }
 
 impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
@@ -284,16 +300,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         .transpose()
                     }
                     // If none of this worked, then the property wasn't found:
-                    None => Err(TcError::UnresolvedNameInValue {
-                        name: access_term.name,
-                        value: access_term.subject,
-                        // @@Hack: this feels a bit hacky and there should be an easier
-                        // way to yield the origin rather than inspecting the term.
-                        origin: NameFieldOrigin::from_term(
-                            &Term::Level0(term.clone()),
-                            self.term_store(),
-                        ),
-                    }),
+                    None => name_not_found(access_term),
                 }
             }
             // Enum variants do not support access (only through pattern matching):
@@ -311,13 +318,15 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 if let Some((_, member)) = tuple_members.get_by_name(access_term.name) {
                     Ok(Some(member.value))
                 } else {
-                    name_not_found(access_term, NameFieldOrigin::Tuple)
+                    name_not_found(access_term)
                 }
             }
             Level0Term::Lit(_) => {
                 // Create an Rt(..) of the value wrapped, and use that as the subject.
-                let term = &Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
-                self.apply_access_to_level0_term(term, access_term, originating_term)
+                let term_value = Level0Term::Rt(self.typer().infer_ty_of_term(originating_term)?);
+                let term = self.builder().create_term(Term::Level0(term_value.clone()));
+                self.location_store_mut().copy_location(originating_term, term);
+                self.apply_access_to_level0_term(&term_value, access_term, term)
             }
         }
     }
@@ -343,7 +352,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Resolve the name:
                 let name_var = self.builder().create_var_term(access_term.name);
-                let result = self.simplifier().simplify_term(name_var)?;
+                let result = self
+                    .simplifier()
+                    .simplify_term(name_var)
+                    .map_err(turn_unresolved_var_err_into_unresolved_in_value_err(access_term))?;
 
                 if let Some(member) = self.scope_store().get(mod_def_scope).get(access_term.name) {
                     if let Some(inner_term) = result {
@@ -378,7 +390,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                                         .create_enum_variant_value_term(name, *nominal_def_id),
                                 ))
                             }
-                            None => name_not_found(access_term, NameFieldOrigin::EnumVariant),
+                            None => name_not_found(access_term),
                         }
                     }
                 }
@@ -409,7 +421,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 // Resolve the type of the name:
                 let name_var = self.builder().create_var_term(access_term.name);
-                let result = self.typer().infer_ty_of_term(name_var)?;
+                let result = self
+                    .typer()
+                    .infer_ty_of_term(name_var)
+                    .map_err(turn_unresolved_var_err_into_unresolved_in_value_err(access_term))?;
 
                 // Pop back the scope
                 self.scopes_mut().pop_scope();

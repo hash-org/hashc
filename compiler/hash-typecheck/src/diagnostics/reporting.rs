@@ -556,7 +556,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::UnresolvedNameInValue { name, origin, value } => {
+            TcError::UnresolvedNameInValue { name, op, value } => {
                 builder.with_error_code(HashErrorCode::UnresolvedNameInValue).with_message(
                     format!(
                         "the field `{}` is not present within `{}`",
@@ -568,7 +568,12 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 if let Some(location) = err.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("{} does not contain the named property `{}`", origin, name),
+                        format!(
+                            "{} does not contain the {} `{}`",
+                            value.for_formatting(err.global_storage()),
+                            op,
+                            name
+                        ),
                     )));
                 }
             }
