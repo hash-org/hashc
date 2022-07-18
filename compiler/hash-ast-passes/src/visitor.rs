@@ -4,8 +4,6 @@
 //! analyser to perform a variety of semantic checks.
 
 use ::if_chain::if_chain;
-use std::{collections::HashSet, convert::Infallible, mem};
-
 use hash_ast::{
     ast::{
         BindingPat, Block, BlockExpr, DestructuringPat, ExprKind, LitExpr, Mutability, ParamOrigin,
@@ -15,6 +13,7 @@ use hash_ast::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::CORE_IDENTIFIERS, ModuleKind};
+use std::{collections::HashSet, convert::Infallible, mem};
 
 use crate::{
     analysis::SemanticAnalyser,

@@ -18,6 +18,7 @@ error_codes! {
     InvalidPropertyAccess = 16,
     MissingStructField = 17,
     UninitialisedMember = 18,
+    InvalidAssignSubject = 19,
 
     // Type errors
     TypeMismatch = 20,

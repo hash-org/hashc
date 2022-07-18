@@ -1,7 +1,5 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-use std::collections::HashSet;
-
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -29,6 +27,7 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use itertools::Itertools;
+use std::collections::HashSet;
 
 use self::scopes::VisitConstantScope;
 
@@ -1607,6 +1606,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                         data: MemberData::from_ty_and_value(Some(ty), None),
                         mutability,
                         visibility,
+                        is_closed: true,
                     }]
                 } else {
                     // If there is no value, one cannot use pattern matching!
@@ -1649,13 +1649,41 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type AssignExprRet = TermId;
-
     fn visit_assign_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error> {
-        todo!()
+        let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
+
+        // Try to resolve the variable in scopes; if it is not found, it is an error. If
+        // it is found, then ensure the two types can be unified, and set it to
+        // its new term.
+        let name = match node.lhs.kind() {
+            ast::ExprKind::Variable(name) => name.name.ident,
+            _ => {
+                return Err(TcError::InvalidAssignSubject {
+                    location: self.source_location_at_node(node),
+                });
+            }
+        };
+        let var_term = self.builder().create_var_term(name);
+        self.copy_location_from_node_to_target(node, var_term);
+        let member = self.scope_resolver().resolve_name_in_scopes(name, var_term)?;
+
+        // Unify types:
+        let member_data = self.typer().infer_member_ty(member.member.data)?;
+        let rhs_ty = self.typer().infer_ty_of_term(rhs)?;
+        let _ = self.unifier().unify_terms(rhs_ty, member_data.ty)?;
+
+        // Set the value to the member:
+        self.scope_store_mut()
+            .get_mut(member.scope_id)
+            .get_mut_by_index(member.index)
+            .data
+            .set_value(rhs);
+
+        Ok(self.builder().create_void_term())
     }
 
     type AssignOpExpressionRet = TermId;

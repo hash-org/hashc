@@ -1,12 +1,11 @@
 //! Error-related data structures for errors that occur during typechecking.
 
+use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::storage::{
     location::LocationTarget,
     primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
-use hash_source::identifier::Identifier;
-
-use super::params::{ParamListKind, ParamUnificationErrorReason};
+use hash_source::{identifier::Identifier, location::SourceLocation};
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;
@@ -143,4 +142,6 @@ pub enum TcError {
     UselessMatchCase { pat: PatId, subject: TermId },
     /// Cannot use pattern matching in a declaration without an assignment
     CannotPatMatchWithoutAssignment { pat: PatId },
+    /// Cannot use a non-name as an assign subject.
+    InvalidAssignSubject { location: SourceLocation },
 }

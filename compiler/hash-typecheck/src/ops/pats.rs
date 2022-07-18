@@ -60,6 +60,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 mutability: binding.mutability,
                 visibility: binding.visibility,
                 data: MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+                is_closed: true,
             }])),
             // Ignore: No bindings but always matches
             Pat::Ignore => Ok(Some(vec![])),

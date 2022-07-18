@@ -307,6 +307,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             data: MemberData::InitialisedWithTy { ty, value },
             visibility: Visibility::Private,
             mutability: Mutability::Immutable,
+            is_closed: true,
         }
     }
 
@@ -323,6 +324,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             data: MemberData::InitialisedWithInferredTy { value },
             visibility,
             mutability: Mutability::Immutable,
+            is_closed: true,
         }
     }
 
@@ -339,6 +341,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             data: MemberData::InitialisedWithTy { ty, value },
             visibility,
             mutability: Mutability::Immutable,
+            is_closed: true,
         }
     }
 
@@ -354,6 +357,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
             data: MemberData::Uninitialised { ty },
             visibility,
             mutability: Mutability::Immutable,
+            is_closed: true,
         }
     }
 
