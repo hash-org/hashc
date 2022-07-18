@@ -693,10 +693,21 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_cast_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        todo!()
+        let walk::CastExpr { expr, ty } = walk::walk_cast_expr(self, ctx, node)?;
+
+        // Ensure that the `expr` can be unified with the provided `ty`...
+        let expr_ty = self.typer().infer_ty_of_term(expr)?;
+
+        // Here, we have to unify both of the provided types...
+        let sub = self.unifier().unify_terms(expr_ty, ty)?;
+        let value_sub = self.substituter().apply_sub_to_term(&sub, expr_ty);
+
+        self.copy_location_from_node_to_target(node, value_sub);
+
+        Ok(value_sub)
     }
 
     type TyExprRet = TermId;
@@ -1857,11 +1868,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 // Here, we have to unify both of the provided types...
                 let sub = self.unifier().unify_terms(default_ty, annotation_ty)?;
 
-                // @@Naming
-                let ds_sub = self.substituter().apply_sub_to_term(&sub, default_value);
-                let as_sub = self.substituter().apply_sub_to_term(&sub, annotation_ty);
+                let default_sub = self.substituter().apply_sub_to_term(&sub, default_value);
+                let annot_sub = self.substituter().apply_sub_to_term(&sub, annotation_ty);
 
-                (ds_sub, Some(as_sub))
+                (default_sub, Some(annot_sub))
             }
             (None, Some(default_value)) => {
                 let default_ty = self.typer().infer_ty_of_term(default_value)?;
