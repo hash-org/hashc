@@ -134,8 +134,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         };
 
-        // We allow for a `TypeFunctionCall` definition to occur if the function is
-        // preceded with either a `Named` or `Grouped` type. If either of these
+        // We allow for a `TyFnCall` definition to occur if the function is
+        // preceded with either a `Named` type. If either of these
         // variants is followed by a `<`, this means that this has to be a type
         // function call and therefore we no longer allow for any other variants to be
         // present
@@ -264,7 +264,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         };
 
         // Here we check that the token tree has a comma at the end to later determine
-        // if this is a `GroupedType` or a `TupleType`...
+        // if this is a `TupleType`...
         let gen_has_comma =
             !gen.stream.is_empty() && gen.token_at(gen.offset() - 1).has_kind(TokenKind::Comma);
 

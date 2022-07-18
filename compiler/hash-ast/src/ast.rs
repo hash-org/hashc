@@ -354,12 +354,6 @@ pub struct SetTy {
     pub inner: AstNode<Ty>,
 }
 
-/// The grouped type (essentially a type within parentheses), e.g. `(str)`. It
-/// differs from a tuple that it does not contain a trailing comma which
-/// signifies that this is a single element tuple.
-#[derive(Debug, PartialEq, Clone)]
-pub struct GroupedTy(pub AstNode<Ty>);
-
 /// The map type, e.g. `{str: u32}`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct MapTy {
@@ -386,9 +380,8 @@ pub struct TyFn {
 }
 
 /// A type function call specifies a call to a type function with the specified
-/// function name in the form of a [Ty] (which can only be a [NamedTy] or a
-/// [GroupedTy]) and then followed by arguments. For example: `Conv<u32>` or
-/// `(Foo<bar>)<baz>`
+/// function name in the form of a [Ty] (which can only be a [NamedTy] then
+/// followed by arguments. For example: `Conv<u32>` or `(Foo<bar>)<baz>`
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFnCall {
     pub subject: AstNode<Expr>,
