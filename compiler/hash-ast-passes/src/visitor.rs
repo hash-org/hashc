@@ -9,7 +9,7 @@ use std::{collections::HashSet, convert::Infallible, mem};
 use hash_ast::{
     ast::{
         BindingPattern, Block, BlockExpr, DestructuringPattern, ExprKind, LiteralExpr, Mutability,
-        Pattern, TuplePatternEntry,
+        ParamOrigin, Pattern, TuplePatternEntry,
     },
     visitor::{walk, AstVisitor},
 };
@@ -601,11 +601,12 @@ impl AstVisitor for SemanticAnalyser<'_> {
         // If both the type definition is missing and the default expression assignment
         // to the struct-def field, then a type cannot be inferred and is thus
         // ambiguous.
-        if node.ty.is_none() && node.default.is_none() {
+        if matches!(node.origin, ParamOrigin::Struct | ParamOrigin::Fn)
+            && node.ty.is_none()
+            && node.default.is_none()
+        {
             self.append_error(
-                AnalysisErrorKind::InsufficientTypeAnnotations {
-                    origin: node.origin.clone().into(),
-                },
+                AnalysisErrorKind::InsufficientTypeAnnotations { origin: node.origin },
                 node.span(),
             );
         }
