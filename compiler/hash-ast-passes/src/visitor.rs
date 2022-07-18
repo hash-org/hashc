@@ -868,14 +868,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type AssignExpressionRet = ();
+    type AssignExprRet = ();
 
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error> {
-        let _ = walk::walk_assign_statement(self, ctx, node);
+    ) -> Result<Self::AssignExprRet, Self::Error> {
+        let _ = walk::walk_assign_expr(self, ctx, node);
         Ok(())
     }
 

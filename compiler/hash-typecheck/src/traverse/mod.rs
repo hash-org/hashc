@@ -1650,13 +1650,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         todo!()
     }
 
-    type AssignExpressionRet = TermId;
+    type AssignExprRet = TermId;
 
     fn visit_assign_expr(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignExprRet, Self::Error> {
         todo!()
     }
 

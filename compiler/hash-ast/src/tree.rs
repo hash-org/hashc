@@ -877,13 +877,13 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("merge_declaration", vec![pattern, value]))
     }
 
-    type AssignExpressionRet = TreeNode;
+    type AssignExprRet = TreeNode;
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error> {
-        let walk::AssignStatement { lhs, rhs } = walk::walk_assign_statement(self, ctx, node)?;
+    ) -> Result<Self::AssignExprRet, Self::Error> {
+        let walk::AssignExpr { lhs, rhs } = walk::walk_assign_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "assign",
             vec![TreeNode::branch("lhs", vec![lhs]), TreeNode::branch("rhs", vec![rhs])],

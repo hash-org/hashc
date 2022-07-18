@@ -511,12 +511,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error>;
 
-    type AssignExpressionRet;
+    type AssignExprRet;
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error>;
+    ) -> Result<Self::AssignExprRet, Self::Error>;
 
     type AssignOpExpressionRet;
     fn visit_assign_op_expr(
@@ -1211,12 +1211,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error>;
 
-    type AssignExpressionRet;
+    type AssignExprRet;
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error>;
+    ) -> Result<Self::AssignExprRet, Self::Error>;
 
     type AssignOpExpressionRet;
     fn visit_assign_op_expr(
@@ -1497,7 +1497,7 @@ pub mod walk {
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
-        Assign(V::AssignExpressionRet),
+        Assign(V::AssignExprRet),
         AssignOp(V::AssignOpExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
@@ -1629,7 +1629,7 @@ pub mod walk {
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
-            AssignExpressionRet = Ret,
+            AssignExprRet = Ret,
             AssignOpExpressionRet = Ret,
             BinaryExpressionRet = Ret,
             UnaryExpressionRet = Ret,
@@ -2878,17 +2878,17 @@ pub mod walk {
         })
     }
 
-    pub struct AssignStatement<V: AstVisitor> {
+    pub struct AssignExpr<V: AstVisitor> {
         pub lhs: V::ExpressionRet,
         pub rhs: V::ExpressionRet,
     }
 
-    pub fn walk_assign_statement<V: AstVisitor>(
+    pub fn walk_assign_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::AssignExpr>,
-    ) -> Result<AssignStatement<V>, V::Error> {
-        Ok(AssignStatement {
+    ) -> Result<AssignExpr<V>, V::Error> {
+        Ok(AssignExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref())?,
         })
@@ -3163,7 +3163,7 @@ pub mod walk_mut {
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
-        Assign(V::AssignExpressionRet),
+        Assign(V::AssignExprRet),
         AssignOp(V::AssignOpExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
@@ -3298,7 +3298,7 @@ pub mod walk_mut {
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
-            AssignExpressionRet = Ret,
+            AssignExprRet = Ret,
             AssignOpExpressionRet = Ret,
             BinaryExpressionRet = Ret,
             UnaryExpressionRet = Ret,
@@ -4611,17 +4611,17 @@ pub mod walk_mut {
         })
     }
 
-    pub struct AssignStatement<V: AstVisitorMut> {
+    pub struct AssignExpr<V: AstVisitorMut> {
         pub lhs: V::ExpressionRet,
         pub rhs: V::ExpressionRet,
     }
 
-    pub fn walk_assign_statement<V: AstVisitorMut>(
+    pub fn walk_assign_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::AssignExpr>,
-    ) -> Result<AssignStatement<V>, V::Error> {
-        Ok(AssignStatement {
+    ) -> Result<AssignExpr<V>, V::Error> {
+        Ok(AssignExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref_mut())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref_mut())?,
         })
