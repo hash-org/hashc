@@ -12,14 +12,14 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
             AccessOp, Arg, ArgsId, BindingPattern, BoundVars, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, ParamOrigin, Pattern, PatternId, PatternParam, Sub,
-            TermId, Visibility,
+            ModDefOrigin, Mutability, Param, Pattern, PatternId, PatternParam, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
 };
 use hash_ast::{
-    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, RefKind, UnOp},
+    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, UnOp},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -33,9 +33,9 @@ use itertools::Itertools;
 
 use self::scopes::VisitConstantScope;
 
+pub mod params;
 pub mod scopes;
 pub mod sequence;
-pub mod params;
 
 /// Internal state that the [TcVisitor] uses when traversing the
 /// given sources.
@@ -925,31 +925,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(fn_ty_term)?.simplified_term_id)
     }
 
-    // type TyFnParamRet = Param;
-
-    // fn visit_ty_fn_param(
-    //     &mut self,
-    //     ctx: &Self::Ctx,
-    //     node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnParam>,
-    // ) -> Result<Self::TyFnParamRet, Self::Error> {
-    //     let walk::TyFnParam { name, bound, default } =
-    // walk::walk_ty_fn_param(self, ctx, node)?;
-
-    //     // The location of the param type is either the bound or the name (since
-    // <T>     // means <T: Type>):
-    //     let location = self.source_location(
-    //         node.bound.as_ref().map(|bound| bound.span()).unwrap_or_else(||
-    // node.name.span()),     );
-    //     // The type of the param is the given bound, or Type if no bound was
-    // given.     let runtime_instantiable_trt =
-    // self.core_defs().runtime_instantiable_trt;     let ty =
-    // bound.unwrap_or_else(||
-    // self.builder().create_trt_term(runtime_instantiable_trt));
-    //     self.location_store_mut().add_location_to_target(ty, location);
-
-    //     Ok(Param { ty, name: Some(name), default_value: default })
-    // }
-
     type TyFnRet = TermId;
 
     fn visit_ty_fn_ty(
@@ -1150,23 +1125,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(simplified_ty_fn_term)
     }
 
-    // type TyFnDefArgRet = Param;
-
-    // fn visit_ty_fn_def_param(
-    //     &mut self,
-    //     ctx: &Self::Ctx,
-    //     node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyFnDefParam>,
-    // ) -> Result<Self::TyFnDefArgRet, Self::Error> {
-    //     // Same as type function param:
-    //     let type_function_param = hash_ast::ast::TyFnParam {
-    //         name: node.name.clone(),
-    //         bound: node.ty.clone(),
-    //         default: node.default.clone(),
-    //     };
-
-    //     self.visit_ty_fn_param(ctx, node.with_body(&type_function_param))
-    // }
-
     type FnDefRet = TermId;
     fn visit_fn_def(
         &mut self,
@@ -1245,57 +1203,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Param>,
     ) -> Result<Self::ParamRet, Self::Error> {
-        let walk::Param { .. } = walk::walk_param(self, ctx, node)?;
-
         match node.origin {
-            ast::ParamOrigin::Struct | ast::ParamOrigin::Fn => todo!(),
-            ast::ParamOrigin::TyFn => todo!(),
+            ast::ParamOrigin::Struct | ast::ParamOrigin::Fn => {
+                self.visit_fn_or_struct_param(node, ctx)
+            }
+            ast::ParamOrigin::TyFn => self.visit_ty_fn_param(node, ctx),
+            // Any other `origin` does not occur within `Param`
+            _ => unreachable!(),
         }
-
-        // Try and figure out a known term...
-        // let (ty, default_value) = match (ty, default) {
-        //     (Some(annotation_ty), Some(default_value)) => {
-        //         let default_ty =
-        // self.typer().infer_ty_of_term(default_value)?;
-
-        //         // Here, we have to unify both of the provided types...
-        //         let sub = self.unifier().unify_terms(default_ty,
-        // annotation_ty)?;
-
-        //         let default_value_sub =
-        // self.substituter().apply_sub_to_term(&sub, default_value);
-        //         let annot_sub = self.substituter().apply_sub_to_term(&sub,
-        // annotation_ty);
-
-        //         (annot_sub, Some(default_value_sub))
-        //     }
-        //     (None, Some(default_value)) => {
-        //         let default_ty =
-        // self.typer().infer_ty_of_term(default_value)?;
-        //         (default_ty, Some(default_value))
-        //     }
-        //     (Some(annot_ty), None) => (annot_ty, None),
-        //     (None, None) => panic_on_span!(
-        //         self.source_location(node.span()),
-        //         self.source_map(),
-        //         "tc: found fn-def parameter with no value and type
-        // annotation"     ),
-        // };
-
-        // // Append location to value term
-        // let ty_span = if node.ty.is_some() {
-        //     node.ty.as_ref().map(|n| n.span())
-        // } else {
-        //     node.default.as_ref().map(|n| n.span())
-        // };
-
-        // // @@Note: This should never fail since we panic above if there is no
-        // span! if let Some(ty_span) = ty_span {
-        //     let value_location = self.source_location(ty_span);
-        //     self.location_store_mut().add_location_to_target(ty,
-        // value_location); }
-
-        // Ok(Param { name: Some(name), ty, default_value })
     }
 
     type BlockRet = TermId;
