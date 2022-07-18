@@ -3,11 +3,12 @@
 
 use std::{collections::HashSet, fmt::Display};
 
+use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 
 use crate::storage::{
     location::LocationStore,
-    primitives::{ArgsId, ParamOrigin, ParamsId},
+    primitives::{ArgsId, ParamsId},
     GlobalStorage,
 };
 

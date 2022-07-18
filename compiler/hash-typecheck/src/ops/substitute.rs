@@ -641,6 +641,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
 #[cfg(test)]
 mod tests {
+    use hash_ast::ast::ParamOrigin;
     use hash_source::SourceMap;
 
     use super::Substituter;
@@ -649,7 +650,7 @@ mod tests {
         ops::AccessToOpsMut,
         storage::{
             core::CoreDefs,
-            primitives::{ModDefOrigin, ParamOrigin, Sub},
+            primitives::{ModDefOrigin, Sub},
             AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
         },
     };

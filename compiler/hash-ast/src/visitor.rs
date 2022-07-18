@@ -315,13 +315,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::FnTy>,
     ) -> Result<Self::FnTyRet, Self::Error>;
 
-    type TyFnParamRet;
-    fn visit_ty_fn_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFnParam>,
-    ) -> Result<Self::TyFnParamRet, Self::Error>;
-
     type TyFnRet;
     fn visit_ty_fn_ty(
         &mut self,
@@ -371,13 +364,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error>;
 
-    type TyFnDefArgRet;
-    fn visit_ty_fn_def_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error>;
-
     type FnDefRet;
     fn visit_fn_def(
         &mut self,
@@ -385,12 +371,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error>;
 
-    type FnDefParamRet;
-    fn visit_fn_def_param(
+    type ParamRet;
+    fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FnDefParam>,
-    ) -> Result<Self::FnDefParamRet, Self::Error>;
+        node: ast::AstNodeRef<ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error>;
 
     type BlockRet;
     fn visit_block(
@@ -525,12 +511,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error>;
 
-    type AssignExpressionRet;
+    type AssignExprRet;
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error>;
+    ) -> Result<Self::AssignExprRet, Self::Error>;
 
     type AssignOpExpressionRet;
     fn visit_assign_op_expr(
@@ -559,13 +545,6 @@ pub trait AstVisitor: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error>;
-
-    type StructDefEntryRet;
-    fn visit_struct_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StructDefEntry>,
-    ) -> Result<Self::StructDefEntryRet, Self::Error>;
 
     type StructDefRet;
     fn visit_struct_def(
@@ -1043,13 +1022,6 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::FnTy>,
     ) -> Result<Self::FnTyRet, Self::Error>;
 
-    type TyFnParamRet;
-    fn visit_ty_fn_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyFnParam>,
-    ) -> Result<Self::TyFnParamRet, Self::Error>;
-
     type TyFnRet;
     fn visit_ty_fn_ty(
         &mut self,
@@ -1099,13 +1071,6 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error>;
 
-    type TyFnDefArgRet;
-    fn visit_ty_fn_def_param(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error>;
-
     type FnDefRet;
     fn visit_fn_def(
         &mut self,
@@ -1113,12 +1078,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::FnDef>,
     ) -> Result<Self::FnDefRet, Self::Error>;
 
-    type FnDefParamRet;
-    fn visit_fn_def_param(
+    type ParamRet;
+    fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::FnDefParam>,
-    ) -> Result<Self::FnDefParamRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error>;
 
     type BlockRet;
     fn visit_block(
@@ -1246,12 +1211,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::MergeDeclaration>,
     ) -> Result<Self::MergeDeclarationRet, Self::Error>;
 
-    type AssignExpressionRet;
+    type AssignExprRet;
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error>;
+    ) -> Result<Self::AssignExprRet, Self::Error>;
 
     type AssignOpExpressionRet;
     fn visit_assign_op_expr(
@@ -1280,13 +1245,6 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error>;
-
-    type StructDefEntryRet;
-    fn visit_struct_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::StructDefEntry>,
-    ) -> Result<Self::StructDefEntryRet, Self::Error>;
 
     type StructDefRet;
     fn visit_struct_def(
@@ -1470,18 +1428,18 @@ pub trait AstVisitorMut: Sized {
 pub mod walk {
     use super::{ast, AstVisitor};
 
-    pub struct FnDefParam<V: AstVisitor> {
+    pub struct Param<V: AstVisitor> {
         pub name: V::NameRet,
         pub ty: Option<V::TyRet>,
         pub default: Option<V::ExpressionRet>,
     }
 
-    pub fn walk_fn_def_param<V: AstVisitor>(
+    pub fn walk_param<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::FnDefParam>,
-    ) -> Result<FnDefParam<V>, V::Error> {
-        Ok(FnDefParam {
+        node: ast::AstNodeRef<ast::Param>,
+    ) -> Result<Param<V>, V::Error> {
+        Ok(Param {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             ty: node.ty.as_ref().map(|t| visitor.visit_ty(ctx, t.ast_ref())).transpose()?,
             default: node
@@ -1493,7 +1451,7 @@ pub mod walk {
     }
 
     pub struct FnDef<V: AstVisitor> {
-        pub args: V::CollectionContainer<V::FnDefParamRet>,
+        pub args: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
         pub fn_body: V::ExpressionRet,
     }
@@ -1506,7 +1464,7 @@ pub mod walk {
         Ok(FnDef {
             args: V::try_collect_items(
                 ctx,
-                node.params.iter().map(|a| visitor.visit_fn_def_param(ctx, a.ast_ref())),
+                node.params.iter().map(|a| visitor.visit_param(ctx, a.ast_ref())),
             )?,
             return_ty: node
                 .return_ty
@@ -1539,7 +1497,7 @@ pub mod walk {
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
-        Assign(V::AssignExpressionRet),
+        Assign(V::AssignExprRet),
         AssignOp(V::AssignOpExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
@@ -1671,7 +1629,7 @@ pub mod walk {
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
-            AssignExpressionRet = Ret,
+            AssignExprRet = Ret,
             AssignOpExpressionRet = Ret,
             BinaryExpressionRet = Ret,
             UnaryExpressionRet = Ret,
@@ -2480,34 +2438,8 @@ pub mod walk {
         })
     }
 
-    pub struct TyFnParam<V: AstVisitor> {
-        pub name: V::NameRet,
-        pub bound: Option<V::TyRet>,
-        pub default: Option<V::TyRet>,
-    }
-
-    pub fn walk_ty_fn_param<V: AstVisitor>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TyFnParam>,
-    ) -> Result<TyFnParam<V>, V::Error> {
-        Ok(TyFnParam {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            bound: node
-                .bound
-                .as_ref()
-                .map(|bound| visitor.visit_ty(ctx, bound.ast_ref()))
-                .transpose()?,
-            default: node
-                .default
-                .as_ref()
-                .map(|default| visitor.visit_ty(ctx, default.ast_ref()))
-                .transpose()?,
-        })
-    }
-
     pub struct TyFn<V: AstVisitor> {
-        pub params: V::CollectionContainer<V::TyFnParamRet>,
+        pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: V::TyRet,
     }
 
@@ -2519,7 +2451,7 @@ pub mod walk {
         Ok(TyFn {
             params: V::try_collect_items(
                 ctx,
-                node.params.iter().map(|a| visitor.visit_ty_fn_param(ctx, a.ast_ref())),
+                node.params.iter().map(|a| visitor.visit_param(ctx, a.ast_ref())),
             )?,
             return_ty: visitor.visit_ty(ctx, node.return_ty.ast_ref())?,
         })
@@ -2946,17 +2878,17 @@ pub mod walk {
         })
     }
 
-    pub struct AssignStatement<V: AstVisitor> {
+    pub struct AssignExpr<V: AstVisitor> {
         pub lhs: V::ExpressionRet,
         pub rhs: V::ExpressionRet,
     }
 
-    pub fn walk_assign_statement<V: AstVisitor>(
+    pub fn walk_assign_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::AssignExpr>,
-    ) -> Result<AssignStatement<V>, V::Error> {
-        Ok(AssignStatement {
+    ) -> Result<AssignExpr<V>, V::Error> {
+        Ok(AssignExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref())?,
         })
@@ -3028,29 +2960,8 @@ pub mod walk {
         })
     }
 
-    pub struct StructDefEntry<V: AstVisitor> {
-        pub name: V::NameRet,
-        pub ty: Option<V::TyRet>,
-        pub default: Option<V::ExpressionRet>,
-    }
-    pub fn walk_struct_def_entry<V: AstVisitor>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::StructDefEntry>,
-    ) -> Result<StructDefEntry<V>, V::Error> {
-        Ok(StructDefEntry {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            ty: node.ty.as_ref().map(|t| visitor.visit_ty(ctx, t.ast_ref())).transpose()?,
-            default: node
-                .default
-                .as_ref()
-                .map(|d| visitor.visit_expr(ctx, d.ast_ref()))
-                .transpose()?,
-        })
-    }
-
     pub struct StructDef<V: AstVisitor> {
-        pub entries: V::CollectionContainer<V::StructDefEntryRet>,
+        pub entries: V::CollectionContainer<V::ParamRet>,
     }
     pub fn walk_struct_def<V: AstVisitor>(
         visitor: &mut V,
@@ -3060,7 +2971,7 @@ pub mod walk {
         Ok(StructDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries.iter().map(|b| visitor.visit_struct_def_entry(ctx, b.ast_ref())),
+                node.entries.iter().map(|b| visitor.visit_param(ctx, b.ast_ref())),
             )?,
         })
     }
@@ -3100,7 +3011,7 @@ pub mod walk {
     }
 
     pub struct TyFnDef<V: AstVisitor> {
-        pub params: V::CollectionContainer<V::TyFnDefArgRet>,
+        pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
         pub expr: V::ExpressionRet,
     }
@@ -3113,7 +3024,7 @@ pub mod walk {
         Ok(TyFnDef {
             params: V::try_collect_items(
                 ctx,
-                node.params.iter().map(|t| visitor.visit_ty_fn_def_param(ctx, t.ast_ref())),
+                node.params.iter().map(|t| visitor.visit_param(ctx, t.ast_ref())),
             )?,
             return_ty: node
                 .return_ty
@@ -3121,28 +3032,6 @@ pub mod walk {
                 .map(|t| visitor.visit_ty(ctx, t.ast_ref()))
                 .transpose()?,
             expr: visitor.visit_expr(ctx, node.body.ast_ref())?,
-        })
-    }
-
-    pub struct TyFnDefParam<V: AstVisitor> {
-        pub name: V::NameRet,
-        pub ty: Option<V::TyRet>,
-        pub default: Option<V::TyRet>,
-    }
-
-    pub fn walk_ty_fn_def_param<V: AstVisitor>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::TyFnDefParam>,
-    ) -> Result<TyFnDefParam<V>, V::Error> {
-        Ok(TyFnDefParam {
-            name: visitor.visit_name(ctx, node.name.ast_ref())?,
-            ty: node.ty.as_ref().map(|inner| visitor.visit_ty(ctx, inner.ast_ref())).transpose()?,
-            default: node
-                .default
-                .as_ref()
-                .map(|inner| visitor.visit_ty(ctx, inner.ast_ref()))
-                .transpose()?,
         })
     }
 
@@ -3205,18 +3094,18 @@ pub mod walk_mut {
 
     use super::{ast, AstVisitorMut};
 
-    pub struct FnDefArg<V: AstVisitorMut> {
+    pub struct Param<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub ty: Option<V::TyRet>,
         pub default: Option<V::ExpressionRet>,
     }
 
-    pub fn walk_fn_def_param<V: AstVisitorMut>(
+    pub fn walk_param<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::FnDefParam>,
-    ) -> Result<FnDefArg<V>, V::Error> {
-        Ok(FnDefArg {
+        mut node: ast::AstNodeRefMut<ast::Param>,
+    ) -> Result<Param<V>, V::Error> {
+        Ok(Param {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             ty: node.ty.as_mut().map(|t| visitor.visit_ty(ctx, t.ast_ref_mut())).transpose()?,
             default: node
@@ -3228,7 +3117,7 @@ pub mod walk_mut {
     }
 
     pub struct FnDef<V: AstVisitorMut> {
-        pub params: V::CollectionContainer<V::FnDefParamRet>,
+        pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
         pub fn_body: V::ExpressionRet,
     }
@@ -3241,7 +3130,7 @@ pub mod walk_mut {
         Ok(FnDef {
             params: V::try_collect_items(
                 ctx,
-                node.params.iter_mut().map(|a| visitor.visit_fn_def_param(ctx, a.ast_ref_mut())),
+                node.params.iter_mut().map(|a| visitor.visit_param(ctx, a.ast_ref_mut())),
             )?,
             return_ty: node
                 .return_ty
@@ -3274,7 +3163,7 @@ pub mod walk_mut {
         Return(V::ReturnStatementRet),
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
-        Assign(V::AssignExpressionRet),
+        Assign(V::AssignExprRet),
         AssignOp(V::AssignOpExpressionRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
@@ -3409,7 +3298,7 @@ pub mod walk_mut {
             ReturnStatementRet = Ret,
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
-            AssignExpressionRet = Ret,
+            AssignExprRet = Ret,
             AssignOpExpressionRet = Ret,
             BinaryExpressionRet = Ret,
             UnaryExpressionRet = Ret,
@@ -4237,34 +4126,8 @@ pub mod walk_mut {
         })
     }
 
-    pub struct TyFnParam<V: AstVisitorMut> {
-        pub name: V::NameRet,
-        pub bound: Option<V::TyRet>,
-        pub default: Option<V::TyRet>,
-    }
-
-    pub fn walk_ty_fn_param<V: AstVisitorMut>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::TyFnParam>,
-    ) -> Result<TyFnParam<V>, V::Error> {
-        Ok(TyFnParam {
-            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            bound: node
-                .bound
-                .as_mut()
-                .map(|bound| visitor.visit_ty(ctx, bound.ast_ref_mut()))
-                .transpose()?,
-            default: node
-                .default
-                .as_mut()
-                .map(|default| visitor.visit_ty(ctx, default.ast_ref_mut()))
-                .transpose()?,
-        })
-    }
-
     pub struct TyFn<V: AstVisitorMut> {
-        pub args: V::CollectionContainer<V::TyFnParamRet>,
+        pub args: V::CollectionContainer<V::ParamRet>,
         pub return_ty: V::TyRet,
     }
 
@@ -4276,7 +4139,7 @@ pub mod walk_mut {
         Ok(TyFn {
             args: V::try_collect_items(
                 ctx,
-                node.params.iter_mut().map(|a| visitor.visit_ty_fn_param(ctx, a.ast_ref_mut())),
+                node.params.iter_mut().map(|a| visitor.visit_param(ctx, a.ast_ref_mut())),
             )?,
             return_ty: visitor.visit_ty(ctx, node.return_ty.ast_ref_mut())?,
         })
@@ -4748,17 +4611,17 @@ pub mod walk_mut {
         })
     }
 
-    pub struct AssignStatement<V: AstVisitorMut> {
+    pub struct AssignExpr<V: AstVisitorMut> {
         pub lhs: V::ExpressionRet,
         pub rhs: V::ExpressionRet,
     }
 
-    pub fn walk_assign_statement<V: AstVisitorMut>(
+    pub fn walk_assign_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::AssignExpr>,
-    ) -> Result<AssignStatement<V>, V::Error> {
-        Ok(AssignStatement {
+    ) -> Result<AssignExpr<V>, V::Error> {
+        Ok(AssignExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref_mut())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref_mut())?,
         })
@@ -4830,29 +4693,8 @@ pub mod walk_mut {
         })
     }
 
-    pub struct StructDefEntry<V: AstVisitorMut> {
-        pub name: V::NameRet,
-        pub ty: Option<V::TyRet>,
-        pub default: Option<V::ExpressionRet>,
-    }
-    pub fn walk_struct_def_entry<V: AstVisitorMut>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::StructDefEntry>,
-    ) -> Result<StructDefEntry<V>, V::Error> {
-        Ok(StructDefEntry {
-            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            ty: node.ty.as_mut().map(|t| visitor.visit_ty(ctx, t.ast_ref_mut())).transpose()?,
-            default: node
-                .default
-                .as_mut()
-                .map(|d| visitor.visit_expr(ctx, d.ast_ref_mut()))
-                .transpose()?,
-        })
-    }
-
     pub struct StructDef<V: AstVisitorMut> {
-        pub entries: V::CollectionContainer<V::StructDefEntryRet>,
+        pub entries: V::CollectionContainer<V::ParamRet>,
     }
     pub fn walk_struct_def<V: AstVisitorMut>(
         visitor: &mut V,
@@ -4862,9 +4704,7 @@ pub mod walk_mut {
         Ok(StructDef {
             entries: V::try_collect_items(
                 ctx,
-                node.entries
-                    .iter_mut()
-                    .map(|b| visitor.visit_struct_def_entry(ctx, b.ast_ref_mut())),
+                node.entries.iter_mut().map(|b| visitor.visit_param(ctx, b.ast_ref_mut())),
             )?,
         })
     }
@@ -4904,7 +4744,7 @@ pub mod walk_mut {
     }
 
     pub struct TyFnDef<V: AstVisitorMut> {
-        pub params: V::CollectionContainer<V::TyFnDefArgRet>,
+        pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
         pub body: V::ExpressionRet,
     }
@@ -4917,7 +4757,7 @@ pub mod walk_mut {
         Ok(TyFnDef {
             params: V::try_collect_items(
                 ctx,
-                node.params.iter_mut().map(|t| visitor.visit_ty_fn_def_param(ctx, t.ast_ref_mut())),
+                node.params.iter_mut().map(|t| visitor.visit_param(ctx, t.ast_ref_mut())),
             )?,
             return_ty: node
                 .return_ty
@@ -4925,32 +4765,6 @@ pub mod walk_mut {
                 .map(|t| visitor.visit_ty(ctx, t.ast_ref_mut()))
                 .transpose()?,
             body: visitor.visit_expr(ctx, node.body.ast_ref_mut())?,
-        })
-    }
-
-    pub struct TyFnDefParam<V: AstVisitorMut> {
-        pub name: V::NameRet,
-        pub ty: Option<V::TyRet>,
-        pub default: Option<V::TyRet>,
-    }
-
-    pub fn walk_ty_fn_def_param<V: AstVisitorMut>(
-        visitor: &mut V,
-        ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::TyFnDefParam>,
-    ) -> Result<TyFnDefParam<V>, V::Error> {
-        Ok(TyFnDefParam {
-            name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
-            ty: node
-                .ty
-                .as_mut()
-                .map(|inner| visitor.visit_ty(ctx, inner.ast_ref_mut()))
-                .transpose()?,
-            default: node
-                .default
-                .as_mut()
-                .map(|inner| visitor.visit_ty(ctx, inner.ast_ref_mut()))
-                .transpose()?,
         })
     }
 
