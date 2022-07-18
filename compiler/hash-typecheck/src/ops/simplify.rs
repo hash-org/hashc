@@ -15,12 +15,13 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
-            Level3Term, NominalDef, Param, ParamOrigin, ParamsId, StructFields, Term, TermId,
-            TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId, TupleLit, TupleTy,
+            TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
+use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
 use itertools::Itertools;
 

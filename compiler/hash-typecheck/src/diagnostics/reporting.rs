@@ -8,10 +8,11 @@ use super::{
 use crate::{
     fmt::PrepareForFormatting,
     storage::{
-        primitives::{Arg, Param, ParamOrigin},
+        primitives::{Arg, Param},
         AccessToStorage, StorageRef,
     },
 };
+use hash_ast::ast::ParamOrigin;
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     builder::ReportBuilder,

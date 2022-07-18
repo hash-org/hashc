@@ -6,13 +6,14 @@ use crate::storage::{
         AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPattern, ConstructorPattern, EnumDef,
         EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPattern, Level0Term, Level1Term,
         Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
-        ModPattern, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamOrigin, ParamsId,
-        Pattern, PatternId, PatternParam, PatternParamsId, Scope, ScopeId, ScopeKind, StructDef,
+        ModPattern, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pattern,
+        PatternId, PatternParam, PatternParamsId, Scope, ScopeId, ScopeKind, StructDef,
         StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall,
         TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
+use hash_ast::ast::ParamOrigin;
 use hash_source::{identifier::Identifier, location::SourceLocation};
 use std::cell::{Cell, RefCell};
 

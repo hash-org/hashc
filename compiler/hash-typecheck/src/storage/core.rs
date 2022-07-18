@@ -5,8 +5,10 @@
 //! of the "primitive" Hash types aren't actually primitives as far as the
 //! typechecker is concerned. This includes: integers, floats, characters,
 //! strings, lists, maps, references, etc.
+use hash_ast::ast::ParamOrigin;
+
 use super::{
-    primitives::{ModDefOrigin, NominalDefId, ParamOrigin, TermId, TrtDefId, Visibility},
+    primitives::{ModDefOrigin, NominalDefId, TermId, TrtDefId, Visibility},
     GlobalStorage,
 };
 use crate::ops::building::PrimitiveBuilder;

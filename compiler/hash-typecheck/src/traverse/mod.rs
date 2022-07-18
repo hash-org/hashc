@@ -35,6 +35,7 @@ use self::scopes::VisitConstantScope;
 
 pub mod scopes;
 pub mod sequence;
+pub mod params;
 
 /// Internal state that the [TcVisitor] uses when traversing the
 /// given sources.

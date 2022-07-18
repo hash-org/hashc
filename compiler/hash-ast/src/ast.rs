@@ -1206,12 +1206,31 @@ impl Block {
     }
 }
 
-/// Origin of a parameter
-#[derive(Debug, PartialEq, Eq, Clone)]
+/// This enum describes the origin kind of the subject that a parameter
+/// unification occurred on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParamOrigin {
+    /// If at the current time, it's not known the origin of the parameter list,
+    /// the function will default to using this.
+    Unknown,
+    Tuple,
     Struct,
     Fn,
     TyFn,
+    EnumVariant,
+}
+
+impl Display for ParamOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParamOrigin::Unknown => write!(f, "unknown"),
+            ParamOrigin::Tuple => write!(f, "tuple"),
+            ParamOrigin::Struct => write!(f, "struct"),
+            ParamOrigin::Fn => write!(f, "function"),
+            ParamOrigin::TyFn => write!(f, "type function"),
+            ParamOrigin::EnumVariant => write!(f, "enum variant"),
+        }
+    }
 }
 
 /// A function definition parameter.
