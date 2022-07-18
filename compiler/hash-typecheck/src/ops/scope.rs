@@ -2,9 +2,14 @@
 
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic,
+    },
     storage::{
-        primitives::{ParamsId, ScopeId, ScopeMember, Sub, SubSubject, TermId, Visibility},
+        primitives::{
+            MemberData, ParamsId, ScopeId, ScopeMember, Sub, SubSubject, TermId, Visibility,
+        },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -118,5 +123,44 @@ impl<'gs, 'ls, 'cd, 's> ScopeResolver<'gs, 'ls, 'cd, 's> {
             }));
         self.scopes_mut().append(param_scope);
         param_scope
+    }
+
+    /// Assign the given value to the given member as a `(ScopeId, usize)` pair.
+    ///
+    /// This will unify the value with the index, decrement the
+    /// `assignments_until_closed` counter for the member, and will panic if
+    /// the counter is zero already.
+    pub fn assign_member(
+        &mut self,
+        scope_id: ScopeId,
+        index: usize,
+        value: TermId,
+    ) -> TcResult<()> {
+        let member = self.scope_store_mut().get_mut(scope_id).get_by_index(index);
+
+        // Unify types:
+        let member_data = self.typer().infer_member_ty(member.data)?;
+        let rhs_ty = self.typer().infer_ty_of_term(value)?;
+        let _ = self.unifier().unify_terms(rhs_ty, member_data.ty)?;
+
+        let member = self.scope_store_mut().get_mut(scope_id).get_mut_by_index(index);
+        if member.is_closed() {
+            tc_panic!(value, self, "Cannot assign to closed member");
+        }
+
+        member.assignments_until_closed -= 1;
+        match member.data {
+            MemberData::Uninitialised { .. } => {
+                member.data = MemberData::InitialisedWithInferredTy { value }
+            }
+            MemberData::InitialisedWithTy { ty, .. } => {
+                member.data = MemberData::InitialisedWithTy { value, ty }
+            }
+            MemberData::InitialisedWithInferredTy { .. } => {
+                member.data = MemberData::InitialisedWithInferredTy { value }
+            }
+        }
+
+        Ok(())
     }
 }

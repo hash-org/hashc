@@ -302,13 +302,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         value: TermId,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::InitialisedWithTy { ty, value },
-            visibility: Visibility::Private,
-            mutability: Mutability::Immutable,
-            is_closed: true,
-        }
+        Member::closed(
+            name.into(),
+            Visibility::Private,
+            Mutability::Immutable,
+            MemberData::InitialisedWithTy { ty, value },
+        )
     }
 
     /// Create a public member with the given name and value, with inferred
@@ -319,13 +318,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::InitialisedWithInferredTy { value },
+        Member::closed(
+            name.into(),
             visibility,
-            mutability: Mutability::Immutable,
-            is_closed: true,
-        }
+            Mutability::Immutable,
+            MemberData::InitialisedWithInferredTy { value },
+        )
     }
 
     /// Create a public member with the given name, type and value.
@@ -336,13 +334,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::InitialisedWithTy { ty, value },
+        Member::closed(
+            name.into(),
             visibility,
-            mutability: Mutability::Immutable,
-            is_closed: true,
-        }
+            Mutability::Immutable,
+            MemberData::InitialisedWithTy { ty, value },
+        )
     }
 
     /// Create a public member with the given name, type and unset value.
@@ -352,13 +349,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::Uninitialised { ty },
+        Member::closed(
+            name.into(),
             visibility,
-            mutability: Mutability::Immutable,
-            is_closed: true,
-        }
+            Mutability::Immutable,
+            MemberData::Uninitialised { ty },
+        )
     }
 
     /// Create a [Term::Root].

@@ -50,21 +50,6 @@ impl MemberData {
         }
     }
 
-    /// Set the value of the member.
-    pub fn set_value(&mut self, value: TermId) {
-        match *self {
-            MemberData::Uninitialised { .. } => {
-                *self = MemberData::InitialisedWithInferredTy { value }
-            }
-            MemberData::InitialisedWithTy { ty, .. } => {
-                *self = MemberData::InitialisedWithTy { value, ty }
-            }
-            MemberData::InitialisedWithInferredTy { .. } => {
-                *self = MemberData::InitialisedWithInferredTy { value }
-            }
-        }
-    }
-
     /// Turn the given type and value into a [MemberData].
     pub fn from_ty_and_value(ty: Option<TermId>, value: Option<TermId>) -> Self {
         match (ty, value) {
@@ -83,8 +68,26 @@ pub struct Member {
     pub data: MemberData,
     pub visibility: Visibility,
     pub mutability: Mutability,
-    /// Whether the member has finished initialising or not.
-    pub is_closed: bool,
+    /// The amount of assignments are left until the member has finished
+    /// initialising (== closed).
+    pub assignments_until_closed: usize,
+}
+
+impl Member {
+    /// Create a closed member with the given data.
+    pub fn closed(
+        name: Identifier,
+        visibility: Visibility,
+        mutability: Mutability,
+        data: MemberData,
+    ) -> Self {
+        Member { name, data, visibility, mutability, assignments_until_closed: 0 }
+    }
+
+    /// Whether the member is closed (no assignments remaining).
+    pub fn is_closed(&self) -> bool {
+        self.assignments_until_closed == 0
+    }
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
@@ -150,6 +153,11 @@ impl Scope {
         let index = self.member_names.get(&member_name).copied()?;
 
         Some((self.members[index], index))
+    }
+
+    /// Get a member by index, asserting that it exists.
+    pub fn get_by_index(&mut self, index: usize) -> Member {
+        self.members[index]
     }
 
     /// Get a member by index, mutably, asserting that it exists.

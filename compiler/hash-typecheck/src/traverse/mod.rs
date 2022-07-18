@@ -1601,13 +1601,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             None => {
                 if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
                     // Add the member without a value:
-                    vec![Member {
+                    vec![Member::closed(
                         name,
-                        data: MemberData::from_ty_and_value(Some(ty), None),
-                        mutability,
                         visibility,
-                        is_closed: true,
-                    }]
+                        mutability,
+                        MemberData::from_ty_and_value(Some(ty), None),
+                    )]
                 } else {
                     // If there is no value, one cannot use pattern matching!
                     return Err(TcError::CannotPatMatchWithoutAssignment { pat: pat_id });
@@ -1657,8 +1656,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
 
         // Try to resolve the variable in scopes; if it is not found, it is an error. If
-        // it is found, then ensure the two types can be unified, and set it to
-        // its new term.
+        // it is found, then set it to its new term.
         let name = match node.lhs.kind() {
             ast::ExprKind::Variable(name) => name.name.ident,
             _ => {
@@ -1671,17 +1669,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.copy_location_from_node_to_target(node, var_term);
         let member = self.scope_resolver().resolve_name_in_scopes(name, var_term)?;
 
-        // Unify types:
-        let member_data = self.typer().infer_member_ty(member.member.data)?;
-        let rhs_ty = self.typer().infer_ty_of_term(rhs)?;
-        let _ = self.unifier().unify_terms(rhs_ty, member_data.ty)?;
-
         // Set the value to the member:
-        self.scope_store_mut()
-            .get_mut(member.scope_id)
-            .get_mut_by_index(member.index)
-            .data
-            .set_value(rhs);
+        self.scope_resolver().assign_member(member.scope_id, member.index, rhs)?;
 
         Ok(self.builder().create_void_term())
     }

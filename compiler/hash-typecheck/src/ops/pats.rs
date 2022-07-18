@@ -55,13 +55,12 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         let pat = self.reader().get_pat(pat_id).clone();
         match pat {
             // Binding: Add the binding as a member
-            Pat::Binding(binding) => Ok(Some(vec![Member {
-                name: binding.name,
-                mutability: binding.mutability,
-                visibility: binding.visibility,
-                data: MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
-                is_closed: true,
-            }])),
+            Pat::Binding(binding) => Ok(Some(vec![Member::closed(
+                binding.name,
+                binding.visibility,
+                binding.mutability,
+                MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+            )])),
             // Ignore: No bindings but always matches
             Pat::Ignore => Ok(Some(vec![])),
             // Lit: Unify the literal with the subject
