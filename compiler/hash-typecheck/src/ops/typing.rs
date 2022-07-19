@@ -160,11 +160,12 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let rt_instantiable_def = self.core_defs().runtime_instantiable_trt;
                 Ok(self.builder().create_trt_term(rt_instantiable_def))
             }
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 // The type of an AppSub is the type of the subject, with the substitution
                 // applied:
-                let ty_of_subject = self.infer_ty_of_term(app_sub.term)?;
-                Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
+                // let ty_of_subject = self.infer_ty_of_term(app_sub.term)?;
+                // Ok(self.substituter().apply_sub_to_term(&app_sub.sub, ty_of_subject))
+                todo!()
             }
             Term::Unresolved(_) => {
                 // The type of an unresolved variable X is typeof(X):

@@ -411,25 +411,26 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, unresolved_term),
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 opts.is_atomic.set(true);
-                write!(f, "[")?;
-                let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
-                for (i, (from, to)) in pairs.iter().enumerate() {
-                    self.fmt_term_as_single(f, *to, opts.clone())?;
-                    write!(f, "/")?;
-                    match from {
-                        SubSubject::Var(var) => write!(f, "{}", var.name)?,
-                        SubSubject::Unresolved(unresolved) => self.fmt_unresolved(f, unresolved)?,
-                    }
+                todo!()
+                // write!(f, "[")?;
+                // let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
+                // for (i, (from, to)) in pairs.iter().enumerate() {
+                //     self.fmt_term_as_single(f, *to, opts.clone())?;
+                //     write!(f, "/")?;
+                //     match from {
+                //         SubSubject::Var(var) => write!(f, "{}", var.name)?,
+                //         SubSubject::Unresolved(unresolved) =>
+                // self.fmt_unresolved(f, unresolved)?,     }
 
-                    if i != pairs.len() - 1 {
-                        write!(f, ", ")?;
-                    }
-                }
-                write!(f, "]")?;
-                self.fmt_term_as_single(f, app_sub.term, opts)?;
-                Ok(())
+                //     if i != pairs.len() - 1 {
+                //         write!(f, ", ")?;
+                //     }
+                // }
+                // write!(f, "]")?;
+                // self.fmt_term_as_single(f, app_sub.term, opts)?;
+                // Ok(())
             }
             Term::Level3(term) => self.fmt_level3_term(f, term, opts),
             Term::Level2(term) => self.fmt_level2_term(f, term, opts),

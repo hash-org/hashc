@@ -11,9 +11,9 @@ use crate::{
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
-            AppSub, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId,
-            ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
-            ScopeKind, StructFields, Sub, Term, TermId, TrtDefId,
+            ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId, ModDefOrigin,
+            Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId, ScopeKind,
+            StructFields, Sub, Term, TermId, TrtDefId,
         },
         terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -55,7 +55,7 @@ impl Term {
     /// Compute the level of the term. This is a primitive computation
     /// and does not attempt to compute the true level of the [Term]
     /// by looking at the inner children of the [Term].
-    pub fn get_term_level(&self, store: &TermStore) -> TermLevel {
+    pub fn get_term_level(&self, _store: &TermStore) -> TermLevel {
         // @@Todo(feds01): implement the other variants by recursing into them.
         match self {
             Term::Access(_)
@@ -66,7 +66,7 @@ impl Term {
             | Term::Union(_)
             | Term::TyFnTy(_)
             | Term::TyFnCall(_) => TermLevel::Unknown,
-            Term::AppSub(AppSub { term, .. }) => store.get(*term).get_term_level(store),
+            Term::SetBound(_) => todo!(),
             Term::Unresolved(_) => TermLevel::Unknown,
             Term::Root => TermLevel::Level4,
             Term::Level3(_) => TermLevel::Level3,
@@ -216,16 +216,17 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
         // Ensure the term leads to a trait definition:
         match simplified_trt_def_term {
-            Term::AppSub(app_sub) => {
-                let app_sub = app_sub.clone();
+            Term::SetBound(app_sub) => {
+                let _app_sub = *app_sub;
                 // Recurse to inner term
-                let unified_sub = self.unifier().unify_subs(trt_sub, &app_sub.sub)?;
-                self.ensure_scope_implements_trait(
-                    app_sub.term,
-                    &unified_sub,
-                    scope_originating_term_id,
-                    scope_id,
-                )
+                // let unified_sub = self.unifier().unify_subs(trt_sub, &app_sub.sub)?;
+                // self.ensure_scope_implements_trait(
+                //     app_sub.term,
+                //     &unified_sub,
+                //     scope_originating_term_id,
+                //     scope_id,
+                // )
+                todo!()
             }
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
                 let trt_def_id = *trt_def_id;
@@ -376,9 +377,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
         // Ensure the level of the term is valid:
         match union_element_term {
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 // Ensure the inner one is valid, substitution doesn't matter:
-                self.validate_union_element(union_term_id, app_sub.term)
+                // self.validate_union_element(union_term_id, app_sub.term)
+                todo!()
             }
             Term::Level1(level1_term) => match level1_term {
                 // Checking a nominal
@@ -517,9 +519,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 // Ensure the inner one is valid, substitution doesn't matter:
-                self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
+                // self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
+                todo!()
             }
             // Unclear if this fits the requirements, so we reject it:
             Term::Unresolved(_) => {
@@ -797,15 +800,16 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             }
 
             // Substitution application:
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 // @@Correctness: do we need to perform any sort of substitution validity check?
                 // maybe to try unify the substitution with itself to ensure it does not
                 // contradict itself? For example, if it contains cycles `T0 ->
                 // T1, T1 -> T0`.
                 //
                 // For now, we just validate the inner term:
-                self.validate_term(app_sub.term)?;
-                Ok(result)
+                // self.validate_term(app_sub.term)?;
+                // Ok(result)
+                todo!()
             }
 
             // Type function type:
@@ -1047,9 +1051,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // All good, basically curried type function:
                 Ok(true)
             }
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 // Check the inner type:
-                self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
+                // self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
+                todo!()
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
@@ -1105,9 +1110,10 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // Type function types are okay to use if their return types can be used here:
                 self.term_can_be_used_as_ty_fn_param_ty(ty_fn_ty.return_ty)
             }
-            Term::AppSub(app_sub) => {
+            Term::SetBound(_app_sub) => {
                 // Check the inner type:
-                self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
+                // self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
+                todo!()
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
@@ -1143,7 +1149,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     ///
     /// @@Correctness: This is not based on any accepted algorithm, and requires
     /// testing to ensure its correctness.
-    pub(crate) fn subs_are_equivalent(&mut self, s0: &Sub, s1: &Sub) -> bool {
+    pub(crate) fn _subs_are_equivalent(&mut self, s0: &Sub, s1: &Sub) -> bool {
         // First we get the two substitutions as lists sorted by their domains:
         let mut s0_list = s0.pairs().collect::<Vec<_>>();
         let mut s1_list = s1.pairs().collect::<Vec<_>>();

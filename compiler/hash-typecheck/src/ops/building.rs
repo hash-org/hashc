@@ -3,12 +3,12 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPat, ConstructorPat, EnumDef,
-        EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
-        Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
-        ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
-        PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef, StructFields, Sub,
-        Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        AccessOp, AccessTerm, Arg, ArgsId, BindingPat, ConstructorPat, EnumDef, EnumVariant,
+        EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term, Level2Term,
+        Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin, ModPat,
+        Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId, PatParam,
+        PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef, StructFields, Sub, Term,
+        TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
@@ -635,12 +635,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
     ///
     /// If no elements exist in the substitution, returns the term itself
     /// without wrapping it.
-    pub fn create_app_sub_term(&self, sub: Sub, term: TermId) -> TermId {
-        if sub.map().is_empty() {
-            term
-        } else {
-            self.create_term(Term::AppSub(AppSub { sub, term }))
-        }
+    pub fn create_app_sub_term(&self, _sub: Sub, _term: TermId) -> TermId {
+        todo!()
+        // if sub.map().is_empty() {
+        //     term
+        // } else {
+        //     self.create_term(Term::SetBound(AppSub { sub, term }))
+        // }
     }
 
     /// Create an argument with the given name and value.

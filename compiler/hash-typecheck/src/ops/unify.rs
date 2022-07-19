@@ -425,14 +425,16 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             }
 
             // Apply substitution:
-            (Term::AppSub(src_app_sub), Term::AppSub(target_app_sub))
-                if self.validator().subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
+            (Term::SetBound(_src_app_sub), Term::SetBound(_target_app_sub)) =>
+                // if self.validator().subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
             {
-                // Unify inner, then unify the resultant substitution with the ones given here:
-                let inner_sub = self.unify_terms(src_app_sub.term, target_app_sub.term)?;
-                self.unify_subs(&src_app_sub.sub, &inner_sub)
+                // // Unify inner, then unify the resultant substitution with the ones given
+                // here: let inner_sub = self.unify_terms(src_app_sub.term,
+                // target_app_sub.term)?; self.unify_subs(&src_app_sub.sub,
+                // &inner_sub)
+                todo!()
             }
-            (Term::AppSub(_), _) | (_, Term::AppSub(_)) => {
+            (Term::SetBound(_), _) | (_, Term::SetBound(_)) => {
                 // Otherwise they don't unify (since we start with simplified terms)
                 cannot_unify()
             }

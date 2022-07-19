@@ -5,8 +5,8 @@ use crate::{
     diagnostics::error::{TcError, TcResult},
     storage::{
         primitives::{
-            MemberData, ParamsId, ScopeId, ScopeKind, ScopeMember, ScopeVar, Sub, SubSubject,
-            TermId, Visibility,
+            MemberData, ParamsId, ScopeId, ScopeKind, ScopeMember, ScopeVar, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -95,21 +95,22 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     ///
     /// This is creates a constant scope, and assigns each domain element of
     /// type [SubSubject::Var] to its corresponding range element.
-    pub(crate) fn enter_sub_param_scope(&mut self, sub: &Sub) -> ScopeId {
-        let builder = self.builder();
-        let sub_scope = builder.create_scope(
-            ScopeKind::Substitution,
-            sub.pairs().filter_map(|(domain_el, range_el)| match domain_el {
-                SubSubject::Var(var) => Some(builder.create_constant_member_infer_ty(
-                    var.name,
-                    range_el,
-                    Visibility::Private,
-                )),
-                SubSubject::Unresolved(_) => None,
-            }),
-        );
-        self.scopes_mut().append(sub_scope);
-        sub_scope
+    pub(crate) fn _enter_sub_param_scope(&mut self, _sub: &Sub) -> ScopeId {
+        let _builder = self.builder();
+        todo!()
+        // let sub_scope = builder.create_scope(
+        //     ScopeKind::SetBound,
+        //     sub.pairs().filter_map(|(domain_el, range_el)| match domain_el {
+        //         SubSubject::Var(var) =>
+        // Some(builder.create_constant_member_infer_ty(
+        // var.name,             range_el,
+        //             Visibility::Private,
+        //         )),
+        //         SubSubject::Unresolved(_) => None,
+        //     }),
+        // );
+        // self.scopes_mut().append(sub_scope);
+        // sub_scope
     }
 
     /// Enter a parameter scope, which is a scope that contains all the given

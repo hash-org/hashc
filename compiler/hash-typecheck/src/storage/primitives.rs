@@ -98,23 +98,35 @@ pub struct ScopeMember {
     pub scope_id: ScopeId,
 }
 
-/// A scope is either a variable scope or a constant scope.
+/// The kind of a scope.
 ///
 /// Examples of variable scopes are:
-/// - Block expression scope
-/// - Function parameter scope
-///
-/// Examples of const scopes are:
-/// - The root scope
-/// - Module block scope
-/// - Trait block scope
-/// - Impl block scope
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopeKind {
+    /// A variable scope.
+    ///
+    /// Can be:
+    /// - Block expression scope
+    /// - Function parameter scope
     Variable,
+    /// A constant scope.
+    ///
+    /// Can be:
+    /// - The root scope
+    /// - Module block scope
+    /// - Trait block scope
+    /// - Impl block scope
     Constant,
+    /// A bound scope.
+    ///
+    /// Can be:
+    /// - Type function parameter scope.
     Bound,
-    Substitution,
+    /// A scope that sets some bounds.
+    ///
+    /// Can be:
+    /// - Type function "argument" scope.
+    SetBound { bound_scope_id: ScopeId },
 }
 
 /// Stores a list of members, indexed by the members' names.
@@ -521,6 +533,15 @@ pub struct ScopeVar {
     pub name: Identifier,
     pub scope_id: ScopeId,
     pub index: usize,
+}
+
+/// A term with a set of bounds being assigned to specific values. The bound
+/// variables should be present in the inner term
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct SetBound {
+    pub inner: TermId,
+    /// Must be [ScopeKind::SetBound]
+    pub set_bound_scope_id: ScopeId,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -934,11 +955,11 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant application.
     TyFnCall(TyFnCall),
 
-    /// Substitution application.
+    /// Setting some bounds of an inner ter.
     ///
     /// Is level N, where N is the level of the inner term after the
     /// substitution has been applied.
-    AppSub(AppSub),
+    SetBound(SetBound),
 
     /// Type of a term
     ///
