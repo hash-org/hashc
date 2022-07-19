@@ -697,17 +697,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
         let walk::CastExpr { expr, ty } = walk::walk_cast_expr(self, ctx, node)?;
-
-        // Ensure that the `expr` can be unified with the provided `ty`...
         let expr_ty = self.typer().infer_ty_of_term(expr)?;
 
-        // Here, we have to unify both of the provided types...
+        // Ensure that the `expr` can be unified with the provided `ty`...
         let sub = self.unifier().unify_terms(expr_ty, ty)?;
-        let value_sub = self.substituter().apply_sub_to_term(&sub, expr_ty);
+        let expr_sub = self.substituter().apply_sub_to_term(&sub, expr);
 
-        self.copy_location_from_node_to_target(node, value_sub);
+        self.copy_location_from_node_to_target(node, expr_sub);
 
-        Ok(value_sub)
+        Ok(expr_sub)
     }
 
     type TyExprRet = TermId;
