@@ -487,7 +487,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                         Ok(self.get_super_sub(&args_unified_sub, &subject_sub)?)
                     }
                     // If the subject is not a function type then application is invalid:
-                    _ => Err(TcError::UnsupportedTypeFunctionApplication { subject_id: subject }),
+                    _ => Err(TcError::UnsupportedTyFnApplication { subject_id: subject }),
                 }
             }
             (Term::TyFnCall(_), _) | (_, Term::TyFnCall(_)) => {

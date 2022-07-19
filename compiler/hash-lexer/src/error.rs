@@ -35,17 +35,17 @@ pub enum LexerErrorKind {
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
     #[error("Malformed numerical literal")]
-    MalformedNumericalLiteral,
+    MalformedNumericalLit,
     /// Occurs when a float literal exponent has no proceeding digits.
     #[error("Expected float exponent to have at least one digit")]
     MissingExponentDigits,
     /// Occurs when a numerical literal doesn't follow the language
     /// specification, or is too large.
     #[error("Unclosed string literal")]
-    UnclosedStringLiteral,
+    UnclosedStringLit,
     /// Occurs when a character literal is comprised of more than one character
     #[error("Invalid character literal `{0}`, character literals may only contain one codepoint")]
-    InvalidCharacterLiteral(String),
+    InvalidCharacterLit(String),
     /// Occurs when a char is unexpected in the current context
     #[error("Encountered unexpected character `{0}`")]
     Unexpected(char),

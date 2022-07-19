@@ -531,7 +531,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
         // Helper for errors:
         let cannot_apply = || -> TcResult<Option<TermId>> {
-            Err(TcError::UnsupportedTypeFunctionApplication { subject_id: simplified_subject_id })
+            Err(TcError::UnsupportedTyFnApplication { subject_id: simplified_subject_id })
         };
 
         match simplified_subject {
@@ -577,7 +577,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
                 if results.is_empty() {
                     // If we have no results, we have to return an error:
-                    Err(TcError::InvalidTypeFunctionApplication {
+                    Err(TcError::InvalidTyFnApplication {
                         type_fn: simplified_subject_id,
                         cases: ty_fn.cases,
                         args: apply_ty_fn.args,
@@ -644,8 +644,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
 
-        let cannot_use_as_fn_call_subject =
-            || Err(TcError::InvalidFunctionCallSubject { term: term_id });
+        let cannot_use_as_fn_call_subject = || Err(TcError::InvalidFnCallSubject { term: term_id });
 
         match term {
             Term::Merge(terms) => {

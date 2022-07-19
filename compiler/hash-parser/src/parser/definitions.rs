@@ -91,20 +91,20 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a [TyFnDef]. Type functions specify logic at the type
     /// level on expressions such as struct, enum, function, and trait
     /// definitions.
-    pub fn parse_type_function_def(&self) -> AstGenResult<TyFnDef> {
+    pub fn parse_ty_fn_def(&self) -> AstGenResult<TyFnDef> {
         let mut params = AstNodes::empty();
 
         // We can't do this because the parse_separated_fn() function expects a token
         // tree and not the while tree:
         //
         // let args = self.parse_separated_fn(
-        //     || self.parse_type_function_def_arg(),
+        //     || self.parse_ty_fn_def_arg(),
         //     || self.parse_token_atom(TokenKind::Comma),
         // )?;
         //
         // And so instead we do this:
         //
-        while let Some(param) = self.peek_resultant_fn(|| self.parse_type_function_def_arg()) {
+        while let Some(param) = self.peek_resultant_fn(|| self.parse_ty_fn_def_arg()) {
             params.nodes.push(param);
 
             match self.peek() {
@@ -138,10 +138,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(TyFnDef { params, return_ty, body: expr })
     }
 
-    // Parse a [TyFnDefParam] which consists the name of the argument and
+    // Parse a [Param] which consists the name of the argument and
     // then any specified bounds on the argument which are essentially types
     // that are separated by a `~`
-    fn parse_type_function_def_arg(&self) -> AstGenResult<AstNode<Param>> {
+    fn parse_ty_fn_def_arg(&self) -> AstGenResult<AstNode<Param>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 

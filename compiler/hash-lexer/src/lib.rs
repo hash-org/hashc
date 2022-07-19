@@ -347,12 +347,12 @@ impl<'a> Lexer<'a> {
                 if value.is_err() {
                     return Err(LexerError::new(
                         Some("Integer literal too large".to_string()),
-                        LexerErrorKind::MalformedNumericalLiteral,
+                        LexerErrorKind::MalformedNumericalLit,
                         Span::new(start, self.offset.get()),
                     ));
                 }
 
-                return Ok(TokenKind::IntLiteral(value.unwrap()));
+                return Ok(TokenKind::IntLit(value.unwrap()));
             }
         }
 
@@ -377,10 +377,10 @@ impl<'a> Lexer<'a> {
                     .chain(std::iter::once('.'))
                     .chain(after_digits.chars().filter(|c| *c != '_'));
 
-                self.eat_float_literal(num, start)
+                self.eat_float_lit(num, start)
             }
             // Immediate exponent
-            'e' | 'E' => self.eat_float_literal(pre_digits, start),
+            'e' | 'E' => self.eat_float_lit(pre_digits, start),
             _ => {
                 let digits = pre_digits.collect::<String>();
 
@@ -389,17 +389,17 @@ impl<'a> Lexer<'a> {
                 match digits.parse::<u64>() {
                     Err(err) => Err(LexerError::new(
                         Some(format!("{}.", err)),
-                        LexerErrorKind::MalformedNumericalLiteral,
+                        LexerErrorKind::MalformedNumericalLit,
                         Span::new(start, self.offset.get()),
                     )),
-                    Ok(value) => Ok(TokenKind::IntLiteral(value)),
+                    Ok(value) => Ok(TokenKind::IntLit(value)),
                 }
             }
         }
     }
 
     /// Function to apply an exponent to a floating point literal.
-    fn eat_float_literal(
+    fn eat_float_lit(
         &self,
         num: impl Iterator<Item = char>,
         start: usize,
@@ -409,7 +409,7 @@ impl<'a> Lexer<'a> {
         match num {
             Err(err) => Err(LexerError::new(
                 Some(format!("{}.", err)),
-                LexerErrorKind::MalformedNumericalLiteral,
+                LexerErrorKind::MalformedNumericalLit,
                 Span::new(start, self.offset.get()),
             )),
             Ok(value) => {
@@ -419,7 +419,7 @@ impl<'a> Lexer<'a> {
                 // exponent to the float literal.
                 let value = if exp != 0 { value * 10f64.powi(exp) } else { value };
 
-                Ok(TokenKind::FloatLiteral(value))
+                Ok(TokenKind::FloatLit(value))
             }
         }
     }
@@ -454,7 +454,7 @@ impl<'a> Lexer<'a> {
         match self.eat_decimal_digits(10).parse::<i32>() {
             Err(_) => Err(LexerError::new(
                 Some("Invalid float exponent.".to_string()),
-                LexerErrorKind::MalformedNumericalLiteral,
+                LexerErrorKind::MalformedNumericalLit,
                 Span::new(start, self.offset.get() + 1),
             )),
             Ok(num) if negated => Ok(-num),
@@ -592,7 +592,7 @@ impl<'a> Lexer<'a> {
             let ch = self.next().unwrap();
             self.skip();
 
-            return Ok(TokenKind::CharLiteral(ch));
+            return Ok(TokenKind::CharLit(ch));
         } else if self.peek() == '\\' {
             // otherwise, this is an escaped char and hence we eat the '\' and use the next
             // char as the actual char by escaping it
@@ -624,23 +624,23 @@ impl<'a> Lexer<'a> {
 
             self.skip(); // eat the ending part of the character literal `'`
 
-            return Ok(TokenKind::CharLiteral(ch));
+            return Ok(TokenKind::CharLit(ch));
         }
 
         // So here we know that this is an invalid character literal, to improve
         // the reporting aspect, we want to eat up until the next `'` in order
         // to highlight the entire literal
-        let literal = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace());
+        let lit = self.eat_while_and_slice(move |c| c != '\'' && !c.is_whitespace());
 
         Err(LexerError::new(
             None,
-            LexerErrorKind::InvalidCharacterLiteral(literal.to_string()),
+            LexerErrorKind::InvalidCharacterLit(lit.to_string()),
             Span::new(start, self.offset.get() + 1),
         ))
     }
 
     /// Consume a string literal provided that the current previous token is a
-    /// double quote, this will produce a [TokenAtom::StrLiteral] provided
+    /// double quote, this will produce a [TokenKind::StrLit] provided
     /// that the literal is correctly formed and is ended before the end of
     /// file is reached.
     fn string(&self) -> LexerResult<TokenKind> {
@@ -667,14 +667,14 @@ impl<'a> Lexer<'a> {
         if !closed {
             return Err(LexerError::new(
                 None,
-                LexerErrorKind::UnclosedStringLiteral,
+                LexerErrorKind::UnclosedStringLit,
                 Span::new(start, self.offset.get()),
             ));
         }
 
         // Essentially we put the string into the literal map and get an id out which we
         // use for the actual representation in the token
-        Ok(TokenKind::StrLiteral(value.into()))
+        Ok(TokenKind::StrLit(value.into()))
     }
 
     /// Consume a line comment after the first following slash, essentially

@@ -5,7 +5,7 @@ error_codes! {
     ExpectingBooleanInCondition = 1,
     UsingBreakOutsideLoop = 2,
     UsingContinueOutsideLoop = 3,
-    UsingReturnOutsideFunction = 4,
+    UsingReturnOutsideFn = 4,
     // 5: un-used
 
     // Name spacing and symbol errors
@@ -23,10 +23,10 @@ error_codes! {
     TypeMismatch = 20,
     DisallowedType = 21,
     UnresolvedType = 22,
-    TypeIsNotTypeFunction = 23,
+    TyIsNotTyFn = 23,
     ValueCannotBeUsedAsType = 24,
     NonRuntimeInstantiable = 25,
-    UnsupportedTypeFunctionApplication = 26,
+    UnsupportedTyFnApplication = 26,
     TypeIsNotTrait = 27,
 
     // Errors in regard to parameter lists
@@ -34,7 +34,7 @@ error_codes! {
     ParameterNameMismatch = 36,
     ParameterInUse = 37,
     AmbiguousFieldOrder = 38,
-    InvalidFunctionCallSubject = 39,
+    InvalidFnCallSubject = 39,
 
     // traits
     InvalidMergeElement = 50,

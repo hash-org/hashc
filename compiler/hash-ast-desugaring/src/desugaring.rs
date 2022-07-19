@@ -2,11 +2,11 @@
 //! implementation.
 use hash_ast::{
     ast::{
-        AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLiteral, BoolLiteralPattern,
-        BreakStatement, ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr,
-        ConstructorPattern, Expr, ExprKind, ForLoopBlock, IfBlock, IfClause, IfPattern,
-        IgnorePattern, Literal, LiteralExpr, LiteralPattern, LoopBlock, MatchBlock, MatchCase,
-        MatchOrigin, Name, Namespace, Pattern, TuplePatternEntry, VariableExpr, WhileLoopBlock,
+        AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLit, BoolLitPat, BreakStatement,
+        ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr, ConstructorPat, Expr,
+        ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, IgnorePat, Lit, LitExpr, LitPat,
+        LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Namespace, Pat, TuplePatEntry,
+        VariableExpr, WhileLoopBlock,
     },
     ast_nodes,
 };
@@ -55,9 +55,9 @@ impl<'s> AstDesugaring<'s> {
             ),
         };
 
-        let ForLoopBlock { pattern, iterator, body } = block;
+        let ForLoopBlock { pat, iterator, body } = block;
 
-        let (iter_span, pat_span, body_span) = (iterator.span(), pattern.span(), body.span());
+        let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), body.span());
 
         let make_access_name = |label: &str| -> AstNode<Namespace> {
             // Create the identifier within the map...
@@ -68,13 +68,10 @@ impl<'s> AstDesugaring<'s> {
         };
 
         // Convert the pattern into a constructor pattern like `Some(<pat>)`
-        let pattern = AstNode::new(
-            Pattern::Constructor(ConstructorPattern {
+        let pat = AstNode::new(
+            Pat::Constructor(ConstructorPat {
                 name: make_access_name("Some"),
-                fields: ast_nodes![AstNode::new(
-                    TuplePatternEntry { name: None, pattern },
-                    pat_span
-                )],
+                fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span)],
             }),
             pat_span,
         );
@@ -84,15 +81,15 @@ impl<'s> AstDesugaring<'s> {
         let match_cases = ast_nodes![
             AstNode::new(
                 MatchCase {
-                    pattern,
+                    pat,
                     expr: AstNode::new(Expr::new(ExprKind::Block(BlockExpr(body))), body_span)
                 },
                 pat_span
             ),
             AstNode::new(
                 MatchCase {
-                    pattern: AstNode::new(
-                        Pattern::Constructor(ConstructorPattern {
+                    pat: AstNode::new(
+                        Pat::Constructor(ConstructorPat {
                             name: make_access_name("None"),
                             fields: ast_nodes![],
                         },),
@@ -185,8 +182,8 @@ impl<'s> AstDesugaring<'s> {
                 cases: ast_nodes![
                     AstNode::new(
                         MatchCase {
-                            pattern: AstNode::new(
-                                Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(true))),
+                            pat: AstNode::new(
+                                Pat::Lit(LitPat::Bool(BoolLitPat(true))),
                                 condition_span
                             ),
                             expr: AstNode::new(
@@ -198,8 +195,8 @@ impl<'s> AstDesugaring<'s> {
                     ),
                     AstNode::new(
                         MatchCase {
-                            pattern: AstNode::new(
-                                Pattern::Literal(LiteralPattern::Bool(BoolLiteralPattern(false))),
+                            pat: AstNode::new(
+                                Pat::Lit(LitPat::Bool(BoolLitPat(false))),
                                 condition_span
                             ),
                             expr: AstNode::new(
@@ -246,9 +243,9 @@ impl<'s> AstDesugaring<'s> {
 
         AstNode::new(
             MatchCase {
-                pattern: AstNode::new(
-                    Pattern::If(IfPattern {
-                        pattern: AstNode::new(Pattern::Ignore(IgnorePattern), condition_span),
+                pat: AstNode::new(
+                    Pat::If(IfPat {
+                        pat: AstNode::new(Pat::Ignore(IgnorePat), condition_span),
                         condition,
                     }),
                     branch_span,
@@ -353,7 +350,7 @@ impl<'s> AstDesugaring<'s> {
 
             AstNode::new(
                 MatchCase {
-                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), else_block_span),
+                    pat: AstNode::new(Pat::Ignore(IgnorePat), else_block_span),
                     expr: AstNode::new(
                         Expr::new(ExprKind::Block(BlockExpr(block))),
                         else_block_span,
@@ -370,7 +367,7 @@ impl<'s> AstDesugaring<'s> {
             // use for generating the else-branch.
             AstNode::new(
                 MatchCase {
-                    pattern: AstNode::new(Pattern::Ignore(IgnorePattern), parent_span),
+                    pat: AstNode::new(Pat::Ignore(IgnorePat), parent_span),
                     expr: AstNode::new(
                         Expr::new(ExprKind::Block(BlockExpr(AstNode::new(
                             Block::Body(BodyBlock { statements: AstNodes::empty(), expr: None }),
@@ -389,8 +386,8 @@ impl<'s> AstDesugaring<'s> {
 
         Block::Match(MatchBlock {
             subject: AstNode::new(
-                Expr::new(ExprKind::LiteralExpr(LiteralExpr(AstNode::new(
-                    Literal::Bool(BoolLiteral(true)),
+                Expr::new(ExprKind::LitExpr(LitExpr(AstNode::new(
+                    Lit::Bool(BoolLit(true)),
                     parent_span,
                 )))),
                 parent_span,

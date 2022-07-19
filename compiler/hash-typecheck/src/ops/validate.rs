@@ -819,17 +819,13 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // Ensure each parameter's type can be used as a type function parameter type:
                 for param in params.positional() {
                     if !(self.term_can_be_used_as_ty_fn_param_ty(param.ty)?) {
-                        return Err(TcError::InvalidTypeFunctionParameterType {
-                            param_ty: param.ty,
-                        });
+                        return Err(TcError::InvalidTyFnParamTy { param_ty: param.ty });
                     }
                 }
 
                 // Ensure the return type can be used as a type function return type:
                 if !(self.term_can_be_used_as_ty_fn_return_ty(ty_fn_ty.return_ty)?) {
-                    return Err(TcError::InvalidTypeFunctionParameterType {
-                        param_ty: ty_fn_ty.return_ty,
-                    });
+                    return Err(TcError::InvalidTyFnParamTy { param_ty: ty_fn_ty.return_ty });
                 }
 
                 self.scopes_mut().pop_the_scope(param_scope);
@@ -891,7 +887,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
                     // Ensure the return value can be used as a type function return value:
                     if !(self.term_can_be_used_as_ty_fn_return_value(case.return_value)?) {
-                        return Err(TcError::InvalidTypeFunctionReturnValue {
+                        return Err(TcError::InvalidTyFnReturnValue {
                             return_value: case.return_value,
                         });
                     }

@@ -4,10 +4,10 @@ mod block;
 mod definitions;
 pub mod error;
 mod expr;
-mod literal;
+mod lit;
 mod name;
 mod operator;
-mod pattern;
+mod pat;
 mod types;
 
 use std::cell::Cell;

@@ -9,7 +9,7 @@ use std::fmt::Display;
 /// parent of the pattern. This only contains patterns that can be compound
 /// (hold multiple children patterns).
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum PatternOrigin {
+pub(crate) enum PatOrigin {
     Tuple,
     NamedField,
     Constructor,
@@ -17,21 +17,21 @@ pub(crate) enum PatternOrigin {
     Namespace,
 }
 
-impl PatternOrigin {
-    /// Convert the [PatternOrigin] into a string which can be used for
+impl PatOrigin {
+    /// Convert the [PatOrigin] into a string which can be used for
     /// displaying within error messages.
     fn to_str(self) -> &'static str {
         match self {
-            PatternOrigin::Tuple => "tuple",
-            PatternOrigin::NamedField => "named field",
-            PatternOrigin::Constructor => "constructor",
-            PatternOrigin::List => "list",
-            PatternOrigin::Namespace => "namespace",
+            PatOrigin::Tuple => "tuple",
+            PatOrigin::NamedField => "named field",
+            PatOrigin::Constructor => "constructor",
+            PatOrigin::List => "list",
+            PatOrigin::Namespace => "namespace",
         }
     }
 }
 
-impl Display for PatternOrigin {
+impl Display for PatOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
     }
