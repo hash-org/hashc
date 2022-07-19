@@ -28,20 +28,17 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     let mut result = vec![];
 
     // Keep track of used params to ensure no parameter is given twice.
-    let mut params_used = HashSet::new();
+    let mut used_params = HashSet::new();
 
-    // @@Incomplete: handle default args
-
-    // Ensure the length of params and args is the same
-    if params.positional().len() != args.positional().len() {
-        // @@Todo: for pattern params, use a more specialised error here
-        return Err(TcError::MismatchingArgParamLength {
-            args_id,
-            params_id,
-            params_subject: params_subject.into(),
-            args_subject: args_subject.into(),
-        });
-    }
+    // We want to count the number of default arguments, it should be
+    // impossible to have a `default` value for a parameter and it be
+    // un-named...
+    let mut default_params: HashSet<_> = params
+        .positional()
+        .iter()
+        .filter(|param| param.default_value.is_some())
+        .map(|param| param.name.unwrap())
+        .collect();
 
     let origin = ParamListKind::Args(args_id);
 
@@ -49,20 +46,23 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     let mut done_positional = false;
     for (i, arg) in args.positional().iter().enumerate() {
         match arg.get_name_opt() {
+            // Named argument
             Some(arg_name) => {
-                // Named argument
                 done_positional = true;
+
                 match params.get_by_name(arg_name) {
-                    Some((param_i, param)) => {
-                        if params_used.contains(&param_i) {
+                    Some((index, param)) => {
+                        if used_params.contains(&index) {
                             // Ensure not already used
-                            return Err(TcError::ParamGivenTwice {
-                                param_kind: origin,
-                                index: param_i,
-                            });
+                            return Err(TcError::ParamGivenTwice { param_kind: origin, index });
                         } else {
-                            params_used.insert(param_i);
+                            used_params.insert(index);
                             result.push((param, arg));
+
+                            // If the parameter has a `default` value, we need to remove it from the
+                            // `default_params` list because it is being overridden by the call site
+                            // specifying a value for it
+                            default_params.remove(&arg_name);
                         }
                     }
                     None => {
@@ -78,23 +78,44 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                     }
                 }
             }
+            // Positional argument
             None => {
-                // Positional argument
                 if done_positional {
                     // Using positional args after named args is an error
                     return Err(TcError::AmbiguousArgumentOrdering {
                         param_kind: origin,
                         index: i,
                     });
-                } else if params_used.contains(&i) {
+                } else if used_params.contains(&i) {
                     // Ensure not already used
                     return Err(TcError::ParamGivenTwice { param_kind: origin, index: i });
                 } else {
-                    params_used.insert(i);
-                    result.push((params.positional().get(i).unwrap(), arg));
+                    used_params.insert(i);
+
+                    let param = params.positional().get(i).unwrap();
+                    result.push((param, arg));
+
+                    // If the parameter has a `default` value, we need to remove
+                    // it from the `default_params` list
+                    if let Some(name) = param.name {
+                        default_params.remove(&name);
+                    }
                 }
             }
         }
+    }
+
+    // Compare the parameter list subtracted from the `default_params` that weren't
+    // specified by the arguments. The size of both results should now be the
+    // same, or there are arguments missing...
+    if params.positional().len() != args.positional().len() + default_params.len() {
+        // @@Todo: for pattern params, use a more specialised error here
+        return Err(TcError::MismatchingArgParamLength {
+            args_id,
+            params_id,
+            params_subject: params_subject.into(),
+            args_subject: args_subject.into(),
+        });
     }
 
     Ok(result)
