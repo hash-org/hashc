@@ -282,6 +282,10 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             return Ok(Sub::empty());
         }
 
+        if let Some(sub) = self.cacher().has_been_unified((src_id, target_id)) {
+            return Ok(sub);
+        }
+
         // First we want to simplify the terms:
         let simplified_src_id = self.simplifier().potentially_simplify_term(src_id)?;
         let simplified_target_id = self.simplifier().potentially_simplify_term(target_id)?;
@@ -291,7 +295,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         // Helper to return a unification error
         let cannot_unify = || Err(TcError::CannotUnify { src: src_id, target: target_id });
 
-        match (simplified_src, simplified_target) {
+        let sub = match (simplified_src, simplified_target) {
             // Unresolved
             (Term::Unresolved(unresolved_src), _) => {
                 // Substitute target for source
@@ -345,7 +349,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 for inner_target_id in inner_target {
                     match self.unify_terms(simplified_src_id, inner_target_id) {
                         Ok(result) => {
-                            subs = self.unify_subs(&subs, &result)?;
+                            subs.extend(&result);
                             continue;
                         }
                         Err(e) => return Err(e),
@@ -652,6 +656,10 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
             // @@Todo: vars
             _ => todo!(),
-        }
+        }?;
+
+        self.cacher().add_unification_entry((src_id, target_id), &sub);
+
+        Ok(sub)
     }
 }
