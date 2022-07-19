@@ -250,6 +250,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let builder = self.builder();
                 Ok(builder.create_ty_of_term(builder.create_root_term()))
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }?;
 
         self.location_store_mut().copy_location(term_id, new_term);

@@ -449,6 +449,8 @@ impl<'gs> TcFormatter<'gs> {
                     )
                 )
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 

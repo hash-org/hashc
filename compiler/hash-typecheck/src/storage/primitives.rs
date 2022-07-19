@@ -513,6 +513,22 @@ pub struct Var {
     pub name: Identifier,
 }
 
+/// A scope variable, identified by a `ScopeId` and `usize` index.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct ScopeVar {
+    pub name: Identifier,
+    pub scope: ScopeId,
+    pub index: usize,
+}
+
+/// A bound variable, identified by a `ParamsId` and `usize` index.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct BoundVar {
+    pub name: Identifier,
+    pub params: ParamsId,
+    pub index: usize,
+}
+
 /// The action of applying a set of arguments to a type function.
 ///
 /// This essentially creates a lambda calculus within the Hash type system,
@@ -881,12 +897,18 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant access.
     Access(AccessTerm),
 
-    /// A type-level variable, with some type that is stored in the current
+    /// A variable, with some type that is stored in the current
     /// scope.
     ///
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
     Var(Var),
+
+    /// A variable that corresponds to some scope member.
+    ScopeVar(ScopeVar),
+
+    /// A variable that is bound by some params.
+    BoundVar(BoundVar),
 
     /// Merge of multiple terms.
     ///

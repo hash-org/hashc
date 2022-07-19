@@ -649,6 +649,9 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Root unifies with root and nothing else:
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
+
+            // @@Todo: vars
+            _ => todo!(),
         }
     }
 }

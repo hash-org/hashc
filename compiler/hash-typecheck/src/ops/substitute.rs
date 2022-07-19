@@ -318,6 +318,8 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
             Term::Level2(term) => self.apply_sub_to_level2_term(sub, term),
             Term::Level1(term) => self.apply_sub_to_level1_term(sub, term),
             Term::Level0(term) => self.apply_sub_to_level0_term(sub, term, term_id),
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         };
 
         self.location_store_mut().copy_location(term_id, new_term);
@@ -580,6 +582,8 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
             }
             // No vars:
             Term::Root => {}
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 

@@ -531,6 +531,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -642,6 +644,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Ok(None)
                 }
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -823,6 +827,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Union(_)
             | Term::TyOf(_)
             | Term::Access(_) => cannot_use_as_fn_call_subject(),
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1232,6 +1238,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Level0(term) => self.simplify_level0_term(&term, term_id),
             // Root cannot be simplified:
             Term::Root => Ok(None),
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }?;
 
         // Copy over the location if a new term was created

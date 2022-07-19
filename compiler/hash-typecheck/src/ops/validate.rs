@@ -73,6 +73,8 @@ impl Term {
             Term::Level2(_) => TermLevel::Level2,
             Term::Level1(_) => TermLevel::Level1,
             Term::Level0(_) => TermLevel::Level0,
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 }
@@ -410,6 +412,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Union term should have already been flattened"
                 )
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -575,6 +579,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Merge term should have already been flattened"
                 )
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -915,6 +921,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1060,6 +1068,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // This should be okay, for example if we are returning some TyFnTy value.
                 Ok(true)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1116,6 +1126,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
