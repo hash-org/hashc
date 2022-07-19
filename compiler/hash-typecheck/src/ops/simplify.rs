@@ -497,7 +497,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             }
             Term::AppSub(app_sub) => {
                 // Add substitution to the scope:
-                let sub_scope = self.scope_resolver().enter_sub_param_scope(&app_sub.sub);
+                let sub_scope = self.scope_manager().enter_sub_param_scope(&app_sub.sub);
 
                 let inner_applied_term =
                     self.apply_access_term(&AccessTerm { subject: app_sub.term, ..*access_term })?;
@@ -1128,7 +1128,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Var(var) => {
                 // First resolve the name:
                 let scope_member =
-                    self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?;
+                    self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
 
                 let maybe_resolved_term_id = scope_member.member.data.value();
 
@@ -1149,7 +1149,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // Simplify general params and return
                 let simplified_general_params = self.simplify_params(ty_fn.general_params)?;
 
-                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn.general_params);
+                let param_scope = self.scope_manager().enter_ty_param_scope(ty_fn.general_params);
                 let simplified_general_return_ty = self.simplify_term(ty_fn.general_return_ty)?;
                 self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1160,7 +1160,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     .map(|case| {
                         let simplified_params = self.simplify_params(case.params)?;
 
-                        let param_scope = self.scope_resolver().enter_ty_param_scope(case.params);
+                        let param_scope = self.scope_manager().enter_ty_param_scope(case.params);
                         let simplified_return_ty = self.simplify_term(case.return_ty)?;
                         let simplified_return_value = self.simplify_term(case.return_value)?;
                         self.scopes_mut().pop_the_scope(param_scope);
@@ -1205,7 +1205,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // simplified.
                 let simplified_params = self.simplify_params(ty_fn_ty.params)?;
 
-                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn_ty.params);
+                let param_scope = self.scope_manager().enter_ty_param_scope(ty_fn_ty.params);
                 let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
                 self.scopes_mut().pop_the_scope(param_scope);
 

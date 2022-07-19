@@ -137,7 +137,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Term::Var(var) => {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
-                let var_member = self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?;
+                let var_member = self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
                 Ok(self.infer_member_ty(var_member.member.data)?.ty)
             }
             Term::TyFn(ty_fn) => {

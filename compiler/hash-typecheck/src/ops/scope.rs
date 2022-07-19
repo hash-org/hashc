@@ -16,22 +16,22 @@ use crate::{
 use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
-pub struct ScopeResolver<'gs, 'ls, 'cd, 's> {
+pub struct ScopeManager<'gs, 'ls, 'cd, 's> {
     storage: StorageRefMut<'gs, 'ls, 'cd, 's>,
 }
 
-impl<'gs, 'ls, 'cd, 's> AccessToStorage for ScopeResolver<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorage for ScopeManager<'gs, 'ls, 'cd, 's> {
     fn storages(&self) -> StorageRef {
         self.storage.storages()
     }
 }
-impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeResolver<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeManager<'gs, 'ls, 'cd, 's> {
     fn storages_mut(&mut self) -> StorageRefMut {
         self.storage.storages_mut()
     }
 }
 
-impl<'gs, 'ls, 'cd, 's> ScopeResolver<'gs, 'ls, 'cd, 's> {
+impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     /// Create a new [ScopeResolver].
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }

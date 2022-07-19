@@ -45,6 +45,9 @@ pub struct TcVisitorState {
     pub fn_def_return_ty: Option<TermId>,
     /// If the current traversal is within the intrinsic directive scope.
     pub within_intrinsics_directive: bool,
+    /// If traversing a declaration, what to set for the
+    /// `assignments_until_closed` field.
+    pub declaration_assignments_until_closed: usize,
 }
 
 impl TcVisitorState {
@@ -944,7 +947,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         )?;
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
-        let param_scope = self.scope_resolver().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().enter_ty_param_scope(params);
         let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
         self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1098,7 +1101,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Enter parameter scope:
-        let param_scope = self.scope_resolver().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().enter_ty_param_scope(params);
 
         // Traverse return type and return value:
         let return_ty =
@@ -1152,7 +1155,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
 
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
-        let param_scope = self.scope_resolver().enter_rt_param_scope(params_potentially_unresolved);
+        let param_scope = self.scope_manager().enter_rt_param_scope(params_potentially_unresolved);
 
         let fn_body = self.visit_expr(ctx, node.fn_body.ast_ref())?;
 
@@ -1667,10 +1670,10 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         };
         let var_term = self.builder().create_var_term(name);
         self.copy_location_from_node_to_target(node, var_term);
-        let member = self.scope_resolver().resolve_name_in_scopes(name, var_term)?;
+        let member = self.scope_manager().resolve_name_in_scopes(name, var_term)?;
 
         // Set the value to the member:
-        self.scope_resolver().assign_member(member.scope_id, member.index, rhs)?;
+        self.scope_manager().assign_member(member.scope_id, member.index, rhs)?;
 
         Ok(self.builder().create_void_term())
     }
