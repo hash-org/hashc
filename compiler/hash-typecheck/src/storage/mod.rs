@@ -19,7 +19,7 @@ use self::{
     mods::ModDefStore,
     nominals::NominalDefStore,
     params::ParamsStore,
-    patterns::{PatternParamsStore, PatternStore},
+    pats::{PatParamsStore, PatStore},
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
@@ -34,7 +34,7 @@ pub mod location;
 pub mod mods;
 pub mod nominals;
 pub mod params;
-pub mod patterns;
+pub mod pats;
 pub mod primitives;
 pub mod scope;
 pub mod sources;
@@ -52,8 +52,8 @@ pub struct GlobalStorage {
     pub trt_def_store: TrtDefStore,
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
-    pub pattern_store: PatternStore,
-    pub pattern_params_store: PatternParamsStore,
+    pub pat_store: PatStore,
+    pub pat_params_store: PatParamsStore,
     pub checked_sources: CheckedSources,
 
     /// The typechecking cache, contains cached simplification, validation
@@ -80,8 +80,8 @@ impl GlobalStorage {
             trt_def_store: TrtDefStore::new(),
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
-            pattern_store: PatternStore::new(),
-            pattern_params_store: PatternParamsStore::new(),
+            pat_store: PatStore::new(),
+            pat_params_store: PatParamsStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -191,12 +191,12 @@ pub trait AccessToStorage {
         &self.global_storage().mod_def_store
     }
 
-    fn pattern_store(&self) -> &PatternStore {
-        &self.global_storage().pattern_store
+    fn pat_store(&self) -> &PatStore {
+        &self.global_storage().pat_store
     }
 
-    fn pattern_params_store(&self) -> &PatternParamsStore {
-        &self.global_storage().pattern_params_store
+    fn pat_params_store(&self) -> &PatParamsStore {
+        &self.global_storage().pat_params_store
     }
 
     fn checked_sources(&self) -> &CheckedSources {
@@ -275,12 +275,12 @@ pub trait AccessToStorageMut: AccessToStorage {
         &mut self.global_storage_mut().mod_def_store
     }
 
-    fn pattern_store_mut(&mut self) -> &mut PatternStore {
-        &mut self.global_storage_mut().pattern_store
+    fn pat_store_mut(&mut self) -> &mut PatStore {
+        &mut self.global_storage_mut().pat_store
     }
 
-    fn pattern_params_store_mut(&mut self) -> &mut PatternParamsStore {
-        &mut self.global_storage_mut().pattern_params_store
+    fn pat_params_store_mut(&mut self) -> &mut PatParamsStore {
+        &mut self.global_storage_mut().pat_params_store
     }
 
     fn checked_sources_mut(&mut self) -> &mut CheckedSources {

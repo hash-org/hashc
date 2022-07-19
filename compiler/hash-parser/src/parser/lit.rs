@@ -8,40 +8,40 @@ use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Convert the current token (provided it is a primitive literal) into a
-    /// [ExprKind::LiteralExpr] by simply matching on the type of the
+    /// [ExprKind::LitExpr] by simply matching on the type of the
     /// expr.
-    pub(crate) fn parse_literal(&self) -> AstNode<Expr> {
+    pub(crate) fn parse_lit(&self) -> AstNode<Expr> {
         let token = self.current_token();
-        let literal = self.node_with_span(
+        let lit = self.node_with_span(
             match token.kind {
-                TokenKind::IntLiteral(num) => Literal::Int(IntLiteral(num)),
-                TokenKind::FloatLiteral(num) => Literal::Float(FloatLiteral(num)),
-                TokenKind::CharLiteral(ch) => Literal::Char(CharLiteral(ch)),
-                TokenKind::StrLiteral(str) => Literal::Str(StrLiteral(str)),
-                TokenKind::Keyword(Keyword::False) => Literal::Bool(BoolLiteral(false)),
-                TokenKind::Keyword(Keyword::True) => Literal::Bool(BoolLiteral(true)),
+                TokenKind::IntLit(num) => Lit::Int(IntLit(num)),
+                TokenKind::FloatLit(num) => Lit::Float(FloatLit(num)),
+                TokenKind::CharLit(ch) => Lit::Char(CharLit(ch)),
+                TokenKind::StrLit(str) => Lit::Str(StrLit(str)),
+                TokenKind::Keyword(Keyword::False) => Lit::Bool(BoolLit(false)),
+                TokenKind::Keyword(Keyword::True) => Lit::Bool(BoolLit(true)),
                 _ => unreachable!(),
             },
             token.span,
         );
 
-        self.node_with_span(Expr::new(ExprKind::LiteralExpr(LiteralExpr(literal))), token.span)
+        self.node_with_span(Expr::new(ExprKind::LitExpr(LitExpr(lit))), token.span)
     }
 
     /// Parse a single map entry in a literal.
-    pub(crate) fn parse_map_entry(&self) -> AstGenResult<AstNode<MapLiteralEntry>> {
+    pub(crate) fn parse_map_entry(&self) -> AstGenResult<AstNode<MapLitEntry>> {
         let start = self.current_location();
 
         let key = self.parse_expr_with_precedence(0)?;
         self.parse_token(TokenKind::Colon)?;
         let value = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_joined_span(MapLiteralEntry { key, value }, &start))
+        Ok(self.node_with_joined_span(MapLitEntry { key, value }, &start))
     }
 
     /// Parse a map literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_map_literal(&self) -> AstGenResult<AstNode<Literal>> {
+    pub(crate) fn parse_map_lit(&self) -> AstGenResult<AstNode<Lit>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Map)));
 
         let start = self.current_location();
@@ -50,12 +50,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let elements =
             gen.parse_separated_fn(|| gen.parse_map_entry(), || gen.parse_token(TokenKind::Comma))?;
 
-        Ok(self.node_with_joined_span(Literal::Map(MapLiteral { elements }), &start))
+        Ok(self.node_with_joined_span(Lit::Map(MapLit { elements }), &start))
     }
 
     /// Parse a set literal which is made of braces with an arbitrary number of
     /// fields separated by commas.
-    pub(crate) fn parse_set_literal(&self) -> AstGenResult<AstNode<Literal>> {
+    pub(crate) fn parse_set_lit(&self) -> AstGenResult<AstNode<Lit>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Keyword(Keyword::Set)));
 
         let start = self.current_location();
@@ -66,11 +66,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             || gen.parse_token(TokenKind::Comma),
         )?;
 
-        Ok(self.node_with_joined_span(Literal::Set(SetLiteral { elements }), &start))
+        Ok(self.node_with_joined_span(Lit::Set(SetLit { elements }), &start))
     }
 
     /// Function to parse a tuple literal entry with a name.
-    pub(crate) fn parse_tuple_literal_entry(&self) -> AstGenResult<AstNode<TupleLiteralEntry>> {
+    pub(crate) fn parse_tuple_lit_entry(&self) -> AstGenResult<AstNode<TupleLitEntry>> {
         let start = self.next_location();
         let offset = self.offset();
 
@@ -105,7 +105,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 // Now we try and parse an expression that allows re-assignment operators...
                 Some(self.node_with_joined_span(
-                    TupleLiteralEntry {
+                    TupleLitEntry {
                         name: Some(name),
                         ty,
                         value: self.parse_expr_with_re_assignment()?.0,
@@ -120,7 +120,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         match entry {
             Some(entry) => Ok(entry),
             None => Ok(self.node_with_joined_span(
-                TupleLiteralEntry {
+                TupleLitEntry {
                     name: None,
                     ty: None,
                     value: self.parse_expr_with_re_assignment()?.0,
@@ -131,7 +131,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Parse an list literal from a given token tree.
-    pub(crate) fn parse_list_literal(
+    pub(crate) fn parse_list_lit(
         &self,
         tree: &'stream [Token],
         span: Span,
@@ -162,8 +162,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_span(
-            Expr::new(ExprKind::LiteralExpr(LiteralExpr(
-                gen.node_with_span(Literal::List(ListLiteral { elements }), span),
+            Expr::new(ExprKind::LitExpr(LitExpr(
+                gen.node_with_span(Lit::List(ListLit { elements }), span),
             ))),
             span,
         ))

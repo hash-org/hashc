@@ -9,8 +9,7 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-            MemberData, ModDefOrigin, Param, ParamsId, Pattern, PatternId, PatternParamsId, Term,
-            TermId,
+            MemberData, ModDefOrigin, Param, ParamsId, Pat, PatId, PatParamsId, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -128,9 +127,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         // Apply the substitution to the return type and use it as the result:
                         Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
                     }
-                    _ => Err(TcError::UnsupportedTypeFunctionApplication {
-                        subject_id: app_ty_fn.subject,
-                    }),
+                    _ => Err(TcError::UnsupportedTyFnApplication { subject_id: app_ty_fn.subject }),
                 }
             }
             Term::TyFnTy(_) => {
@@ -140,7 +137,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Term::Var(var) => {
                 // The type of a variable can be found by looking at the scopes to its
                 // declaration:
-                let var_member = self.scope_resolver().resolve_name_in_scopes(var.name, term_id)?;
+                let var_member = self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
                 Ok(self.infer_member_ty(var_member.member.data)?.ty)
             }
             Term::TyFn(ty_fn) => {
@@ -253,6 +250,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let builder = self.builder();
                 Ok(builder.create_ty_of_term(builder.create_root_term()))
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }?;
 
         self.location_store_mut().copy_location(term_id, new_term);
@@ -293,90 +292,86 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         Ok(params_id)
     }
 
-    /// From the given [PatternParamsId], infer a [ArgsId] describing the the
+    /// From the given [PatParamsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn infer_args_of_pattern_params(
-        &mut self,
-        pattern_params_id: PatternParamsId,
-    ) -> TcResult<ArgsId> {
-        let pattern_params = self.reader().get_pattern_params(pattern_params_id).clone();
-        let origin = pattern_params.origin();
-        let param_types: Vec<_> = pattern_params
+    pub(crate) fn infer_args_of_pat_params(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
+        let pat_params = self.reader().get_pat_params(id).clone();
+        let origin = pat_params.origin();
+
+        let param_tys: Vec<_> = pat_params
             .into_positional()
             .into_iter()
-            .map(|param| {
-                Ok(Arg { name: param.name, value: self.get_term_of_pattern(param.pattern)? })
-            })
+            .map(|param| Ok(Arg { name: param.name, value: self.get_term_of_pat(param.pat)? }))
             .collect::<TcResult<_>>()?;
 
-        let args_id = self.builder().create_args(param_types.iter().copied(), origin);
+        let args_id = self.builder().create_args(param_tys.iter().copied(), origin);
 
         // Copy locations:
-        for i in 0..param_types.len() {
-            self.location_store_mut().copy_location((pattern_params_id, i), (args_id, i))
+        for i in 0..param_tys.len() {
+            self.location_store_mut().copy_location((id, i), (args_id, i))
         }
 
         Ok(args_id)
     }
 
     /// Get the type of the given pattern, as a term.
-    pub(crate) fn infer_ty_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
-        let pattern_term = self.get_term_of_pattern(pattern_id)?;
-        self.infer_ty_of_term(pattern_term)
+    pub(crate) fn infer_ty_of_pat(&mut self, pat: PatId) -> TcResult<TermId> {
+        let pat_term = self.get_term_of_pat(pat)?;
+        self.infer_ty_of_term(pat_term)
     }
 
     /// Get the term of the given pattern, whose type is the type of the pattern
     /// subject.
-    pub(crate) fn get_term_of_pattern(&mut self, pattern_id: PatternId) -> TcResult<TermId> {
-        let pattern = self.reader().get_pattern(pattern_id).clone();
-        let ty_of_pattern = match pattern {
-            Pattern::Mod(_) | Pattern::Ignore | Pattern::Binding(_) => {
+    pub(crate) fn get_term_of_pat(&mut self, pat_id: PatId) -> TcResult<TermId> {
+        let pat = self.reader().get_pat(pat_id).clone();
+        let ty_of_pat = match pat {
+            Pat::Mod(_) | Pat::Ignore | Pat::Binding(_) => {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
-            Pattern::Lit(lit_term) => {
+            Pat::Lit(lit_term) => {
                 // The term of a literal pattern is the literal (lol):
                 Ok(lit_term)
             }
-            Pattern::Tuple(tuple_pattern) => {
+            Pat::Tuple(tuple_pat) => {
                 // For each parameter, get its type, and then create a tuple
                 // type:
-                let params_id = self.infer_args_of_pattern_params(tuple_pattern)?;
+                let params_id = self.infer_args_of_pat_params(tuple_pat)?;
                 let builder = self.builder();
                 Ok(builder.create_tuple_lit_term(params_id))
             }
-            Pattern::Constructor(constructor_pattern) => match constructor_pattern.params {
+            Pat::Constructor(constructor_pat) => match constructor_pat.params {
                 Some(params) => {
                     // We have params to apply, so we need to create an FnCall
-                    let args_id = self.infer_args_of_pattern_params(params)?;
+                    let args_id = self.infer_args_of_pat_params(params)?;
                     let builder = self.builder();
-                    Ok(builder.create_fn_call_term(constructor_pattern.subject, args_id))
+                    Ok(builder.create_fn_call_term(constructor_pat.subject, args_id))
                 }
                 None => {
                     // We just use the subject
-                    Ok(constructor_pattern.subject)
+                    Ok(constructor_pat.subject)
                 }
             },
-            Pattern::Or(patterns) => {
+            Pat::Or(pats) => {
                 // Get the inner pattern types:
-                let pattern_types: Vec<_> = patterns
+                let pat_tys: Vec<_> = pats
                     .into_iter()
-                    .map(|pattern| self.infer_ty_of_pattern(pattern))
+                    .map(|pat| self.infer_ty_of_pat(pat))
                     .collect::<TcResult<_>>()?;
                 // Create a union type:
                 let builder = self.builder();
-                Ok(builder.create_rt_term(builder.create_union_term(pattern_types)))
+                Ok(builder.create_rt_term(builder.create_union_term(pat_tys)))
             }
-            Pattern::If(pattern_if) => {
+            Pat::If(if_pat) => {
                 // Forward to the pattern
-                self.get_term_of_pattern(pattern_if.pattern)
+                self.get_term_of_pat(if_pat.pat)
             }
         }?;
 
         // Copy location:
-        self.location_store_mut().copy_location(pattern_id, ty_of_pattern);
+        self.location_store_mut().copy_location(pat_id, ty_of_pat);
 
-        Ok(ty_of_pattern)
+        Ok(ty_of_pat)
     }
 
     /// Get the parameters of the given tuple term, if possible.

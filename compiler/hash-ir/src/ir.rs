@@ -40,7 +40,7 @@ pub enum PatKind<'i> {
     Spread,
     Ignore,
     Bind(Identifier),
-    Literal(Const),
+    Lit(Const),
     Tuple(&'i [Pat<'i>]),
     Constructor(&'i Pat<'i>, &'i [Pat<'i>]),
     List(&'i [Pat<'i>]),

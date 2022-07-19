@@ -4,16 +4,16 @@
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
 use self::{
-    building::PrimitiveBuilder, cache::CacheManager, patterns::PatternMatcher,
-    reader::PrimitiveReader, scope::ScopeResolver, simplify::Simplifier, substitute::Substituter,
-    typing::Typer, unify::Unifier, validate::Validator,
+    building::PrimitiveBuilder, cache::CacheManager, pats::PatMatcher, reader::PrimitiveReader,
+    scope::ScopeManager, simplify::Simplifier, substitute::Substituter, typing::Typer,
+    unify::Unifier, validate::Validator,
 };
 use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
 
 pub mod building;
 pub mod cache;
 pub mod params;
-pub mod patterns;
+pub mod pats;
 pub mod reader;
 pub mod scope;
 pub mod simplify;
@@ -79,14 +79,14 @@ pub trait AccessToOpsMut: AccessToStorageMut {
         Validator::new(self.storages_mut())
     }
 
-    /// Create an instance of [ScopeResolver].
-    fn scope_resolver(&mut self) -> ScopeResolver {
-        ScopeResolver::new(self.storages_mut())
+    /// Create an instance of [ScopeManager].
+    fn scope_manager(&mut self) -> ScopeManager {
+        ScopeManager::new(self.storages_mut())
     }
 
-    /// Create an instance of [PatternMatcher].
-    fn pattern_matcher(&mut self) -> PatternMatcher {
-        PatternMatcher::new(self.storages_mut())
+    /// Create an instance of [PatMatcher].
+    fn pat_matcher(&mut self) -> PatMatcher {
+        PatMatcher::new(self.storages_mut())
     }
 }
 

@@ -4,7 +4,7 @@ pub mod delimiter;
 pub mod keyword;
 
 use delimiter::Delimiter;
-use hash_source::{identifier::Identifier, location::Span, string::StringLiteral};
+use hash_source::{identifier::Identifier, location::Span, string::Str};
 use keyword::Keyword;
 
 /// A Lexeme token that represents the smallest code unit of a hash source file.
@@ -49,12 +49,12 @@ impl std::fmt::Display for Token {
             TokenKind::Ident(ident) => {
                 write!(f, "Ident ({})", String::from(*ident))
             }
-            TokenKind::StrLiteral(literal) => {
-                write!(f, "StringLiteral (\"{}\")", String::from(*literal))
+            TokenKind::StrLit(lit) => {
+                write!(f, "String (\"{}\")", String::from(*lit))
             }
             // We want to print the actual character, instead of a potential escape code
-            TokenKind::CharLiteral(ch) => {
-                write!(f, "CharLiteral ('{}')", ch)
+            TokenKind::CharLit(ch) => {
+                write!(f, "Char ('{}')", ch)
             }
             kind => write!(f, "{:?}", kind),
         }
@@ -98,15 +98,15 @@ impl TokenKind {
 
     /// Check if the [TokenKind] is a primitive literal; either a 'char', 'int',
     /// 'float' or a 'string'
-    pub fn is_literal(&self) -> bool {
+    pub fn is_lit(&self) -> bool {
         matches!(
             self,
             TokenKind::Keyword(Keyword::False)
                 | TokenKind::Keyword(Keyword::True)
-                | TokenKind::IntLiteral(_)
-                | TokenKind::FloatLiteral(_)
-                | TokenKind::CharLiteral(_)
-                | TokenKind::StrLiteral(_)
+                | TokenKind::IntLit(_)
+                | TokenKind::FloatLit(_)
+                | TokenKind::CharLit(_)
+                | TokenKind::StrLit(_)
         )
     }
 }
@@ -161,13 +161,13 @@ pub enum TokenKind {
     /// "'"
     SingleQuote,
     /// Integer Literal
-    IntLiteral(u64),
+    IntLit(u64),
     /// Float literal
-    FloatLiteral(f64),
+    FloatLit(f64),
     /// Character literal
-    CharLiteral(char),
+    CharLit(char),
     /// StrLiteral,
-    StrLiteral(StringLiteral),
+    StrLit(Str),
     /// Identifier
     Ident(Identifier),
 
@@ -194,10 +194,10 @@ impl TokenKind {
     pub fn as_error_string(&self) -> String {
         match self {
             TokenKind::Unexpected(ch) => format!("an unknown character `{}`", ch),
-            TokenKind::IntLiteral(num) => format!("`{}`", num),
-            TokenKind::FloatLiteral(num) => format!("`{}`", num),
-            TokenKind::CharLiteral(ch) => format!("`{}`", ch),
-            TokenKind::StrLiteral(str) => {
+            TokenKind::IntLit(num) => format!("`{}`", num),
+            TokenKind::FloatLit(num) => format!("`{}`", num),
+            TokenKind::CharLit(ch) => format!("`{}`", ch),
+            TokenKind::StrLit(str) => {
                 format!("the string `{}`", *str)
             }
             TokenKind::Keyword(kwd) => format!("`{}`", kwd),
@@ -235,9 +235,9 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Quote => write!(f, "\""),
             TokenKind::SingleQuote => write!(f, "'"),
             TokenKind::Unexpected(ch) => write!(f, "{}", ch),
-            TokenKind::IntLiteral(num) => write!(f, "{}", num),
-            TokenKind::FloatLiteral(num) => write!(f, "{}", num),
-            TokenKind::CharLiteral(ch) => write!(f, "'{}'", ch),
+            TokenKind::IntLit(num) => write!(f, "{}", num),
+            TokenKind::FloatLit(num) => write!(f, "{}", num),
+            TokenKind::CharLit(ch) => write!(f, "'{}'", ch),
             TokenKind::Delimiter(delim, left) => {
                 if *left {
                     write!(f, "{}", delim.left())
@@ -246,7 +246,7 @@ impl std::fmt::Display for TokenKind {
                 }
             }
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
-            TokenKind::StrLiteral(str) => {
+            TokenKind::StrLit(str) => {
                 write!(f, "\"{}\"", *str)
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),
@@ -306,12 +306,12 @@ impl TokenKindVector {
 
     /// Tokens expected when the parser expects a collection of patterns to be
     /// present.
-    pub fn begin_pattern_collection() -> Self {
+    pub fn begin_pat_collection() -> Self {
         Self(vec![TokenKind::Delimiter(Delimiter::Paren, true), TokenKind::Colon])
     }
 
     /// Tokens expected when a pattern begins in a match statement.
-    pub fn begin_pattern() -> Self {
+    pub fn begin_pat() -> Self {
         Self(vec![
             TokenKind::Delimiter(Delimiter::Paren, true),
             TokenKind::Delimiter(Delimiter::Brace, true),

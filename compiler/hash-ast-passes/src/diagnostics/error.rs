@@ -10,7 +10,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind};
 
 use super::{
     directives::DirectiveArgument,
-    origins::{BlockOrigin, PatternOrigin},
+    origins::{BlockOrigin, PatOrigin},
 };
 
 /// An error that can occur during the semantic pass
@@ -37,24 +37,30 @@ pub(crate) enum AnalysisErrorKind {
     UsingContinueOutsideLoop,
     /// When a `return` statement is found outside of a function or in scope
     /// that doesn't relate to the function.
-    UsingReturnOutsideOfFunction,
+    UsingReturnOutsideOfFn,
     /// When there is a non-declarative expression in either the root scope
     /// (module) or in a `impl` / `mod` block.
     NonDeclarativeExpression { origin: BlockOrigin },
     /// When multiple spread patterns `...` are present within a list pattern
-    MultipleSpreadPatterns {
+    MultipleSpreadPats {
         /// Where the use of the pattern originated from
-        origin: PatternOrigin,
+        origin: PatOrigin,
     },
     /// When a spread pattern is used within a parent pattern that does not
     /// allow them to be used.
-    IllegalSpreadPatternUse {
+    IllegalSpreadPatUse {
         /// Where the use of the pattern originated from
-        origin: PatternOrigin,
+        origin: PatOrigin,
     },
+    /// When a pattern is used within a particular context that is not allowed
+    ///
+    /// Currently, this is only used to notify that `float` patterns aren't
+    /// allowed in pattern positions. Later this will change as float
+    /// patterns should be allowed within range patterns.
+    DisallowedFloatPat,
     /// When compound patterns such as constructors and tuples have named fields
     /// before un-named fields.
-    AmbiguousPatternFieldOrder { origin: PatternOrigin },
+    AmbiguousPatFieldOrder { origin: PatOrigin },
     /// When a top-level declaration features a pattern that has a binding which
     /// is declared to be mutable.
     IllegalBindingMutability,
@@ -96,8 +102,8 @@ impl From<AnalysisError> for Report {
                     ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "here")),
                 );
             }
-            AnalysisErrorKind::UsingReturnOutsideOfFunction => {
-                builder.with_error_code(HashErrorCode::UsingReturnOutsideFunction);
+            AnalysisErrorKind::UsingReturnOutsideOfFn => {
+                builder.with_error_code(HashErrorCode::UsingReturnOutsideFn);
 
                 builder
                     .with_message("use of a `return` expression outside of a function")
@@ -106,7 +112,7 @@ impl From<AnalysisError> for Report {
                         "here",
                     )));
             }
-            AnalysisErrorKind::MultipleSpreadPatterns { origin } => {
+            AnalysisErrorKind::MultipleSpreadPats { origin } => {
                 builder
                     .with_message(format!(
                         "spread patterns `...` can only be used once in a {} pattern",
@@ -117,7 +123,7 @@ impl From<AnalysisError> for Report {
                         "here",
                     )));
             }
-            AnalysisErrorKind::IllegalSpreadPatternUse { origin } => {
+            AnalysisErrorKind::IllegalSpreadPatUse { origin } => {
                 builder
                     .with_message(format!(
                         "spread patterns `...` cannot be used in a {} pattern",
@@ -128,7 +134,7 @@ impl From<AnalysisError> for Report {
                         "here",
                     )));
             }
-            AnalysisErrorKind::AmbiguousPatternFieldOrder { origin } => {
+            AnalysisErrorKind::AmbiguousPatFieldOrder { origin } => {
                 builder
                     .with_error_code(HashErrorCode::AmbiguousFieldOrder)
                     .with_message(format!("Ambiguous field order in `{}` pattern", origin));
@@ -230,6 +236,16 @@ impl From<AnalysisError> for Report {
                     err.location,
                     format!("a {} cannot be given to the `{}` directive", given, name),
                 )));
+            }
+            AnalysisErrorKind::DisallowedFloatPat => {
+                builder.with_message("float literals are disallowed within a pattern position");
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "")))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        "float-like literals are disallowed within patterns because performing comparisons is not possible",
+                    )));
             }
         };
 

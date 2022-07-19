@@ -53,65 +53,64 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type LiteralRet = TreeNode;
-    fn visit_literal(
+    type LitRet = TreeNode;
+    fn visit_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Literal>,
-    ) -> Result<Self::LiteralRet, Self::Error> {
-        walk::walk_literal_same_children(self, ctx, node)
+        node: ast::AstNodeRef<ast::Lit>,
+    ) -> Result<Self::LitRet, Self::Error> {
+        walk::walk_lit_same_children(self, ctx, node)
     }
 
-    type MapLiteralRet = TreeNode;
-    fn visit_map_literal(
+    type MapLitRet = TreeNode;
+    fn visit_map_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapLiteral>,
-    ) -> Result<Self::MapLiteralRet, Self::Error> {
-        Ok(TreeNode::branch("map", walk::walk_map_literal(self, ctx, node)?.entries))
+        node: ast::AstNodeRef<ast::MapLit>,
+    ) -> Result<Self::MapLitRet, Self::Error> {
+        Ok(TreeNode::branch("map", walk::walk_map_lit(self, ctx, node)?.entries))
     }
 
-    type MapLiteralEntryRet = TreeNode;
-    fn visit_map_literal_entry(
+    type MapLitEntryRet = TreeNode;
+    fn visit_map_lit_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::MapLiteralEntry>,
-    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
-        let walk::MapLiteralEntry { key, value } = walk::walk_map_literal_entry(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::MapLitEntry>,
+    ) -> Result<Self::MapLitEntryRet, Self::Error> {
+        let walk::MapLitEntry { key, value } = walk::walk_map_lit_entry(self, ctx, node)?;
         Ok(TreeNode::branch(
             "entry",
             vec![TreeNode::branch("key", vec![key]), TreeNode::branch("value", vec![value])],
         ))
     }
 
-    type ListLiteralRet = TreeNode;
-    fn visit_list_literal(
+    type ListLitRet = TreeNode;
+    fn visit_list_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListLiteral>,
-    ) -> Result<Self::ListLiteralRet, Self::Error> {
-        let children = walk::walk_list_literal(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ListLit>,
+    ) -> Result<Self::ListLitRet, Self::Error> {
+        let children = walk::walk_list_lit(self, ctx, node)?;
         Ok(TreeNode::branch("list", children.elements))
     }
 
-    type SetLiteralRet = TreeNode;
-    fn visit_set_literal(
+    type SetLitRet = TreeNode;
+    fn visit_set_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SetLiteral>,
-    ) -> Result<Self::SetLiteralRet, Self::Error> {
-        let children = walk::walk_set_literal(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::SetLit>,
+    ) -> Result<Self::SetLitRet, Self::Error> {
+        let children = walk::walk_set_lit(self, ctx, node)?;
         Ok(TreeNode::branch("set", children.elements))
     }
 
-    type TupleLiteralEntryRet = TreeNode;
-    fn visit_tuple_literal_entry(
+    type TupleLitEntryRet = TreeNode;
+    fn visit_tuple_lit_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleLiteralEntry>,
-    ) -> Result<Self::TupleLiteralRet, Self::Error> {
-        let walk::TupleLiteralEntry { name, ty, value } =
-            walk::walk_tuple_literal_entry(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TupleLitEntry>,
+    ) -> Result<Self::TupleLitRet, Self::Error> {
+        let walk::TupleLitEntry { name, ty, value } = walk::walk_tuple_lit_entry(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "entry",
@@ -123,59 +122,59 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TupleLiteralRet = TreeNode;
+    type TupleLitRet = TreeNode;
 
-    fn visit_tuple_literal(
+    fn visit_tuple_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TupleLiteral>,
-    ) -> Result<Self::TupleLiteralRet, Self::Error> {
-        let children = walk::walk_tuple_literal(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TupleLit>,
+    ) -> Result<Self::TupleLitRet, Self::Error> {
+        let children = walk::walk_tuple_lit(self, ctx, node)?;
         Ok(TreeNode::branch("tuple", children.elements))
     }
 
-    type StrLiteralRet = TreeNode;
-    fn visit_str_literal(
+    type StrLitRet = TreeNode;
+    fn visit_str_lit(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StrLiteral>,
-    ) -> Result<Self::StrLiteralRet, Self::Error> {
+        node: ast::AstNodeRef<ast::StrLit>,
+    ) -> Result<Self::StrLitRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("str", node.0, "\"")))
     }
 
-    type CharLiteralRet = TreeNode;
-    fn visit_char_literal(
+    type CharLitRet = TreeNode;
+    fn visit_char_lit(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::CharLiteral>,
-    ) -> Result<Self::CharLiteralRet, Self::Error> {
+        node: ast::AstNodeRef<ast::CharLit>,
+    ) -> Result<Self::CharLitRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("char", node.0, "'")))
     }
 
-    type FloatLiteralRet = TreeNode;
-    fn visit_float_literal(
+    type FloatLitRet = TreeNode;
+    fn visit_float_lit(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FloatLiteral>,
-    ) -> Result<Self::FloatLiteralRet, Self::Error> {
+        node: ast::AstNodeRef<ast::FloatLit>,
+    ) -> Result<Self::FloatLitRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
-    type BoolLiteralRet = TreeNode;
-    fn visit_bool_literal(
+    type BoolLitRet = TreeNode;
+    fn visit_bool_lit(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BoolLiteral>,
-    ) -> Result<Self::BoolLiteralRet, Self::Error> {
+        node: ast::AstNodeRef<ast::BoolLit>,
+    ) -> Result<Self::BoolLitRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("bool", node.0, "")))
     }
 
-    type IntLiteralRet = TreeNode;
-    fn visit_int_literal(
+    type IntLitRet = TreeNode;
+    fn visit_int_lit(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IntLiteral>,
-    ) -> Result<Self::IntLiteralRet, Self::Error> {
+        node: ast::AstNodeRef<ast::IntLit>,
+    ) -> Result<Self::IntLitRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
@@ -341,14 +340,14 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("unsafe", vec![inner_expr]))
     }
 
-    type LiteralExprRet = TreeNode;
-    fn visit_literal_expr(
+    type LitExprRet = TreeNode;
+    fn visit_lit_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LiteralExpr>,
-    ) -> Result<Self::LiteralExprRet, Self::Error> {
-        let walk::LiteralExpr(literal) = walk::walk_literal_expr(self, ctx, node)?;
-        Ok(literal)
+        node: ast::AstNodeRef<ast::LitExpr>,
+    ) -> Result<Self::LitExprRet, Self::Error> {
+        let walk::LitExpr(lit) = walk::walk_lit_expr(self, ctx, node)?;
+        Ok(lit)
     }
 
     type CastExprRet = TreeNode;
@@ -357,7 +356,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        let walk::AsExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
+        let walk::CastExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "cast",
             vec![TreeNode::branch("subject", vec![expr]), TreeNode::branch("type", vec![ty])],
@@ -458,13 +457,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type NamedFieldTyRet = TreeNode;
-    fn visit_named_field_ty(
+    type TyArgRet = TreeNode;
+    fn visit_ty_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTyRet, Self::Error> {
-        let walk::NamedFieldTyEntry { name, ty } = walk::walk_named_field_ty(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TyArg>,
+    ) -> Result<Self::TyArgRet, Self::Error> {
+        let walk::TyArg { name, ty } = walk::walk_ty_arg(self, ctx, node)?;
 
         if let Some(name) = name {
             Ok(TreeNode::branch(
@@ -658,7 +657,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::MatchCase>,
     ) -> Result<Self::MatchCaseRet, Self::Error> {
-        let walk::MatchCase { expr, pattern } = walk::walk_match_case(self, ctx, node)?;
+        let walk::MatchCase { expr, pat: pattern } = walk::walk_match_case(self, ctx, node)?;
         Ok(TreeNode::branch("case", vec![pattern, TreeNode::branch("branch", vec![expr])]))
     }
 
@@ -694,7 +693,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ForLoopBlock>,
     ) -> Result<Self::LoopBlockRet, Self::Error> {
-        let walk::ForLoopBlock { pattern, iterator, body } =
+        let walk::ForLoopBlock { pat: pattern, iterator, body } =
             walk::walk_for_loop_block(self, ctx, node)?;
 
         Ok(TreeNode::branch("for_loop", vec![pattern, iterator, body]))
@@ -853,7 +852,8 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let walk::Declaration { pattern, ty, value } = walk::walk_declaration(self, ctx, node)?;
+        let walk::Declaration { pat: pattern, ty, value } =
+            walk::walk_declaration(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "declaration",
@@ -1012,24 +1012,23 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type PatternRet = TreeNode;
-    fn visit_pattern(
+    type PatRet = TreeNode;
+    fn visit_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Pattern>,
-    ) -> Result<Self::PatternRet, Self::Error> {
-        walk::walk_pattern_same_children(self, ctx, node)
+        node: ast::AstNodeRef<ast::Pat>,
+    ) -> Result<Self::PatRet, Self::Error> {
+        walk::walk_pat_same_children(self, ctx, node)
     }
 
-    type ConstructorPatternRet = TreeNode;
+    type ConstructorPatRet = TreeNode;
 
-    fn visit_constructor_pattern(
+    fn visit_constructor_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ConstructorPattern>,
-    ) -> Result<Self::ConstructorPatternRet, Self::Error> {
-        let walk::ConstructorPattern { args, name } =
-            walk::walk_constructor_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ConstructorPat>,
+    ) -> Result<Self::ConstructorPatRet, Self::Error> {
+        let walk::ConstructorPat { args, name } = walk::walk_constructor_pat(self, ctx, node)?;
         Ok(TreeNode::branch(
             "enum",
             iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
@@ -1041,24 +1040,24 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type NamespacePatternRet = TreeNode;
-    fn visit_namespace_pattern(
+    type NamespacePatRet = TreeNode;
+    fn visit_namespace_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePattern>,
-    ) -> Result<Self::NamespacePatternRet, Self::Error> {
-        let walk::NamespacePattern { patterns } = walk::walk_namespace_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::NamespacePat>,
+    ) -> Result<Self::NamespacePatRet, Self::Error> {
+        let walk::NamespacePat { fields: patterns } = walk::walk_namespace_pat(self, ctx, node)?;
         Ok(TreeNode::branch("namespace", vec![TreeNode::branch("members", patterns)]))
     }
 
-    type TuplePatternEntryRet = TreeNode;
-    fn visit_tuple_pattern_entry(
+    type TuplePatEntryRet = TreeNode;
+    fn visit_tuple_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TuplePatternEntry>,
-    ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
-        let walk::TuplePatternEntry { name, pattern } =
-            walk::walk_tuple_pattern_entry(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TuplePatEntry>,
+    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
+        let walk::TuplePatEntry { name, pat: pattern } =
+            walk::walk_tuple_pat_entry(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "entry",
@@ -1069,97 +1068,97 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type TuplePatternRet = TreeNode;
-    fn visit_tuple_pattern(
+    type TuplePatRet = TreeNode;
+    fn visit_tuple_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::TuplePattern>,
-    ) -> Result<Self::TuplePatternRet, Self::Error> {
-        let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::TuplePat>,
+    ) -> Result<Self::TuplePatRet, Self::Error> {
+        let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
         Ok(TreeNode::branch("tuple", elements))
     }
 
-    type ListPatternRet = TreeNode;
-    fn visit_list_pattern(
+    type ListPatRet = TreeNode;
+    fn visit_list_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ListPattern>,
-    ) -> Result<Self::TuplePatternRet, Self::Error> {
-        let walk::ListPattern { elements } = walk::walk_list_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ListPat>,
+    ) -> Result<Self::TuplePatRet, Self::Error> {
+        let walk::ListPat { elements } = walk::walk_list_pat(self, ctx, node)?;
         Ok(TreeNode::branch("list", elements))
     }
 
-    type StrLiteralPatternRet = TreeNode;
-    fn visit_str_literal_pattern(
+    type StrLitPatRet = TreeNode;
+    fn visit_str_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::StrLiteralPattern>,
-    ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
+        node: ast::AstNodeRef<ast::StrLitPat>,
+    ) -> Result<Self::StrLitPatRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("str", node.0, "\"")))
     }
 
-    type CharLiteralPatternRet = TreeNode;
-    fn visit_char_literal_pattern(
+    type CharLitPatRet = TreeNode;
+    fn visit_char_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::CharLiteralPattern>,
-    ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
+        node: ast::AstNodeRef<ast::CharLitPat>,
+    ) -> Result<Self::CharLitPatRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("char", node.0, "\'")))
     }
 
-    type IntLiteralPatternRet = TreeNode;
-    fn visit_int_literal_pattern(
+    type IntLitPatRet = TreeNode;
+    fn visit_int_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IntLiteralPattern>,
-    ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
+        node: ast::AstNodeRef<ast::IntLitPat>,
+    ) -> Result<Self::IntLitPatRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("int", node.0, "")))
     }
 
-    type FloatLiteralPatternRet = TreeNode;
-    fn visit_float_literal_pattern(
+    type FloatLitPatRet = TreeNode;
+    fn visit_float_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::FloatLiteralPattern>,
-    ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
+        node: ast::AstNodeRef<ast::FloatLitPat>,
+    ) -> Result<Self::FloatLitPatRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("float", node.0, "")))
     }
 
-    type BoolLiteralPatternRet = TreeNode;
-    fn visit_bool_literal_pattern(
+    type BoolLitPatRet = TreeNode;
+    fn visit_bool_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BoolLiteralPattern>,
-    ) -> Result<Self::BoolLiteralPatternRet, Self::Error> {
+        node: ast::AstNodeRef<ast::BoolLitPat>,
+    ) -> Result<Self::BoolLitPatRet, Self::Error> {
         Ok(TreeNode::leaf(labelled("bool", node.0, "")))
     }
 
-    type LiteralPatternRet = TreeNode;
-    fn visit_literal_pattern(
+    type LitPatRet = TreeNode;
+    fn visit_lit_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::LiteralPattern>,
-    ) -> Result<Self::LiteralPatternRet, Self::Error> {
-        walk::walk_literal_pattern_same_children(self, ctx, node)
+        node: ast::AstNodeRef<ast::LitPat>,
+    ) -> Result<Self::LitPatRet, Self::Error> {
+        walk::walk_lit_pat_same_children(self, ctx, node)
     }
 
-    type OrPatternRet = TreeNode;
-    fn visit_or_pattern(
+    type OrPatRet = TreeNode;
+    fn visit_or_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::OrPattern>,
-    ) -> Result<Self::OrPatternRet, Self::Error> {
-        let walk::OrPattern { variants } = walk::walk_or_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::OrPat>,
+    ) -> Result<Self::OrPatRet, Self::Error> {
+        let walk::OrPat { variants } = walk::walk_or_pat(self, ctx, node)?;
         Ok(TreeNode::branch("or", variants))
     }
 
-    type IfPatternRet = TreeNode;
-    fn visit_if_pattern(
+    type IfPatRet = TreeNode;
+    fn visit_if_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::IfPattern>,
-    ) -> Result<Self::IfPatternRet, Self::Error> {
-        let walk::IfPattern { condition, pattern } = walk::walk_if_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::IfPat>,
+    ) -> Result<Self::IfPatRet, Self::Error> {
+        let walk::IfPat { condition, pat: pattern } = walk::walk_if_pat(self, ctx, node)?;
         Ok(TreeNode::branch(
             "if",
             vec![
@@ -1169,13 +1168,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type BindingPatternRet = TreeNode;
-    fn visit_binding_pattern(
+    type BindingPatRet = TreeNode;
+    fn visit_binding_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::BindingPattern>,
-    ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let walk::BindingPattern { name, .. } = walk::walk_binding_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::BindingPat>,
+    ) -> Result<Self::BindingPatRet, Self::Error> {
+        let walk::BindingPat { name, .. } = walk::walk_binding_pat(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "binding",
@@ -1194,13 +1193,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type SpreadPatternRet = TreeNode;
-    fn visit_spread_pattern(
+    type SpreadPatRet = TreeNode;
+    fn visit_spread_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SpreadPattern>,
-    ) -> Result<Self::SpreadPatternRet, Self::Error> {
-        let walk::SpreadPattern { name } = walk::walk_spread_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
+        let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
 
         if let Some(name) = name {
             Ok(TreeNode::leaf(labelled("spread", name.label, "\"")))
@@ -1209,24 +1208,24 @@ impl AstVisitor for AstTreeGenerator {
         }
     }
 
-    type IgnorePatternRet = TreeNode;
-    fn visit_ignore_pattern(
+    type IgnorePatRet = TreeNode;
+    fn visit_ignore_pat(
         &mut self,
         _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::IgnorePattern>,
-    ) -> Result<Self::IgnorePatternRet, Self::Error> {
+        _: ast::AstNodeRef<ast::IgnorePat>,
+    ) -> Result<Self::IgnorePatRet, Self::Error> {
         Ok(TreeNode::leaf("ignore"))
     }
 
-    type DestructuringPatternRet = TreeNode;
+    type DestructuringPatRet = TreeNode;
 
-    fn visit_destructuring_pattern(
+    fn visit_destructuring_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPattern>,
-    ) -> Result<Self::DestructuringPatternRet, Self::Error> {
-        let walk::DestructuringPattern { name, pattern } =
-            walk::walk_destructuring_pattern(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::DestructuringPat>,
+    ) -> Result<Self::DestructuringPatRet, Self::Error> {
+        let walk::DestructuringPat { name, pat: pattern } =
+            walk::walk_destructuring_pat(self, ctx, node)?;
         Ok(TreeNode::branch(labelled("binding", name.label, "\""), vec![pattern]))
     }
 

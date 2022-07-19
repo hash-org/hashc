@@ -68,6 +68,26 @@ pub struct Member {
     pub data: MemberData,
     pub visibility: Visibility,
     pub mutability: Mutability,
+    /// The amount of assignments are left until the member has finished
+    /// initialising (== closed).
+    pub assignments_until_closed: usize,
+}
+
+impl Member {
+    /// Create a closed member with the given data.
+    pub fn closed(
+        name: Identifier,
+        visibility: Visibility,
+        mutability: Mutability,
+        data: MemberData,
+    ) -> Self {
+        Member { name, data, visibility, mutability, assignments_until_closed: 0 }
+    }
+
+    /// Whether the member is closed (no assignments remaining).
+    pub fn is_closed(&self) -> bool {
+        self.assignments_until_closed == 0
+    }
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
@@ -133,6 +153,16 @@ impl Scope {
         let index = self.member_names.get(&member_name).copied()?;
 
         Some((self.members[index], index))
+    }
+
+    /// Get a member by index, asserting that it exists.
+    pub fn get_by_index(&mut self, index: usize) -> Member {
+        self.members[index]
+    }
+
+    /// Get a member by index, mutably, asserting that it exists.
+    pub fn get_mut_by_index(&mut self, index: usize) -> &mut Member {
+        &mut self.members[index]
     }
 
     /// Iterate through all the members in insertion order (oldest first).
@@ -481,6 +511,22 @@ pub struct UnresolvedTerm {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Var {
     pub name: Identifier,
+}
+
+/// A scope variable, identified by a `ScopeId` and `usize` index.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct ScopeVar {
+    pub name: Identifier,
+    pub scope: ScopeId,
+    pub index: usize,
+}
+
+/// A bound variable, identified by a `ParamsId` and `usize` index.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct BoundVar {
+    pub name: Identifier,
+    pub params: ParamsId,
+    pub index: usize,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -851,12 +897,23 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant access.
     Access(AccessTerm),
 
-    /// A type-level variable, with some type that is stored in the current
-    /// scope.
+    /// A variable, referencing either a scope variable or a bound variable.
     ///
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
     Var(Var),
+
+    /// A variable that corresponds to some scope member.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
+    ScopeVar(ScopeVar),
+
+    /// A variable that is bound by some params.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
+    BoundVar(BoundVar),
 
     /// Merge of multiple terms.
     ///
@@ -924,7 +981,7 @@ pub enum Term {
 
 /// A binding pattern, which is essentially a declaration left-hand side.
 #[derive(Clone, Debug, Copy)]
-pub struct BindingPattern {
+pub struct BindingPat {
     pub name: Identifier,
     pub mutability: Mutability,
     pub visibility: Visibility,
@@ -932,65 +989,65 @@ pub struct BindingPattern {
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
-pub struct PatternParam {
+pub struct PatParam {
     pub name: Option<Identifier>,
-    pub pattern: PatternId,
+    pub pat: PatId,
 }
 
-impl GetNameOpt for PatternParam {
+impl GetNameOpt for PatParam {
     fn get_name_opt(&self) -> Option<Identifier> {
         self.name
     }
 }
 
 /// A pattern of parameters.
-pub type PatternParams = ParamList<PatternParam>;
+pub type PatParams = ParamList<PatParam>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
-pub struct ConstructorPattern {
+pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: Option<PatternParamsId>,
+    pub params: Option<PatParamsId>,
 }
 
 /// A conditional pattern, containing a pattern and an condition.
 #[derive(Clone, Debug, Copy)]
-pub struct IfPattern {
-    pub pattern: PatternId,
+pub struct IfPat {
+    pub pat: PatId,
     pub condition: TermId,
 }
 
 /// A module pattern, containing a list of patterns to be used to match module
 /// members.
 #[derive(Clone, Debug, Copy)]
-pub struct ModPattern {
-    pub members: PatternParamsId,
+pub struct ModPat {
+    pub members: PatParamsId,
 }
 
 /// Represents a pattern in the language.
 ///
 /// @@Todo: list patterns, spread patterns
 #[derive(Clone, Debug)]
-pub enum Pattern {
+pub enum Pat {
     /// Binding pattern.
-    Binding(BindingPattern),
+    Binding(BindingPat),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
     Lit(TermId),
     /// Tuple pattern.
-    Tuple(PatternParamsId),
+    Tuple(PatParamsId),
     /// Module pattern.
-    Mod(ModPattern),
+    Mod(ModPat),
     /// Constructor pattern.
-    Constructor(ConstructorPattern),
+    Constructor(ConstructorPat),
     /// A set of patterns that are OR-ed together. If any one of them matches
     /// then the whole pattern matches.
-    Or(Vec<PatternId>),
+    Or(Vec<PatId>),
     /// A conditional pattern.
-    If(IfPattern),
+    If(IfPat),
     /// A wildcard pattern, ignoring the subject and always matching.
     Ignore,
 }
@@ -1033,13 +1090,13 @@ new_key_type! {
 }
 
 new_key_type! {
-    /// The ID of a [Pattern]
-    pub struct PatternId;
+    /// The ID of a [Pat]
+    pub struct PatId;
 }
 
 new_key_type! {
-    /// The ID of a [ParamsPattern]
-    pub struct PatternParamsId;
+    /// The ID of a [ParamsPat]
+    pub struct PatParamsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

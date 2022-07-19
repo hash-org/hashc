@@ -67,7 +67,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Function to parse a [TyOp] which returns a type operator if one is
+    /// Function to parse a [BinTyOp] which returns a type operator if one is
     /// present, and the number of tokens consumed. If no type operator follows,
     /// then the consumed tokens count will be 0.
     pub(crate) fn parse_type_operator(&self) -> (Option<BinTyOp>, u8) {

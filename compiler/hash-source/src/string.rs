@@ -12,63 +12,63 @@ use dashmap::DashMap;
 /// have to unnecessarily allocate a string multiple times even if it occurs
 /// within the source.
 #[derive(Debug, Default)]
-pub struct StringLiteralMap {
-    string_table: DashMap<StringLiteral, &'static str, FnvBuildHasher>,
-    reverse_table: DashMap<&'static str, StringLiteral, FnvBuildHasher>,
+pub struct StrLitMap {
+    string_table: DashMap<Str, &'static str, FnvBuildHasher>,
+    reverse_table: DashMap<&'static str, Str, FnvBuildHasher>,
 }
 
 counter! {
-    name: StringLiteral,
-    counter_name: STRING_LITERAL_COUNTER,
+    name: Str,
+    counter_name: STR_LIT_COUNTER,
     visibility: pub,
     method_visibility:,
 }
 
-impl Display for StringLiteral {
+impl Display for Str {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", STRING_LITERAL_MAP.lookup(*self))
+        write!(f, "{}", STR_LIT_MAP.lookup(*self))
     }
 }
 
-// Utility methods for converting from a String to an StringLiteral and vice
+// Utility methods for converting from a String to an StrLit and vice
 // versa.
 
-impl From<&str> for StringLiteral {
+impl From<&str> for Str {
     fn from(string: &str) -> Self {
-        STRING_LITERAL_MAP.create_string(string)
+        STR_LIT_MAP.create_string(string)
     }
 }
 
-impl From<String> for StringLiteral {
+impl From<String> for Str {
     fn from(string: String) -> Self {
-        STRING_LITERAL_MAP.create_string(&string)
+        STR_LIT_MAP.create_string(&string)
     }
 }
 
-impl From<StringLiteral> for &str {
-    fn from(string: StringLiteral) -> Self {
-        STRING_LITERAL_MAP.lookup(string)
+impl From<Str> for &str {
+    fn from(string: Str) -> Self {
+        STR_LIT_MAP.lookup(string)
     }
 }
 
-impl From<StringLiteral> for String {
-    fn from(string: StringLiteral) -> Self {
-        String::from(STRING_LITERAL_MAP.lookup(string))
+impl From<Str> for String {
+    fn from(string: Str) -> Self {
+        String::from(STR_LIT_MAP.lookup(string))
     }
 }
 
 lazy_static! {
-    pub static ref STRING_LITERAL_MAP: StringLiteralMap = StringLiteralMap::default();
+    pub static ref STR_LIT_MAP: StrLitMap = StrLitMap::default();
 }
 
-impl StringLiteralMap {
+impl StrLitMap {
     /// Add a new string to the map, this will add an additional entry even if
     /// the string is already within the map.
-    pub fn create_string(&self, value: &str) -> StringLiteral {
+    pub fn create_string(&self, value: &str) -> Str {
         if let Some(key) = self.reverse_table.get(value) {
             *key
         } else {
-            let ident = StringLiteral::new();
+            let ident = Str::new();
 
             // copy over the string so that we can insert it into the reverse lookup table
             let value_copy = Box::leak(value.to_owned().into_boxed_str());
@@ -79,8 +79,8 @@ impl StringLiteralMap {
         }
     }
 
-    /// Get the [String] behind the [StringLiteral]
-    pub fn lookup(&self, ident: StringLiteral) -> &'static str {
+    /// Get the [String] behind the [StrLit]
+    pub fn lookup(&self, ident: Str) -> &'static str {
         self.string_table.get(&ident).unwrap().value()
     }
 }

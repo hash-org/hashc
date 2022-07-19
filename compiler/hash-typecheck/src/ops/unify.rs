@@ -491,7 +491,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                         Ok(self.get_super_sub(&args_unified_sub, &subject_sub)?)
                     }
                     // If the subject is not a function type then application is invalid:
-                    _ => Err(TcError::UnsupportedTypeFunctionApplication { subject_id: subject }),
+                    _ => Err(TcError::UnsupportedTyFnApplication { subject_id: subject }),
                 }
             }
             (Term::TyFnCall(_), _) | (_, Term::TyFnCall(_)) => {
@@ -653,6 +653,9 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Root unifies with root and nothing else:
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
+
+            // @@Todo: vars
+            _ => todo!(),
         }?;
 
         self.cacher().add_unification_entry((src_id, target_id), &sub);

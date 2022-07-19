@@ -3,11 +3,6 @@
 
 use std::fmt::Display;
 
-use crate::storage::{
-    primitives::{AppSub, Level0Term, Level1Term, Term},
-    terms::TermStore,
-};
-
 /// An enum representing the origin of a named field access.
 /// This is used to provide additional contextual information
 /// when the validator fails to find a named field within
@@ -24,36 +19,6 @@ pub enum NameFieldOrigin {
     Mod,
     /// Tuple parent subject
     Tuple,
-}
-
-impl NameFieldOrigin {
-    /// Utility function to convert a [Term] into a [NameFieldOrigin].
-    ///
-    /// This assumes that the provided term does yield a [NameFieldOrigin]
-    /// and any other variant of term will cause the function to *panic*.
-    pub fn from_term(term: &Term, store: &TermStore) -> Self {
-        let term_from_level_1 = |t: &Level1Term| match t {
-            Level1Term::ModDef(_) => Self::Mod,
-            Level1Term::NominalDef(_) => Self::Enum,
-            Level1Term::Tuple(_) => Self::Tuple,
-            Level1Term::Fn(_) => panic!("`NameFieldOrigin::from_term` hit fn literal type"),
-        };
-
-        match term {
-            Term::Level1(inner) => term_from_level_1(inner),
-            Term::Level0(Level0Term::Rt(inner)) => {
-                // we can extract the inner type since it's
-                // known that this should be a level-1 term
-                NameFieldOrigin::from_term(store.get(*inner), store)
-            }
-            Term::AppSub(AppSub { term, .. }) => {
-                NameFieldOrigin::from_term(store.get(*term), store)
-            }
-            _ => panic!(
-                "`NameFieldOrigin::from_term` should only be used on level-1 or level-0 terms"
-            ),
-        }
-    }
 }
 
 impl Display for NameFieldOrigin {
