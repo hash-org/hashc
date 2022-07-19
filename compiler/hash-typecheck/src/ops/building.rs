@@ -97,19 +97,13 @@ impl<'gs> PrimitiveBuilder<'gs> {
         name: impl Into<Identifier>,
         origin: ModDefOrigin,
         members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> ModDefId {
-        self.create_mod_def(Some(name), origin, members, bound_vars)
+        self.create_mod_def(Some(name), origin, members)
     }
 
     /// Create a nameless module definition with the given members, and origin.
-    pub fn create_nameless_mod_def(
-        &self,
-        origin: ModDefOrigin,
-        members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> ModDefId {
-        self.create_mod_def(Option::<Identifier>::None, origin, members, bound_vars)
+    pub fn create_nameless_mod_def(&self, origin: ModDefOrigin, members: ScopeId) -> ModDefId {
+        self.create_mod_def(Option::<Identifier>::None, origin, members)
     }
 
     /// Create a module definition with the given optional name, members, and
@@ -119,15 +113,9 @@ impl<'gs> PrimitiveBuilder<'gs> {
         name: Option<impl Into<Identifier>>,
         origin: ModDefOrigin,
         members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> ModDefId {
         let name = name.map(Into::into);
-        let def_id = self.gs.borrow_mut().mod_def_store.create(ModDef {
-            name,
-            members,
-            origin,
-            bound_vars: bound_vars.into_iter().collect(),
-        });
+        let def_id = self.gs.borrow_mut().mod_def_store.create(ModDef { name, members, origin });
         if let Some(name) = name {
             self.add_mod_def_to_scope(name, def_id, origin);
         }
@@ -135,31 +123,23 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a nameless struct with opaque fields.
-    pub fn create_nameless_opaque_struct_def(
-        &self,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> NominalDefId {
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
-            name: None,
-            fields: StructFields::Opaque,
-            bound_vars: bound_vars.into_iter().collect(),
-        }));
+    pub fn create_nameless_opaque_struct_def(&self) -> NominalDefId {
+        let def_id = self
+            .gs
+            .borrow_mut()
+            .nominal_def_store
+            .create(NominalDef::Struct(StructDef { name: None, fields: StructFields::Opaque }));
         def_id
     }
 
     /// Create a struct with the given name and opaque fields.
     ///
     /// This adds the name to the scope.
-    pub fn create_opaque_struct_def(
-        &self,
-        struct_name: impl Into<Identifier>,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> NominalDefId {
+    pub fn create_opaque_struct_def(&self, struct_name: impl Into<Identifier>) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
             fields: StructFields::Opaque,
-            bound_vars: bound_vars.into_iter().collect(),
         }));
         self.add_nominal_def_to_scope(name, def_id);
         def_id
@@ -172,11 +152,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         struct_name: Option<impl Into<Identifier>>,
         fields: ParamsId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         match struct_name {
-            Some(name) => self.create_named_struct_def(name, fields, bound_vars),
-            None => self.create_nameless_struct_def(fields, bound_vars),
+            Some(name) => self.create_named_struct_def(name, fields),
+            None => self.create_nameless_struct_def(fields),
         }
     }
 
@@ -184,28 +163,21 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         struct_name: impl Into<Identifier>,
         fields: ParamsId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = struct_name.into();
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: Some(name),
             fields: StructFields::Explicit(fields),
-            bound_vars: bound_vars.into_iter().collect(),
         }));
 
         self.add_nominal_def_to_scope(name, def_id);
         def_id
     }
 
-    pub fn create_nameless_struct_def(
-        &self,
-        fields: ParamsId,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> NominalDefId {
+    pub fn create_nameless_struct_def(&self, fields: ParamsId) -> NominalDefId {
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Struct(StructDef {
             name: None,
             fields: StructFields::Explicit(fields),
-            bound_vars: bound_vars.into_iter().collect(),
         }));
 
         def_id
@@ -239,7 +211,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         enum_name: Option<impl Into<Identifier>>,
         variants: impl IntoIterator<Item = EnumVariant>,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> NominalDefId {
         let name = enum_name.map(|name| name.into());
 
@@ -247,7 +218,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Enum(EnumDef {
             name,
             variants: variants.into_iter().map(|variant| (variant.name, variant)).collect(),
-            bound_vars: bound_vars.into_iter().collect(),
         }));
 
         // Only add the enum def to the scope if it has a name...
@@ -487,15 +457,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         &self,
         trait_name: Option<impl Into<Identifier>>,
         members: ScopeId,
-        bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
         let name = trait_name.map(|t| t.into());
 
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
-            name,
-            members,
-            bound_vars: bound_vars.into_iter().collect(),
-        });
+        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef { name, members });
         let trt_def_ty = self.create_trt_kind_term();
         let trt_def_value = self.create_trt_term(trt_def_id);
 
@@ -507,18 +472,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a trait definition with no name, and the given members.
-    pub fn create_nameless_trt_def(
-        &self,
-        members: impl Iterator<Item = Member>,
-        bound_vars: impl IntoIterator<Item = Var>,
-    ) -> TrtDefId {
+    pub fn create_nameless_trt_def(&self, members: impl Iterator<Item = Member>) -> TrtDefId {
         let members = self.create_scope(ScopeKind::Constant, members);
 
-        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
-            name: None,
-            members,
-            bound_vars: bound_vars.into_iter().collect(),
-        });
+        let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef { name: None, members });
         trt_def_id
     }
 

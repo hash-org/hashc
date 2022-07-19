@@ -1311,7 +1311,6 @@ mod test_super {
                 [builder.create_param("foo", builder.create_nominal_def_term(core_defs.str_ty))],
                 ParamOrigin::Struct,
             ),
-            [],
         );
 
         let hash_impl = builder.create_nameless_mod_def(
@@ -1350,7 +1349,6 @@ mod test_super {
                     ),
                 ],
             ),
-            [],
         );
 
         let dog = builder.create_merge_term([

@@ -55,21 +55,21 @@ impl CoreDefs {
         let builder = PrimitiveBuilder::new_with_scope(global_storage, global_storage.root_scope);
 
         // Primitive integers
-        let i8_ty = builder.create_opaque_struct_def("i8", []);
-        let i16_ty = builder.create_opaque_struct_def("i16", []);
-        let i32_ty = builder.create_opaque_struct_def("i32", []);
-        let i64_ty = builder.create_opaque_struct_def("i64", []);
+        let i8_ty = builder.create_opaque_struct_def("i8");
+        let i16_ty = builder.create_opaque_struct_def("i16");
+        let i32_ty = builder.create_opaque_struct_def("i32");
+        let i64_ty = builder.create_opaque_struct_def("i64");
 
-        let u8_ty = builder.create_opaque_struct_def("u8", []);
-        let u16_ty = builder.create_opaque_struct_def("u16", []);
-        let u32_ty = builder.create_opaque_struct_def("u32", []);
-        let u64_ty = builder.create_opaque_struct_def("u64", []);
+        let u8_ty = builder.create_opaque_struct_def("u8");
+        let u16_ty = builder.create_opaque_struct_def("u16");
+        let u32_ty = builder.create_opaque_struct_def("u32");
+        let u64_ty = builder.create_opaque_struct_def("u64");
 
-        let f32_ty = builder.create_opaque_struct_def("f32", []);
-        let f64_ty = builder.create_opaque_struct_def("f64", []);
+        let f32_ty = builder.create_opaque_struct_def("f32");
+        let f64_ty = builder.create_opaque_struct_def("f64");
 
         // Char and bool
-        let char_ty = builder.create_opaque_struct_def("char", []);
+        let char_ty = builder.create_opaque_struct_def("char");
         let bool_ty = builder.create_enum_def(
             Some("bool"),
             [
@@ -82,7 +82,6 @@ impl CoreDefs {
                     builder.create_params([], ParamOrigin::EnumVariant),
                 ),
             ],
-            [],
         );
         let bool_ty_term = builder.create_nominal_def_term(bool_ty);
         builder.add_pub_member_to_scope(
@@ -97,7 +96,7 @@ impl CoreDefs {
         );
 
         // String
-        let str_ty = builder.create_opaque_struct_def("str", []);
+        let str_ty = builder.create_opaque_struct_def("str");
 
         // Any type
         let any_ty = builder.create_any_ty_term();
@@ -107,7 +106,7 @@ impl CoreDefs {
         // We call this "Type" because that's what people usually mean when they say
         // "type".
         let runtime_instantiable_trt =
-            builder.create_trt_def(Some("Type"), builder.create_scope(ScopeKind::Constant, []), []);
+            builder.create_trt_def(Some("Type"), builder.create_scope(ScopeKind::Constant, []));
 
         // Helper for general type bound
         let ty_term = builder.create_trt_term(runtime_instantiable_trt);
@@ -133,33 +132,25 @@ impl CoreDefs {
             Some("Ref"),
             builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
             ty_term,
-            builder.create_nominal_def_term(
-                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
-            ),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
         let reference_mut_ty_fn = builder.create_ty_fn_term(
             Some("RefMut"),
             builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
             ty_term,
-            builder.create_nominal_def_term(
-                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
-            ),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
         let raw_reference_ty_fn = builder.create_ty_fn_term(
             Some("RawRef"),
             builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
             ty_term,
-            builder.create_nominal_def_term(
-                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
-            ),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
         let raw_reference_mut_ty_fn = builder.create_ty_fn_term(
             Some("RawRefMut"),
             builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
             ty_term,
-            builder.create_nominal_def_term(
-                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
-            ),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
         // @@Incomplete: these traits should take ref self, not self.
@@ -188,7 +179,6 @@ impl CoreDefs {
                     ),
                 ],
             ),
-            [],
         );
         let eq_trt = builder.create_trt_def(
             Some("Eq"),
@@ -216,7 +206,6 @@ impl CoreDefs {
                     ),
                 ],
             ),
-            [],
         );
 
         // Index trait
@@ -256,7 +245,6 @@ impl CoreDefs {
                     ),
                 ],
             ),
-            [],
         );
 
         // Collection types
@@ -325,16 +313,13 @@ impl CoreDefs {
                     ),
                 ],
             ),
-            [builder.create_var("T")],
         );
         let list_ty_fn = builder.create_ty_fn_term(
             Some("List"),
             builder.create_params([builder.create_param("T", ty_term)], ParamOrigin::TyFn),
             ty_term,
             builder.create_merge_term([
-                builder.create_nominal_def_term(
-                    builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
-                ),
+                builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
                 builder.create_mod_def_term(list_index_impl),
             ]),
         );
@@ -352,9 +337,7 @@ impl CoreDefs {
                 ParamOrigin::TyFn,
             ),
             ty_term,
-            builder.create_nominal_def_term(
-                builder.create_nameless_opaque_struct_def([builder.create_var("T")]),
-            ),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
         let map_ty_fn = builder.create_ty_fn_term(
@@ -373,10 +356,7 @@ impl CoreDefs {
                 ParamOrigin::TyFn,
             ),
             ty_term,
-            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def([
-                builder.create_var("K"),
-                builder.create_var("V"),
-            ])),
+            builder.create_nominal_def_term(builder.create_nameless_opaque_struct_def()),
         );
 
         Self {

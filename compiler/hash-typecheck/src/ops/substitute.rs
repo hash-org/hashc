@@ -88,16 +88,18 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
     /// Apply the given substitution to the given [Level2Term], producing a new
     /// [Level2Term] with the substituted variables.
-    pub fn apply_sub_to_level2_term(&mut self, sub: &Sub, term: Level2Term) -> TermId {
+    pub fn apply_sub_to_level2_term(&mut self, _sub: &Sub, term: Level2Term) -> TermId {
         match term {
-            Level2Term::Trt(trt_def_id) => {
+            Level2Term::Trt(_trt_def_id) => {
                 // Here we add the substitution to the term using only vars in the trait
                 // definition.
-                let reader = self.reader();
-                let trt_def_vars = &reader.get_trt_def(trt_def_id).bound_vars;
-                let selected_sub = sub.select(trt_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(selected_sub, builder.create_term(Term::Level2(term)))
+                // let reader = self.reader();
+                // let trt_def_vars = &reader.get_trt_def(trt_def_id).bound_vars;
+                // let selected_sub = sub.select(trt_def_vars);
+                // let builder = self.builder();
+                // builder.create_app_sub_term(selected_sub,
+                // builder.create_term(Term::Level2(term)))
+                todo!()
             }
             Level2Term::AnyTy => (self.builder().create_term(Term::Level2(Level2Term::AnyTy))),
         }
@@ -107,23 +109,27 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
     /// [Level1Term] with the substituted variables.
     pub fn apply_sub_to_level1_term(&mut self, sub: &Sub, term: Level1Term) -> TermId {
         match term {
-            Level1Term::ModDef(mod_def_id) => {
+            Level1Term::ModDef(_mod_def_id) => {
                 // Here we add the substitution to the term using only vars in the mod
                 // definition.
-                let reader = self.reader();
-                let mod_def_vars = &reader.get_mod_def(mod_def_id).bound_vars;
-                let selected_sub = sub.select(mod_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(selected_sub, builder.create_term(Term::Level1(term)))
+                // let reader = self.reader();
+                // let mod_def_vars = &reader.get_mod_def(mod_def_id).bound_vars;
+                // let selected_sub = sub.select(mod_def_vars);
+                // let builder = self.builder();
+                // builder.create_app_sub_term(selected_sub,
+                // builder.create_term(Term::Level1(term)))
+                todo!()
             }
-            Level1Term::NominalDef(nominal_def_id) => {
+            Level1Term::NominalDef(_nominal_def_id) => {
                 // Here we add the substitution to the term using only vars in the nominal
                 // definition.
-                let reader = self.reader();
-                let nominal_def_vars = reader.get_nominal_def(nominal_def_id).bound_vars();
-                let selected_sub = sub.select(nominal_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(selected_sub, builder.create_term(Term::Level1(term)))
+                // let reader = self.reader();
+                // let nominal_def_vars = reader.get_nominal_def(nominal_def_id).bound_vars();
+                // let selected_sub = sub.select(nominal_def_vars);
+                // let builder = self.builder();
+                // builder.create_app_sub_term(selected_sub,
+                // builder.create_term(Term::Level1(term)))
+                todo!()
             }
             Level1Term::Tuple(tuple_ty) => {
                 // Apply to all members
@@ -154,17 +160,19 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 let subbed_ty_term_id = self.apply_sub_to_term(sub, ty_term_id);
                 self.builder().create_rt_term(subbed_ty_term_id)
             }
-            Level0Term::EnumVariant(enum_variant) => {
+            Level0Term::EnumVariant(_enum_variant) => {
                 // Here we add the substitution to the term using only vars in the enum
                 // definition.
-                let reader = self.reader();
-                let enum_def_vars = reader.get_nominal_def(enum_variant.enum_def_id).bound_vars();
-                let selected_sub = sub.select(enum_def_vars);
-                let builder = self.builder();
-                builder.create_app_sub_term(
-                    selected_sub,
-                    builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
-                )
+                // let reader = self.reader();
+                // let enum_def_vars =
+                // reader.get_nominal_def(enum_variant.enum_def_id).bound_vars();
+                // let selected_sub = sub.select(enum_def_vars);
+                // let builder = self.builder();
+                // builder.create_app_sub_term(
+                //     selected_sub,
+                //     builder.create_term(Term::Level0(Level0Term::EnumVariant(enum_variant))),
+                // )
+                todo!()
             }
             Level0Term::FnLit(fn_lit) => {
                 // Apply to the function type and return value
@@ -414,29 +422,31 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         result: &mut HashSet<SubSubject>,
     ) {
         match term {
-            Level1Term::ModDef(mod_def_id) => {
+            Level1Term::ModDef(_mod_def_id) => {
                 // Add the bound vars of the module (they are not bound because they are not
                 // behind a type function anymore).
-                result.extend(
-                    self.reader()
-                        .get_mod_def(*mod_def_id)
-                        .bound_vars
-                        .iter()
-                        .copied()
-                        .map(SubSubject::from),
-                )
+                // result.extend(
+                //     self.reader()
+                //         .get_mod_def(*mod_def_id)
+                //         .bound_vars
+                //         .iter()
+                //         .copied()
+                //         .map(SubSubject::from),
+                // )
+                todo!()
             }
-            Level1Term::NominalDef(nominal_def_id) => {
+            Level1Term::NominalDef(_nominal_def_id) => {
                 // Add the bound vars of the nominal definition (they are not bound because they
                 // are not behind a type function anymore).
-                result.extend(
-                    self.reader()
-                        .get_nominal_def(*nominal_def_id)
-                        .bound_vars()
-                        .iter()
-                        .copied()
-                        .map(SubSubject::from),
-                )
+                // result.extend(
+                //     self.reader()
+                //         .get_nominal_def(*nominal_def_id)
+                //         .bound_vars()
+                //         .iter()
+                //         .copied()
+                //         .map(SubSubject::from),
+                // )
+                todo!()
             }
             Level1Term::Tuple(tuple_ty) => {
                 // Add the free variables in the parameters (don't remove the parameter names)
@@ -455,20 +465,21 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
     pub fn add_free_vars_in_level2_term_to_set(
         &self,
         term: &Level2Term,
-        result: &mut HashSet<SubSubject>,
+        _result: &mut HashSet<SubSubject>,
     ) {
         match term {
-            Level2Term::Trt(trt_def_id) => {
+            Level2Term::Trt(_trt_def_id) => {
                 // Add the bound vars of the trait definition (they are not bound because they
                 // are not behind a type function anymore).
-                result.extend(
-                    self.reader()
-                        .get_trt_def(*trt_def_id)
-                        .bound_vars
-                        .iter()
-                        .copied()
-                        .map(SubSubject::from),
-                )
+                // result.extend(
+                //     self.reader()
+                //         .get_trt_def(*trt_def_id)
+                //         .bound_vars
+                //         .iter()
+                //         .copied()
+                //         .map(SubSubject::from),
+                // )
+                todo!()
             }
             Level2Term::AnyTy => {}
         }
@@ -684,7 +695,6 @@ mod tests {
         let hash_impl = builder.create_nameless_mod_def(
             ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
             builder.create_scope(ScopeKind::Constant, []),
-            [],
         );
 
         let inner = builder.create_nameless_ty_fn_term(

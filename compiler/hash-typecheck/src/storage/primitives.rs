@@ -318,7 +318,6 @@ pub enum ModDefOrigin {
 pub struct ModDef {
     pub name: Option<Identifier>,
     pub origin: ModDefOrigin,
-    pub bound_vars: BoundVars,
     pub members: ScopeId,
 }
 
@@ -338,7 +337,6 @@ pub enum StructFields {
 #[derive(Debug, Clone)]
 pub struct StructDef {
     pub name: Option<Identifier>,
-    pub bound_vars: BoundVars,
     pub fields: StructFields,
 }
 
@@ -356,8 +354,6 @@ pub struct EnumVariant {
 pub struct EnumDef {
     /// The name of the `EnumDef`, useful for error reporting
     pub name: Option<Identifier>,
-    /// Any free variables that occur within the `variants` of the [EnumDef].
-    pub bound_vars: BoundVars,
     /// All of the defined variants that occur within the [EnumDef].
     pub variants: HashMap<Identifier, EnumVariant>,
 }
@@ -366,7 +362,6 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct TrtDef {
     pub name: Option<Identifier>,
-    pub bound_vars: BoundVars,
     pub members: ScopeId,
 }
 
@@ -383,14 +378,6 @@ impl NominalDef {
         match self {
             NominalDef::Struct(def) => def.name,
             NominalDef::Enum(def) => def.name,
-        }
-    }
-
-    /// Get the bound variables of the [NominalDef].
-    pub fn bound_vars(&self) -> &BoundVars {
-        match self {
-            NominalDef::Struct(def) => &def.bound_vars,
-            NominalDef::Enum(def) => &def.bound_vars,
         }
     }
 }

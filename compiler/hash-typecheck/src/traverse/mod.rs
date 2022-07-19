@@ -1356,8 +1356,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.0.members(), None)?;
 
         // @@Todo: bound variables
-        let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id, vec![]);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::Mod, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1382,8 +1381,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.0.members(), None)?;
 
         // @@Todo: bound variables
-        let mod_def =
-            self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id, vec![]);
+        let mod_def = self.builder().create_mod_def(scope_name, ModDefOrigin::AnonImpl, scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -1845,7 +1843,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let name = self.state.declaration_name_hint.take();
 
         let builder = self.builder();
-        let nominal_id = builder.create_struct_def(name, fields, bounds);
+        let nominal_id = builder.create_struct_def(name, fields);
         let term = builder.create_nominal_def_term(nominal_id);
 
         // validate the constructed nominal def
@@ -1897,13 +1895,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let builder = self.builder();
 
         // We need to collect all of the bound variables that are within the members
-        let bound_vars = entries
+        let _bound_vars = entries
             .iter()
             .map(|(_, vars)| vars)
             .fold(HashSet::new(), |acc, vars| acc.union(vars).cloned().collect());
         let variants = entries.into_iter().map(|(variants, _)| variants);
 
-        let nominal_id = builder.create_enum_def(name, variants, bound_vars);
+        let nominal_id = builder.create_enum_def(name, variants);
         let term = builder.create_nominal_def_term(nominal_id);
 
         // validate the constructed nominal def
@@ -1927,7 +1925,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.members.ast_ref_iter(), None)?;
 
         // @@Todo: bound variables
-        let trt_def = self.builder().create_trt_def(scope_name, scope_id, vec![]);
+        let trt_def = self.builder().create_trt_def(scope_name, scope_id);
         let term = self.builder().create_trt_term(trt_def);
 
         // Validate the definition
@@ -1953,12 +1951,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.implementation.ast_ref_iter(), None)?;
 
         // @@Todo: bound variables
-        let mod_def = self.builder().create_mod_def(
-            scope_name,
-            ModDefOrigin::TrtImpl(trait_term),
-            scope_id,
-            vec![],
-        );
+        let mod_def =
+            self.builder().create_mod_def(scope_name, ModDefOrigin::TrtImpl(trait_term), scope_id);
         let term = self.builder().create_mod_def_term(mod_def);
 
         // Validate the definition
@@ -2246,12 +2240,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             self.visit_constant_scope(ctx, node.contents.ast_ref_iter(), Some(members))?;
 
         let source_id = self.source_id;
-        let mod_def = self.builder().create_named_mod_def(
-            name,
-            ModDefOrigin::Source(source_id),
-            scope_id,
-            vec![],
-        );
+        let mod_def =
+            self.builder().create_named_mod_def(name, ModDefOrigin::Source(source_id), scope_id);
 
         let term = self.builder().create_mod_def_term(mod_def);
         self.validator().validate_mod_def(mod_def, term, false)?;
