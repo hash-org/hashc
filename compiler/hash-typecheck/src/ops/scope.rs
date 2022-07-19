@@ -2,10 +2,7 @@
 
 use super::{AccessToOps, AccessToOpsMut};
 use crate::{
-    diagnostics::{
-        error::{TcError, TcResult},
-        macros::tc_panic,
-    },
+    diagnostics::error::{TcError, TcResult},
     storage::{
         primitives::{
             MemberData, ParamsId, ScopeId, ScopeMember, Sub, SubSubject, TermId, Visibility,
@@ -144,9 +141,10 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         let _ = self.unifier().unify_terms(rhs_ty, member_data.ty)?;
 
         let member = self.scope_store_mut().get_mut(scope_id).get_mut_by_index(index);
-        if member.is_closed() {
-            tc_panic!(value, self, "Cannot assign to closed member");
-        }
+        // @@Todo: add back once this is property implemented
+        // if member.is_closed() {
+        //     tc_panic!(value, self, "Cannot assign to closed member");
+        // }
 
         member.assignments_until_closed -= 1;
         match member.data {
