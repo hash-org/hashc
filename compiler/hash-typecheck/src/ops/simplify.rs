@@ -527,12 +527,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
+            Term::ScopeVar(_)
+            | Term::BoundVar(_)
+            | Term::Access(_)
+            | Term::Var(_)
+            | Term::TyFnCall(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -624,6 +626,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Level2(_)
             | Term::Level1(_)
             | Term::Level0(_)
+            | Term::ScopeVar(_)
+            | Term::BoundVar(_)
             | Term::TyOf(_) => {
                 // Cannot apply if it didn't simplify to a type function:
                 cannot_apply()
@@ -644,8 +648,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Ok(None)
                 }
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 

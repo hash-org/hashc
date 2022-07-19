@@ -897,17 +897,22 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant access.
     Access(AccessTerm),
 
-    /// A variable, with some type that is stored in the current
-    /// scope.
+    /// A variable, referencing either a scope variable or a bound variable.
     ///
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
     Var(Var),
 
     /// A variable that corresponds to some scope member.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
     ScopeVar(ScopeVar),
 
     /// A variable that is bound by some params.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
     BoundVar(BoundVar),
 
     /// Merge of multiple terms.
