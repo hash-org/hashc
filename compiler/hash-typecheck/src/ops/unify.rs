@@ -154,13 +154,14 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
 
             match mode {
                 UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues => {
-                    // Add the parameter substituted for the argument to the substitution, if a
-                    // parameter name is given:
-                    if let Some(name) = param.name {
-                        sub.add_pair(self.builder().create_var(name).into(), arg.value);
-                    }
-                    // @@Correctness: should we also perform the lower branch
-                    // here?
+                    // // Add the parameter substituted for the argument to the substitution, if a
+                    // // parameter name is given:
+                    // if let Some(name) = param.name {
+                    //     sub.add_pair(self.builder().create_var(name).into(), arg.value);
+                    // }
+                    // // @@Correctness: should we also perform the lower branch
+                    // // here?
+                    todo!()
                 }
                 UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes => {
                     // Add the ty sub to the sub

@@ -744,17 +744,10 @@ pub enum Level0Term {
     Lit(LitTerm),
 }
 
-/// The subject of a substitution, either a variable or an unresolved term.
+/// The subject of a substitution: an unresolved term.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum SubSubject {
-    Var(Var),
     Unresolved(UnresolvedTerm),
-}
-
-impl From<Var> for SubSubject {
-    fn from(var: Var) -> Self {
-        SubSubject::Var(var)
-    }
 }
 
 impl From<UnresolvedTerm> for SubSubject {
@@ -766,7 +759,6 @@ impl From<UnresolvedTerm> for SubSubject {
 impl From<SubSubject> for Term {
     fn from(subject: SubSubject) -> Self {
         match subject {
-            SubSubject::Var(var) => Term::Var(var),
             SubSubject::Unresolved(unresolved) => Term::Unresolved(unresolved),
         }
     }
@@ -838,48 +830,6 @@ impl Sub {
     /// For substitution unification, see the `crate::ops::unify` module.
     pub fn extend(&mut self, other: &Sub) {
         self.data.extend(other.pairs());
-    }
-
-    /// Create a new substitution equivalent to this one but selecting only the
-    /// pairs which are not shadowed by the given [Params].
-    pub fn filter(&self, params: Params) -> Self {
-        Self {
-            data: self
-                .data
-                .iter()
-                .filter_map(|(from, to)| match from {
-                    SubSubject::Var(var) => {
-                        if params.get_by_name(var.name).is_some() {
-                            None
-                        } else {
-                            Some((*from, *to))
-                        }
-                    }
-                    SubSubject::Unresolved(_) => Some((*from, *to)),
-                })
-                .collect(),
-        }
-    }
-
-    /// Create a new substitution equivalent to this one but selecting only the
-    /// given [BoundVars] as subjects.
-    pub fn select(&self, bound_vars: &BoundVars) -> Self {
-        Self {
-            data: self
-                .data
-                .iter()
-                .filter_map(|(from, to)| match from {
-                    SubSubject::Var(var) => {
-                        if bound_vars.contains(var) {
-                            Some((*from, *to))
-                        } else {
-                            None
-                        }
-                    }
-                    SubSubject::Unresolved(_) => None,
-                })
-                .collect(),
-        }
     }
 }
 

@@ -54,9 +54,6 @@ impl<'gs> TcFormatter<'gs> {
     pub fn fmt_sub(&self, f: &mut fmt::Formatter, sub: &Sub) -> fmt::Result {
         for (subject, target) in sub.pairs() {
             match subject {
-                SubSubject::Var(var) => {
-                    write!(f, "{}", var.name)?;
-                }
                 SubSubject::Unresolved(unresolved) => {
                     self.fmt_unresolved(f, &unresolved)?;
                 }

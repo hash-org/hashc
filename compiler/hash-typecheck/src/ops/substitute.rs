@@ -6,7 +6,7 @@ use crate::{
     storage::{
         primitives::{
             Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId,
-            Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, Var,
+            Sub, SubSubject, Term, TermId, TupleTy, TyFnCall, Var,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -220,7 +220,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
         let new_term = match term {
             // Leaves:
-            Term::Var(var) => self.apply_sub_to_subject(sub, var.into()),
+            Term::Var(_var) => term_id,
             Term::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
             Term::Root => term_id,
 
@@ -246,49 +246,51 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                     .collect::<Vec<_>>();
                 self.builder().create_term(Term::Union(terms))
             }
-            Term::TyFn(ty_fn) => {
+            Term::TyFn(_ty_fn) => {
                 // Apply the substitution to the general parameters, return type, and each case.
                 //
                 // However, we first have to remove all the shadowed variables from the
                 // substitution: If we have T -> str, and <T> => List<T>, we
                 // don't wanna get <T> => List<str> because T is bound in the
                 // term, not free.
-                let params = self.params_store().get(ty_fn.general_params).clone();
+                // let params = self.params_store().get(ty_fn.general_params).clone();
 
-                let shadowed_sub = sub.filter(params);
-                let subbed_general_params =
-                    self.apply_sub_to_params(&shadowed_sub, ty_fn.general_params);
-                let subbed_general_return_ty =
-                    self.apply_sub_to_term(&shadowed_sub, ty_fn.general_return_ty);
+                // let shadowed_sub = sub.filter(params);
+                // let subbed_general_params =
+                //     self.apply_sub_to_params(&shadowed_sub, ty_fn.general_params);
+                // let subbed_general_return_ty =
+                //     self.apply_sub_to_term(&shadowed_sub, ty_fn.general_return_ty);
 
-                let subbed_cases = ty_fn
-                    .cases
-                    .into_iter()
-                    .map(|case| TyFnCase {
-                        params: self.apply_sub_to_params(&shadowed_sub, case.params),
-                        return_ty: self.apply_sub_to_term(&shadowed_sub, case.return_ty),
-                        return_value: self.apply_sub_to_term(&shadowed_sub, case.return_value),
-                    })
-                    .collect::<Vec<_>>();
-                self.builder().create_term(Term::TyFn(TyFn {
-                    name: ty_fn.name,
-                    general_params: subbed_general_params,
-                    general_return_ty: subbed_general_return_ty,
-                    cases: subbed_cases,
-                }))
+                // let subbed_cases = ty_fn
+                //     .cases
+                //     .into_iter()
+                //     .map(|case| TyFnCase {
+                //         params: self.apply_sub_to_params(&shadowed_sub, case.params),
+                //         return_ty: self.apply_sub_to_term(&shadowed_sub, case.return_ty),
+                //         return_value: self.apply_sub_to_term(&shadowed_sub,
+                // case.return_value),     })
+                //     .collect::<Vec<_>>();
+                // self.builder().create_term(Term::TyFn(TyFn {
+                //     name: ty_fn.name,
+                //     general_params: subbed_general_params,
+                //     general_return_ty: subbed_general_return_ty,
+                //     cases: subbed_cases,
+                // }))
+                todo!()
             }
             Term::TyFnTy(ty_fn_ty) => {
                 // Apply the substitution to the parameters and return type.
                 // Same rule applies about binding as above.
-                let params = self.params_store().get(ty_fn_ty.params).clone();
+                let _params = self.params_store().get(ty_fn_ty.params).clone();
 
-                let shadowed_sub = sub.filter(params);
-                let subbed_params = self.apply_sub_to_params(&shadowed_sub, ty_fn_ty.params);
-                let subbed_return_ty = self.apply_sub_to_term(&shadowed_sub, ty_fn_ty.return_ty);
-                self.builder().create_term(Term::TyFnTy(TyFnTy {
-                    params: subbed_params,
-                    return_ty: subbed_return_ty,
-                }))
+                // let shadowed_sub = sub.filter(params);
+                // let subbed_params = self.apply_sub_to_params(&shadowed_sub, ty_fn_ty.params);
+                // let subbed_return_ty = self.apply_sub_to_term(&shadowed_sub,
+                // ty_fn_ty.return_ty); self.builder().
+                // create_term(Term::TyFnTy(TyFnTy {     params: subbed_params,
+                //     return_ty: subbed_return_ty,
+                // }))
+                todo!()
             }
             Term::TyFnCall(app_ty_fn) => {
                 // Apply the substitution to the subject and arguments.
@@ -358,19 +360,20 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
     /// This is to be used for type functions.
     pub fn add_and_remove_free_vars_in_params_from_set(
         &self,
-        params_id: ParamsId,
-        result: &mut HashSet<SubSubject>,
+        _params_id: ParamsId,
+        _result: &mut HashSet<SubSubject>,
     ) {
-        self.add_free_vars_in_params_to_set(params_id, result);
+        // self.add_free_vars_in_params_to_set(params_id, result);
 
-        let params = self.params_store().get(params_id);
-        // Remove param names
-        for param in params.positional() {
-            if let Some(name) = param.name {
-                let subject = Var { name };
-                result.remove(&subject.into());
-            }
-        }
+        // let params = self.params_store().get(params_id);
+        // // Remove param names
+        // for param in params.positional() {
+        //     if let Some(name) = param.name {
+        //         let subject = Var { name };
+        //         result.remove(&subject.into());
+        //     }
+        // }
+        todo!()
     }
 
     /// Add the free variables that exist in the given args, to the given
@@ -506,10 +509,11 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
-            Term::Var(var) => {
+            Term::Var(_var) => {
                 // Found a free variable:
                 // @@Correctness: what if this is bound in the scope?
-                result.insert((*var).into());
+                // result.insert((*var).into());
+                todo!()
             }
             Term::Unresolved(unresolved) => {
                 // Found an unresolved free variable:
@@ -641,7 +645,6 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         result
             .into_iter()
             .map(|var| match var {
-                SubSubject::Var(var) => Ok(var),
                 SubSubject::Unresolved(_) => Err(TcError::UnresolvedVariable {
                     // @@Correctness: it's unclear if we can even get an identifier here? Or if we
                     // should make an identifier from the provided `ResolutionId`
@@ -658,14 +661,13 @@ mod tests {
     use hash_ast::ast::ParamOrigin;
     use hash_source::SourceMap;
 
-    use super::Substituter;
     use crate::{
         fmt::PrepareForFormatting,
         ops::AccessToOpsMut,
         storage::{
             core::CoreDefs,
-            primitives::{ModDefOrigin, ScopeKind, Sub},
-            AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
+            primitives::{ModDefOrigin, ScopeKind},
+            AccessToStorage, GlobalStorage, LocalStorage, StorageRefMut,
         },
     };
 
@@ -742,46 +744,53 @@ mod tests {
 
         println!("\n{}", target.for_formatting(storage_ref.global_storage()));
 
-        let builder = storage_ref.builder();
-        let sub = Sub::from_pairs([(
-            builder.create_var("T"),
-            builder.create_app_ty_fn_term(
-                core_defs.map_ty_fn,
-                builder.create_args(
-                    [
-                        builder.create_arg("K", builder.create_nominal_def_term(core_defs.str_ty)),
-                        builder.create_arg("V", builder.create_nominal_def_term(core_defs.u64_ty)),
-                    ],
-                    ParamOrigin::TyFn,
-                ),
-            ),
-        )]);
+        let _builder = storage_ref.builder();
+        todo!()
+        // let sub = Sub::from_pairs([(
+        //     builder.create_var("T"),
+        //     builder.create_var("T"),
+        //     builder.create_app_ty_fn_term(
+        //         core_defs.map_ty_fn,
+        //         builder.create_args(
+        //             [
+        //                 builder.create_arg("K",
+        // builder.create_nominal_def_term(core_defs.str_ty)),
+        //                 builder.create_arg("V",
+        // builder.create_nominal_def_term(core_defs.u64_ty)),
+        //             ],
+        //             ParamOrigin::TyFn,
+        //         ),
+        //     ),
+        // )]);
 
-        let mut substituter = Substituter::new(storage_ref.storages_mut());
-        let subbed_target = substituter.apply_sub_to_term(&sub, target);
+        // let mut substituter = Substituter::new(storage_ref.storages_mut());
+        // let subbed_target = substituter.apply_sub_to_term(&sub, target);
 
-        let target_free_vars = substituter.get_free_vars_in_term(target);
-        let inner_free_vars = substituter.get_free_vars_in_term(inner);
+        // let target_free_vars = substituter.get_free_vars_in_term(target);
+        // let inner_free_vars = substituter.get_free_vars_in_term(inner);
 
-        let target_free_vars_list: Vec<_> = target_free_vars
-            .into_iter()
-            .map(|x| storage_ref.builder().create_term(x.into()))
-            .collect();
+        // let target_free_vars_list: Vec<_> = target_free_vars
+        //     .into_iter()
+        //     .map(|x| storage_ref.builder().create_term(x.into()))
+        //     .collect();
 
-        let inner_free_vars_list: Vec<_> = inner_free_vars
-            .into_iter()
-            .map(|x| storage_ref.builder().create_term(x.into()))
-            .collect();
+        // let inner_free_vars_list: Vec<_> = inner_free_vars
+        //     .into_iter()
+        //     .map(|x| storage_ref.builder().create_term(x.into()))
+        //     .collect();
 
-        println!("{}", subbed_target.for_formatting(storage_ref.global_storage()));
+        // println!("{}",
+        // subbed_target.for_formatting(storage_ref.global_storage()));
 
-        print!("\nTarget free vars:\n");
-        for target_free_var in &target_free_vars_list {
-            println!("{}", target_free_var.for_formatting(storage_ref.global_storage()));
-        }
-        print!("\nInner free vars:\n");
-        for inner_free_var in &inner_free_vars_list {
-            println!("{}", inner_free_var.for_formatting(storage_ref.global_storage()));
-        }
+        // print!("\nTarget free vars:\n");
+        // for target_free_var in &target_free_vars_list {
+        //     println!("{}",
+        // target_free_var.for_formatting(storage_ref.global_storage()));
+        // }
+        // print!("\nInner free vars:\n");
+        // for inner_free_var in &inner_free_vars_list {
+        //     println!("{}",
+        // inner_free_var.for_formatting(storage_ref.global_storage()));
+        // }
     }
 }
