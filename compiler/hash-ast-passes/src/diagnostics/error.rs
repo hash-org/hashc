@@ -52,6 +52,12 @@ pub(crate) enum AnalysisErrorKind {
         /// Where the use of the pattern originated from
         origin: PatOrigin,
     },
+    /// When a pattern is used within a particular context that is not allowed
+    ///
+    /// Currently, this is only used to notify that `float` patterns aren't
+    /// allowed in pattern positions. Later this will change as float
+    /// patterns should be allowed within range patterns.
+    DisallowedFloatPat,
     /// When compound patterns such as constructors and tuples have named fields
     /// before un-named fields.
     AmbiguousPatFieldOrder { origin: PatOrigin },
@@ -230,6 +236,16 @@ impl From<AnalysisError> for Report {
                     err.location,
                     format!("a {} cannot be given to the `{}` directive", given, name),
                 )));
+            }
+            AnalysisErrorKind::DisallowedFloatPat => {
+                builder.with_message("float literals are disallowed within a pattern position");
+
+                builder
+                    .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(err.location, "")))
+                    .add_element(ReportElement::Note(ReportNote::new(
+                        ReportNoteKind::Note,
+                        "float-like literals are disallowed within patterns because performing comparisons is not possible",
+                    )));
             }
         };
 

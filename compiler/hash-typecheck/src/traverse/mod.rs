@@ -692,10 +692,19 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_cast_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        todo!()
+        let walk::CastExpr { expr, ty } = walk::walk_cast_expr(self, ctx, node)?;
+        let expr_ty = self.typer().infer_ty_of_term(expr)?;
+
+        // Ensure that the `expr` can be unified with the provided `ty`...
+        let sub = self.unifier().unify_terms(expr_ty, ty)?;
+        let expr_sub = self.substituter().apply_sub_to_term(&sub, expr);
+
+        self.copy_location_from_node_to_target(node, expr_sub);
+
+        Ok(expr_sub)
     }
 
     type TyExprRet = TermId;
@@ -1311,7 +1320,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ForLoopBlock>,
     ) -> Result<Self::ForLoopBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared for-block whilst performing typechecking"
         );
@@ -1325,7 +1334,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::WhileLoopBlock>,
     ) -> Result<Self::WhileLoopBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared while-block whilst performing typechecking"
         );
@@ -1390,7 +1399,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfClause>,
     ) -> Result<Self::IfClauseRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared if-clause whilst performing typechecking"
         );
@@ -1404,7 +1413,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfBlock>,
     ) -> Result<Self::IfBlockRet, Self::Error> {
         panic_on_span!(
-            self.source_location(node.span()),
+            self.source_location_at_node(node),
             self.source_map(),
             "hit non de-sugared if-block whilst performing typechecking"
         );
@@ -2074,9 +2083,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     fn visit_float_lit_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLitPat>,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLitPat>,
     ) -> Result<Self::FloatLitPatRet, Self::Error> {
-        todo!()
+        panic_on_span!(
+            self.source_location_at_node(node),
+            self.source_map(),
+            "hit float pattern during typechecking"
+        )
     }
 
     type BoolLitPatRet = PatId;

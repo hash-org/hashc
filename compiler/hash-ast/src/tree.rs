@@ -356,7 +356,7 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::CastExpr>,
     ) -> Result<Self::CastExprRet, Self::Error> {
-        let walk::AsExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
+        let walk::CastExpr { ty, expr } = walk::walk_cast_expr(self, ctx, node)?;
         Ok(TreeNode::branch(
             "cast",
             vec![TreeNode::branch("subject", vec![expr]), TreeNode::branch("type", vec![ty])],

@@ -1811,17 +1811,17 @@ pub mod walk {
         Ok(LitExpr(visitor.visit_lit(ctx, node.0.ast_ref())?))
     }
 
-    pub struct AsExpr<V: AstVisitor> {
-        pub ty: V::TyRet,
+    pub struct CastExpr<V: AstVisitor> {
         pub expr: V::ExpressionRet,
+        pub ty: V::TyRet,
     }
 
     pub fn walk_cast_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::CastExpr>,
-    ) -> Result<AsExpr<V>, V::Error> {
-        Ok(AsExpr {
+    ) -> Result<CastExpr<V>, V::Error> {
+        Ok(CastExpr {
             ty: visitor.visit_ty(ctx, node.ty.ast_ref())?,
             expr: visitor.visit_expr(ctx, node.expr.ast_ref())?,
         })
@@ -3452,17 +3452,17 @@ pub mod walk_mut {
         Ok(LitExpr(visitor.visit_lit(ctx, node.0.ast_ref_mut())?))
     }
 
-    pub struct AsExpr<V: AstVisitorMut> {
-        pub ty: V::TyRet,
+    pub struct CastExpr<V: AstVisitorMut> {
         pub expr: V::ExpressionRet,
+        pub ty: V::TyRet,
     }
 
     pub fn walk_cast_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::CastExpr>,
-    ) -> Result<AsExpr<V>, V::Error> {
-        Ok(AsExpr {
+    ) -> Result<CastExpr<V>, V::Error> {
+        Ok(CastExpr {
             ty: visitor.visit_ty(ctx, node.ty.ast_ref_mut())?,
             expr: visitor.visit_expr(ctx, node.expr.ast_ref_mut())?,
         })
