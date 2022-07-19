@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
 use hash_source::location::SourceLocation;
 
-use super::primitives::{ArgsId, ParamsId, PatternId, PatternParamsId, ScopeId, TermId};
+use super::primitives::{ArgsId, ParamsId, PatId, PatParamsId, ScopeId, TermId};
 
 /// An index into the location map.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -23,11 +23,11 @@ pub enum LocationTarget {
     /// A declaration key includes the parent [ScopeId] and an index to which
     /// declaration
     Declaration(ScopeId, usize),
-    /// A pattern parameter key includes the parent [ParamsPatternId] and an
+    /// A pattern parameter key includes the parent [PatParamsId] and an
     /// index to which parameter
-    PatternParam(PatternParamsId, usize),
+    PatParam(PatParamsId, usize),
     /// A pattern.
-    Pattern(PatternId),
+    Pat(PatId),
 }
 
 /// Types that paired with an index, create a [LocationTarget].
@@ -36,7 +36,7 @@ pub enum IndexedLocationTarget {
     Params(ParamsId),
     Args(ArgsId),
     Scope(ScopeId),
-    PatternParams(PatternParamsId),
+    PatParams(PatParamsId),
 }
 
 impl From<ParamsId> for IndexedLocationTarget {
@@ -51,9 +51,9 @@ impl From<ArgsId> for IndexedLocationTarget {
     }
 }
 
-impl From<PatternParamsId> for IndexedLocationTarget {
-    fn from(id: PatternParamsId) -> Self {
-        IndexedLocationTarget::PatternParams(id)
+impl From<PatParamsId> for IndexedLocationTarget {
+    fn from(id: PatParamsId) -> Self {
+        IndexedLocationTarget::PatParams(id)
     }
 }
 
@@ -68,7 +68,7 @@ impl From<(IndexedLocationTarget, usize)> for LocationTarget {
         match target {
             IndexedLocationTarget::Params(params) => LocationTarget::Param(params, i),
             IndexedLocationTarget::Args(args) => LocationTarget::Arg(args, i),
-            IndexedLocationTarget::PatternParams(params) => LocationTarget::PatternParam(params, i),
+            IndexedLocationTarget::PatParams(params) => LocationTarget::PatParam(params, i),
             IndexedLocationTarget::Scope(scope) => LocationTarget::Declaration(scope, i),
         }
     }
@@ -103,11 +103,11 @@ pub struct LocationStore {
     /// A map between [ScopeId] and all of the [SourceLocation]s indexed by the
     /// inner offset.
     declaration_map: HashMap<ScopeId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
-    /// A map between [ParamPatternsId] and all of the [SourceLocation]s indexed
+    /// A map between [PatParamsId] and all of the [SourceLocation]s indexed
     /// by the inner offset.
-    param_pattern_map: HashMap<PatternParamsId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
-    /// A map between [PatternId] to [SourceLocation]
-    pattern_map: HashMap<PatternId, SourceLocation>,
+    param_pat_map: HashMap<PatParamsId, Rc<RefCell<HashMap<usize, SourceLocation>>>>,
+    /// A map between [PatId] to [SourceLocation]
+    pat_map: HashMap<PatId, SourceLocation>,
 }
 
 impl LocationStore {
@@ -147,15 +147,15 @@ impl LocationStore {
                     .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
                 map.borrow_mut().insert(index, location);
             }
-            LocationTarget::PatternParam(param_pattern, index) => {
+            LocationTarget::PatParam(param_pat, index) => {
                 let map = self
-                    .param_pattern_map
-                    .entry(param_pattern)
+                    .param_pat_map
+                    .entry(param_pat)
                     .or_insert_with(|| Rc::new(RefCell::new(HashMap::new())));
                 map.borrow_mut().insert(index, location);
             }
-            LocationTarget::Pattern(pattern) => {
-                self.pattern_map.insert(pattern, location);
+            LocationTarget::Pat(pat) => {
+                self.pat_map.insert(pat, location);
             }
         };
     }
@@ -171,9 +171,9 @@ impl LocationStore {
             LocationTarget::Declaration(scope, index) => {
                 Some(*self.declaration_map.get(&scope)?.borrow().get(&index)?)
             }
-            LocationTarget::Pattern(pattern) => self.pattern_map.get(&pattern).copied(),
-            LocationTarget::PatternParam(param_pattern, index) => {
-                Some(*self.param_pattern_map.get(&param_pattern)?.borrow().get(&index)?)
+            LocationTarget::Pat(pat) => self.pat_map.get(&pat).copied(),
+            LocationTarget::PatParam(param_pat, index) => {
+                Some(*self.param_pat_map.get(&param_pat)?.borrow().get(&index)?)
             }
         }
     }
@@ -197,8 +197,8 @@ impl LocationStore {
                     IndexedLocationTarget::Args(dest) => {
                         self.arg_map.insert(dest, $origin.clone());
                     }
-                    IndexedLocationTarget::PatternParams(dest) => {
-                        self.param_pattern_map.insert(dest, $origin.clone());
+                    IndexedLocationTarget::PatParams(dest) => {
+                        self.param_pat_map.insert(dest, $origin.clone());
                     }
                     IndexedLocationTarget::Scope(dest) => {
                         self.declaration_map.insert(dest, $origin.clone());
@@ -218,8 +218,8 @@ impl LocationStore {
                     insert_dest!(origin);
                 }
             }
-            IndexedLocationTarget::PatternParams(src) => {
-                if let Some(origin) = self.param_pattern_map.get(&src) {
+            IndexedLocationTarget::PatParams(src) => {
+                if let Some(origin) = self.param_pat_map.get(&src) {
                     insert_dest!(origin);
                 }
             }
@@ -258,15 +258,15 @@ impl From<&TermId> for LocationTarget {
     }
 }
 
-impl From<PatternId> for LocationTarget {
-    fn from(id: PatternId) -> Self {
-        Self::Pattern(id)
+impl From<PatId> for LocationTarget {
+    fn from(id: PatId) -> Self {
+        Self::Pat(id)
     }
 }
 
-impl From<&PatternId> for LocationTarget {
-    fn from(id: &PatternId) -> Self {
-        Self::Pattern(*id)
+impl From<&PatId> for LocationTarget {
+    fn from(id: &PatId) -> Self {
+        Self::Pat(*id)
     }
 }
 
@@ -288,8 +288,8 @@ impl From<(ScopeId, usize)> for LocationTarget {
     }
 }
 
-impl From<(PatternParamsId, usize)> for LocationTarget {
-    fn from((id, index): (PatternParamsId, usize)) -> Self {
-        Self::PatternParam(id, index)
+impl From<(PatParamsId, usize)> for LocationTarget {
+    fn from((id, index): (PatParamsId, usize)) -> Self {
+        Self::PatParam(id, index)
     }
 }

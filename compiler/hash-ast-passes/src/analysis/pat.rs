@@ -1,34 +1,34 @@
 //! Hash semantic analysis module for validating various constructs relating to
 //! patterns within the AST.
 
-use hash_ast::ast::{AstNodes, Pattern, TuplePatternEntry};
+use hash_ast::ast::{AstNodes, Pat, TuplePatEntry};
 
-use crate::diagnostics::{error::AnalysisErrorKind, origins::PatternOrigin};
+use crate::diagnostics::{error::AnalysisErrorKind, origins::PatOrigin};
 
 use super::SemanticAnalyser;
 
 impl SemanticAnalyser<'_> {
-    pub(crate) fn check_compound_pattern_rules(
+    pub(crate) fn check_compound_pat_rules(
         &mut self,
-        fields: &AstNodes<TuplePatternEntry>,
-        origin: PatternOrigin,
+        fields: &AstNodes<TuplePatEntry>,
+        origin: PatOrigin,
     ) {
-        let mut seen_spread_pattern = false;
+        let mut seen_spread_pat = false;
         let mut seen_named_field = false;
 
         // Verify that no spread patterns are present in the top level
         for field in fields.iter() {
-            let TuplePatternEntry { name, pattern } = field.body();
+            let TuplePatEntry { name, pat } = field.body();
 
-            let is_spread_pattern = matches!(pattern.body(), Pattern::Spread(_));
+            let is_spread_pat = matches!(pat.body(), Pat::Spread(_));
 
             // Detect an incorrect ordering of named-un/named arguments within the pattern
-            if !is_spread_pattern {
+            if !is_spread_pat {
                 if name.is_some() {
                     seen_named_field = true;
                 } else if seen_named_field {
                     self.append_error(
-                        AnalysisErrorKind::AmbiguousPatternFieldOrder { origin },
+                        AnalysisErrorKind::AmbiguousPatFieldOrder { origin },
                         field.span(),
                     );
                 }
@@ -37,17 +37,15 @@ impl SemanticAnalyser<'_> {
             // We only care if this is a binding-free pattern entry, and we don't
             // care where the pattern occurs if it is after or before the named/un-named
             // argument order.
-            if name.is_none() && is_spread_pattern {
-                if seen_spread_pattern {
+            if name.is_none() && is_spread_pat {
+                if seen_spread_pat {
                     self.append_error(
-                        AnalysisErrorKind::MultipleSpreadPatterns {
-                            origin: PatternOrigin::Constructor,
-                        },
+                        AnalysisErrorKind::MultipleSpreadPats { origin: PatOrigin::Constructor },
                         field.span(),
                     );
                 }
 
-                seen_spread_pattern = true;
+                seen_spread_pat = true;
             }
         }
     }
@@ -66,21 +64,21 @@ impl SemanticAnalyser<'_> {
     ///
     /// Which parts does the `x` spread pattern capture? It's clear that this is
     /// ambiguous and should be disallowed within the list patten.
-    pub(crate) fn check_list_pattern(&mut self, fields: &AstNodes<Pattern>) {
+    pub(crate) fn check_list_pat(&mut self, fields: &AstNodes<Pat>) {
         // @@TODO: Rather than use a boolean, we should use a reference to the pattern
         // so that we can report an auxiliary span of where the initial use of the
         // pattern occurs.
-        let mut seen_spread_pattern = false;
+        let mut seen_spread_pat = false;
 
         for field in fields.iter() {
-            if matches!(field.body(), Pattern::Spread(_)) {
-                if seen_spread_pattern {
+            if matches!(field.body(), Pat::Spread(_)) {
+                if seen_spread_pat {
                     self.append_error(
-                        AnalysisErrorKind::MultipleSpreadPatterns { origin: PatternOrigin::List },
+                        AnalysisErrorKind::MultipleSpreadPats { origin: PatOrigin::List },
                         field.span(),
                     );
                 } else {
-                    seen_spread_pattern = true;
+                    seen_spread_pat = true;
                 }
             }
         }

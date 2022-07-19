@@ -924,7 +924,7 @@ pub enum Term {
 
 /// A binding pattern, which is essentially a declaration left-hand side.
 #[derive(Clone, Debug, Copy)]
-pub struct BindingPattern {
+pub struct BindingPat {
     pub name: Identifier,
     pub mutability: Mutability,
     pub visibility: Visibility,
@@ -932,65 +932,65 @@ pub struct BindingPattern {
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
-pub struct PatternParam {
+pub struct PatParam {
     pub name: Option<Identifier>,
-    pub pattern: PatternId,
+    pub pat: PatId,
 }
 
-impl GetNameOpt for PatternParam {
+impl GetNameOpt for PatParam {
     fn get_name_opt(&self) -> Option<Identifier> {
         self.name
     }
 }
 
 /// A pattern of parameters.
-pub type PatternParams = ParamList<PatternParam>;
+pub type PatParams = ParamList<PatParam>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
-pub struct ConstructorPattern {
+pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: Option<PatternParamsId>,
+    pub params: Option<PatParamsId>,
 }
 
 /// A conditional pattern, containing a pattern and an condition.
 #[derive(Clone, Debug, Copy)]
-pub struct IfPattern {
-    pub pattern: PatternId,
+pub struct IfPat {
+    pub pat: PatId,
     pub condition: TermId,
 }
 
 /// A module pattern, containing a list of patterns to be used to match module
 /// members.
 #[derive(Clone, Debug, Copy)]
-pub struct ModPattern {
-    pub members: PatternParamsId,
+pub struct ModPat {
+    pub members: PatParamsId,
 }
 
 /// Represents a pattern in the language.
 ///
 /// @@Todo: list patterns, spread patterns
 #[derive(Clone, Debug)]
-pub enum Pattern {
+pub enum Pat {
     /// Binding pattern.
-    Binding(BindingPattern),
+    Binding(BindingPat),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
     Lit(TermId),
     /// Tuple pattern.
-    Tuple(PatternParamsId),
+    Tuple(PatParamsId),
     /// Module pattern.
-    Mod(ModPattern),
+    Mod(ModPat),
     /// Constructor pattern.
-    Constructor(ConstructorPattern),
+    Constructor(ConstructorPat),
     /// A set of patterns that are OR-ed together. If any one of them matches
     /// then the whole pattern matches.
-    Or(Vec<PatternId>),
+    Or(Vec<PatId>),
     /// A conditional pattern.
-    If(IfPattern),
+    If(IfPat),
     /// A wildcard pattern, ignoring the subject and always matching.
     Ignore,
 }
@@ -1033,13 +1033,13 @@ new_key_type! {
 }
 
 new_key_type! {
-    /// The ID of a [Pattern]
-    pub struct PatternId;
+    /// The ID of a [Pat]
+    pub struct PatId;
 }
 
 new_key_type! {
-    /// The ID of a [ParamsPattern]
-    pub struct PatternParamsId;
+    /// The ID of a [ParamsPat]
+    pub struct PatParamsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

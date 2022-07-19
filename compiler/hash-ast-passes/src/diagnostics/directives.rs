@@ -19,7 +19,7 @@ pub enum DirectiveArgument {
     Directive,
     Declaration,
     Unsafe,
-    Literal,
+    LitExpr,
     Cast,
     /// Since the AST is de-sugared at this point, it should be that `for`,
     /// `while` and `loop` blocks end up here...
@@ -56,7 +56,7 @@ impl From<&ExprKind> for DirectiveArgument {
             ExprKind::Directive(_) => DirectiveArgument::Directive,
             ExprKind::Declaration(_) => DirectiveArgument::Declaration,
             ExprKind::Unsafe(_) => DirectiveArgument::Unsafe,
-            ExprKind::LiteralExpr(_) => DirectiveArgument::Literal,
+            ExprKind::LitExpr(_) => DirectiveArgument::LitExpr,
             ExprKind::Cast(_) => DirectiveArgument::Cast,
             ExprKind::Block(BlockExpr(block)) => match block.body() {
                 Block::Loop(_) | Block::While(_) | Block::For(_) => DirectiveArgument::Loop,
@@ -90,7 +90,7 @@ impl Display for DirectiveArgument {
             DirectiveArgument::Declaration => write!(f, "declaration"),
             DirectiveArgument::MergeDeclaration => write!(f, "merge declaration"),
             DirectiveArgument::Unsafe => write!(f, "unsafe expression"),
-            DirectiveArgument::Literal => write!(f, "literal"),
+            DirectiveArgument::LitExpr => write!(f, "literal"),
             DirectiveArgument::Cast => write!(f, "type cast"),
             DirectiveArgument::Loop => write!(f, "`loop` block"),
             DirectiveArgument::Match => write!(f, "`match` block"),

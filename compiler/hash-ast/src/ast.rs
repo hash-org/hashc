@@ -1,6 +1,6 @@
 //! Frontend-agnostic Hash AST (abstract syntax tree) type definitions.
 
-use hash_source::{identifier::Identifier, location::Span, string::StringLiteral};
+use hash_source::{identifier::Identifier, location::Span, string::Str};
 use hash_utils::counter;
 use replace_with::replace_with_or_abort;
 use std::{
@@ -329,17 +329,19 @@ pub struct RefTy {
     pub mutability: Option<AstNode<Mutability>>,
 }
 
-/// An entry within a tuple type.
+/// A type argument `<T: u32>`
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamedFieldTyEntry {
+pub struct TyArg {
+    /// An optional name to the argument
     pub name: Option<AstNode<Name>>,
+    /// The assigned value of the type argument
     pub ty: AstNode<Ty>,
 }
 
 /// The tuple type.
 #[derive(Debug, PartialEq, Clone)]
 pub struct TupleTy {
-    pub entries: AstNodes<NamedFieldTyEntry>,
+    pub entries: AstNodes<TyArg>,
 }
 
 /// The list type, , e.g. `{str}`.
@@ -365,7 +367,7 @@ pub struct MapTy {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FnTy {
     /// Any defined parameters for the function type
-    pub params: AstNodes<NamedFieldTyEntry>,
+    pub params: AstNodes<TyArg>,
     /// Optional return type
     pub return_ty: AstNode<Ty>,
 }
@@ -385,8 +387,7 @@ pub struct TyFn {
 #[derive(Debug, PartialEq, Clone)]
 pub struct TyFnCall {
     pub subject: AstNode<Expr>,
-    // @@Todo: This should probably not use `NamedFieldTypeEntry`.
-    pub args: AstNodes<NamedFieldTyEntry>,
+    pub args: AstNodes<TyArg>,
 }
 
 /// A merge type meaning that multiple types are considered to be
@@ -441,14 +442,14 @@ pub enum Ty {
 
 /// A set literal, e.g. `{1, 2, 3}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct SetLiteral {
+pub struct SetLit {
     /// The elements of the set literal.
     pub elements: AstNodes<Expr>,
 }
 
 /// A list literal, e.g. `[1, 2, 3]`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct ListLiteral {
+pub struct ListLit {
     /// The elements of the list literal.
     pub elements: AstNodes<Expr>,
 }
@@ -462,7 +463,7 @@ pub struct ListLiteral {
 /// name   type  value
 /// ```
 #[derive(Debug, PartialEq, Clone)]
-pub struct TupleLiteralEntry {
+pub struct TupleLitEntry {
     pub name: Option<AstNode<Name>>,
     pub ty: Option<AstNode<Ty>>,
     pub value: AstNode<Expr>,
@@ -470,69 +471,69 @@ pub struct TupleLiteralEntry {
 
 /// A tuple literal, e.g. `(1, 'A', "foo")`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct TupleLiteral {
+pub struct TupleLit {
     /// The elements of the tuple literal.
-    pub elements: AstNodes<TupleLiteralEntry>,
+    pub elements: AstNodes<TupleLitEntry>,
 }
 
 /// A map literal entry, e.g. `"foo": 1`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct MapLiteralEntry {
+pub struct MapLitEntry {
     pub key: AstNode<Expr>,
     pub value: AstNode<Expr>,
 }
 
 /// A map literal, e.g. `{"foo": 1, "bar": 2}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct MapLiteral {
+pub struct MapLit {
     /// The elements of the map literal (key-value pairs).
-    pub elements: AstNodes<MapLiteralEntry>,
+    pub elements: AstNodes<MapLitEntry>,
 }
 
 /// A string literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StrLiteral(pub StringLiteral);
+pub struct StrLit(pub Str);
 
 /// A character literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CharLiteral(pub char);
+pub struct CharLit(pub char);
 
 /// An integer literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IntLiteral(pub u64);
+pub struct IntLit(pub u64);
 
 /// A float literal.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FloatLiteral(pub f64);
+pub struct FloatLit(pub f64);
 
 /// A boolean literal.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct BoolLiteral(pub bool);
+pub struct BoolLit(pub bool);
 
 /// A literal.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Literal {
-    Str(StrLiteral),
-    Char(CharLiteral),
-    Int(IntLiteral),
-    Float(FloatLiteral),
-    Bool(BoolLiteral),
-    Set(SetLiteral),
-    Map(MapLiteral),
-    List(ListLiteral),
-    Tuple(TupleLiteral),
+pub enum Lit {
+    Str(StrLit),
+    Char(CharLit),
+    Int(IntLit),
+    Float(FloatLit),
+    Bool(BoolLit),
+    Set(SetLit),
+    Map(MapLit),
+    List(ListLit),
+    Tuple(TupleLit),
 }
 
-impl Literal {
+impl Lit {
     /// This function is used to determine if the current literal tree only
     /// contains constants. Constants are other literals that are not subject
     /// to change, e.g. a number like `5` or a string `hello`. This function
     /// implements short circuiting behaviour and thus should check if the
     /// literal is constant in the minimal time possible.
     pub fn is_constant(&self) -> bool {
-        let is_expr_literal_and_const = |expr: &AstNode<Expr>| -> bool {
+        let is_expr_lit_and_const = |expr: &AstNode<Expr>| -> bool {
             match expr.kind() {
-                ExprKind::LiteralExpr(LiteralExpr(lit)) => lit.is_constant(),
+                ExprKind::LitExpr(LitExpr(lit)) => lit.is_constant(),
                 _ => false,
             }
         };
@@ -540,15 +541,15 @@ impl Literal {
         // Recurse over the literals for `set`, `map` and `tuple to see if they are
         // constant.
         match self {
-            Literal::List(ListLiteral { elements }) | Literal::Set(SetLiteral { elements }) => {
-                !elements.iter().any(|expr| !is_expr_literal_and_const(expr))
+            Lit::List(ListLit { elements }) | Lit::Set(SetLit { elements }) => {
+                !elements.iter().any(|expr| !is_expr_lit_and_const(expr))
             }
-            Literal::Tuple(TupleLiteral { elements }) => {
-                !elements.iter().any(|entry| !is_expr_literal_and_const(&entry.body().value))
+            Lit::Tuple(TupleLit { elements }) => {
+                !elements.iter().any(|entry| !is_expr_lit_and_const(&entry.body().value))
             }
-            Literal::Map(MapLiteral { elements }) => !elements.iter().any(|entry| {
-                !is_expr_literal_and_const(&entry.body().key)
-                    || !is_expr_literal_and_const(&entry.body().value)
+            Lit::Map(MapLit { elements }) => !elements.iter().any(|entry| {
+                !is_expr_lit_and_const(&entry.body().key)
+                    || !is_expr_lit_and_const(&entry.body().value)
             }),
             _ => true,
         }
@@ -557,62 +558,62 @@ impl Literal {
 
 /// An alternative pattern, e.g. `Red | Blue`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct OrPattern {
+pub struct OrPat {
     /// The variants of the "or" pattern
-    pub variants: AstNodes<Pattern>,
+    pub variants: AstNodes<Pat>,
 }
 
 /// A conditional pattern, e.g. `x if x == 42`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct IfPattern {
+pub struct IfPat {
     /// The pattern part of the conditional.
-    pub pattern: AstNode<Pattern>,
+    pub pat: AstNode<Pat>,
     /// The expression part of the conditional.
     pub condition: AstNode<Expr>,
 }
 
 /// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct ConstructorPattern {
+pub struct ConstructorPat {
     /// The name of the enum variant.
     pub name: AstNode<Namespace>,
     /// The arguments of the enum variant as patterns.
-    pub fields: AstNodes<TuplePatternEntry>,
+    pub fields: AstNodes<TuplePatEntry>,
 }
 
 /// A pattern destructuring, e.g. `name: (fst, snd)`.
 ///
 /// Used in struct and namespace patterns.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DestructuringPattern {
+pub struct DestructuringPat {
     /// The name of the field.
     pub name: AstNode<Name>,
     /// The pattern to match the field's value with.
-    pub pattern: AstNode<Pattern>,
+    pub pat: AstNode<Pat>,
 }
 
 /// A namespace pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamespacePattern {
-    /// The entries of the namespace, as [DestructuringPattern] entries.
-    pub fields: AstNodes<DestructuringPattern>,
+pub struct NamespacePat {
+    /// The entries of the namespace, as [DestructuringPat] entries.
+    pub fields: AstNodes<DestructuringPat>,
 }
 
 /// A tuple pattern entry
 #[derive(Debug, PartialEq, Clone)]
-pub struct TuplePatternEntry {
+pub struct TuplePatEntry {
     pub name: Option<AstNode<Name>>,
-    pub pattern: AstNode<Pattern>,
+    pub pat: AstNode<Pat>,
 }
 
 /// A tuple pattern, e.g. `(1, 2, x)`
 #[derive(Debug, PartialEq, Clone)]
-pub struct TuplePattern {
+pub struct TuplePat {
     /// The element of the tuple, as patterns.
-    pub fields: AstNodes<TuplePatternEntry>,
+    pub fields: AstNodes<TuplePatEntry>,
 }
 
-impl TuplePattern {
+impl TuplePat {
     /// Function used to check if the pattern is nameless or not. If the pattern
     /// has at least one member that contains a `name` field, then it is
     /// considered to be named.
@@ -623,44 +624,44 @@ impl TuplePattern {
 
 /// A list pattern, e.g. `[x, 1, ..]`
 #[derive(Debug, PartialEq, Clone)]
-pub struct ListPattern {
+pub struct ListPat {
     /// The element of the tuple, as patterns.
-    pub fields: AstNodes<Pattern>,
+    pub fields: AstNodes<Pat>,
 }
 
 /// A string literal pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StrLiteralPattern(pub StringLiteral);
+pub struct StrLitPat(pub Str);
 
 /// A character literal pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CharLiteralPattern(pub char);
+pub struct CharLitPat(pub char);
 
 /// An integer literal pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IntLiteralPattern(pub u64);
+pub struct IntLitPat(pub u64);
 
 /// A float literal pattern.
 #[derive(Debug, PartialEq, Clone)]
-pub struct FloatLiteralPattern(pub f64);
+pub struct FloatLitPat(pub f64);
 
 /// A boolean literal pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct BoolLiteralPattern(pub bool);
+pub struct BoolLitPat(pub bool);
 
 /// A literal pattern, e.g. `1`, `3.4`, `"foo"`, `false`.
 #[derive(Debug, PartialEq, Clone)]
-pub enum LiteralPattern {
-    Str(StrLiteralPattern),
-    Char(CharLiteralPattern),
-    Int(IntLiteralPattern),
-    Float(FloatLiteralPattern),
-    Bool(BoolLiteralPattern),
+pub enum LitPat {
+    Str(StrLitPat),
+    Char(CharLitPat),
+    Int(IntLitPat),
+    Float(FloatLitPat),
+    Bool(BoolLitPat),
 }
 
 /// A pattern name binding.
 #[derive(Debug, PartialEq, Clone)]
-pub struct BindingPattern {
+pub struct BindingPat {
     /// The identifier that the name bind is using
     pub name: AstNode<Name>,
     /// Visibility of the binding (`priv` by default)
@@ -671,27 +672,27 @@ pub struct BindingPattern {
 
 /// A pattern spread
 #[derive(Debug, PartialEq, Clone)]
-pub struct SpreadPattern {
+pub struct SpreadPat {
     pub name: Option<AstNode<Name>>,
 }
 
 /// The catch-all, i.e "ignore" pattern.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IgnorePattern;
+pub struct IgnorePat;
 
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Pattern {
-    Constructor(ConstructorPattern),
-    Namespace(NamespacePattern),
-    Tuple(TuplePattern),
-    List(ListPattern),
-    Literal(LiteralPattern),
-    Or(OrPattern),
-    If(IfPattern),
-    Binding(BindingPattern),
-    Ignore(IgnorePattern),
-    Spread(SpreadPattern),
+pub enum Pat {
+    Constructor(ConstructorPat),
+    Namespace(NamespacePat),
+    Tuple(TuplePat),
+    List(ListPat),
+    Lit(LitPat),
+    Or(OrPat),
+    If(IfPat),
+    Binding(BindingPat),
+    Ignore(IgnorePat),
+    Spread(SpreadPat),
 }
 
 /// Enum representing whether a declaration is public or private
@@ -714,7 +715,7 @@ impl Display for Visibility {
     }
 }
 
-/// Enum representing whether a [BindingPattern] is declared as being mutable
+/// Enum representing whether a [BindingPat] is declared as being mutable
 /// or immutable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mutability {
@@ -751,7 +752,7 @@ pub struct TyFnDef {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Declaration {
     /// The pattern to bind the right-hand side to.
-    pub pattern: AstNode<Pattern>,
+    pub pat: AstNode<Pat>,
 
     /// Any associated type with the expression
     pub ty: Option<AstNode<Ty>>,
@@ -993,7 +994,7 @@ pub struct ContinueStatement;
 #[derive(Debug, PartialEq, Clone)]
 pub struct MatchCase {
     /// The pattern of the `match` case.
-    pub pattern: AstNode<Pattern>,
+    pub pat: AstNode<Pat>,
     /// The expression corresponding to the match case.
     ///
     /// Will be executed if the pattern succeeds.
@@ -1042,7 +1043,7 @@ pub struct LoopBlock(pub AstNode<Block>);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ForLoopBlock {
-    pub pattern: AstNode<Pattern>,
+    pub pat: AstNode<Pat>,
     pub iterator: AstNode<Expr>,
     pub body: AstNode<Block>,
 }
@@ -1333,7 +1334,7 @@ pub struct CastExpr {
 /// call.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Import {
-    pub path: StringLiteral,
+    pub path: Str,
     pub resolved_path: PathBuf,
 }
 
@@ -1369,7 +1370,7 @@ pub struct UnsafeExpr(pub AstNode<Expr>);
 
 /// A literal.
 #[derive(Debug, PartialEq, Clone)]
-pub struct LiteralExpr(pub AstNode<Literal>);
+pub struct LitExpr(pub AstNode<Lit>);
 
 /// A block.
 #[derive(Debug, PartialEq, Clone)]
@@ -1424,7 +1425,7 @@ pub enum ExprKind {
     Ref(RefExpr),
     Deref(DerefExpr),
     Unsafe(UnsafeExpr),
-    LiteralExpr(LiteralExpr),
+    LitExpr(LitExpr),
     Cast(CastExpr),
     Block(BlockExpr),
     Import(ImportExpr),

@@ -61,14 +61,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let start = self.current_location();
 
         // now we parse the singular pattern that begins at the for-loop
-        let pattern = self.parse_singular_pattern()?;
+        let pattern = self.parse_singular_pat()?;
 
         self.parse_token(TokenKind::Keyword(Keyword::In))?;
 
         let iterator = self.parse_expr_with_precedence(0)?;
         let body = self.parse_block()?;
 
-        Ok(self.node_with_joined_span(Block::For(ForLoopBlock { pattern, iterator, body }), &start))
+        Ok(self.node_with_joined_span(
+            Block::For(ForLoopBlock { pat: pattern, iterator, body }),
+            &start,
+        ))
     }
 
     /// Parse a `while` loop block.
@@ -87,12 +90,12 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// expression branch.
     pub(crate) fn parse_match_case(&self) -> AstGenResult<AstNode<MatchCase>> {
         let start = self.current_location();
-        let pattern = self.parse_pattern()?;
+        let pattern = self.parse_pat()?;
 
         self.parse_arrow()?;
         let expr = self.parse_expr_with_precedence(0)?;
 
-        Ok(self.node_with_joined_span(MatchCase { pattern, expr }, &start))
+        Ok(self.node_with_joined_span(MatchCase { pat: pattern, expr }, &start))
     }
 
     /// Parse a match block statement, which is composed of a subject and an

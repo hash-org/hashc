@@ -7,24 +7,24 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind, Token
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
 
 impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
-    /// Parse a compound [Pattern]. A compound [Pattern] means that this could
+    /// Parse a compound [Pat]. A compound [Pat] means that this could
     /// be a pattern that might be a combination of multiple patterns.
     /// Additionally, compound patterns are allowed to have `if-guard`
     /// syntax which permits for conditional matching of a pattern. There
     /// are only a few contexts where the full range of patterns is allowed
     /// (such as the `match` cases).
-    pub fn parse_pattern(&self) -> AstGenResult<AstNode<Pattern>> {
+    pub fn parse_pat(&self) -> AstGenResult<AstNode<Pat>> {
         // attempt to get the next token location as we're starting a pattern here, if
         // there is no token we should exit and return an error
         let start = self.next_location();
 
         // Parse the first pattern, but throw away the location information since that
         // will be computed at the end anyway...
-        let mut patterns = ast_nodes![];
+        let mut variants = ast_nodes![];
 
         while self.has_token() {
-            let pattern = self.parse_pattern_with_if()?;
-            patterns.nodes.push(pattern);
+            let pat = self.parse_pat_with_if()?;
+            variants.nodes.push(pat);
 
             // Check if this is going to be another pattern following the current one.
             match self.peek() {
@@ -37,18 +37,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // if the length of patterns is greater than one, we return an 'OR' pattern,
         // otherwise just the first pattern.
-        if patterns.len() == 1 {
-            Ok(patterns.nodes.pop().unwrap())
+        if variants.len() == 1 {
+            Ok(variants.nodes.pop().unwrap())
         } else {
-            Ok(self.node_with_joined_span(Pattern::Or(OrPattern { variants: patterns }), &start))
+            Ok(self.node_with_joined_span(Pat::Or(OrPat { variants }), &start))
         }
     }
 
-    /// Parse a [Pattern] with an optional `if-guard` after the singular
+    /// Parse a [Pat] with an optional `if-guard` after the singular
     /// pattern.
-    pub fn parse_pattern_with_if(&self) -> AstGenResult<AstNode<Pattern>> {
+    pub fn parse_pat_with_if(&self) -> AstGenResult<AstNode<Pat>> {
         let start = self.next_location();
-        let pattern = self.parse_singular_pattern()?;
+        let pat = self.parse_singular_pat()?;
 
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Keyword(Keyword::If)) => {
@@ -56,26 +56,25 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
                 let condition = self.parse_expr_with_precedence(0)?;
 
-                Ok(self
-                    .node_with_joined_span(Pattern::If(IfPattern { pattern, condition }), &start))
+                Ok(self.node_with_joined_span(Pat::If(IfPat { pat, condition }), &start))
             }
-            _ => Ok(pattern),
+            _ => Ok(pat),
         }
     }
 
-    /// Parse a singular [Pattern]. Singular [Pattern]s cannot have any grouped
+    /// Parse a singular [Pat]. Singular [Pat]s cannot have any grouped
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
-    pub(crate) fn parse_singular_pattern(&self) -> AstGenResult<AstNode<Pattern>> {
+    pub(crate) fn parse_singular_pat(&self) -> AstGenResult<AstNode<Pat>> {
         let start = self.next_location();
         let token =
             self.peek().ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
-        let pattern = match token {
+        let pat = match token {
             // A name bind that has visibility/mutability modifiers
             Token {
                 kind: TokenKind::Keyword(Keyword::Pub | Keyword::Priv | Keyword::Mut), ..
-            } => self.parse_binding_pattern()?,
+            } => self.parse_binding_pat()?,
             // this could be either just a binding pattern, enum, or a struct pattern
             Token { kind: TokenKind::Ident(ident), span } => {
                 self.skip_token();
@@ -95,11 +94,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let gen = self.from_stream(tree, *span);
 
                         let fields = gen.parse_separated_fn(
-                            || gen.parse_tuple_pattern_entry(),
+                            || gen.parse_tuple_pat_entry(),
                             || gen.parse_token(TokenKind::Comma),
                         )?;
 
-                        Pattern::Constructor(ConstructorPattern { name, fields })
+                        Pat::Constructor(ConstructorPat { name, fields })
                     }
                     Some(token) if name.path.len() > 1 => self.error_with_location(
                         AstGenErrorKind::Expected,
@@ -109,9 +108,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                     )?,
                     _ => {
                         if *ident == CORE_IDENTIFIERS.underscore {
-                            Pattern::Ignore(IgnorePattern)
+                            Pat::Ignore(IgnorePat)
                         } else {
-                            Pattern::Binding(BindingPattern {
+                            Pat::Binding(BindingPat {
                                 name: self.node_with_span(Name { ident: *ident }, *span),
                                 visibility: None,
                                 mutability: None,
@@ -121,99 +120,91 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 }
             }
             // Spread pattern
-            token if token.has_kind(TokenKind::Dot) => {
-                Pattern::Spread(self.parse_spread_pattern()?)
-            }
+            token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
             // Literal patterns
-            token if token.kind.is_literal() => {
+            token if token.kind.is_lit() => {
                 self.skip_token();
-                Pattern::Literal(self.convert_literal_kind_into_pattern(&token.kind))
+                Pat::Lit(self.convert_lit_kind_into_pat(&token.kind))
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                return self.parse_tuple_pattern(tree, *span);
+                return self.parse_tuple_pat(tree, *span);
             }
             // Namespace patterns
             Token { kind: TokenKind::Tree(Delimiter::Brace, tree_index), span } => {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                let pat = self.parse_namespace_pattern(tree, *span)?;
+                let pat = self.parse_namespace_pat(tree, *span)?;
 
-                Pattern::Namespace(pat)
+                Pat::Namespace(pat)
             }
             // List pattern
             Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                return self.parse_list_pattern(tree, *span);
+                return self.parse_list_pat(tree, *span);
             }
             token => self.error_with_location(
                 AstGenErrorKind::Expected,
-                Some(TokenKindVector::begin_pattern()),
+                Some(TokenKindVector::begin_pat()),
                 Some(token.kind),
                 token.span,
             )?,
         };
 
-        Ok(self.node_with_joined_span(pattern, &start))
+        Ok(self.node_with_joined_span(pat, &start))
     }
 
-    /// Parse an arbitrary number of [Pattern]s which are comma separated.
-    pub fn parse_pattern_collection(&self) -> AstGenResult<AstNodes<Pattern>> {
-        self.parse_separated_fn(|| self.parse_pattern(), || self.parse_token(TokenKind::Comma))
+    /// Parse an arbitrary number of [Pat]s which are comma separated.
+    pub fn parse_pat_collection(&self) -> AstGenResult<AstNodes<Pat>> {
+        self.parse_separated_fn(|| self.parse_pat(), || self.parse_token(TokenKind::Comma))
     }
 
     /// Parse a [DestructuringPattern]. The [DestructuringPattern] refers to
     /// destructuring either a struct or a namespace to extract fields,
     /// exported members. The function takes in a token atom because both
     /// syntaxes use different operators as pattern assigners.
-    pub(crate) fn parse_destructuring_pattern(
-        &self,
-    ) -> AstGenResult<AstNode<DestructuringPattern>> {
+    pub(crate) fn parse_destructuring_pat(&self) -> AstGenResult<AstNode<DestructuringPat>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
         // if the next token is the correct assigning operator, attempt to parse a
         // pattern here, if not then we copy the parsed ident and make a binding
         // pattern.
-        let pattern = match self.parse_token_fast(TokenKind::Keyword(Keyword::As)) {
-            Some(_) => self.parse_pattern()?,
+        let pat = match self.parse_token_fast(TokenKind::Keyword(Keyword::As)) {
+            Some(_) => self.parse_pat()?,
             None => {
                 let span = name.span();
                 let copy = self.node(Name { ..*name.body() });
 
                 self.node_with_span(
-                    Pattern::Binding(BindingPattern {
-                        name: copy,
-                        visibility: None,
-                        mutability: None,
-                    }),
+                    Pat::Binding(BindingPat { name: copy, visibility: None, mutability: None }),
                     span,
                 )
             }
         };
 
-        Ok(self.node_with_joined_span(DestructuringPattern { name, pattern }, &start))
+        Ok(self.node_with_joined_span(DestructuringPat { name, pat }, &start))
     }
 
     /// Parse a collection of [DestructuringPattern]s that are comma separated
     /// within a brace tree.
-    fn parse_namespace_pattern(
+    fn parse_namespace_pat(
         &self,
         tree: &'stream [Token],
         span: Span,
-    ) -> AstGenResult<NamespacePattern> {
+    ) -> AstGenResult<NamespacePat> {
         let gen = self.from_stream(tree, span);
         let mut fields = vec![];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_destructuring_pattern()) {
+            match gen.peek_resultant_fn(|| gen.parse_destructuring_pat()) {
                 Some(pat) => fields.push(pat),
                 None => break,
             }
@@ -229,22 +220,22 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // there should be some mechanism to cause the function to hard error?
         gen.verify_is_empty()?;
 
-        Ok(NamespacePattern { fields: AstNodes::new(fields, Some(span)) })
+        Ok(NamespacePat { fields: AstNodes::new(fields, Some(span)) })
     }
 
-    /// Parse a [Pattern::List] pattern from the token vector. A list [Pattern]
+    /// Parse a [Pat::List] pattern from the token vector. A list [Pat]
     /// consists of a list of comma separated within a square brackets .e.g
     /// `[x, 1, ..]`
-    pub(crate) fn parse_list_pattern(
+    pub(crate) fn parse_list_pat(
         &self,
         tree: &'stream [Token],
         parent_span: Span,
-    ) -> AstGenResult<AstNode<Pattern>> {
+    ) -> AstGenResult<AstNode<Pat>> {
         let gen = self.from_stream(tree, parent_span);
 
-        let fields = gen.parse_pattern_collection()?;
+        let fields = gen.parse_pat_collection()?;
 
-        Ok(self.node_with_span(Pattern::List(ListPattern { fields }), parent_span))
+        Ok(self.node_with_span(Pat::List(ListPat { fields }), parent_span))
     }
 
     /// Parse a [Pattern::Tuple] from the token vector. A tuple pattern consists
@@ -254,17 +245,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// If only a singular pattern is parsed and it doesn't have a name, then
     /// the function will assume that this is not a tuple pattern and simply
     /// a pattern wrapped within parentheses.
-    pub(crate) fn parse_tuple_pattern(
+    pub(crate) fn parse_tuple_pat(
         &self,
         tree: &'stream [Token],
         parent_span: Span,
-    ) -> AstGenResult<AstNode<Pattern>> {
+    ) -> AstGenResult<AstNode<Pat>> {
         // check here if the tree length is 1, and the first token is the comma to check
         // if it is an empty tuple pattern...
         if let Some(token) = tree.get(0) {
             if token.has_kind(TokenKind::Comma) {
                 return Ok(self.node_with_span(
-                    Pattern::Tuple(TuplePattern { fields: AstNodes::empty() }),
+                    Pat::Tuple(TuplePat { fields: AstNodes::empty() }),
                     parent_span,
                 ));
             }
@@ -277,7 +268,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let gen = self.from_stream(tree, parent_span);
 
         let mut elements = gen.parse_separated_fn(
-            || gen.parse_tuple_pattern_entry(),
+            || gen.parse_tuple_pat_entry(),
             || gen.parse_token(TokenKind::Comma),
         )?;
 
@@ -286,18 +277,18 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         if elements.len() == 1 && elements[0].name.is_none() {
             let element = elements.nodes.pop().unwrap().into_body();
 
-            Ok(element.pattern)
+            Ok(element.pat)
         } else {
-            Ok(self.node_with_span(Pattern::Tuple(TuplePattern { fields: elements }), parent_span))
+            Ok(self.node_with_span(Pat::Tuple(TuplePat { fields: elements }), parent_span))
         }
     }
 
     /// Parse an entry within a tuple pattern which might contain an optional
     /// [Name] node.
-    pub(crate) fn parse_tuple_pattern_entry(&self) -> AstGenResult<AstNode<TuplePatternEntry>> {
+    pub(crate) fn parse_tuple_pat_entry(&self) -> AstGenResult<AstNode<TuplePatEntry>> {
         let start = self.next_location();
 
-        let (name, pattern) = match self.peek() {
+        let (name, pat) = match self.peek() {
             Some(Token { kind: TokenKind::Ident(_), .. }) => {
                 // Here if there is a '=', this means that there is a name attached to the entry
                 // within the tuple pattern...
@@ -306,26 +297,26 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         let name = self.parse_name()?;
                         self.skip_token(); // '='
 
-                        (Some(name), self.parse_pattern()?)
+                        (Some(name), self.parse_pat()?)
                     }
-                    _ => (None, self.parse_pattern()?),
+                    _ => (None, self.parse_pat()?),
                 }
             }
-            _ => (None, self.parse_pattern()?),
+            _ => (None, self.parse_pat()?),
         };
 
-        Ok(self.node_with_joined_span(TuplePatternEntry { name, pattern }, &start))
+        Ok(self.node_with_joined_span(TuplePatEntry { name, pat }, &start))
     }
 
-    /// Convert a [Literal] into a [LiteralPattern].
-    pub(crate) fn convert_literal_kind_into_pattern(&self, kind: &TokenKind) -> LiteralPattern {
+    /// Convert a [Lit] into a [LitPat].
+    pub(crate) fn convert_lit_kind_into_pat(&self, kind: &TokenKind) -> LitPat {
         match kind {
-            TokenKind::StrLiteral(s) => LiteralPattern::Str(StrLiteralPattern(*s)),
-            TokenKind::CharLiteral(s) => LiteralPattern::Char(CharLiteralPattern(*s)),
-            TokenKind::IntLiteral(s) => LiteralPattern::Int(IntLiteralPattern(*s)),
-            TokenKind::FloatLiteral(s) => LiteralPattern::Float(FloatLiteralPattern(*s)),
-            TokenKind::Keyword(Keyword::False) => LiteralPattern::Bool(BoolLiteralPattern(false)),
-            TokenKind::Keyword(Keyword::True) => LiteralPattern::Bool(BoolLiteralPattern(true)),
+            TokenKind::StrLit(s) => LitPat::Str(StrLitPat(*s)),
+            TokenKind::CharLit(s) => LitPat::Char(CharLitPat(*s)),
+            TokenKind::IntLit(s) => LitPat::Int(IntLitPat(*s)),
+            TokenKind::FloatLit(s) => LitPat::Float(FloatLitPat(*s)),
+            TokenKind::Keyword(Keyword::False) => LitPat::Bool(BoolLitPat(false)),
+            TokenKind::Keyword(Keyword::True) => LitPat::Bool(BoolLitPat(true)),
             _ => unreachable!(),
         }
     }
@@ -338,7 +329,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// So the spread operator can only appear within either `list`, `tuple`
     /// patterns at the moment which means that any other location will mark
     /// it as `invalid` in the current implementation.
-    pub(crate) fn parse_spread_pattern(&self) -> AstGenResult<SpreadPattern> {
+    pub(crate) fn parse_spread_pat(&self) -> AstGenResult<SpreadPat> {
         for k in 0..3 {
             self.parse_token_fast(TokenKind::Dot).ok_or_else(|| {
                 self.make_error(
@@ -354,14 +345,14 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // and bind the capture to a variable
         let name = self.peek_resultant_fn(|| self.parse_name());
 
-        Ok(SpreadPattern { name })
+        Ok(SpreadPat { name })
     }
 
     /// Function to parse a [BindingPattern] without considering whether it
     /// might be part of a constructor or any other form of pattern. This
     /// function also accounts for visibility or mutability modifiers on the
     /// binding pattern.
-    fn parse_binding_pattern(&self) -> AstGenResult<Pattern> {
+    fn parse_binding_pat(&self) -> AstGenResult<Pat> {
         let visibility = self.peek_resultant_fn(|| self.parse_visibility());
 
         // Parse a mutability modifier if any
@@ -371,7 +362,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         let name = self.parse_name()?; // @@Correctness: Should this be an access name?
 
-        Ok(Pattern::Binding(BindingPattern { name, visibility, mutability }))
+        Ok(Pat::Binding(BindingPat { name, visibility, mutability }))
     }
 
     /// Parse a [Visibility] modifier, either being a `pub` or `priv`.
@@ -394,7 +385,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Utility function to lookahead and see if it's possible to parse a
     /// singular pattern from the current position in the token stream.
-    pub(crate) fn begins_pattern(&self) -> bool {
+    pub(crate) fn begins_pat(&self) -> bool {
         let n_lookahead = match self.peek() {
             // Namespace, List, Tuple, etc.
             Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,

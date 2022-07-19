@@ -2,7 +2,7 @@
 
 use crate::storage::{
     location::LocationTarget,
-    primitives::{AccessTerm, ArgsId, ParamsId, PatternId, TermId, TyFnCase},
+    primitives::{AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
 use hash_source::identifier::Identifier;
 
@@ -42,7 +42,7 @@ pub enum TcError {
         reason: ParamUnificationErrorReason,
     },
     /// The given term should be a type function but it isn't.
-    NotATypeFunction { term: TermId },
+    NotATyFn { term: TermId },
     /// The given value cannot be used as a type.
     CannotUseValueAsTy { value: TermId },
     /// The given arguments do not match the length of the target parameters.
@@ -78,7 +78,7 @@ pub enum TcError {
     UnsupportedPropertyAccess { name: Identifier, value: TermId },
     /// The given type function cannot be applied to the given arguments, due to
     /// the given errors.
-    InvalidTypeFunctionApplication {
+    InvalidTyFnApplication {
         type_fn: TermId,
         cases: Vec<TyFnCase>,
         args: ArgsId,
@@ -89,11 +89,11 @@ pub enum TcError {
     /// The given term cannot be used in a union operation.
     InvalidUnionElement { term: TermId },
     /// The given term cannot be used as a type function parameter type.
-    InvalidTypeFunctionParameterType { param_ty: TermId },
+    InvalidTyFnParamTy { param_ty: TermId },
     /// The given term cannot be used as a type function return type.
-    InvalidTypeFunctionReturnType { return_ty: TermId },
+    InvalidTyFnReturnTy { return_ty: TermId },
     /// The given term cannot be used as a type function return value.
-    InvalidTypeFunctionReturnValue { return_value: TermId },
+    InvalidTyFnReturnValue { return_value: TermId },
     /// The given merge term should only contain zero or one nominal elements,
     /// but it contains more.
     MergeShouldOnlyContainOneNominal {
@@ -113,11 +113,11 @@ pub enum TcError {
     TermIsNotRuntimeInstantiable { term: TermId },
     /// The given term cannot be used as the subject of a type function
     /// application.
-    UnsupportedTypeFunctionApplication { subject_id: TermId },
+    UnsupportedTyFnApplication { subject_id: TermId },
     /// The given access operation results in more than one result.
     AmbiguousAccess { access: AccessTerm, results: Vec<TermId> },
     /// Cannot use this as a function call subject.
-    InvalidFunctionCallSubject { term: TermId },
+    InvalidFnCallSubject { term: TermId },
     /// The given access operation does not resolve to a method.
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
     /// The given member requires an initialisation in the current scope.
@@ -137,7 +137,7 @@ pub enum TcError {
         trt_def_missing_member_term_id: TermId,
     },
     /// Given match case is never going to match the subject.
-    UselessMatchCase { pattern: PatternId, subject: TermId },
+    UselessMatchCase { pat: PatId, subject: TermId },
     /// Cannot use pattern matching in a declaration without an assignment
-    CannotPatternMatchWithoutAssignment { pattern: PatternId },
+    CannotPatMatchWithoutAssignment { pat: PatId },
 }

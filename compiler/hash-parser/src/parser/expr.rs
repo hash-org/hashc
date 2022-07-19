@@ -17,9 +17,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // So here we want to check that the next token(s) could make up a singular
         // pattern which is then followed by a `:` to denote that this is a
         // declaration.
-        let decl = match self.begins_pattern() {
+        let decl = match self.begins_pat() {
             true => {
-                let pat = self.parse_singular_pattern()?;
+                let pat = self.parse_singular_pat()?;
 
                 self.parse_token(TokenKind::Colon)?;
 
@@ -98,7 +98,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             kind if kind.is_unary_op() => return self.parse_unary_expr(),
 
             // Handle primitive literals
-            kind if kind.is_literal() => self.parse_literal(),
+            kind if kind.is_lit() => self.parse_lit(),
             TokenKind::Ident(ident) => {
                 // Create the variable expr
                 self.node_with_span(
@@ -109,7 +109,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 )
             }
             TokenKind::Lt => self.node_with_joined_span(
-                Expr::new(ExprKind::TyFnDef(self.parse_type_function_def()?)),
+                Expr::new(ExprKind::TyFnDef(self.parse_ty_fn_def()?)),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Struct) => self.node_with_joined_span(
@@ -129,11 +129,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Set) => self.node_with_joined_span(
-                Expr::new(ExprKind::LiteralExpr(LiteralExpr(self.parse_set_literal()?))),
+                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_set_lit()?))),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Map) => self.node_with_joined_span(
-                Expr::new(ExprKind::LiteralExpr(LiteralExpr(self.parse_map_literal()?))),
+                Expr::new(ExprKind::LitExpr(LitExpr(self.parse_map_lit()?))),
                 &token.span,
             ),
             TokenKind::Keyword(Keyword::Impl)
@@ -189,7 +189,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Tree(Delimiter::Bracket, tree_index) => {
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                self.parse_list_literal(tree, token.span)?
+                self.parse_list_lit(tree, token.span)?
             }
 
             // Either tuple, function, or nested expression
@@ -227,7 +227,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 match is_func {
                     true => {
                         let gen = self.from_stream(tree, token.span);
-                        self.parse_function_definition(&gen)?
+                        self.parse_fn_def(&gen)?
                     }
                     false => self.parse_expr_or_tuple(tree, self.current_location())?,
                 }
@@ -451,7 +451,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         let gen = self.parse_delim_tree(Delimiter::Paren, None)?;
 
         let (raw, path, span) = match gen.peek() {
-            Some(Token { kind: TokenKind::StrLiteral(str), span }) => (str, *str, span),
+            Some(Token { kind: TokenKind::StrLit(str), span }) => (str, *str, span),
             _ => gen.error(AstGenErrorKind::ImportPath, None, None)?,
         };
 
@@ -480,9 +480,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
     }
 
-    /// Parse a [FunctionCall] which requires that the [AccessName] is
-    /// pre-parsed and passed into the function which deals with the call
-    /// arguments.
+    /// Parse a [ConstructorCallExpr] which accepts the `subject` that the
+    /// constructor is being called on.
     pub(crate) fn parse_constructor_call(
         &self,
         subject: AstNode<Expr>,
@@ -660,7 +659,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// ^^^^^^^^  ^^^^^   ^^^─────┐
     /// pattern    type    the right hand-side expr
     /// ```
-    pub(crate) fn parse_declaration(&self, pattern: AstNode<Pattern>) -> AstGenResult<Declaration> {
+    pub(crate) fn parse_declaration(&self, pattern: AstNode<Pat>) -> AstGenResult<Declaration> {
         // Attempt to parse an optional type...
         let ty = match self.peek() {
             Some(token) if token.has_kind(TokenKind::Eq) => None,
@@ -673,9 +672,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
 
                 let value = self.parse_expr_with_precedence(0)?;
-                Ok(Declaration { pattern, ty, value: Some(value) })
+                Ok(Declaration { pat: pattern, ty, value: Some(value) })
             }
-            _ => Ok(Declaration { pattern, ty, value: None }),
+            _ => Ok(Declaration { pat: pattern, ty, value: None }),
         }
     }
 
@@ -797,8 +796,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // Handle the empty tuple case
         if gen.stream.len() < 2 {
             let tuple = gen.node_with_joined_span(
-                Expr::new(ExprKind::LiteralExpr(LiteralExpr(gen.node_with_joined_span(
-                    Literal::Tuple(TupleLiteral { elements: ast_nodes![] }),
+                Expr::new(ExprKind::LitExpr(LitExpr(gen.node_with_joined_span(
+                    Lit::Tuple(TupleLit { elements: ast_nodes![] }),
                     &start,
                 )))),
                 &start,
@@ -814,7 +813,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             };
         }
 
-        let entry = gen.parse_tuple_literal_entry()?;
+        let entry = gen.parse_tuple_lit_entry()?;
 
         // In the special case where this is just an expression that is wrapped within
         // parentheses, we can check that the 'name' and 'ty' parameters are
@@ -836,7 +835,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                         break;
                     }
 
-                    elements.nodes.push(gen.parse_tuple_literal_entry()?)
+                    elements.nodes.push(gen.parse_tuple_lit_entry()?)
                 }
                 Some(token) => gen.error_with_location(
                     AstGenErrorKind::ExpectedExpr,
@@ -849,8 +848,8 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         }
 
         Ok(gen.node_with_joined_span(
-            Expr::new(ExprKind::LiteralExpr(LiteralExpr(
-                gen.node_with_joined_span(Literal::Tuple(TupleLiteral { elements }), &start),
+            Expr::new(ExprKind::LitExpr(LitExpr(
+                gen.node_with_joined_span(Lit::Tuple(TupleLit { elements }), &start),
             ))),
             &start,
         ))
@@ -858,7 +857,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a function definition argument, which is made of an identifier and
     /// a function type.
-    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<Param>> {
+    pub(crate) fn parse_fn_def_param(&self) -> AstGenResult<AstNode<Param>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -884,15 +883,15 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parse a function literal. Function literals are essentially definitions
+    /// Parse a [FnDef]. Function literals are essentially definitions
     /// of lambdas that can be assigned to variables or passed as arguments
     /// into other functions.
-    pub(crate) fn parse_function_definition(&self, gen: &Self) -> AstGenResult<AstNode<Expr>> {
+    pub(crate) fn parse_fn_def(&self, gen: &Self) -> AstGenResult<AstNode<Expr>> {
         let start = self.current_location();
 
         // parse function definition parameters.
         let params = gen.parse_separated_fn(
-            || gen.parse_function_def_param(),
+            || gen.parse_fn_def_param(),
             || gen.parse_token(TokenKind::Comma),
         )?;
 

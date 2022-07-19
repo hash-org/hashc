@@ -11,9 +11,8 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
-            AccessOp, Arg, ArgsId, BindingPattern, BoundVars, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, Pattern, PatternId, PatternParam, Sub, TermId,
-            Visibility,
+            AccessOp, Arg, ArgsId, BindingPat, BoundVars, EnumVariant, Member, MemberData,
+            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -203,24 +202,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(current_term)
     }
 
-    type LiteralRet = TermId;
+    type LitRet = TermId;
 
-    fn visit_literal(
+    fn visit_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Literal>,
-    ) -> Result<Self::LiteralRet, Self::Error> {
-        walk::walk_literal_same_children(self, ctx, node)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Lit>,
+    ) -> Result<Self::LitRet, Self::Error> {
+        walk::walk_lit_same_children(self, ctx, node)
     }
 
-    type MapLiteralRet = TermId;
+    type MapLitRet = TermId;
 
-    fn visit_map_literal(
+    fn visit_map_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteral>,
-    ) -> Result<Self::MapLiteralRet, Self::Error> {
-        let walk::MapLiteral { entries } = walk::walk_map_literal(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLit>,
+    ) -> Result<Self::MapLitRet, Self::Error> {
+        let walk::MapLit { entries } = walk::walk_map_lit(self, ctx, node)?;
         let map_inner_ty = self.core_defs().map_ty_fn;
 
         // Unify the key and value types...
@@ -244,26 +243,26 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type MapLiteralEntryRet = (TermId, TermId);
+    type MapLitEntryRet = (TermId, TermId);
 
-    fn visit_map_literal_entry(
+    fn visit_map_lit_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLiteralEntry>,
-    ) -> Result<Self::MapLiteralEntryRet, Self::Error> {
-        let walk::MapLiteralEntry { key, value } = walk::walk_map_literal_entry(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::MapLitEntry>,
+    ) -> Result<Self::MapLitEntryRet, Self::Error> {
+        let walk::MapLitEntry { key, value } = walk::walk_map_lit_entry(self, ctx, node)?;
 
         Ok((key, value))
     }
 
-    type ListLiteralRet = TermId;
+    type ListLitRet = TermId;
 
-    fn visit_list_literal(
+    fn visit_list_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLiteral>,
-    ) -> Result<Self::ListLiteralRet, Self::Error> {
-        let walk::ListLiteral { elements } = walk::walk_list_literal(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListLit>,
+    ) -> Result<Self::ListLitRet, Self::Error> {
+        let walk::ListLit { elements } = walk::walk_list_lit(self, ctx, node)?;
 
         let list_inner_ty = self.core_defs().list_ty_fn;
         let element_ty = self.unify_term_sequence(elements)?;
@@ -282,14 +281,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type SetLiteralRet = TermId;
+    type SetLitRet = TermId;
 
-    fn visit_set_literal(
+    fn visit_set_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLiteral>,
-    ) -> Result<Self::SetLiteralRet, Self::Error> {
-        let walk::SetLiteral { elements } = walk::walk_set_literal(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SetLit>,
+    ) -> Result<Self::SetLitRet, Self::Error> {
+        let walk::SetLit { elements } = walk::walk_set_lit(self, ctx, node)?;
 
         let set_inner_ty = self.core_defs().set_ty_fn;
         let element_ty = self.unify_term_sequence(elements)?;
@@ -308,15 +307,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type TupleLiteralEntryRet = Arg;
+    type TupleLitEntryRet = Arg;
 
-    fn visit_tuple_literal_entry(
+    fn visit_tuple_lit_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLiteralEntry>,
-    ) -> Result<Self::TupleLiteralEntryRet, Self::Error> {
-        let walk::TupleLiteralEntry { name, value, ty } =
-            walk::walk_tuple_literal_entry(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLitEntry>,
+    ) -> Result<Self::TupleLitEntryRet, Self::Error> {
+        let walk::TupleLitEntry { name, value, ty } = walk::walk_tuple_lit_entry(self, ctx, node)?;
 
         let ty_or_unresolved = ty.unwrap_or_else(|| self.builder().create_unresolved_term());
         let value_ty = self.typer().infer_ty_of_term(value)?;
@@ -332,14 +330,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(Arg { name, value })
     }
 
-    type TupleLiteralRet = TermId;
+    type TupleLitRet = TermId;
 
-    fn visit_tuple_literal(
+    fn visit_tuple_lit(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLiteral>,
-    ) -> Result<Self::TupleLiteralRet, Self::Error> {
-        let walk::TupleLiteral { elements } = walk::walk_tuple_literal(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TupleLit>,
+    ) -> Result<Self::TupleLitRet, Self::Error> {
+        let walk::TupleLit { elements } = walk::walk_tuple_lit(self, ctx, node)?;
         let builder = self.builder();
 
         let params = builder.create_args(elements, ParamOrigin::Tuple);
@@ -352,13 +350,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type StrLiteralRet = TermId;
+    type StrLitRet = TermId;
 
-    fn visit_str_literal(
+    fn visit_str_lit(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteral>,
-    ) -> Result<Self::StrLiteralRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLit>,
+    ) -> Result<Self::StrLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.0.to_string());
 
         // add the location of the term to the location storage
@@ -367,13 +365,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type CharLiteralRet = TermId;
+    type CharLitRet = TermId;
 
-    fn visit_char_literal(
+    fn visit_char_lit(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteral>,
-    ) -> Result<Self::CharLiteralRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLit>,
+    ) -> Result<Self::CharLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.0);
 
         // add the location of the term to the location storage
@@ -382,13 +380,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type FloatLiteralRet = TermId;
+    type FloatLitRet = TermId;
 
-    fn visit_float_literal(
+    fn visit_float_lit(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteral>,
-    ) -> Result<Self::FloatLiteralRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLit>,
+    ) -> Result<Self::FloatLitRet, Self::Error> {
         let f32_def = self.core_defs().f32_ty;
         let ty = self.builder().create_nominal_def_term(f32_def);
         let term = self.builder().create_rt_term(ty);
@@ -399,13 +397,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type BoolLiteralRet = TermId;
+    type BoolLitRet = TermId;
 
-    fn visit_bool_literal(
+    fn visit_bool_lit(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteral>,
-    ) -> Result<Self::BoolLiteralRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLit>,
+    ) -> Result<Self::BoolLitRet, Self::Error> {
         let term = self.builder().create_var_term(if node.0 { "true" } else { "false" });
 
         // add the location of the term to the location storage
@@ -414,13 +412,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
-    type IntLiteralRet = TermId;
+    type IntLitRet = TermId;
 
-    fn visit_int_literal(
+    fn visit_int_lit(
         &mut self,
         _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteral>,
-    ) -> Result<Self::IntLiteralRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLit>,
+    ) -> Result<Self::IntLitRet, Self::Error> {
         let term = self.builder().create_lit_term(node.0);
 
         // add the location of the term to the location storage
@@ -680,14 +678,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(subject)
     }
 
-    type LiteralExprRet = TermId;
+    type LitExprRet = TermId;
 
-    fn visit_literal_expr(
+    fn visit_lit_expr(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LiteralExpr>,
-    ) -> Result<Self::LiteralExprRet, Self::Error> {
-        Ok(walk::walk_literal_expr(self, ctx, node)?.0)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitExpr>,
+    ) -> Result<Self::LitExprRet, Self::Error> {
+        Ok(walk::walk_lit_expr(self, ctx, node)?.0)
     }
 
     type CastExprRet = TermId;
@@ -891,14 +889,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type NamedFieldTyRet = Param;
+    type TyArgRet = Param;
 
-    fn visit_named_field_ty(
+    fn visit_ty_arg(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedFieldTyEntry>,
-    ) -> Result<Self::NamedFieldTyRet, Self::Error> {
-        let walk::NamedFieldTyEntry { ty, name } = walk::walk_named_field_ty(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TyArg>,
+    ) -> Result<Self::TyArgRet, Self::Error> {
+        let walk::TyArg { ty, name } = walk::walk_ty_arg(self, ctx, node)?;
         self.copy_location_from_node_to_target(node, ty);
         Ok(Param { ty, name, default_value: None })
     }
@@ -1248,9 +1246,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             .ast_ref_iter()
             .map(|case| {
                 // Try to match the pattern with the case
-                let case_pattern = self.visit_pattern(ctx, case.pattern.ast_ref())?;
-                let case_match =
-                    self.pattern_matcher().match_pattern_with_term(case_pattern, subject)?;
+                let case_pat = self.visit_pat(ctx, case.pat.ast_ref())?;
+                let case_match = self.pat_matcher().match_pat_with_term(case_pat, subject)?;
                 match case_match {
                     Some(members_to_add) => {
                         // Enter a new scope and add the members
@@ -1266,8 +1263,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                     }
                     None => {
                         // Does not match, indicate that the case is useless!
-                        redundant_errors
-                            .push(TcError::UselessMatchCase { pattern: case_pattern, subject });
+                        redundant_errors.push(TcError::UselessMatchCase { pat: case_pat, subject });
                         Ok(None)
                     }
                 }
@@ -1550,11 +1546,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let pattern_id = self.visit_pattern(ctx, node.pattern.ast_ref())?;
-        let pattern = self.reader().get_pattern(pattern_id).clone();
+        let pat_id = self.visit_pat(ctx, node.pat.ast_ref())?;
+        let pat = self.reader().get_pat(pat_id).clone();
 
         // Set the declaration hit if it is just a binding pattern:
-        if let Pattern::Binding(BindingPattern { name, .. }) = pattern {
+        if let Pat::Binding(BindingPat { name, .. }) = pat {
             self.state.declaration_name_hint = Some(name);
         };
 
@@ -1589,18 +1585,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             Some(value) => {
                 // If there is a value, match it with the pattern and acquire the members to add
                 // to the scope.
-                match self.pattern_matcher().match_pattern_with_term(pattern_id, value)? {
+                match self.pat_matcher().match_pat_with_term(pat_id, value)? {
                     Some(members) => members,
-                    None => {
-                        return Err(TcError::UselessMatchCase {
-                            pattern: pattern_id,
-                            subject: value,
-                        })
-                    }
+                    None => return Err(TcError::UselessMatchCase { pat: pat_id, subject: value }),
                 }
             }
             None => {
-                if let Pattern::Binding(BindingPattern { name, mutability, visibility }) = pattern {
+                if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
                     // Add the member without a value:
                     vec![Member {
                         name,
@@ -1610,9 +1601,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                     }]
                 } else {
                     // If there is no value, one cannot use pattern matching!
-                    return Err(TcError::CannotPatternMatchWithoutAssignment {
-                        pattern: pattern_id,
-                    });
+                    return Err(TcError::CannotPatMatchWithoutAssignment { pat: pat_id });
                 }
             }
         };
@@ -1627,7 +1616,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         // Add the locations of all members:
         for member_idx in &member_indexes {
             self.copy_location_from_node_to_target(
-                node.pattern.ast_ref(),
+                node.pat.ast_ref(),
                 (current_scope_id, *member_idx),
             );
         }
@@ -1950,210 +1939,207 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type PatternRet = PatternId;
+    type PatRet = PatId;
 
-    fn visit_pattern(
+    fn visit_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pattern>,
-    ) -> Result<Self::PatternRet, Self::Error> {
-        walk::walk_pattern_same_children(self, ctx, node)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Pat>,
+    ) -> Result<Self::PatRet, Self::Error> {
+        walk::walk_pat_same_children(self, ctx, node)
     }
 
-    type ConstructorPatternRet = PatternId;
+    type ConstructorPatRet = PatId;
 
-    fn visit_constructor_pattern(
+    fn visit_constructor_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPattern>,
-    ) -> Result<Self::ConstructorPatternRet, Self::Error> {
-        let walk::ConstructorPattern { name, args } =
-            walk::walk_constructor_pattern(self, ctx, node)?;
-        let constructor_params = self.builder().create_pattern_params(args, ParamOrigin::Unknown);
-        let constructor_pattern =
-            self.builder().create_constructor_pattern(name, constructor_params);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
+    ) -> Result<Self::ConstructorPatRet, Self::Error> {
+        let walk::ConstructorPat { name, args } = walk::walk_constructor_pat(self, ctx, node)?;
+        let constructor_params = self.builder().create_pat_params(args, ParamOrigin::Unknown);
+        let constructor_pat = self.builder().create_constructor_pat(name, constructor_params);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
-        self.copy_location_from_node_to_target(node, constructor_pattern);
+        self.copy_location_from_node_to_target(node, constructor_pat);
 
-        Ok(constructor_pattern)
+        Ok(constructor_pat)
     }
 
-    type NamespacePatternRet = PatternId;
+    type NamespacePatRet = PatId;
 
-    fn visit_namespace_pattern(
+    fn visit_namespace_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePattern>,
-    ) -> Result<Self::NamespacePatternRet, Self::Error> {
-        let walk::NamespacePattern { patterns } = walk::walk_namespace_pattern(self, ctx, node)?;
-        let members = self.builder().create_pattern_params(patterns, ParamOrigin::Unknown);
-        let module_pattern = self.builder().create_mod_pattern(members);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePat>,
+    ) -> Result<Self::NamespacePatRet, Self::Error> {
+        let walk::NamespacePat { fields } = walk::walk_namespace_pat(self, ctx, node)?;
+        let members = self.builder().create_pat_params(fields, ParamOrigin::Unknown);
+        let module_pat = self.builder().create_mod_pat(members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.copy_location_from_node_to_target(node, module_pattern);
+        self.copy_location_from_node_to_target(node, module_pat);
 
-        Ok(module_pattern)
+        Ok(module_pat)
     }
 
-    type TuplePatternEntryRet = PatternParam;
+    type TuplePatEntryRet = PatParam;
 
-    fn visit_tuple_pattern_entry(
+    fn visit_tuple_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatternEntry>,
-    ) -> Result<Self::TuplePatternEntryRet, Self::Error> {
-        let walk::TuplePatternEntry { name, pattern } =
-            walk::walk_tuple_pattern_entry(self, ctx, node)?;
-        Ok(PatternParam { name, pattern })
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
+    ) -> Result<Self::TuplePatEntryRet, Self::Error> {
+        let walk::TuplePatEntry { name, pat } = walk::walk_tuple_pat_entry(self, ctx, node)?;
+        Ok(PatParam { name, pat })
     }
 
-    type TuplePatternRet = PatternId;
+    type TuplePatRet = PatId;
 
-    fn visit_tuple_pattern(
+    fn visit_tuple_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePattern>,
-    ) -> Result<Self::TuplePatternRet, Self::Error> {
-        let walk::TuplePattern { elements } = walk::walk_tuple_pattern(self, ctx, node)?;
-        let members = self.builder().create_pattern_params(elements, ParamOrigin::Tuple);
-        let tuple_pattern = self.builder().create_tuple_pattern(members);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
+    ) -> Result<Self::TuplePatRet, Self::Error> {
+        let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
+        let members = self.builder().create_pat_params(elements, ParamOrigin::Tuple);
+        let tuple_pat = self.builder().create_tuple_pat(members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.copy_location_from_node_to_target(node, tuple_pattern);
+        self.copy_location_from_node_to_target(node, tuple_pat);
 
-        Ok(tuple_pattern)
+        Ok(tuple_pat)
     }
 
-    type ListPatternRet = PatternId;
+    type ListPatRet = PatId;
 
-    fn visit_list_pattern(
+    fn visit_list_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPattern>,
-    ) -> Result<Self::ListPatternRet, Self::Error> {
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
+    ) -> Result<Self::ListPatRet, Self::Error> {
         todo!()
     }
 
-    type StrLiteralPatternRet = PatternId;
+    type StrLitPatRet = PatId;
 
-    fn visit_str_literal_pattern(
+    fn visit_str_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLiteralPattern>,
-    ) -> Result<Self::StrLiteralPatternRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::StrLitPat>,
+    ) -> Result<Self::StrLitPatRet, Self::Error> {
         let lit = self.builder().create_lit_term(node.0.to_string());
-        let lit_pattern = self.builder().create_lit_pattern(lit);
+        let lit_pat = self.builder().create_lit_pat(lit);
 
         self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pattern);
+        self.copy_location_from_node_to_target(node, lit_pat);
 
-        Ok(lit_pattern)
+        Ok(lit_pat)
     }
 
-    type CharLiteralPatternRet = PatternId;
+    type CharLitPatRet = PatId;
 
-    fn visit_char_literal_pattern(
+    fn visit_char_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLiteralPattern>,
-    ) -> Result<Self::CharLiteralPatternRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::CharLitPat>,
+    ) -> Result<Self::CharLitPatRet, Self::Error> {
         let lit = self.builder().create_lit_term(node.0);
-        let lit_pattern = self.builder().create_lit_pattern(lit);
+        let lit_pat = self.builder().create_lit_pat(lit);
 
         self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pattern);
+        self.copy_location_from_node_to_target(node, lit_pat);
 
-        Ok(lit_pattern)
+        Ok(lit_pat)
     }
 
-    type IntLiteralPatternRet = PatternId;
+    type IntLitPatRet = PatId;
 
-    fn visit_int_literal_pattern(
+    fn visit_int_lit_pat(
         &mut self,
         _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLiteralPattern>,
-    ) -> Result<Self::IntLiteralPatternRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IntLitPat>,
+    ) -> Result<Self::IntLitPatRet, Self::Error> {
         let lit = self.builder().create_lit_term(node.0);
-        let lit_pattern = self.builder().create_lit_pattern(lit);
+        let lit_pat = self.builder().create_lit_pat(lit);
 
         self.copy_location_from_node_to_target(node, lit);
-        self.copy_location_from_node_to_target(node, lit_pattern);
+        self.copy_location_from_node_to_target(node, lit_pat);
 
-        Ok(lit_pattern)
+        Ok(lit_pat)
     }
 
-    type FloatLiteralPatternRet = PatternId;
+    type FloatLitPatRet = PatId;
 
-    fn visit_float_literal_pattern(
+    fn visit_float_lit_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLiteralPattern>,
-    ) -> Result<Self::FloatLiteralPatternRet, Self::Error> {
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::FloatLitPat>,
+    ) -> Result<Self::FloatLitPatRet, Self::Error> {
         todo!()
     }
 
-    type BoolLiteralPatternRet = PatternId;
+    type BoolLitPatRet = PatId;
 
-    fn visit_bool_literal_pattern(
+    fn visit_bool_lit_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLiteralPattern>,
-    ) -> Result<Self::BoolLiteralPatternRet, Self::Error> {
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BoolLitPat>,
+    ) -> Result<Self::BoolLitPatRet, Self::Error> {
         let bool_term = self.builder().create_var_term(if node.0 { "true" } else { "false" });
         self.copy_location_from_node_to_target(node, bool_term);
         let bool_term_simplified = self.validator().validate_term(bool_term)?.simplified_term_id;
 
-        let bool_pattern = self.builder().create_constant_pattern(bool_term_simplified);
-        self.copy_location_from_node_to_target(node, bool_pattern);
+        let bool_pat = self.builder().create_constant_pat(bool_term_simplified);
+        self.copy_location_from_node_to_target(node, bool_pat);
 
-        Ok(bool_pattern)
+        Ok(bool_pat)
     }
 
-    type LiteralPatternRet = PatternId;
+    type LitPatRet = PatId;
 
-    fn visit_literal_pattern(
+    fn visit_lit_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LiteralPattern>,
-    ) -> Result<Self::LiteralPatternRet, Self::Error> {
-        walk::walk_literal_pattern_same_children(self, ctx, node)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::LitPat>,
+    ) -> Result<Self::LitPatRet, Self::Error> {
+        walk::walk_lit_pat_same_children(self, ctx, node)
     }
 
-    type OrPatternRet = PatternId;
+    type OrPatRet = PatId;
 
-    fn visit_or_pattern(
+    fn visit_or_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPattern>,
-    ) -> Result<Self::OrPatternRet, Self::Error> {
-        let walk::OrPattern { variants } = walk::walk_or_pattern(self, ctx, node)?;
-        let pattern = self.builder().create_or_pattern(variants);
-        self.copy_location_from_node_to_target(node, pattern);
-        Ok(pattern)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::OrPat>,
+    ) -> Result<Self::OrPatRet, Self::Error> {
+        let walk::OrPat { variants } = walk::walk_or_pat(self, ctx, node)?;
+        let pat = self.builder().create_or_pat(variants);
+        self.copy_location_from_node_to_target(node, pat);
+        Ok(pat)
     }
 
-    type IfPatternRet = PatternId;
+    type IfPatRet = PatId;
 
-    fn visit_if_pattern(
+    fn visit_if_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPattern>,
-    ) -> Result<Self::IfPatternRet, Self::Error> {
-        let walk::IfPattern { condition, pattern } = walk::walk_if_pattern(self, ctx, node)?;
-        let pattern = self.builder().create_if_pattern(pattern, condition);
-        self.copy_location_from_node_to_target(node, pattern);
-        Ok(pattern)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IfPat>,
+    ) -> Result<Self::IfPatRet, Self::Error> {
+        let walk::IfPat { condition, pat } = walk::walk_if_pat(self, ctx, node)?;
+        let pat = self.builder().create_if_pat(pat, condition);
+        self.copy_location_from_node_to_target(node, pat);
+        Ok(pat)
     }
 
-    type BindingPatternRet = PatternId;
+    type BindingPatRet = PatId;
 
-    fn visit_binding_pattern(
+    fn visit_binding_pat(
         &mut self,
         _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPattern>,
-    ) -> Result<Self::BindingPatternRet, Self::Error> {
-        let pattern = self.builder().create_binding_pattern(
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
+    ) -> Result<Self::BindingPatRet, Self::Error> {
+        let pat = self.builder().create_binding_pat(
             node.name.body().ident,
             match node.mutability.as_ref().map(|x| *x.body()) {
                 Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
@@ -2164,41 +2150,40 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
             },
         );
-        self.copy_location_from_node_to_target(node, pattern);
-        Ok(pattern)
+        self.copy_location_from_node_to_target(node, pat);
+        Ok(pat)
     }
 
-    type SpreadPatternRet = PatternId;
+    type SpreadPatRet = PatId;
 
-    fn visit_spread_pattern(
+    fn visit_spread_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPattern>,
-    ) -> Result<Self::SpreadPatternRet, Self::Error> {
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
         todo!()
     }
 
-    type IgnorePatternRet = PatternId;
+    type IgnorePatRet = PatId;
 
-    fn visit_ignore_pattern(
+    fn visit_ignore_pat(
         &mut self,
         _ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePattern>,
-    ) -> Result<Self::IgnorePatternRet, Self::Error> {
-        let pattern = self.builder().create_ignore_pattern();
-        self.copy_location_from_node_to_target(node, pattern);
-        Ok(pattern)
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::IgnorePat>,
+    ) -> Result<Self::IgnorePatRet, Self::Error> {
+        let pat = self.builder().create_ignore_pat();
+        self.copy_location_from_node_to_target(node, pat);
+        Ok(pat)
     }
 
-    type DestructuringPatternRet = PatternParam;
-    fn visit_destructuring_pattern(
+    type DestructuringPatRet = PatParam;
+    fn visit_destructuring_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPattern>,
-    ) -> Result<Self::DestructuringPatternRet, Self::Error> {
-        let walk::DestructuringPattern { name, pattern } =
-            walk::walk_destructuring_pattern(self, ctx, node)?;
-        Ok(self.builder().create_pattern_param(name, pattern))
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPat>,
+    ) -> Result<Self::DestructuringPatRet, Self::Error> {
+        let walk::DestructuringPat { name, pat } = walk::walk_destructuring_pat(self, ctx, node)?;
+        Ok(self.builder().create_pat_param(name, pat))
     }
 
     type ModuleRet = TermId;

@@ -316,13 +316,11 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     }
                 }
             }
-            TcError::NotATypeFunction { term } => {
-                builder.with_error_code(HashErrorCode::TypeIsNotTypeFunction).with_message(
-                    format!(
-                        "type `{}` is not a type function",
-                        term.for_formatting(err.global_storage())
-                    ),
-                );
+            TcError::NotATyFn { term } => {
+                builder.with_error_code(HashErrorCode::TyIsNotTyFn).with_message(format!(
+                    "type `{}` is not a type function",
+                    term.for_formatting(err.global_storage())
+                ));
 
                 // Get the location of the term
                 // @@Future: is it useful to also print the location of what was expecting
@@ -642,9 +640,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::InvalidTypeFunctionApplication {
-                type_fn, cases, unification_errors, ..
-            } => {
+            TcError::InvalidTyFnApplication { type_fn, cases, unification_errors, .. } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
                     "the type function `{}` cannot be applied",
                     type_fn.for_formatting(err.global_storage()),
@@ -713,7 +709,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     // within this position
                 }
             }
-            TcError::InvalidTypeFunctionParameterType { param_ty } => {
+            TcError::InvalidTyFnParamTy { param_ty } => {
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message("invalid function parameter type".to_string());
@@ -728,7 +724,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::InvalidTypeFunctionReturnType { return_ty } => {
+            TcError::InvalidTyFnReturnTy { return_ty } => {
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message("invalid function return type".to_string());
@@ -743,7 +739,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::InvalidTypeFunctionReturnValue { return_value } => {
+            TcError::InvalidTyFnReturnValue { return_value } => {
                 builder
                     .with_error_code(HashErrorCode::DisallowedType)
                     .with_message("invalid type of function return value".to_string());
@@ -873,9 +869,9 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::UnsupportedTypeFunctionApplication { subject_id } => {
+            TcError::UnsupportedTyFnApplication { subject_id } => {
                 builder
-                    .with_error_code(HashErrorCode::UnsupportedTypeFunctionApplication)
+                    .with_error_code(HashErrorCode::UnsupportedTyFnApplication)
                     .with_message("unsupported subject in type function application");
 
                 if let Some(location) = err.location_store().get_location(subject_id) {
@@ -1000,7 +996,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::InvalidFunctionCallSubject { term } => {
+            TcError::InvalidFnCallSubject { term } => {
                 builder.with_error_code(HashErrorCode::TypeIsNotTrait).with_message(format!(
                     "cannot use `{}` as a function call subject",
                     term.for_formatting(err.global_storage())
@@ -1013,10 +1009,10 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::UselessMatchCase { pattern, subject } => {
+            TcError::UselessMatchCase { pat, subject } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
                     "match case `{}` is redundant when matching on `{}`",
-                    pattern.for_formatting(err.global_storage()),
+                    pat.for_formatting(err.global_storage()),
                     subject.for_formatting(err.global_storage())
                 ));
 
@@ -1027,25 +1023,25 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
 
-                if let Some(location) = err.location_store().get_location(pattern) {
+                if let Some(location) = err.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         "...and this pattern will never match the subject".to_string(),
                     )));
                 }
             }
-            TcError::CannotPatternMatchWithoutAssignment { pattern } => {
+            TcError::CannotPatMatchWithoutAssignment { pat } => {
                 builder.with_error_code(HashErrorCode::TypeMismatch).with_message(
                     "declaration left-hand side cannot contain a pattern if no value is provided"
                         .to_string(),
                 );
 
-                if let Some(location) = err.location_store().get_location(pattern) {
+                if let Some(location) = err.location_store().get_location(pat) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
                             "pattern `{}` is given here on an unset declaration",
-                            pattern.for_formatting(err.global_storage())
+                            pat.for_formatting(err.global_storage())
                         ),
                     )));
                 }

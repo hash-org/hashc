@@ -4,9 +4,9 @@
 use crate::storage::{
     primitives::{
         AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-        MemberData, ModDefId, ModDefOrigin, ModPattern, Mutability, NominalDef, NominalDefId,
-        ParamsId, Pattern, PatternId, PatternParamsId, ScopeId, StructDef, Sub, SubSubject, Term,
-        TermId, TrtDefId, UnresolvedTerm, Visibility,
+        MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, ParamsId,
+        Pat, PatId, PatParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId, TrtDefId,
+        UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -524,29 +524,29 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format the given [PatternParams] with the given formatter.
-    pub fn fmt_pattern_params(
+    /// Format the given [PatParams] with the given formatter.
+    pub fn fmt_pat_params(
         &self,
         f: &mut fmt::Formatter,
-        pattern_params_id: PatternParamsId,
+        pat_params_id: PatParamsId,
     ) -> fmt::Result {
-        let pattern_params = self.global_storage.pattern_params_store.get(pattern_params_id);
+        let pat_params = self.global_storage.pat_params_store.get(pat_params_id);
 
-        for (i, param) in pattern_params.positional().iter().enumerate() {
+        for (i, param) in pat_params.positional().iter().enumerate() {
             match param.name {
                 Some(param_name) => {
                     write!(
                         f,
                         "{} = {}",
                         param_name,
-                        param.pattern.for_formatting(self.global_storage)
+                        param.pat.for_formatting(self.global_storage)
                     )?;
                 }
                 None => {
-                    self.fmt_pattern(f, param.pattern, TcFormatOpts::default())?;
+                    self.fmt_pat(f, param.pat, TcFormatOpts::default())?;
                 }
             }
-            if i != pattern_params.positional().len() - 1 {
+            if i != pat_params.positional().len() - 1 {
                 write!(f, ", ")?;
             }
         }
@@ -554,35 +554,30 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    pub fn fmt_pattern_as_single(
+    pub fn fmt_pat_as_single(
         &self,
         f: &mut fmt::Formatter,
-        pattern_id: PatternId,
+        pat: PatId,
         opts: TcFormatOpts,
     ) -> fmt::Result {
-        let pattern_fmt =
-            format!("{}", pattern_id.for_formatting_with_opts(self.global_storage, opts.clone()));
+        let pat_fmt =
+            format!("{}", pat.for_formatting_with_opts(self.global_storage, opts.clone()));
         if !opts.is_atomic.get() {
             write!(f, "(")?;
         }
-        write!(f, "{}", pattern_fmt)?;
+        write!(f, "{}", pat_fmt)?;
         if !opts.is_atomic.get() {
             write!(f, ")")?;
         }
         Ok(())
     }
 
-    /// Format a [Pattern](crate::storage::primitives::Pattern) indexed by the
-    /// given [PatternId].
-    pub fn fmt_pattern(
-        &self,
-        f: &mut fmt::Formatter,
-        pattern_id: PatternId,
-        opts: TcFormatOpts,
-    ) -> fmt::Result {
-        let pattern = self.global_storage.pattern_store.get(pattern_id);
-        match pattern {
-            Pattern::Binding(binding) => {
+    /// Format a [Pat](crate::storage::primitives::Pat) indexed by the
+    /// given [PatId].
+    pub fn fmt_pat(&self, f: &mut fmt::Formatter, pat: PatId, opts: TcFormatOpts) -> fmt::Result {
+        let pat = self.global_storage.pat_store.get(pat);
+        match pat {
+            Pat::Binding(binding) => {
                 let mutability = match binding.mutability {
                     Mutability::Mutable => "mut ",
                     Mutability::Immutable => "",
@@ -595,65 +590,65 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(false);
                 write!(f, "{}{}{}", visibility, mutability, name)
             }
-            Pattern::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
-            Pattern::Tuple(tuple_pattern) => {
+            Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
+            Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
-                write!(f, "({})", tuple_pattern.for_formatting(self.global_storage))
+                write!(f, "({})", tuple_pat.for_formatting(self.global_storage))
             }
-            Pattern::Constructor(constructor_pattern) => {
+            Pat::Constructor(constructor_pat) => {
                 opts.is_atomic.set(true);
-                self.fmt_term_as_single(f, constructor_pattern.subject, opts)?;
-                if let Some(params) = constructor_pattern.params {
+                self.fmt_term_as_single(f, constructor_pat.subject, opts)?;
+                if let Some(params) = constructor_pat.params {
                     write!(f, "({})", params.for_formatting(self.global_storage))?;
                 }
                 Ok(())
             }
-            Pattern::Or(patterns) => {
-                if patterns.is_empty() {
+            Pat::Or(pats) => {
+                if pats.is_empty() {
                     opts.is_atomic.set(true);
                     write!(f, "{{empty or pattern}}")?;
                     Ok(())
                 } else {
                     opts.is_atomic.set(false);
-                    for (i, pattern_id) in patterns.iter().enumerate() {
-                        self.fmt_pattern_as_single(f, *pattern_id, opts.clone())?;
-                        if i != patterns.len() - 1 {
+                    for (i, pat_id) in pats.iter().enumerate() {
+                        self.fmt_pat_as_single(f, *pat_id, opts.clone())?;
+                        if i != pats.len() - 1 {
                             write!(f, " | ")?;
                         }
                     }
                     Ok(())
                 }
             }
-            Pattern::If(if_pattern) => {
+            Pat::If(if_pat) => {
                 opts.is_atomic.set(false);
-                self.fmt_pattern_as_single(f, if_pattern.pattern, opts.clone())?;
+                self.fmt_pat_as_single(f, if_pat.pat, opts.clone())?;
                 write!(f, " if ",)?;
-                self.fmt_term_as_single(f, if_pattern.condition, opts)?;
+                self.fmt_term_as_single(f, if_pat.condition, opts)?;
                 Ok(())
             }
-            Pattern::Ignore => {
+            Pat::Ignore => {
                 write!(f, "_")
             }
-            Pattern::Mod(ModPattern { members }) => {
+            Pat::Mod(ModPat { members }) => {
                 opts.is_atomic.set(true);
-                let pattern_params = self.global_storage.pattern_params_store.get(*members);
+                let pat_params = self.global_storage.pat_params_store.get(*members);
 
                 write!(f, "{{ ")?;
-                for (i, param) in pattern_params.positional().iter().enumerate() {
+                for (i, param) in pat_params.positional().iter().enumerate() {
                     match param.name {
                         Some(param_name) => {
                             write!(
                                 f,
                                 "{} as {}",
                                 param_name,
-                                param.pattern.for_formatting(self.global_storage)
+                                param.pat.for_formatting(self.global_storage)
                             )?;
                         }
                         None => {
-                            self.fmt_pattern(f, param.pattern, TcFormatOpts::default())?;
+                            self.fmt_pat(f, param.pat, TcFormatOpts::default())?;
                         }
                     }
-                    if i != pattern_params.positional().len() - 1 {
+                    if i != pat_params.positional().len() - 1 {
                         write!(f, "; ")?;
                     }
                 }
@@ -702,8 +697,8 @@ impl PrepareForFormatting for NominalDefId {}
 impl PrepareForFormatting for ParamsId {}
 impl PrepareForFormatting for ArgsId {}
 impl PrepareForFormatting for ScopeId {}
-impl PrepareForFormatting for PatternParamsId {}
-impl PrepareForFormatting for PatternId {}
+impl PrepareForFormatting for PatParamsId {}
+impl PrepareForFormatting for PatId {}
 impl PrepareForFormatting for &Sub {}
 
 // Convenience implementations of Display for the types that implement
@@ -739,15 +734,15 @@ impl fmt::Display for ForFormatting<'_, ParamsId> {
     }
 }
 
-impl fmt::Display for ForFormatting<'_, PatternParamsId> {
+impl fmt::Display for ForFormatting<'_, PatParamsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        TcFormatter::new(self.global_storage).fmt_pattern_params(f, self.t)
+        TcFormatter::new(self.global_storage).fmt_pat_params(f, self.t)
     }
 }
 
-impl fmt::Display for ForFormatting<'_, PatternId> {
+impl fmt::Display for ForFormatting<'_, PatId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        TcFormatter::new(self.global_storage).fmt_pattern(f, self.t, self.opts.clone())
+        TcFormatter::new(self.global_storage).fmt_pat(f, self.t, self.opts.clone())
     }
 }
 
