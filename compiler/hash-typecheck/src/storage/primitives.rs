@@ -158,7 +158,7 @@ impl Scope {
     }
 
     /// Get a member by index, asserting that it exists.
-    pub fn get_by_index(&mut self, index: usize) -> Member {
+    pub fn get_by_index(&self, index: usize) -> Member {
         self.members[index]
     }
 
@@ -519,7 +519,7 @@ pub struct Var {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ScopeVar {
     pub name: Identifier,
-    pub scope: ScopeId,
+    pub scope_id: ScopeId,
     pub index: usize,
 }
 

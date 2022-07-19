@@ -1125,26 +1125,34 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             )),
             Term::TyFnCall(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),
-            // Resolve the variable to its value, and if it is None it means it can't be simplified
-            // because it is unset:
+            // Turn the variable into a ScopeVar:
             Term::Var(var) => {
                 // First resolve the name:
                 let scope_member =
                     self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-
-                let maybe_resolved_term_id = scope_member.member.data.value();
-
-                // Try to simplify it
-                if let Some(resolved_term_id) = maybe_resolved_term_id {
-                    self.location_store_mut()
-                        .copy_location((scope_member.scope_id, scope_member.index), term_id);
-
-                    Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
+                let scope_var = self.builder().create_scope_var_term(
+                    var.name,
+                    scope_member.scope_id,
+                    scope_member.index,
+                );
+                self.location_store_mut().copy_location(term_id, scope_var);
+                Ok(Some(self.potentially_simplify_term(scope_var)?))
+            }
+            // Resolve the variable to its value if it is set and closed.
+            Term::ScopeVar(var) => {
+                let scope_member = self.scope_manager().get_scope_member_from_var(var);
+                if scope_member.member.is_closed() {
+                    let maybe_resolved_term_id = scope_member.member.data.value();
+                    // Try to simplify it
+                    if let Some(resolved_term_id) = maybe_resolved_term_id {
+                        Ok(Some(self.potentially_simplify_term(resolved_term_id)?))
+                    } else {
+                        Ok(None)
+                    }
                 } else {
                     Ok(None)
                 }
             }
-            Term::ScopeVar(_) => todo!(),
             Term::TyFn(ty_fn) => {
                 // Simplify each constituent of the type function, and if any are successfully
                 // simplified, the whole thing can be simplified:
