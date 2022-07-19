@@ -8,7 +8,7 @@
 use hash_ast::ast::ParamOrigin;
 
 use super::{
-    primitives::{ModDefOrigin, NominalDefId, TermId, TrtDefId, Visibility},
+    primitives::{ModDefOrigin, NominalDefId, ScopeKind, TermId, TrtDefId, Visibility},
     GlobalStorage,
 };
 use crate::ops::building::PrimitiveBuilder;
@@ -107,7 +107,7 @@ impl CoreDefs {
         // We call this "Type" because that's what people usually mean when they say
         // "type".
         let runtime_instantiable_trt =
-            builder.create_trt_def(Some("Type"), builder.create_constant_scope([]), []);
+            builder.create_trt_def(Some("Type"), builder.create_scope(ScopeKind::Constant, []), []);
 
         // Helper for general type bound
         let ty_term = builder.create_trt_term(runtime_instantiable_trt);
@@ -167,113 +167,81 @@ impl CoreDefs {
         // Hash and Eq traits
         let hash_trt = builder.create_trt_def(
             Some("Hash"),
-            builder.create_constant_scope([
-                builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
-                builder.create_uninitialised_constant_member(
-                    "hash",
-                    builder.create_fn_ty_term(
-                        builder.create_params(
-                            [builder.create_param("value", builder.create_var_term("Self"))],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_nominal_def_term(u64_ty),
+            builder.create_scope(
+                ScopeKind::Constant,
+                [
+                    builder.create_uninitialised_constant_member(
+                        "Self",
+                        ty_term,
+                        Visibility::Public,
                     ),
-                    Visibility::Public,
-                ),
-            ]),
+                    builder.create_uninitialised_constant_member(
+                        "hash",
+                        builder.create_fn_ty_term(
+                            builder.create_params(
+                                [builder.create_param("value", builder.create_var_term("Self"))],
+                                ParamOrigin::Fn,
+                            ),
+                            builder.create_nominal_def_term(u64_ty),
+                        ),
+                        Visibility::Public,
+                    ),
+                ],
+            ),
             [],
         );
         let eq_trt = builder.create_trt_def(
             Some("Eq"),
-            builder.create_constant_scope([
-                builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
-                builder.create_uninitialised_constant_member(
-                    "eq",
-                    builder.create_fn_ty_term(
-                        builder.create_params(
-                            [
-                                builder.create_param("a", builder.create_var_term("Self")),
-                                builder.create_param("b", builder.create_var_term("Self")),
-                            ],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_nominal_def_term(u64_ty),
+            builder.create_scope(
+                ScopeKind::Constant,
+                [
+                    builder.create_uninitialised_constant_member(
+                        "Self",
+                        ty_term,
+                        Visibility::Public,
                     ),
-                    Visibility::Public,
-                ),
-            ]),
+                    builder.create_uninitialised_constant_member(
+                        "eq",
+                        builder.create_fn_ty_term(
+                            builder.create_params(
+                                [
+                                    builder.create_param("a", builder.create_var_term("Self")),
+                                    builder.create_param("b", builder.create_var_term("Self")),
+                                ],
+                                ParamOrigin::Fn,
+                            ),
+                            builder.create_nominal_def_term(u64_ty),
+                        ),
+                        Visibility::Public,
+                    ),
+                ],
+            ),
             [],
         );
 
         // Index trait
         let index_trt = builder.create_trt_def(
             Some("Index"),
-            builder.create_constant_scope([
-                builder.create_uninitialised_constant_member("Self", ty_term, Visibility::Public),
-                builder.create_uninitialised_constant_member("Index", ty_term, Visibility::Public),
-                builder.create_uninitialised_constant_member("Output", ty_term, Visibility::Public),
-                builder.create_uninitialised_constant_member(
-                    "index",
-                    builder.create_fn_ty_term(
-                        builder.create_params(
-                            [
-                                builder.create_param("self", builder.create_var_term("Self")),
-                                builder.create_param("index", builder.create_var_term("Index")),
-                            ],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_var_term("Output"),
+            builder.create_scope(
+                ScopeKind::Constant,
+                [
+                    builder.create_uninitialised_constant_member(
+                        "Self",
+                        ty_term,
+                        Visibility::Public,
                     ),
-                    Visibility::Public,
-                ),
-            ]),
-            [],
-        );
-
-        // Collection types
-        let index_trt_term = builder.create_trt_term(index_trt);
-        let list_index_impl = builder.create_nameless_mod_def(
-            ModDefOrigin::TrtImpl(index_trt_term),
-            builder.create_constant_scope([
-                builder.create_constant_member(
-                    "Self",
-                    ty_term,
-                    builder.create_app_ty_fn_term(
-                        builder.create_var_term("List"),
-                        builder.create_args(
-                            [builder.create_nameless_arg(builder.create_var_term("T"))],
-                            ParamOrigin::TyFn,
-                        ),
+                    builder.create_uninitialised_constant_member(
+                        "Index",
+                        ty_term,
+                        Visibility::Public,
                     ),
-                    Visibility::Public,
-                ),
-                builder.create_constant_member(
-                    "Index",
-                    ty_term,
-                    // @@Todo: change this to use usize once we have a better way of inferring
-                    // numerics.
-                    builder.create_nominal_def_term(i32_ty),
-                    Visibility::Public,
-                ),
-                builder.create_constant_member(
-                    "Output",
-                    ty_term,
-                    builder.create_var_term("T"),
-                    Visibility::Public,
-                ),
-                builder.create_constant_member(
-                    "index",
-                    builder.create_fn_ty_term(
-                        builder.create_params(
-                            [
-                                builder.create_param("self", builder.create_var_term("Self")),
-                                builder.create_param("index", builder.create_var_term("Index")),
-                            ],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_var_term("Output"),
+                    builder.create_uninitialised_constant_member(
+                        "Output",
+                        ty_term,
+                        Visibility::Public,
                     ),
-                    builder.create_fn_lit_term(
+                    builder.create_uninitialised_constant_member(
+                        "index",
                         builder.create_fn_ty_term(
                             builder.create_params(
                                 [
@@ -284,11 +252,79 @@ impl CoreDefs {
                             ),
                             builder.create_var_term("Output"),
                         ),
-                        builder.create_rt_term(builder.create_var_term("Output")),
+                        Visibility::Public,
                     ),
-                    Visibility::Public,
-                ),
-            ]),
+                ],
+            ),
+            [],
+        );
+
+        // Collection types
+        let index_trt_term = builder.create_trt_term(index_trt);
+        let list_index_impl = builder.create_nameless_mod_def(
+            ModDefOrigin::TrtImpl(index_trt_term),
+            builder.create_scope(
+                ScopeKind::Constant,
+                [
+                    builder.create_constant_member(
+                        "Self",
+                        ty_term,
+                        builder.create_app_ty_fn_term(
+                            builder.create_var_term("List"),
+                            builder.create_args(
+                                [builder.create_nameless_arg(builder.create_var_term("T"))],
+                                ParamOrigin::TyFn,
+                            ),
+                        ),
+                        Visibility::Public,
+                    ),
+                    builder.create_constant_member(
+                        "Index",
+                        ty_term,
+                        // @@Todo: change this to use usize once we have a better way of inferring
+                        // numerics.
+                        builder.create_nominal_def_term(i32_ty),
+                        Visibility::Public,
+                    ),
+                    builder.create_constant_member(
+                        "Output",
+                        ty_term,
+                        builder.create_var_term("T"),
+                        Visibility::Public,
+                    ),
+                    builder.create_constant_member(
+                        "index",
+                        builder.create_fn_ty_term(
+                            builder.create_params(
+                                [
+                                    builder.create_param("self", builder.create_var_term("Self")),
+                                    builder.create_param("index", builder.create_var_term("Index")),
+                                ],
+                                ParamOrigin::Fn,
+                            ),
+                            builder.create_var_term("Output"),
+                        ),
+                        builder.create_fn_lit_term(
+                            builder.create_fn_ty_term(
+                                builder.create_params(
+                                    [
+                                        builder
+                                            .create_param("self", builder.create_var_term("Self")),
+                                        builder.create_param(
+                                            "index",
+                                            builder.create_var_term("Index"),
+                                        ),
+                                    ],
+                                    ParamOrigin::Fn,
+                                ),
+                                builder.create_var_term("Output"),
+                            ),
+                            builder.create_rt_term(builder.create_var_term("Output")),
+                        ),
+                        Visibility::Public,
+                    ),
+                ],
+            ),
             [builder.create_var("T")],
         );
         let list_ty_fn = builder.create_ty_fn_term(

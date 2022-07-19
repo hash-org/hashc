@@ -114,6 +114,7 @@ pub enum ScopeKind {
     Variable,
     Constant,
     Bound,
+    Substitution,
 }
 
 /// Stores a list of members, indexed by the members' names.

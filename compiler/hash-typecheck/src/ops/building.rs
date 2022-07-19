@@ -474,20 +474,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [Scope], returning a [ScopeId].
-    pub fn create_scope(&self, scope: Scope) -> ScopeId {
-        self.gs.borrow_mut().scope_store.create(scope)
-    }
-
-    /// Create a [Scope] of kind [ScopeKind::Variable] from the given members,
-    /// returning a [ScopeId].
-    pub fn create_variable_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
-        self.create_scope(Scope::new(ScopeKind::Variable, members))
-    }
-
-    /// Create a [Scope] of kind [ScopeKind::Constant] from the given members,
-    /// returning a [ScopeId].
-    pub fn create_constant_scope(&self, members: impl IntoIterator<Item = Member>) -> ScopeId {
-        self.create_scope(Scope::new(ScopeKind::Constant, members))
+    pub fn create_scope(
+        &self,
+        kind: ScopeKind,
+        members: impl IntoIterator<Item = Member>,
+    ) -> ScopeId {
+        self.gs.borrow_mut().scope_store.create(Scope::new(kind, members))
     }
 
     /// Create a trait definition either being named or nameless.
@@ -520,7 +512,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         members: impl Iterator<Item = Member>,
         bound_vars: impl IntoIterator<Item = Var>,
     ) -> TrtDefId {
-        let members = self.create_constant_scope(members);
+        let members = self.create_scope(ScopeKind::Constant, members);
 
         let trt_def_id = self.gs.borrow_mut().trt_def_store.create(TrtDef {
             name: None,

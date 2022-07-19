@@ -5,7 +5,8 @@ use crate::{
     diagnostics::error::{TcError, TcResult},
     storage::{
         primitives::{
-            MemberData, ParamsId, ScopeId, ScopeMember, Sub, SubSubject, TermId, Visibility,
+            MemberData, ParamsId, ScopeId, ScopeKind, ScopeMember, Sub, SubSubject, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -68,14 +69,16 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     pub(crate) fn enter_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
-        let param_scope =
-            builder.create_variable_scope(params.positional().iter().filter_map(|param| {
+        let param_scope = builder.create_scope(
+            ScopeKind::Variable,
+            params.positional().iter().filter_map(|param| {
                 Some(builder.create_variable_member(
                     param.name?,
                     param.ty,
                     builder.create_rt_term(param.ty),
                 ))
-            }));
+            }),
+        );
         self.scopes_mut().append(param_scope);
         param_scope
     }
@@ -87,17 +90,17 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     /// type [SubSubject::Var] to its corresponding range element.
     pub(crate) fn enter_sub_param_scope(&mut self, sub: &Sub) -> ScopeId {
         let builder = self.builder();
-        let sub_scope =
-            builder.create_constant_scope(sub.pairs().filter_map(|(domain_el, range_el)| {
-                match domain_el {
-                    SubSubject::Var(var) => Some(builder.create_constant_member_infer_ty(
-                        var.name,
-                        range_el,
-                        Visibility::Private,
-                    )),
-                    SubSubject::Unresolved(_) => None,
-                }
-            }));
+        let sub_scope = builder.create_scope(
+            ScopeKind::Substitution,
+            sub.pairs().filter_map(|(domain_el, range_el)| match domain_el {
+                SubSubject::Var(var) => Some(builder.create_constant_member_infer_ty(
+                    var.name,
+                    range_el,
+                    Visibility::Private,
+                )),
+                SubSubject::Unresolved(_) => None,
+            }),
+        );
         self.scopes_mut().append(sub_scope);
         sub_scope
     }
@@ -110,14 +113,16 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     pub(crate) fn enter_ty_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
-        let param_scope =
-            builder.create_constant_scope(params.positional().iter().filter_map(|param| {
+        let param_scope = builder.create_scope(
+            ScopeKind::Bound,
+            params.positional().iter().filter_map(|param| {
                 Some(builder.create_uninitialised_constant_member(
                     param.name?,
                     param.ty,
                     Visibility::Private,
                 ))
-            }));
+            }),
+        );
         self.scopes_mut().append(param_scope);
         param_scope
     }

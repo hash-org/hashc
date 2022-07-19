@@ -10,7 +10,8 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
             AccessOp, Arg, ArgsId, BindingPat, BoundVars, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, Sub, TermId, Visibility,
+            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, ScopeKind, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -1262,7 +1263,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 match case_match {
                     Some(members_to_add) => {
                         // Enter a new scope and add the members
-                        let match_case_scope = self.builder().create_variable_scope(members_to_add);
+                        let match_case_scope =
+                            self.builder().create_scope(ScopeKind::Variable, members_to_add);
                         self.scopes_mut().append(match_case_scope);
 
                         // Traverse the body with the bound variables:
@@ -2234,7 +2236,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         {
             self.global_storage().root_scope
         } else {
-            self.builder().create_constant_scope(vec![])
+            self.builder().create_scope(ScopeKind::Constant, vec![])
         };
 
         // Get the end of the filename for the module and use this as the name of the

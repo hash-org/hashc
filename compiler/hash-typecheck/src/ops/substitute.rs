@@ -652,7 +652,7 @@ mod tests {
         ops::AccessToOpsMut,
         storage::{
             core::CoreDefs,
-            primitives::{ModDefOrigin, Sub},
+            primitives::{ModDefOrigin, ScopeKind, Sub},
             AccessToStorage, AccessToStorageMut, GlobalStorage, LocalStorage, StorageRefMut,
         },
     };
@@ -682,7 +682,7 @@ mod tests {
         // actually write proper tests here:
         let hash_impl = builder.create_nameless_mod_def(
             ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
-            builder.create_constant_scope([]),
+            builder.create_scope(ScopeKind::Constant, []),
             [],
         );
 

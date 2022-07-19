@@ -1255,7 +1255,7 @@ mod test_super {
         fmt::PrepareForFormatting,
         storage::{
             core::CoreDefs,
-            primitives::{ModDefOrigin, Visibility},
+            primitives::{ModDefOrigin, ScopeKind, Visibility},
             GlobalStorage, LocalStorage,
         },
     };
@@ -1300,23 +1300,17 @@ mod test_super {
 
         let hash_impl = builder.create_nameless_mod_def(
             ModDefOrigin::TrtImpl(builder.create_trt_term(core_defs.hash_trt)),
-            builder.create_constant_scope([
-                builder.create_constant_member(
-                    "Self",
-                    builder.create_any_ty_term(),
-                    builder.create_nominal_def_term(dog_def),
-                    Visibility::Public,
-                ),
-                builder.create_constant_member(
-                    "hash",
-                    builder.create_fn_ty_term(
-                        builder.create_params(
-                            [builder.create_param("value", builder.create_var_term("Self"))],
-                            ParamOrigin::Fn,
-                        ),
-                        builder.create_nominal_def_term(core_defs.u64_ty),
+            builder.create_scope(
+                ScopeKind::Constant,
+                [
+                    builder.create_constant_member(
+                        "Self",
+                        builder.create_any_ty_term(),
+                        builder.create_nominal_def_term(dog_def),
+                        Visibility::Public,
                     ),
-                    builder.create_fn_lit_term(
+                    builder.create_constant_member(
+                        "hash",
                         builder.create_fn_ty_term(
                             builder.create_params(
                                 [builder.create_param("value", builder.create_var_term("Self"))],
@@ -1324,11 +1318,22 @@ mod test_super {
                             ),
                             builder.create_nominal_def_term(core_defs.u64_ty),
                         ),
-                        builder.create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
+                        builder.create_fn_lit_term(
+                            builder.create_fn_ty_term(
+                                builder.create_params(
+                                    [builder
+                                        .create_param("value", builder.create_var_term("Self"))],
+                                    ParamOrigin::Fn,
+                                ),
+                                builder.create_nominal_def_term(core_defs.u64_ty),
+                            ),
+                            builder
+                                .create_rt_term(builder.create_nominal_def_term(core_defs.u64_ty)),
+                        ),
+                        Visibility::Public,
                     ),
-                    Visibility::Public,
-                ),
-            ]),
+                ],
+            ),
             [],
         );
 
