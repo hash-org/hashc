@@ -106,6 +106,14 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         // dependencies. Need to find a way to prevent this.
         self.checked_sources_mut().mark_checked(source_id, result);
 
+        println!(
+            "cache: hits: {}, misses: {} simplification_size: {} validation_size: {}",
+            self.cache().hits,
+            self.cache().misses,
+            self.cache().simplification_store.len(),
+            self.cache().validation_store.len()
+        );
+
         Ok(result)
     }
 

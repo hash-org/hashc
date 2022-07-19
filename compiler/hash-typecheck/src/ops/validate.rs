@@ -620,6 +620,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     /// Returns the simplified term, along with its type, which are computed
     /// during the validation.
     pub(crate) fn validate_term(&mut self, term_id: TermId) -> TcResult<TermValidation> {
+        // Check if we have already performed a simplification on this term, if so
+        // return the result.
+        if let Some(term) = self.cache_mut().has_been_validated(term_id) {
+            return Ok(term);
+        }
+
         // First, we try simplify the term:
         let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
 
@@ -633,7 +639,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         let result = TermValidation { simplified_term_id, term_ty_id };
 
         let term = reader.get_term(simplified_term_id);
-        match term {
+
+        let validated_term = match term {
             // Merge:
             Term::Merge(terms) => {
                 if let [term] = terms.as_slice() {
@@ -919,7 +926,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
             }
-        }
+        }?;
+
+        // Add an entry into the validation cache
+        self.cache_mut().add_validation_entry(term_id, validated_term);
+        Ok(validated_term)
     }
 
     /// Ensure that the given term is runtime instantiable.

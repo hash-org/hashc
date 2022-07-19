@@ -13,6 +13,7 @@ use crate::fmt::{ForFormatting, PrepareForFormatting};
 
 use self::{
     arguments::ArgsStore,
+    cache::Cache,
     core::CoreDefs,
     location::LocationStore,
     mods::ModDefStore,
@@ -27,6 +28,7 @@ use self::{
 };
 
 pub mod arguments;
+pub mod cache;
 pub mod core;
 pub mod location;
 pub mod mods;
@@ -53,6 +55,11 @@ pub struct GlobalStorage {
     pub pattern_store: PatternStore,
     pub pattern_params_store: PatternParamsStore,
     pub checked_sources: CheckedSources,
+
+    /// The typechecking cache, contains cached simplification, validation
+    /// and unification results
+    pub cache: Cache,
+
     /// Used to create the first scope when creating a LocalStorage.
     ///
     /// This includes all the core language definitions; it shouldn't be
@@ -79,6 +86,7 @@ impl GlobalStorage {
             root_scope,
             params_store: ParamsStore::new(),
             args_store: ArgsStore::new(),
+            cache: Cache::new(),
         }
     }
 }
@@ -155,6 +163,10 @@ pub trait AccessToStorage {
         &self.global_storage().term_store
     }
 
+    fn cache(&self) -> &Cache {
+        &self.global_storage().cache
+    }
+
     fn location_store(&self) -> &LocationStore {
         &self.global_storage().location_store
     }
@@ -229,6 +241,10 @@ pub trait AccessToStorageMut: AccessToStorage {
 
     fn term_store_mut(&mut self) -> &mut TermStore {
         &mut self.global_storage_mut().term_store
+    }
+
+    fn cache_mut(&mut self) -> &mut Cache {
+        &mut self.global_storage_mut().cache
     }
 
     fn location_store_mut(&mut self) -> &mut LocationStore {
