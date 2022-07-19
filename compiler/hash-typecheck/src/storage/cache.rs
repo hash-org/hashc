@@ -49,9 +49,9 @@ impl<K, V> Default for CacheStore<K, V> {
 }
 
 impl<K: Hash + Eq, V> CacheStore<K, V> {
-    /// Create a new [Cache]
-    pub(crate) fn new() -> Self {
-        Self { store: HashMap::new(), hits: 0, misses: 0 }
+    /// Create a new [CacheStore]
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Create a new [CacheStore] with an initial capacity. The capacity
@@ -107,22 +107,20 @@ impl<K: Hash + Eq, V> CacheStore<K, V> {
 
 #[derive(Debug, Default)]
 pub struct Cache {
-    /// Inner store for the results from term simplifications.
+    /// Inner store for the results from term simplifications
     pub(crate) simplification_store: CacheStore<TermId, TermId>,
-    /// Inner store for the results from term simplifications.
+    /// Inner store for the results from term simplifications
     pub(crate) validation_store: CacheStore<TermId, TermValidation>,
-    /// Inner store for the results from term unifications.
+    /// Inner store for the results from term unifications
     pub(crate) unification_store: CacheStore<(TermId, TermId), Sub>,
+    /// Inner store for the results from term inference operations
+    pub(crate) inference_store: CacheStore<TermId, TermId>,
 }
 
 impl Cache {
     /// Create a new [Cache]
     pub fn new() -> Self {
-        Self {
-            simplification_store: CacheStore::new(),
-            validation_store: CacheStore::new(),
-            unification_store: CacheStore::new(),
-        }
+        Self::default()
     }
 
     /// Create a new [Cache] with an initial capacity. The capacity
@@ -132,6 +130,7 @@ impl Cache {
             simplification_store: CacheStore::with_capacity(capacity),
             validation_store: CacheStore::with_capacity(capacity),
             unification_store: CacheStore::with_capacity(capacity),
+            inference_store: CacheStore::with_capacity(capacity),
         }
     }
 }

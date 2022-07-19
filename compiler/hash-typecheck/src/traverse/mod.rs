@@ -108,13 +108,15 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         self.checked_sources_mut().mark_checked(source_id, result);
 
         log::debug!(
-            "tc cache metrics:\n{: <10}: {}\n{: <10}: {}\n{: <10}: {}\n",
-            "substitute",
+            "tc cache metrics:\n{: <8}: {}\n{: <8}: {}\n{: <8}: {}\n{: <8}: {}\n",
+            "simplify",
             self.cache().simplification_store.metrics(),
             "validate",
             self.cache().validation_store.metrics(),
             "unify",
-            self.cache().unification_store.metrics()
+            self.cache().unification_store.metrics(),
+            "infer",
+            self.cache().inference_store.metrics()
         );
 
         Ok(result)
