@@ -106,13 +106,14 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         // dependencies. Need to find a way to prevent this.
         self.checked_sources_mut().mark_checked(source_id, result);
 
-        println!(
-            "cache: hits: {}, misses: {} simplification_size: {} validation_size: {} unification_size: {}",
-            self.cache().hits,
-            self.cache().misses,
-            self.cache().simplification_store.len(),
-            self.cache().validation_store.len(),
-            self.cache().unification_store.len()
+        log::debug!(
+            "tc cache metrics:\n{: <10}: {}\n{: <10}: {}\n{: <10}: {}\n",
+            "substitute",
+            self.cache().simplification_store.metrics(),
+            "validate",
+            self.cache().validation_store.metrics(),
+            "unify",
+            self.cache().unification_store.metrics()
         );
 
         Ok(result)

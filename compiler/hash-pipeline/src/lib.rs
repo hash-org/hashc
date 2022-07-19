@@ -137,7 +137,7 @@ where
         let mut timings: Vec<_> = self.metrics.iter().collect();
         timings.sort_by_key(|entry| entry.0);
 
-        log::info!("compiler pipeline timings:");
+        log::debug!("compiler pipeline timings:");
 
         for (stage, duration) in timings {
             // This shouldn't occur as we don't record this metric in this way
@@ -146,11 +146,11 @@ where
             }
             total += *duration;
 
-            println!("{: <12}: {duration:?}", format!("{}", stage));
+            eprintln!("{: <12}: {duration:?}", format!("{}", stage));
         }
 
         // Now print the total
-        println!("{: <12}: {total:?}\n", format!("{}", CompilerMode::Full));
+        eprintln!("{: <12}: {total:?}\n", format!("{}", CompilerMode::Full));
     }
 
     /// Utility function used by AST like stages in order to print the

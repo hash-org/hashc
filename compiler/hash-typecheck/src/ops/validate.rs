@@ -622,7 +622,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     pub(crate) fn validate_term(&mut self, term_id: TermId) -> TcResult<TermValidation> {
         // Check if we have already performed a simplification on this term, if so
         // return the result.
-        if let Some(term) = self.cache_mut().has_been_validated(term_id) {
+        if let Some(term) = self.cacher().has_been_validated(term_id) {
             return Ok(term);
         }
 
@@ -929,7 +929,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         }?;
 
         // Add an entry into the validation cache
-        self.cache_mut().add_validation_entry(term_id, validated_term);
+        self.cacher().add_validation_entry(term_id, validated_term);
         Ok(validated_term)
     }
 

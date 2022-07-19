@@ -282,7 +282,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             return Ok(Sub::empty());
         }
 
-        if let Some(sub) = self.cache_mut().has_been_unified((src_id, target_id)) {
+        if let Some(sub) = self.cacher().has_been_unified((src_id, target_id)) {
             return Ok(sub);
         }
 
@@ -349,7 +349,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 for inner_target_id in inner_target {
                     match self.unify_terms(simplified_src_id, inner_target_id) {
                         Ok(result) => {
-                            subs = self.unify_subs(&subs, &result)?;
+                            subs.extend(&result);
                             continue;
                         }
                         Err(e) => return Err(e),
@@ -655,7 +655,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
         }?;
 
-        self.cache_mut().add_unification_entry((src_id, target_id), &sub);
+        self.cacher().add_unification_entry((src_id, target_id), &sub);
+
         Ok(sub)
     }
 }

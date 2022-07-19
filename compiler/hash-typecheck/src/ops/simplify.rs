@@ -1090,7 +1090,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     pub(crate) fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
         // Check if we have already performed a simplification on this term, if so
         // return the result.
-        if let Some(term) = self.cache_mut().has_been_simplified(term_id) {
+        if let Some(term) = self.cacher().has_been_simplified(term_id) {
             return Ok(Some(term));
         }
 
@@ -1231,7 +1231,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             self.location_store_mut().copy_location(term_id, new_term);
 
             // We want to add an entry for the operation within the cache...
-            self.cache_mut().add_simplification_entry(term_id, new_term);
+            self.cacher().add_simplification_entry(term_id, new_term);
         }
 
         Ok(new_term)
