@@ -73,6 +73,8 @@ impl Term {
             Term::Level2(_) => TermLevel::Level2,
             Term::Level1(_) => TermLevel::Level1,
             Term::Level0(_) => TermLevel::Level0,
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 }
@@ -410,6 +412,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Union term should have already been flattened"
                 )
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -575,6 +579,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Merge term should have already been flattened"
                 )
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -811,7 +817,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 let ty_fn_ty = ty_fn_ty.clone();
                 self.validate_params(ty_fn_ty.params)?;
 
-                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn_ty.params);
+                let param_scope = self.scope_manager().enter_ty_param_scope(ty_fn_ty.params);
                 let _ = self.validate_term(ty_fn_ty.return_ty);
 
                 let params = self.params_store().get(ty_fn_ty.params).clone();
@@ -840,7 +846,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 self.validate_params(ty_fn.general_params)?;
 
                 // Enter param scope:
-                let param_scope = self.scope_resolver().enter_ty_param_scope(ty_fn.general_params);
+                let param_scope = self.scope_manager().enter_ty_param_scope(ty_fn.general_params);
 
                 let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
 
@@ -855,7 +861,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 for case in &ty_fn.cases {
                     self.validate_params(case.params)?;
 
-                    let param_scope = self.scope_resolver().enter_ty_param_scope(case.params);
+                    let param_scope = self.scope_manager().enter_ty_param_scope(case.params);
                     self.validate_term(case.return_ty)?;
                     self.validate_term(case.return_value)?;
 
@@ -915,6 +921,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1060,6 +1068,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // This should be okay, for example if we are returning some TyFnTy value.
                 Ok(true)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1116,6 +1126,8 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }
+            Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 

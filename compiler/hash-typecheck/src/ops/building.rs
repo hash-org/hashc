@@ -3,12 +3,12 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPat, ConstructorPat, EnumDef,
+        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat, EnumDef,
         EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
         Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
         ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
-        PatParam, PatParamsId, Scope, ScopeId, ScopeKind, StructDef, StructFields, Sub, Term,
-        TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+        PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef, StructFields, Sub,
+        Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
@@ -59,6 +59,26 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_var_term(&self, var_name: impl Into<Identifier>) -> TermId {
         let var = self.create_var(var_name);
         self.create_term(Term::Var(var))
+    }
+
+    /// Create a scope variable with the given name, scope and index.
+    pub fn create_scope_var_term(
+        &self,
+        name: impl Into<Identifier>,
+        scope: ScopeId,
+        index: usize,
+    ) -> TermId {
+        self.create_term(Term::ScopeVar(ScopeVar { name: name.into(), scope, index }))
+    }
+
+    /// Create a bound variable with the given name, parameters and index.
+    pub fn create_bound_var_term(
+        &self,
+        name: impl Into<Identifier>,
+        params: ParamsId,
+        index: usize,
+    ) -> TermId {
+        self.create_term(Term::BoundVar(BoundVar { name: name.into(), params, index }))
     }
 
     /// Add the given nominal definition to the scope.
@@ -302,12 +322,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         value: TermId,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::InitialisedWithTy { ty, value },
-            visibility: Visibility::Private,
-            mutability: Mutability::Immutable,
-        }
+        Member::closed(
+            name.into(),
+            Visibility::Private,
+            Mutability::Immutable,
+            MemberData::InitialisedWithTy { ty, value },
+        )
     }
 
     /// Create a public member with the given name and value, with inferred
@@ -318,12 +338,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::InitialisedWithInferredTy { value },
+        Member::closed(
+            name.into(),
             visibility,
-            mutability: Mutability::Immutable,
-        }
+            Mutability::Immutable,
+            MemberData::InitialisedWithInferredTy { value },
+        )
     }
 
     /// Create a public member with the given name, type and value.
@@ -334,12 +354,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         value: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::InitialisedWithTy { ty, value },
+        Member::closed(
+            name.into(),
             visibility,
-            mutability: Mutability::Immutable,
-        }
+            Mutability::Immutable,
+            MemberData::InitialisedWithTy { ty, value },
+        )
     }
 
     /// Create a public member with the given name, type and unset value.
@@ -349,12 +369,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
         ty: TermId,
         visibility: Visibility,
     ) -> Member {
-        Member {
-            name: name.into(),
-            data: MemberData::Uninitialised { ty },
+        Member::closed(
+            name.into(),
             visibility,
-            mutability: Mutability::Immutable,
-        }
+            Mutability::Immutable,
+            MemberData::Uninitialised { ty },
+        )
     }
 
     /// Create a [Term::Root].

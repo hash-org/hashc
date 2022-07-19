@@ -4,7 +4,7 @@
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
 use self::{
-    building::PrimitiveBuilder, pats::PatMatcher, reader::PrimitiveReader, scope::ScopeResolver,
+    building::PrimitiveBuilder, pats::PatMatcher, reader::PrimitiveReader, scope::ScopeManager,
     simplify::Simplifier, substitute::Substituter, typing::Typer, unify::Unifier,
     validate::Validator,
 };
@@ -73,9 +73,9 @@ pub trait AccessToOpsMut: AccessToStorageMut {
         Validator::new(self.storages_mut())
     }
 
-    /// Create an instance of [ScopeResolver].
-    fn scope_resolver(&mut self) -> ScopeResolver {
-        ScopeResolver::new(self.storages_mut())
+    /// Create an instance of [ScopeManager].
+    fn scope_manager(&mut self) -> ScopeManager {
+        ScopeManager::new(self.storages_mut())
     }
 
     /// Create an instance of [PatMatcher].

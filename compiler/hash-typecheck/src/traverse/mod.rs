@@ -1,7 +1,5 @@
 //! Contains functions to traverse the AST and add types to it, while checking
 //! it for correctness.
-use std::collections::HashSet;
-
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -29,6 +27,7 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use itertools::Itertools;
+use std::collections::HashSet;
 
 use self::scopes::VisitConstantScope;
 
@@ -46,6 +45,9 @@ pub struct TcVisitorState {
     pub fn_def_return_ty: Option<TermId>,
     /// If the current traversal is within the intrinsic directive scope.
     pub within_intrinsics_directive: bool,
+    /// If traversing a declaration, what to set for the
+    /// `assignments_until_closed` field.
+    pub declaration_assignments_until_closed: usize,
 }
 
 impl TcVisitorState {
@@ -945,7 +947,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         )?;
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
-        let param_scope = self.scope_resolver().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().enter_ty_param_scope(params);
         let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
         self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1099,7 +1101,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Enter parameter scope:
-        let param_scope = self.scope_resolver().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().enter_ty_param_scope(params);
 
         // Traverse return type and return value:
         let return_ty =
@@ -1153,7 +1155,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
 
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
-        let param_scope = self.scope_resolver().enter_rt_param_scope(params_potentially_unresolved);
+        let param_scope = self.scope_manager().enter_rt_param_scope(params_potentially_unresolved);
 
         let fn_body = self.visit_expr(ctx, node.fn_body.ast_ref())?;
 
@@ -1602,12 +1604,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             None => {
                 if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
                     // Add the member without a value:
-                    vec![Member {
+                    vec![Member::closed(
                         name,
-                        data: MemberData::from_ty_and_value(Some(ty), None),
-                        mutability,
                         visibility,
-                    }]
+                        mutability,
+                        MemberData::from_ty_and_value(Some(ty), None),
+                    )]
                 } else {
                     // If there is no value, one cannot use pattern matching!
                     return Err(TcError::CannotPatMatchWithoutAssignment { pat: pat_id });
@@ -1649,13 +1651,31 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type AssignExprRet = TermId;
-
     fn visit_assign_expr(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error> {
-        todo!()
+        let rhs = self.visit_expr(ctx, node.rhs.ast_ref())?;
+
+        // Try to resolve the variable in scopes; if it is not found, it is an error. If
+        // it is found, then set it to its new term.
+        let name = match node.lhs.kind() {
+            ast::ExprKind::Variable(name) => name.name.ident,
+            _ => {
+                return Err(TcError::InvalidAssignSubject {
+                    location: self.source_location_at_node(node),
+                });
+            }
+        };
+        let var_term = self.builder().create_var_term(name);
+        self.copy_location_from_node_to_target(node, var_term);
+        let member = self.scope_manager().resolve_name_in_scopes(name, var_term)?;
+
+        // Set the value to the member:
+        self.scope_manager().assign_member(member.scope_id, member.index, rhs)?;
+
+        Ok(self.builder().create_void_term())
     }
 
     type AssignOpExpressionRet = TermId;

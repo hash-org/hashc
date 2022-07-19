@@ -1,15 +1,11 @@
 //! Error-related data structures for errors that occur during typechecking.
 
+use super::params::{ParamListKind, ParamUnificationErrorReason};
 use crate::storage::{
     location::LocationTarget,
-    primitives::{AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
+    primitives::{AccessOp, AccessTerm, ArgsId, ParamsId, PatId, TermId, TyFnCase},
 };
-use hash_source::identifier::Identifier;
-
-use super::{
-    params::{ParamListKind, ParamUnificationErrorReason},
-    symbol::NameFieldOrigin,
-};
+use hash_source::{identifier::Identifier, location::SourceLocation};
 
 /// Convenient type alias for a result with a [TcError] as the error type.
 pub type TcResult<T> = Result<T, TcError>;
@@ -66,7 +62,13 @@ pub enum TcError {
     /// It is invalid to use a positional argument after a named argument.
     AmbiguousArgumentOrdering { param_kind: ParamListKind, index: usize },
     /// The given name cannot be resolved in the given value.
-    UnresolvedNameInValue { name: Identifier, origin: NameFieldOrigin, value: TermId },
+    UnresolvedNameInValue {
+        // @@ErrorReporting: add more info about the term. Maybe we need a general way of
+        // characterising terms as a string (i.e. "struct", "enum", "module", etc).
+        name: Identifier,
+        op: AccessOp,
+        value: TermId,
+    },
     /// The given variable cannot be resolved in the current context.
     UnresolvedVariable { name: Identifier, value: TermId },
     /// The given value does not support accessing (of the given name).
@@ -140,4 +142,6 @@ pub enum TcError {
     UselessMatchCase { pat: PatId, subject: TermId },
     /// Cannot use pattern matching in a declaration without an assignment
     CannotPatMatchWithoutAssignment { pat: PatId },
+    /// Cannot use a non-name as an assign subject.
+    InvalidAssignSubject { location: SourceLocation },
 }

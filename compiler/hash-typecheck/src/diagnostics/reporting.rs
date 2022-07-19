@@ -556,7 +556,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::UnresolvedNameInValue { name, origin, value } => {
+            TcError::UnresolvedNameInValue { name, op, value } => {
                 builder.with_error_code(HashErrorCode::UnresolvedNameInValue).with_message(
                     format!(
                         "the field `{}` is not present within `{}`",
@@ -568,7 +568,12 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 if let Some(location) = err.location_store().get_location(value) {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
-                        format!("{} does not contain the named property `{}`", origin, name),
+                        format!(
+                            "{} does not contain the {} `{}`",
+                            value.for_formatting(err.global_storage()),
+                            op,
+                            name
+                        ),
                     )));
                 }
             }
@@ -997,7 +1002,8 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
             }
             TcError::InvalidFnCallSubject { term } => {
-                builder.with_error_code(HashErrorCode::TypeIsNotTrait).with_message(format!(
+                // @@Todo: error code
+                builder.with_message(format!(
                     "cannot use `{}` as a function call subject",
                     term.for_formatting(err.global_storage())
                 ));
@@ -1010,7 +1016,8 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
             }
             TcError::UselessMatchCase { pat, subject } => {
-                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(format!(
+                // @@Todo: error code
+                builder.with_message(format!(
                     "match case `{}` is redundant when matching on `{}`",
                     pat.for_formatting(err.global_storage()),
                     subject.for_formatting(err.global_storage())
@@ -1031,7 +1038,8 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
             }
             TcError::CannotPatMatchWithoutAssignment { pat } => {
-                builder.with_error_code(HashErrorCode::TypeMismatch).with_message(
+                // @@Todo: error code
+                builder.with_message(
                     "declaration left-hand side cannot contain a pattern if no value is provided"
                         .to_string(),
                 );
@@ -1045,6 +1053,16 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         ),
                     )));
                 }
+            }
+            TcError::InvalidAssignSubject { location } => {
+                builder
+                    .with_error_code(HashErrorCode::InvalidAssignSubject)
+                    .with_message("assignment left-hand side needs to be a variable".to_string());
+
+                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                    *location,
+                    "non-variable term given in an assignment here",
+                )));
             }
         };
 

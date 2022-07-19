@@ -68,6 +68,26 @@ pub struct Member {
     pub data: MemberData,
     pub visibility: Visibility,
     pub mutability: Mutability,
+    /// The amount of assignments are left until the member has finished
+    /// initialising (== closed).
+    pub assignments_until_closed: usize,
+}
+
+impl Member {
+    /// Create a closed member with the given data.
+    pub fn closed(
+        name: Identifier,
+        visibility: Visibility,
+        mutability: Mutability,
+        data: MemberData,
+    ) -> Self {
+        Member { name, data, visibility, mutability, assignments_until_closed: 0 }
+    }
+
+    /// Whether the member is closed (no assignments remaining).
+    pub fn is_closed(&self) -> bool {
+        self.assignments_until_closed == 0
+    }
 }
 
 /// A member of a scope, i.e. a variable or a type definition.
@@ -133,6 +153,16 @@ impl Scope {
         let index = self.member_names.get(&member_name).copied()?;
 
         Some((self.members[index], index))
+    }
+
+    /// Get a member by index, asserting that it exists.
+    pub fn get_by_index(&mut self, index: usize) -> Member {
+        self.members[index]
+    }
+
+    /// Get a member by index, mutably, asserting that it exists.
+    pub fn get_mut_by_index(&mut self, index: usize) -> &mut Member {
+        &mut self.members[index]
     }
 
     /// Iterate through all the members in insertion order (oldest first).
@@ -481,6 +511,22 @@ pub struct UnresolvedTerm {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Var {
     pub name: Identifier,
+}
+
+/// A scope variable, identified by a `ScopeId` and `usize` index.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct ScopeVar {
+    pub name: Identifier,
+    pub scope: ScopeId,
+    pub index: usize,
+}
+
+/// A bound variable, identified by a `ParamsId` and `usize` index.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct BoundVar {
+    pub name: Identifier,
+    pub params: ParamsId,
+    pub index: usize,
 }
 
 /// The action of applying a set of arguments to a type function.
@@ -851,12 +897,23 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant access.
     Access(AccessTerm),
 
-    /// A type-level variable, with some type that is stored in the current
-    /// scope.
+    /// A variable, referencing either a scope variable or a bound variable.
     ///
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
     Var(Var),
+
+    /// A variable that corresponds to some scope member.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
+    ScopeVar(ScopeVar),
+
+    /// A variable that is bound by some params.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
+    BoundVar(BoundVar),
 
     /// Merge of multiple terms.
     ///
