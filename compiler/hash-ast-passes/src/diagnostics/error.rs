@@ -1,6 +1,6 @@
 //! Hash AST semantic analysis error diagnostic definitions.
 
-use hash_ast::ast::Visibility;
+use hash_ast::ast::{ParamOrigin, Visibility};
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_reporting::{
     builder::ReportBuilder,
@@ -10,7 +10,7 @@ use hash_source::{identifier::Identifier, location::SourceLocation, ModuleKind};
 
 use super::{
     directives::DirectiveArgument,
-    origins::{BlockOrigin, FieldOrigin, PatternOrigin},
+    origins::{BlockOrigin, PatternOrigin},
 };
 
 /// An error that can occur during the semantic pass
@@ -70,7 +70,7 @@ pub(crate) enum AnalysisErrorKind {
     /// When a field within a struct, tuple or other form is missing both a type
     /// annotation and a default value, which means that there is not enough
     /// information at later stages to deduce the type of the field.
-    InsufficientTypeAnnotations { origin: FieldOrigin },
+    InsufficientTypeAnnotations { origin: ParamOrigin },
     /// When a directive is not allowed in the current module or context
     DisallowedDirective { name: Identifier, module_kind: Option<ModuleKind> },
     /// When a directive is expecting a particular expression, but received an

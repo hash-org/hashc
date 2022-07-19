@@ -858,7 +858,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
     /// Parse a function definition argument, which is made of an identifier and
     /// a function type.
-    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<FnDefParam>> {
+    pub(crate) fn parse_function_def_param(&self) -> AstGenResult<AstNode<Param>> {
         let name = self.parse_name()?;
         let name_span = name.span();
 
@@ -878,7 +878,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => None,
         };
 
-        Ok(self.node_with_joined_span(FnDefParam { name, ty, default }, &name_span))
+        Ok(self.node_with_joined_span(
+            Param { name, ty, default, origin: ParamOrigin::Fn },
+            &name_span,
+        ))
     }
 
     /// Parse a function literal. Function literals are essentially definitions

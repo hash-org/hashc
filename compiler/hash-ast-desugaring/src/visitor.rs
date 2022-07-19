@@ -461,16 +461,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type TyFnParamRet = ();
-
-    fn visit_ty_fn_param(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnParam>,
-    ) -> Result<Self::TyFnParamRet, Self::Error> {
-        Ok(())
-    }
-
     type TyFnRet = ();
 
     fn visit_ty_fn_ty(
@@ -542,16 +532,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type TyFnDefArgRet = ();
-
-    fn visit_ty_fn_def_param(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::TyFnDefParam>,
-    ) -> Result<Self::TyFnDefArgRet, Self::Error> {
-        Ok(())
-    }
-
     type FnDefRet = ();
 
     fn visit_fn_def(
@@ -563,14 +543,14 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type FnDefParamRet = ();
+    type ParamRet = ();
 
-    fn visit_fn_def_param(
+    fn visit_param(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::FnDefParam>,
-    ) -> Result<Self::FnDefParamRet, Self::Error> {
-        let _ = walk_mut::walk_fn_def_param(self, ctx, node);
+        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Param>,
+    ) -> Result<Self::ParamRet, Self::Error> {
+        let _ = walk_mut::walk_param(self, ctx, node);
         Ok(())
     }
 
@@ -789,14 +769,14 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type AssignExpressionRet = ();
+    type AssignExprRet = ();
 
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignExpr>,
-    ) -> Result<Self::AssignExpressionRet, Self::Error> {
-        let _ = walk_mut::walk_assign_statement(self, ctx, node);
+    ) -> Result<Self::AssignExprRet, Self::Error> {
+        let _ = walk_mut::walk_assign_expr(self, ctx, node);
         Ok(())
     }
 
@@ -841,17 +821,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpr>,
     ) -> Result<Self::IndexExpressionRet, Self::Error> {
         let _ = walk_mut::walk_index_expr(self, ctx, node);
-        Ok(())
-    }
-
-    type StructDefEntryRet = ();
-
-    fn visit_struct_def_entry(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::StructDefEntry>,
-    ) -> Result<Self::StructDefEntryRet, Self::Error> {
-        let _ = walk_mut::walk_struct_def_entry(self, ctx, node);
         Ok(())
     }
 
