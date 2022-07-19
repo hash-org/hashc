@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::ops::validate::TermValidation;
 
-use super::primitives::TermId;
+use super::primitives::{Sub, TermId};
 
 /// The typechecking cache.
 ///
@@ -16,6 +16,8 @@ pub struct Cache {
     pub(crate) simplification_store: HashMap<TermId, TermId>,
     /// Inner store for the results from term simplifications.
     pub(crate) validation_store: HashMap<TermId, TermValidation>,
+    /// Inner store for the results from term unifications.
+    pub(crate) unification_store: HashMap<(TermId, TermId), Sub>,
     /// Number of times the cache successfully retrieved a result
     pub(crate) hits: usize,
     /// Number of times the cache didn't have an operation stored
@@ -34,6 +36,7 @@ impl Cache {
         Self {
             simplification_store: HashMap::with_capacity(capacity),
             validation_store: HashMap::with_capacity(capacity),
+            unification_store: HashMap::with_capacity(capacity),
             hits: 0,
             misses: 0,
         }
@@ -66,6 +69,23 @@ impl Cache {
         self.record(term)
     }
 
+    /// Check whether a `validation` has been performed on the given
+    /// [Term].
+    pub(crate) fn has_been_unified(&mut self, pair: (TermId, TermId)) -> Option<Sub> {
+        let sub = self.unification_store.get(&pair).cloned();
+
+        match sub {
+            Some(value) => {
+                self.hits += 1;
+                Some(value)
+            }
+            None => {
+                self.misses += 1;
+                None
+            }
+        }
+    }
+
     /// Record an entry for a simplification operation.
     pub(crate) fn add_simplification_entry(&mut self, key: TermId, value: TermId) {
         self.simplification_store.insert(key, value);
@@ -74,5 +94,9 @@ impl Cache {
     /// Record an entry for a simplification operation.
     pub(crate) fn add_validation_entry(&mut self, key: TermId, value: TermValidation) {
         self.validation_store.insert(key, value);
+    }
+
+    pub(crate) fn add_unification_entry(&mut self, key: (TermId, TermId), value: &Sub) {
+        self.unification_store.insert(key, value.clone());
     }
 }
