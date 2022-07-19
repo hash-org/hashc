@@ -3,7 +3,7 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat, EnumDef,
+        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPat, ConstructorPat, EnumDef,
         EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
         Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
         ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
@@ -69,16 +69,6 @@ impl<'gs> PrimitiveBuilder<'gs> {
         index: usize,
     ) -> TermId {
         self.create_term(Term::ScopeVar(ScopeVar { name: name.into(), scope, index }))
-    }
-
-    /// Create a bound variable with the given name, parameters and index.
-    pub fn create_bound_var_term(
-        &self,
-        name: impl Into<Identifier>,
-        params: ParamsId,
-        index: usize,
-    ) -> TermId {
-        self.create_term(Term::BoundVar(BoundVar { name: name.into(), params, index }))
     }
 
     /// Add the given nominal definition to the scope.

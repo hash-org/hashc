@@ -113,6 +113,7 @@ pub struct ScopeMember {
 pub enum ScopeKind {
     Variable,
     Constant,
+    Bound,
 }
 
 /// Stores a list of members, indexed by the members' names.
@@ -521,14 +522,6 @@ pub struct ScopeVar {
     pub index: usize,
 }
 
-/// A bound variable, identified by a `ParamsId` and `usize` index.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub struct BoundVar {
-    pub name: Identifier,
-    pub params: ParamsId,
-    pub index: usize,
-}
-
 /// The action of applying a set of arguments to a type function.
 ///
 /// This essentially creates a lambda calculus within the Hash type system,
@@ -908,12 +901,6 @@ pub enum Term {
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
     ScopeVar(ScopeVar),
-
-    /// A variable that is bound by some params.
-    ///
-    /// Is level N-1, where N is the level of the type of the variable in the
-    /// context
-    BoundVar(BoundVar),
 
     /// Merge of multiple terms.
     ///

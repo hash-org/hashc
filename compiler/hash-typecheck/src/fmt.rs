@@ -453,10 +453,6 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(true);
                 write!(f, "{}", var.name)
             }
-            Term::BoundVar(var) => {
-                opts.is_atomic.set(true);
-                write!(f, "{}", var.name)
-            }
         }
     }
 

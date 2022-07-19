@@ -527,11 +527,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::ScopeVar(_)
-            | Term::BoundVar(_)
-            | Term::Access(_)
-            | Term::Var(_)
-            | Term::TyFnCall(_) => {
+            Term::ScopeVar(_) | Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
@@ -627,7 +623,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Level1(_)
             | Term::Level0(_)
             | Term::ScopeVar(_)
-            | Term::BoundVar(_)
             | Term::TyOf(_) => {
                 // Cannot apply if it didn't simplify to a type function:
                 cannot_apply()
@@ -827,10 +822,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Root
             | Term::Var(_)
             | Term::Union(_)
+            | Term::ScopeVar(_)
             | Term::TyOf(_)
             | Term::Access(_) => cannot_use_as_fn_call_subject(),
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1150,6 +1144,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Ok(None)
                 }
             }
+            Term::ScopeVar(_) => todo!(),
             Term::TyFn(ty_fn) => {
                 // Simplify each constituent of the type function, and if any are successfully
                 // simplified, the whole thing can be simplified:
@@ -1240,8 +1235,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::Level0(term) => self.simplify_level0_term(&term, term_id),
             // Root cannot be simplified:
             Term::Root => Ok(None),
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }?;
 
         // Copy over the location if a new term was created
