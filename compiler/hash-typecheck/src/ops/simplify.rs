@@ -1168,7 +1168,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // Simplify general params and return
                 let simplified_general_params = self.simplify_params(ty_fn.general_params)?;
 
-                let param_scope = self.scope_manager().enter_ty_param_scope(ty_fn.general_params);
+                let param_scope = self.scope_manager().enter_bound_scope(ty_fn.general_params);
                 let simplified_general_return_ty = self.simplify_term(ty_fn.general_return_ty)?;
                 self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1179,7 +1179,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     .map(|case| {
                         let simplified_params = self.simplify_params(case.params)?;
 
-                        let param_scope = self.scope_manager().enter_ty_param_scope(case.params);
+                        let param_scope = self.scope_manager().enter_bound_scope(case.params);
                         let simplified_return_ty = self.simplify_term(case.return_ty)?;
                         let simplified_return_value = self.simplify_term(case.return_value)?;
                         self.scopes_mut().pop_the_scope(param_scope);
@@ -1224,7 +1224,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // simplified.
                 let simplified_params = self.simplify_params(ty_fn_ty.params)?;
 
-                let param_scope = self.scope_manager().enter_ty_param_scope(ty_fn_ty.params);
+                let param_scope = self.scope_manager().enter_bound_scope(ty_fn_ty.params);
                 let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
                 self.scopes_mut().pop_the_scope(param_scope);
 

@@ -411,7 +411,7 @@ impl<'gs> TcFormatter<'gs> {
             Term::SetBound(_app_sub) => {
                 opts.is_atomic.set(true);
                 todo!()
-                // write!(f, "[")?;
+                // write!(f "[")?;
                 // let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
                 // for (i, (from, to)) in pairs.iter().enumerate() {
                 //     self.fmt_term_as_single(f, *to, opts.clone())?;

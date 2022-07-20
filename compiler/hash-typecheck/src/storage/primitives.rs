@@ -126,7 +126,7 @@ pub enum ScopeKind {
     ///
     /// Can be:
     /// - Type function "argument" scope.
-    SetBound { bound_scope_id: ScopeId },
+    SetBound,
 }
 
 /// Stores a list of members, indexed by the members' names.
@@ -892,7 +892,7 @@ pub enum Term {
     /// Is level N, where N is the level of the resultant application.
     TyFnCall(TyFnCall),
 
-    /// Setting some bounds of an inner ter.
+    /// Setting some bounds of an inner term.
     ///
     /// Is level N, where N is the level of the inner term after the
     /// substitution has been applied.

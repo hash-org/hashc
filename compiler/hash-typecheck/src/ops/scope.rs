@@ -1,16 +1,21 @@
 //! Functionality related to resolving variables in scopes.
 
-use super::{AccessToOps, AccessToOpsMut};
+use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
-    diagnostics::error::{TcError, TcResult},
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic_on_many,
+        reporting::TcErrorWithStorage,
+    },
     storage::{
         primitives::{
-            MemberData, ParamsId, ScopeId, ScopeKind, ScopeMember, ScopeVar, Sub, TermId,
-            Visibility,
+            ArgsId, Member, MemberData, Mutability, ParamsId, ScopeId, ScopeKind, ScopeMember,
+            ScopeVar, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
+use hash_reporting::{report::Report, writer};
 use hash_source::identifier::Identifier;
 
 /// Contains actions related to variable resolution.
@@ -90,35 +95,51 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         param_scope
     }
 
-    /// Enter a substitution, which is a scope that contains all the mappings in
-    /// the given substitution.
+    /// Enter a set bound scope, which is a scope that contains all the mappings
+    /// in the given arguments, originating from the given parameters.
     ///
-    /// This is creates a constant scope, and assigns each domain element of
-    /// type [SubSubject::Var] to its corresponding range element.
-    pub(crate) fn _enter_sub_param_scope(&mut self, _sub: &Sub) -> ScopeId {
-        let _builder = self.builder();
-        todo!()
-        // let sub_scope = builder.create_scope(
-        //     ScopeKind::SetBound,
-        //     sub.pairs().filter_map(|(domain_el, range_el)| match domain_el {
-        //         SubSubject::Var(var) =>
-        // Some(builder.create_constant_member_infer_ty(
-        // var.name,             range_el,
-        //             Visibility::Private,
-        //         )),
-        //         SubSubject::Unresolved(_) => None,
-        //     }),
-        // );
-        // self.scopes_mut().append(sub_scope);
-        // sub_scope
+    /// This assigns each parameter name to its corresponding argument value.
+    pub(crate) fn _enter_set_bound_scope(
+        &mut self,
+        params_id: ParamsId,
+        args_id: ArgsId,
+        params_subject: TermId,
+        args_subject: TermId,
+    ) -> ScopeId {
+        let args = self.args_store().get(args_id).clone();
+        let params = self.params_store().get(params_id).clone();
+        let paired =
+            pair_args_with_params(&params, &args, params_id, args_id, params_subject, args_subject)
+                .unwrap_or_else(|err| {
+                    let report: Report = TcErrorWithStorage::new(err, self.storages()).into();
+                    eprintln!("{}", writer::ReportWriter::new(report, self.source_map()));
+                    tc_panic_on_many!(
+                        [params_subject, args_subject],
+                        self,
+                        "Could not pair arguments with parameters"
+                    )
+                });
+
+        let builder = self.builder();
+        let members = paired.iter().filter_map(|(param, arg)| {
+            Some(Member::closed(
+                param.name?,
+                Visibility::Private,
+                Mutability::Immutable,
+                MemberData::from_ty_and_value(None, Some(arg.value)),
+            ))
+        });
+        let sub_scope = builder.create_scope(ScopeKind::SetBound, members);
+        self.scopes_mut().append(sub_scope);
+        sub_scope
     }
 
-    /// Enter a parameter scope, which is a scope that contains all the given
+    /// Enter a bound scope, which is a scope that contains all the given
     /// parameters.
     ///
     /// This function is meant to be used for type functions, because it creates
     /// a constant scope and does not assign parameters to any values.
-    pub(crate) fn enter_ty_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
+    pub(crate) fn enter_bound_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
         let param_scope = builder.create_scope(

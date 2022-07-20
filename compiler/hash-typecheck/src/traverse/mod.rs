@@ -948,7 +948,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         )?;
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
-        let param_scope = self.scope_manager().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().enter_bound_scope(params);
         let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
         self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1102,7 +1102,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Enter parameter scope:
-        let param_scope = self.scope_manager().enter_ty_param_scope(params);
+        let param_scope = self.scope_manager().enter_bound_scope(params);
 
         // Traverse return type and return value:
         let return_ty =

@@ -63,6 +63,68 @@ pub macro tc_panic {
 /// because it accepts the `expr` and treats it as an iterable. For each term, a
 /// code block element is added to the built report.
 pub macro tc_panic_on_many {
+    ([$($terms:expr),*  $(,)?], $storage:expr, $fmt: expr) => {
+        {
+            use crate::storage::AccessToStorage;
+            use crate::fmt::PrepareForFormatting;
+            use hash_reporting::{report, builder, writer};
+
+            let storages = $storage.storages();
+            let sources = storages.source_map();
+
+            let terms_formatted = [
+                $(
+                    format!("`{}`", ($terms).for_formatting(storages.global_storage())),
+                )*
+            ];
+            let terms = terms_formatted.join(", ");
+
+            // build the report
+            let mut report = builder::ReportBuilder::new();
+            report
+                .with_kind(report::ReportKind::Internal)
+                .with_message("The compiler encountered a fatal error")
+                .add_element(report::ReportElement::Note(
+                    report::ReportNote::new(
+                        report::ReportNoteKind::Info,
+                        format!("whilst performing operations on the terms: {}", terms),
+                    ),
+                ));
+
+            // Add all of the locations from the terms that we're provided by the macro
+            let mut index = 0;
+            $(
+                #[allow(unused_assignments)]
+                {
+                    let term_location = storages.location_store().get_location($terms);
+                    if let Some(location) = term_location {
+                        report.add_element(report::ReportElement::CodeBlock(
+                            report::ReportCodeBlock::new(
+                                location,
+                                format!("{} member here", index),
+                            ),
+                        ));
+                    }
+
+                    index += 1;
+                }
+            )*
+
+            // Add the `info` note about why the internal panic occurred
+            report.add_element(report::ReportElement::Note(
+                report::ReportNote::new(
+                    report::ReportNoteKind::Info,
+                    $fmt,
+                ),
+            ));
+
+            eprintln!("{}", writer::ReportWriter::new(report.build(), sources));
+            std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
+        }
+    },
+    ([$($terms:expr),*  $(,)?], $storage:expr, $fmt: expr, $($arg:tt)*) => {
+        tc_panic_on_many!([$($terms,)*], $storage, format!($fmt, $($arg)*))
+    },
     ($terms:expr, $storage:expr, $fmt: expr) => {
         {
             use crate::storage::AccessToStorage;
@@ -116,7 +178,7 @@ pub macro tc_panic_on_many {
             std::panic::panic_any(TC_FATAL_ERROR_MESSAGE);
         }
     },
-    ($terms: expr, $storage:expr, $fmt: expr, $($arg:tt)*) => {
+    ($terms:expr, $storage:expr, $fmt: expr, $($arg:tt)*) => {
         tc_panic_on_many!($terms, $storage, format!($fmt, $($arg)*))
-    }
+    },
 }
