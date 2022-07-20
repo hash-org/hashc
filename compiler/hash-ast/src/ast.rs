@@ -291,6 +291,15 @@ pub struct NamedTy {
     pub name: AstNode<Name>,
 }
 
+/// Access type denotes the access of a property of some inner type.
+#[derive(Debug, PartialEq, Clone)]
+pub struct AccessTy {
+    /// The subject of the access
+    pub subject: AstNode<Ty>,
+    /// the property that is access of the `subject` type
+    pub property: AstNode<Name>,
+}
+
 /// Reference kind representing either a raw reference or a normal reference.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RefKind {
@@ -410,16 +419,29 @@ impl BinTyOp {
 /// A type.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Ty {
+    /// Access type, access the property of some inner type
+    Access(AccessTy),
+    /// Tuple type
     Tuple(TupleTy),
+    /// list type
     List(ListTy),
+    /// Set type
     Set(SetTy),
+    /// Map type
     Map(MapTy),
+    /// Function type
     Fn(FnTy),
+    /// Named type, similar to a binding
     Named(NamedTy),
+    /// Reference type, the reference type of the inner type
     Ref(RefTy),
+    /// Merge type, the intersection of two types
     Merge(MergeTy),
+    /// Union type, the union of two types
     Union(UnionTy),
+    /// Type function type
     TyFn(TyFn),
+    /// Type function call
     TyFnCall(TyFnCall),
 }
 

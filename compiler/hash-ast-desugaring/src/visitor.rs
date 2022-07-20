@@ -481,6 +481,15 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type AccessTyRet = ();
+    fn visit_access_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        Ok(())
+    }
+
     type RefTyRet = ();
 
     fn visit_ref_ty(

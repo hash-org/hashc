@@ -8,7 +8,7 @@ mod lit;
 mod name;
 mod operator;
 mod pat;
-mod types;
+mod ty;
 
 use std::cell::Cell;
 

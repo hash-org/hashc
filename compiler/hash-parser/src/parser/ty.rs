@@ -61,8 +61,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.make_error(AstGenErrorKind::ExpectedType, None, None, Some(self.next_location()))
         })?;
 
-        let start = token.span;
-        let ty = match &token.kind {
+        let mut multi_ty_components = true;
+        let span = token.span;
+
+        // Parse the initial part of the type
+        let mut ty = match &token.kind {
             TokenKind::Amp => {
                 self.skip_token();
 
@@ -81,7 +84,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             TokenKind::Ident(id) => {
                 self.skip_token();
 
-                let name = self.node_with_span(Name { ident: *id }, start);
+                let name = self.node_with_span(Name { ident: *id }, span);
                 Ty::Named(NamedTy { name })
             }
 
@@ -123,35 +126,50 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
 
             // Tuple or function type
-            TokenKind::Tree(Delimiter::Paren, _) => self.parse_fn_or_tuple_ty()?,
+            TokenKind::Tree(Delimiter::Paren, _) => {
+                multi_ty_components = false;
+                self.parse_fn_or_tuple_ty()?
+            }
 
             // Type function, which is a collection of arguments enclosed in `<...>` and then
             // followed by a return type
-            TokenKind::Lt => self.parse_ty_fn()?,
+            TokenKind::Lt => {
+                multi_ty_components = false;
+                self.parse_ty_fn()?
+            }
 
             kind => {
-                self.error_with_location(AstGenErrorKind::ExpectedType, None, Some(*kind), start)?
+                self.error_with_location(AstGenErrorKind::ExpectedType, None, Some(*kind), span)?
             }
         };
 
-        // We allow for a `TyFnCall` definition to occur if the function is
-        // preceded with either a `Named` type. If either of these
-        // variants is followed by a `<`, this means that this has to be a type
-        // function call and therefore we no longer allow for any other variants to be
-        // present
-        let ty = if matches!(ty, Ty::Named(_)) && self.parse_token_fast(TokenKind::Lt).is_some() {
-            Ty::TyFnCall(TyFnCall {
-                subject: self.node_with_joined_span(
-                    Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, &start)))),
-                    &start,
-                ),
-                args: self.parse_type_args(true)?,
-            })
-        } else {
-            ty
-        };
+        // Deal with type function call, or type access
+        while multi_ty_components && let Some(token) = self.peek() {
+            ty = match token.kind {
+                TokenKind::Lt => {
+                    self.skip_token();
 
-        Ok(self.node_with_joined_span(ty, &start))
+                    Ty::TyFnCall(TyFnCall {
+                        subject: self.node_with_joined_span(
+                            Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(ty, &span)))),
+                            &span,
+                        ),
+                        args: self.parse_ty_args(true)?,
+                    })
+                }
+                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) => {
+                    self.offset.update(|offset| offset + 2);
+
+                    Ty::Access(AccessTy {
+                        subject: self.node_with_joined_span(ty, &span),
+                        property: self.parse_name()?
+                    })
+                }
+                _ => break
+            }
+        }
+
+        Ok(self.node_with_joined_span(ty, &span))
     }
 
     /// This parses some type arguments after an [AccessName], however due to
@@ -160,7 +178,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// the beginning of a type argument. Therefore, we have to lookahead to
     /// see if there is another type followed by either a comma (which locks the
     /// `type_args`) or a closing [`TokenKind::Gt`].
-    pub(crate) fn parse_type_args(&self, lt_eaten: bool) -> AstGenResult<AstNodes<TyArg>> {
+    pub(crate) fn parse_ty_args(&self, lt_eaten: bool) -> AstGenResult<AstNodes<TyArg>> {
         // Only parse is if the caller specifies that they haven't eaten an `lt`
         if !lt_eaten {
             self.parse_token(TokenKind::Lt)?;
@@ -219,7 +237,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(AstNodes::new(type_args, Some(start.join(self.current_location()))))
     }
 
-    /// Parses a [Type::Fn] which involves a parenthesis token tree with some
+    /// Parses a [Ty::Fn] which involves a parenthesis token tree with some
     /// arbitrary number of comma separated types followed by a return
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`

@@ -528,6 +528,22 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf(labelled("named", name.label, "\"")))
     }
 
+    type AccessTyRet = TreeNode;
+    fn visit_access_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        let walk::AccessTy { subject, .. } = walk::walk_access_ty(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "access",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::leaf(labelled("property", node.property.ident, "\"")),
+            ],
+        ))
+    }
+
     type RefTyRet = TreeNode;
     fn visit_ref_ty(
         &mut self,
@@ -649,6 +665,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MatchBlockRet = TreeNode;
+
     fn visit_match_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -674,7 +691,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type ForLoopBlockRet = TreeNode;
-
     fn visit_for_loop_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -824,6 +840,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type RefKindRet = ();
+
     fn visit_ref_kind(
         &mut self,
         _: &Self::Ctx,
@@ -852,7 +869,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MergeDeclarationRet = TreeNode;
-
     fn visit_merge_declaration(
         &mut self,
         ctx: &Self::Ctx,
@@ -917,6 +933,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type IndexExprRet = TreeNode;
+
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -934,7 +951,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type StructDefRet = TreeNode;
-
     fn visit_struct_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -999,6 +1015,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type PatRet = TreeNode;
+
     fn visit_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -1008,7 +1025,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type AccessPatRet = TreeNode;
-
     fn visit_access_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -1195,6 +1211,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type SpreadPatRet = TreeNode;
+
     fn visit_spread_pat(
         &mut self,
         ctx: &Self::Ctx,

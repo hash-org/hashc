@@ -997,6 +997,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
     }
 
+    type AccessTyRet = TermId;
+
+    fn visit_access_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        todo!()
+    }
+
     type RefTyRet = TermId;
 
     fn visit_ref_ty(
@@ -1066,7 +1076,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type TyFnDefRet = TermId;
-
     fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1119,6 +1128,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type FnDefRet = TermId;
+
     fn visit_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1207,7 +1217,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type BlockRet = TermId;
-
     fn visit_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -1217,6 +1226,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MatchCaseRet = ();
+
     fn visit_match_case(
         &mut self,
         _: &Self::Ctx,
@@ -1500,7 +1510,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type VisibilityRet = Visibility;
-
     fn visit_visibility_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1513,6 +1522,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MutabilityRet = Mutability;
+
     fn visit_mutability_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1625,7 +1635,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MergeDeclarationRet = TermId;
-
     fn visit_merge_declaration(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1635,6 +1644,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type AssignExprRet = TermId;
+
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -2184,7 +2194,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type SpreadPatRet = PatId;
-
     fn visit_spread_pat(
         &mut self,
         _ctx: &Self::Ctx,
@@ -2194,6 +2203,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type IgnorePatRet = PatId;
+
     fn visit_ignore_pat(
         &mut self,
         _ctx: &Self::Ctx,

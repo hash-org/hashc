@@ -329,6 +329,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error>;
 
+    type AccessTyRet;
+    fn visit_access_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error>;
+
     type RefTyRet;
     fn visit_ref_ty(
         &mut self,
@@ -1035,6 +1042,13 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error>;
+
+    type AccessTyRet;
+    fn visit_access_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error>;
 
     type RefTyRet;
     fn visit_ref_ty(
@@ -2342,6 +2356,22 @@ pub mod walk {
         Ok(NamedTy { name: visitor.visit_name(ctx, node.name.ast_ref())? })
     }
 
+    pub struct AccessTy<V: AstVisitor> {
+        pub subject: V::TyRet,
+        pub property: V::NameRet,
+    }
+
+    pub fn walk_access_ty<V: AstVisitor>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<AccessTy<V>, V::Error> {
+        Ok(AccessTy {
+            subject: visitor.visit_ty(ctx, node.subject.ast_ref())?,
+            property: visitor.visit_name(ctx, node.property.ast_ref())?,
+        })
+    }
+
     pub struct RefTy<V: AstVisitor> {
         pub inner: V::TyRet,
         pub mutability: Option<V::MutabilityRet>,
@@ -2438,6 +2468,7 @@ pub mod walk {
     }
 
     pub enum Ty<V: AstVisitor> {
+        Access(V::AccessTyRet),
         Fn(V::FnTyRet),
         Tuple(V::TupleTyRet),
         List(V::ListTyRet),
@@ -2457,6 +2488,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Ty>,
     ) -> Result<Ty<V>, V::Error> {
         Ok(match &*node {
+            ast::Ty::Access(r) => Ty::Access(visitor.visit_access_ty(ctx, node.with_body(r))?),
             ast::Ty::Fn(r) => Ty::Fn(visitor.visit_fn_ty(ctx, node.with_body(r))?),
             ast::Ty::Tuple(r) => Ty::Tuple(visitor.visit_tuple_ty(ctx, node.with_body(r))?),
             ast::Ty::List(r) => Ty::List(visitor.visit_list_ty(ctx, node.with_body(r))?),
@@ -2478,6 +2510,7 @@ pub mod walk {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitor<
+            AccessTyRet = Ret,
             FnTyRet = Ret,
             TupleTyRet = Ret,
             ListTyRet = Ret,
@@ -2492,6 +2525,7 @@ pub mod walk {
         >,
     {
         Ok(match walk_ty(visitor, ctx, node)? {
+            Ty::Access(r) => r,
             Ty::Fn(r) => r,
             Ty::Tuple(r) => r,
             Ty::List(r) => r,
@@ -4055,6 +4089,22 @@ pub mod walk_mut {
         Ok(NamedTy { name: visitor.visit_name(ctx, node.name.ast_ref_mut())? })
     }
 
+    pub struct AccessTy<V: AstVisitorMut> {
+        pub subject: V::TyRet,
+        pub property: V::NameRet,
+    }
+
+    pub fn walk_access_ty<V: AstVisitorMut>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::AccessTy>,
+    ) -> Result<AccessTy<V>, V::Error> {
+        Ok(AccessTy {
+            subject: visitor.visit_ty(ctx, node.subject.ast_ref_mut())?,
+            property: visitor.visit_name(ctx, node.property.ast_ref_mut())?,
+        })
+    }
+
     pub struct RefTy<V: AstVisitorMut> {
         pub inner: V::TyRet,
         pub mutability: Option<V::MutabilityRet>,
@@ -4146,6 +4196,7 @@ pub mod walk_mut {
     }
 
     pub enum Ty<V: AstVisitorMut> {
+        Access(V::AccessTyRet),
         Fn(V::FnTyRet),
         Tuple(V::TupleTyRet),
         List(V::ListTyRet),
@@ -4168,6 +4219,9 @@ pub mod walk_mut {
         let id = node.id;
 
         Ok(match &mut *node {
+            ast::Ty::Access(r) => {
+                Ty::Access(visitor.visit_access_ty(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
             ast::Ty::Fn(r) => Ty::Fn(visitor.visit_fn_ty(ctx, AstNodeRefMut::new(r, span, id))?),
             ast::Ty::Tuple(r) => {
                 Ty::Tuple(visitor.visit_tuple_ty(ctx, AstNodeRefMut::new(r, span, id))?)
@@ -4203,6 +4257,7 @@ pub mod walk_mut {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitorMut<
+            AccessTyRet = Ret,
             FnTyRet = Ret,
             TupleTyRet = Ret,
             ListTyRet = Ret,
@@ -4217,6 +4272,7 @@ pub mod walk_mut {
         >,
     {
         Ok(match walk_ty(visitor, ctx, node)? {
+            Ty::Access(r) => r,
             Ty::Fn(r) => r,
             Ty::Tuple(r) => r,
             Ty::List(r) => r,

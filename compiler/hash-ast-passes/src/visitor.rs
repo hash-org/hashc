@@ -519,6 +519,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type AccessTyRet = ();
+
+    fn visit_access_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        Ok(())
+    }
+
     type RefTyRet = ();
 
     fn visit_ref_ty(
