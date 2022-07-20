@@ -542,6 +542,7 @@ dependencies = [
  "hash-utils",
  "if_chain",
  "itertools",
+ "log",
  "num-bigint",
  "slotmap",
 ]

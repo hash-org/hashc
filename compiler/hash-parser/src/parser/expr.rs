@@ -287,7 +287,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // of strings which at the end of the day aren't even used...
         match self.peek() {
             Some(token) if token.has_kind(TokenKind::Lt) => {
-                match self.peek_resultant_fn(|| self.parse_type_args(false)) {
+                match self.peek_resultant_fn(|| self.parse_ty_args(false)) {
                     Some(args) => (
                         self.node_with_joined_span(
                             Expr::new(ExprKind::Ty(TyExpr(self.node_with_joined_span(
@@ -754,7 +754,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parse a namespace access expression.
+    /// Parse a [AccessExpr] with a `namespace` access kind.
     pub(crate) fn parse_ns_access(&self, subject: AstNode<Expr>) -> AstGenResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Colon));
         let span = subject.span();

@@ -4,13 +4,14 @@
 //! Code from this module is to be used while traversing and typing the AST, in
 //! order to unify types and ensure correctness.
 use self::{
-    building::PrimitiveBuilder, discover::Discoverer, pats::PatMatcher, reader::PrimitiveReader,
-    scope::ScopeManager, simplify::Simplifier, substitute::Substituter, typing::Typer,
-    unify::Unifier, validate::Validator,
+    building::PrimitiveBuilder, cache::CacheManager, discover::Discoverer, pats::PatMatcher,
+    reader::PrimitiveReader, scope::ScopeManager, simplify::Simplifier, substitute::Substituter,
+    typing::Typer, unify::Unifier, validate::Validator,
 };
 use crate::storage::{primitives::ScopeId, AccessToStorage, AccessToStorageMut};
 
 pub mod building;
+pub mod cache;
 pub mod discover;
 pub mod params;
 pub mod pats;
@@ -47,6 +48,11 @@ pub trait AccessToOpsMut: AccessToStorageMut {
     /// See [PrimitiveBuilder] docs for more information.
     fn builder_with_scope(&mut self, scope: ScopeId) -> PrimitiveBuilder {
         PrimitiveBuilder::new_with_scope(self.global_storage_mut(), scope)
+    }
+
+    /// Create an instance of [CacheManager].
+    fn cacher(&mut self) -> CacheManager {
+        CacheManager::new(self.storages_mut())
     }
 
     /// Create an instance of [Unifier].

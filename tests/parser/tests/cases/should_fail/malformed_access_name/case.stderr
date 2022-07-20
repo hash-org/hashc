@@ -1,5 +1,6 @@
 error: Failed to parse
- --> $DIR/case.hash:1:5
-1 |   a::b:c()
-  |       ^ here
-  = note: Expected an operator. Consider adding either a `.`, `=`, or `;`
+ --> $DIR/case.hash:7:7
+6 |   
+7 |   a::b:c()
+  |         ^^ here
+  = note: Unexpectedly encountered a `(...)`. Consider adding a `;`

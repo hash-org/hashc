@@ -42,13 +42,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error>;
 
-    type AccessNameRet;
-    fn visit_namespace(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Namespace>,
-    ) -> Result<Self::AccessNameRet, Self::Error>;
-
     type LitRet;
     fn visit_lit(
         &mut self,
@@ -147,12 +140,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::UnOp>,
     ) -> Result<Self::UnaryOperatorRet, Self::Error>;
 
-    type ExpressionRet;
+    type ExprRet;
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error>;
+    ) -> Result<Self::ExprRet, Self::Error>;
 
     type VariableExprRet;
     fn visit_variable_expr(
@@ -336,6 +329,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error>;
 
+    type AccessTyRet;
+    fn visit_access_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error>;
+
     type RefTyRet;
     fn visit_ref_ty(
         &mut self,
@@ -518,33 +518,33 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error>;
 
-    type AssignOpExpressionRet;
+    type AssignOpExprRet;
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error>;
+    ) -> Result<Self::AssignOpExprRet, Self::Error>;
 
-    type BinaryExpressionRet;
+    type BinaryExprRet;
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error>;
+    ) -> Result<Self::BinaryExprRet, Self::Error>;
 
-    type UnaryExpressionRet;
+    type UnaryExprRet;
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error>;
+    ) -> Result<Self::UnaryExprRet, Self::Error>;
 
-    type IndexExpressionRet;
+    type IndexExprRet;
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error>;
+    ) -> Result<Self::IndexExprRet, Self::Error>;
 
     type StructDefRet;
     fn visit_struct_def(
@@ -588,6 +588,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::Pat>,
     ) -> Result<Self::PatRet, Self::Error>;
 
+    type AccessPatRet;
+    fn visit_access_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error>;
+
     type ConstructorPatRet;
     fn visit_constructor_pat(
         &mut self,
@@ -595,12 +602,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error>;
 
-    type NamespacePatRet;
-    fn visit_namespace_pat(
+    type ModulePatRet;
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error>;
 
     type TuplePatEntryRet;
     fn visit_tuple_pat_entry(
@@ -700,12 +707,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::IgnorePat>,
     ) -> Result<Self::IgnorePatRet, Self::Error>;
 
-    type DestructuringPatRet;
-    fn visit_destructuring_pat(
+    type ModulePatEntryRet;
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error>;
 
     type ModuleRet;
     fn visit_module(
@@ -748,13 +755,6 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error>;
-
-    type NamespaceRet;
-    fn visit_namespace(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::Namespace>,
-    ) -> Result<Self::NamespaceRet, Self::Error>;
 
     type LitRet;
     fn visit_lit(
@@ -854,12 +854,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::UnOp>,
     ) -> Result<Self::UnOpRet, Self::Error>;
 
-    type ExpressionRet;
+    type ExprRet;
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error>;
+    ) -> Result<Self::ExprRet, Self::Error>;
 
     type ImportRet;
     fn visit_import(
@@ -1043,6 +1043,13 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error>;
 
+    type AccessTyRet;
+    fn visit_access_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error>;
+
     type RefTyRet;
     fn visit_ref_ty(
         &mut self,
@@ -1218,33 +1225,33 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::AssignExpr>,
     ) -> Result<Self::AssignExprRet, Self::Error>;
 
-    type AssignOpExpressionRet;
+    type AssignOpExprRet;
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error>;
+    ) -> Result<Self::AssignOpExprRet, Self::Error>;
 
-    type BinaryExpressionRet;
+    type BinaryExprRet;
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error>;
+    ) -> Result<Self::BinaryExprRet, Self::Error>;
 
-    type UnaryExpressionRet;
+    type UnaryExprRet;
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error>;
+    ) -> Result<Self::UnaryExprRet, Self::Error>;
 
-    type IndexExpressionRet;
+    type IndexExprRet;
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error>;
+    ) -> Result<Self::IndexExprRet, Self::Error>;
 
     type StructDefRet;
     fn visit_struct_def(
@@ -1288,6 +1295,13 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::Pat>,
     ) -> Result<Self::PatRet, Self::Error>;
 
+    type AccessPatRet;
+    fn visit_access_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error>;
+
     type ConstructorPatRet;
     fn visit_constructor_pat(
         &mut self,
@@ -1295,12 +1309,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error>;
 
-    type NamespacePatRet;
-    fn visit_namespace_pat(
+    type ModulePatRet;
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error>;
 
     type TuplePatEntryRet;
     fn visit_tuple_pat_entry(
@@ -1400,12 +1414,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::IgnorePat>,
     ) -> Result<Self::IgnorePatRet, Self::Error>;
 
-    type DestructuringPatRet;
-    fn visit_destructuring_pat(
+    type ModulePatEntryRet;
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error>;
 
     type ModuleRet;
     fn visit_module(
@@ -1431,7 +1445,7 @@ pub mod walk {
     pub struct Param<V: AstVisitor> {
         pub name: V::NameRet,
         pub ty: Option<V::TyRet>,
-        pub default: Option<V::ExpressionRet>,
+        pub default: Option<V::ExprRet>,
     }
 
     pub fn walk_param<V: AstVisitor>(
@@ -1453,7 +1467,7 @@ pub mod walk {
     pub struct FnDef<V: AstVisitor> {
         pub args: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
-        pub fn_body: V::ExpressionRet,
+        pub fn_body: V::ExprRet,
     }
 
     pub fn walk_fn_def<V: AstVisitor>(
@@ -1498,12 +1512,12 @@ pub mod walk {
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignExprRet),
-        AssignOp(V::AssignOpExpressionRet),
+        AssignOp(V::AssignOpExprRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
-        BinaryExpr(V::BinaryExpressionRet),
-        UnaryExpr(V::UnaryExpressionRet),
-        Index(V::IndexExpressionRet),
+        BinaryExpr(V::BinaryExprRet),
+        UnaryExpr(V::UnaryExprRet),
+        Index(V::IndexExprRet),
     }
 
     pub fn walk_expr<V: AstVisitor>(
@@ -1628,10 +1642,10 @@ pub mod walk {
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
             AssignExprRet = Ret,
-            AssignOpExpressionRet = Ret,
-            BinaryExpressionRet = Ret,
-            UnaryExpressionRet = Ret,
-            IndexExpressionRet = Ret,
+            AssignOpExprRet = Ret,
+            BinaryExprRet = Ret,
+            UnaryExprRet = Ret,
+            IndexExprRet = Ret,
         >,
     {
         Ok(match walk_expr(visitor, ctx, node)? {
@@ -1680,7 +1694,7 @@ pub mod walk {
 
     pub struct DirectiveExpr<V: AstVisitor> {
         pub name: V::NameRet,
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
     }
 
     pub fn walk_directive_expr<V: AstVisitor>(
@@ -1696,7 +1710,7 @@ pub mod walk {
 
     pub struct ConstructorCallArg<V: AstVisitor> {
         pub name: Option<V::NameRet>,
-        pub value: V::ExpressionRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_constructor_call_arg<V: AstVisitor>(
@@ -1728,7 +1742,7 @@ pub mod walk {
     }
 
     pub struct ConstructorCallExpr<V: AstVisitor> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub args: V::ConstructorCallArgsRet,
     }
 
@@ -1744,7 +1758,7 @@ pub mod walk {
     }
 
     pub struct AccessExpr<V: AstVisitor> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub property: V::NameRet,
         pub kind: V::AccessKindRet,
     }
@@ -1762,7 +1776,7 @@ pub mod walk {
     }
 
     pub struct RefExpr<V: AstVisitor> {
-        pub inner_expr: V::ExpressionRet,
+        pub inner_expr: V::ExprRet,
         pub mutability: Option<V::MutabilityRet>,
     }
 
@@ -1781,7 +1795,7 @@ pub mod walk {
         })
     }
 
-    pub struct DerefExpr<V: AstVisitor>(pub V::ExpressionRet);
+    pub struct DerefExpr<V: AstVisitor>(pub V::ExprRet);
 
     pub fn walk_deref_expr<V: AstVisitor>(
         visitor: &mut V,
@@ -1791,7 +1805,7 @@ pub mod walk {
         Ok(DerefExpr(visitor.visit_expr(ctx, node.0.ast_ref())?))
     }
 
-    pub struct UnsafeExpr<V: AstVisitor>(pub V::ExpressionRet);
+    pub struct UnsafeExpr<V: AstVisitor>(pub V::ExprRet);
 
     pub fn walk_unsafe_expr<V: AstVisitor>(
         visitor: &mut V,
@@ -1812,7 +1826,7 @@ pub mod walk {
     }
 
     pub struct CastExpr<V: AstVisitor> {
-        pub expr: V::ExpressionRet,
+        pub expr: V::ExprRet,
         pub ty: V::TyRet,
     }
 
@@ -1920,7 +1934,7 @@ pub mod walk {
 
     pub struct MatchCase<V: AstVisitor> {
         pub pat: V::PatRet,
-        pub expr: V::ExpressionRet,
+        pub expr: V::ExprRet,
     }
 
     pub fn walk_match_case<V: AstVisitor>(
@@ -1935,7 +1949,7 @@ pub mod walk {
     }
 
     pub struct MatchBlock<V: AstVisitor> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub cases: V::CollectionContainer<V::MatchCaseRet>,
     }
 
@@ -1965,7 +1979,7 @@ pub mod walk {
 
     pub struct ForLoopBlock<V: AstVisitor> {
         pub pat: V::PatRet,
-        pub iterator: V::ExpressionRet,
+        pub iterator: V::ExprRet,
         pub body: V::BlockRet,
     }
 
@@ -1982,7 +1996,7 @@ pub mod walk {
     }
 
     pub struct WhileLoopBlock<V: AstVisitor> {
-        pub condition: V::ExpressionRet,
+        pub condition: V::ExprRet,
         pub body: V::BlockRet,
     }
 
@@ -2018,7 +2032,7 @@ pub mod walk {
     }
 
     pub struct IfClause<V: AstVisitor> {
-        pub condition: V::ExpressionRet,
+        pub condition: V::ExprRet,
         pub body: V::BlockRet,
     }
 
@@ -2057,8 +2071,8 @@ pub mod walk {
     }
 
     pub struct BodyBlock<V: AstVisitor> {
-        pub statements: V::CollectionContainer<V::ExpressionRet>,
-        pub expr: Option<V::ExpressionRet>,
+        pub statements: V::CollectionContainer<V::ExprRet>,
+        pub expr: Option<V::ExprRet>,
     }
 
     pub fn walk_body_block<V: AstVisitor>(
@@ -2137,7 +2151,7 @@ pub mod walk {
     }
 
     pub struct SetLit<V: AstVisitor> {
-        pub elements: V::CollectionContainer<V::ExpressionRet>,
+        pub elements: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_set_lit<V: AstVisitor>(
@@ -2154,8 +2168,8 @@ pub mod walk {
     }
 
     pub struct MapLitEntry<V: AstVisitor> {
-        pub key: V::ExpressionRet,
-        pub value: V::ExpressionRet,
+        pub key: V::ExprRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_map_lit_entry<V: AstVisitor>(
@@ -2187,7 +2201,7 @@ pub mod walk {
     }
 
     pub struct ListLit<V: AstVisitor> {
-        pub elements: V::CollectionContainer<V::ExpressionRet>,
+        pub elements: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_list_lit<V: AstVisitor>(
@@ -2206,7 +2220,7 @@ pub mod walk {
     pub struct TupleLitEntry<V: AstVisitor> {
         pub name: Option<V::NameRet>,
         pub ty: Option<V::TyRet>,
-        pub value: V::ExpressionRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_tuple_lit_entry<V: AstVisitor>(
@@ -2342,6 +2356,22 @@ pub mod walk {
         Ok(NamedTy { name: visitor.visit_name(ctx, node.name.ast_ref())? })
     }
 
+    pub struct AccessTy<V: AstVisitor> {
+        pub subject: V::TyRet,
+        pub property: V::NameRet,
+    }
+
+    pub fn walk_access_ty<V: AstVisitor>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<AccessTy<V>, V::Error> {
+        Ok(AccessTy {
+            subject: visitor.visit_ty(ctx, node.subject.ast_ref())?,
+            property: visitor.visit_name(ctx, node.property.ast_ref())?,
+        })
+    }
+
     pub struct RefTy<V: AstVisitor> {
         pub inner: V::TyRet,
         pub mutability: Option<V::MutabilityRet>,
@@ -2400,7 +2430,7 @@ pub mod walk {
         })
     }
     pub struct TyFnCall<V: AstVisitor> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub args: V::CollectionContainer<V::TyArgRet>,
     }
 
@@ -2438,6 +2468,7 @@ pub mod walk {
     }
 
     pub enum Ty<V: AstVisitor> {
+        Access(V::AccessTyRet),
         Fn(V::FnTyRet),
         Tuple(V::TupleTyRet),
         List(V::ListTyRet),
@@ -2457,6 +2488,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Ty>,
     ) -> Result<Ty<V>, V::Error> {
         Ok(match &*node {
+            ast::Ty::Access(r) => Ty::Access(visitor.visit_access_ty(ctx, node.with_body(r))?),
             ast::Ty::Fn(r) => Ty::Fn(visitor.visit_fn_ty(ctx, node.with_body(r))?),
             ast::Ty::Tuple(r) => Ty::Tuple(visitor.visit_tuple_ty(ctx, node.with_body(r))?),
             ast::Ty::List(r) => Ty::List(visitor.visit_list_ty(ctx, node.with_body(r))?),
@@ -2478,6 +2510,7 @@ pub mod walk {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitor<
+            AccessTyRet = Ret,
             FnTyRet = Ret,
             TupleTyRet = Ret,
             ListTyRet = Ret,
@@ -2492,6 +2525,7 @@ pub mod walk {
         >,
     {
         Ok(match walk_ty(visitor, ctx, node)? {
+            Ty::Access(r) => r,
             Ty::Fn(r) => r,
             Ty::Tuple(r) => r,
             Ty::List(r) => r,
@@ -2507,8 +2541,9 @@ pub mod walk {
     }
 
     pub enum Pat<V: AstVisitor> {
+        Access(V::AccessPatRet),
         Constructor(V::ConstructorPatRet),
-        Namespace(V::NamespacePatRet),
+        Module(V::ModulePatRet),
         Tuple(V::TuplePatRet),
         List(V::ListPatRet),
         Lit(V::LitPatRet),
@@ -2525,12 +2560,11 @@ pub mod walk {
         node: ast::AstNodeRef<ast::Pat>,
     ) -> Result<Pat<V>, V::Error> {
         Ok(match &*node {
+            ast::Pat::Access(r) => Pat::Access(visitor.visit_access_pat(ctx, node.with_body(r))?),
             ast::Pat::Constructor(r) => {
                 Pat::Constructor(visitor.visit_constructor_pat(ctx, node.with_body(r))?)
             }
-            ast::Pat::Namespace(r) => {
-                Pat::Namespace(visitor.visit_namespace_pat(ctx, node.with_body(r))?)
-            }
+            ast::Pat::Module(r) => Pat::Module(visitor.visit_module_pat(ctx, node.with_body(r))?),
             ast::Pat::Tuple(r) => Pat::Tuple(visitor.visit_tuple_pat(ctx, node.with_body(r))?),
             ast::Pat::List(r) => Pat::List(visitor.visit_list_pat(ctx, node.with_body(r))?),
             ast::Pat::Lit(r) => Pat::Lit(visitor.visit_lit_pat(ctx, node.with_body(r))?),
@@ -2551,8 +2585,9 @@ pub mod walk {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitor<
+            AccessPatRet = Ret,
             ConstructorPatRet = Ret,
-            NamespacePatRet = Ret,
+            ModulePatRet = Ret,
             TuplePatRet = Ret,
             ListPatRet = Ret,
             LitPatRet = Ret,
@@ -2564,8 +2599,9 @@ pub mod walk {
         >,
     {
         Ok(match walk_pat(visitor, ctx, node)? {
+            Pat::Access(r) => r,
             Pat::Constructor(r) => r,
-            Pat::Namespace(r) => r,
+            Pat::Module(r) => r,
             Pat::Tuple(r) => r,
             Pat::List(r) => r,
             Pat::Lit(r) => r,
@@ -2593,8 +2629,24 @@ pub mod walk {
         })
     }
 
+    pub struct AccessPat<V: AstVisitor> {
+        pub subject: V::PatRet,
+        pub property: V::NameRet,
+    }
+
+    pub fn walk_access_pat<V: AstVisitor>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        node: ast::AstNodeRef<ast::AccessPat>,
+    ) -> Result<AccessPat<V>, V::Error> {
+        Ok(AccessPat {
+            subject: visitor.visit_pat(ctx, node.subject.ast_ref())?,
+            property: visitor.visit_name(ctx, node.property.ast_ref())?,
+        })
+    }
+
     pub struct ConstructorPat<V: AstVisitor> {
-        pub name: V::AccessNameRet,
+        pub subject: V::PatRet,
         pub args: V::CollectionContainer<V::TuplePatEntryRet>,
     }
     pub fn walk_constructor_pat<V: AstVisitor>(
@@ -2603,7 +2655,7 @@ pub mod walk {
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<ConstructorPat<V>, V::Error> {
         Ok(ConstructorPat {
-            name: visitor.visit_namespace(ctx, node.name.ast_ref())?,
+            subject: visitor.visit_pat(ctx, node.subject.ast_ref())?,
             args: V::try_collect_items(
                 ctx,
                 node.fields.iter().map(|a| visitor.visit_tuple_pat_entry(ctx, a.ast_ref())),
@@ -2611,18 +2663,18 @@ pub mod walk {
         })
     }
 
-    pub struct NamespacePat<V: AstVisitor> {
-        pub fields: V::CollectionContainer<V::DestructuringPatRet>,
+    pub struct ModulePat<V: AstVisitor> {
+        pub fields: V::CollectionContainer<V::ModulePatEntryRet>,
     }
-    pub fn walk_namespace_pat<V: AstVisitor>(
+    pub fn walk_module_pat<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePat>,
-    ) -> Result<NamespacePat<V>, V::Error> {
-        Ok(NamespacePat {
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<ModulePat<V>, V::Error> {
+        Ok(ModulePat {
             fields: V::try_collect_items(
                 ctx,
-                node.fields.iter().map(|a| visitor.visit_destructuring_pat(ctx, a.ast_ref())),
+                node.fields.iter().map(|a| visitor.visit_module_pat_entry(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2679,7 +2731,7 @@ pub mod walk {
 
     pub struct IfPat<V: AstVisitor> {
         pub pat: V::PatRet,
-        pub condition: V::ExpressionRet,
+        pub condition: V::ExprRet,
     }
     pub fn walk_if_pat<V: AstVisitor>(
         visitor: &mut V,
@@ -2784,22 +2836,22 @@ pub mod walk {
         })
     }
 
-    pub struct DestructuringPat<V: AstVisitor> {
+    pub struct ModulePatEntry<V: AstVisitor> {
         pub name: V::NameRet,
         pub pat: V::PatRet,
     }
-    pub fn walk_destructuring_pat<V: AstVisitor>(
+    pub fn walk_module_pat_entry<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPat>,
-    ) -> Result<DestructuringPat<V>, V::Error> {
-        Ok(DestructuringPat {
+        node: ast::AstNodeRef<ast::ModulePatEntry>,
+    ) -> Result<ModulePatEntry<V>, V::Error> {
+        Ok(ModulePatEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             pat: visitor.visit_pat(ctx, node.pat.ast_ref())?,
         })
     }
 
-    pub struct ReturnStatement<V: AstVisitor>(pub Option<V::ExpressionRet>);
+    pub struct ReturnStatement<V: AstVisitor>(pub Option<V::ExprRet>);
     pub fn walk_return_statement<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
@@ -2813,7 +2865,7 @@ pub mod walk {
     pub struct Declaration<V: AstVisitor> {
         pub pat: V::PatRet,
         pub ty: Option<V::TyRet>,
-        pub value: Option<V::ExpressionRet>,
+        pub value: Option<V::ExprRet>,
     }
 
     pub fn walk_declaration<V: AstVisitor>(
@@ -2829,8 +2881,8 @@ pub mod walk {
     }
 
     pub struct MergeDeclaration<V: AstVisitor> {
-        pub decl: V::ExpressionRet,
-        pub value: V::ExpressionRet,
+        pub decl: V::ExprRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_merge_declaration<V: AstVisitor>(
@@ -2845,8 +2897,8 @@ pub mod walk {
     }
 
     pub struct AssignExpr<V: AstVisitor> {
-        pub lhs: V::ExpressionRet,
-        pub rhs: V::ExpressionRet,
+        pub lhs: V::ExprRet,
+        pub rhs: V::ExprRet,
     }
 
     pub fn walk_assign_expr<V: AstVisitor>(
@@ -2861,8 +2913,8 @@ pub mod walk {
     }
 
     pub struct AssignOpStatement<V: AstVisitor> {
-        pub lhs: V::ExpressionRet,
-        pub rhs: V::ExpressionRet,
+        pub lhs: V::ExprRet,
+        pub rhs: V::ExprRet,
         pub operator: V::BinaryOperatorRet,
     }
     pub fn walk_assign_op_statement<V: AstVisitor>(
@@ -2877,25 +2929,25 @@ pub mod walk {
         })
     }
 
-    pub struct BinaryExpression<V: AstVisitor> {
-        pub lhs: V::ExpressionRet,
-        pub rhs: V::ExpressionRet,
+    pub struct BinaryExpr<V: AstVisitor> {
+        pub lhs: V::ExprRet,
+        pub rhs: V::ExprRet,
         pub operator: V::BinaryOperatorRet,
     }
     pub fn walk_binary_expr<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::BinaryExpr>,
-    ) -> Result<BinaryExpression<V>, V::Error> {
-        Ok(BinaryExpression {
+    ) -> Result<BinaryExpr<V>, V::Error> {
+        Ok(BinaryExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref())?,
             operator: visitor.visit_binary_operator(ctx, node.operator.ast_ref())?,
         })
     }
 
-    pub struct UnaryExpression<V: AstVisitor> {
-        pub expr: V::ExpressionRet,
+    pub struct UnaryExpr<V: AstVisitor> {
+        pub expr: V::ExprRet,
         pub operator: V::UnaryOperatorRet,
     }
 
@@ -2903,16 +2955,16 @@ pub mod walk {
         visitor: &mut V,
         ctx: &V::Ctx,
         node: ast::AstNodeRef<ast::UnaryExpr>,
-    ) -> Result<UnaryExpression<V>, V::Error> {
-        Ok(UnaryExpression {
+    ) -> Result<UnaryExpr<V>, V::Error> {
+        Ok(UnaryExpr {
             expr: visitor.visit_expr(ctx, node.expr.ast_ref())?,
             operator: visitor.visit_unary_operator(ctx, node.operator.ast_ref())?,
         })
     }
 
     pub struct IndexExpr<V: AstVisitor> {
-        pub subject: V::ExpressionRet,
-        pub index_expr: V::ExpressionRet,
+        pub subject: V::ExprRet,
+        pub index_expr: V::ExprRet,
     }
 
     pub fn walk_index_expr<V: AstVisitor>(
@@ -2979,7 +3031,7 @@ pub mod walk {
     pub struct TyFnDef<V: AstVisitor> {
         pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
-        pub expr: V::ExpressionRet,
+        pub body: V::ExprRet,
     }
 
     pub fn walk_ty_fn_def<V: AstVisitor>(
@@ -2997,12 +3049,12 @@ pub mod walk {
                 .as_ref()
                 .map(|t| visitor.visit_ty(ctx, t.ast_ref()))
                 .transpose()?,
-            expr: visitor.visit_expr(ctx, node.body.ast_ref())?,
+            body: visitor.visit_expr(ctx, node.body.ast_ref())?,
         })
     }
 
     pub struct TraitDef<V: AstVisitor> {
-        pub members: V::CollectionContainer<V::ExpressionRet>,
+        pub members: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_trait_def<V: AstVisitor>(
@@ -3020,7 +3072,7 @@ pub mod walk {
 
     pub struct TraitImpl<V: AstVisitor> {
         pub ty: V::TyRet,
-        pub implementation: V::CollectionContainer<V::ExpressionRet>,
+        pub implementation: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_trait_impl<V: AstVisitor>(
@@ -3038,7 +3090,7 @@ pub mod walk {
     }
 
     pub struct Module<V: AstVisitor> {
-        pub contents: V::CollectionContainer<V::ExpressionRet>,
+        pub contents: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_module<V: AstVisitor>(
@@ -3063,7 +3115,7 @@ pub mod walk_mut {
     pub struct Param<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub ty: Option<V::TyRet>,
-        pub default: Option<V::ExpressionRet>,
+        pub default: Option<V::ExprRet>,
     }
 
     pub fn walk_param<V: AstVisitorMut>(
@@ -3085,7 +3137,7 @@ pub mod walk_mut {
     pub struct FnDef<V: AstVisitorMut> {
         pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
-        pub fn_body: V::ExpressionRet,
+        pub fn_body: V::ExprRet,
     }
 
     pub fn walk_fn_def<V: AstVisitorMut>(
@@ -3107,12 +3159,12 @@ pub mod walk_mut {
         })
     }
 
-    pub enum Expression<V: AstVisitorMut> {
+    pub enum Expr<V: AstVisitorMut> {
         ConstructorCall(V::ConstructorCallExprRet),
         Directive(V::DirectiveExprRet),
         Declaration(V::DeclarationRet),
         Variable(V::VariableExprRet),
-        PropertyAccess(V::AccessExprRet),
+        Access(V::AccessExprRet),
         Ref(V::RefExprRet),
         Deref(V::DerefExprRet),
         Unsafe(V::UnsafeExprRet),
@@ -3130,106 +3182,106 @@ pub mod walk_mut {
         Break(V::BreakStatementRet),
         Continue(V::ContinueStatementRet),
         Assign(V::AssignExprRet),
-        AssignOp(V::AssignOpExpressionRet),
+        AssignOp(V::AssignOpExprRet),
         MergeDeclaration(V::MergeDeclarationRet),
         TraitImpl(V::TraitImplRet),
-        BinaryExpr(V::BinaryExpressionRet),
-        UnaryExpr(V::UnaryExpressionRet),
-        Index(V::IndexExpressionRet),
+        BinaryExpr(V::BinaryExprRet),
+        UnaryExpr(V::UnaryExprRet),
+        Index(V::IndexExprRet),
     }
 
     pub fn walk_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::Expr>,
-    ) -> Result<Expression<V>, V::Error> {
+    ) -> Result<Expr<V>, V::Error> {
         let span = node.span;
         let id = node.id;
 
         Ok(match &mut node.kind {
-            ast::ExprKind::ConstructorCall(inner) => Expression::ConstructorCall(
+            ast::ExprKind::ConstructorCall(inner) => Expr::ConstructorCall(
                 visitor.visit_constructor_call_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
             ast::ExprKind::Ty(inner) => {
-                Expression::Ty(visitor.visit_ty_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+                Expr::Ty(visitor.visit_ty_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
             }
-            ast::ExprKind::Directive(inner) => Expression::Directive(
+            ast::ExprKind::Directive(inner) => Expr::Directive(
                 visitor.visit_directive_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExprKind::Declaration(inner) => Expression::Declaration(
+            ast::ExprKind::Declaration(inner) => Expr::Declaration(
                 visitor.visit_declaration(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExprKind::MergeDeclaration(inner) => Expression::MergeDeclaration(
+            ast::ExprKind::MergeDeclaration(inner) => Expr::MergeDeclaration(
                 visitor.visit_merge_declaration(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExprKind::Variable(inner) => Expression::Variable(
+            ast::ExprKind::Variable(inner) => Expr::Variable(
                 visitor.visit_variable_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
             ),
-            ast::ExprKind::Access(inner) => Expression::PropertyAccess({
+            ast::ExprKind::Access(inner) => Expr::Access({
                 visitor.visit_access_expr(ctx, AstNodeRefMut::new(inner, span, id))?
             }),
             ast::ExprKind::Ref(inner) => {
-                Expression::Ref(visitor.visit_ref_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+                Expr::Ref(visitor.visit_ref_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
             }
-            ast::ExprKind::Deref(inner) => Expression::Deref(
-                visitor.visit_deref_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
-            ),
-            ast::ExprKind::Unsafe(inner) => Expression::Unsafe(
-                visitor.visit_unsafe_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
-            ),
-            ast::ExprKind::LitExpr(inner) => Expression::LitExpr(
-                visitor.visit_lit_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
-            ),
+            ast::ExprKind::Deref(inner) => {
+                Expr::Deref(visitor.visit_deref_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
+            ast::ExprKind::Unsafe(inner) => {
+                Expr::Unsafe(visitor.visit_unsafe_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
+            ast::ExprKind::LitExpr(inner) => {
+                Expr::LitExpr(visitor.visit_lit_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
             ast::ExprKind::Cast(inner) => {
-                Expression::Cast(visitor.visit_cast_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+                Expr::Cast(visitor.visit_cast_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
             }
-            ast::ExprKind::Block(inner) => Expression::Block(
-                visitor.visit_block_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
-            ),
-            ast::ExprKind::Import(inner) => Expression::Import(
-                visitor.visit_import_expr(ctx, AstNodeRefMut::new(inner, span, id))?,
-            ),
-            ast::ExprKind::StructDef(r) => Expression::StructDef(
-                visitor.visit_struct_def(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
+            ast::ExprKind::Block(inner) => {
+                Expr::Block(visitor.visit_block_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
+            ast::ExprKind::Import(inner) => {
+                Expr::Import(visitor.visit_import_expr(ctx, AstNodeRefMut::new(inner, span, id))?)
+            }
+            ast::ExprKind::StructDef(r) => {
+                Expr::StructDef(visitor.visit_struct_def(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
             ast::ExprKind::EnumDef(r) => {
-                Expression::EnumDef(visitor.visit_enum_def(ctx, AstNodeRefMut::new(r, span, id))?)
+                Expr::EnumDef(visitor.visit_enum_def(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::ExprKind::TyFnDef(r) => {
-                Expression::TyFnDef(visitor.visit_ty_fn_def(ctx, AstNodeRefMut::new(r, span, id))?)
+                Expr::TyFnDef(visitor.visit_ty_fn_def(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::ExprKind::TraitDef(r) => {
-                Expression::TraitDef(visitor.visit_trait_def(ctx, AstNodeRefMut::new(r, span, id))?)
+                Expr::TraitDef(visitor.visit_trait_def(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::ExprKind::FnDef(r) => {
-                Expression::FnDef(visitor.visit_fn_def(ctx, AstNodeRefMut::new(r, span, id))?)
+                Expr::FnDef(visitor.visit_fn_def(ctx, AstNodeRefMut::new(r, span, id))?)
             }
-            ast::ExprKind::Return(r) => Expression::Return(
-                visitor.visit_return_statement(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
-            ast::ExprKind::Break(r) => Expression::Break(
-                visitor.visit_break_statement(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
-            ast::ExprKind::Continue(r) => Expression::Continue(
+            ast::ExprKind::Return(r) => {
+                Expr::Return(visitor.visit_return_statement(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExprKind::Break(r) => {
+                Expr::Break(visitor.visit_break_statement(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExprKind::Continue(r) => Expr::Continue(
                 visitor.visit_continue_statement(ctx, AstNodeRefMut::new(r, span, id))?,
             ),
             ast::ExprKind::Assign(r) => {
-                Expression::Assign(visitor.visit_assign_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+                Expr::Assign(visitor.visit_assign_expr(ctx, AstNodeRefMut::new(r, span, id))?)
             }
-            ast::ExprKind::AssignOp(r) => Expression::AssignOp(
-                visitor.visit_assign_op_expr(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
-            ast::ExprKind::TraitImpl(r) => Expression::TraitImpl(
-                visitor.visit_trait_impl(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
-            ast::ExprKind::BinaryExpr(r) => Expression::BinaryExpr(
-                visitor.visit_binary_expr(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
-            ast::ExprKind::UnaryExpr(r) => Expression::UnaryExpr(
-                visitor.visit_unary_expr(ctx, AstNodeRefMut::new(r, span, id))?,
-            ),
+            ast::ExprKind::AssignOp(r) => {
+                Expr::AssignOp(visitor.visit_assign_op_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExprKind::TraitImpl(r) => {
+                Expr::TraitImpl(visitor.visit_trait_impl(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExprKind::BinaryExpr(r) => {
+                Expr::BinaryExpr(visitor.visit_binary_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
+            ast::ExprKind::UnaryExpr(r) => {
+                Expr::UnaryExpr(visitor.visit_unary_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
             ast::ExprKind::Index(r) => {
-                Expression::Index(visitor.visit_index_expr(ctx, AstNodeRefMut::new(r, span, id))?)
+                Expr::Index(visitor.visit_index_expr(ctx, AstNodeRefMut::new(r, span, id))?)
             }
         })
     }
@@ -3265,41 +3317,41 @@ pub mod walk_mut {
             BreakStatementRet = Ret,
             ContinueStatementRet = Ret,
             AssignExprRet = Ret,
-            AssignOpExpressionRet = Ret,
-            BinaryExpressionRet = Ret,
-            UnaryExpressionRet = Ret,
-            IndexExpressionRet = Ret,
+            AssignOpExprRet = Ret,
+            BinaryExprRet = Ret,
+            UnaryExprRet = Ret,
+            IndexExprRet = Ret,
         >,
     {
         Ok(match walk_expr(visitor, ctx, node)? {
-            Expression::ConstructorCall(r) => r,
-            Expression::Directive(r) => r,
-            Expression::Declaration(r) => r,
-            Expression::MergeDeclaration(r) => r,
-            Expression::Variable(r) => r,
-            Expression::PropertyAccess(r) => r,
-            Expression::Ref(r) => r,
-            Expression::Deref(r) => r,
-            Expression::Unsafe(r) => r,
-            Expression::LitExpr(r) => r,
-            Expression::Cast(r) => r,
-            Expression::Block(r) => r,
-            Expression::Import(r) => r,
-            Expression::StructDef(r) => r,
-            Expression::EnumDef(r) => r,
-            Expression::TyFnDef(r) => r,
-            Expression::TraitDef(r) => r,
-            Expression::TraitImpl(r) => r,
-            Expression::FnDef(r) => r,
-            Expression::Ty(r) => r,
-            Expression::Return(r) => r,
-            Expression::Break(r) => r,
-            Expression::Continue(r) => r,
-            Expression::Assign(r) => r,
-            Expression::AssignOp(r) => r,
-            Expression::BinaryExpr(r) => r,
-            Expression::UnaryExpr(r) => r,
-            Expression::Index(r) => r,
+            Expr::ConstructorCall(r) => r,
+            Expr::Directive(r) => r,
+            Expr::Declaration(r) => r,
+            Expr::MergeDeclaration(r) => r,
+            Expr::Variable(r) => r,
+            Expr::Access(r) => r,
+            Expr::Ref(r) => r,
+            Expr::Deref(r) => r,
+            Expr::Unsafe(r) => r,
+            Expr::LitExpr(r) => r,
+            Expr::Cast(r) => r,
+            Expr::Block(r) => r,
+            Expr::Import(r) => r,
+            Expr::StructDef(r) => r,
+            Expr::EnumDef(r) => r,
+            Expr::TyFnDef(r) => r,
+            Expr::TraitDef(r) => r,
+            Expr::TraitImpl(r) => r,
+            Expr::FnDef(r) => r,
+            Expr::Ty(r) => r,
+            Expr::Return(r) => r,
+            Expr::Break(r) => r,
+            Expr::Continue(r) => r,
+            Expr::Assign(r) => r,
+            Expr::AssignOp(r) => r,
+            Expr::BinaryExpr(r) => r,
+            Expr::UnaryExpr(r) => r,
+            Expr::Index(r) => r,
         })
     }
 
@@ -3317,7 +3369,7 @@ pub mod walk_mut {
 
     pub struct DirectiveExpr<V: AstVisitorMut> {
         pub name: V::NameRet,
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
     }
 
     pub fn walk_directive_expr<V: AstVisitorMut>(
@@ -3333,7 +3385,7 @@ pub mod walk_mut {
 
     pub struct ConstructorCallArg<V: AstVisitorMut> {
         pub name: Option<V::NameRet>,
-        pub value: V::ExpressionRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_constructor_call_arg<V: AstVisitorMut>(
@@ -3371,7 +3423,7 @@ pub mod walk_mut {
     }
 
     pub struct ConstructorCallExpr<V: AstVisitorMut> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub args: V::ConstructorCallArgsRet,
     }
 
@@ -3386,24 +3438,24 @@ pub mod walk_mut {
         })
     }
 
-    pub struct PropertyAccessExpr<V: AstVisitorMut> {
-        pub subject: V::ExpressionRet,
+    pub struct AccessExpr<V: AstVisitorMut> {
+        pub subject: V::ExprRet,
         pub property: V::NameRet,
     }
 
-    pub fn walk_property_access_expr<V: AstVisitorMut>(
+    pub fn walk_access_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::AccessExpr>,
-    ) -> Result<PropertyAccessExpr<V>, V::Error> {
-        Ok(PropertyAccessExpr {
+    ) -> Result<AccessExpr<V>, V::Error> {
+        Ok(AccessExpr {
             subject: visitor.visit_expr(ctx, node.subject.ast_ref_mut())?,
             property: visitor.visit_name(ctx, node.property.ast_ref_mut())?,
         })
     }
 
     pub struct RefExpr<V: AstVisitorMut> {
-        pub inner_expr: V::ExpressionRet,
+        pub inner_expr: V::ExprRet,
         pub mutability: Option<V::MutabilityRet>,
     }
 
@@ -3422,7 +3474,7 @@ pub mod walk_mut {
         })
     }
 
-    pub struct DerefExpr<V: AstVisitorMut>(pub V::ExpressionRet);
+    pub struct DerefExpr<V: AstVisitorMut>(pub V::ExprRet);
 
     pub fn walk_deref_expr<V: AstVisitorMut>(
         visitor: &mut V,
@@ -3432,7 +3484,7 @@ pub mod walk_mut {
         Ok(DerefExpr(visitor.visit_expr(ctx, node.0.ast_ref_mut())?))
     }
 
-    pub struct UnsafeExpr<V: AstVisitorMut>(pub V::ExpressionRet);
+    pub struct UnsafeExpr<V: AstVisitorMut>(pub V::ExprRet);
 
     pub fn walk_unsafe_expr<V: AstVisitorMut>(
         visitor: &mut V,
@@ -3453,7 +3505,7 @@ pub mod walk_mut {
     }
 
     pub struct CastExpr<V: AstVisitorMut> {
-        pub expr: V::ExpressionRet,
+        pub expr: V::ExprRet,
         pub ty: V::TyRet,
     }
 
@@ -3582,7 +3634,7 @@ pub mod walk_mut {
 
     pub struct MatchCase<V: AstVisitorMut> {
         pub pat: V::PatRet,
-        pub expr: V::ExpressionRet,
+        pub expr: V::ExprRet,
     }
 
     pub fn walk_match_case<V: AstVisitorMut>(
@@ -3597,7 +3649,7 @@ pub mod walk_mut {
     }
 
     pub struct MatchBlock<V: AstVisitorMut> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub cases: V::CollectionContainer<V::MatchCaseRet>,
     }
 
@@ -3627,7 +3679,7 @@ pub mod walk_mut {
 
     pub struct ForLoopBlock<V: AstVisitorMut> {
         pub pat: V::PatRet,
-        pub iterator: V::ExpressionRet,
+        pub iterator: V::ExprRet,
         pub body: V::BlockRet,
     }
 
@@ -3644,7 +3696,7 @@ pub mod walk_mut {
     }
 
     pub struct WhileLoopBlock<V: AstVisitorMut> {
-        pub condition: V::ExpressionRet,
+        pub condition: V::ExprRet,
         pub body: V::BlockRet,
     }
 
@@ -3680,7 +3732,7 @@ pub mod walk_mut {
     }
 
     pub struct IfClause<V: AstVisitorMut> {
-        pub condition: V::ExpressionRet,
+        pub condition: V::ExprRet,
         pub body: V::BlockRet,
     }
 
@@ -3721,8 +3773,8 @@ pub mod walk_mut {
     }
 
     pub struct BodyBlock<V: AstVisitorMut> {
-        pub statements: V::CollectionContainer<V::ExpressionRet>,
-        pub expr: Option<V::ExpressionRet>,
+        pub statements: V::CollectionContainer<V::ExprRet>,
+        pub expr: Option<V::ExprRet>,
     }
 
     pub fn walk_body_block<V: AstVisitorMut>(
@@ -3820,7 +3872,7 @@ pub mod walk_mut {
     }
 
     pub struct SetLit<V: AstVisitorMut> {
-        pub elements: V::CollectionContainer<V::ExpressionRet>,
+        pub elements: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_set_lit<V: AstVisitorMut>(
@@ -3837,8 +3889,8 @@ pub mod walk_mut {
     }
 
     pub struct MapLitEntry<V: AstVisitorMut> {
-        pub key: V::ExpressionRet,
-        pub value: V::ExpressionRet,
+        pub key: V::ExprRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_map_lit_entry<V: AstVisitorMut>(
@@ -3870,7 +3922,7 @@ pub mod walk_mut {
     }
 
     pub struct ListLit<V: AstVisitorMut> {
-        pub elements: V::CollectionContainer<V::ExpressionRet>,
+        pub elements: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_list_lit<V: AstVisitorMut>(
@@ -3889,7 +3941,7 @@ pub mod walk_mut {
     pub struct TupleLitEntry<V: AstVisitorMut> {
         pub name: Option<V::NameRet>,
         pub ty: Option<V::TyRet>,
-        pub value: V::ExpressionRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_tuple_lit_entry<V: AstVisitorMut>(
@@ -4035,6 +4087,22 @@ pub mod walk_mut {
         Ok(NamedTy { name: visitor.visit_name(ctx, node.name.ast_ref_mut())? })
     }
 
+    pub struct AccessTy<V: AstVisitorMut> {
+        pub subject: V::TyRet,
+        pub property: V::NameRet,
+    }
+
+    pub fn walk_access_ty<V: AstVisitorMut>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::AccessTy>,
+    ) -> Result<AccessTy<V>, V::Error> {
+        Ok(AccessTy {
+            subject: visitor.visit_ty(ctx, node.subject.ast_ref_mut())?,
+            property: visitor.visit_name(ctx, node.property.ast_ref_mut())?,
+        })
+    }
+
     pub struct RefTy<V: AstVisitorMut> {
         pub inner: V::TyRet,
         pub mutability: Option<V::MutabilityRet>,
@@ -4071,8 +4139,24 @@ pub mod walk_mut {
         })
     }
 
+    pub struct UnionTy<V: AstVisitorMut> {
+        pub lhs: V::TyRet,
+        pub rhs: V::TyRet,
+    }
+
+    pub fn walk_union_ty<V: AstVisitorMut>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::UnionTy>,
+    ) -> Result<UnionTy<V>, V::Error> {
+        Ok(UnionTy {
+            lhs: visitor.visit_ty(ctx, node.lhs.ast_ref_mut())?,
+            rhs: visitor.visit_ty(ctx, node.rhs.ast_ref_mut())?,
+        })
+    }
+
     pub struct TyFnCall<V: AstVisitorMut> {
-        pub subject: V::ExpressionRet,
+        pub subject: V::ExprRet,
         pub args: V::CollectionContainer<V::TyArgRet>,
     }
 
@@ -4091,7 +4175,7 @@ pub mod walk_mut {
     }
 
     pub struct TyFn<V: AstVisitorMut> {
-        pub args: V::CollectionContainer<V::ParamRet>,
+        pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: V::TyRet,
     }
 
@@ -4101,7 +4185,7 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::TyFn>,
     ) -> Result<TyFn<V>, V::Error> {
         Ok(TyFn {
-            args: V::try_collect_items(
+            params: V::try_collect_items(
                 ctx,
                 node.params.iter_mut().map(|a| visitor.visit_param(ctx, a.ast_ref_mut())),
             )?,
@@ -4110,6 +4194,7 @@ pub mod walk_mut {
     }
 
     pub enum Ty<V: AstVisitorMut> {
+        Access(V::AccessTyRet),
         Fn(V::FnTyRet),
         Tuple(V::TupleTyRet),
         List(V::ListTyRet),
@@ -4132,6 +4217,9 @@ pub mod walk_mut {
         let id = node.id;
 
         Ok(match &mut *node {
+            ast::Ty::Access(r) => {
+                Ty::Access(visitor.visit_access_ty(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
             ast::Ty::Fn(r) => Ty::Fn(visitor.visit_fn_ty(ctx, AstNodeRefMut::new(r, span, id))?),
             ast::Ty::Tuple(r) => {
                 Ty::Tuple(visitor.visit_tuple_ty(ctx, AstNodeRefMut::new(r, span, id))?)
@@ -4167,6 +4255,7 @@ pub mod walk_mut {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitorMut<
+            AccessTyRet = Ret,
             FnTyRet = Ret,
             TupleTyRet = Ret,
             ListTyRet = Ret,
@@ -4181,6 +4270,7 @@ pub mod walk_mut {
         >,
     {
         Ok(match walk_ty(visitor, ctx, node)? {
+            Ty::Access(r) => r,
             Ty::Fn(r) => r,
             Ty::Tuple(r) => r,
             Ty::List(r) => r,
@@ -4196,8 +4286,9 @@ pub mod walk_mut {
     }
 
     pub enum Pat<V: AstVisitorMut> {
+        Access(V::AccessPatRet),
         Constructor(V::ConstructorPatRet),
-        Namespace(V::NamespacePatRet),
+        Module(V::ModulePatRet),
         Tuple(V::TuplePatRet),
         List(V::ListPatRet),
         Lit(V::LitPatRet),
@@ -4217,11 +4308,14 @@ pub mod walk_mut {
         let id = node.id;
 
         Ok(match &mut *node {
+            ast::Pat::Access(r) => {
+                Pat::Access(visitor.visit_access_pat(ctx, AstNodeRefMut::new(r, span, id))?)
+            }
             ast::Pat::Constructor(r) => Pat::Constructor(
                 visitor.visit_constructor_pat(ctx, AstNodeRefMut::new(r, span, id))?,
             ),
-            ast::Pat::Namespace(r) => {
-                Pat::Namespace(visitor.visit_namespace_pat(ctx, AstNodeRefMut::new(r, span, id))?)
+            ast::Pat::Module(r) => {
+                Pat::Module(visitor.visit_module_pat(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::Pat::Tuple(r) => {
                 Pat::Tuple(visitor.visit_tuple_pat(ctx, AstNodeRefMut::new(r, span, id))?)
@@ -4253,8 +4347,9 @@ pub mod walk_mut {
     ) -> Result<Ret, V::Error>
     where
         V: AstVisitorMut<
+            AccessPatRet = Ret,
             ConstructorPatRet = Ret,
-            NamespacePatRet = Ret,
+            ModulePatRet = Ret,
             TuplePatRet = Ret,
             ListPatRet = Ret,
             LitPatRet = Ret,
@@ -4266,8 +4361,9 @@ pub mod walk_mut {
         >,
     {
         Ok(match walk_pat(visitor, ctx, node)? {
+            Pat::Access(r) => r,
             Pat::Constructor(r) => r,
-            Pat::Namespace(r) => r,
+            Pat::Module(r) => r,
             Pat::Tuple(r) => r,
             Pat::List(r) => r,
             Pat::Lit(r) => r,
@@ -4296,7 +4392,7 @@ pub mod walk_mut {
     }
 
     pub struct ConstructorPat<V: AstVisitorMut> {
-        pub name: V::NamespaceRet,
+        pub subject: V::PatRet,
         pub args: V::CollectionContainer<V::TuplePatEntryRet>,
     }
     pub fn walk_constructor_pat<V: AstVisitorMut>(
@@ -4305,7 +4401,7 @@ pub mod walk_mut {
         mut node: ast::AstNodeRefMut<ast::ConstructorPat>,
     ) -> Result<ConstructorPat<V>, V::Error> {
         Ok(ConstructorPat {
-            name: visitor.visit_namespace(ctx, node.name.ast_ref_mut())?,
+            subject: visitor.visit_pat(ctx, node.subject.ast_ref_mut())?,
             args: V::try_collect_items(
                 ctx,
                 node.fields.iter_mut().map(|a| visitor.visit_tuple_pat_entry(ctx, a.ast_ref_mut())),
@@ -4313,20 +4409,20 @@ pub mod walk_mut {
         })
     }
 
-    pub struct NamespacePat<V: AstVisitorMut> {
-        pub patterns: V::CollectionContainer<V::DestructuringPatRet>,
+    pub struct ModulePat<V: AstVisitorMut> {
+        pub patterns: V::CollectionContainer<V::ModulePatEntryRet>,
     }
-    pub fn walk_namespace_pat<V: AstVisitorMut>(
+    pub fn walk_module_pat<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::NamespacePat>,
-    ) -> Result<NamespacePat<V>, V::Error> {
-        Ok(NamespacePat {
+        mut node: ast::AstNodeRefMut<ast::ModulePat>,
+    ) -> Result<ModulePat<V>, V::Error> {
+        Ok(ModulePat {
             patterns: V::try_collect_items(
                 ctx,
                 node.fields
                     .iter_mut()
-                    .map(|a| visitor.visit_destructuring_pat(ctx, a.ast_ref_mut())),
+                    .map(|a| visitor.visit_module_pat_entry(ctx, a.ast_ref_mut())),
             )?,
         })
     }
@@ -4387,7 +4483,7 @@ pub mod walk_mut {
 
     pub struct IfPat<V: AstVisitorMut> {
         pub pat: V::PatRet,
-        pub condition: V::ExpressionRet,
+        pub condition: V::ExprRet,
     }
     pub fn walk_if_pat<V: AstVisitorMut>(
         visitor: &mut V,
@@ -4503,22 +4599,22 @@ pub mod walk_mut {
         })
     }
 
-    pub struct DestructuringPat<V: AstVisitorMut> {
+    pub struct ModulePatEntry<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub pat: V::PatRet,
     }
-    pub fn walk_destructuring_pat<V: AstVisitorMut>(
+    pub fn walk_module_pat_entry<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::DestructuringPat>,
-    ) -> Result<DestructuringPat<V>, V::Error> {
-        Ok(DestructuringPat {
+        mut node: ast::AstNodeRefMut<ast::ModulePatEntry>,
+    ) -> Result<ModulePatEntry<V>, V::Error> {
+        Ok(ModulePatEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             pat: visitor.visit_pat(ctx, node.pat.ast_ref_mut())?,
         })
     }
 
-    pub struct ReturnStatement<V: AstVisitorMut>(pub Option<V::ExpressionRet>);
+    pub struct ReturnStatement<V: AstVisitorMut>(pub Option<V::ExprRet>);
     pub fn walk_return_statement<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
@@ -4532,7 +4628,7 @@ pub mod walk_mut {
     pub struct Declaration<V: AstVisitorMut> {
         pub pat: V::PatRet,
         pub ty: Option<V::TyRet>,
-        pub value: Option<V::ExpressionRet>,
+        pub value: Option<V::ExprRet>,
     }
 
     pub fn walk_declaration<V: AstVisitorMut>(
@@ -4552,8 +4648,8 @@ pub mod walk_mut {
     }
 
     pub struct MergeDeclaration<V: AstVisitorMut> {
-        pub decl: V::ExpressionRet,
-        pub value: V::ExpressionRet,
+        pub decl: V::ExprRet,
+        pub value: V::ExprRet,
     }
 
     pub fn walk_merge_declaration<V: AstVisitorMut>(
@@ -4568,8 +4664,8 @@ pub mod walk_mut {
     }
 
     pub struct AssignExpr<V: AstVisitorMut> {
-        pub lhs: V::ExpressionRet,
-        pub rhs: V::ExpressionRet,
+        pub lhs: V::ExprRet,
+        pub rhs: V::ExprRet,
     }
 
     pub fn walk_assign_expr<V: AstVisitorMut>(
@@ -4584,8 +4680,8 @@ pub mod walk_mut {
     }
 
     pub struct AssignOpStatement<V: AstVisitorMut> {
-        pub lhs: V::ExpressionRet,
-        pub rhs: V::ExpressionRet,
+        pub lhs: V::ExprRet,
+        pub rhs: V::ExprRet,
         pub operator: V::BinOpRet,
     }
     pub fn walk_assign_op_statement<V: AstVisitorMut>(
@@ -4600,25 +4696,25 @@ pub mod walk_mut {
         })
     }
 
-    pub struct BinaryExpression<V: AstVisitorMut> {
-        pub lhs: V::ExpressionRet,
-        pub rhs: V::ExpressionRet,
+    pub struct BinaryExpr<V: AstVisitorMut> {
+        pub lhs: V::ExprRet,
+        pub rhs: V::ExprRet,
         pub operator: V::BinOpRet,
     }
     pub fn walk_binary_expr<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::BinaryExpr>,
-    ) -> Result<BinaryExpression<V>, V::Error> {
-        Ok(BinaryExpression {
+    ) -> Result<BinaryExpr<V>, V::Error> {
+        Ok(BinaryExpr {
             lhs: visitor.visit_expr(ctx, node.lhs.ast_ref_mut())?,
             rhs: visitor.visit_expr(ctx, node.rhs.ast_ref_mut())?,
             operator: visitor.visit_bin_op(ctx, node.operator.ast_ref_mut())?,
         })
     }
 
-    pub struct UnaryExpression<V: AstVisitorMut> {
-        pub expr: V::ExpressionRet,
+    pub struct UnaryExpr<V: AstVisitorMut> {
+        pub expr: V::ExprRet,
         pub operator: V::UnOpRet,
     }
 
@@ -4626,16 +4722,16 @@ pub mod walk_mut {
         visitor: &mut V,
         ctx: &V::Ctx,
         mut node: ast::AstNodeRefMut<ast::UnaryExpr>,
-    ) -> Result<UnaryExpression<V>, V::Error> {
-        Ok(UnaryExpression {
+    ) -> Result<UnaryExpr<V>, V::Error> {
+        Ok(UnaryExpr {
             expr: visitor.visit_expr(ctx, node.expr.ast_ref_mut())?,
             operator: visitor.visit_un_op(ctx, node.operator.ast_ref_mut())?,
         })
     }
 
     pub struct IndexExpr<V: AstVisitorMut> {
-        pub subject: V::ExpressionRet,
-        pub index_expr: V::ExpressionRet,
+        pub subject: V::ExprRet,
+        pub index_expr: V::ExprRet,
     }
 
     pub fn walk_index_expr<V: AstVisitorMut>(
@@ -4702,7 +4798,7 @@ pub mod walk_mut {
     pub struct TyFnDef<V: AstVisitorMut> {
         pub params: V::CollectionContainer<V::ParamRet>,
         pub return_ty: Option<V::TyRet>,
-        pub body: V::ExpressionRet,
+        pub body: V::ExprRet,
     }
 
     pub fn walk_ty_fn_def<V: AstVisitorMut>(
@@ -4725,7 +4821,7 @@ pub mod walk_mut {
     }
 
     pub struct TraitDef<V: AstVisitorMut> {
-        pub members: V::CollectionContainer<V::ExpressionRet>,
+        pub members: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_trait_def<V: AstVisitorMut>(
@@ -4743,7 +4839,7 @@ pub mod walk_mut {
 
     pub struct TraitImpl<V: AstVisitorMut> {
         pub ty: V::TyRet,
-        pub implementation: V::CollectionContainer<V::ExpressionRet>,
+        pub implementation: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_trait_impl<V: AstVisitorMut>(
@@ -4761,7 +4857,7 @@ pub mod walk_mut {
     }
 
     pub struct Module<V: AstVisitorMut> {
-        pub contents: V::CollectionContainer<V::ExpressionRet>,
+        pub contents: V::CollectionContainer<V::ExprRet>,
     }
 
     pub fn walk_module<V: AstVisitorMut>(

@@ -832,6 +832,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
     /// Simplify the given term, just returning the original if no
     /// simplification occurred.
+    #[inline]
     pub(crate) fn potentially_simplify_term(&mut self, term_id: TermId) -> TcResult<TermId> {
         Ok(self.simplify_term(term_id)?.unwrap_or(term_id))
     }
@@ -1103,9 +1104,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
     /// Simplify the given term, if possible.
     ///
     /// This does not perform all validity checks, some are performed by
-    /// [Typer], and all are by [Validator].
+    /// [super::Typer], and all are by [super::Validator].
     pub(crate) fn simplify_term(&mut self, term_id: TermId) -> TcResult<Option<TermId>> {
-        // @@Performance: we can cache the result of the simplification in a hashmap.
+        // Check if we have already performed a simplification on this term, if so
+        // return the result.
+        if let Some(term) = self.cacher().has_been_simplified(term_id) {
+            return Ok(Some(term));
+        }
+
         let value = self.reader().get_term(term_id).clone();
         let new_term = match value {
             Term::Merge(inner) => Ok(self
@@ -1282,6 +1288,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         // Copy over the location if a new term was created
         if let Some(new_term) = new_term {
             self.location_store_mut().copy_location(term_id, new_term);
+
+            // We want to add an entry for the operation within the cache...
+            self.cacher().add_simplification_entry(term_id, new_term);
         }
 
         Ok(new_term)

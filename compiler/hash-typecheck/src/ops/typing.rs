@@ -53,10 +53,16 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// First simplifies the term. If you already know you have a simplified
     /// term, you can use [Self::ty_of_simplified_term].
-    pub(crate) fn infer_ty_of_term(&mut self, term_id: TermId) -> TcResult<TermId> {
-        let simplified_term_id = self.simplifier().potentially_simplify_term(term_id)?;
+    pub(crate) fn infer_ty_of_term(&mut self, term: TermId) -> TcResult<TermId> {
+        if let Some(inferred_term) = self.cacher().has_been_inferred(term) {
+            return Ok(inferred_term);
+        }
+
+        let simplified_term_id = self.simplifier().potentially_simplify_term(term)?;
         let new_term = self.infer_ty_of_simplified_term(simplified_term_id)?;
 
+        // Record an entry in the cache about the inferred term
+        self.cacher().add_inference_entry(term, new_term);
         Ok(new_term)
     }
 
