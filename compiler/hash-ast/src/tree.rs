@@ -9,8 +9,9 @@ use crate::{
     visitor::{walk, AstVisitor},
 };
 
-/// Struct implementing [AstVisitor], for the purpose of transforming the AST
-/// tree into a [TreeNode] tree, for visualisation purposes.
+/// Struct implementing [crate::visitor::AstVisitor], for the purpose of
+/// transforming the AST tree into a [TreeNode] tree, for visualisation
+/// purposes.
 pub struct AstTreeGenerator;
 
 /// Easy way to format a [TreeNode] label with a main label as well as short
@@ -40,17 +41,6 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
         Ok(TreeNode::leaf(node.ident))
-    }
-
-    type AccessNameRet = TreeNode;
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Namespace>,
-    ) -> Result<Self::AccessNameRet, Self::Error> {
-        Ok(TreeNode::leaf(
-            node.path.iter().map(|p| (*p.body()).into()).intersperse("::").collect::<String>(),
-        ))
     }
 
     type LitRet = TreeNode;
@@ -196,12 +186,12 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
     }
 
-    type ExpressionRet = TreeNode;
+    type ExprRet = TreeNode;
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         walk::walk_expr_same_children(self, ctx, node)
     }
 
@@ -502,17 +492,14 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TyFn>,
     ) -> Result<Self::TyFnRet, Self::Error> {
-        let walk::TyFn { params: args, return_ty } = walk::walk_ty_fn(self, ctx, node)?;
+        let walk::TyFn { params, return_ty } = walk::walk_ty_fn(self, ctx, node)?;
 
-        let return_child = TreeNode::branch("return", vec![return_ty]);
+        let mut children = vec![TreeNode::branch("return", vec![return_ty])];
 
-        let children = {
-            if args.is_empty() {
-                vec![return_child]
-            } else {
-                vec![TreeNode::branch("arguments", args), return_child]
-            }
-        };
+        // Add the parameters branch to the start
+        if !params.is_empty() {
+            children.insert(0, TreeNode::branch("parameters", params));
+        }
 
         Ok(TreeNode::branch("type_function", children))
     }
@@ -539,6 +526,22 @@ impl AstVisitor for AstTreeGenerator {
     ) -> Result<Self::NamedTyRet, Self::Error> {
         let walk::NamedTy { name } = walk::walk_named_ty(self, ctx, node)?;
         Ok(TreeNode::leaf(labelled("named", name.label, "\"")))
+    }
+
+    type AccessTyRet = TreeNode;
+    fn visit_access_ty(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        let walk::AccessTy { subject, .. } = walk::walk_access_ty(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "access",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::leaf(labelled("property", node.property.ident, "\"")),
+            ],
+        ))
     }
 
     type RefTyRet = TreeNode;
@@ -597,14 +600,14 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let walk::TyFnDef { params: args, return_ty, expr } =
+        let walk::TyFnDef { params: args, return_ty, body } =
             walk::walk_ty_fn_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
             iter::once(TreeNode::branch("args", args))
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
-                .chain(iter::once(TreeNode::branch("body", vec![expr])))
+                .chain(iter::once(TreeNode::branch("body", vec![body])))
                 .collect(),
         ))
     }
@@ -662,6 +665,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MatchBlockRet = TreeNode;
+
     fn visit_match_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -687,7 +691,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type ForLoopBlockRet = TreeNode;
-
     fn visit_for_loop_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -837,6 +840,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type RefKindRet = ();
+
     fn visit_ref_kind(
         &mut self,
         _: &Self::Ctx,
@@ -865,7 +869,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type MergeDeclarationRet = TreeNode;
-
     fn visit_merge_declaration(
         &mut self,
         ctx: &Self::Ctx,
@@ -890,12 +893,12 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type AssignOpExpressionRet = TreeNode;
+    type AssignOpExprRet = TreeNode;
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         let walk::AssignOpStatement { lhs, rhs, operator } =
             walk::walk_assign_op_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
@@ -904,14 +907,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type BinaryExpressionRet = TreeNode;
+    type BinaryExprRet = TreeNode;
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
-        let walk::BinaryExpression { operator, lhs, rhs } =
-            walk::walk_binary_expr(self, ctx, node)?;
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
+        let walk::BinaryExpr { operator, lhs, rhs } = walk::walk_binary_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "binary_expr",
@@ -919,23 +921,24 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type UnaryExpressionRet = TreeNode;
+    type UnaryExprRet = TreeNode;
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
-        let walk::UnaryExpression { operator, expr } = walk::walk_unary_expr(self, ctx, node)?;
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
+        let walk::UnaryExpr { operator, expr } = walk::walk_unary_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch("unary_expr", vec![operator, TreeNode::branch("expr", vec![expr])]))
     }
 
-    type IndexExpressionRet = TreeNode;
+    type IndexExprRet = TreeNode;
+
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let walk::IndexExpr { subject, index_expr } = walk::walk_index_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch(
@@ -948,7 +951,6 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type StructDefRet = TreeNode;
-
     fn visit_struct_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1013,6 +1015,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type PatRet = TreeNode;
+
     fn visit_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -1021,33 +1024,47 @@ impl AstVisitor for AstTreeGenerator {
         walk::walk_pat_same_children(self, ctx, node)
     }
 
-    type ConstructorPatRet = TreeNode;
+    type AccessPatRet = TreeNode;
+    fn visit_access_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        let walk::AccessPat { subject, .. } = walk::walk_access_pat(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "access",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::leaf(labelled("property", node.property.ident, "\"")),
+            ],
+        ))
+    }
 
+    type ConstructorPatRet = TreeNode;
     fn visit_constructor_pat(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { args, name } = walk::walk_constructor_pat(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "enum",
-            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
-                .chain(
-                    (if args.is_empty() { None } else { Some(TreeNode::branch("args", args)) })
-                        .into_iter(),
-                )
-                .collect(),
-        ))
+        let walk::ConstructorPat { subject, args } = walk::walk_constructor_pat(self, ctx, node)?;
+
+        let children = if !node.fields.is_empty() {
+            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("args", args)]
+        } else {
+            vec![TreeNode::branch("subject", vec![subject])]
+        };
+
+        Ok(TreeNode::branch("constructor", children))
     }
 
-    type NamespacePatRet = TreeNode;
-    fn visit_namespace_pat(
+    type ModulePatRet = TreeNode;
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
-        let walk::NamespacePat { fields: patterns } = walk::walk_namespace_pat(self, ctx, node)?;
-        Ok(TreeNode::branch("namespace", vec![TreeNode::branch("members", patterns)]))
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields: patterns } = walk::walk_module_pat(self, ctx, node)?;
+        Ok(TreeNode::branch("module", vec![TreeNode::branch("members", patterns)]))
     }
 
     type TuplePatEntryRet = TreeNode;
@@ -1194,6 +1211,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type SpreadPatRet = TreeNode;
+
     fn visit_spread_pat(
         &mut self,
         ctx: &Self::Ctx,
@@ -1209,6 +1227,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type IgnorePatRet = TreeNode;
+
     fn visit_ignore_pat(
         &mut self,
         _: &Self::Ctx,
@@ -1217,15 +1236,15 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf("ignore"))
     }
 
-    type DestructuringPatRet = TreeNode;
+    type ModulePatEntryRet = TreeNode;
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
-        let walk::DestructuringPat { name, pat: pattern } =
-            walk::walk_destructuring_pat(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        let walk::ModulePatEntry { name, pat: pattern } =
+            walk::walk_module_pat_entry(self, ctx, node)?;
         Ok(TreeNode::branch(labelled("binding", name.label, "\""), vec![pattern]))
     }
 

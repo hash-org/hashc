@@ -52,16 +52,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type NamespaceRet = ();
-
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Namespace>,
-    ) -> Result<Self::NamespaceRet, Self::Error> {
-        Ok(())
-    }
-
     type LitRet = ();
 
     fn visit_lit(
@@ -208,13 +198,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type ExpressionRet = ();
+    type ExprRet = ();
 
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         let _ = walk_mut::walk_expr(self, ctx, node);
         Ok(())
     }
@@ -290,7 +280,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let _ = walk_mut::walk_property_access_expr(self, ctx, node);
+        let _ = walk_mut::walk_access_expr(self, ctx, node);
         Ok(())
     }
 
@@ -488,6 +478,15 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type AccessTyRet = ();
+    fn visit_access_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
         Ok(())
     }
 
@@ -780,46 +779,46 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type AssignOpExpressionRet = ();
+    type AssignOpExprRet = ();
 
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         let _ = walk_mut::walk_assign_op_statement(self, ctx, node);
         Ok(())
     }
 
-    type BinaryExpressionRet = ();
+    type BinaryExprRet = ();
 
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
         let _ = walk_mut::walk_binary_expr(self, ctx, node);
         Ok(())
     }
 
-    type UnaryExpressionRet = ();
+    type UnaryExprRet = ();
 
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
         let _ = walk_mut::walk_unary_expr(self, ctx, node);
         Ok(())
     }
 
-    type IndexExpressionRet = ();
+    type IndexExprRet = ();
 
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let _ = walk_mut::walk_index_expr(self, ctx, node);
         Ok(())
     }
@@ -887,6 +886,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type AccessPatRet = ();
+
+    fn visit_access_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        Ok(())
+    }
+
     type ConstructorPatRet = ();
 
     fn visit_constructor_pat(
@@ -897,13 +906,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type NamespacePatRet = ();
+    type ModulePatRet = ();
 
-    fn visit_namespace_pat(
+    fn visit_module_pat(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
         Ok(())
     }
 
@@ -1048,13 +1057,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type DestructuringPatRet = ();
+    type ModulePatEntryRet = ();
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         Ok(())
     }
 

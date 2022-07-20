@@ -6,7 +6,7 @@
 use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
-        BindingPat, Block, BlockExpr, DestructuringPat, ExprKind, LitExpr, Mutability, ParamOrigin,
+        BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, ParamOrigin,
         Pat, TuplePatEntry,
     },
     visitor::{walk, AstVisitor},
@@ -46,16 +46,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
-        Ok(())
-    }
-
-    type AccessNameRet = ();
-
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Namespace>,
-    ) -> Result<Self::AccessNameRet, Self::Error> {
         Ok(())
     }
 
@@ -205,13 +195,13 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type ExpressionRet = ();
+    type ExprRet = ();
 
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         let _ = walk::walk_expr(self, ctx, node);
         Ok(())
     }
@@ -526,6 +516,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRef<hash_ast::ast::NamedTy>,
     ) -> Result<Self::NamedTyRet, Self::Error> {
+        Ok(())
+    }
+
+    type AccessTyRet = ();
+
+    fn visit_access_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
         Ok(())
     }
 
@@ -878,46 +878,46 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type AssignOpExpressionRet = ();
+    type AssignOpExprRet = ();
 
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         let _ = walk::walk_assign_op_statement(self, ctx, node);
         Ok(())
     }
 
-    type BinaryExpressionRet = ();
+    type BinaryExprRet = ();
 
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
         let _ = walk::walk_binary_expr(self, ctx, node);
         Ok(())
     }
 
-    type UnaryExpressionRet = ();
+    type UnaryExprRet = ();
 
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
         let _ = walk::walk_unary_expr(self, ctx, node);
         Ok(())
     }
 
-    type IndexExpressionRet = ();
+    type IndexExprRet = ();
 
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let _ = walk::walk_index_expr(self, ctx, node);
         Ok(())
     }
@@ -987,6 +987,17 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type AccessPatRet = ();
+
+    fn visit_access_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        let _ = walk::walk_access_pat(self, ctx, node);
+        Ok(())
+    }
+
     type ConstructorPatRet = ();
 
     /// This function verifies that constructor patterns adhere to the following
@@ -1006,14 +1017,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type NamespacePatRet = ();
+    type ModulePatRet = ();
 
-    fn visit_namespace_pat(
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
-        let _ = walk::walk_namespace_pat(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let _ = walk::walk_module_pat(self, ctx, node);
         Ok(())
     }
 
@@ -1210,14 +1221,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type DestructuringPatRet = ();
+    type ModulePatEntryRet = ();
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
-        let DestructuringPat { pat, .. } = node.body();
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        let ModulePatEntry { pat, .. } = node.body();
 
         // Spread patterns are always disallowed within a named field entry
         if matches!(pat.body(), Pat::Spread(_)) {
@@ -1227,7 +1238,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
             );
         } else {
             // We only need to walk the children if it hasn't error'd yet
-            let _ = walk::walk_destructuring_pat(self, ctx, node);
+            let _ = walk::walk_module_pat_entry(self, ctx, node);
         }
 
         Ok(())

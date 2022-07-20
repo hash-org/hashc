@@ -188,34 +188,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(node.ident)
     }
 
-    type AccessNameRet = TermId;
-
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::Namespace>,
-    ) -> Result<Self::AccessNameRet, Self::Error> {
-        // Accumulate all the names into an access term:
-        let mut names = node.path.iter();
-
-        let first_name = names.next().unwrap();
-        let location = self.source_location(first_name.span());
-
-        let builder = self.builder();
-        let mut current_term = builder.create_var_term(*first_name.body());
-
-        builder.add_location_to_target(current_term, location);
-
-        for access_name in names {
-            let name_location = self.source_location(access_name.span());
-            let builder = self.builder();
-
-            current_term = builder.create_ns_access(current_term, *access_name.body());
-            builder.add_location_to_target(current_term, name_location);
-        }
-        Ok(current_term)
-    }
-
     type LitRet = TermId;
 
     fn visit_lit(
@@ -461,13 +433,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(())
     }
 
-    type ExpressionRet = TermId;
+    type ExprRet = TermId;
 
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         walk::walk_expr_same_children(self, ctx, node)
     }
 
@@ -1025,6 +997,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
     }
 
+    type AccessTyRet = TermId;
+
+    fn visit_access_ty(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::AccessTy>,
+    ) -> Result<Self::AccessTyRet, Self::Error> {
+        todo!()
+    }
+
     type RefTyRet = TermId;
 
     fn visit_ref_ty(
@@ -1094,7 +1076,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type TyFnDefRet = TermId;
-
     fn visit_ty_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1147,6 +1128,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type FnDefRet = TermId;
+
     fn visit_fn_def(
         &mut self,
         ctx: &Self::Ctx,
@@ -1235,7 +1217,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type BlockRet = TermId;
-
     fn visit_block(
         &mut self,
         ctx: &Self::Ctx,
@@ -1245,6 +1226,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MatchCaseRet = ();
+
     fn visit_match_case(
         &mut self,
         _: &Self::Ctx,
@@ -1528,7 +1510,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type VisibilityRet = Visibility;
-
     fn visit_visibility_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1541,6 +1522,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MutabilityRet = Mutability;
+
     fn visit_mutability_modifier(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1653,7 +1635,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type MergeDeclarationRet = TermId;
-
     fn visit_merge_declaration(
         &mut self,
         _ctx: &Self::Ctx,
@@ -1663,6 +1644,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type AssignExprRet = TermId;
+
     fn visit_assign_expr(
         &mut self,
         ctx: &Self::Ctx,
@@ -1690,24 +1672,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.builder().create_void_term())
     }
 
-    type AssignOpExpressionRet = TermId;
+    type AssignOpExprRet = TermId;
 
     fn visit_assign_op_expr(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         todo!()
     }
 
-    type BinaryExpressionRet = TermId;
+    type BinaryExprRet = TermId;
 
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
-        let walk::BinaryExpression { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
+        let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
 
         let mut operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(lhs, trait_fn_name);
@@ -1776,14 +1758,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(simplified)
     }
 
-    type UnaryExpressionRet = TermId;
+    type UnaryExprRet = TermId;
 
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
-        let walk::UnaryExpression { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
+        let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
 
         let mut operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
@@ -1804,13 +1786,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
-    type IndexExpressionRet = TermId;
+    type IndexExprRet = TermId;
 
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, ctx, node)?;
 
         // We just translate this to a function call:
@@ -1990,6 +1972,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         walk::walk_pat_same_children(self, ctx, node)
     }
 
+    type AccessPatRet = PatId;
+
+    fn visit_access_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: ast::AstNodeRef<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        todo!()
+    }
+
     type ConstructorPatRet = PatId;
 
     fn visit_constructor_pat(
@@ -1997,9 +1989,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { name, args } = walk::walk_constructor_pat(self, ctx, node)?;
+        let walk::ConstructorPat { subject, args } = walk::walk_constructor_pat(self, ctx, node)?;
         let constructor_params = self.builder().create_pat_params(args, ParamOrigin::Unknown);
-        let constructor_pat = self.builder().create_constructor_pat(name, constructor_params);
+
+        let subject = self.typer().infer_ty_of_pat(subject)?;
+        let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
         self.copy_location_from_node_to_target(node, constructor_pat);
@@ -2007,14 +2001,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(constructor_pat)
     }
 
-    type NamespacePatRet = PatId;
+    type ModulePatRet = PatId;
 
-    fn visit_namespace_pat(
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
-        let walk::NamespacePat { fields } = walk::walk_namespace_pat(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
         let members = self.builder().create_pat_params(fields, ParamOrigin::Unknown);
         let module_pat = self.builder().create_mod_pat(members);
 
@@ -2200,7 +2194,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type SpreadPatRet = PatId;
-
     fn visit_spread_pat(
         &mut self,
         _ctx: &Self::Ctx,
@@ -2221,13 +2214,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(pat)
     }
 
-    type DestructuringPatRet = PatParam;
-    fn visit_destructuring_pat(
+    type ModulePatEntryRet = PatParam;
+
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
-        let walk::DestructuringPat { name, pat } = walk::walk_destructuring_pat(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        let walk::ModulePatEntry { name, pat } = walk::walk_module_pat_entry(self, ctx, node)?;
         Ok(self.builder().create_pat_param(name, pat))
     }
 

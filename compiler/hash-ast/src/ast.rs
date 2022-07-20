@@ -284,28 +284,20 @@ impl Name {
     }
 }
 
-/// A namespaced name, i.e. access name.
-#[derive(Debug, PartialEq, Clone)]
-pub struct Namespace {
-    /// The list of names that make up the access name.
-    pub path: AstNodes<Identifier>,
-}
-
-impl Namespace {
-    pub fn path(&self) -> Vec<Identifier> {
-        self.path.iter().map(|part| *part.body()).collect::<Vec<_>>()
-    }
-
-    pub fn path_with_locations(&self) -> Vec<(Identifier, Span)> {
-        self.path.iter().map(|part| (*part.body(), part.span())).collect::<Vec<_>>()
-    }
-}
-
 /// A concrete/"named" type.
 #[derive(Debug, PartialEq, Clone)]
 pub struct NamedTy {
     /// The name of the type.
     pub name: AstNode<Name>,
+}
+
+/// Access type denotes the access of a property of some inner type.
+#[derive(Debug, PartialEq, Clone)]
+pub struct AccessTy {
+    /// The subject of the access
+    pub subject: AstNode<Ty>,
+    /// the property that is access of the `subject` type
+    pub property: AstNode<Name>,
 }
 
 /// Reference kind representing either a raw reference or a normal reference.
@@ -427,16 +419,29 @@ impl BinTyOp {
 /// A type.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Ty {
+    /// Access type, access the property of some inner type
+    Access(AccessTy),
+    /// Tuple type
     Tuple(TupleTy),
+    /// list type
     List(ListTy),
+    /// Set type
     Set(SetTy),
+    /// Map type
     Map(MapTy),
+    /// Function type
     Fn(FnTy),
+    /// Named type, similar to a binding
     Named(NamedTy),
+    /// Reference type, the reference type of the inner type
     Ref(RefTy),
+    /// Merge type, the intersection of two types
     Merge(MergeTy),
+    /// Union type, the union of two types
     Union(UnionTy),
+    /// Type function type
     TyFn(TyFn),
+    /// Type function call
     TyFnCall(TyFnCall),
 }
 
@@ -572,31 +577,30 @@ pub struct IfPat {
     pub condition: AstNode<Expr>,
 }
 
-/// An construct pattern, e.g. `Some((x, y)), Dog(name = "viktor", age = 3)`.
+/// An construct pattern, e.g. `Some((x, y)), animals::Dog(name = "viktor", age
+/// = 3)`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConstructorPat {
-    /// The name of the enum variant.
-    pub name: AstNode<Namespace>,
+    /// The subject of the constructor pattern.
+    pub subject: AstNode<Pat>,
     /// The arguments of the enum variant as patterns.
     pub fields: AstNodes<TuplePatEntry>,
 }
 
-/// A pattern destructuring, e.g. `name: (fst, snd)`.
-///
-/// Used in struct and namespace patterns.
+/// A module pattern entry, e.g. `{..., name: (fst, snd), ...}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DestructuringPat {
+pub struct ModulePatEntry {
     /// The name of the field.
     pub name: AstNode<Name>,
     /// The pattern to match the field's value with.
     pub pat: AstNode<Pat>,
 }
 
-/// A namespace pattern, e.g. `{ fgets, fputs, }`
+/// A module pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamespacePat {
-    /// The entries of the namespace, as [DestructuringPat] entries.
-    pub fields: AstNodes<DestructuringPat>,
+pub struct ModulePat {
+    /// The entries of a module pattern
+    pub fields: AstNodes<ModulePatEntry>,
 }
 
 /// A tuple pattern entry
@@ -659,6 +663,16 @@ pub enum LitPat {
     Bool(BoolLitPat),
 }
 
+/// An access pattern, denoting the access of a property from
+/// another pattern.
+#[derive(Debug, PartialEq, Clone)]
+pub struct AccessPat {
+    /// The subject of the access pattern
+    pub subject: AstNode<Pat>,
+    /// The property of the subject to access.
+    pub property: AstNode<Name>,
+}
+
 /// A pattern name binding.
 #[derive(Debug, PartialEq, Clone)]
 pub struct BindingPat {
@@ -683,14 +697,24 @@ pub struct IgnorePat;
 /// A pattern. e.g. `Ok(Dog {props = (1, x)})`.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Pat {
+    /// An access pattern is one that denotes the access of a property from
+    /// another pattern. This is used to denote namespace accesses like
+    /// `a::b::c`
+    Access(AccessPat),
+    /// A simple binding pattern, assign some value to the name of the pattern
+    Binding(BindingPat),
+    /// A representation of a constructor in the pattern space. Constructors in
+    /// patterns can either be enum or struct values. The subject of the
+    /// constructor can be either an [Pat::Access] or a [Pat::Binding].
     Constructor(ConstructorPat),
-    Namespace(NamespacePat),
+    /// Module pattern is used to destructure entries from an import.
+    Module(ModulePat),
+    /// A tuple pattern is a collection of patterns, e.g `(1, x, 'c')`
     Tuple(TuplePat),
     List(ListPat),
     Lit(LitPat),
     Or(OrPat),
     If(IfPat),
-    Binding(BindingPat),
     Ignore(IgnorePat),
     Spread(SpreadPat),
 }
