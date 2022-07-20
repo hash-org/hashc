@@ -3,13 +3,13 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, Arg, ArgsId, BindingPat, ConstructorPat, EnumDef, EnumVariant,
-        EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term, Level2Term,
-        Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin, ModPat,
-        Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId, PatParam,
-        PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term,
-        TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
-        UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat, EnumDef,
+        EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
+        Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
+        ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
+        PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, SetBound, StructDef,
+        StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
+        TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -59,6 +59,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     pub fn create_var_term(&self, var_name: impl Into<Identifier>) -> TermId {
         let var = self.create_var(var_name);
         self.create_term(Term::Var(var))
+    }
+
+    /// Create a bound variable with the given name.
+    pub fn create_bound_var_term(&self, name: impl Into<Identifier>) -> TermId {
+        self.create_term(Term::BoundVar(BoundVar { name: name.into() }))
     }
 
     /// Create a scope variable with the given name, scope and index.

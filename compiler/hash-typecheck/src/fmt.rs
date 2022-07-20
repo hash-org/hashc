@@ -3,10 +3,10 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-        MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, ParamsId,
-        Pat, PatId, PatParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId, TrtDefId,
-        UnresolvedTerm, Visibility,
+        AccessOp, ArgsId, BoundVar, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term,
+        LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
+        ParamsId, Pat, PatId, PatParamsId, ScopeId, ScopeVar, StructDef, Sub, SubSubject, Term,
+        TermId, TrtDefId, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -336,9 +336,11 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, "{}{}", op, access_term.name)?;
                 Ok(())
             }
-            Term::Var(var) => {
+            Term::Var(Var { name })
+            | Term::BoundVar(BoundVar { name })
+            | Term::ScopeVar(ScopeVar { name, .. }) => {
                 opts.is_atomic.set(true);
-                write!(f, "{}", var.name)
+                write!(f, "{}", name)
             }
             Term::Merge(terms) => {
                 opts.is_atomic.set(false);
@@ -440,10 +442,6 @@ impl<'gs> TcFormatter<'gs> {
                         TcFormatOpts { expand: opts.expand, ..TcFormatOpts::default() }
                     )
                 )
-            }
-            Term::ScopeVar(var) => {
-                opts.is_atomic.set(true);
-                write!(f, "{}", var.name)
             }
         }
     }

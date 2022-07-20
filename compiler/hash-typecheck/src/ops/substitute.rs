@@ -221,6 +221,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         let new_term = match term {
             // Leaves:
             Term::Var(_var) => term_id,
+            Term::BoundVar(_var) => term_id,
             Term::Unresolved(unresolved) => self.apply_sub_to_subject(sub, unresolved.into()),
             Term::Root => term_id,
 
@@ -515,6 +516,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 // result.insert((*var).into());
                 todo!()
             }
+            Term::BoundVar(_) => todo!(),
             Term::Unresolved(unresolved) => {
                 // Found an unresolved free variable:
                 result.insert((*unresolved).into());

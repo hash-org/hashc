@@ -514,6 +514,12 @@ pub struct Var {
     pub name: Identifier,
 }
 
+/// A bound variable, originating from some bound.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct BoundVar {
+    pub name: Identifier,
+}
+
 /// A scope variable, identified by a `ScopeId` and `usize` index.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ScopeVar {
@@ -860,6 +866,12 @@ pub enum Term {
     /// Is level N-1, where N is the level of the type of the variable in the
     /// context
     ScopeVar(ScopeVar),
+
+    /// A bound variable.
+    ///
+    /// Is level N-1, where N is the level of the type of the variable in the
+    /// context
+    BoundVar(BoundVar),
 
     /// Merge of multiple terms.
     ///

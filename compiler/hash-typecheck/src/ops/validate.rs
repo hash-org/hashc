@@ -74,6 +74,7 @@ impl Term {
             Term::Level1(_) => TermLevel::Level1,
             Term::Level0(_) => TermLevel::Level0,
             Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 }
@@ -414,6 +415,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 )
             }
             Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -581,6 +583,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 )
             }
             Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -940,6 +943,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 Ok(result)
             }
             Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1087,6 +1091,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 Ok(true)
             }
             Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1145,6 +1150,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 Ok(false)
             }
             Term::ScopeVar(_) => todo!(),
+            Term::BoundVar(_) => todo!(),
         }
     }
 

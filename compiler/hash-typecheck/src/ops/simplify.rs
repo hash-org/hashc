@@ -14,8 +14,8 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
-            Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId, TupleLit, TupleTy,
-            TyFn, TyFnCall, TyFnCase, TyFnTy,
+            Level3Term, NominalDef, Param, ParamsId, ScopeKind, StructFields, Term, TermId,
+            TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -522,7 +522,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             // @@Enhancement: maybe we can allow this and add it to some hints context of the
             // variable.
             Term::Unresolved(_) => does_not_support_access(access_term),
-            Term::ScopeVar(_) | Term::Access(_) | Term::Var(_) | Term::TyFnCall(_) => {
+            Term::BoundVar(_)
+            | Term::ScopeVar(_)
+            | Term::Access(_)
+            | Term::Var(_)
+            | Term::TyFnCall(_) => {
                 // We cannot perform any accessing here:
                 Ok(None)
             }
@@ -618,6 +622,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Level1(_)
             | Term::Level0(_)
             | Term::ScopeVar(_)
+            | Term::BoundVar(_)
             | Term::TyOf(_) => {
                 // Cannot apply if it didn't simplify to a type function:
                 cannot_apply()
@@ -819,6 +824,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             | Term::Var(_)
             | Term::Union(_)
             | Term::ScopeVar(_)
+            | Term::BoundVar(_)
             | Term::TyOf(_)
             | Term::Access(_) => cannot_use_as_fn_call_subject(),
         }
@@ -1135,13 +1141,25 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // First resolve the name:
                 let scope_member =
                     self.scope_manager().resolve_name_in_scopes(var.name, term_id)?;
-                let scope_var = self.builder().create_scope_var_term(
-                    var.name,
-                    scope_member.scope_id,
-                    scope_member.index,
-                );
-                self.location_store_mut().copy_location(term_id, scope_var);
-                Ok(Some(self.potentially_simplify_term(scope_var)?))
+                let scope_kind = self.scope_store().get(scope_member.scope_id).kind;
+                match scope_kind {
+                    ScopeKind::Bound => {
+                        // Create a bound var if it is part of a bound:
+                        let bound_var = self.builder().create_bound_var_term(var.name);
+                        self.location_store_mut().copy_location(term_id, bound_var);
+                        Ok(Some(self.potentially_simplify_term(bound_var)?))
+                    }
+                    _ => {
+                        // Create a scope var otherwise:
+                        let scope_var = self.builder().create_scope_var_term(
+                            var.name,
+                            scope_member.scope_id,
+                            scope_member.index,
+                        );
+                        self.location_store_mut().copy_location(term_id, scope_var);
+                        Ok(Some(self.potentially_simplify_term(scope_var)?))
+                    }
+                }
             }
             // Resolve the variable to its value if it is set and closed.
             Term::ScopeVar(var) => {
@@ -1158,6 +1176,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     Ok(None)
                 }
             }
+            // Nothing can be done for bound vars
+            Term::BoundVar(_) => Ok(None),
             Term::TyFn(ty_fn) => {
                 // Simplify each constituent of the type function, and if any are successfully
                 // simplified, the whole thing can be simplified:
