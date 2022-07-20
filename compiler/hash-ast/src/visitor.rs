@@ -4091,6 +4091,22 @@ pub mod walk_mut {
         })
     }
 
+    pub struct UnionTy<V: AstVisitorMut> {
+        pub lhs: V::TyRet,
+        pub rhs: V::TyRet,
+    }
+
+    pub fn walk_union_ty<V: AstVisitorMut>(
+        visitor: &mut V,
+        ctx: &V::Ctx,
+        mut node: ast::AstNodeRefMut<ast::UnionTy>,
+    ) -> Result<UnionTy<V>, V::Error> {
+        Ok(UnionTy {
+            lhs: visitor.visit_ty(ctx, node.lhs.ast_ref_mut())?,
+            rhs: visitor.visit_ty(ctx, node.rhs.ast_ref_mut())?,
+        })
+    }
+
     pub struct TyFnCall<V: AstVisitorMut> {
         pub subject: V::ExprRet,
         pub args: V::CollectionContainer<V::TyArgRet>,
