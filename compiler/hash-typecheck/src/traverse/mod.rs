@@ -2001,14 +2001,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(constructor_pat)
     }
 
-    type NamespacePatRet = PatId;
+    type ModulePatRet = PatId;
 
-    fn visit_namespace_pat(
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
-        let walk::NamespacePat { fields } = walk::walk_namespace_pat(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
         let members = self.builder().create_pat_params(fields, ParamOrigin::Unknown);
         let module_pat = self.builder().create_mod_pat(members);
 
@@ -2214,14 +2214,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(pat)
     }
 
-    type DestructuringPatRet = PatParam;
+    type ModulePatEntryRet = PatParam;
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
-        let walk::DestructuringPat { name, pat } = walk::walk_destructuring_pat(self, ctx, node)?;
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        let walk::ModulePatEntry { name, pat } = walk::walk_module_pat_entry(self, ctx, node)?;
         Ok(self.builder().create_pat_param(name, pat))
     }
 

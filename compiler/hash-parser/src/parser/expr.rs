@@ -754,7 +754,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         ))
     }
 
-    /// Parse a namespace access expression.
+    /// Parse a [AccessExpr] with a `namespace` access kind.
     pub(crate) fn parse_ns_access(&self, subject: AstNode<Expr>) -> AstGenResult<AstNode<Expr>> {
         debug_assert!(self.current_token().has_kind(TokenKind::Colon));
         let span = subject.span();

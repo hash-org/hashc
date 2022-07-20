@@ -906,13 +906,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type NamespacePatRet = ();
+    type ModulePatRet = ();
 
-    fn visit_namespace_pat(
+    fn visit_module_pat(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
         Ok(())
     }
 
@@ -1057,13 +1057,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type DestructuringPatRet = ();
+    type ModulePatEntryRet = ();
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         Ok(())
     }
 

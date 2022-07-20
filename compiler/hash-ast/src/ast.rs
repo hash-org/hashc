@@ -587,22 +587,20 @@ pub struct ConstructorPat {
     pub fields: AstNodes<TuplePatEntry>,
 }
 
-/// A pattern destructuring, e.g. `name: (fst, snd)`.
-///
-/// Used in struct and namespace patterns.
+/// A module pattern entry, e.g. `{..., name: (fst, snd), ...}`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DestructuringPat {
+pub struct ModulePatEntry {
     /// The name of the field.
     pub name: AstNode<Name>,
     /// The pattern to match the field's value with.
     pub pat: AstNode<Pat>,
 }
 
-/// A namespace pattern, e.g. `{ fgets, fputs, }`
+/// A module pattern, e.g. `{ fgets, fputs, }`
 #[derive(Debug, PartialEq, Clone)]
-pub struct NamespacePat {
-    /// The entries of the namespace, as [DestructuringPat] entries.
-    pub fields: AstNodes<DestructuringPat>,
+pub struct ModulePat {
+    /// The entries of a module pattern
+    pub fields: AstNodes<ModulePatEntry>,
 }
 
 /// A tuple pattern entry
@@ -709,8 +707,8 @@ pub enum Pat {
     /// patterns can either be enum or struct values. The subject of the
     /// constructor can be either an [Pat::Access] or a [Pat::Binding].
     Constructor(ConstructorPat),
-    /// Namespace pattern is used to destructure entries from an import.
-    Namespace(NamespacePat),
+    /// Module pattern is used to destructure entries from an import.
+    Module(ModulePat),
     /// A tuple pattern is a collection of patterns, e.g `(1, x, 'c')`
     Tuple(TuplePat),
     List(ListPat),

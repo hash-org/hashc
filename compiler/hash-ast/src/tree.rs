@@ -1057,14 +1057,14 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::branch("constructor", children))
     }
 
-    type NamespacePatRet = TreeNode;
-    fn visit_namespace_pat(
+    type ModulePatRet = TreeNode;
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
-        let walk::NamespacePat { fields: patterns } = walk::walk_namespace_pat(self, ctx, node)?;
-        Ok(TreeNode::branch("namespace", vec![TreeNode::branch("members", patterns)]))
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields: patterns } = walk::walk_module_pat(self, ctx, node)?;
+        Ok(TreeNode::branch("module", vec![TreeNode::branch("members", patterns)]))
     }
 
     type TuplePatEntryRet = TreeNode;
@@ -1236,15 +1236,15 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf("ignore"))
     }
 
-    type DestructuringPatRet = TreeNode;
+    type ModulePatEntryRet = TreeNode;
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
-        let walk::DestructuringPat { name, pat: pattern } =
-            walk::walk_destructuring_pat(self, ctx, node)?;
+        node: ast::AstNodeRef<ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        let walk::ModulePatEntry { name, pat: pattern } =
+            walk::walk_module_pat_entry(self, ctx, node)?;
         Ok(TreeNode::branch(labelled("binding", name.label, "\""), vec![pattern]))
     }
 

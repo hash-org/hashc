@@ -576,11 +576,11 @@ pub struct EnumVariantValue {
 /// The operator used to perform a member access.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessOp {
-    /// The :: accessor (namespace operator).
+    /// The `::` accessor (namespace operator).
     ///
     /// Works for modules, traits, enums.
     Namespace,
-    /// The . accessor (property operator).
+    /// The `.` accessor (property operator).
     ///
     /// Works for structs, tuples.
     Property,

@@ -602,12 +602,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error>;
 
-    type NamespacePatRet;
-    fn visit_namespace_pat(
+    type ModulePatRet;
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error>;
 
     type TuplePatEntryRet;
     fn visit_tuple_pat_entry(
@@ -707,12 +707,12 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::IgnorePat>,
     ) -> Result<Self::IgnorePatRet, Self::Error>;
 
-    type DestructuringPatRet;
-    fn visit_destructuring_pat(
+    type ModulePatEntryRet;
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error>;
+        node: ast::AstNodeRef<ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error>;
 
     type ModuleRet;
     fn visit_module(
@@ -1309,12 +1309,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error>;
 
-    type NamespacePatRet;
-    fn visit_namespace_pat(
+    type ModulePatRet;
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error>;
 
     type TuplePatEntryRet;
     fn visit_tuple_pat_entry(
@@ -1414,12 +1414,12 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::IgnorePat>,
     ) -> Result<Self::IgnorePatRet, Self::Error>;
 
-    type DestructuringPatRet;
-    fn visit_destructuring_pat(
+    type ModulePatEntryRet;
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error>;
+        node: ast::AstNodeRefMut<ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error>;
 
     type ModuleRet;
     fn visit_module(
@@ -2543,7 +2543,7 @@ pub mod walk {
     pub enum Pat<V: AstVisitor> {
         Access(V::AccessPatRet),
         Constructor(V::ConstructorPatRet),
-        Namespace(V::NamespacePatRet),
+        Module(V::ModulePatRet),
         Tuple(V::TuplePatRet),
         List(V::ListPatRet),
         Lit(V::LitPatRet),
@@ -2564,9 +2564,7 @@ pub mod walk {
             ast::Pat::Constructor(r) => {
                 Pat::Constructor(visitor.visit_constructor_pat(ctx, node.with_body(r))?)
             }
-            ast::Pat::Namespace(r) => {
-                Pat::Namespace(visitor.visit_namespace_pat(ctx, node.with_body(r))?)
-            }
+            ast::Pat::Module(r) => Pat::Module(visitor.visit_module_pat(ctx, node.with_body(r))?),
             ast::Pat::Tuple(r) => Pat::Tuple(visitor.visit_tuple_pat(ctx, node.with_body(r))?),
             ast::Pat::List(r) => Pat::List(visitor.visit_list_pat(ctx, node.with_body(r))?),
             ast::Pat::Lit(r) => Pat::Lit(visitor.visit_lit_pat(ctx, node.with_body(r))?),
@@ -2589,7 +2587,7 @@ pub mod walk {
         V: AstVisitor<
             AccessPatRet = Ret,
             ConstructorPatRet = Ret,
-            NamespacePatRet = Ret,
+            ModulePatRet = Ret,
             TuplePatRet = Ret,
             ListPatRet = Ret,
             LitPatRet = Ret,
@@ -2603,7 +2601,7 @@ pub mod walk {
         Ok(match walk_pat(visitor, ctx, node)? {
             Pat::Access(r) => r,
             Pat::Constructor(r) => r,
-            Pat::Namespace(r) => r,
+            Pat::Module(r) => r,
             Pat::Tuple(r) => r,
             Pat::List(r) => r,
             Pat::Lit(r) => r,
@@ -2665,18 +2663,18 @@ pub mod walk {
         })
     }
 
-    pub struct NamespacePat<V: AstVisitor> {
-        pub fields: V::CollectionContainer<V::DestructuringPatRet>,
+    pub struct ModulePat<V: AstVisitor> {
+        pub fields: V::CollectionContainer<V::ModulePatEntryRet>,
     }
-    pub fn walk_namespace_pat<V: AstVisitor>(
+    pub fn walk_module_pat<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::NamespacePat>,
-    ) -> Result<NamespacePat<V>, V::Error> {
-        Ok(NamespacePat {
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<ModulePat<V>, V::Error> {
+        Ok(ModulePat {
             fields: V::try_collect_items(
                 ctx,
-                node.fields.iter().map(|a| visitor.visit_destructuring_pat(ctx, a.ast_ref())),
+                node.fields.iter().map(|a| visitor.visit_module_pat_entry(ctx, a.ast_ref())),
             )?,
         })
     }
@@ -2838,16 +2836,16 @@ pub mod walk {
         })
     }
 
-    pub struct DestructuringPat<V: AstVisitor> {
+    pub struct ModulePatEntry<V: AstVisitor> {
         pub name: V::NameRet,
         pub pat: V::PatRet,
     }
-    pub fn walk_destructuring_pat<V: AstVisitor>(
+    pub fn walk_module_pat_entry<V: AstVisitor>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        node: ast::AstNodeRef<ast::DestructuringPat>,
-    ) -> Result<DestructuringPat<V>, V::Error> {
-        Ok(DestructuringPat {
+        node: ast::AstNodeRef<ast::ModulePatEntry>,
+    ) -> Result<ModulePatEntry<V>, V::Error> {
+        Ok(ModulePatEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref())?,
             pat: visitor.visit_pat(ctx, node.pat.ast_ref())?,
         })
@@ -4290,7 +4288,7 @@ pub mod walk_mut {
     pub enum Pat<V: AstVisitorMut> {
         Access(V::AccessPatRet),
         Constructor(V::ConstructorPatRet),
-        Namespace(V::NamespacePatRet),
+        Module(V::ModulePatRet),
         Tuple(V::TuplePatRet),
         List(V::ListPatRet),
         Lit(V::LitPatRet),
@@ -4316,8 +4314,8 @@ pub mod walk_mut {
             ast::Pat::Constructor(r) => Pat::Constructor(
                 visitor.visit_constructor_pat(ctx, AstNodeRefMut::new(r, span, id))?,
             ),
-            ast::Pat::Namespace(r) => {
-                Pat::Namespace(visitor.visit_namespace_pat(ctx, AstNodeRefMut::new(r, span, id))?)
+            ast::Pat::Module(r) => {
+                Pat::Module(visitor.visit_module_pat(ctx, AstNodeRefMut::new(r, span, id))?)
             }
             ast::Pat::Tuple(r) => {
                 Pat::Tuple(visitor.visit_tuple_pat(ctx, AstNodeRefMut::new(r, span, id))?)
@@ -4351,7 +4349,7 @@ pub mod walk_mut {
         V: AstVisitorMut<
             AccessPatRet = Ret,
             ConstructorPatRet = Ret,
-            NamespacePatRet = Ret,
+            ModulePatRet = Ret,
             TuplePatRet = Ret,
             ListPatRet = Ret,
             LitPatRet = Ret,
@@ -4365,7 +4363,7 @@ pub mod walk_mut {
         Ok(match walk_pat(visitor, ctx, node)? {
             Pat::Access(r) => r,
             Pat::Constructor(r) => r,
-            Pat::Namespace(r) => r,
+            Pat::Module(r) => r,
             Pat::Tuple(r) => r,
             Pat::List(r) => r,
             Pat::Lit(r) => r,
@@ -4411,20 +4409,20 @@ pub mod walk_mut {
         })
     }
 
-    pub struct NamespacePat<V: AstVisitorMut> {
-        pub patterns: V::CollectionContainer<V::DestructuringPatRet>,
+    pub struct ModulePat<V: AstVisitorMut> {
+        pub patterns: V::CollectionContainer<V::ModulePatEntryRet>,
     }
-    pub fn walk_namespace_pat<V: AstVisitorMut>(
+    pub fn walk_module_pat<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::NamespacePat>,
-    ) -> Result<NamespacePat<V>, V::Error> {
-        Ok(NamespacePat {
+        mut node: ast::AstNodeRefMut<ast::ModulePat>,
+    ) -> Result<ModulePat<V>, V::Error> {
+        Ok(ModulePat {
             patterns: V::try_collect_items(
                 ctx,
                 node.fields
                     .iter_mut()
-                    .map(|a| visitor.visit_destructuring_pat(ctx, a.ast_ref_mut())),
+                    .map(|a| visitor.visit_module_pat_entry(ctx, a.ast_ref_mut())),
             )?,
         })
     }
@@ -4601,16 +4599,16 @@ pub mod walk_mut {
         })
     }
 
-    pub struct DestructuringPat<V: AstVisitorMut> {
+    pub struct ModulePatEntry<V: AstVisitorMut> {
         pub name: V::NameRet,
         pub pat: V::PatRet,
     }
-    pub fn walk_destructuring_pat<V: AstVisitorMut>(
+    pub fn walk_module_pat_entry<V: AstVisitorMut>(
         visitor: &mut V,
         ctx: &V::Ctx,
-        mut node: ast::AstNodeRefMut<ast::DestructuringPat>,
-    ) -> Result<DestructuringPat<V>, V::Error> {
-        Ok(DestructuringPat {
+        mut node: ast::AstNodeRefMut<ast::ModulePatEntry>,
+    ) -> Result<ModulePatEntry<V>, V::Error> {
+        Ok(ModulePatEntry {
             name: visitor.visit_name(ctx, node.name.ast_ref_mut())?,
             pat: visitor.visit_pat(ctx, node.pat.ast_ref_mut())?,
         })

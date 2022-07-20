@@ -6,7 +6,7 @@
 use ::if_chain::if_chain;
 use hash_ast::{
     ast::{
-        BindingPat, Block, BlockExpr, DestructuringPat, ExprKind, LitExpr, Mutability, ParamOrigin,
+        BindingPat, Block, BlockExpr, ExprKind, LitExpr, ModulePatEntry, Mutability, ParamOrigin,
         Pat, TuplePatEntry,
     },
     visitor::{walk, AstVisitor},
@@ -1017,14 +1017,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type NamespacePatRet = ();
+    type ModulePatRet = ();
 
-    fn visit_namespace_pat(
+    fn visit_module_pat(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::NamespacePat>,
-    ) -> Result<Self::NamespacePatRet, Self::Error> {
-        let _ = walk::walk_namespace_pat(self, ctx, node);
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let _ = walk::walk_module_pat(self, ctx, node);
         Ok(())
     }
 
@@ -1221,14 +1221,14 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type DestructuringPatRet = ();
+    type ModulePatEntryRet = ();
 
-    fn visit_destructuring_pat(
+    fn visit_module_pat_entry(
         &mut self,
         ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::DestructuringPat>,
-    ) -> Result<Self::DestructuringPatRet, Self::Error> {
-        let DestructuringPat { pat, .. } = node.body();
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
+    ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        let ModulePatEntry { pat, .. } = node.body();
 
         // Spread patterns are always disallowed within a named field entry
         if matches!(pat.body(), Pat::Spread(_)) {
@@ -1238,7 +1238,7 @@ impl AstVisitor for SemanticAnalyser<'_> {
             );
         } else {
             // We only need to walk the children if it hasn't error'd yet
-            let _ = walk::walk_destructuring_pat(self, ctx, node);
+            let _ = walk::walk_module_pat_entry(self, ctx, node);
         }
 
         Ok(())

@@ -155,9 +155,9 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
                 self.skip_token();
                 let tree = self.token_trees.get(*tree_index).unwrap();
 
-                let pat = self.parse_namespace_pat(tree, *span)?;
+                let pat = self.parse_module_pat(tree, *span)?;
 
-                Pat::Namespace(pat)
+                Pat::Module(pat)
             }
             // List pattern
             Token { kind: TokenKind::Tree(Delimiter::Bracket, tree_index), span } => {
@@ -182,11 +182,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_separated_fn(|| self.parse_pat(), || self.parse_token(TokenKind::Comma))
     }
 
-    /// Parse a [DestructuringPat]. The [DestructuringPat] refers to
+    /// Parse a [ModulePatEntry]. The [ModulePatEntry] refers to
     /// destructuring either a struct or a namespace to extract fields,
     /// exported members. The function takes in a token atom because both
     /// syntaxes use different operators as pattern assigners.
-    pub(crate) fn parse_destructuring_pat(&self) -> AstGenResult<AstNode<DestructuringPat>> {
+    pub(crate) fn parse_module_pat_entry(&self) -> AstGenResult<AstNode<ModulePatEntry>> {
         let start = self.current_location();
         let name = self.parse_name()?;
 
@@ -206,21 +206,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             }
         };
 
-        Ok(self.node_with_joined_span(DestructuringPat { name, pat }, &start))
+        Ok(self.node_with_joined_span(ModulePatEntry { name, pat }, &start))
     }
 
-    /// Parse a collection of [DestructuringPat]s that are comma separated
-    /// within a brace tree.
-    fn parse_namespace_pat(
-        &self,
-        tree: &'stream [Token],
-        span: Span,
-    ) -> AstGenResult<NamespacePat> {
+    /// Parse a [ModulePat] which is comprised of a collection of
+    /// [ModulePatEntry]s that are comma separated within a brace tree.
+    fn parse_module_pat(&self, tree: &'stream [Token], span: Span) -> AstGenResult<ModulePat> {
         let gen = self.from_stream(tree, span);
         let mut fields = vec![];
 
         while gen.has_token() {
-            match gen.peek_resultant_fn(|| gen.parse_destructuring_pat()) {
+            match gen.peek_resultant_fn(|| gen.parse_module_pat_entry()) {
                 Some(pat) => fields.push(pat),
                 None => break,
             }
@@ -236,7 +232,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         // there should be some mechanism to cause the function to hard error?
         gen.verify_is_empty()?;
 
-        Ok(NamespacePat { fields: AstNodes::new(fields, Some(span)) })
+        Ok(ModulePat { fields: AstNodes::new(fields, Some(span)) })
     }
 
     /// Parse a [Pat::List] pattern from the token vector. A list [Pat]
@@ -254,7 +250,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_span(Pat::List(ListPat { fields }), parent_span))
     }
 
-    /// Parse a [Pattern::Tuple] from the token vector. A tuple pattern consists
+    /// Parse a [Pat::Tuple] from the token vector. A tuple pattern consists
     /// of nested patterns within parentheses which might also have an
     /// optional named fields.
     ///
