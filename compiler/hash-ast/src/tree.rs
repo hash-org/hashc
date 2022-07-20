@@ -9,8 +9,9 @@ use crate::{
     visitor::{walk, AstVisitor},
 };
 
-/// Struct implementing [AstVisitor], for the purpose of transforming the AST
-/// tree into a [TreeNode] tree, for visualisation purposes.
+/// Struct implementing [crate::visitor::AstVisitor], for the purpose of
+/// transforming the AST tree into a [TreeNode] tree, for visualisation
+/// purposes.
 pub struct AstTreeGenerator;
 
 /// Easy way to format a [TreeNode] label with a main label as well as short
@@ -40,17 +41,6 @@ impl AstVisitor for AstTreeGenerator {
         node: ast::AstNodeRef<ast::Name>,
     ) -> Result<Self::NameRet, Self::Error> {
         Ok(TreeNode::leaf(node.ident))
-    }
-
-    type AccessNameRet = TreeNode;
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        node: ast::AstNodeRef<ast::Namespace>,
-    ) -> Result<Self::AccessNameRet, Self::Error> {
-        Ok(TreeNode::leaf(
-            node.path.iter().map(|p| (*p.body()).into()).intersperse("::").collect::<String>(),
-        ))
     }
 
     type LitRet = TreeNode;
@@ -502,17 +492,14 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TyFn>,
     ) -> Result<Self::TyFnRet, Self::Error> {
-        let walk::TyFn { params: args, return_ty } = walk::walk_ty_fn(self, ctx, node)?;
+        let walk::TyFn { params, return_ty } = walk::walk_ty_fn(self, ctx, node)?;
 
-        let return_child = TreeNode::branch("return", vec![return_ty]);
+        let mut children = vec![TreeNode::branch("return", vec![return_ty])];
 
-        let children = {
-            if args.is_empty() {
-                vec![return_child]
-            } else {
-                vec![TreeNode::branch("arguments", args), return_child]
-            }
-        };
+        // Add the parameters branch to the start
+        if !params.is_empty() {
+            children.insert(0, TreeNode::branch("parameters", params));
+        }
 
         Ok(TreeNode::branch("type_function", children))
     }
@@ -1021,23 +1008,38 @@ impl AstVisitor for AstTreeGenerator {
         walk::walk_pat_same_children(self, ctx, node)
     }
 
-    type ConstructorPatRet = TreeNode;
+    type AccessPatRet = TreeNode;
 
+    fn visit_access_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        let walk::AccessPat { subject, .. } = walk::walk_access_pat(self, ctx, node)?;
+        Ok(TreeNode::branch(
+            "access",
+            vec![
+                TreeNode::branch("subject", vec![subject]),
+                TreeNode::leaf(labelled("property", node.property.ident, "\"")),
+            ],
+        ))
+    }
+
+    type ConstructorPatRet = TreeNode;
     fn visit_constructor_pat(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { args, name } = walk::walk_constructor_pat(self, ctx, node)?;
-        Ok(TreeNode::branch(
-            "enum",
-            iter::once(TreeNode::leaf(labelled("name", name.label, "\"")))
-                .chain(
-                    (if args.is_empty() { None } else { Some(TreeNode::branch("args", args)) })
-                        .into_iter(),
-                )
-                .collect(),
-        ))
+        let walk::ConstructorPat { subject, args } = walk::walk_constructor_pat(self, ctx, node)?;
+
+        let children = if !node.fields.is_empty() {
+            vec![TreeNode::branch("subject", vec![subject]), TreeNode::branch("args", args)]
+        } else {
+            vec![TreeNode::branch("subject", vec![subject])]
+        };
+
+        Ok(TreeNode::branch("constructor", children))
     }
 
     type NamespacePatRet = TreeNode;
@@ -1209,6 +1211,7 @@ impl AstVisitor for AstTreeGenerator {
     }
 
     type IgnorePatRet = TreeNode;
+
     fn visit_ignore_pat(
         &mut self,
         _: &Self::Ctx,

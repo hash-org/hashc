@@ -66,66 +66,82 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// pattern operators such as a `|`, if guards or any form of compound
     /// pattern.
     pub(crate) fn parse_singular_pat(&self) -> AstGenResult<AstNode<Pat>> {
+        let mut subject = self.parse_pat_component()?;
+        let span = subject.span();
+
+        while let Some(token) = self.peek() {
+            subject = match token.kind {
+                // A constructor pattern which uses the `subject` to apply the constructor on
+                TokenKind::Tree(Delimiter::Paren, tree_index) => {
+                    self.skip_token();
+
+                    let tree = self.token_trees.get(tree_index).unwrap();
+                    let gen = self.from_stream(tree, token.span);
+
+                    let fields = gen.parse_separated_fn(
+                        || gen.parse_tuple_pat_entry(),
+                        || gen.parse_token(TokenKind::Comma),
+                    )?;
+
+                    self.node_with_joined_span(
+                        Pat::Constructor(ConstructorPat { subject, fields }),
+                        &span,
+                    )
+                }
+                // An access pattern which accesses the `subject` with a particular `property`
+                // denotes with a name.
+                TokenKind::Colon if matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon)) =>
+                {
+                    self.offset.update(|offset| offset + 2);
+
+                    self.node_with_joined_span(
+                        Pat::Access(AccessPat { subject, property: self.parse_name()? }),
+                        &span,
+                    )
+                }
+                _ => break,
+            }
+        }
+
+        Ok(subject)
+    }
+
+    /// Internal function to pattern parsing used for parsing inner components
+    /// of a single pattern. This function does not consider [Pat::Access]
+    /// which is considered to be a single pattern, but made of components
+    /// of other single patterns that have very specific rules about when it
+    /// can be done.
+    fn parse_pat_component(&self) -> AstGenResult<AstNode<Pat>> {
         let start = self.next_location();
         let token =
             self.peek().ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
         let pat = match token {
-            // A name bind that has visibility/mutability modifiers
-            Token {
-                kind: TokenKind::Keyword(Keyword::Pub | Keyword::Priv | Keyword::Mut), ..
-            } => self.parse_binding_pat()?,
-            // this could be either just a binding pattern, enum, or a struct pattern
-            Token { kind: TokenKind::Ident(ident), span } => {
+            Token { kind: TokenKind::Ident(ident), span }
+                if *ident == CORE_IDENTIFIERS.underscore =>
+            {
                 self.skip_token();
 
-                // So here we try to parse an access name, if it is only made of a single
-                // binding name, we'll just return this as a binding pattern,
-                // otherwise it must follow that it is either a enum or struct
-                // pattern, if not we report it as an error since access names
-                // cannot be used as binding patterns on their own...
-                let name = self.parse_ns(self.node_with_span(*ident, *span))?;
-
-                match self.peek() {
-                    // a `constructor` pattern
-                    Some(Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span }) => {
-                        self.skip_token();
-                        let tree = self.token_trees.get(*tree_index).unwrap();
-                        let gen = self.from_stream(tree, *span);
-
-                        let fields = gen.parse_separated_fn(
-                            || gen.parse_tuple_pat_entry(),
-                            || gen.parse_token(TokenKind::Comma),
-                        )?;
-
-                        Pat::Constructor(ConstructorPat { name, fields })
-                    }
-                    Some(token) if name.path.len() > 1 => self.error_with_location(
-                        AstGenErrorKind::Expected,
-                        None,
-                        Some(token.kind),
-                        token.span,
-                    )?,
-                    _ => {
-                        if *ident == CORE_IDENTIFIERS.underscore {
-                            Pat::Ignore(IgnorePat)
-                        } else {
-                            Pat::Binding(BindingPat {
-                                name: self.node_with_span(Name { ident: *ident }, *span),
-                                visibility: None,
-                                mutability: None,
-                            })
-                        }
-                    }
-                }
+                Pat::Binding(BindingPat {
+                    name: self.node_with_span(Name { ident: *ident }, *span),
+                    visibility: None,
+                    mutability: None,
+                })
             }
+            // A name bind that has visibility/mutability modifiers
+            Token {
+                kind:
+                    TokenKind::Keyword(Keyword::Pub | Keyword::Priv | Keyword::Mut)
+                    | TokenKind::Ident(_),
+                ..
+            } => self.parse_binding_pat()?,
             // Spread pattern
             token if token.has_kind(TokenKind::Dot) => Pat::Spread(self.parse_spread_pat()?),
 
             // Literal patterns
             token if token.kind.is_lit() => {
                 self.skip_token();
-                Pat::Lit(self.convert_lit_kind_into_pat(&token.kind))
+                Pat::Lit(self.convert_lit_into_pat(&token.kind))
             }
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, tree_index), span } => {
@@ -166,7 +182,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         self.parse_separated_fn(|| self.parse_pat(), || self.parse_token(TokenKind::Comma))
     }
 
-    /// Parse a [DestructuringPattern]. The [DestructuringPattern] refers to
+    /// Parse a [DestructuringPat]. The [DestructuringPat] refers to
     /// destructuring either a struct or a namespace to extract fields,
     /// exported members. The function takes in a token atom because both
     /// syntaxes use different operators as pattern assigners.
@@ -193,7 +209,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(self.node_with_joined_span(DestructuringPat { name, pat }, &start))
     }
 
-    /// Parse a collection of [DestructuringPattern]s that are comma separated
+    /// Parse a collection of [DestructuringPat]s that are comma separated
     /// within a brace tree.
     fn parse_namespace_pat(
         &self,
@@ -309,7 +325,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Convert a [Lit] into a [LitPat].
-    pub(crate) fn convert_lit_kind_into_pat(&self, kind: &TokenKind) -> LitPat {
+    pub(crate) fn convert_lit_into_pat(&self, kind: &TokenKind) -> LitPat {
         match kind {
             TokenKind::StrLit(s) => LitPat::Str(StrLitPat(*s)),
             TokenKind::CharLit(s) => LitPat::Char(CharLitPat(*s)),
@@ -348,7 +364,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(SpreadPat { name })
     }
 
-    /// Function to parse a [BindingPattern] without considering whether it
+    /// Function to parse a [BindingPat] without considering whether it
     /// might be part of a constructor or any other form of pattern. This
     /// function also accounts for visibility or mutability modifiers on the
     /// binding pattern.
@@ -360,7 +376,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             .parse_token_fast(TokenKind::Keyword(Keyword::Mut))
             .map(|_| self.node_with_span(Mutability::Mutable, self.current_location()));
 
-        let name = self.parse_name()?; // @@Correctness: Should this be an access name?
+        let name = self.parse_name()?;
 
         Ok(Pat::Binding(BindingPat { name, visibility, mutability }))
     }
@@ -384,16 +400,16 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     }
 
     /// Utility function to lookahead and see if it's possible to parse a
-    /// singular pattern from the current position in the token stream.
+    /// singular pattern from the current position in the token stream. This is
+    /// essentially a dry-run of [Self::parse_singular_pat] since it doesn't
+    /// create any kind of patterns whilst traversing the token tree.
     pub(crate) fn begins_pat(&self) -> bool {
-        let n_lookahead = match self.peek() {
+        // Perform the initial pattern component lookahead
+        let mut n_lookahead = match self.peek() {
             // Namespace, List, Tuple, etc.
             Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,
             // Identifier or constructor pattern
-            Some(Token { kind: TokenKind::Ident(_), .. }) => match self.peek_second() {
-                Some(Token { kind: TokenKind::Tree(Delimiter::Paren, _), .. }) => 2,
-                _ => 1,
-            },
+            Some(Token { kind: TokenKind::Ident(_), .. }) => 1,
             // This is the case for a bind that has a visibility modifier at the beginning. In
             // this scenario, it can be followed by a `mut` modifier and then a identifier or
             // just an identifier.
@@ -420,9 +436,30 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             _ => return false,
         };
 
-        // Ensure that double colons `::` aren't followed which doesn't necessarily
-        // imply that this is a declaration
+        // Continue looking ahead to see if we're applying an access pr a construction
+        // on the pattern
+        while let Some(token) = self.peek_nth(n_lookahead) {
+            match token.kind {
+                // Handle the `constructor` pattern case
+                TokenKind::Tree(Delimiter::Paren, _) => n_lookahead += 1,
+                // Handle the `access` pattern case. We're looking for the next
+                // three tokens to be `::Ident`
+                TokenKind::Colon => {
+                    if matches!(self.peek_nth(n_lookahead + 1), Some(token) if token.has_kind(TokenKind::Colon))
+                        && matches!(
+                            self.peek_nth(n_lookahead + 2),
+                            Some(Token { kind: TokenKind::Ident(_), .. })
+                        )
+                    {
+                        n_lookahead += 3;
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+
         matches!(self.peek_nth(n_lookahead), Some(token) if token.has_kind(TokenKind::Colon))
-            && matches!(self.peek_nth(n_lookahead + 1), Some(token) if !token.has_kind(TokenKind::Colon))
     }
 }

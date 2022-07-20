@@ -49,16 +49,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type AccessNameRet = ();
-
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::Namespace>,
-    ) -> Result<Self::AccessNameRet, Self::Error> {
-        Ok(())
-    }
-
     type LitRet = ();
 
     fn visit_lit(
@@ -984,6 +974,17 @@ impl AstVisitor for SemanticAnalyser<'_> {
     ) -> Result<Self::PatRet, Self::Error> {
         let _ = walk::walk_pat(self, ctx, node);
 
+        Ok(())
+    }
+
+    type AccessPatRet = ();
+
+    fn visit_access_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
+        let _ = walk::walk_access_pat(self, ctx, node);
         Ok(())
     }
 

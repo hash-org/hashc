@@ -5,8 +5,8 @@ use hash_ast::{
         AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLit, BoolLitPat, BreakStatement,
         ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr, ConstructorPat, Expr,
         ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, IgnorePat, Lit, LitExpr, LitPat,
-        LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Namespace, Pat, TuplePatEntry,
-        VariableExpr, WhileLoopBlock,
+        LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry, VariableExpr,
+        WhileLoopBlock,
     },
     ast_nodes,
 };
@@ -59,18 +59,19 @@ impl<'s> AstDesugaring<'s> {
 
         let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), body.span());
 
-        let make_access_name = |label: &str| -> AstNode<Namespace> {
-            // Create the identifier within the map...
-            AstNode::new(
-                Namespace { path: ast_nodes![AstNode::new(label.into(), iter_span)] },
-                iter_span,
-            )
+        let make_access_pat = |_label: &str| -> AstNode<Pat> {
+            // // Create the identifier within the map...
+            // AstNode::new(
+            //     Namespace { path: ast_nodes![AstNode::new(label.into(), iter_span)] },
+            //     iter_span,
+            // )
+            todo!()
         };
 
         // Convert the pattern into a constructor pattern like `Some(<pat>)`
         let pat = AstNode::new(
             Pat::Constructor(ConstructorPat {
-                name: make_access_name("Some"),
+                subject: make_access_pat("Some"),
                 fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span)],
             }),
             pat_span,
@@ -90,7 +91,7 @@ impl<'s> AstDesugaring<'s> {
                 MatchCase {
                     pat: AstNode::new(
                         Pat::Constructor(ConstructorPat {
-                            name: make_access_name("None"),
+                            subject: make_access_pat("None"),
                             fields: ast_nodes![],
                         },),
                         pat_span

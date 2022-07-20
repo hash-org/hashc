@@ -52,16 +52,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type NamespaceRet = ();
-
-    fn visit_namespace(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Namespace>,
-    ) -> Result<Self::NamespaceRet, Self::Error> {
-        Ok(())
-    }
-
     type LitRet = ();
 
     fn visit_lit(
@@ -290,7 +280,7 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let _ = walk_mut::walk_property_access_expr(self, ctx, node);
+        let _ = walk_mut::walk_access_expr(self, ctx, node);
         Ok(())
     }
 
@@ -884,6 +874,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Pat>,
     ) -> Result<Self::PatRet, Self::Error> {
+        Ok(())
+    }
+
+    type AccessPatRet = ();
+
+    fn visit_access_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AccessPat>,
+    ) -> Result<Self::AccessPatRet, Self::Error> {
         Ok(())
     }
 
