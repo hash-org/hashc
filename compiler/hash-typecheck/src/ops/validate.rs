@@ -818,24 +818,27 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 let ty_fn_ty = ty_fn_ty.clone();
                 self.validate_params(ty_fn_ty.params)?;
 
-                let param_scope = self.scope_manager().enter_bound_scope(ty_fn_ty.params);
-                let _ = self.validate_term(ty_fn_ty.return_ty);
+                let param_scope = self.scope_manager().make_bound_scope(ty_fn_ty.params);
+                self.scope_manager().enter_scope(param_scope, |this| {
+                    let _ = this.validator().validate_term(ty_fn_ty.return_ty);
+                    let params = this.validator().params_store().get(ty_fn_ty.params).clone();
 
-                let params = self.params_store().get(ty_fn_ty.params).clone();
-
-                // Ensure each parameter's type can be used as a type function parameter type:
-                for param in params.positional() {
-                    if !(self.term_can_be_used_as_ty_fn_param_ty(param.ty)?) {
-                        return Err(TcError::InvalidTyFnParamTy { param_ty: param.ty });
+                    // Ensure each parameter's type can be used as a type function parameter type:
+                    for param in params.positional() {
+                        if !(this.validator().term_can_be_used_as_ty_fn_param_ty(param.ty)?) {
+                            return Err(TcError::InvalidTyFnParamTy { param_ty: param.ty });
+                        }
                     }
-                }
 
-                // Ensure the return type can be used as a type function return type:
-                if !(self.term_can_be_used_as_ty_fn_return_ty(ty_fn_ty.return_ty)?) {
-                    return Err(TcError::InvalidTyFnParamTy { param_ty: ty_fn_ty.return_ty });
-                }
-
-                self.scopes_mut().pop_the_scope(param_scope);
+                    // Ensure the return type can be used as a type function return type:
+                    if !(this
+                        .validator()
+                        .term_can_be_used_as_ty_fn_return_ty(ty_fn_ty.return_ty)?)
+                    {
+                        return Err(TcError::InvalidTyFnParamTy { param_ty: ty_fn_ty.return_ty });
+                    }
+                    Ok(())
+                })?;
 
                 Ok(result)
             }
@@ -847,59 +850,73 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 self.validate_params(ty_fn.general_params)?;
 
                 // Enter param scope:
-                let param_scope = self.scope_manager().enter_bound_scope(ty_fn.general_params);
+                let param_scope = self.scope_manager().make_bound_scope(ty_fn.general_params);
+                let general_return_validation =
+                    self.scope_manager().enter_scope(param_scope, |this| {
+                        let general_return_validation =
+                            this.validator().validate_term(ty_fn.general_return_ty)?;
 
-                let general_return_validation = self.validate_term(ty_fn.general_return_ty)?;
+                        // We also validate the type of the type function, for including the
+                        // additional check of parameter type term levels:
+                        let _ = this.validator().validate_term(result.term_ty_id)?;
 
-                // We also validate the type of the type function, for including the
-                // additional check of parameter type term levels:
-                let _ = self.validate_term(result.term_ty_id)?;
-
-                // Exit param scope:
-                self.scopes_mut().pop_the_scope(param_scope);
+                        Ok(general_return_validation)
+                    })?;
 
                 // Validate each case:
                 for case in &ty_fn.cases {
                     self.validate_params(case.params)?;
 
-                    let param_scope = self.scope_manager().enter_bound_scope(case.params);
-                    self.validate_term(case.return_ty)?;
-                    self.validate_term(case.return_value)?;
+                    let param_scope = self.scope_manager().make_bound_scope(case.params);
+                    self.scope_manager().enter_scope(param_scope, |this| {
+                        this.validator().validate_term(case.return_ty)?;
+                        this.validator().validate_term(case.return_value)?;
 
-                    // Ensure the params are a subtype of the general params
-                    //
-                    // @@ErrorReporting: might be a bit ambiguous here, perhaps we should customise
-                    // the message.
-                    //
-                    // @@Correctness: Is it ok to use `return_ty` of the case as the target, and
-                    // `term_id` as the source??
-                    let _ = self.unifier().unify_params(
-                        case.params,
-                        ty_fn.general_params,
-                        case.return_ty,
-                        term_id,
-                    )?;
+                        // Ensure the params are a subtype of the general params
+                        //
+                        // @@ErrorReporting: might be a bit ambiguous here, perhaps we should
+                        // customise the message.
+                        //
+                        // @@Correctness: Is it ok to use `return_ty` of the case as the target, and
+                        // `term_id` as the source??
+                        let _ = this.validator().unifier().unify_params(
+                            case.params,
+                            ty_fn.general_params,
+                            case.return_ty,
+                            term_id,
+                        )?;
 
-                    // Ensure that the return type can be unified with the type of the return value:
-                    // @@Safety: should be already simplified from above the match.
-                    let return_value_ty =
-                        self.typer().infer_ty_of_simplified_term(case.return_value)?;
-                    let _ = self.unifier().unify_terms(return_value_ty, case.return_ty)?;
+                        // Ensure that the return type can be unified with the type of the return
+                        // value: @@Safety: should be already simplified
+                        // from above the match.
+                        let return_value_ty = this
+                            .validator()
+                            .typer()
+                            .infer_ty_of_simplified_term(case.return_value)?;
+                        let _ = this
+                            .validator()
+                            .unifier()
+                            .unify_terms(return_value_ty, case.return_ty)?;
 
-                    // Ensure the return value of each case is a subtype of the general return type.
-                    let _ = self.unifier().unify_terms(
-                        case.return_ty,
-                        general_return_validation.simplified_term_id,
-                    )?;
+                        // Ensure the return value of each case is a subtype of the general return
+                        // type.
+                        let _ = this.validator().unifier().unify_terms(
+                            case.return_ty,
+                            general_return_validation.simplified_term_id,
+                        )?;
 
-                    // Ensure the return value can be used as a type function return value:
-                    if !(self.term_can_be_used_as_ty_fn_return_value(case.return_value)?) {
-                        return Err(TcError::InvalidTyFnReturnValue {
-                            return_value: case.return_value,
-                        });
-                    }
+                        // Ensure the return value can be used as a type function return value:
+                        if !(this
+                            .validator()
+                            .term_can_be_used_as_ty_fn_return_value(case.return_value)?)
+                        {
+                            return Err(TcError::InvalidTyFnReturnValue {
+                                return_value: case.return_value,
+                            });
+                        }
 
-                    self.scopes_mut().pop_the_scope(param_scope);
+                        Ok(())
+                    })?;
                 }
 
                 Ok(result)

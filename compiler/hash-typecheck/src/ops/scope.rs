@@ -72,13 +72,13 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         ScopeMember { member, scope_id: scope_var.scope_id, index: scope_var.index }
     }
 
-    /// Enter a parameter scope, which is a scope that contains all the given
+    /// Create a parameter scope, which is a scope that contains all the given
     /// parameters.
     ///
     /// This function is meant to be used for runtime functions, and not type
     /// functions. This is because it creates a variable scope, and assigns each
     /// argument to its type wrapped by `Rt(..)`.
-    pub(crate) fn enter_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
+    pub(crate) fn make_rt_param_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
         let param_scope = builder.create_scope(
@@ -91,15 +91,15 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
                 ))
             }),
         );
-        self.scopes_mut().append(param_scope);
         param_scope
     }
 
-    /// Enter a set bound scope, which is a scope that contains all the mappings
-    /// in the given arguments, originating from the given parameters.
+    /// Create a set bound scope, which is a scope that contains all the
+    /// mappings in the given arguments, originating from the given
+    /// parameters.
     ///
     /// This assigns each parameter name to its corresponding argument value.
-    pub(crate) fn _enter_set_bound_scope(
+    pub(crate) fn _make_set_bound_scope(
         &mut self,
         params_id: ParamsId,
         args_id: ArgsId,
@@ -134,12 +134,12 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         sub_scope
     }
 
-    /// Enter a bound scope, which is a scope that contains all the given
+    /// Create a bound scope, which is a scope that contains all the given
     /// parameters.
     ///
     /// This function is meant to be used for type functions, because it creates
     /// a constant scope and does not assign parameters to any values.
-    pub(crate) fn enter_bound_scope(&mut self, params_id: ParamsId) -> ScopeId {
+    pub(crate) fn make_bound_scope(&mut self, params_id: ParamsId) -> ScopeId {
         let params = self.reader().get_params(params_id).clone();
         let builder = self.builder();
         let param_scope = builder.create_scope(
@@ -152,8 +152,15 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
                 ))
             }),
         );
-        self.scopes_mut().append(param_scope);
         param_scope
+    }
+
+    /// Enter the given scope, and run the given callback inside it.
+    pub fn enter_scope<T>(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.scopes_mut().append(scope);
+        let result = f(self);
+        self.scopes_mut().pop_the_scope(scope);
+        result
     }
 
     /// Assign the given value to the given member as a `(ScopeId, usize)` pair.

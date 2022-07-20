@@ -948,7 +948,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         )?;
         let params = self.builder().create_params(params, ParamOrigin::TyFn);
 
-        let param_scope = self.scope_manager().enter_bound_scope(params);
+        let param_scope = self.scope_manager().make_bound_scope(params);
+        self.scopes_mut().append(param_scope);
         let return_value = self.visit_ty(ctx, node.return_ty.ast_ref())?;
         self.scopes_mut().pop_the_scope(param_scope);
 
@@ -1102,7 +1103,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         self.copy_location_from_nodes_to_targets(node.params.ast_ref_iter(), params);
 
         // Enter parameter scope:
-        let param_scope = self.scope_manager().enter_bound_scope(params);
+        let param_scope = self.scope_manager().make_bound_scope(params);
+        self.scopes_mut().append(param_scope);
 
         // Traverse return type and return value:
         let return_ty =
@@ -1156,7 +1158,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         }
 
         let params_potentially_unresolved = self.builder().create_params(params, ParamOrigin::Fn);
-        let param_scope = self.scope_manager().enter_rt_param_scope(params_potentially_unresolved);
+        let param_scope = self.scope_manager().make_rt_param_scope(params_potentially_unresolved);
+        self.scopes_mut().append(param_scope);
 
         let fn_body = self.visit_expr(ctx, node.fn_body.ast_ref())?;
 

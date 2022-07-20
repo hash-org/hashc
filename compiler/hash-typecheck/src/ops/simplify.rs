@@ -186,7 +186,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(rt_term_ty_id);
         match term {
-            Term::SetBound(_app_sub) => {
+            Term::SetBound(_set_bound) => {
                 // If a substitution needs to be applied first, then apply it on the result of
                 // the inner recursion:
                 // let app_sub = app_sub.clone();
@@ -1168,9 +1168,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // Simplify general params and return
                 let simplified_general_params = self.simplify_params(ty_fn.general_params)?;
 
-                let param_scope = self.scope_manager().enter_bound_scope(ty_fn.general_params);
-                let simplified_general_return_ty = self.simplify_term(ty_fn.general_return_ty)?;
-                self.scopes_mut().pop_the_scope(param_scope);
+                let param_scope = self.scope_manager().make_bound_scope(ty_fn.general_params);
+                let simplified_general_return_ty =
+                    self.scope_manager().enter_scope(param_scope, |this| {
+                        this.simplifier().simplify_term(ty_fn.general_return_ty)
+                    })?;
 
                 // Simplify each of the cases
                 let simplified_cases: Vec<_> = ty_fn
@@ -1179,10 +1181,15 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     .map(|case| {
                         let simplified_params = self.simplify_params(case.params)?;
 
-                        let param_scope = self.scope_manager().enter_bound_scope(case.params);
-                        let simplified_return_ty = self.simplify_term(case.return_ty)?;
-                        let simplified_return_value = self.simplify_term(case.return_value)?;
-                        self.scopes_mut().pop_the_scope(param_scope);
+                        let param_scope = self.scope_manager().make_bound_scope(case.params);
+                        let (simplified_return_ty, simplified_return_value) =
+                            self.scope_manager().enter_scope(param_scope, |this| {
+                                let simplified_return_ty =
+                                    this.simplifier().simplify_term(case.return_ty)?;
+                                let simplified_return_value =
+                                    this.simplifier().simplify_term(case.return_value)?;
+                                Ok((simplified_return_ty, simplified_return_value))
+                            })?;
 
                         // A case is simplified if any of its constituents is simplified:
                         match (&simplified_params, simplified_return_ty, simplified_return_value) {
@@ -1224,9 +1231,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // simplified.
                 let simplified_params = self.simplify_params(ty_fn_ty.params)?;
 
-                let param_scope = self.scope_manager().enter_bound_scope(ty_fn_ty.params);
-                let simplified_return_ty = self.simplify_term(ty_fn_ty.return_ty)?;
-                self.scopes_mut().pop_the_scope(param_scope);
+                let param_scope = self.scope_manager().make_bound_scope(ty_fn_ty.params);
+                let simplified_return_ty =
+                    self.scope_manager().enter_scope(param_scope, |this| {
+                        this.simplifier().simplify_term(ty_fn_ty.return_ty)
+                    })?;
 
                 match (&simplified_params, simplified_return_ty) {
                     (None, None) => Ok(None),
