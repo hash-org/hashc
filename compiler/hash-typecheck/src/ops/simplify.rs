@@ -186,14 +186,12 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(rt_term_ty_id);
         match term {
-            Term::SetBound(_set_bound) => {
-                // If a substitution needs to be applied first, then apply it on the result of
-                // the inner recursion:
-                // let app_sub = app_sub.clone();
-                // let result = self.access_struct_or_tuple_field(app_sub.term, field_name)?;
-                // Ok(result.map(|result| self.substituter().apply_sub_to_term(&app_sub.sub,
-                // result)))
-                todo!()
+            Term::SetBound(set_bound) => {
+                // Enter the bound and try access
+                let set_bound = *set_bound;
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.simplifier().access_struct_or_tuple_field(set_bound.term, field_name)
+                })
             }
             Term::Merge(terms) => {
                 // Try this for each term:
@@ -497,20 +495,12 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }),
                 }
             }
-            Term::SetBound(_app_sub) => {
+            Term::SetBound(set_bound) => {
                 // Add substitution to the scope:
-                todo!()
-                // let sub_scope =
-                // self.scope_manager().enter_sub_param_scope(&app_sub.sub);
-
-                // let inner_applied_term =
-                //     self.apply_access_term(&AccessTerm { subject:
-                // app_sub.term, ..*access_term })?;
-
-                // // Pop back the scope
-                // self.scopes_mut().pop_the_scope(sub_scope);
-
-                // Ok(inner_applied_term)
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.simplifier()
+                        .apply_access_term(&AccessTerm { subject: set_bound.term, ..*access_term })
+                })
             }
             Term::Level3(level3_term) => {
                 self.apply_access_to_level3_term(&level3_term, access_term)
@@ -715,14 +705,12 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::SetBound(_app_sub) => {
+            Term::SetBound(set_bound) => {
                 // Recurse to inner and then apply sub
-                todo!()
-                // let app_sub = app_sub.clone();
-                // let inner_fn_ty =
-                // self.use_term_as_fn_call_subject(app_sub.term)?;
-                // Ok(self.substituter().apply_sub_to_fn_ty(&app_sub.sub,
-                // inner_fn_ty))
+                let set_bound = *set_bound;
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.simplifier().use_term_as_fn_call_subject(set_bound.term)
+                })
             }
             Term::Unresolved(_) => {
                 // @@Future: Here maybe create a function type with unknown args and return?
@@ -1126,10 +1114,19 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     _ => None,
                 })?
                 .map(|result| self.builder().create_union_term(result))),
-            Term::SetBound(_apply_sub) => {
-                // Add the bound to the scopes, simplify inner, then check if
-                // resultant term still has any variables from the bounds.
-                todo!()
+            Term::SetBound(set_bound) => {
+                // Add the bound to the scopes, simplify inner:
+                let simplified_inner =
+                    self.scope_manager().enter_scope(set_bound.scope, |this| {
+                        this.simplifier().simplify_term(term_id)
+                    })?;
+                match simplified_inner {
+                    Some(_simplified) => {
+                        // Only keep the bounds which exist in inner:
+                        todo!()
+                    }
+                    None => Ok(None),
+                }
             }
             Term::TyFnCall(apply_ty_fn) => self.apply_ty_fn(&apply_ty_fn),
             Term::Access(access_term) => self.apply_access_term(&access_term),

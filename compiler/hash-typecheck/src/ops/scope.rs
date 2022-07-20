@@ -68,8 +68,8 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     /// Get a [ScopeMember] from a [ScopeVar].
     pub(crate) fn get_scope_member_from_var(&mut self, scope_var: ScopeVar) -> ScopeMember {
         let reader = self.reader();
-        let member = reader.get_scope(scope_var.scope_id).get_by_index(scope_var.index);
-        ScopeMember { member, scope_id: scope_var.scope_id, index: scope_var.index }
+        let member = reader.get_scope(scope_var.scope).get_by_index(scope_var.index);
+        ScopeMember { member, scope_id: scope_var.scope, index: scope_var.index }
     }
 
     /// Create a parameter scope, which is a scope that contains all the given

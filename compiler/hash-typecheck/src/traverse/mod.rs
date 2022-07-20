@@ -9,9 +9,8 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
-            AccessOp, Arg, ArgsId, BindingPat, BoundVars, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, ScopeKind, Sub, TermId,
-            Visibility,
+            AccessOp, Arg, ArgsId, BindingPat, EnumVariant, Member, MemberData, ModDefOrigin,
+            Mutability, Param, Pat, PatId, PatParam, ScopeKind, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -28,7 +27,6 @@ use hash_source::{
     ModuleKind, SourceId,
 };
 use itertools::Itertools;
-use std::collections::HashSet;
 
 use self::scopes::VisitConstantScope;
 
@@ -1829,13 +1827,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::StructDefRet, Self::Error> {
         let walk::StructDef { entries } = walk::walk_struct_def(self, ctx, node)?;
 
-        // we need to figure out the bounds for the current definition
-        let mut bounds = HashSet::new();
-
-        for entry in entries.iter() {
-            bounds.extend(self.substituter().get_vars_in_term(entry.ty)?);
-        }
-
         // create the params
         let fields = self.builder().create_params(entries, ParamOrigin::Struct);
 
@@ -1858,7 +1849,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(term)
     }
 
-    type EnumDefEntryRet = (EnumVariant, BoundVars);
+    type EnumDefEntryRet = EnumVariant;
 
     fn visit_enum_def_entry(
         &mut self,
@@ -1866,21 +1857,16 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::EnumDefEntry>,
     ) -> Result<Self::EnumDefEntryRet, Self::Error> {
         let walk::EnumDefEntry { name, args } = walk::walk_enum_def_entry(self, ctx, node)?;
-        let mut vars = HashSet::new();
 
         // Create the enum variant parameters
         let params = args
             .iter()
-            .map(|arg| -> TcResult<_> {
-                vars.extend(self.substituter().get_vars_in_term(*arg)?);
-
-                Ok(Param { name: None, ty: *arg, default_value: None })
-            })
+            .map(|arg| -> TcResult<_> { Ok(Param { name: None, ty: *arg, default_value: None }) })
             .collect::<TcResult<Vec<_>>>()?;
 
         let fields = self.builder().create_params(params, ParamOrigin::EnumVariant);
 
-        Ok((EnumVariant { name, fields }, vars))
+        Ok(EnumVariant { name, fields })
     }
 
     type EnumDefRet = TermId;
@@ -1896,15 +1882,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let name = self.state.declaration_name_hint.take();
 
         let builder = self.builder();
-
-        // We need to collect all of the bound variables that are within the members
-        let _bound_vars = entries
-            .iter()
-            .map(|(_, vars)| vars)
-            .fold(HashSet::new(), |acc, vars| acc.union(vars).cloned().collect());
-        let variants = entries.into_iter().map(|(variants, _)| variants);
-
-        let nominal_id = builder.create_enum_def(name, variants);
+        let nominal_id = builder.create_enum_def(name, entries);
         let term = builder.create_nominal_def_term(nominal_id);
 
         // validate the constructed nominal def

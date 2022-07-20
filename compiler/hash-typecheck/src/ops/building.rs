@@ -68,7 +68,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         scope: ScopeId,
         index: usize,
     ) -> TermId {
-        self.create_term(Term::ScopeVar(ScopeVar { name: name.into(), scope_id: scope, index }))
+        self.create_term(Term::ScopeVar(ScopeVar { name: name.into(), scope, index }))
     }
 
     /// Add the given nominal definition to the scope.

@@ -518,7 +518,7 @@ pub struct Var {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ScopeVar {
     pub name: Identifier,
-    pub scope_id: ScopeId,
+    pub scope: ScopeId,
     pub index: usize,
 }
 
