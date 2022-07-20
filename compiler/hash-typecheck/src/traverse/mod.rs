@@ -433,13 +433,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(())
     }
 
-    type ExpressionRet = TermId;
+    type ExprRet = TermId;
 
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         walk::walk_expr_same_children(self, ctx, node)
     }
 
@@ -1662,24 +1662,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.builder().create_void_term())
     }
 
-    type AssignOpExpressionRet = TermId;
+    type AssignOpExprRet = TermId;
 
     fn visit_assign_op_expr(
         &mut self,
         _ctx: &Self::Ctx,
         _node: hash_ast::ast::AstNodeRef<hash_ast::ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         todo!()
     }
 
-    type BinaryExpressionRet = TermId;
+    type BinaryExprRet = TermId;
 
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
-        let walk::BinaryExpression { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
+        let walk::BinaryExpr { lhs, rhs, .. } = walk::walk_binary_expr(self, ctx, node)?;
 
         let mut operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(lhs, trait_fn_name);
@@ -1748,14 +1748,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(simplified)
     }
 
-    type UnaryExpressionRet = TermId;
+    type UnaryExprRet = TermId;
 
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
-        let walk::UnaryExpression { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
+        let walk::UnaryExpr { expr, .. } = walk::walk_unary_expr(self, ctx, node)?;
 
         let mut operator_fn = |trait_fn_name: &str| {
             let prop_access = self.builder().create_prop_access(expr, trait_fn_name);
@@ -1776,13 +1776,13 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(self.validator().validate_term(term)?.simplified_term_id)
     }
 
-    type IndexExpressionRet = TermId;
+    type IndexExprRet = TermId;
 
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let walk::IndexExpr { index_expr, subject } = walk::walk_index_expr(self, ctx, node)?;
 
         // We just translate this to a function call:

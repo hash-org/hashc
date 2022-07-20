@@ -198,13 +198,13 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type ExpressionRet = ();
+    type ExprRet = ();
 
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         let _ = walk_mut::walk_expr(self, ctx, node);
         Ok(())
     }
@@ -770,46 +770,46 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type AssignOpExpressionRet = ();
+    type AssignOpExprRet = ();
 
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         let _ = walk_mut::walk_assign_op_statement(self, ctx, node);
         Ok(())
     }
 
-    type BinaryExpressionRet = ();
+    type BinaryExprRet = ();
 
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
         let _ = walk_mut::walk_binary_expr(self, ctx, node);
         Ok(())
     }
 
-    type UnaryExpressionRet = ();
+    type UnaryExprRet = ();
 
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
         let _ = walk_mut::walk_unary_expr(self, ctx, node);
         Ok(())
     }
 
-    type IndexExpressionRet = ();
+    type IndexExprRet = ();
 
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRefMut<hash_ast::ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let _ = walk_mut::walk_index_expr(self, ctx, node);
         Ok(())
     }

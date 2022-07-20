@@ -186,12 +186,12 @@ impl AstVisitor for AstTreeGenerator {
         Ok(TreeNode::leaf(format!("operator `{}`", node.body())))
     }
 
-    type ExpressionRet = TreeNode;
+    type ExprRet = TreeNode;
     fn visit_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::Expr>,
-    ) -> Result<Self::ExpressionRet, Self::Error> {
+    ) -> Result<Self::ExprRet, Self::Error> {
         walk::walk_expr_same_children(self, ctx, node)
     }
 
@@ -584,14 +584,14 @@ impl AstVisitor for AstTreeGenerator {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::TyFnDef>,
     ) -> Result<Self::TyFnDefRet, Self::Error> {
-        let walk::TyFnDef { params: args, return_ty, expr } =
+        let walk::TyFnDef { params: args, return_ty, body } =
             walk::walk_ty_fn_def(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "type_function",
             iter::once(TreeNode::branch("args", args))
                 .chain(return_ty.map(|r| TreeNode::branch("return_type", vec![r])))
-                .chain(iter::once(TreeNode::branch("body", vec![expr])))
+                .chain(iter::once(TreeNode::branch("body", vec![body])))
                 .collect(),
         ))
     }
@@ -877,12 +877,12 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type AssignOpExpressionRet = TreeNode;
+    type AssignOpExprRet = TreeNode;
     fn visit_assign_op_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::AssignOpExpr>,
-    ) -> Result<Self::AssignOpExpressionRet, Self::Error> {
+    ) -> Result<Self::AssignOpExprRet, Self::Error> {
         let walk::AssignOpStatement { lhs, rhs, operator } =
             walk::walk_assign_op_statement(self, ctx, node)?;
         Ok(TreeNode::branch(
@@ -891,14 +891,13 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type BinaryExpressionRet = TreeNode;
+    type BinaryExprRet = TreeNode;
     fn visit_binary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BinaryExpr>,
-    ) -> Result<Self::BinaryExpressionRet, Self::Error> {
-        let walk::BinaryExpression { operator, lhs, rhs } =
-            walk::walk_binary_expr(self, ctx, node)?;
+    ) -> Result<Self::BinaryExprRet, Self::Error> {
+        let walk::BinaryExpr { operator, lhs, rhs } = walk::walk_binary_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch(
             "binary_expr",
@@ -906,23 +905,23 @@ impl AstVisitor for AstTreeGenerator {
         ))
     }
 
-    type UnaryExpressionRet = TreeNode;
+    type UnaryExprRet = TreeNode;
     fn visit_unary_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::UnaryExpr>,
-    ) -> Result<Self::UnaryExpressionRet, Self::Error> {
-        let walk::UnaryExpression { operator, expr } = walk::walk_unary_expr(self, ctx, node)?;
+    ) -> Result<Self::UnaryExprRet, Self::Error> {
+        let walk::UnaryExpr { operator, expr } = walk::walk_unary_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch("unary_expr", vec![operator, TreeNode::branch("expr", vec![expr])]))
     }
 
-    type IndexExpressionRet = TreeNode;
+    type IndexExprRet = TreeNode;
     fn visit_index_expr(
         &mut self,
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::IndexExpr>,
-    ) -> Result<Self::IndexExpressionRet, Self::Error> {
+    ) -> Result<Self::IndexExprRet, Self::Error> {
         let walk::IndexExpr { subject, index_expr } = walk::walk_index_expr(self, ctx, node)?;
 
         Ok(TreeNode::branch(
