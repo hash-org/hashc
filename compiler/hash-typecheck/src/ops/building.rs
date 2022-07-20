@@ -7,7 +7,7 @@ use crate::storage::{
         EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term, Level2Term,
         Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin, ModPat,
         Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId, PatParam,
-        PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef, StructFields, Sub, Term,
+        PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, SetBound, StructDef, StructFields, Term,
         TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         UnresolvedTerm, Var, Visibility,
     },
@@ -587,18 +587,10 @@ impl<'gs> PrimitiveBuilder<'gs> {
         existing.unwrap_or_else(|| self.create_unresolved_term())
     }
 
-    /// Create a substitution application term, given a substitution and inner
-    /// term.
-    ///
-    /// If no elements exist in the substitution, returns the term itself
-    /// without wrapping it.
-    pub fn create_app_sub_term(&self, _sub: Sub, _term: TermId) -> TermId {
-        todo!()
-        // if sub.map().is_empty() {
-        //     term
-        // } else {
-        //     self.create_term(Term::SetBound(AppSub { sub, term }))
-        // }
+    /// Create a set bound term, given a term and scope which is of kind
+    /// [ScopeKind::SetBound].
+    pub fn create_set_bound_term(&self, term: TermId, set_bound_scope: ScopeId) -> TermId {
+        self.create_term(Term::SetBound(SetBound { term, scope: set_bound_scope }))
     }
 
     /// Create an argument with the given name and value.
