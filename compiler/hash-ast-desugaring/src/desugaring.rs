@@ -2,11 +2,11 @@
 //! implementation.
 use hash_ast::{
     ast::{
-        AstNode, AstNodes, Block, BlockExpr, BodyBlock, BoolLit, BoolLitPat, BreakStatement,
-        ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr, ConstructorPat, Expr,
-        ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, IgnorePat, Lit, LitExpr, LitPat,
-        LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry, VariableExpr,
-        WhileLoopBlock,
+        AstNode, AstNodes, BindingPat, Block, BlockExpr, BodyBlock, BoolLit, BoolLitPat,
+        BreakStatement, ConstructorCallArg, ConstructorCallArgs, ConstructorCallExpr,
+        ConstructorPat, Expr, ExprKind, ForLoopBlock, IfBlock, IfClause, IfPat, IgnorePat, Lit,
+        LitExpr, LitPat, LoopBlock, MatchBlock, MatchCase, MatchOrigin, Name, Pat, TuplePatEntry,
+        VariableExpr, WhileLoopBlock,
     },
     ast_nodes,
 };
@@ -50,28 +50,31 @@ impl<'s> AstDesugaring<'s> {
             block => panic_on_span!(
                 self.source_location(parent_span),
                 self.source_map,
-                "Expected for-loop within for-loop lowering, got {}",
+                "lowering: expected for-loop, got {}",
                 block.as_str()
             ),
         };
 
         let ForLoopBlock { pat, iterator, body } = block;
-
         let (iter_span, pat_span, body_span) = (iterator.span(), pat.span(), body.span());
 
-        let make_access_pat = |_label: &str| -> AstNode<Pat> {
-            // // Create the identifier within the map...
-            // AstNode::new(
-            //     Namespace { path: ast_nodes![AstNode::new(label.into(), iter_span)] },
-            //     iter_span,
-            // )
-            todo!()
+        // Utility to create binding patterns for when de-sugaring the result of the
+        // iterator.
+        let make_binding_pat = |label: &str| -> AstNode<Pat> {
+            AstNode::new(
+                Pat::Binding(BindingPat {
+                    name: AstNode::new(Name { ident: label.into() }, iter_span),
+                    visibility: None,
+                    mutability: None,
+                }),
+                iter_span,
+            )
         };
 
         // Convert the pattern into a constructor pattern like `Some(<pat>)`
         let pat = AstNode::new(
             Pat::Constructor(ConstructorPat {
-                subject: make_access_pat("Some"),
+                subject: make_binding_pat("Some"),
                 fields: ast_nodes![AstNode::new(TuplePatEntry { name: None, pat }, pat_span)],
             }),
             pat_span,
@@ -91,7 +94,7 @@ impl<'s> AstDesugaring<'s> {
                 MatchCase {
                     pat: AstNode::new(
                         Pat::Constructor(ConstructorPat {
-                            subject: make_access_pat("None"),
+                            subject: make_binding_pat("None"),
                             fields: ast_nodes![],
                         },),
                         pat_span
@@ -169,7 +172,7 @@ impl<'s> AstDesugaring<'s> {
             block => panic_on_span!(
                 self.source_location(parent_span),
                 self.source_map,
-                "Expected while-block within while-block lowering, got {}",
+                "lowering: expected while-block, got {}",
                 block.as_str()
             ),
         };
@@ -326,7 +329,7 @@ impl<'s> AstDesugaring<'s> {
             block => panic_on_span!(
                 self.source_location(parent_span),
                 self.source_map,
-                "Expected if-block within if-block lowering, got {}",
+                "lowering: expected if-block, got {}",
                 block.as_str()
             ),
         };
