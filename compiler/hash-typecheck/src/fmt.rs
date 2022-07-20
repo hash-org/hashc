@@ -408,26 +408,20 @@ impl<'gs> TcFormatter<'gs> {
                 Ok(())
             }
             Term::Unresolved(unresolved_term) => self.fmt_unresolved(f, unresolved_term),
-            Term::SetBound(_app_sub) => {
-                opts.is_atomic.set(true);
-                todo!()
-                // write!(f "[")?;
-                // let pairs = app_sub.sub.pairs().collect::<Vec<_>>();
-                // for (i, (from, to)) in pairs.iter().enumerate() {
-                //     self.fmt_term_as_single(f, *to, opts.clone())?;
-                //     write!(f, "/")?;
-                //     match from {
-                //         SubSubject::Var(var) => write!(f, "{}", var.name)?,
-                //         SubSubject::Unresolved(unresolved) =>
-                // self.fmt_unresolved(f, unresolved)?,     }
+            Term::SetBound(set_bound) => {
+                opts.is_atomic.set(false);
+                self.fmt_term_as_single(f, set_bound.term, opts.clone())?;
 
-                //     if i != pairs.len() - 1 {
-                //         write!(f, ", ")?;
-                //     }
-                // }
-                // write!(f, "]")?;
-                // self.fmt_term_as_single(f, app_sub.term, opts)?;
-                // Ok(())
+                let members = &self.global_storage.scope_store.get(set_bound.scope).members;
+                write!(f, " where ")?;
+                for (i, member) in members.iter().enumerate() {
+                    write!(f, "{} = ", member.name)?;
+                    self.fmt_term_as_single(f, member.data.value().unwrap(), opts.clone())?;
+                    if i != members.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                Ok(())
             }
             Term::Level3(term) => self.fmt_level3_term(f, term, opts),
             Term::Level2(term) => self.fmt_level2_term(f, term, opts),

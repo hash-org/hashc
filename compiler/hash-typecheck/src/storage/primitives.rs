@@ -526,9 +526,9 @@ pub struct ScopeVar {
 /// variables should be present in the inner term
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct SetBound {
-    pub inner: TermId,
+    pub term: TermId,
     /// Must be [ScopeKind::SetBound]
-    pub set_bound_scope_id: ScopeId,
+    pub scope: ScopeId,
 }
 
 /// The action of applying a set of arguments to a type function.
