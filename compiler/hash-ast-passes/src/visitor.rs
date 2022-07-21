@@ -1085,6 +1085,16 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
+    type SpreadPatRet = ();
+
+    fn visit_spread_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
+        Ok(())
+    }
+
     type StrLitPatRet = ();
 
     fn visit_str_lit_pat(
@@ -1198,16 +1208,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
             );
         }
 
-        Ok(())
-    }
-
-    type SpreadPatRet = ();
-
-    fn visit_spread_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
         Ok(())
     }
 

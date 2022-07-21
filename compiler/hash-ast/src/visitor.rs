@@ -630,6 +630,13 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error>;
 
+    type SpreadPatRet;
+    fn visit_spread_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error>;
+
     type StrLitPatRet;
     fn visit_str_lit_pat(
         &mut self,
@@ -692,13 +699,6 @@ pub trait AstVisitor: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error>;
-
-    type SpreadPatRet;
-    fn visit_spread_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error>;
 
     type IgnorePatRet;
     fn visit_ignore_pat(
@@ -1337,6 +1337,13 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error>;
 
+    type SpreadPatRet;
+    fn visit_spread_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error>;
+
     type StrLitPatRet;
     fn visit_str_lit_pat(
         &mut self,
@@ -1399,13 +1406,6 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error>;
-
-    type SpreadPatRet;
-    fn visit_spread_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error>;
 
     type IgnorePatRet;
     fn visit_ignore_pat(
