@@ -6,7 +6,9 @@ use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
     ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
     storage::{
-        primitives::{AccessPat, ConstructorPat, IfPat, Member, MemberData, Pat, PatId, TermId},
+        primitives::{
+            AccessPat, ConstPat, ConstructorPat, IfPat, Member, MemberData, Pat, PatId, TermId,
+        },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -70,10 +72,12 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     Err(_) => Ok(None),
                 }
             }
-            Pat::Const(term) => match self.unifier().unify_terms(term, simplified_term_id) {
-                Ok(_) => Ok(Some(vec![])),
-                Err(_) => Ok(None),
-            },
+            Pat::Const(ConstPat { term, .. }) => {
+                match self.unifier().unify_terms(term, simplified_term_id) {
+                    Ok(_) => Ok(Some(vec![])),
+                    Err(_) => Ok(None),
+                }
+            }
             // Ignore: No bindings but always matches
             Pat::Ignore => Ok(Some(vec![])),
             // Lit: Unify the literal with the subject

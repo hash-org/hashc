@@ -3,10 +3,10 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-        MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, ParamsId,
-        Pat, PatId, PatParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId, TrtDefId,
-        UnresolvedTerm, Visibility,
+        AccessOp, AccessPat, ArgsId, ConstPat, EnumDef, Level0Term, Level1Term, Level2Term,
+        Level3Term, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef,
+        NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId, StructDef, Sub, SubSubject, Term,
+        TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -598,6 +598,12 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(false);
                 write!(f, "{}{}{}", visibility, mutability, name)
             }
+            Pat::Access(AccessPat { subject, property }) => {
+                write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
+            }
+            Pat::Const(ConstPat { name, .. }) => {
+                write!(f, "{}", name)
+            }
             Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
@@ -664,7 +670,6 @@ impl<'gs> TcFormatter<'gs> {
 
                 Ok(())
             }
-            Pat::Access(_) | Pat::Const(_) => todo!(),
         }
     }
 }

@@ -9,8 +9,9 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
-            AccessOp, Arg, ArgsId, BindingPat, BoundVars, EnumVariant, Member, MemberData,
-            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, Sub, TermId, Visibility,
+            AccessOp, Arg, ArgsId, BindingPat, BoundVars, ConstPat, EnumVariant, Member,
+            MemberData, ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, Sub, TermId,
+            Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -2187,7 +2188,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_var_term(name);
 
         match self.scope_manager().resolve_name_in_scopes(name, term) {
-            Ok(_) => Ok(self.builder().create_pat(Pat::Const(term))),
+            Ok(_) => Ok(self.builder().create_pat(Pat::Const(ConstPat { term, name }))),
             Err(_) => {
                 let pat = self.builder().create_binding_pat(
                     node.name.body().ident,

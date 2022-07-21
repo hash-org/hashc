@@ -8,8 +8,8 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessPat, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term,
-            LitTerm, MemberData, ModDefOrigin, NominalDef, Param, ParamsId, Pat, PatId,
+            AccessOp, AccessPat, Arg, ArgsId, ConstPat, Level0Term, Level1Term, Level2Term,
+            Level3Term, LitTerm, MemberData, ModDefOrigin, NominalDef, Param, ParamsId, Pat, PatId,
             PatParamsId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -336,7 +336,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
-            Pat::Const(term) => Ok(term),
+            Pat::Const(ConstPat { term, .. }) => Ok(term),
             Pat::Access(AccessPat { subject, property }) => {
                 let subject_id = self.get_term_of_pat(subject)?;
 

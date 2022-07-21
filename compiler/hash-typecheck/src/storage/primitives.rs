@@ -987,15 +987,26 @@ pub struct BindingPat {
     pub visibility: Visibility,
 }
 
-#[derive(Clone, Debug, Copy)]
-pub struct ConstantPat {
-    pub term: TermId,
-}
-
+/// An access pattern is the equivalent of an access expression which denotes
+/// accessing symbols within some namespace. The `property` that is accessed
+/// from the subject.
 #[derive(Clone, Debug, Copy)]
 pub struct AccessPat {
+    /// The subject that is to be accessed
     pub subject: PatId,
+    /// The property that is accessed from the `subject`
     pub property: Identifier,
+}
+
+/// A constant pattern is essentially a bind pattern that can be resolved within
+/// the current scope of the pattern. This used to support [Pat::Access] working
+/// the resolution machinery.
+#[derive(Clone, Debug, Copy)]
+pub struct ConstPat {
+    /// The resolved term of the bind.
+    pub term: TermId,
+    /// The name of the `bind`
+    pub name: Identifier,
 }
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
@@ -1046,7 +1057,8 @@ pub enum Pat {
     Binding(BindingPat),
     /// Access pattern.
     Access(AccessPat),
-    Const(TermId),
+    /// Resolved binding pattern.
+    Const(ConstPat),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
