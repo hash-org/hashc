@@ -57,7 +57,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     ///
     /// Equivalent to first unifying `U(s0, s1)` and then applying `s1` or `s0`.
     pub(crate) fn get_super_sub(&mut self, s0: &Sub, s1: &Sub) -> TcResult<Sub> {
-        let fv_s1 = self.discoverer().get_free_vars_in_sub(s1);
+        let fv_s1 = self.discoverer().get_free_sub_vars_in_sub(s1);
         let dom_s0: HashSet<_> = s0.domain().collect();
         if fv_s1.intersection(&dom_s0).next().is_some() {
             panic!("Super-sub is not well formed!");
@@ -93,7 +93,7 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Remove elements of dom(result) from t, and remove a from result.
             let subbed_t = self.substituter().apply_sub_to_term(&result, t);
             let discoverer = self.discoverer();
-            if discoverer.get_free_vars_in_term(subbed_t).contains(&a) {
+            if discoverer.get_free_sub_vars_in_term(subbed_t).contains(&a) {
                 tc_panic!(subbed_t, self.storage, "Unexpected free variable in one of the substitutions being unified (occurs error)");
             }
 
@@ -110,8 +110,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             let x1 = substituter.apply_sub_to_term(&result, subbed1_b);
 
             let discoverer = self.discoverer();
-            if discoverer.get_free_vars_in_term(x0).contains(&b)
-                || discoverer.get_free_vars_in_term(x1).contains(&b)
+            if discoverer.get_free_sub_vars_in_term(x0).contains(&b)
+                || discoverer.get_free_sub_vars_in_term(x1).contains(&b)
             {
                 tc_panic_on_many!([x0, x1], self, "Unexpected free variable in intersection of substitutions being unified (occurs error)");
             }
