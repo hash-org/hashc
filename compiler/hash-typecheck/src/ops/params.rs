@@ -36,7 +36,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
     let mut default_params: HashSet<_> = params
         .positional()
         .iter()
-        .filter(|param| param.default_value.is_some())
+        .filter(|param| param.default_value.is_some() && param.name.is_some())
         .map(|param| param.name.unwrap())
         .collect();
 

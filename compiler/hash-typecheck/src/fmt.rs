@@ -664,6 +664,7 @@ impl<'gs> TcFormatter<'gs> {
 
                 Ok(())
             }
+            Pat::Access(_) | Pat::Const(_) => todo!(),
         }
     }
 }

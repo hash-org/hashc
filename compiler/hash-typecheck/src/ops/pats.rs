@@ -4,9 +4,9 @@ use itertools::Itertools;
 
 use crate::{
     diagnostics::{error::TcResult, macros::tc_panic},
-    ops::{validate::TermValidation, AccessToOpsMut},
+    ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
     storage::{
-        primitives::{IfPat, Member, MemberData, Pat, PatId, TermId},
+        primitives::{AccessPat, ConstructorPat, IfPat, Member, MemberData, Pat, PatId, TermId},
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
 };
@@ -61,6 +61,19 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 binding.mutability,
                 MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
             )])),
+            Pat::Access(AccessPat { subject, property }) => {
+                let subject_term = self.typer().get_term_of_pat(subject)?;
+                let term = self.builder().create_ns_access(subject_term, property);
+
+                match self.unifier().unify_terms(term, simplified_term_id) {
+                    Ok(_) => Ok(Some(vec![])),
+                    Err(_) => Ok(None),
+                }
+            }
+            Pat::Const(term) => match self.unifier().unify_terms(term, simplified_term_id) {
+                Ok(_) => Ok(Some(vec![])),
+                Err(_) => Ok(None),
+            },
             // Ignore: No bindings but always matches
             Pat::Ignore => Ok(Some(vec![])),
             // Lit: Unify the literal with the subject
@@ -124,16 +137,67 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 //  Here we have to basically try to access the given members using ns access...
                 todo!()
             }
-            Pat::Constructor(_) => {
+            Pat::Constructor(ConstructorPat { params, .. }) => {
                 // Get the term of the constructor and try to unify it with the subject:
-                let constructor_term = self.typer().get_term_of_pat(pat_id)?;
-                match self.unifier().unify_terms(constructor_term, simplified_term_id) {
-                    Ok(_) => {
-                        // @@Todo: Get the vars:
-                        Ok(Some(vec![]))
+                let term = self.typer().get_term_of_pat(pat_id)?;
+                let constructor_term = self.builder().create_rt_term(term);
+
+                if let Some(params_id) = params {
+                    let pat_args = self.typer().infer_args_of_pat_params(params_id)?;
+                    let constructor_args = self.reader().get_pat_params(params_id).clone();
+
+                    let possible_params =
+                        self.typer().get_params_ty_of_nominal_term(simplified_term_id)?;
+
+                    for (_subject, params) in possible_params {
+                        // @@Broken
+                        // if self.unifier().unify_terms(constructor_term, subject).is_err() {
+                        //     continue;
+                        // }
+
+                        match self.unifier().unify_params_with_args(
+                            params,
+                            pat_args,
+                            constructor_term,
+                            simplified_term_id,
+                            UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
+                        ) {
+                            Ok(_) => {
+                                let subject_params = self.reader().get_params(params).clone();
+
+                                let bound_members = pair_args_with_params(
+                                    &subject_params,
+                                    &constructor_args,
+                                    params,
+                                    pat_args,
+                                    term_id,
+                                    pat_id,
+                                )?
+                                .into_iter()
+                                .map(|(param, pat_param)| {
+                                    let param_value = param
+                                        .default_value
+                                        .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+
+                                    Ok(self
+                                        .match_pat_with_term(pat_param.pat, param_value)?
+                                        .into_iter()
+                                        .flatten()
+                                        .collect::<Vec<_>>())
+                                })
+                                .flatten_ok()
+                                .collect::<TcResult<Vec<_>>>()?;
+
+                                return Ok(Some(bound_members));
+                            }
+                            Err(_) => continue,
+                        }
                     }
-                    Err(_) => Ok(None),
+
+                    return Ok(Some(vec![]));
                 }
+
+                Ok(Some(vec![]))
             }
             Pat::Or(_) => {
                 // Here we have to get the union of all the pattern terms, and also need to

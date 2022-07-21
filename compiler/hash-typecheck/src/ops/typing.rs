@@ -8,8 +8,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-            MemberData, ModDefOrigin, Param, ParamsId, Pat, PatId, PatParamsId, Term, TermId,
+            AccessOp, AccessPat, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term,
+            LitTerm, MemberData, ModDefOrigin, NominalDef, Param, ParamsId, Pat, PatId,
+            PatParamsId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -301,19 +302,19 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     /// From the given [PatParamsId], infer a [ArgsId] describing the the
     /// arguments.
     pub(crate) fn infer_args_of_pat_params(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
-        let pat_params = self.reader().get_pat_params(id).clone();
-        let origin = pat_params.origin();
+        let pat_args = self.reader().get_pat_params(id).clone();
+        let origin = pat_args.origin();
 
-        let param_tys: Vec<_> = pat_params
+        let arg_tys: Vec<_> = pat_args
             .into_positional()
             .into_iter()
             .map(|param| Ok(Arg { name: param.name, value: self.get_term_of_pat(param.pat)? }))
             .collect::<TcResult<_>>()?;
 
-        let args_id = self.builder().create_args(param_tys.iter().copied(), origin);
+        let args_id = self.builder().create_args(arg_tys.iter().copied(), origin);
 
         // Copy locations:
-        for i in 0..param_tys.len() {
+        for i in 0..arg_tys.len() {
             self.location_store_mut().copy_location((id, i), (args_id, i))
         }
 
@@ -335,6 +336,12 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
             }
+            Pat::Const(term) => Ok(term),
+            Pat::Access(AccessPat { subject, property }) => {
+                let subject_id = self.get_term_of_pat(subject)?;
+
+                Ok(self.builder().create_access(subject_id, property, AccessOp::Namespace))
+            }
             Pat::Lit(lit_term) => {
                 // The term of a literal pattern is the literal (lol):
                 Ok(lit_term)
@@ -351,6 +358,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     // We have params to apply, so we need to create an FnCall
                     let args_id = self.infer_args_of_pat_params(params)?;
                     let builder = self.builder();
+
                     Ok(builder.create_fn_call_term(constructor_pat.subject, args_id))
                 }
                 None => {
@@ -418,6 +426,49 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     _ => Ok(None),
                 }
             }
+        }
+    }
+
+    /// Get the parameters of the given nominal term, if possible.
+    pub(crate) fn get_params_ty_of_nominal_term(
+        &mut self,
+        nominal_term_id: TermId,
+    ) -> TcResult<Vec<(TermId, ParamsId)>> {
+        let nominal_term = self.typer().infer_ty_of_term(nominal_term_id)?;
+        let nominal_term = self.reader().get_term(nominal_term).clone();
+
+        match nominal_term {
+            Term::Level1(Level1Term::NominalDef(nominal_id)) => {
+                match self.reader().get_nominal_def(nominal_id) {
+                    NominalDef::Struct(struct_def) => match struct_def.fields {
+                        StructFields::Explicit(params) => Ok(vec![(nominal_term_id, params)]),
+                        StructFields::Opaque => Ok(vec![]),
+                    },
+                    NominalDef::Enum(enum_def) => {
+                        let enum_def = enum_def.clone();
+
+                        // Map over the enum def variants and get the parameters and the subject
+                        // term
+                        Ok(enum_def
+                            .variants
+                            .values()
+                            .map(|value| {
+                                let term = self
+                                    .builder()
+                                    .create_enum_variant_value_term(value.name, nominal_id);
+                                (term, value.fields)
+                            })
+                            .collect())
+                    }
+                }
+            }
+            Term::Union(term) => Ok(term
+                .iter()
+                .copied()
+                .map(|term| self.get_params_ty_of_nominal_term(term))
+                .flatten_ok()
+                .collect::<TcResult<_>>()?),
+            _ => Ok(vec![]),
         }
     }
 }

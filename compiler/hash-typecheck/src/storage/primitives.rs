@@ -987,6 +987,17 @@ pub struct BindingPat {
     pub visibility: Visibility,
 }
 
+#[derive(Clone, Debug, Copy)]
+pub struct ConstantPat {
+    pub term: TermId,
+}
+
+#[derive(Clone, Debug, Copy)]
+pub struct AccessPat {
+    pub subject: PatId,
+    pub property: Identifier,
+}
+
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
 pub struct PatParam {
@@ -1033,6 +1044,9 @@ pub struct ModPat {
 pub enum Pat {
     /// Binding pattern.
     Binding(BindingPat),
+    /// Access pattern.
+    Access(AccessPat),
+    Const(TermId),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.

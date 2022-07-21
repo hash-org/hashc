@@ -3,8 +3,8 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat, EnumDef,
-        EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
+        AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat,
+        EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
         Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
         ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
         PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef, StructFields, Sub,
@@ -745,6 +745,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create an ignore pattern ("_").
     pub fn create_ignore_pat(&self) -> PatId {
         self.create_pat(Pat::Ignore)
+    }
+
+    /// Create an access pattern.
+    pub fn create_access_pat(&self, subject: PatId, property: impl Into<Identifier>) -> PatId {
+        self.create_pat(Pat::Access(AccessPat { subject, property: property.into() }))
     }
 
     /// Add a [SourceLocation] to a [LocationTarget].

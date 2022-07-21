@@ -1976,10 +1976,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_access_pat(
         &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::AccessPat>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
-        todo!()
+        let walk::AccessPat { subject, property } = walk::walk_access_pat(self, ctx, node)?;
+
+        let access_pat = self.builder().create_access_pat(subject, property);
+
+        Ok(access_pat)
     }
 
     type ConstructorPatRet = PatId;
@@ -1989,10 +1993,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { subject, args } = walk::walk_constructor_pat(self, ctx, node)?;
+        let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
+
         let constructor_params = self.builder().create_pat_params(args, ParamOrigin::Unknown);
 
-        let subject = self.typer().infer_ty_of_pat(subject)?;
+        let subject = self.typer().get_term_of_pat(subject)?;
         let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
@@ -2178,19 +2183,28 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
-        let pat = self.builder().create_binding_pat(
-            node.name.body().ident,
-            match node.mutability.as_ref().map(|x| *x.body()) {
-                Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
-                Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
-            },
-            match node.visibility.as_ref().map(|x| *x.body()) {
-                Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
-                Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
-            },
-        );
-        self.copy_location_from_node_to_target(node, pat);
-        Ok(pat)
+        let name = node.name.ident;
+        let term = self.builder().create_var_term(name);
+
+        match self.scope_manager().resolve_name_in_scopes(name, term) {
+            Ok(_) => Ok(self.builder().create_pat(Pat::Const(term))),
+            Err(_) => {
+                let pat = self.builder().create_binding_pat(
+                    node.name.body().ident,
+                    match node.mutability.as_ref().map(|x| *x.body()) {
+                        Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
+                        Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
+                    },
+                    match node.visibility.as_ref().map(|x| *x.body()) {
+                        Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
+                        Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
+                    },
+                );
+                self.copy_location_from_node_to_target(node, pat);
+
+                Ok(pat)
+            }
+        }
     }
 
     type SpreadPatRet = PatId;
