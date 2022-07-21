@@ -5,9 +5,9 @@ use crate::{
     diagnostics::error::{TcError, TcResult},
     storage::{
         primitives::{
-            AppSub, Arg, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
-            ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
-            Var,
+            AppSub, Arg, ArgsId, ConstructedTerm, FnCall, FnTy, Level0Term, Level1Term, Level2Term,
+            Level3Term, Param, ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFn, TyFnCall,
+            TyFnCase, TyFnTy, Var,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -184,6 +184,12 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 self.builder().create_tuple_lit_term(subbed_args)
             }
             Level0Term::Lit(_) => original_term,
+            Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                let subbed_subject = self.apply_sub_to_term(sub, subject);
+                let subbed_args = self.apply_sub_to_args(sub, members);
+
+                self.builder().create_constructed_term(subbed_subject, subbed_args)
+            }
         }
     }
 
@@ -395,10 +401,11 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
                 self.add_free_vars_in_term_to_set(fn_lit.fn_ty, result);
                 self.add_free_vars_in_term_to_set(fn_lit.return_value, result);
             }
-            Level0Term::FnCall(fn_call) => {
+            Level0Term::Constructed(ConstructedTerm { subject, members: args })
+            | Level0Term::FnCall(FnCall { subject, args }) => {
                 // Forward to subject and args:
-                self.add_free_vars_in_term_to_set(fn_call.subject, result);
-                self.add_free_vars_in_args_to_set(fn_call.args, result);
+                self.add_free_vars_in_term_to_set(*subject, result);
+                self.add_free_vars_in_args_to_set(*args, result);
             }
             Level0Term::Tuple(tuple_lit) => {
                 self.add_free_vars_in_args_to_set(tuple_lit.members, result);

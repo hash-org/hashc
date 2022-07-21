@@ -3,13 +3,13 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat,
-        EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
-        Level2Term, Level3Term, ListPat, LitTerm, Member, MemberData, ModDef, ModDefId,
-        ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId,
-        Pat, PatId, PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef,
-        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall,
-        TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar,
+        ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
+        FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
+        MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
+        Param, ParamList, ParamsId, Pat, PatId, PatParam, PatParamsId, Scope, ScopeId, ScopeKind,
+        ScopeVar, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy,
+        TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -434,6 +434,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a tuple literal term [Level0Term::Tuple].
     pub fn create_tuple_lit_term(&self, members: ArgsId) -> TermId {
         self.create_term(Term::Level0(Level0Term::Tuple(TupleLit { members })))
+    }
+
+    /// Create a tuple literal term [Level0Term::Constructed].
+    pub fn create_constructed_term(&self, subject: TermId, members: ArgsId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Constructed(ConstructedTerm {
+            subject,
+            members,
+        })))
     }
 
     /// Create a [Level0Term::Rt] of the given type.

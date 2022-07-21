@@ -3,10 +3,10 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, AccessPat, ArgsId, ConstPat, EnumDef, Level0Term, Level1Term, Level2Term,
-        Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat, Mutability,
-        NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId, StructDef, Sub,
-        SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        AccessOp, AccessPat, ArgsId, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
+        Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat,
+        Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId,
+        StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -239,6 +239,16 @@ impl<'gs> TcFormatter<'gs> {
             Level0Term::Tuple(tuple_lit) => {
                 opts.is_atomic.set(true);
                 write!(f, "({})", tuple_lit.members.for_formatting(self.global_storage))
+            }
+            Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                opts.is_atomic.set(true);
+
+                write!(
+                    f,
+                    "{}({})",
+                    subject.for_formatting(self.global_storage),
+                    members.for_formatting(self.global_storage)
+                )
             }
         }
     }

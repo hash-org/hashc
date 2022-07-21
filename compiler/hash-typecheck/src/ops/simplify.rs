@@ -13,9 +13,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
-            Level3Term, NominalDef, Param, ParamsId, StructFields, Term, TermId, TupleLit, TupleTy,
-            TyFn, TyFnCall, TyFnCase, TyFnTy,
+            AccessOp, AccessTerm, Arg, ArgsId, ConstructedTerm, FnLit, FnTy, Level0Term,
+            Level1Term, Level2Term, Level3Term, NominalDef, Param, ParamsId, StructFields, Term,
+            TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -313,7 +313,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     "Function call in access apply should have already been simplified!"
                 )
             }
-            Level0Term::Tuple(TupleLit { members }) => {
+            Level0Term::Constructed(ConstructedTerm { members, .. })
+            | Level0Term::Tuple(TupleLit { members }) => {
                 let tuple_members = self.args_store().get(*members);
                 if let Some((_, member)) = tuple_members.get_by_name(access_term.name) {
                     Ok(Some(member.value))
@@ -814,6 +815,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                     Level0Term::Lit(_) => cannot_use_as_fn_call_subject(),
                     Level0Term::Tuple(_) => cannot_use_as_fn_call_subject(),
+                    Level0Term::Constructed(_) => cannot_use_as_fn_call_subject(),
                 }
             }
 
@@ -870,6 +872,22 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             }
             Level0Term::EnumVariant(_) => Ok(None),
             Level0Term::FnCall(fn_call) => {
+                // @@Constructed
+                //
+                // If the subject is `constructable`, then the it needs to create a
+                // `Constructed` rather than continuing with fn-call...
+                //
+                // simplify subject, check if it a struct-def, and then make it a constructed if
+                // so
+                //
+                // constructable should check:
+                // - if it is a struct
+                // - if merge, then only one member should be a struct
+                // - if app-sub, child can be struct/merge (recurse) * apply sub before return *
+                //   Shinji
+                //
+                //
+
                 // Apply the function:
 
                 // Must be a function:
@@ -900,6 +918,19 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Level0Term::Lit(_) => Ok(None),
+            Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                let simplified_subject = self.simplify_term(*subject)?;
+                let simplified_members = self.simplify_args(*members)?;
+
+                if simplified_subject.is_some() || simplified_members.is_some() {
+                    let subject = simplified_subject.unwrap_or(*subject);
+                    let members = simplified_members.unwrap_or(*members);
+
+                    Ok(Some(self.builder().create_constructed_term(subject, members)))
+                } else {
+                    Ok(None)
+                }
+            }
         }
     }
 

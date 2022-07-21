@@ -9,9 +9,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessPat, Arg, ArgsId, ConstPat, Level0Term, Level1Term, Level2Term,
-            Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param, ParamsId,
-            Pat, PatId, PatParamsId, StructFields, Term, TermId,
+            AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
+            Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
+            ParamsId, Pat, PatId, PatParamsId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -233,6 +233,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         let params = self.infer_params_of_args(tuple_lit.members, false)?;
                         Ok(self.builder().create_tuple_ty_term(params))
                     }
+                    Level0Term::Constructed(ConstructedTerm { subject, .. }) => Ok(subject),
                     Level0Term::Lit(lit_term) => {
                         // This gets the type of the literal
 
@@ -360,7 +361,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     let args_id = self.infer_args_of_pat_params(params)?;
                     let builder = self.builder();
 
-                    Ok(builder.create_fn_call_term(constructor_pat.subject, args_id))
+                    Ok(builder.create_constructed_term(constructor_pat.subject, args_id))
                 }
                 None => {
                     // We just use the subject

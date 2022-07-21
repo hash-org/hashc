@@ -717,6 +717,16 @@ pub struct TupleLit {
     pub members: ArgsId,
 }
 
+/// A constructed term represents a constructed value that is some constructed
+/// value which originated as being a struct.
+#[derive(Debug, Clone, Copy)]
+pub struct ConstructedTerm {
+    /// The term of the subject within the constructed term
+    pub subject: TermId,
+    /// The constructor arguments
+    pub members: ArgsId,
+}
+
 /// A level 0 term.
 ///
 /// Type of: nothing.
@@ -740,6 +750,9 @@ pub enum Level0Term {
 
     /// A literal term
     Lit(LitTerm),
+
+    /// A constructed term
+    Constructed(ConstructedTerm),
 }
 
 /// The subject of a substitution, either a variable or an unresolved term.
@@ -1058,8 +1071,6 @@ pub struct ModPat {
 }
 
 /// Represents a pattern in the language.
-///
-/// @@Todo: list patterns, spread patterns
 #[derive(Clone, Debug)]
 pub enum Pat {
     /// Binding pattern.

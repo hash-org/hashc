@@ -11,8 +11,8 @@ use crate::{
     ops::params::validate_param_list_ordering,
     storage::{
         primitives::{
-            AppSub, ArgsId, FnTy, Level0Term, Level1Term, Level2Term, MemberData, ModDefId,
-            ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
+            AppSub, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, MemberData,
+            ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
             ScopeKind, StructFields, Sub, Term, TermId, TrtDefId,
         },
         terms::TermStore,
@@ -772,6 +772,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         ),
                     }
                 }
+                Level0Term::Constructed(ConstructedTerm { .. }) => {
+                    // @@Todo: we need to validate that the subject is `constructable`, and validate
+                    // the args...
+                    Ok(result)
+                }
                 Level0Term::EnumVariant(_) => {
                     // This should already be validated during simplification because the way enum
                     // variants get created is by simplification on access. And access
@@ -1013,8 +1018,9 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         "Function call in checking for type function return validity should have been simplified!"
                     )
                     }
-                    Level0Term::Lit(_) => Ok(false),
-                    Level0Term::Tuple(_) => Ok(false),
+                    Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::Constructed(_) => {
+                        Ok(false)
+                    }
                 }
             }
             _ => Ok(true),
