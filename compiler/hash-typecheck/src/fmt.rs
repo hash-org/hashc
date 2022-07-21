@@ -4,9 +4,9 @@
 use crate::storage::{
     primitives::{
         AccessOp, AccessPat, ArgsId, ConstPat, EnumDef, Level0Term, Level1Term, Level2Term,
-        Level3Term, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef,
-        NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId, StructDef, Sub, SubSubject, Term,
-        TermId, TrtDefId, UnresolvedTerm, Visibility,
+        Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat, Mutability,
+        NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId, StructDef, Sub,
+        SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -669,6 +669,9 @@ impl<'gs> TcFormatter<'gs> {
                 write!(f, " }}")?;
 
                 Ok(())
+            }
+            Pat::List(ListPat { term, .. }) => {
+                write!(f, "[{}]", term.for_formatting(self.global_storage))
             }
         }
     }

@@ -1034,6 +1034,15 @@ pub struct ConstructorPat {
     pub params: Option<PatParamsId>,
 }
 
+/// A list pattern
+#[derive(Clone, Debug, Copy)]
+pub struct ListPat {
+    /// The inner term of the list.
+    pub term: TermId,
+    /// Inner list of patterns
+    pub inner: PatParamsId,
+}
+
 /// A conditional pattern, containing a pattern and an condition.
 #[derive(Clone, Debug, Copy)]
 pub struct IfPat {
@@ -1069,6 +1078,8 @@ pub enum Pat {
     Mod(ModPat),
     /// Constructor pattern.
     Constructor(ConstructorPat),
+    /// List pattern
+    List(ListPat),
     /// A set of patterns that are OR-ed together. If any one of them matches
     /// then the whole pattern matches.
     Or(Vec<PatId>),

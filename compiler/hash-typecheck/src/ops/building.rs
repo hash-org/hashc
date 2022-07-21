@@ -5,11 +5,11 @@ use crate::storage::{
     primitives::{
         AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat,
         EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
-        Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
-        ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
-        PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef, StructFields, Sub,
-        Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
-        UnresolvedTerm, Var, Visibility,
+        Level2Term, Level3Term, ListPat, LitTerm, Member, MemberData, ModDef, ModDefId,
+        ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId,
+        Pat, PatId, PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, StructDef,
+        StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall,
+        TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -705,6 +705,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create a constructor pattern without parameters.
     pub fn create_constant_pat(&self, subject: TermId) -> PatId {
         self.create_pat(Pat::Constructor(ConstructorPat { subject, params: None }))
+    }
+
+    /// Create a list pattern with parameters.
+    pub fn create_list_pat(&self, term: TermId, inner: PatParamsId) -> PatId {
+        self.create_pat(Pat::List(ListPat { term, inner }))
     }
 
     /// Create a binding pattern.

@@ -17,7 +17,9 @@ use crate::{
     },
 };
 use hash_ast::{
-    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, UnOp},
+    ast::{
+        self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, SpreadPat, UnOp,
+    },
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -2056,9 +2058,47 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_list_pat(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
+        let walk::ListPat { elements } = walk::walk_list_pat(self, ctx, node)?;
+
+        // We need to collect all of the terms within the inner pattern, but we need
+        // have a special case for `spread patterns` because they will return `[term]`
+        // rather than `term`...
+        let inner_terms = elements
+            .iter()
+            .zip(node.fields.iter())
+            .map(|(element, node)| -> TcResult<TermId> {
+                match node.body() {
+                    hash_ast::ast::Pat::Spread(SpreadPat { .. }) => todo!(),
+                    _ => self.typer().get_term_of_pat(*element),
+                }
+            })
+            .collect::<TcResult<Vec<_>>>()?;
+
+        let list_term = self.unify_term_sequence(inner_terms)?;
+
+        let members = self.builder().create_pat_params(
+            elements.into_iter().map(|pat| PatParam { name: None, pat }),
+            ParamOrigin::ListPat,
+        );
+
+        let list_pat = self.builder().create_list_pat(list_term, members);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+        self.copy_location_from_node_to_target(node, list_pat);
+
+        Ok(list_pat)
+    }
+
+    type SpreadPatRet = PatId;
+
+    fn visit_spread_pat(
+        &mut self,
+        _ctx: &Self::Ctx,
+        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
         todo!()
     }
 
@@ -2178,7 +2218,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type BindingPatRet = PatId;
-
     fn visit_binding_pat(
         &mut self,
         _: &Self::Ctx,
@@ -2206,15 +2245,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
                 Ok(pat)
             }
         }
-    }
-
-    type SpreadPatRet = PatId;
-    fn visit_spread_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
-        todo!()
     }
 
     type IgnorePatRet = PatId;

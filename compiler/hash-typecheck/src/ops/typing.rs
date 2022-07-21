@@ -1,4 +1,5 @@
 //! Contains operations to get the type of a term.
+use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
 use crate::{
@@ -9,8 +10,8 @@ use crate::{
     storage::{
         primitives::{
             AccessOp, AccessPat, Arg, ArgsId, ConstPat, Level0Term, Level1Term, Level2Term,
-            Level3Term, LitTerm, MemberData, ModDefOrigin, NominalDef, Param, ParamsId, Pat, PatId,
-            PatParamsId, StructFields, Term, TermId,
+            Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param, ParamsId,
+            Pat, PatId, PatParamsId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -366,6 +367,18 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     Ok(constructor_pat.subject)
                 }
             },
+            Pat::List(ListPat { term, .. }) => {
+                // We want to create a `List<T = term>` as the type of the pattern
+                let list_inner_ty = self.core_defs().list_ty_fn;
+                let builder = self.builder();
+
+                let list_ty = builder.create_app_ty_fn_term(
+                    list_inner_ty,
+                    builder.create_args([builder.create_arg("T", term)], ParamOrigin::TyFn),
+                );
+
+                Ok(builder.create_rt_term(list_ty))
+            }
             Pat::Or(pats) => {
                 // Get the inner pattern types:
                 let pat_tys: Vec<_> = pats

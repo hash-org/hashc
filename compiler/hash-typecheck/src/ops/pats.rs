@@ -7,7 +7,8 @@ use crate::{
     ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
-            AccessPat, ConstPat, ConstructorPat, IfPat, Member, MemberData, Pat, PatId, TermId,
+            AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Pat, PatId,
+            TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -143,8 +144,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             }
             Pat::Constructor(ConstructorPat { params, .. }) => {
                 // Get the term of the constructor and try to unify it with the subject:
-                let term = self.typer().get_term_of_pat(pat_id)?;
-                let constructor_term = self.builder().create_rt_term(term);
+                let constructor_term = self.typer().get_term_of_pat(pat_id)?;
 
                 if let Some(params_id) = params {
                     let pat_args = self.typer().infer_args_of_pat_params(params_id)?;
@@ -153,11 +153,10 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     let possible_params =
                         self.typer().get_params_ty_of_nominal_term(simplified_term_id)?;
 
-                    for (_subject, params) in possible_params {
-                        // @@Broken
-                        // if self.unifier().unify_terms(constructor_term, subject).is_err() {
-                        //     continue;
-                        // }
+                    for (subject, params) in possible_params {
+                        if self.unifier().unify_terms(constructor_term, subject).is_err() {
+                            continue;
+                        }
 
                         match self.unifier().unify_params_with_args(
                             params,
@@ -202,6 +201,27 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 }
 
                 Ok(Some(vec![]))
+            }
+            Pat::List(ListPat { term, inner }) => {
+                // We need to collect all of the binds from the inner patterns of
+                // the list
+                let params = self.reader().get_pat_params(inner).clone();
+
+                let mut bound_members = vec![];
+
+                let shared_term = self.builder().create_rt_term(term);
+
+                for param in params.positional().iter() {
+                    match self.match_pat_with_term(param.pat, shared_term)? {
+                        Some(members) => {
+                            bound_members.extend(members);
+                        }
+                        // If one of them fails, we should fail as a whole
+                        None => return Ok(None),
+                    }
+                }
+
+                Ok(Some(bound_members))
             }
             Pat::Or(_) => {
                 // Here we have to get the union of all the pattern terms, and also need to
