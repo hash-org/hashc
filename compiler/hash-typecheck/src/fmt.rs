@@ -6,7 +6,7 @@ use crate::storage::{
         AccessOp, AccessPat, ArgsId, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
         Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat,
         Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId,
-        StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        SpreadPat, StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -682,6 +682,16 @@ impl<'gs> TcFormatter<'gs> {
             }
             Pat::List(ListPat { term, .. }) => {
                 write!(f, "[{}]", term.for_formatting(self.global_storage))
+            }
+            Pat::Spread(SpreadPat { name }) => {
+                write!(f, "...")?;
+
+                // Write the name bind, if it exists
+                if let Some(name) = name {
+                    write!(f, "{}", name)?;
+                }
+
+                Ok(())
             }
         }
     }

@@ -7,8 +7,8 @@ use crate::{
     ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
-            AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Pat, PatId,
-            TermId,
+            AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Mutability,
+            Pat, PatId, SpreadPat, Sub, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -51,11 +51,17 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             self.validator().validate_term(term_id)?;
         let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
 
-        // First unify the pattern type with the subject type to ensure the match is
-        // valid:
-        let _ = self.unifier().unify_terms(pat_ty, term_ty_id)?;
-
         let pat = self.reader().get_pat(pat_id).clone();
+
+        // Note: for spread patterns, unifying between the `term` and the type
+        // of the pattern doesn't make sense because the term will always be `T`
+        // where the type of the spread is `List<T>`.
+        if !matches!(pat, Pat::Spread(_)) {
+            // unify the pattern type with the subject type to ensure the match is
+            // valid:
+            let _ = self.unifier().unify_terms(pat_ty, term_ty_id)?;
+        }
+
         match pat {
             // Binding: Add the binding as a member
             Pat::Binding(binding) => Ok(Some(vec![Member::closed(
@@ -223,6 +229,29 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
 
                 Ok(Some(bound_members))
             }
+            Pat::Spread(SpreadPat { name }) => match name {
+                Some(name) => {
+                    // If we have a name, we need to get the term of the pattern... and then
+                    // because it will be a `List<T = Unresolved>` we need to apply a substitution
+                    // onto the list in order to fully resolve the value...
+                    let vars = self.substituter().get_free_vars_in_term(pat_ty);
+                    let sub = Sub::from_pairs(vars.into_iter().map(|var| (var, term_ty_id)));
+
+                    let pat_ty = self.substituter().apply_sub_to_term(&sub, pat_ty);
+                    let rt_term = self.builder().create_rt_term(pat_ty);
+
+                    let TermValidation { simplified_term_id, term_ty_id } =
+                        self.validator().validate_term(rt_term)?;
+
+                    Ok(Some(vec![Member::closed(
+                        name,
+                        Visibility::Private,
+                        Mutability::Immutable,
+                        MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+                    )]))
+                }
+                _ => Ok(Some(vec![])),
+            },
             Pat::Or(_) => {
                 // Here we have to get the union of all the pattern terms, and also need to
                 // ensure that the bound variables are the same for each

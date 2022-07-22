@@ -10,16 +10,14 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
             AccessOp, Arg, ArgsId, BindingPat, BoundVars, ConstPat, EnumVariant, Member,
-            MemberData, ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, Sub, TermId,
-            Visibility,
+            MemberData, ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, SpreadPat, Sub,
+            TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
 };
 use hash_ast::{
-    ast::{
-        self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, SpreadPat, UnOp,
-    },
+    ast::{self, AccessKind, AstNodeRef, BinOp, OwnsAstNode, ParamOrigin, RefKind, UnOp},
     visitor::{self, walk, AstVisitor},
 };
 use hash_pipeline::sources::{NodeMap, SourceRef};
@@ -824,12 +822,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_ty = self.core_defs().list_ty_fn;
         let builder = self.builder();
 
-        let list_ty = builder.create_app_ty_fn_term(
+        let term = builder.create_app_ty_fn_term(
             inner_ty,
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        let term = builder.create_rt_term(list_ty);
+        let term = builder.create_rt_term(term);
 
         self.copy_location_from_node_to_target(node, term);
 
@@ -2069,12 +2067,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_terms = elements
             .iter()
             .zip(node.fields.iter())
-            .map(|(element, node)| -> TcResult<TermId> {
-                match node.body() {
-                    hash_ast::ast::Pat::Spread(SpreadPat { .. }) => todo!(),
-                    _ => self.typer().get_term_of_pat(*element),
-                }
-            })
+            .filter(|(_, node)| !matches!(node.body(), hash_ast::ast::Pat::Spread(_)))
+            .map(|(element, _)| -> TcResult<TermId> { self.typer().get_term_of_pat(*element) })
             .collect::<TcResult<Vec<_>>>()?;
 
         let list_term = self.unify_term_sequence(inner_terms)?;
@@ -2096,10 +2090,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_spread_pat(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
     ) -> Result<Self::SpreadPatRet, Self::Error> {
-        todo!()
+        let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
+
+        let spread_pat = self.builder().create_pat(Pat::Spread(SpreadPat { name }));
+
+        self.copy_location_from_node_to_target(node, spread_pat);
+        Ok(spread_pat)
     }
 
     type StrLitPatRet = PatId;

@@ -333,6 +333,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     /// subject.
     pub(crate) fn get_term_of_pat(&mut self, pat_id: PatId) -> TcResult<TermId> {
         let pat = self.reader().get_pat(pat_id).clone();
+
         let ty_of_pat = match pat {
             Pat::Mod(_) | Pat::Ignore | Pat::Binding(_) => {
                 // We don't know this; it depends on the subject:
@@ -376,6 +377,21 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let list_ty = builder.create_app_ty_fn_term(
                     list_inner_ty,
                     builder.create_args([builder.create_arg("T", term)], ParamOrigin::TyFn),
+                );
+
+                Ok(builder.create_rt_term(list_ty))
+            }
+            Pat::Spread(_) => {
+                let list_inner_ty = self.core_defs().list_ty_fn;
+                let builder = self.builder();
+
+                // Since we don't know what the type of the inner term... we leave it as
+                // unresolved for later, it will be resolved during further inference
+                let unknown_term = builder.create_unresolved_term();
+
+                let list_ty = builder.create_app_ty_fn_term(
+                    list_inner_ty,
+                    builder.create_args([builder.create_arg("T", unknown_term)], ParamOrigin::TyFn),
                 );
 
                 Ok(builder.create_rt_term(list_ty))

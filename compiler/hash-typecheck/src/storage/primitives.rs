@@ -1056,6 +1056,13 @@ pub struct ListPat {
     pub inner: PatParamsId,
 }
 
+/// Spread pattern
+#[derive(Clone, Debug, Copy)]
+pub struct SpreadPat {
+    /// Associated bind to the spread
+    pub name: Option<Identifier>,
+}
+
 /// A conditional pattern, containing a pattern and an condition.
 #[derive(Clone, Debug, Copy)]
 pub struct IfPat {
@@ -1091,6 +1098,9 @@ pub enum Pat {
     Constructor(ConstructorPat),
     /// List pattern
     List(ListPat),
+    /// Spread pattern, which represents a pattern that captures a range of
+    /// items within a list pattern
+    Spread(SpreadPat),
     /// A set of patterns that are OR-ed together. If any one of them matches
     /// then the whole pattern matches.
     Or(Vec<PatId>),
