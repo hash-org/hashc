@@ -779,10 +779,9 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     if !self.simplifier().is_term_constructable(subject) {
                         Err(TcError::InvalidCallSubject { term: subject })
                     } else {
-                        let (_, variants) = self
-                            .typer()
-                            .infer_params_ty_of_nominal_term(simplified_term_id)?
-                            .unwrap();
+                        // There must be exactly one constructor
+                        let (_, variants) =
+                            self.typer().infer_constructors_of_nominal_term(simplified_term_id)?[0];
 
                         self.validate_args(members)?;
                         let _ = self.unifier().unify_params_with_args(

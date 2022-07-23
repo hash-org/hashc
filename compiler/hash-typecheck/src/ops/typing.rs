@@ -9,9 +9,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
-            Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
-            ParamsId, Pat, PatId, PatParamsId, StructFields, Term, TermId,
+            AccessOp, AccessPat, AppSub, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term,
+            Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin,
+            NominalDef, Param, ParamsId, Pat, PatId, PatParamsId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -355,17 +355,11 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let params_id = self.infer_args_of_pat_params(tuple_pat)?;
                 Ok(self.builder().create_tuple_lit_term(params_id))
             }
-            Pat::Constructor(constructor_pat) => match constructor_pat.params {
-                Some(params) => {
-                    // We have params to apply, so we need to create an FnCall
-                    let args_id = self.infer_args_of_pat_params(params)?;
-                    Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
-                }
-                None => {
-                    // We just use the subject
-                    Ok(constructor_pat.subject)
-                }
-            },
+            Pat::Constructor(constructor_pat) => {
+                // We have params to apply, so we need to create an FnCall
+                let args_id = self.infer_args_of_pat_params(constructor_pat.params)?;
+                Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
+            }
             Pat::List(ListPat { term, .. }) => {
                 // We want to create a `List<T = term>` as the type of the pattern
                 let list_inner_ty = self.core_defs().list_ty_fn;
@@ -426,7 +420,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// This function will populate default values if it can (if the tuple is a
     /// literal).
-    pub(crate) fn get_params_ty_of_tuple_term(
+    pub(crate) fn infer_params_ty_of_tuple_term(
         &mut self,
         tuple_term_id: TermId,
     ) -> TcResult<Option<ParamsId>> {
@@ -447,11 +441,12 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         terms
                             .iter()
                             .copied()
-                            .map(|term| self.get_params_ty_of_tuple_term(term))
+                            .map(|term| self.infer_params_ty_of_tuple_term(term))
                             .flatten_ok()
                             .next()
                             .transpose()
                     }
+                    // @@Todo: remove default members:
                     Term::Level1(Level1Term::Tuple(tuple_ty)) => Ok(Some(tuple_ty.members)),
                     _ => Ok(None),
                 }
@@ -459,34 +454,74 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         }
     }
 
-    /// Get the parameters of the given nominal term, if possible.
-    pub(crate) fn infer_params_ty_of_nominal_term(
+    /// Get the parameters and subject of the given nominal term, if possible.
+    ///
+    /// This function returns a list of constructors for the given nominal term,
+    /// as pairs of function call subject and params. If the list is empty,
+    /// there are no constructors.
+    ///
+    /// This function will populate default values in the params if it can (if
+    /// the term is a constructed literal).
+    pub(crate) fn infer_constructors_of_nominal_term(
         &mut self,
         term_id: TermId,
-    ) -> TcResult<Option<(TermId, ParamsId)>> {
+    ) -> TcResult<Vec<(TermId, ParamsId)>> {
         let term = self.reader().get_term(term_id).clone();
 
         match term {
             Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
                 let members = self.infer_params_of_args(members, true)?;
-                Ok(Some((subject, members)))
+                Ok(vec![(subject, members)])
             }
             _ => {
                 let constructed_ty_id = self.infer_ty_of_simplified_term(term_id)?;
                 let reader = self.reader();
-                let constructed_term = reader.get_term(constructed_ty_id);
+                let constructed_term = reader.get_term(constructed_ty_id).clone();
 
                 match constructed_term {
+                    Term::Union(terms) => {
+                        // Accumulate all terms
+                        terms
+                            .iter()
+                            .copied()
+                            .map(|term| self.infer_constructors_of_nominal_term(term))
+                            .flatten_ok()
+                            .collect()
+                    }
+                    Term::AppSub(AppSub { term, sub }) => {
+                        // Recurse and apply sub
+                        let result = self.infer_constructors_of_nominal_term(term)?;
+                        Ok(result
+                            .into_iter()
+                            .map(|(subject, params)| {
+                                let mut substituter = self.substituter();
+                                (
+                                    substituter.apply_sub_to_term(&sub, subject),
+                                    substituter.apply_sub_to_params(&sub, params),
+                                )
+                            })
+                            .collect())
+                    }
+                    Term::Merge(terms) => {
+                        // Try each term:
+                        terms
+                            .iter()
+                            .copied()
+                            .map(|term| self.infer_constructors_of_nominal_term(term))
+                            .flatten_ok()
+                            .collect()
+                    }
                     Term::Level1(Level1Term::NominalDef(nominal_id)) => {
-                        match reader.get_nominal_def(*nominal_id) {
+                        match reader.get_nominal_def(nominal_id) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
-                                StructFields::Explicit(params) => Ok(Some((term_id, params))),
-                                StructFields::Opaque => Ok(None),
+                                // @@Todo: remove default members:
+                                StructFields::Explicit(params) => Ok(vec![(term_id, params)]),
+                                StructFields::Opaque => Ok(vec![]),
                             },
-                            _ => Ok(None),
+                            _ => Ok(vec![]),
                         }
                     }
-                    _ => Ok(None),
+                    _ => Ok(vec![]),
                 }
             }
         }

@@ -611,9 +611,7 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Access(AccessPat { subject, property }) => {
                 write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
             }
-            Pat::Const(ConstPat { name, .. }) => {
-                write!(f, "{}", name)
-            }
+            Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
             Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
@@ -622,9 +620,7 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Constructor(constructor_pat) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, constructor_pat.subject, opts)?;
-                if let Some(params) = constructor_pat.params {
-                    write!(f, "({})", params.for_formatting(self.global_storage))?;
-                }
+                write!(f, "({})", constructor_pat.params.for_formatting(self.global_storage))?;
                 Ok(())
             }
             Pat::Or(pats) => {

@@ -2223,7 +2223,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let term = self.builder().create_var_term(name);
 
         match self.scope_manager().resolve_name_in_scopes(name, term) {
-            Ok(_) => Ok(self.builder().create_pat(Pat::Const(ConstPat { term, name }))),
+            Ok(_) => Ok(self.builder().create_pat(Pat::Const(ConstPat { term }))),
             Err(_) => {
                 let pat = self.builder().create_binding_pat(
                     node.name.body().ident,

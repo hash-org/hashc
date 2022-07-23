@@ -3,7 +3,7 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar,
+        AccessOp, AccessPat, AccessTerm, AppSub, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
         MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
@@ -707,12 +707,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a constructor pattern.
     pub fn create_constructor_pat(&self, subject: TermId, params: PatParamsId) -> PatId {
-        self.create_pat(Pat::Constructor(ConstructorPat { subject, params: Some(params) }))
+        self.create_pat(Pat::Constructor(ConstructorPat { subject, params }))
     }
 
     /// Create a constructor pattern without parameters.
-    pub fn create_constant_pat(&self, subject: TermId) -> PatId {
-        self.create_pat(Pat::Constructor(ConstructorPat { subject, params: None }))
+    pub fn create_constant_pat(&self, term: TermId) -> PatId {
+        self.create_pat(Pat::Const(ConstPat { term }))
     }
 
     /// Create a list pattern with parameters.

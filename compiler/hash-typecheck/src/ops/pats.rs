@@ -60,6 +60,9 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         // Note: for spread patterns, unifying between the `term` and the type
         // of the pattern doesn't make sense because the term will always be `T`
         // where the type of the spread is `List<T>`.
+        //
+        // @@Todo: do this in the Pat::List loop below rather than here.. For spread
+        // patterns the term_id should be List<T>.
         if !matches!(pat, Pat::Spread(_)) {
             // unify the pattern type with the subject type to ensure the match is
             // valid:
@@ -113,7 +116,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         // We get the subject tuple's parameters:
                         let subject_params_id = self
                             .typer()
-                            .get_params_ty_of_tuple_term(simplified_term_id)?
+                            .infer_params_ty_of_tuple_term(simplified_term_id)?
                             .unwrap_or_else(|| {
                                 tc_panic!(simplified_term_id, self, "This is not a tuple term.")
                             });
@@ -156,57 +159,52 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 // Get the term of the constructor and try to unify it with the subject:
                 let constructor_term = self.typer().get_term_of_pat(pat_id)?;
 
-                if let Some(params_id) = params {
-                    let pat_args = self.typer().infer_args_of_pat_params(params_id)?;
-                    let constructor_args = self.reader().get_pat_params(params_id).clone();
+                let pat_args = self.typer().infer_args_of_pat_params(params)?;
+                let constructor_args = self.reader().get_pat_params(params).clone();
 
-                    let possible_params =
-                        self.typer().infer_params_ty_of_nominal_term(simplified_term_id)?;
+                let possible_params =
+                    self.typer().infer_constructors_of_nominal_term(simplified_term_id)?;
 
-                    for (_, params) in possible_params {
-                        match self.unifier().unify_params_with_args(
-                            params,
-                            pat_args,
-                            constructor_term,
-                            simplified_term_id,
-                            UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
-                        ) {
-                            Ok(_) => {
-                                let subject_params = self.reader().get_params(params).clone();
+                for (_, params) in possible_params {
+                    match self.unifier().unify_params_with_args(
+                        params,
+                        pat_args,
+                        constructor_term,
+                        simplified_term_id,
+                        UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
+                    ) {
+                        Ok(_) => {
+                            let subject_params = self.reader().get_params(params).clone();
 
-                                let bound_members = pair_args_with_params(
-                                    &subject_params,
-                                    &constructor_args,
-                                    params,
-                                    pat_args,
-                                    term_id,
-                                    pat_id,
-                                )?
-                                .into_iter()
-                                .map(|(param, pat_param)| {
-                                    let param_value = param
-                                        .default_value
-                                        .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
+                            let bound_members = pair_args_with_params(
+                                &subject_params,
+                                &constructor_args,
+                                params,
+                                pat_args,
+                                term_id,
+                                pat_id,
+                            )?
+                            .into_iter()
+                            .map(|(param, pat_param)| {
+                                let param_value = param
+                                    .default_value
+                                    .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
 
-                                    Ok(self
-                                        .match_pat_with_term(pat_param.pat, param_value)?
-                                        .into_iter()
-                                        .flatten()
-                                        .collect::<Vec<_>>())
-                                })
-                                .flatten_ok()
-                                .collect::<TcResult<Vec<_>>>()?;
+                                Ok(self
+                                    .match_pat_with_term(pat_param.pat, param_value)?
+                                    .into_iter()
+                                    .flatten()
+                                    .collect::<Vec<_>>())
+                            })
+                            .flatten_ok()
+                            .collect::<TcResult<Vec<_>>>()?;
 
-                                return Ok(Some(bound_members));
-                            }
-                            Err(_) => continue,
+                            return Ok(Some(bound_members));
                         }
+                        Err(_) => continue,
                     }
-
-                    return Err(TcError::NoConstructorOnType { subject: constructor_term });
                 }
-
-                Ok(Some(vec![]))
+                Err(TcError::NoConstructorOnType { subject: constructor_term })
             }
             Pat::List(ListPat { term, inner }) => {
                 // We need to collect all of the binds from the inner patterns of

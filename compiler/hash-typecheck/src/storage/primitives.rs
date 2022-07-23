@@ -1016,10 +1016,8 @@ pub struct AccessPat {
 /// the resolution machinery.
 #[derive(Clone, Debug, Copy)]
 pub struct ConstPat {
-    /// The resolved term of the bind.
+    /// The resolved term of the constant.
     pub term: TermId,
-    /// The name of the `bind`
-    pub name: Identifier,
 }
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
@@ -1044,7 +1042,7 @@ pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: Option<PatParamsId>,
+    pub params: PatParamsId,
 }
 
 /// A list pattern
