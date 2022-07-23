@@ -144,4 +144,7 @@ pub enum TcError {
     CannotPatMatchWithoutAssignment { pat: PatId },
     /// Cannot use a non-name as an assign subject.
     InvalidAssignSubject { location: SourceLocation },
+
+    /// Cannot find a constructor for the given type
+    NoConstructorOnType { subject: TermId },
 }

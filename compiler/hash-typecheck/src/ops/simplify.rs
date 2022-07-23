@@ -668,6 +668,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         match term {
             Term::Merge(terms) => terms.iter().any(|term| self.is_term_constructable(*term)),
             Term::AppSub(AppSub { term, .. }) => self.is_term_constructable(*term),
+            // @@Todo: should be specifically a struct!
             Term::Level1(Level1Term::NominalDef(_)) => true,
             _ => false,
         }
@@ -967,7 +968,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     .builder()
                     .create_term(Term::Level0(Level0Term::Constructed(constructed_ty)));
 
-                Ok(Some(self.builder().create_rt_term(term)))
+                Ok(Some(term))
             }
             Level0Term::FnCall(call) => {
                 // Apply the function:

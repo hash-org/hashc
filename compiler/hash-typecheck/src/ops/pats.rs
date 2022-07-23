@@ -3,7 +3,10 @@
 use itertools::Itertools;
 
 use crate::{
-    diagnostics::{error::TcResult, macros::tc_panic},
+    diagnostics::{
+        error::{TcError, TcResult},
+        macros::tc_panic,
+    },
     ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
@@ -159,11 +162,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     let possible_params =
                         self.typer().get_params_ty_of_nominal_term(simplified_term_id)?;
 
-                    for (subject, params) in possible_params {
-                        if self.unifier().unify_terms(constructor_term, subject).is_err() {
-                            continue;
-                        }
-
+                    for (_, params) in possible_params {
                         match self.unifier().unify_params_with_args(
                             params,
                             pat_args,
@@ -203,7 +202,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         }
                     }
 
-                    return Ok(Some(vec![]));
+                    return Err(TcError::NoConstructorOnType { subject: constructor_term });
                 }
 
                 Ok(Some(vec![]))

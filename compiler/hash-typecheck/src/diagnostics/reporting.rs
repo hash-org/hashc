@@ -1064,6 +1064,17 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     "non-variable term given in an assignment here",
                 )));
             }
+            TcError::NoConstructorOnType { subject } => {
+                builder.with_message(format!(
+                    "type `{}` has no instantiable constructor",
+                    subject.for_formatting(err.global_storage())
+                ));
+
+                if let Some(location) = err.location_store().get_location(subject) {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
         };
 
         builder.build()
