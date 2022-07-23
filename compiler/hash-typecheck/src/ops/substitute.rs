@@ -79,6 +79,19 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
         FnTy { params: subbed_params, return_ty: subbed_return_ty }
     }
 
+    /// Apply the given substitution to the given [ConstructedTerm], producing a
+    /// new [ConstructedTerm] with the substituted variables.
+    pub fn apply_sub_to_constructed_ty(
+        &mut self,
+        sub: &Sub,
+        term: ConstructedTerm,
+    ) -> ConstructedTerm {
+        let members = self.apply_sub_to_args(sub, term.members);
+        let subject = self.apply_sub_to_term(sub, term.subject);
+
+        ConstructedTerm { subject, members }
+    }
+
     /// Apply the given substitution to the given [Level3Term], producing a new
     /// [Level3Term] with the substituted variables.
     pub fn apply_sub_to_level3_term(&mut self, _: &Sub, term: Level3Term) -> TermId {

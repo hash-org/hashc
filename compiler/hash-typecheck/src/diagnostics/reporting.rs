@@ -1001,7 +1001,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     )));
                 }
             }
-            TcError::InvalidFnCallSubject { term } => {
+            TcError::InvalidCallSubject { term } => {
                 // @@Todo: error code
                 builder.with_message(format!(
                     "cannot use `{}` as a function call subject",
