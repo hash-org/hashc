@@ -42,6 +42,15 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
 
     let origin = ParamListKind::Args(args_id);
 
+    if params.len() < args.len() {
+        return Err(TcError::MismatchingArgParamLength {
+            args_id,
+            params_id,
+            params_subject: params_subject.into(),
+            args_subject: args_subject.into(),
+        });
+    }
+
     // Keep track of the first non-positional argument
     let mut done_positional = false;
     for (i, arg) in args.positional().iter().enumerate() {

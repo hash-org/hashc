@@ -1,5 +1,6 @@
 //! Functionality related to pattern matching.
 
+use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
     storage::{
         primitives::{
             AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Mutability,
-            Pat, PatId, SpreadPat, Sub, TermId, Visibility,
+            Pat, PatId, SpreadPat, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -160,7 +161,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     let constructor_args = self.reader().get_pat_params(params_id).clone();
 
                     let possible_params =
-                        self.typer().get_params_ty_of_nominal_term(simplified_term_id)?;
+                        self.typer().infer_params_ty_of_nominal_term(simplified_term_id)?;
 
                     for (_, params) in possible_params {
                         match self.unifier().unify_params_with_args(
@@ -230,13 +231,19 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             }
             Pat::Spread(SpreadPat { name }) => match name {
                 Some(name) => {
-                    // If we have a name, we need to get the term of the pattern... and then
-                    // because it will be a `List<T = Unresolved>` we need to apply a substitution
-                    // onto the list in order to fully resolve the value...
-                    let vars = self.substituter().get_free_vars_in_term(pat_ty);
-                    let sub = Sub::from_pairs(vars.into_iter().map(|var| (var, term_ty_id)));
+                    // Since `pat_ty` will be `List<T = Unresolved>`, we need to create a new
+                    // `List<T = term_ty_id>` and perform a unification...
+                    let list_inner_ty = self.core_defs().list_ty_fn;
+                    let builder = self.builder();
 
-                    let pat_ty = self.substituter().apply_sub_to_term(&sub, pat_ty);
+                    let pat_ty = builder.create_app_ty_fn_term(
+                        list_inner_ty,
+                        builder.create_args(
+                            [builder.create_nameless_arg(term_ty_id)],
+                            ParamOrigin::TyFn,
+                        ),
+                    );
+
                     let rt_term = self.builder().create_rt_term(pat_ty);
 
                     let TermValidation { simplified_term_id, term_ty_id } =

@@ -1,7 +1,7 @@
 //! Contains utilities to validate terms.
 use std::fmt::Display;
 
-use super::{AccessToOps, AccessToOpsMut};
+use super::{unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -772,10 +772,29 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         ),
                     }
                 }
-                Level0Term::Constructed(ConstructedTerm { .. }) => {
-                    // @@Todo: we need to validate that the subject is `constructable`, and validate
-                    // the args...
-                    Ok(result)
+                Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                    let (subject, members) = (*subject, *members);
+
+                    // Ensure the subject of the term is constructable
+                    if !self.simplifier().is_term_constructable(subject) {
+                        Err(TcError::InvalidCallSubject { term: subject })
+                    } else {
+                        let (_, variants) = self
+                            .typer()
+                            .infer_params_ty_of_nominal_term(simplified_term_id)?
+                            .unwrap();
+
+                        self.validate_args(members)?;
+                        let _ = self.unifier().unify_params_with_args(
+                            variants,
+                            members,
+                            term_id,
+                            subject,
+                            UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
+                        )?;
+
+                        Ok(result)
+                    }
                 }
                 Level0Term::EnumVariant(_) => {
                     // This should already be validated during simplification because the way enum

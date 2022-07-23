@@ -388,7 +388,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
 
                 let list_ty = builder.create_app_ty_fn_term(
                     list_inner_ty,
-                    builder.create_args([builder.create_arg("T", unknown_term)], ParamOrigin::TyFn),
+                    builder.create_args(
+                        [builder.create_nameless_arg(unknown_term)],
+                        ParamOrigin::TyFn,
+                    ),
                 );
 
                 Ok(builder.create_rt_term(list_ty))
@@ -457,17 +460,16 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     }
 
     /// Get the parameters of the given nominal term, if possible.
-    pub(crate) fn get_params_ty_of_nominal_term(
+    pub(crate) fn infer_params_ty_of_nominal_term(
         &mut self,
         term_id: TermId,
-    ) -> TcResult<Vec<(TermId, ParamsId)>> {
-        // let nominal_term = self.typer().infer_ty_of_term(nominal_term_id)?;
+    ) -> TcResult<Option<(TermId, ParamsId)>> {
         let term = self.reader().get_term(term_id).clone();
 
         match term {
             Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
                 let members = self.infer_params_of_args(members, true)?;
-                Ok(vec![(subject, members)])
+                Ok(Some((subject, members)))
             }
             _ => {
                 let constructed_ty_id = self.infer_ty_of_simplified_term(term_id)?;
@@ -478,19 +480,13 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     Term::Level1(Level1Term::NominalDef(nominal_id)) => {
                         match reader.get_nominal_def(*nominal_id) {
                             NominalDef::Struct(struct_def) => match struct_def.fields {
-                                StructFields::Explicit(params) => Ok(vec![(term_id, params)]),
-                                StructFields::Opaque => Ok(vec![]),
+                                StructFields::Explicit(params) => Ok(Some((term_id, params))),
+                                StructFields::Opaque => Ok(None),
                             },
-                            _ => Ok(vec![]),
+                            _ => Ok(None),
                         }
                     }
-                    Term::Union(term) => Ok(term
-                        .clone()
-                        .into_iter()
-                        .map(|term| self.get_params_ty_of_nominal_term(term))
-                        .flatten_ok()
-                        .collect::<TcResult<_>>()?),
-                    _ => Ok(vec![]),
+                    _ => Ok(None),
                 }
             }
         }

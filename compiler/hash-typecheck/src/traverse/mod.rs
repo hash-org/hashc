@@ -827,10 +827,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        let term = builder.create_rt_term(term);
-
         self.copy_location_from_node_to_target(node, term);
-
         Ok(term)
     }
 
