@@ -215,11 +215,13 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     }
 
     /// Add the free variables that exist in the given [Sub], to the
-    /// given [HashSet].
+    /// given [HashSet] (minus the ones that will be substituted)..
     pub fn add_free_sub_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubVar>) {
+        let mut intermediate_result = HashSet::new();
+
         // Add all the variables in the range, minus the variables in the domain:
         for r in sub.range() {
-            self.add_free_sub_vars_in_term_to_set(r, result);
+            self.add_free_sub_vars_in_term_to_set(r, &mut intermediate_result);
         }
         let mut domain_vars = HashSet::new();
         for d in sub.range() {
@@ -227,11 +229,14 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         }
         // Remove all the variables in domain_vars:
         for d in domain_vars {
-            result.remove(&d);
+            intermediate_result.remove(&d);
         }
+
+        result.extend(intermediate_result);
     }
 
-    /// Get the free variables that exist in the given [Sub].
+    /// Get the free variables that exist in the given [Sub] (minus the ones
+    /// that will be substituted).
     pub fn get_free_sub_vars_in_sub(&self, sub: &Sub) -> HashSet<SubVar> {
         let mut result = HashSet::new();
         self.add_free_sub_vars_in_sub_to_set(sub, &mut result);

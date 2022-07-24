@@ -53,13 +53,17 @@ impl<'gs> TcFormatter<'gs> {
 
     /// Format the given substitution with the given formatter.
     pub fn fmt_sub(&self, f: &mut fmt::Formatter, sub: &Sub) -> fmt::Result {
-        for (subject, target) in sub.pairs() {
+        for (i, (subject, target)) in sub.pairs().enumerate() {
+            self.fmt_term_as_single(f, target, TcFormatOpts::default())?;
+            write!(f, "/")?;
             match subject {
                 SubVar::Unresolved(unresolved) => {
                     self.fmt_unresolved(f, &unresolved)?;
                 }
             };
-            write!(f, " -> {}", target.for_formatting(self.global_storage))?;
+            if i != sub.map().len() - 1 {
+                write!(f, ", ")?;
+            }
         }
         Ok(())
     }

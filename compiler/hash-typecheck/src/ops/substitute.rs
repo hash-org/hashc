@@ -204,17 +204,10 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
     /// Apply the given substitution to the term indexed by the given [TermId],
     /// producing a new term with the substituted variables.
-    ///
-    /// Sometimes, this will actually create a [Term::AppSub] somewhere inside
-    /// the term tree, and those are the leaf nodes of the substitution
-    /// application. This will happen with `ModDef`, `TrtDef`, `NominalDef`,
-    /// and `EnumVariant`. This is so that when `AccessTerm` is resolved for
-    /// those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
         // Short circuit: no vars in the sub and in the term match:
         let vars_in_term = self.discoverer().get_free_sub_vars_in_term(term_id);
-        let vars_in_sub = self.discoverer().get_free_sub_vars_in_sub(sub);
-        if vars_in_term.intersection(&vars_in_sub).next().is_none() {
+        if !sub.domain().any(|var| vars_in_term.contains(&var)) {
             return term_id;
         }
 
