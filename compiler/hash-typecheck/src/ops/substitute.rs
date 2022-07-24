@@ -224,9 +224,12 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
     /// and `EnumVariant`. This is so that when `AccessTerm` is resolved for
     /// those types, the substitution is carried forward into the member term.
     pub fn apply_sub_to_term(&mut self, sub: &Sub, term_id: TermId) -> TermId {
-        // @@Performance: here we copy a lot, maybe there is a way to avoid all this
-        // copying by first checking that the variables to be substituted
-        // actually exist in the term.
+        // Short circuit: no vars in the sub and in the term match:
+        let vars_in_term = self.discoverer().get_free_sub_vars_in_term(term_id);
+        let vars_in_sub = self.discoverer().get_free_sub_vars_in_sub(sub);
+        if vars_in_term.intersection(&vars_in_sub).next().is_none() {
+            return term_id;
+        }
 
         let term = self.reader().get_term(term_id).clone();
 
