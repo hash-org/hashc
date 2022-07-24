@@ -2,6 +2,7 @@
 use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
+use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -16,8 +17,6 @@ use crate::{
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
-
-use super::{unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut};
 
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'gs, 'ls, 'cd, 's> {
@@ -122,7 +121,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let reader = self.reader();
                 let ty_of_subject = reader.get_term(ty_id_of_subject);
                 match ty_of_subject {
-                    Term::TyFnTy(ty_fn_ty) => {
+                    Term::TyFnTy(_) => {
+                        todo!()
+
+                        /*
                         let ty_fn_ty = ty_fn_ty.clone();
                         // Unify the type function type params with the given args:
                         let sub = self.unifier().unify_params_with_args(
@@ -134,6 +136,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         )?;
                         // Apply the substitution to the return type and use it as the result:
                         Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
+                        */
                     }
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: app_ty_fn.subject }),
                 }
@@ -464,6 +467,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// This function will populate default values in the params if it can (if
     /// the term is a constructed literal).
+    ///
+    /// Note: Assumes the term is simplified.
     pub(crate) fn infer_constructors_of_nominal_term(
         &mut self,
         term_id: TermId,
@@ -490,22 +495,21 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                             .flatten_ok()
                             .collect()
                     }
-                    Term::ScopeVar(_) => {
-                        // Recurse and apply sub
-                        todo!()
-                        // let result =
-                        // self.infer_constructors_of_nominal_term(term)?;
-                        // Ok(result
-                        //     .into_iter()
-                        //     .map(|(subject, params)| {
-                        //         let mut substituter = self.substituter();
-                        //         (
-                        //             substituter.apply_sub_to_term(&sub,
-                        // subject),
-                        // substituter.apply_sub_to_params(&sub, params),
-                        //         )
-                        //     })
-                        //     .collect())
+                    Term::SetBound(set_bound) => {
+                        // Recurse to inner and then apply the set bound on the results
+                        let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
+                            this.typer().infer_constructors_of_nominal_term(set_bound.term)
+                        })?;
+                        result
+                            .into_iter()
+                            .map(|(term, params)| {
+                                Ok((
+                                    self.discoverer().apply_set_bound_to_term(set_bound, term)?,
+                                    self.discoverer()
+                                        .apply_set_bound_to_params(set_bound, params)?,
+                                ))
+                            })
+                            .collect()
                     }
                     Term::Merge(terms) => {
                         // Try each term:

@@ -1,7 +1,5 @@
 //! Contains utilities to validate terms.
-use std::fmt::Display;
-
-use super::{unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut};
+use super::{AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -19,6 +17,7 @@ use crate::{
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
 };
+use std::fmt::Display;
 
 /// Represents the level of a term.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -787,13 +786,9 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                             self.typer().infer_constructors_of_nominal_term(simplified_term_id)?[0];
 
                         self.validate_args(members)?;
-                        let _ = self.unifier().unify_params_with_args(
-                            variants,
-                            members,
-                            term_id,
-                            subject,
-                            UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
-                        )?;
+                        let _ = self
+                            .unifier()
+                            .unify_params_with_args(variants, members, term_id, subject)?;
 
                         Ok(result)
                     }

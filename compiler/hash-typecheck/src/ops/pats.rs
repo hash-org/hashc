@@ -8,7 +8,7 @@ use crate::{
         error::{TcError, TcResult},
         macros::tc_panic,
     },
-    ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
+    ops::{validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
             AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Mutability,
@@ -171,7 +171,6 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         pat_args,
                         constructor_term,
                         simplified_term_id,
-                        UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                     ) {
                         Ok(_) => {
                             let subject_params = self.reader().get_params(params).clone();

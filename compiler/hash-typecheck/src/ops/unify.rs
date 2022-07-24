@@ -39,18 +39,6 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for Unifier<'gs, 'ls, 'cd, 's> {
     }
 }
 
-/// Whether to substitute parameter names for argument values, or just unify the
-/// types of the parameters with the types of the arguments.
-///
-/// The former is to be used for type function calls, while the latter is to be
-/// used for runtime runtime calls.
-pub enum UnifyParamsWithArgsMode {
-    /// Substitute parameter names for argument values.
-    SubstituteParamNamesForArgValues,
-    /// Unify the types of the parameters with the types of the arguments.
-    UnifyParamTypesWithArgTypes,
-}
-
 impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
@@ -137,7 +125,6 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         args_id: ArgsId,
         params_subject: TermId,
         args_subject: TermId,
-        mode: UnifyParamsWithArgsMode,
     ) -> TcResult<Sub> {
         let params = self.params_store().get(params_id).clone();
         let args = self.args_store().get(args_id).clone();
@@ -157,22 +144,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             let ty_of_arg = self.typer().infer_ty_of_term(arg.value)?;
             let ty_sub = self.unify_terms(ty_of_arg, param.ty)?;
 
-            match mode {
-                UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues => {
-                    // // Add the parameter substituted for the argument to the substitution, if a
-                    // // parameter name is given:
-                    // if let Some(name) = param.name {
-                    //     sub.add_pair(self.builder().create_var(name).into(), arg.value);
-                    // }
-                    // // @@Correctness: should we also perform the lower branch
-                    // // here?
-                    todo!()
-                }
-                UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes => {
-                    // Add the ty sub to the sub
-                    sub = self.get_super_sub(&sub, &ty_sub)?;
-                }
-            }
+            // Add the ty sub to the sub
+            sub = self.get_super_sub(&sub, &ty_sub)?;
         }
         Ok(sub)
     }
@@ -501,6 +474,26 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 // Different variables do not unify (since they cannot be simplified)
                 cannot_unify()
             }
+            (Term::BoundVar(src_var), Term::BoundVar(target_var))
+                if src_var.name == target_var.name =>
+            {
+                // Same bound variables unify
+                Ok(Sub::empty())
+            }
+            (Term::BoundVar(_), _) | (_, Term::BoundVar(_)) => {
+                // Different bound variables do not unify (since they cannot be simplified)
+                cannot_unify()
+            }
+            (Term::ScopeVar(src_var), Term::ScopeVar(target_var))
+                if (src_var.scope, src_var.index) == (target_var.scope, target_var.index) =>
+            {
+                // Same scope variables unify (i.e. same member, not necessarily same name)
+                Ok(Sub::empty())
+            }
+            (Term::ScopeVar(_), _) | (_, Term::ScopeVar(_)) => {
+                // Different scope variables do not unify
+                cannot_unify()
+            }
 
             // Apply substitution:
             (Term::SetBound(src_set_bound), Term::SetBound(target_set_bound))
@@ -560,8 +553,10 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 let subject_ty = reader.get_term(subject_ty_id);
                 match subject_ty {
                     Term::TyFnTy(ty_fn_ty) => {
-                        let ty_fn_ty = ty_fn_ty.clone();
+                        let _ = ty_fn_ty.clone();
+                        todo!()
 
+                        /*
                         // Match the type function params with each (src,target)-arguments.
                         let args_src_sub = self.unify_params_with_args(
                             ty_fn_ty.params,
@@ -581,6 +576,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                         // Unify all the created substitutions
                         let args_unified_sub = self.unify_subs(&args_src_sub, &args_target_sub)?;
                         Ok(self.get_super_sub(&args_unified_sub, &subject_sub)?)
+
+                        */
                     }
                     // If the subject is not a function type then application is invalid:
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: subject }),
@@ -769,9 +766,6 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             // Root unifies with root and nothing else:
             (Term::Root, Term::Root) => Ok(Sub::empty()),
             (_, Term::Root) | (Term::Root, _) => cannot_unify(),
-
-            // @@Todo: vars
-            _ => todo!(),
         }?;
 
         self.cacher().add_unification_entry((src_id, target_id), &sub);

@@ -1,11 +1,7 @@
 //! Contains functionality to simplify terms into more concrete terms.
 use std::iter;
 
-use super::{
-    substitute::Substituter,
-    unify::{Unifier, UnifyParamsWithArgsMode},
-    AccessToOps, AccessToOpsMut,
-};
+use super::{substitute::Substituter, unify::Unifier, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -772,13 +768,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                             }
                         };
 
-                        let params_sub = self.unifier().unify_params_with_args(
-                            params_id,
-                            args,
-                            term_id,
-                            term_id,
-                            UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
-                        )?;
+                        let params_sub = self
+                            .unifier()
+                            .unify_params_with_args(params_id, args, term_id, term_id)?;
 
                         // Apply substitution to arguments
                         let members = self.substituter().apply_sub_to_args(&params_sub, args);
@@ -1010,7 +1002,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     call.args,
                     simplified_subject,
                     originating_term,
-                    UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                 )?;
 
                 // Apply the substitution to the return value:
