@@ -1,10 +1,13 @@
 //! Functionality related to discovering variables in terms.
-use crate::storage::{
-    primitives::{
-        ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, ScopeId, Sub,
-        SubVar, Term, TermId,
+use crate::{
+    diagnostics::error::TcResult,
+    storage::{
+        primitives::{
+            ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, ScopeId,
+            SetBound, Sub, SubVar, Term, TermId,
+        },
+        AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
-    AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
 };
 use std::collections::HashSet;
 
@@ -523,5 +526,43 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         let mut result = HashSet::new();
         self.add_free_bound_vars_in_term_to_set(term_id, &mut result);
         result
+    }
+
+    pub fn apply_set_bound_to_params(
+        &self,
+        _set_bound: SetBound,
+        _params_id: ParamsId,
+    ) -> TcResult<ParamsId> {
+        todo!()
+    }
+
+    pub fn apply_set_bound_to_args(
+        &self,
+        _set_bound: SetBound,
+        _args_id: ArgsId,
+    ) -> TcResult<ArgsId> {
+        todo!()
+    }
+
+    /// Apply the given [SetBound] to the given term, at the lowest level
+    /// possible.
+    ///
+    /// This checks each child of the term, and only wraps it in a set bound if
+    /// the free variables are present.
+    pub fn apply_set_bound_to_term(
+        &self,
+        set_bound: SetBound,
+        term_id: TermId,
+    ) -> TcResult<TermId> {
+        let reader = self.reader();
+        let set_bound_scope = reader.get_scope(set_bound.scope);
+        let free_bound_vars_in_term = self.get_free_bound_vars_in_term(term_id);
+        if !free_bound_vars_in_term.iter().any(|var| set_bound_scope.contains(var.name)) {
+            return Ok(term_id);
+        }
+
+        let _term = reader.get_term(term_id);
+
+        todo!()
     }
 }

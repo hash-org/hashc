@@ -189,9 +189,15 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::SetBound(set_bound) => {
                 // Enter the bound and try access
                 let set_bound = *set_bound;
-                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier().access_struct_or_tuple_field(set_bound.term, field_name)
-                })
+                })?;
+                match result {
+                    Some(result) => {
+                        Ok(Some(self.discoverer().apply_set_bound_to_term(set_bound, result)?))
+                    }
+                    None => Ok(None),
+                }
             }
             Term::Merge(terms) => {
                 // Try this for each term:
@@ -497,11 +503,16 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Term::SetBound(set_bound) => {
-                // Add substitution to the scope:
-                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier()
                         .apply_access_term(&AccessTerm { subject: set_bound.term, ..*access_term })
-                })
+                })?;
+                match result {
+                    Some(result) => {
+                        Ok(Some(self.discoverer().apply_set_bound_to_term(set_bound, result)?))
+                    }
+                    None => Ok(None),
+                }
             }
             Term::Level3(level3_term) => {
                 self.apply_access_to_level3_term(&level3_term, access_term)
@@ -662,7 +673,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
 
         match term {
             Term::Merge(terms) => terms.iter().any(|term| self.is_term_constructable(*term)),
-            Term::SetBound(_) => todo!(),
+            Term::SetBound(set_bound) => self.is_term_constructable(set_bound.term),
             // @@Todo: should be specifically a struct!
             Term::Level1(Level1Term::NominalDef(_)) => true,
             _ => false,
@@ -727,8 +738,21 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::SetBound(_) => {
-                todo!()
+            Term::SetBound(set_bound) => {
+                let set_bound = *set_bound;
+                let constructed_result =
+                    self.scope_manager().enter_scope(set_bound.scope, |this| {
+                        this.simplifier().use_term_as_constructed_subject(set_bound.term, args)
+                    })?;
+                // Add back the set bound in the subject
+                Ok(ConstructedTerm {
+                    members: self
+                        .discoverer()
+                        .apply_set_bound_to_args(set_bound, constructed_result.members)?,
+                    subject: self
+                        .discoverer()
+                        .apply_set_bound_to_term(set_bound, constructed_result.subject)?,
+                })
             }
             Term::Level1(Level1Term::NominalDef(nominal_def_id)) => {
                 let reader = self.reader();
@@ -829,10 +853,17 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Term::SetBound(set_bound) => {
-                // Recurse to inner and then apply sub
                 let set_bound = *set_bound;
-                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.simplifier().use_term_as_fn_call_subject(set_bound.term)
+                })?;
+                Ok(FnTy {
+                    params: self
+                        .discoverer()
+                        .apply_set_bound_to_params(set_bound, result.params)?,
+                    return_ty: self
+                        .discoverer()
+                        .apply_set_bound_to_term(set_bound, result.return_ty)?,
                 })
             }
             Term::Unresolved(_) => {
@@ -1237,15 +1268,13 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 })?
                 .map(|result| self.builder().create_union_term(result))),
             Term::SetBound(set_bound) => {
-                // Add the bound to the scopes, simplify inner:
                 let simplified_inner =
                     self.scope_manager().enter_scope(set_bound.scope, |this| {
                         this.simplifier().simplify_term(term_id)
                     })?;
                 match simplified_inner {
-                    Some(_simplified) => {
-                        // Only keep the bounds which exist in inner:
-                        todo!()
+                    Some(simplified) => {
+                        Ok(Some(self.discoverer().apply_set_bound_to_term(set_bound, simplified)?))
                     }
                     None => Ok(None),
                 }

@@ -169,6 +169,11 @@ impl Scope {
         Some((self.members[index], index))
     }
 
+    /// Whether the scope contains a member with the given name.
+    pub fn contains(&self, member_name: Identifier) -> bool {
+        self.member_names.contains_key(&member_name)
+    }
+
     /// Get a member by index, asserting that it exists.
     pub fn get_by_index(&self, index: usize) -> Member {
         self.members[index]
