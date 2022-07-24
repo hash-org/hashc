@@ -11,7 +11,7 @@ use crate::{
         primitives::{
             ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, MemberData,
             ModDefId, ModDefOrigin, Mutability, NominalDef, NominalDefId, ParamsId, Scope, ScopeId,
-            ScopeKind, StructFields, Sub, Term, TermId, TrtDefId,
+            ScopeKind, StructFields, Term, TermId, TrtDefId,
         },
         terms::TermStore,
         AccessToStorage, AccessToStorageMut, StorageRefMut,
@@ -56,6 +56,7 @@ impl Term {
     /// by looking at the inner children of the [Term].
     pub fn get_term_level(&self, _store: &TermStore) -> TermLevel {
         // @@Todo(feds01): implement the other variants by recursing into them.
+        // This should be done on a struct with access to storage
         match self {
             Term::Access(_)
             | Term::Var(_)
@@ -63,17 +64,17 @@ impl Term {
             | Term::TyFn(_)
             | Term::TyOf(_)
             | Term::Union(_)
+            | Term::SetBound(_)
+            | Term::ScopeVar(_)
+            | Term::BoundVar(_)
             | Term::TyFnTy(_)
             | Term::TyFnCall(_) => TermLevel::Unknown,
-            Term::SetBound(_) => todo!(),
             Term::Unresolved(_) => TermLevel::Unknown,
             Term::Root => TermLevel::Level4,
             Term::Level3(_) => TermLevel::Level3,
             Term::Level2(_) => TermLevel::Level2,
             Term::Level1(_) => TermLevel::Level1,
             Term::Level0(_) => TermLevel::Level0,
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 }
@@ -202,7 +203,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     fn ensure_scope_implements_trait(
         &mut self,
         trt_def_term_id: TermId,
-        trt_sub: &Sub,
         scope_originating_term_id: TermId,
         scope_id: ScopeId,
     ) -> TcResult<()> {
@@ -212,24 +212,20 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         let simplified_trt_def_term_id =
             self.simplifier().potentially_simplify_term(trt_def_term_id)?;
         let reader = self.reader();
-        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id);
+        let simplified_trt_def_term = reader.get_term(simplified_trt_def_term_id).clone();
 
         // Ensure the term leads to a trait definition:
         match simplified_trt_def_term {
-            Term::SetBound(app_sub) => {
-                let _app_sub = *app_sub;
-                // Recurse to inner term
-                // let unified_sub = self.unifier().unify_subs(trt_sub, &app_sub.sub)?;
-                // self.ensure_scope_implements_trait(
-                //     app_sub.term,
-                //     &unified_sub,
-                //     scope_originating_term_id,
-                //     scope_id,
-                // )
-                todo!()
+            Term::SetBound(set_bound) => {
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.validator().ensure_scope_implements_trait(
+                        set_bound.term,
+                        scope_originating_term_id,
+                        scope_id,
+                    )
+                })
             }
             Term::Level2(Level2Term::Trt(trt_def_id)) => {
-                let trt_def_id = *trt_def_id;
                 let trt_def_members = self.reader().get_trt_def(trt_def_id).members;
                 // @@Performance: cloning :((
                 let trt_def_members = self.reader().get_scope(trt_def_members).clone();
@@ -243,13 +239,9 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                         let scope_member_data =
                             self.typer().infer_member_ty(scope_member.0.data)?;
 
-                        // Apply the substitution to the trait member first:
-                        let trt_member_ty_subbed =
-                            self.substituter().apply_sub_to_term(trt_sub, trt_member_data.ty);
-
                         // Unify the types of the scope member and the substituted trait member:
                         let _ =
-                            self.unifier().unify_terms(scope_member_data.ty, trt_member_ty_subbed);
+                            self.unifier().unify_terms(scope_member_data.ty, trt_member_data.ty);
                     } else {
                         return Err(TcError::TraitImplMissingMember {
                             trt_def_term_id,
@@ -288,7 +280,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
         if let ModDefOrigin::TrtImpl(trt_def_term_id) = mod_def_origin {
             self.ensure_scope_implements_trait(
                 trt_def_term_id,
-                &Sub::empty(),
                 originating_term_id,
                 mod_def_members,
             )?;
@@ -363,12 +354,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
     /// Ensure the element `union_element_term_id` of the union with the given
     /// `union_term_id` is level 1, with each element containing 1 nominal.
     pub(crate) fn validate_union_element(
-        &self,
+        &mut self,
         union_term_id: TermId,
         union_element_term_id: TermId,
     ) -> TcResult<()> {
         let reader = self.reader();
-        let union_element_term = reader.get_term(union_element_term_id);
+        let union_element_term = reader.get_term(union_element_term_id).clone();
 
         // Error helper:
         let invalid_union_element = || -> TcResult<()> {
@@ -377,16 +368,28 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
 
         // Ensure the level of the term is valid:
         match union_element_term {
-            Term::SetBound(_app_sub) => {
-                // Ensure the inner one is valid, substitution doesn't matter:
-                // self.validate_union_element(union_term_id, app_sub.term)
-                todo!()
+            Term::SetBound(set_bound) => {
+                // Ensure the inner one is valid
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.validator().validate_union_element(union_term_id, set_bound.term)
+                })
             }
             Term::Level1(level1_term) => match level1_term {
                 // Checking a nominal
                 Level1Term::NominalDef(_) => Ok(()),
                 // Not checking a nominal:
                 Level1Term::Tuple(_) | Level1Term::Fn(_) | Level1Term::ModDef(_) => {
+                    invalid_union_element()
+                }
+            },
+            Term::ScopeVar(scope_var) => {
+                // Forward to the value:
+                let member = self.scope_manager().get_scope_var_member(scope_var);
+                let value = member.member.data.value();
+                if let Some(value) = value {
+                    self.validate_union_element(union_term_id, value)
+                } else {
+                    // @@Todo: we could allow this?
                     invalid_union_element()
                 }
             },
@@ -404,6 +407,7 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             | Term::TyOf(_)
             | Term::TyFnCall(_)
             | Term::Access(_)
+            | Term::BoundVar(_) // @@Todo: we could allow this? Similar to merge elements where we just get their type..
             | Term::Var(_) => invalid_union_element(),
             // This should have been flattened already:
             Term::Union(_) => {
@@ -413,8 +417,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Union term should have already been flattened"
                 )
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -503,7 +505,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // level 3 and the merge is level 2, which means it is a level 2 term. Their
             // type is level 2, we cannot be sure it won't have a duplicate nominal
             // definition so we cannot accept it.
-            Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => {
+            Term::ScopeVar(_)
+            | Term::BoundVar(_)
+            | Term::TyFnCall(_)
+            | Term::Access(_)
+            | Term::Var(_) => {
                 let ty_id_of_term = self.typer().infer_ty_of_term(merge_element_term_id)?;
                 let reader = self.reader();
                 let ty_of_term = reader.get_term(ty_id_of_term);
@@ -520,10 +526,16 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::SetBound(_app_sub) => {
-                // Ensure the inner one is valid, substitution doesn't matter:
-                // self.validate_merge_element(merge_kind, merge_term_id, app_sub.term)
-                todo!()
+            Term::SetBound(set_bound) => {
+                // Ensure the inner one is valid
+                let set_bound = *set_bound;
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.validator().validate_merge_element(
+                        merge_kind,
+                        merge_term_id,
+                        set_bound.term,
+                    )
+                })
             }
             // Unclear if this fits the requirements, so we reject it:
             Term::Unresolved(_) => {
@@ -581,8 +593,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                     "Merge term should have already been flattened"
                 )
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -827,17 +837,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 Ok(result)
             }
 
-            // Substitution application:
-            Term::SetBound(_app_sub) => {
-                // @@Correctness: do we need to perform any sort of substitution validity check?
-                // maybe to try unify the substitution with itself to ensure it does not
-                // contradict itself? For example, if it contains cycles `T0 ->
-                // T1, T1 -> T0`.
-                //
-                // For now, we just validate the inner term:
-                // self.validate_term(app_sub.term)?;
-                // Ok(result)
-                todo!()
+            // Set bound, just validate inner
+            Term::SetBound(set_bound) => {
+                let set_bound = *set_bound;
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.validator().validate_term(set_bound.term)
+                })
             }
 
             // Type function type:
@@ -963,12 +968,15 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 self.validate_args(app_ty_fn.args)?;
                 Ok(result)
             }
+            Term::ScopeVar(_) => Ok(result),
+            Term::BoundVar(_) => {
+                // @@Todo: ensure bound var exists
+                Ok(result)
+            }
             Term::Level2(_) | Term::Level3(_) | Term::Var(_) | Term::Root | Term::Unresolved(_) => {
                 // Nothing to do, should have already been validated by the typer.
                 Ok(result)
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }?;
 
         // Add an entry into the validation cache
@@ -1079,7 +1087,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::TyOf(_) | Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::ScopeVar(_)
+            | Term::BoundVar(_)
+            | Term::TyOf(_)
+            | Term::TyFnCall(_)
+            | Term::Access(_)
+            | Term::Var(_) => Ok(false),
             Term::Merge(terms) | Term::Union(terms) => {
                 // Valid if each element is okay to be used as the return type:
                 let terms = terms.clone();
@@ -1102,10 +1115,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // All good, basically curried type function:
                 Ok(true)
             }
-            Term::SetBound(_app_sub) => {
-                // Check the inner type:
-                // self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
-                todo!()
+            Term::SetBound(set_bound) => {
+                // Look at inner term
+                let set_bound = *set_bound;
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.validator().term_can_be_used_as_ty_fn_return_ty(set_bound.term)
+                })
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
@@ -1120,8 +1135,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // This should be okay, for example if we are returning some TyFnTy value.
                 Ok(true)
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 
@@ -1139,7 +1152,11 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             // These have not been resolved, for now we don't allow them.
             // @@Enhance,@@ErrorReporting: we could possibly look at the type of the term?
             // Otherwise we could at least provide a better error message.
-            Term::TyFnCall(_) | Term::Access(_) | Term::Var(_) => Ok(false),
+            Term::ScopeVar(_)
+            | Term::BoundVar(_)
+            | Term::TyFnCall(_)
+            | Term::Access(_)
+            | Term::Var(_) => Ok(false),
             Term::Union(terms) | Term::Merge(terms) => {
                 // Valid if each element is okay to be used as a parameter type:
                 let terms = terms.clone();
@@ -1162,10 +1179,12 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // Type function types are okay to use if their return types can be used here:
                 self.term_can_be_used_as_ty_fn_param_ty(ty_fn_ty.return_ty)
             }
-            Term::SetBound(_app_sub) => {
-                // Check the inner type:
-                // self.term_can_be_used_as_ty_fn_return_ty(app_sub.term)
-                todo!()
+            Term::SetBound(set_bound) => {
+                // Look at inner term
+                let set_bound = *set_bound;
+                self.scope_manager().enter_scope(set_bound.scope, |this| {
+                    this.validator().term_can_be_used_as_ty_fn_param_ty(set_bound.term)
+                })
             }
             Term::Unresolved(_) => {
                 // More type annotations are needed
@@ -1179,8 +1198,6 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
                 // @@PotentiallyUnnecessary: is there some use case to allow this?
                 Ok(false)
             }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }
     }
 
