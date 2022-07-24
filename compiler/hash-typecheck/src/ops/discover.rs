@@ -11,7 +11,7 @@ use crate::{
 };
 use std::collections::HashSet;
 
-use super::AccessToOps;
+use super::{AccessToOps, AccessToOpsMut};
 
 /// Contains actions related to variable discovery.
 pub struct Discoverer<'gs, 'ls, 'cd, 's> {
@@ -534,7 +534,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     }
 
     pub fn apply_set_bound_to_params(
-        &self,
+        &mut self,
         _set_bound_scope_id: ScopeId,
         _params_id: ParamsId,
     ) -> TcResult<ParamsId> {
@@ -542,7 +542,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     }
 
     pub fn apply_set_bound_to_args(
-        &self,
+        &mut self,
         _set_bound_scope_id: ScopeId,
         _args_id: ArgsId,
     ) -> TcResult<ArgsId> {
@@ -555,7 +555,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     /// This checks each child of the term, and only wraps it in a set bound if
     /// the free variables are present.
     pub fn apply_set_bound_to_term(
-        &self,
+        &mut self,
         set_bound_scope_id: ScopeId,
         term_id: TermId,
     ) -> TcResult<TermId> {
@@ -568,6 +568,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
         let _term = reader.get_term(term_id);
 
-        todo!()
+        // @@Todo: implement this properly:
+        Ok(self.builder().create_set_bound_term(term_id, set_bound_scope_id))
     }
 }
