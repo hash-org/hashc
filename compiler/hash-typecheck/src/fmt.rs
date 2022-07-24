@@ -6,8 +6,8 @@ use crate::storage::{
         AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
         Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin,
         ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId,
-        ScopeVar, SpreadPat, StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm,
-        Var, Visibility,
+        ScopeVar, SpreadPat, StructDef, Sub, SubVar, Term, TermId, TrtDefId, UnresolvedTerm, Var,
+        Visibility,
     },
     GlobalStorage,
 };
@@ -55,7 +55,7 @@ impl<'gs> TcFormatter<'gs> {
     pub fn fmt_sub(&self, f: &mut fmt::Formatter, sub: &Sub) -> fmt::Result {
         for (subject, target) in sub.pairs() {
             match subject {
-                SubSubject::Unresolved(unresolved) => {
+                SubVar::Unresolved(unresolved) => {
                     self.fmt_unresolved(f, &unresolved)?;
                 }
             };

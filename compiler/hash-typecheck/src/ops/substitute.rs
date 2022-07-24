@@ -3,7 +3,7 @@ use super::{AccessToOps, AccessToOpsMut};
 use crate::storage::{
     primitives::{
         Arg, ArgsId, ConstructedTerm, FnTy, Level0Term, Level1Term, Level2Term, Level3Term, Param,
-        ParamsId, Sub, SubSubject, Term, TermId, TupleTy, TyFnCall,
+        ParamsId, Sub, SubVar, Term, TermId, TupleTy, TyFnCall,
     },
     AccessToStorage, AccessToStorageMut, StorageRefMut,
 };
@@ -208,7 +208,7 @@ impl<'gs, 'ls, 'cd, 's> Substituter<'gs, 'ls, 'cd, 's> {
 
     /// Apply the given substitution to the given [SubSubject], producing a new
     /// term with the substituted result.
-    pub fn apply_sub_to_subject(&mut self, sub: &Sub, subject: SubSubject) -> TermId {
+    pub fn apply_sub_to_subject(&mut self, sub: &Sub, subject: SubVar) -> TermId {
         match sub.get_sub_for(subject) {
             Some(subbed_term_id) => subbed_term_id,
             None => self.builder().create_term(subject.into()),

@@ -765,20 +765,20 @@ pub enum Level0Term {
 
 /// The subject of a substitution: an unresolved term.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub enum SubSubject {
+pub enum SubVar {
     Unresolved(UnresolvedTerm),
 }
 
-impl From<UnresolvedTerm> for SubSubject {
+impl From<UnresolvedTerm> for SubVar {
     fn from(unresolved: UnresolvedTerm) -> Self {
-        SubSubject::Unresolved(unresolved)
+        SubVar::Unresolved(unresolved)
     }
 }
 
-impl From<SubSubject> for Term {
-    fn from(subject: SubSubject) -> Self {
+impl From<SubVar> for Term {
+    fn from(subject: SubVar) -> Self {
         match subject {
-            SubSubject::Unresolved(unresolved) => Term::Unresolved(unresolved),
+            SubVar::Unresolved(unresolved) => Term::Unresolved(unresolved),
         }
     }
 }
@@ -787,7 +787,7 @@ impl From<SubSubject> for Term {
 /// term.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Sub {
-    data: HashMap<SubSubject, TermId>,
+    data: HashMap<SubVar, TermId>,
 }
 
 impl Sub {
@@ -797,23 +797,23 @@ impl Sub {
     }
 
     /// Create a substitution from a [HashMap<SubSubject, TermId>].
-    pub fn from_map(map: HashMap<SubSubject, TermId>) -> Self {
+    pub fn from_map(map: HashMap<SubVar, TermId>) -> Self {
         Self { data: map }
     }
 
     /// Create a substitution from pairs of `(SubSubject, TermId)`.
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubSubject>, TermId)>) -> Self {
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<SubVar>, TermId)>) -> Self {
         Self { data: pairs.into_iter().map(|(from, to)| (from.into(), to)).collect() }
     }
 
     /// Get the substitution for the given [SubSubject], if any.
-    pub fn get_sub_for(&self, subject: SubSubject) -> Option<TermId> {
+    pub fn get_sub_for(&self, subject: SubVar) -> Option<TermId> {
         self.data.get(&subject).copied()
     }
 
     /// Get all the subjects (i.e. the domain) of the substitution as an
     /// iterator.
-    pub fn domain(&self) -> impl Iterator<Item = SubSubject> + '_ {
+    pub fn domain(&self) -> impl Iterator<Item = SubVar> + '_ {
         self.data.keys().copied()
     }
 
@@ -823,17 +823,17 @@ impl Sub {
     }
 
     /// Get the pairs `(SubSubject, TermId)` of the substitution as an iterator.
-    pub fn pairs(&self) -> impl Iterator<Item = (SubSubject, TermId)> + '_ {
+    pub fn pairs(&self) -> impl Iterator<Item = (SubVar, TermId)> + '_ {
         self.data.iter().map(|(&subject, &term)| (subject, term))
     }
 
     /// Get the pairs `(SubSubject, TermId)` of the substitution as a map.
-    pub fn map(&self) -> &HashMap<SubSubject, TermId> {
+    pub fn map(&self) -> &HashMap<SubVar, TermId> {
         &self.data
     }
 
     /// Add the given pair `subject -> term` to the substitution.
-    pub fn add_pair(&mut self, subject: SubSubject, term: TermId) {
+    pub fn add_pair(&mut self, subject: SubVar, term: TermId) {
         self.data.insert(subject, term);
     }
 

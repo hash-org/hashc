@@ -1,8 +1,8 @@
 //! Functionality related to discovering variables in terms.
 use crate::storage::{
     primitives::{
-        ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub,
-        SubSubject, Term, TermId,
+        ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, SubVar,
+        Term, TermId,
     },
     AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
 };
@@ -36,7 +36,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     pub fn add_free_sub_vars_in_params_to_set(
         &self,
         params_id: ParamsId,
-        result: &mut HashSet<SubSubject>,
+        result: &mut HashSet<SubVar>,
     ) {
         let params = self.params_store().get(params_id);
 
@@ -51,11 +51,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given args, to the given
     /// [HashSet].
-    pub fn add_free_sub_vars_in_args_to_set(
-        &self,
-        args_id: ArgsId,
-        result: &mut HashSet<SubSubject>,
-    ) {
+    pub fn add_free_sub_vars_in_args_to_set(&self, args_id: ArgsId, result: &mut HashSet<SubVar>) {
         let args = self.args_store().get(args_id);
 
         for arg in args.positional() {
@@ -68,7 +64,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     pub fn add_free_sub_vars_in_level0_term_to_set(
         &self,
         term: &Level0Term,
-        result: &mut HashSet<SubSubject>,
+        result: &mut HashSet<SubVar>,
     ) {
         match term {
             Level0Term::Rt(ty_term_id) => {
@@ -100,7 +96,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     pub fn add_free_sub_vars_in_level1_term_to_set(
         &self,
         term: &Level1Term,
-        result: &mut HashSet<SubSubject>,
+        result: &mut HashSet<SubVar>,
     ) {
         match term {
             Level1Term::ModDef(_) | Level1Term::NominalDef(_) => {}
@@ -121,7 +117,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     pub fn add_free_sub_vars_in_level2_term_to_set(
         &self,
         term: &Level2Term,
-        _result: &mut HashSet<SubSubject>,
+        _result: &mut HashSet<SubVar>,
     ) {
         match term {
             Level2Term::Trt(_) | Level2Term::AnyTy => {}
@@ -133,7 +129,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     pub fn add_free_sub_vars_in_level3_term_to_set(
         &self,
         term: &Level3Term,
-        _: &mut HashSet<SubSubject>,
+        _: &mut HashSet<SubVar>,
     ) {
         match term {
             Level3Term::TrtKind => {}
@@ -145,11 +141,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     ///
     /// Free variables are either `Var` or `Unresolved`, and this function
     /// collects both.
-    pub fn add_free_sub_vars_in_term_to_set(
-        &self,
-        term_id: TermId,
-        result: &mut HashSet<SubSubject>,
-    ) {
+    pub fn add_free_sub_vars_in_term_to_set(&self, term_id: TermId, result: &mut HashSet<SubVar>) {
         let reader = self.reader();
         let term = reader.get_term(term_id);
         match term {
@@ -221,7 +213,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
 
     /// Add the free variables that exist in the given [Sub], to the
     /// given [HashSet].
-    pub fn add_free_sub_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubSubject>) {
+    pub fn add_free_sub_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<SubVar>) {
         // Add all the variables in the range, minus the variables in the domain:
         for r in sub.range() {
             self.add_free_sub_vars_in_term_to_set(r, result);
@@ -237,7 +229,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     }
 
     /// Get the free variables that exist in the given [Sub].
-    pub fn get_free_sub_vars_in_sub(&self, sub: &Sub) -> HashSet<SubSubject> {
+    pub fn get_free_sub_vars_in_sub(&self, sub: &Sub) -> HashSet<SubVar> {
         let mut result = HashSet::new();
         self.add_free_sub_vars_in_sub_to_set(sub, &mut result);
         result
@@ -247,7 +239,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
     ///
     /// Free variables are either `Var` or `Unresolved`, and this function
     /// collects both.
-    pub fn get_free_sub_vars_in_term(&self, term_id: TermId) -> HashSet<SubSubject> {
+    pub fn get_free_sub_vars_in_term(&self, term_id: TermId) -> HashSet<SubVar> {
         let mut result = HashSet::new();
         self.add_free_sub_vars_in_term_to_set(term_id, &mut result);
         result
@@ -441,30 +433,6 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             // var?
             Term::Var(_) | Term::Root | Term::ScopeVar(_) | Term::Unresolved(_) => {}
         }
-    }
-
-    /// Add the free variables that exist in the given [Sub], to the
-    /// given [HashSet].
-    pub fn add_free_bound_vars_in_sub_to_set(&self, sub: &Sub, result: &mut HashSet<BoundVar>) {
-        // Add all the variables in the range, minus the variables in the domain:
-        for r in sub.range() {
-            self.add_free_bound_vars_in_term_to_set(r, result);
-        }
-        let mut domain_vars = HashSet::new();
-        for d in sub.range() {
-            self.add_free_bound_vars_in_term_to_set(d, &mut domain_vars);
-        }
-        // Remove all the variables in domain_vars:
-        for d in domain_vars {
-            result.remove(&d);
-        }
-    }
-
-    /// Get the free variables that exist in the given [Sub].
-    pub fn get_free_bound_vars_in_sub(&self, sub: &Sub) -> HashSet<BoundVar> {
-        let mut result = HashSet::new();
-        self.add_free_bound_vars_in_sub_to_set(sub, &mut result);
-        result
     }
 
     /// Get the set of free variables that exist in the given term.
