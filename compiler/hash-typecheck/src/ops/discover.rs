@@ -1,8 +1,8 @@
 //! Functionality related to discovering variables in terms.
 use crate::storage::{
     primitives::{
-        ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, SubVar,
-        Term, TermId,
+        ArgsId, BoundVar, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, ScopeId, Sub,
+        SubVar, Term, TermId,
     },
     AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
 };
@@ -263,6 +263,23 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Add the parameter variables in the parameters to the given [HashSet] as
+    /// [BoundVar]s.
+    pub fn add_param_vars_as_bound_vars_to_set(
+        &self,
+        params_id: ParamsId,
+        result: &mut HashSet<BoundVar>,
+    ) {
+        let params = self.params_store().get(params_id);
+
+        // Add default value and type free vars
+        for param in params.positional() {
+            if let Some(name) = param.name {
+                result.insert(BoundVar { name });
+            }
+        }
+    }
+
     /// Add the free variables that exist in the given args, to the given
     /// [HashSet].
     pub fn add_free_bound_vars_in_args_to_set(
@@ -354,6 +371,27 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Add the free variables that exist in the given [ScopeId], to the
+    /// given [HashSet].
+    ///
+    /// This adds the free (bound) variables in the member types and values.
+    pub fn add_free_bound_vars_in_scope_to_set(
+        &self,
+        scope: ScopeId,
+        result: &mut HashSet<BoundVar>,
+    ) {
+        let reader = self.reader();
+        let scope = reader.get_scope(scope);
+        for member in scope.iter() {
+            if let Some(ty) = member.data.ty() {
+                self.add_free_bound_vars_in_term_to_set(ty, result)
+            }
+            if let Some(value) = member.data.value() {
+                self.add_free_bound_vars_in_term_to_set(value, result)
+            }
+        }
+    }
+
     /// Add the free variables that exist in the given term, to the given
     /// [HashSet].
     ///
@@ -388,19 +426,63 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 }
             }
             Term::TyFn(ty_fn) => {
-                // Free vars in params, return
-                self.add_free_bound_vars_in_params_to_set(ty_fn.general_params, result);
-                self.add_free_bound_vars_in_term_to_set(ty_fn.general_return_ty, result);
+                // Keep track of the variables here cause we have to subtract the ones in the
+                // params before adding them to result.
+                let mut ty_fn_params_result = HashSet::new();
+                let mut ty_fn_bound_vars_due_to_params = HashSet::new();
+                let mut ty_fn_result = HashSet::new();
+
+                self.add_free_bound_vars_in_params_to_set(
+                    ty_fn.general_params,
+                    &mut ty_fn_params_result,
+                );
+                self.add_param_vars_as_bound_vars_to_set(
+                    ty_fn.general_params,
+                    &mut ty_fn_bound_vars_due_to_params,
+                );
+                self.add_free_bound_vars_in_term_to_set(ty_fn.general_return_ty, &mut ty_fn_result);
                 for case in &ty_fn.cases {
-                    self.add_free_bound_vars_in_params_to_set(case.params, result);
-                    self.add_free_bound_vars_in_term_to_set(case.return_ty, result);
-                    self.add_free_bound_vars_in_term_to_set(case.return_value, result);
+                    self.add_free_bound_vars_in_params_to_set(
+                        case.params,
+                        &mut ty_fn_params_result,
+                    );
+                    self.add_param_vars_as_bound_vars_to_set(
+                        case.params,
+                        &mut ty_fn_bound_vars_due_to_params,
+                    );
+                    self.add_free_bound_vars_in_term_to_set(case.return_ty, &mut ty_fn_result);
+                    self.add_free_bound_vars_in_term_to_set(case.return_value, &mut ty_fn_result);
                 }
+
+                // Subtract the bound vars in the params from the result, and add the bound vars
+                // in the types and default values of the params.
+                result.extend(
+                    ty_fn_result
+                        .difference(&ty_fn_bound_vars_due_to_params)
+                        .chain(&ty_fn_params_result),
+                );
             }
             Term::TyFnTy(ty_fn_ty) => {
-                // Free vars in params, return
-                self.add_free_bound_vars_in_params_to_set(ty_fn_ty.params, result);
-                self.add_free_bound_vars_in_term_to_set(ty_fn_ty.return_ty, result);
+                // Same basic procedure as for TyFn.
+                let mut ty_fn_params_result = HashSet::new();
+                let mut ty_fn_bound_vars_due_to_params = HashSet::new();
+                let mut ty_fn_result = HashSet::new();
+
+                self.add_free_bound_vars_in_params_to_set(
+                    ty_fn_ty.params,
+                    &mut ty_fn_params_result,
+                );
+                self.add_param_vars_as_bound_vars_to_set(
+                    ty_fn_ty.params,
+                    &mut ty_fn_bound_vars_due_to_params,
+                );
+                self.add_free_bound_vars_in_term_to_set(ty_fn_ty.return_ty, &mut ty_fn_result);
+
+                result.extend(
+                    ty_fn_result
+                        .difference(&ty_fn_bound_vars_due_to_params)
+                        .chain(&ty_fn_params_result),
+                );
             }
             Term::TyFnCall(app_ty_fn) => {
                 // Free vars in subject and args
@@ -408,8 +490,8 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
                 self.add_free_bound_vars_in_args_to_set(app_ty_fn.args, result);
             }
             Term::SetBound(set_bound) => {
-                // Free vars in inner term
-                // @@PotentiallyIncomplete: do we need to look at the set bound scope here?
+                // Free vars in inner term and in the bound scope.
+                self.add_free_bound_vars_in_scope_to_set(set_bound.scope, result);
                 self.add_free_bound_vars_in_term_to_set(set_bound.term, result);
             }
             Term::TyOf(term) => {
@@ -428,9 +510,7 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             Term::Level0(term) => {
                 self.add_free_bound_vars_in_level0_term_to_set(term, result);
             }
-            // No vars:
-            // @@Reconsider: what about Term::Var? shouldn't we resolve it to see if it is a bound
-            // var?
+            // No bound vars:
             Term::Var(_) | Term::Root | Term::ScopeVar(_) | Term::Unresolved(_) => {}
         }
     }
