@@ -1055,14 +1055,16 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
             }
             TcError::InvalidAssignSubject { location } => {
-                builder
-                    .with_error_code(HashErrorCode::InvalidAssignSubject)
-                    .with_message("assignment left-hand side needs to be a variable".to_string());
+                builder.with_error_code(HashErrorCode::InvalidAssignSubject).with_message(
+                    "assignment left-hand side needs to be a stack variable".to_string(),
+                );
 
-                builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
-                    *location,
-                    "non-variable term given in an assignment here",
-                )));
+                if let Some(location) = err.location_store().get_location(*location) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        "non-variable term given in an assignment here",
+                    )));
+                }
             }
             TcError::NoConstructorOnType { subject } => {
                 builder.with_message(format!(

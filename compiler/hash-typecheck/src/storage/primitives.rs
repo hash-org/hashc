@@ -61,6 +61,20 @@ impl MemberData {
     }
 }
 
+/// The kind of a member: either a bound member or a stack member.
+/// @@Todo: distinction between actual stack and "constant stack"
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberKind {
+    /// A bound member, basically type function parameters.
+    Bound,
+    /// A stack member (basically all declared variables).
+    Stack {
+        /// The amount of assignments are left until the member has finished
+        /// initialising (== closed).
+        assignments_until_closed: usize,
+    },
+}
+
 /// A member of a scope, i.e. a variable or a type definition.
 #[derive(Debug, Clone, Copy)]
 pub struct Member {
@@ -68,25 +82,40 @@ pub struct Member {
     pub data: MemberData,
     pub visibility: Visibility,
     pub mutability: Mutability,
-    /// The amount of assignments are left until the member has finished
-    /// initialising (== closed).
-    pub assignments_until_closed: usize,
+    pub kind: MemberKind,
 }
 
 impl Member {
-    /// Create a closed member with the given data.
-    pub fn closed(
+    /// Create a closed stack member with the given data.
+    pub fn closed_stack(
         name: Identifier,
         visibility: Visibility,
         mutability: Mutability,
         data: MemberData,
     ) -> Self {
-        Member { name, data, visibility, mutability, assignments_until_closed: 0 }
+        Member {
+            name,
+            data,
+            visibility,
+            mutability,
+            kind: MemberKind::Stack { assignments_until_closed: 0 },
+        }
     }
 
-    /// Whether the member is closed (no assignments remaining).
-    pub fn is_closed(&self) -> bool {
-        self.assignments_until_closed == 0
+    /// Create a bound member with the given data.
+    pub fn bound(
+        name: Identifier,
+        visibility: Visibility,
+        mutability: Mutability,
+        data: MemberData,
+    ) -> Self {
+        Member { name, data, visibility, mutability, kind: MemberKind::Bound }
+    }
+
+    /// Whether the member is closed (no assignments remaining) and not a bound
+    /// member.
+    pub fn is_closed_and_non_bound(&self) -> bool {
+        matches!(self.kind, MemberKind::Stack { assignments_until_closed: 0 })
     }
 }
 

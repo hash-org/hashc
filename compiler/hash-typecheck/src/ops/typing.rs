@@ -251,17 +251,18 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                     }
                 }
             }
-            Term::TyOf(_) => {
-                // Since this is simplified already, all we can do is wrap it again..
+            Term::BoundVar(bound_var) => {
+                // Get its type from the surrounding context:
+                // @@Correctness: is there a point here when we should default to typeof()
+                // wrapping instead?
+                let member = self.scope_manager().get_bound_var_member(bound_var, term_id);
+                let inferred_data = self.infer_member_ty(member.member.data)?;
+                Ok(inferred_data.ty)
+            }
+            Term::ScopeVar(_) | Term::Root | Term::TyOf(_) => {
+                // Since these are simplified already, all we can do is wrap it again..
                 Ok(self.builder().create_ty_of_term(term_id))
             }
-            // The type of root is typeof(root)
-            Term::Root => {
-                let builder = self.builder();
-                Ok(builder.create_ty_of_term(builder.create_root_term()))
-            }
-            Term::ScopeVar(_) => todo!(),
-            Term::BoundVar(_) => todo!(),
         }?;
 
         self.location_store_mut().copy_location(term_id, new_term);

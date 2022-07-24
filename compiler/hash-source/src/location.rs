@@ -74,7 +74,7 @@ impl fmt::Display for Span {
     }
 }
 
-#[derive(Debug, Clone, Copy, Constructor)]
+#[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash)]
 pub struct SourceLocation {
     pub span: Span,
     pub source_id: SourceId,

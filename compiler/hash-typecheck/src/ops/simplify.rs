@@ -561,7 +561,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         };
 
         match simplified_subject {
-            Term::TyFn(ty_fn) => {
+            Term::TyFn(_ty_fn) => {
+                // @@Todo: update to use set bound
+                todo!()
+                /*
                 // Keep track of encountered errors so that if no cases match, we can return all
                 // of them.
                 let mut errors = vec![];
@@ -613,6 +616,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     // Otherwise, merge the results
                     Ok(Some(self.builder().create_term(Term::Merge(results))))
                 }
+                */
             }
             Term::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
@@ -1308,8 +1312,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             }
             // Resolve the variable to its value if it is set and closed.
             Term::ScopeVar(var) => {
-                let scope_member = self.scope_manager().get_scope_member_from_var(var);
-                if scope_member.member.is_closed() {
+                let scope_member = self.scope_manager().get_scope_var_member(var);
+                if scope_member.member.is_closed_and_non_bound() {
                     let maybe_resolved_term_id = scope_member.member.data.value();
                     // Try to simplify it
                     if let Some(resolved_term_id) = maybe_resolved_term_id {

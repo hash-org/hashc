@@ -4,13 +4,13 @@ use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
-        macros::tc_panic_on_many,
+        macros::{tc_panic, tc_panic_on_many},
         reporting::TcErrorWithStorage,
     },
     storage::{
         primitives::{
-            ArgsId, Member, MemberData, Mutability, ParamsId, ScopeId, ScopeKind, ScopeMember,
-            ScopeVar, TermId, Visibility,
+            ArgsId, BoundVar, Member, MemberData, MemberKind, Mutability, ParamsId, ScopeId,
+            ScopeKind, ScopeMember, ScopeVar, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -66,10 +66,45 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     }
 
     /// Get a [ScopeMember] from a [ScopeVar].
-    pub(crate) fn get_scope_member_from_var(&mut self, scope_var: ScopeVar) -> ScopeMember {
+    pub(crate) fn get_scope_var_member(&mut self, scope_var: ScopeVar) -> ScopeMember {
         let reader = self.reader();
         let member = reader.get_scope(scope_var.scope).get_by_index(scope_var.index);
         ScopeMember { member, scope_id: scope_var.scope, index: scope_var.index }
+    }
+
+    /// Get a [ScopeMember] from a [BoundVar].
+    ///
+    /// The returned member is derived from the parameter list that the variable
+    /// is bound to. Furthermore, the originating scope must be either
+    /// [ScopeKind::Bound] or [ScopeKind::SetBound]. Otherwise it panics.
+    pub(crate) fn get_bound_var_member(
+        &mut self,
+        bound_var: BoundVar,
+        originating_term: TermId,
+    ) -> ScopeMember {
+        match self.resolve_name_in_scopes(bound_var.name, originating_term) {
+            Ok(scope_member) => {
+                let reader = self.reader();
+                let scope = reader.get_scope(scope_member.scope_id);
+                if scope.kind != ScopeKind::Bound && scope.kind != ScopeKind::SetBound {
+                    tc_panic!(
+                        originating_term,
+                        self,
+                        "Cannot get bound variable member from non-bound scope: {:?}",
+                        scope.kind
+                    );
+                }
+                scope_member
+            }
+            Err(_) => {
+                tc_panic!(
+                    originating_term,
+                    self,
+                    "Bound var {} not found in current context",
+                    bound_var.name
+                );
+            }
+        }
     }
 
     /// Create a parameter scope, which is a scope that contains all the given
@@ -122,7 +157,7 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
 
         let builder = self.builder();
         let members = paired.iter().filter_map(|(param, arg)| {
-            Some(Member::closed(
+            Some(Member::bound(
                 param.name?,
                 Visibility::Private,
                 Mutability::Immutable,
@@ -187,19 +222,26 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
         //     tc_panic!(value, self, "Cannot assign to closed member");
         // }
 
-        member.assignments_until_closed -= 1;
-        match member.data {
-            MemberData::Uninitialised { .. } => {
-                member.data = MemberData::InitialisedWithInferredTy { value }
+        match &mut member.kind {
+            MemberKind::Bound => {
+                // @@Todo: refine this error
+                Err(TcError::InvalidAssignSubject { location: (scope_id, index).into() })
             }
-            MemberData::InitialisedWithTy { ty, .. } => {
-                member.data = MemberData::InitialisedWithTy { value, ty }
-            }
-            MemberData::InitialisedWithInferredTy { .. } => {
-                member.data = MemberData::InitialisedWithInferredTy { value }
+            MemberKind::Stack { assignments_until_closed } => {
+                *assignments_until_closed -= 1;
+                match member.data {
+                    MemberData::Uninitialised { .. } => {
+                        member.data = MemberData::InitialisedWithInferredTy { value }
+                    }
+                    MemberData::InitialisedWithTy { ty, .. } => {
+                        member.data = MemberData::InitialisedWithTy { value, ty }
+                    }
+                    MemberData::InitialisedWithInferredTy { .. } => {
+                        member.data = MemberData::InitialisedWithInferredTy { value }
+                    }
+                }
+                Ok(())
             }
         }
-
-        Ok(())
     }
 }

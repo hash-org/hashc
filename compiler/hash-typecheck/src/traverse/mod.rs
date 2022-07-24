@@ -1597,7 +1597,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             None => {
                 if let Pat::Binding(BindingPat { name, mutability, visibility }) = pat {
                     // Add the member without a value:
-                    vec![Member::closed(
+                    vec![Member::bound(
                         name,
                         visibility,
                         mutability,
@@ -1657,7 +1657,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             ast::ExprKind::Variable(name) => name.name.ident,
             _ => {
                 return Err(TcError::InvalidAssignSubject {
-                    location: self.source_location_at_node(node),
+                    location: self.source_location_at_node(node).into(),
                 });
             }
         };
