@@ -1,4 +1,5 @@
 //! Contains operations to get the type of a term.
+use hash_ast::ast::ParamOrigin;
 use itertools::Itertools;
 
 use crate::{
@@ -8,8 +9,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-            MemberData, ModDefOrigin, Param, ParamsId, Pat, PatId, PatParamsId, Term, TermId,
+            AccessOp, AccessPat, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term, Level1Term,
+            Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin, NominalDef, Param,
+            ParamsId, Pat, PatId, PatParamsId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -232,6 +234,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         let params = self.infer_params_of_args(tuple_lit.members, false)?;
                         Ok(self.builder().create_tuple_ty_term(params))
                     }
+                    Level0Term::Constructed(ConstructedTerm { subject, .. }) => Ok(subject),
                     Level0Term::Lit(lit_term) => {
                         // This gets the type of the literal
 
@@ -302,19 +305,19 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     /// From the given [PatParamsId], infer a [ArgsId] describing the the
     /// arguments.
     pub(crate) fn infer_args_of_pat_params(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
-        let pat_params = self.reader().get_pat_params(id).clone();
-        let origin = pat_params.origin();
+        let pat_args = self.reader().get_pat_params(id).clone();
+        let origin = pat_args.origin();
 
-        let param_tys: Vec<_> = pat_params
+        let arg_tys: Vec<_> = pat_args
             .into_positional()
             .into_iter()
             .map(|param| Ok(Arg { name: param.name, value: self.get_term_of_pat(param.pat)? }))
             .collect::<TcResult<_>>()?;
 
-        let args_id = self.builder().create_args(param_tys.iter().copied(), origin);
+        let args_id = self.builder().create_args(arg_tys.iter().copied(), origin);
 
         // Copy locations:
-        for i in 0..param_tys.len() {
+        for i in 0..arg_tys.len() {
             self.location_store_mut().copy_location((id, i), (args_id, i))
         }
 
@@ -331,10 +334,17 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     /// subject.
     pub(crate) fn get_term_of_pat(&mut self, pat_id: PatId) -> TcResult<TermId> {
         let pat = self.reader().get_pat(pat_id).clone();
+
         let ty_of_pat = match pat {
             Pat::Mod(_) | Pat::Ignore | Pat::Binding(_) => {
                 // We don't know this; it depends on the subject:
                 Ok(self.builder().create_unresolved_term())
+            }
+            Pat::Const(ConstPat { term, .. }) => Ok(term),
+            Pat::Access(AccessPat { subject, property }) => {
+                let subject_id = self.get_term_of_pat(subject)?;
+
+                Ok(self.builder().create_access(subject_id, property, AccessOp::Namespace))
             }
             Pat::Lit(lit_term) => {
                 // The term of a literal pattern is the literal (lol):
@@ -344,21 +354,43 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 // For each parameter, get its type, and then create a tuple
                 // type:
                 let params_id = self.infer_args_of_pat_params(tuple_pat)?;
-                let builder = self.builder();
-                Ok(builder.create_tuple_lit_term(params_id))
+                Ok(self.builder().create_tuple_lit_term(params_id))
             }
-            Pat::Constructor(constructor_pat) => match constructor_pat.params {
-                Some(params) => {
-                    // We have params to apply, so we need to create an FnCall
-                    let args_id = self.infer_args_of_pat_params(params)?;
-                    let builder = self.builder();
-                    Ok(builder.create_fn_call_term(constructor_pat.subject, args_id))
-                }
-                None => {
-                    // We just use the subject
-                    Ok(constructor_pat.subject)
-                }
-            },
+            Pat::Constructor(constructor_pat) => {
+                // We have params to apply, so we need to create an FnCall
+                let args_id = self.infer_args_of_pat_params(constructor_pat.params)?;
+                Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
+            }
+            Pat::List(ListPat { term, .. }) => {
+                // We want to create a `List<T = term>` as the type of the pattern
+                let list_inner_ty = self.core_defs().list_ty_fn;
+                let builder = self.builder();
+
+                let list_ty = builder.create_app_ty_fn_term(
+                    list_inner_ty,
+                    builder.create_args([builder.create_arg("T", term)], ParamOrigin::TyFn),
+                );
+
+                Ok(builder.create_rt_term(list_ty))
+            }
+            Pat::Spread(_) => {
+                let list_inner_ty = self.core_defs().list_ty_fn;
+                let builder = self.builder();
+
+                // Since we don't know what the type of the inner term... we leave it as
+                // unresolved for later, it will be resolved during further inference
+                let unknown_term = builder.create_unresolved_term();
+
+                let list_ty = builder.create_app_ty_fn_term(
+                    list_inner_ty,
+                    builder.create_args(
+                        [builder.create_nameless_arg(unknown_term)],
+                        ParamOrigin::TyFn,
+                    ),
+                );
+
+                Ok(builder.create_rt_term(list_ty))
+            }
             Pat::Or(pats) => {
                 // Get the inner pattern types:
                 let pat_tys: Vec<_> = pats
@@ -389,12 +421,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
     ///
     /// This function will populate default values if it can (if the tuple is a
     /// literal).
-    pub(crate) fn get_params_ty_of_tuple_term(
+    pub(crate) fn infer_params_ty_of_tuple_term(
         &mut self,
         tuple_term_id: TermId,
     ) -> TcResult<Option<ParamsId>> {
-        let tuple_ty_id = self.infer_ty_of_simplified_term(tuple_term_id)?;
-
         // First, try to read the value as a tuple literal:
         let tuple_term = self.reader().get_term(tuple_term_id).clone();
         match tuple_term {
@@ -402,6 +432,8 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 Ok(Some(self.infer_params_of_args(tuple_lit.members, true)?))
             }
             _ => {
+                let tuple_ty_id = self.infer_ty_of_simplified_term(tuple_term_id)?;
+
                 // Otherwise, get the type and try to get the parameters that way:
                 let tuple_ty = self.reader().get_term(tuple_ty_id).clone();
                 match tuple_ty {
@@ -410,13 +442,90 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                         terms
                             .iter()
                             .copied()
-                            .map(|term| self.get_params_ty_of_tuple_term(term))
+                            .map(|term| self.infer_params_ty_of_tuple_term(term))
                             .flatten_ok()
                             .next()
                             .transpose()
                     }
+                    // @@Todo: remove default members:
                     Term::Level1(Level1Term::Tuple(tuple_ty)) => Ok(Some(tuple_ty.members)),
                     _ => Ok(None),
+                }
+            }
+        }
+    }
+
+    /// Get the parameters and subject of the given nominal term, if possible.
+    ///
+    /// This function returns a list of constructors for the given nominal term,
+    /// as pairs of function call subject and params. If the list is empty,
+    /// there are no constructors.
+    ///
+    /// This function will populate default values in the params if it can (if
+    /// the term is a constructed literal).
+    pub(crate) fn infer_constructors_of_nominal_term(
+        &mut self,
+        term_id: TermId,
+    ) -> TcResult<Vec<(TermId, ParamsId)>> {
+        let term = self.reader().get_term(term_id).clone();
+
+        match term {
+            Term::Level0(Level0Term::Constructed(ConstructedTerm { subject, members })) => {
+                let members = self.infer_params_of_args(members, true)?;
+                Ok(vec![(subject, members)])
+            }
+            _ => {
+                let constructed_ty_id = self.infer_ty_of_simplified_term(term_id)?;
+                let reader = self.reader();
+                let constructed_term = reader.get_term(constructed_ty_id).clone();
+
+                match constructed_term {
+                    Term::Union(terms) => {
+                        // Accumulate all terms
+                        terms
+                            .iter()
+                            .copied()
+                            .map(|term| self.infer_constructors_of_nominal_term(term))
+                            .flatten_ok()
+                            .collect()
+                    }
+                    Term::ScopeVar(_) => {
+                        // Recurse and apply sub
+                        todo!()
+                        // let result =
+                        // self.infer_constructors_of_nominal_term(term)?;
+                        // Ok(result
+                        //     .into_iter()
+                        //     .map(|(subject, params)| {
+                        //         let mut substituter = self.substituter();
+                        //         (
+                        //             substituter.apply_sub_to_term(&sub,
+                        // subject),
+                        // substituter.apply_sub_to_params(&sub, params),
+                        //         )
+                        //     })
+                        //     .collect())
+                    }
+                    Term::Merge(terms) => {
+                        // Try each term:
+                        terms
+                            .iter()
+                            .copied()
+                            .map(|term| self.infer_constructors_of_nominal_term(term))
+                            .flatten_ok()
+                            .collect()
+                    }
+                    Term::Level1(Level1Term::NominalDef(nominal_id)) => {
+                        match reader.get_nominal_def(nominal_id) {
+                            NominalDef::Struct(struct_def) => match struct_def.fields {
+                                // @@Todo: remove default members:
+                                StructFields::Explicit(params) => Ok(vec![(term_id, params)]),
+                                StructFields::Opaque => Ok(vec![]),
+                            },
+                            _ => Ok(vec![]),
+                        }
+                    }
+                    _ => Ok(vec![]),
                 }
             }
         }

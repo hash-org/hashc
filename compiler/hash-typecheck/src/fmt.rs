@@ -3,10 +3,11 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, ArgsId, BoundVar, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term,
-        LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
-        ParamsId, Pat, PatId, PatParamsId, ScopeId, ScopeVar, StructDef, Sub, SubSubject, Term,
-        TermId, TrtDefId, UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessPat, ArgsId, BoundVar, ConstPat, ConstructedTerm, EnumDef, Level0Term,
+        Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin,
+        ModPat, Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId,
+        ScopeVar, SpreadPat, StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm,
+        Var, Visibility,
     },
     GlobalStorage,
 };
@@ -236,6 +237,16 @@ impl<'gs> TcFormatter<'gs> {
             Level0Term::Tuple(tuple_lit) => {
                 opts.is_atomic.set(true);
                 write!(f, "({})", tuple_lit.members.for_formatting(self.global_storage))
+            }
+            Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                opts.is_atomic.set(true);
+
+                write!(
+                    f,
+                    "{}({})",
+                    subject.for_formatting(self.global_storage),
+                    members.for_formatting(self.global_storage)
+                )
             }
         }
     }
@@ -584,6 +595,10 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(false);
                 write!(f, "{}{}{}", visibility, mutability, name)
             }
+            Pat::Access(AccessPat { subject, property }) => {
+                write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
+            }
+            Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
             Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
@@ -592,9 +607,7 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Constructor(constructor_pat) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, constructor_pat.subject, opts)?;
-                if let Some(params) = constructor_pat.params {
-                    write!(f, "({})", params.for_formatting(self.global_storage))?;
-                }
+                write!(f, "({})", constructor_pat.params.for_formatting(self.global_storage))?;
                 Ok(())
             }
             Pat::Or(pats) => {
@@ -647,6 +660,19 @@ impl<'gs> TcFormatter<'gs> {
                     }
                 }
                 write!(f, " }}")?;
+
+                Ok(())
+            }
+            Pat::List(ListPat { term, .. }) => {
+                write!(f, "[{}]", term.for_formatting(self.global_storage))
+            }
+            Pat::Spread(SpreadPat { name }) => {
+                write!(f, "...")?;
+
+                // Write the name bind, if it exists
+                if let Some(name) = name {
+                    write!(f, "{}", name)?;
+                }
 
                 Ok(())
             }

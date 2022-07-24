@@ -13,9 +13,9 @@ use crate::{
     },
     storage::{
         primitives::{
-            AccessOp, AccessTerm, Arg, ArgsId, FnLit, FnTy, Level0Term, Level1Term, Level2Term,
-            Level3Term, NominalDef, Param, ParamsId, ScopeKind, StructFields, Term, TermId,
-            TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
+            AccessOp, AccessTerm, Arg, ArgsId, ConstructedTerm, FnLit, FnTy, Level0Term,
+            Level1Term, Level2Term, Level3Term, NominalDef, Param, ParamsId, ScopeKind,
+            StructFields, Term, TermId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -313,7 +313,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     "Function call in access apply should have already been simplified!"
                 )
             }
-            Level0Term::Tuple(TupleLit { members }) => {
+            Level0Term::Constructed(ConstructedTerm { members, .. })
+            | Level0Term::Tuple(TupleLit { members }) => {
                 let tuple_members = self.args_store().get(*members);
                 if let Some((_, member)) = tuple_members.get_by_name(access_term.name) {
                     Ok(Some(member.value))
@@ -646,6 +647,123 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         }
     }
 
+    /// Check whether a given term can be used as a `Constructed` subject. There
+    /// are three cases that need to be considered within this check:
+    ///
+    /// - If the given term is a nominal struct definition
+    /// - If merge, then only one member should be a struct
+    /// - If app-sub, child can be struct/merge (recurse) * apply sub before
+    ///   return *
+    ///
+    /// *Note*: Expects the term to be simplified.
+    pub fn is_term_constructable(&self, term_id: TermId) -> bool {
+        let reader = self.reader();
+        let term = reader.get_term(term_id);
+
+        match term {
+            Term::Merge(terms) => terms.iter().any(|term| self.is_term_constructable(*term)),
+            Term::SetBound(_) => todo!(),
+            // @@Todo: should be specifically a struct!
+            Term::Level1(Level1Term::NominalDef(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Use a given term can as the `Constructed` subject. There
+    /// are three cases that a term can be used as the subject of a
+    /// [ConstructedTerm].
+    ///
+    /// - If the given term is a nominal struct definition
+    /// - If merge, then only one member should be a struct
+    /// - If app-sub, child can be struct/merge (recurse) * apply sub before
+    ///   return *
+    ///
+    /// *Note*: Expects the term to be simplified.
+
+    pub fn use_term_as_constructed_subject(
+        &mut self,
+        term_id: TermId,
+        args: ArgsId,
+    ) -> TcResult<ConstructedTerm> {
+        let reader = self.reader();
+        let term = reader.get_term(term_id);
+
+        let cannot_use_as_call_subject = || Err(TcError::InvalidCallSubject { term: term_id });
+
+        match term {
+            Term::Merge(terms) => {
+                // Recurse into the inner terms:
+                let terms = terms.clone();
+                let results: Vec<_> = terms
+                    .iter()
+                    .filter_map(|item| self.use_term_as_constructed_subject(*item, args).ok())
+                    .collect();
+
+                match results.as_slice() {
+                    // Got no results, cannot be used as fn call:
+                    [] => cannot_use_as_call_subject(),
+                    // We only got a single result, so we can use it:
+                    [result] => {
+                        // The result we got, we have to merge its return value with the rest of
+                        // the elements:
+                        Ok(ConstructedTerm { members: result.members, subject: term_id })
+                    }
+                    // Got multiple results, which should not happen:
+                    results => {
+                        let result_terms = results
+                            .iter()
+                            .map(|result| {
+                                self.builder()
+                                    .create_term(Term::Level0(Level0Term::Constructed(*result)))
+                            })
+                            .collect::<Vec<_>>();
+
+                        tc_panic_on_many!(
+                                result_terms,
+                                self,
+                                "Got multiple results when using merge term as constructed subject: {:?}",
+                                results
+                            )
+                    }
+                }
+            }
+            Term::SetBound(_) => {
+                todo!()
+            }
+            Term::Level1(Level1Term::NominalDef(nominal_def_id)) => {
+                let reader = self.reader();
+
+                let nominal_def = reader.get_nominal_def(*nominal_def_id);
+                match nominal_def {
+                    NominalDef::Struct(struct_def) => {
+                        let params_id = match struct_def.fields {
+                            StructFields::Explicit(params) => params,
+                            StructFields::Opaque => {
+                                // Cannot construct an opaque struct:
+                                return cannot_use_as_call_subject();
+                            }
+                        };
+
+                        let params_sub = self.unifier().unify_params_with_args(
+                            params_id,
+                            args,
+                            term_id,
+                            term_id,
+                            UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
+                        )?;
+
+                        // Apply substitution to arguments
+                        let members = self.substituter().apply_sub_to_args(&params_sub, args);
+
+                        Ok(ConstructedTerm { subject: term_id, members })
+                    }
+                    NominalDef::Enum(_) => cannot_use_as_call_subject(),
+                }
+            }
+            _ => cannot_use_as_call_subject(),
+        }
+    }
+
     /// Use the given term in function call subject position, returning the type
     /// of the function it represents.
     ///
@@ -660,7 +778,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
 
-        let cannot_use_as_fn_call_subject = || Err(TcError::InvalidFnCallSubject { term: term_id });
+        let cannot_use_as_fn_call_subject = || Err(TcError::InvalidCallSubject { term: term_id });
 
         match term {
             Term::Merge(terms) => {
@@ -722,40 +840,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 // For now error:
                 cannot_use_as_fn_call_subject()
             }
-            Term::Level1(level1_term) => {
-                // Ensure it is a struct def
-                match level1_term {
-                    Level1Term::NominalDef(nominal_def_id) => {
-                        let reader = self.reader();
-                        let nominal_def = reader.get_nominal_def(*nominal_def_id);
-                        match nominal_def {
-                            NominalDef::Struct(struct_def) => {
-                                let params = match struct_def.fields {
-                                    StructFields::Explicit(params) => params,
-                                    StructFields::Opaque => {
-                                        // Cannot construct an opaque struct:
-                                        return cannot_use_as_fn_call_subject();
-                                    }
-                                };
-
-                                // Create a function type with the struct def as return type:
-
-                                // Note: if this is in a parent merge, it will be dealt with in the
-                                // Merge branch above.
-                                let nominal_def_id = *nominal_def_id;
-                                Ok(FnTy {
-                                    params,
-                                    return_ty: self
-                                        .builder()
-                                        .create_nominal_def_term(nominal_def_id),
-                                })
-                            }
-                            NominalDef::Enum(_) => cannot_use_as_fn_call_subject(),
-                        }
-                    }
-                    _ => cannot_use_as_fn_call_subject(),
-                }
-            }
             Term::Level0(level0_term) => {
                 // Ensure it is either an enum variant, or Rt(Fn(..)) or
                 // FnLit(..)
@@ -810,12 +894,14 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     }
                     Level0Term::Lit(_) => cannot_use_as_fn_call_subject(),
                     Level0Term::Tuple(_) => cannot_use_as_fn_call_subject(),
+                    Level0Term::Constructed(_) => cannot_use_as_fn_call_subject(),
                 }
             }
 
             // Cannot be used as function call subjects:
             // (Remember, the term should have already been simplified)
             Term::Level2(_)
+            | Term::Level1(_)
             | Term::Level3(_)
             | Term::TyFnCall(_)
             | Term::TyFn(_)
@@ -865,17 +951,28 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Level0Term::EnumVariant(_) => Ok(None),
-            Level0Term::FnCall(fn_call) => {
+            Level0Term::FnCall(call) if self.is_term_constructable(call.subject) => {
+                let simplified_subject = self.potentially_simplify_term(call.subject)?;
+                let constructed_ty =
+                    self.use_term_as_constructed_subject(simplified_subject, call.args)?;
+
+                let term = self
+                    .builder()
+                    .create_term(Term::Level0(Level0Term::Constructed(constructed_ty)));
+
+                Ok(Some(term))
+            }
+            Level0Term::FnCall(call) => {
                 // Apply the function:
 
                 // Must be a function:
-                let simplified_subject = self.potentially_simplify_term(fn_call.subject)?;
+                let simplified_subject = self.potentially_simplify_term(call.subject)?;
                 let fn_ty = self.use_term_as_fn_call_subject(simplified_subject)?;
 
                 // Unify params with args:
                 let params_sub = self.unifier().unify_params_with_args(
                     fn_ty.params,
-                    fn_call.args,
+                    call.args,
                     simplified_subject,
                     originating_term,
                     UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
@@ -896,6 +993,19 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 }
             }
             Level0Term::Lit(_) => Ok(None),
+            Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                let simplified_subject = self.simplify_term(*subject)?;
+                let simplified_members = self.simplify_args(*members)?;
+
+                if simplified_subject.is_some() || simplified_members.is_some() {
+                    let subject = simplified_subject.unwrap_or(*subject);
+                    let members = simplified_members.unwrap_or(*members);
+
+                    Ok(Some(self.builder().create_constructed_term(subject, members)))
+                } else {
+                    Ok(None)
+                }
+            }
         }
     }
 

@@ -87,6 +87,10 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             Level0Term::Tuple(tuple_lit) => {
                 self.add_free_sub_vars_in_args_to_set(tuple_lit.members, result);
             }
+            Level0Term::Constructed(constructed) => {
+                self.add_free_sub_vars_in_term_to_set(constructed.subject, result);
+                self.add_free_sub_vars_in_args_to_set(constructed.members, result);
+            }
             Level0Term::EnumVariant(_) | Level0Term::Lit(_) => {}
         }
     }
@@ -304,6 +308,10 @@ impl<'gs, 'ls, 'cd, 's> Discoverer<'gs, 'ls, 'cd, 's> {
             }
             Level0Term::Tuple(tuple_lit) => {
                 self.add_free_bound_vars_in_args_to_set(tuple_lit.members, result);
+            }
+            Level0Term::Constructed(constructed) => {
+                self.add_free_bound_vars_in_term_to_set(constructed.subject, result);
+                self.add_free_bound_vars_in_args_to_set(constructed.members, result);
             }
             Level0Term::EnumVariant(_) | Level0Term::Lit(_) => {}
         }

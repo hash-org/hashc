@@ -946,6 +946,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
+    type SpreadPatRet = ();
+
+    fn visit_spread_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
+        Ok(())
+    }
+
     type StrLitPatRet = ();
 
     fn visit_str_lit_pat(
@@ -1034,16 +1044,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
-        Ok(())
-    }
-
-    type SpreadPatRet = ();
-
-    fn visit_spread_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
         Ok(())
     }
 

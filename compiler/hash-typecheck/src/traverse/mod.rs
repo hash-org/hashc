@@ -9,8 +9,9 @@ use crate::{
     storage::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
-            AccessOp, Arg, ArgsId, BindingPat, EnumVariant, Member, MemberData, ModDefOrigin,
-            Mutability, Param, Pat, PatId, PatParam, ScopeKind, Sub, TermId, Visibility,
+            AccessOp, Arg, ArgsId, BindingPat, ConstPat, EnumVariant, Member, MemberData,
+            ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, ScopeKind, SpreadPat, Sub,
+            TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
     },
@@ -820,15 +821,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_ty = self.core_defs().list_ty_fn;
         let builder = self.builder();
 
-        let list_ty = builder.create_app_ty_fn_term(
+        let term = builder.create_app_ty_fn_term(
             inner_ty,
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        let term = builder.create_rt_term(list_ty);
-
         self.copy_location_from_node_to_target(node, term);
-
         Ok(term)
     }
 
@@ -1953,10 +1951,14 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_access_pat(
         &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::AccessPat>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessPat>,
     ) -> Result<Self::AccessPatRet, Self::Error> {
-        todo!()
+        let walk::AccessPat { subject, property } = walk::walk_access_pat(self, ctx, node)?;
+
+        let access_pat = self.builder().create_access_pat(subject, property);
+
+        Ok(access_pat)
     }
 
     type ConstructorPatRet = PatId;
@@ -1966,10 +1968,11 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         ctx: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
-        let walk::ConstructorPat { subject, args } = walk::walk_constructor_pat(self, ctx, node)?;
+        let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
+
         let constructor_params = self.builder().create_pat_params(args, ParamOrigin::Unknown);
 
-        let subject = self.typer().infer_ty_of_pat(subject)?;
+        let subject = self.typer().get_term_of_pat(subject)?;
         let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), constructor_params);
@@ -2027,10 +2030,49 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_list_pat(
         &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
-        todo!()
+        let walk::ListPat { elements } = walk::walk_list_pat(self, ctx, node)?;
+
+        // We need to collect all of the terms within the inner pattern, but we need
+        // have a special case for `spread patterns` because they will return `[term]`
+        // rather than `term`...
+        let inner_terms = elements
+            .iter()
+            .zip(node.fields.iter())
+            .filter(|(_, node)| !matches!(node.body(), hash_ast::ast::Pat::Spread(_)))
+            .map(|(element, _)| -> TcResult<TermId> { self.typer().get_term_of_pat(*element) })
+            .collect::<TcResult<Vec<_>>>()?;
+
+        let list_term = self.unify_term_sequence(inner_terms)?;
+
+        let members = self.builder().create_pat_params(
+            elements.into_iter().map(|pat| PatParam { name: None, pat }),
+            ParamOrigin::ListPat,
+        );
+
+        let list_pat = self.builder().create_list_pat(list_term, members);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+        self.copy_location_from_node_to_target(node, list_pat);
+
+        Ok(list_pat)
+    }
+
+    type SpreadPatRet = PatId;
+
+    fn visit_spread_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
+        let walk::SpreadPat { name } = walk::walk_spread_pat(self, ctx, node)?;
+
+        let spread_pat = self.builder().create_pat(Pat::Spread(SpreadPat { name }));
+
+        self.copy_location_from_node_to_target(node, spread_pat);
+        Ok(spread_pat)
     }
 
     type StrLitPatRet = PatId;
@@ -2149,34 +2191,33 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     }
 
     type BindingPatRet = PatId;
-
     fn visit_binding_pat(
         &mut self,
         _: &Self::Ctx,
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::BindingPat>,
     ) -> Result<Self::BindingPatRet, Self::Error> {
-        let pat = self.builder().create_binding_pat(
-            node.name.body().ident,
-            match node.mutability.as_ref().map(|x| *x.body()) {
-                Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
-                Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
-            },
-            match node.visibility.as_ref().map(|x| *x.body()) {
-                Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
-                Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
-            },
-        );
-        self.copy_location_from_node_to_target(node, pat);
-        Ok(pat)
-    }
+        let name = node.name.ident;
+        let term = self.builder().create_var_term(name);
 
-    type SpreadPatRet = PatId;
-    fn visit_spread_pat(
-        &mut self,
-        _ctx: &Self::Ctx,
-        _node: hash_ast::ast::AstNodeRef<hash_ast::ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
-        todo!()
+        match self.scope_manager().resolve_name_in_scopes(name, term) {
+            Ok(_) => Ok(self.builder().create_pat(Pat::Const(ConstPat { term }))),
+            Err(_) => {
+                let pat = self.builder().create_binding_pat(
+                    node.name.body().ident,
+                    match node.mutability.as_ref().map(|x| *x.body()) {
+                        Some(hash_ast::ast::Mutability::Mutable) => Mutability::Mutable,
+                        Some(hash_ast::ast::Mutability::Immutable) | None => Mutability::Immutable,
+                    },
+                    match node.visibility.as_ref().map(|x| *x.body()) {
+                        Some(hash_ast::ast::Visibility::Private) | None => Visibility::Private,
+                        Some(hash_ast::ast::Visibility::Public) => Visibility::Public,
+                    },
+                );
+                self.copy_location_from_node_to_target(node, pat);
+
+                Ok(pat)
+            }
+        }
     }
 
     type IgnorePatRet = PatId;

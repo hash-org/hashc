@@ -3,13 +3,13 @@
 use crate::storage::{
     location::LocationTarget,
     primitives::{
-        AccessOp, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstructorPat, EnumDef,
-        EnumVariant, EnumVariantValue, FnCall, FnLit, FnTy, IfPat, Level0Term, Level1Term,
-        Level2Term, Level3Term, LitTerm, Member, MemberData, ModDef, ModDefId, ModDefOrigin,
-        ModPat, Mutability, NominalDef, NominalDefId, Param, ParamList, ParamsId, Pat, PatId,
-        PatParam, PatParamsId, Scope, ScopeId, ScopeKind, ScopeVar, SetBound, StructDef,
-        StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy, TyFn, TyFnCall, TyFnCase,
-        TyFnTy, UnresolvedTerm, Var, Visibility,
+        AccessOp, AccessPat, AccessTerm, Arg, ArgsId, BindingPat, BoundVar, ConstPat,
+        ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
+        FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
+        MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
+        Param, ParamList, ParamsId, Pat, PatId, PatParam, PatParamsId, Scope, ScopeId, ScopeKind,
+        ScopeVar, SetBound, StructDef, StructFields, Term, TermId, TrtDef, TrtDefId, TupleLit,
+        TupleTy, TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
     GlobalStorage,
 };
@@ -401,6 +401,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
         self.create_term(Term::Level0(Level0Term::Tuple(TupleLit { members })))
     }
 
+    /// Create a tuple literal term [Level0Term::Constructed].
+    pub fn create_constructed_term(&self, subject: TermId, members: ArgsId) -> TermId {
+        self.create_term(Term::Level0(Level0Term::Constructed(ConstructedTerm {
+            subject,
+            members,
+        })))
+    }
+
     /// Create a [Level0Term::Rt] of the given type.
     pub fn create_rt_term(&self, ty_term_id: TermId) -> TermId {
         self.create_term(Term::Level0(Level0Term::Rt(ty_term_id)))
@@ -636,12 +644,17 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a constructor pattern.
     pub fn create_constructor_pat(&self, subject: TermId, params: PatParamsId) -> PatId {
-        self.create_pat(Pat::Constructor(ConstructorPat { subject, params: Some(params) }))
+        self.create_pat(Pat::Constructor(ConstructorPat { subject, params }))
     }
 
     /// Create a constructor pattern without parameters.
-    pub fn create_constant_pat(&self, subject: TermId) -> PatId {
-        self.create_pat(Pat::Constructor(ConstructorPat { subject, params: None }))
+    pub fn create_constant_pat(&self, term: TermId) -> PatId {
+        self.create_pat(Pat::Const(ConstPat { term }))
+    }
+
+    /// Create a list pattern with parameters.
+    pub fn create_list_pat(&self, term: TermId, inner: PatParamsId) -> PatId {
+        self.create_pat(Pat::List(ListPat { term, inner }))
     }
 
     /// Create a binding pattern.
@@ -682,6 +695,11 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create an ignore pattern ("_").
     pub fn create_ignore_pat(&self) -> PatId {
         self.create_pat(Pat::Ignore)
+    }
+
+    /// Create an access pattern.
+    pub fn create_access_pat(&self, subject: PatId, property: impl Into<Identifier>) -> PatId {
+        self.create_pat(Pat::Access(AccessPat { subject, property: property.into() }))
     }
 
     /// Add a [SourceLocation] to a [LocationTarget].

@@ -725,6 +725,16 @@ pub struct TupleLit {
     pub members: ArgsId,
 }
 
+/// A constructed term represents a constructed value that is some constructed
+/// value which originated as being a struct.
+#[derive(Debug, Clone, Copy)]
+pub struct ConstructedTerm {
+    /// The term of the subject within the constructed term
+    pub subject: TermId,
+    /// The constructor arguments
+    pub members: ArgsId,
+}
+
 /// A level 0 term.
 ///
 /// Type of: nothing.
@@ -748,6 +758,9 @@ pub enum Level0Term {
 
     /// A literal term
     Lit(LitTerm),
+
+    /// A constructed term
+    Constructed(ConstructedTerm),
 }
 
 /// The subject of a substitution: an unresolved term.
@@ -945,6 +958,26 @@ pub struct BindingPat {
     pub visibility: Visibility,
 }
 
+/// An access pattern is the equivalent of an access expression which denotes
+/// accessing symbols within some namespace. The `property` that is accessed
+/// from the subject.
+#[derive(Clone, Debug, Copy)]
+pub struct AccessPat {
+    /// The subject that is to be accessed
+    pub subject: PatId,
+    /// The property that is accessed from the `subject`
+    pub property: Identifier,
+}
+
+/// A constant pattern is essentially a bind pattern that can be resolved within
+/// the current scope of the pattern. This used to support [Pat::Access] working
+/// the resolution machinery.
+#[derive(Clone, Debug, Copy)]
+pub struct ConstPat {
+    /// The resolved term of the constant.
+    pub term: TermId,
+}
+
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
 pub struct PatParam {
@@ -967,7 +1000,23 @@ pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: Option<PatParamsId>,
+    pub params: PatParamsId,
+}
+
+/// A list pattern
+#[derive(Clone, Debug, Copy)]
+pub struct ListPat {
+    /// The inner term of the list.
+    pub term: TermId,
+    /// Inner list of patterns
+    pub inner: PatParamsId,
+}
+
+/// Spread pattern
+#[derive(Clone, Debug, Copy)]
+pub struct SpreadPat {
+    /// Associated bind to the spread
+    pub name: Option<Identifier>,
 }
 
 /// A conditional pattern, containing a pattern and an condition.
@@ -985,12 +1034,14 @@ pub struct ModPat {
 }
 
 /// Represents a pattern in the language.
-///
-/// @@Todo: list patterns, spread patterns
 #[derive(Clone, Debug)]
 pub enum Pat {
     /// Binding pattern.
     Binding(BindingPat),
+    /// Access pattern.
+    Access(AccessPat),
+    /// Resolved binding pattern.
+    Const(ConstPat),
     /// Literal pattern, of the given term.
     ///
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
@@ -1001,6 +1052,11 @@ pub enum Pat {
     Mod(ModPat),
     /// Constructor pattern.
     Constructor(ConstructorPat),
+    /// List pattern
+    List(ListPat),
+    /// Spread pattern, which represents a pattern that captures a range of
+    /// items within a list pattern
+    Spread(SpreadPat),
     /// A set of patterns that are OR-ed together. If any one of them matches
     /// then the whole pattern matches.
     Or(Vec<PatId>),

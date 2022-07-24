@@ -632,6 +632,24 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             cannot_unify()
                         }
                     }
+                    (
+                        Level0Term::Constructed(src_constructed_term),
+                        Level0Term::Constructed(target_constructed_term),
+                    ) => {
+                        // Unify the subject of the constructed terms
+                        self.unify_terms(
+                            src_constructed_term.subject,
+                            target_constructed_term.subject,
+                        )?;
+
+                        // Unify the arguments of the constructed terms
+                        self.unify_args(
+                            src_constructed_term.members,
+                            target_constructed_term.members,
+                            src_id,
+                            target_id,
+                        )
+                    }
                     (Level0Term::Tuple(src_tuple_lit), Level0Term::Tuple(target_tuple_lit)) => {
                         // Unify each argument:
                         self.unifier().unify_args(
@@ -641,7 +659,13 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             target_id,
                         )
                     }
-                    (Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::EnumVariant(_), _) => {
+                    (
+                        Level0Term::Lit(_)
+                        | Level0Term::Tuple(_)
+                        | Level0Term::Constructed(_)
+                        | Level0Term::EnumVariant(_),
+                        _,
+                    ) => {
                         // Try to get the type of the src literal, and the type of the target, and
                         // unify:
                         let src_lit_ty =
