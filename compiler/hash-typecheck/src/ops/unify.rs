@@ -1,5 +1,7 @@
 //! Utilities related to type unification and substitution.
-use super::{params::pair_args_with_params, AccessToOps, AccessToOpsMut};
+use super::{
+    params::pair_args_with_params, typing::InferredMemberData, AccessToOps, AccessToOpsMut,
+};
 use crate::{
     diagnostics::{
         error::{TcError, TcResult},
@@ -9,7 +11,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,
+            ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, ScopeId, ScopeKind,
+            Sub, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -275,6 +278,74 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             && self.unify_terms(b, a).contains(&Sub::empty())
     }
 
+    /// The two given set bound scopes are equivalent if they have the same
+    /// distinct members.
+    ///
+    /// This panics if either scope is not [ScopeKind::SetBound], or if a type
+    /// error occurs.
+    pub(crate) fn set_bound_scopes_are_equivalent(
+        &mut self,
+        a: ScopeId,
+        b: ScopeId,
+        a_originating_term: TermId,
+        b_originating_term: TermId,
+    ) -> bool {
+        // Short-circuit: same scope IDs:
+        if a == b {
+            return true;
+        }
+
+        let reader = self.reader();
+        let scope_a = reader.get_scope(a).clone();
+        let scope_b = reader.get_scope(b).clone();
+
+        // Ensure kinds are both [Scope::SetBound]
+        if scope_a.kind != ScopeKind::SetBound || scope_b.kind != ScopeKind::SetBound {
+            tc_panic_on_many!(
+                [a_originating_term, b_originating_term],
+                self,
+                "set_bound_scopes_are_equal called with non-set-bound scopes"
+            );
+        }
+
+        // Ensure names are the same:
+        let a_names: HashSet<_> = HashSet::from_iter(scope_a.iter_names());
+        let b_names: HashSet<_> = HashSet::from_iter(scope_b.iter_names());
+        if a_names != b_names {
+            return false;
+        }
+
+        // Ensure same members
+        for name in a_names {
+            let (a_member, _) = scope_a.get(name).unwrap();
+            let (b_member, _) = scope_b.get(name).unwrap();
+            let a_data = self.typer().infer_member_ty(a_member.data).unwrap();
+            let b_data = self.typer().infer_member_ty(b_member.data).unwrap();
+            match (a_data, b_data) {
+                (
+                    InferredMemberData { ty: a_ty, value: Some(a_value) },
+                    InferredMemberData { ty: b_ty, value: Some(b_value) },
+                ) => {
+                    if !self.terms_are_equal(a_ty, b_ty) || !self.terms_are_equal(a_value, b_value)
+                    {
+                        return false;
+                    }
+                }
+                (
+                    InferredMemberData { ty: a_ty, value: None },
+                    InferredMemberData { ty: b_ty, value: None },
+                ) => {
+                    if !self.terms_are_equal(a_ty, b_ty) {
+                        return false;
+                    }
+                }
+                _ => return false,
+            }
+        }
+
+        true
+    }
+
     /// Unify the two given terms, producing a substitution.
     ///
     /// The relation between src and target is that src must be a subtype (or
@@ -432,14 +503,30 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             }
 
             // Apply substitution:
-            (Term::SetBound(_src_app_sub), Term::SetBound(_target_app_sub)) =>
-                // if self.validator().subs_are_equivalent(&src_app_sub.sub, &target_app_sub.sub) =>
+            (Term::SetBound(src_set_bound), Term::SetBound(target_set_bound))
+                if self.set_bound_scopes_are_equivalent(
+                    src_set_bound.scope,
+                    target_set_bound.scope,
+                    src_id,
+                    target_id,
+                ) =>
             {
-                // // Unify inner, then unify the resultant substitution with the ones given
-                // here: let inner_sub = self.unify_terms(src_app_sub.term,
-                // target_app_sub.term)?; self.unify_subs(&src_app_sub.sub,
-                // &inner_sub)
-                todo!()
+                // Unify inner, then unify the resultant substitution with the ones given
+                //  here:
+                //
+                // Notice: this should never produce a substitution since we start with
+                // simplified terms.
+                let sub = self.scope_manager().enter_scope(src_set_bound.scope, |this| {
+                    this.unifier().unify_terms(src_set_bound.term, target_set_bound.term)
+                })?;
+                if sub != Sub::empty() {
+                    tc_panic_on_many!(
+                        [src_set_bound.term, target_set_bound.term],
+                        self,
+                        "got non-empty substitution when unifying terms inside SetBound"
+                    );
+                }
+                Ok(sub)
             }
             (Term::SetBound(_), _) | (_, Term::SetBound(_)) => {
                 // Otherwise they don't unify (since we start with simplified terms)

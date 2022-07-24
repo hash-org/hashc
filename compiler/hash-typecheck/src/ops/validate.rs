@@ -1199,37 +1199,4 @@ impl<'gs, 'ls, 'cd, 's> Validator<'gs, 'ls, 'cd, 's> {
             _ => Ok(None),
         }
     }
-
-    /// Determine if the two given substitutions are equivalent.
-    ///
-    /// That is, if for any term X, they produce the same result when applied to
-    /// X
-    ///
-    /// @@Correctness: This is not based on any accepted algorithm, and requires
-    /// testing to ensure its correctness.
-    pub(crate) fn _subs_are_equivalent(&mut self, s0: &Sub, s1: &Sub) -> bool {
-        // First we get the two substitutions as lists sorted by their domains:
-        let mut s0_list = s0.pairs().collect::<Vec<_>>();
-        let mut s1_list = s1.pairs().collect::<Vec<_>>();
-        s0_list.sort_by_key(|x| x.0);
-        s1_list.sort_by_key(|x| x.0);
-
-        // Then for each pair, we ensure the domain elements are the same, and the range
-        // elements can be unified:
-        for (s0_element, s1_element) in s0_list.iter().zip(&s1_list) {
-            if s0_element.0 != s1_element.0 {
-                return false;
-            }
-
-            // Unify bidirectionally
-            if self.unifier().unify_terms(s0_element.1, s1_element.1).is_err()
-                || self.unifier().unify_terms(s1_element.1, s0_element.1).is_err()
-            {
-                return false;
-            }
-        }
-
-        // If all succeeded, the substitutions are equivalent!
-        true
-    }
 }

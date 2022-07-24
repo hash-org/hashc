@@ -188,6 +188,11 @@ impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = Member> + '_ {
         self.members.iter().copied()
     }
+
+    /// Iterate through all the distinct names in the scope.
+    pub fn iter_names(&self) -> impl Iterator<Item = Identifier> + '_ {
+        self.member_names.keys().copied()
+    }
 }
 
 /// Trait to be implemented by primitives which contain a `name` field that is
