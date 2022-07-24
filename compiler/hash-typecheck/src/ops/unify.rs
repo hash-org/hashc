@@ -323,6 +323,8 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
     ///
     /// The relation between src and target is that src must be a subtype (or
     /// eq) of target.
+    ///
+    /// Note: Assumes that both terms have been validated.
     pub(crate) fn unify_terms(&mut self, src_id: TermId, target_id: TermId) -> TcResult<Sub> {
         // Shortcut: terms have the same ID:
         if src_id == target_id {
@@ -554,30 +556,16 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                 match subject_ty {
                     Term::TyFnTy(ty_fn_ty) => {
                         let _ = ty_fn_ty.clone();
-                        todo!()
 
-                        /*
-                        // Match the type function params with each (src,target)-arguments.
-                        let args_src_sub = self.unify_params_with_args(
-                            ty_fn_ty.params,
+                        // Match the two args:
+                        let sub = self.unify_args(
                             src_app_ty_fn.args,
-                            src_id,
-                            target_id,
-                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
-                        )?;
-                        let args_target_sub = self.unify_params_with_args(
-                            ty_fn_ty.params,
                             target_app_ty_fn.args,
-                            target_id,
                             src_id,
-                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
+                            target_id,
                         )?;
 
-                        // Unify all the created substitutions
-                        let args_unified_sub = self.unify_subs(&args_src_sub, &args_target_sub)?;
-                        Ok(self.get_super_sub(&args_unified_sub, &subject_sub)?)
-
-                        */
+                        Ok(sub)
                     }
                     // If the subject is not a function type then application is invalid:
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: subject }),

@@ -134,7 +134,7 @@ impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
     /// parameters.
     ///
     /// This assigns each parameter name to its corresponding argument value.
-    pub(crate) fn _make_set_bound_scope(
+    pub(crate) fn make_set_bound_scope(
         &mut self,
         params_id: ParamsId,
         args_id: ArgsId,

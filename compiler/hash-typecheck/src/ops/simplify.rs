@@ -189,9 +189,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     this.simplifier().access_struct_or_tuple_field(set_bound.term, field_name)
                 })?;
                 match result {
-                    Some(result) => {
-                        Ok(Some(self.discoverer().apply_set_bound_to_term(set_bound, result)?))
-                    }
+                    Some(result) => Ok(Some(
+                        self.discoverer().apply_set_bound_to_term(set_bound.scope, result)?,
+                    )),
                     None => Ok(None),
                 }
             }
@@ -504,9 +504,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         .apply_access_term(&AccessTerm { subject: set_bound.term, ..*access_term })
                 })?;
                 match result {
-                    Some(result) => {
-                        Ok(Some(self.discoverer().apply_set_bound_to_term(set_bound, result)?))
-                    }
+                    Some(result) => Ok(Some(
+                        self.discoverer().apply_set_bound_to_term(set_bound.scope, result)?,
+                    )),
                     None => Ok(None),
                 }
             }
@@ -557,10 +557,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         };
 
         match simplified_subject {
-            Term::TyFn(_ty_fn) => {
-                // @@Todo: update to use set bound
-                todo!()
-                /*
+            Term::TyFn(ty_fn) => {
                 // Keep track of encountered errors so that if no cases match, we can return all
                 // of them.
                 let mut errors = vec![];
@@ -574,7 +571,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     apply_ty_fn.args,
                     apply_ty_fn.subject,
                     simplified_subject_id,
-                    UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                 )?;
 
                 // Try to match each of the cases:
@@ -584,13 +580,18 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         apply_ty_fn.args,
                         apply_ty_fn.subject,
                         simplified_subject_id,
-                        UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                     ) {
-                        Ok(sub) => {
-                            // Successful, add the return value to result, subbed with the
-                            // substitution, and continue:
+                        Ok(_) => {
+                            // Successful: create a set bound scope and wrap the return value in it:
+                            let scope = self.scope_manager().make_set_bound_scope(
+                                case.params,
+                                apply_ty_fn.args,
+                                apply_ty_fn.subject,
+                                simplified_subject_id,
+                            );
                             results.push(
-                                self.substituter().apply_sub_to_term(&sub, case.return_value),
+                                self.discoverer()
+                                    .apply_set_bound_to_term(scope, case.return_value)?,
                             );
                         }
                         Err(err) => {
@@ -612,7 +613,6 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                     // Otherwise, merge the results
                     Ok(Some(self.builder().create_term(Term::Merge(results))))
                 }
-                */
             }
             Term::Unresolved(_) => {
                 // We don't know the type of this, so we refuse it.
@@ -748,10 +748,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 Ok(ConstructedTerm {
                     members: self
                         .discoverer()
-                        .apply_set_bound_to_args(set_bound, constructed_result.members)?,
+                        .apply_set_bound_to_args(set_bound.scope, constructed_result.members)?,
                     subject: self
                         .discoverer()
-                        .apply_set_bound_to_term(set_bound, constructed_result.subject)?,
+                        .apply_set_bound_to_term(set_bound.scope, constructed_result.subject)?,
                 })
             }
             Term::Level1(Level1Term::NominalDef(nominal_def_id)) => {
@@ -856,10 +856,10 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 Ok(FnTy {
                     params: self
                         .discoverer()
-                        .apply_set_bound_to_params(set_bound, result.params)?,
+                        .apply_set_bound_to_params(set_bound.scope, result.params)?,
                     return_ty: self
                         .discoverer()
-                        .apply_set_bound_to_term(set_bound, result.return_ty)?,
+                        .apply_set_bound_to_term(set_bound.scope, result.return_ty)?,
                 })
             }
             Term::Unresolved(_) => {
@@ -1268,9 +1268,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                         this.simplifier().simplify_term(term_id)
                     })?;
                 match simplified_inner {
-                    Some(simplified) => {
-                        Ok(Some(self.discoverer().apply_set_bound_to_term(set_bound, simplified)?))
-                    }
+                    Some(simplified) => Ok(Some(
+                        self.discoverer().apply_set_bound_to_term(set_bound.scope, simplified)?,
+                    )),
                     None => Ok(None),
                 }
             }

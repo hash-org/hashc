@@ -121,22 +121,24 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let reader = self.reader();
                 let ty_of_subject = reader.get_term(ty_id_of_subject);
                 match ty_of_subject {
-                    Term::TyFnTy(_) => {
-                        todo!()
-
-                        /*
-                        let ty_fn_ty = ty_fn_ty.clone();
+                    Term::TyFnTy(ty_fn_ty) => {
                         // Unify the type function type params with the given args:
-                        let sub = self.unifier().unify_params_with_args(
+                        let ty_fn_ty = ty_fn_ty.clone();
+                        let _ = self.unifier().unify_params_with_args(
                             ty_fn_ty.params,
                             app_ty_fn.args,
                             term_id,
                             ty_id_of_subject,
-                            UnifyParamsWithArgsMode::SubstituteParamNamesForArgValues,
                         )?;
+                        let scope = self.scope_manager().make_set_bound_scope(
+                            ty_fn_ty.params,
+                            app_ty_fn.args,
+                            term_id,
+                            ty_id_of_subject,
+                        );
+
                         // Apply the substitution to the return type and use it as the result:
-                        Ok(self.substituter().apply_sub_to_term(&sub, ty_fn_ty.return_ty))
-                        */
+                        Ok(self.discoverer().apply_set_bound_to_term(scope, ty_fn_ty.return_ty)?)
                     }
                     _ => Err(TcError::UnsupportedTyFnApplication { subject_id: app_ty_fn.subject }),
                 }
@@ -176,7 +178,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                 let result = self.scope_manager().enter_scope(set_bound.scope, |this| {
                     this.typer().infer_ty_of_simplified_term(set_bound.term)
                 })?;
-                self.discoverer().apply_set_bound_to_term(set_bound, result)
+                self.discoverer().apply_set_bound_to_term(set_bound.scope, result)
             }
             Term::Unresolved(_) => {
                 // The type of an unresolved variable X is typeof(X):
@@ -504,9 +506,10 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
                             .into_iter()
                             .map(|(term, params)| {
                                 Ok((
-                                    self.discoverer().apply_set_bound_to_term(set_bound, term)?,
                                     self.discoverer()
-                                        .apply_set_bound_to_params(set_bound, params)?,
+                                        .apply_set_bound_to_term(set_bound.scope, term)?,
+                                    self.discoverer()
+                                        .apply_set_bound_to_params(set_bound.scope, params)?,
                                 ))
                             })
                             .collect()
