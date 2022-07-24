@@ -218,12 +218,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
         variants: impl IntoIterator<Item = EnumVariant>,
     ) -> NominalDefId {
         let name = enum_name.map(|name| name.into());
+        let variants = variants.into_iter().map(|variant| (variant.name, variant)).collect();
 
         // let name = enum_name.into();
-        let def_id = self.gs.borrow_mut().nominal_def_store.create(NominalDef::Enum(EnumDef {
-            name,
-            variants: variants.into_iter().map(|variant| (variant.name, variant)).collect(),
-        }));
+        let def_id = self
+            .gs
+            .borrow_mut()
+            .nominal_def_store
+            .create(NominalDef::Enum(EnumDef { name, variants }));
 
         // Only add the enum def to the scope if it has a name...
         if let Some(name) = name {
@@ -364,12 +366,14 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a term [Term::Merge] with the given inner terms.
     pub fn create_merge_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
-        self.create_term(Term::Merge(terms.into_iter().collect()))
+        let terms = terms.into_iter().collect();
+        self.create_term(Term::Merge(terms))
     }
 
     /// Create a term [Term::Union] with the given inner terms.
     pub fn create_union_term(&self, terms: impl IntoIterator<Item = TermId>) -> TermId {
-        self.create_term(Term::Union(terms.into_iter().collect()))
+        let terms = terms.into_iter().collect();
+        self.create_term(Term::Union(terms))
     }
 
     /// Create the void type term: [Level1Term::Tuple] with no members.
@@ -462,7 +466,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         kind: ScopeKind,
         members: impl IntoIterator<Item = Member>,
     ) -> ScopeId {
-        self.gs.borrow_mut().scope_store.create(Scope::new(kind, members))
+        let scope = Scope::new(kind, members);
+        self.gs.borrow_mut().scope_store.create(scope)
     }
 
     /// Create a trait definition either being named or nameless.
@@ -512,16 +517,15 @@ impl<'gs> PrimitiveBuilder<'gs> {
         params: impl IntoIterator<Item = Param>,
         origin: ParamOrigin,
     ) -> ParamsId {
-        self.gs
-            .borrow_mut()
-            .params_store
-            .create(ParamList::new(params.into_iter().collect(), origin))
+        let params = ParamList::new(params.into_iter().collect(), origin);
+        self.gs.borrow_mut().params_store.create(params)
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
     /// [Args], append it to the store and return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
-        self.gs.borrow_mut().args_store.create(ParamList::new(args.into_iter().collect(), origin))
+        let params = ParamList::new(args.into_iter().collect(), origin);
+        self.gs.borrow_mut().args_store.create(params)
     }
 
     /// Create a nameless type function term with parameters, return type and
@@ -631,10 +635,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
         params: impl IntoIterator<Item = PatParam>,
         origin: ParamOrigin,
     ) -> PatParamsId {
-        self.gs
-            .borrow_mut()
-            .pat_params_store
-            .create(ParamList::new(params.into_iter().collect(), origin))
+        let params = ParamList::new(params.into_iter().collect(), origin);
+        self.gs.borrow_mut().pat_params_store.create(params)
     }
 
     /// Create a pattern parameter
@@ -684,7 +686,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create an OR-pattern.
     pub fn create_or_pat(&self, pats: impl IntoIterator<Item = PatId>) -> PatId {
-        self.create_pat(Pat::Or(pats.into_iter().collect()))
+        let pats = pats.into_iter().collect();
+        self.create_pat(Pat::Or(pats))
     }
 
     /// Create a conditional pattern.
