@@ -82,7 +82,7 @@ impl<'gs, 'ls, 'cd, 'src> AccessToStorageMut for TcVisitor<'gs, 'ls, 'cd, 'src> 
 
 impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
     /// Create a new [TcVisitor] with the given state, traversing the given
-    /// source from [Sources].
+    /// source from [SourceId].
     pub fn new_in_source(
         storage: StorageRefMut<'gs, 'ls, 'cd, 'src>,
         source_id: SourceId,
@@ -91,8 +91,8 @@ impl<'gs, 'ls, 'cd, 'src> TcVisitor<'gs, 'ls, 'cd, 'src> {
         TcVisitor { storage, source_id, node_map, state: TcVisitorState::new() }
     }
 
-    /// Visits the source passed in as an argument to [Self::new], and returns
-    /// the term of the module that corresponds to the source.
+    /// Visits the source passed in as an argument to [Self::new_in_source], and
+    /// returns the term of the module that corresponds to the source.
     pub fn visit_source(&mut self) -> TcResult<TermId> {
         let source_id = self.source_id;
         let source = self.node_map.get_source(source_id);

@@ -29,7 +29,7 @@ impl<'gs, 'ls, 'cd, 's> AccessToStorageMut for ScopeManager<'gs, 'ls, 'cd, 's> {
 }
 
 impl<'gs, 'ls, 'cd, 's> ScopeManager<'gs, 'ls, 'cd, 's> {
-    /// Create a new [ScopeResolver].
+    /// Create a new [ScopeManager].
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
     }

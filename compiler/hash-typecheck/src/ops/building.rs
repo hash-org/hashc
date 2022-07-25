@@ -268,7 +268,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
         def_id
     }
 
-    /// Create a [Term::TypeOf].
+    /// Create a [Term::TyOf].
     pub fn create_ty_of_term(&self, inner: TermId) -> TermId {
         self.create_term(Term::TyOf(inner))
     }
@@ -561,8 +561,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ParamsId] from an iterator of [Param]. This function wil
-    /// create a [Params], append it to the store and return  the created
-    /// id.
+    /// create a [Params](crate::storage::primitives::Params), append it to the
+    /// store and return  the created id.
     pub fn create_params(
         &self,
         params: impl IntoIterator<Item = Param>,
@@ -575,7 +575,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a [ArgsId] from an iterator of [Arg]. This function wil create a
-    /// [Args], append it to the store and return  the created id.
+    /// [Args](crate::storage::primitives::Args), append it to the store and
+    /// return  the created id.
     pub fn create_args(&self, args: impl IntoIterator<Item = Arg>, origin: ParamOrigin) -> ArgsId {
         self.gs.borrow_mut().args_store.create(ParamList::new(args.into_iter().collect(), origin))
     }

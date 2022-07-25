@@ -237,7 +237,7 @@ impl<ParamType: GetNameOpt + Clone> ParamList<ParamType> {
     }
 }
 
-/// Build a [ParamList] from an iterator of [ParamType].
+/// Build a [ParamList] from an iterator of `ParamType`.
 impl<ParamType: GetNameOpt + Clone> FromIterator<ParamType> for ParamList<ParamType> {
     fn from_iter<T: IntoIterator<Item = ParamType>>(iter: T) -> Self {
         Self::new(iter.into_iter().collect(), ParamOrigin::Unknown)

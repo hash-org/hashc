@@ -86,10 +86,6 @@ impl From<(IndexedLocationTarget, usize)> for LocationTarget {
 /// When a set of locations (for example a [ParamsId]) is copied, the reference
 /// to the map of locations that the internal parameters refer to is copied
 /// since the inner map is behind an [Rc<T>].
-///
-/// @@Future: It would be nice to have some equivalent map but also indexed by
-/// [SourceId]. Although, this might be complicated to implement as shared data
-/// structures like [Params] might have multiple [SourceId]s.
 #[derive(Debug, Default)]
 pub struct LocationStore {
     /// A map between [TermId] to [SourceLocation]

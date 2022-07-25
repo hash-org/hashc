@@ -26,7 +26,7 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
         Ok(StructDef { entries })
     }
 
-    /// Parse a [StructDefEntry].
+    /// Parse a struct definition entry which is represented as a [Param].
     pub fn parse_struct_def_entry(&self) -> AstGenResult<AstNode<Param>> {
         let name = self.parse_name()?;
         let name_span = name.span();

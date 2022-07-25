@@ -126,7 +126,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the given [Params] with the given formatter.
+    /// Format the given [Params](crate::storage::primitives::Params) with the
+    /// given formatter.
     pub fn fmt_params(&self, f: &mut fmt::Formatter, params_id: ParamsId) -> fmt::Result {
         let params = self.global_storage.params_store.get(params_id);
 
@@ -147,7 +148,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the given [Args] with the given formatter.
+    /// Format the given [Args](crate::storage::primitives::Args) with the given
+    /// formatter.
     pub fn fmt_args(&self, f: &mut fmt::Formatter, args_id: ArgsId) -> fmt::Result {
         let args = self.global_storage.args_store.get(args_id);
 
@@ -542,7 +544,8 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format the given [PatArgs] with the given formatter.
+    /// Format the given [PatArgs](crate::storage::primitives::PatArgs) with the
+    /// given formatter.
     pub fn fmt_pat_params(&self, f: &mut fmt::Formatter, id: PatArgsId) -> fmt::Result {
         let pat_params = self.global_storage.pat_params_store.get(id);
 

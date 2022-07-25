@@ -92,7 +92,7 @@ impl<'pool> HashParser {
     /// `jobs` by sending [ParserAction::ParseImport] messages through the
     /// channel, and other workers set the parsed contents of the modules.
     /// When all message senders go out of scope, the parser finishes executing
-    fn begin(
+    pub fn begin(
         &mut self,
         entry_point_id: SourceId,
         current_dir: PathBuf,
