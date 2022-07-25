@@ -17,14 +17,15 @@ use std::collections::HashSet;
 ///
 /// This does not perform any typechecking, it simply matches parameters by
 /// position or name.
-pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
+pub(crate) fn pair_args_with_params<'p, T: Clone + GetNameOpt>(
     params: &'p Params,
-    args: &'a ParamList<T>,
+    args: &ParamList<T>,
     params_id: ParamsId,
     args_id: ArgsId,
+    mut infer_arg_from_param: impl FnMut(&Param) -> T,
     params_subject: impl Into<LocationTarget>,
     args_subject: impl Into<LocationTarget>,
-) -> TcResult<Vec<(&'p Param, &'a T)>> {
+) -> TcResult<Vec<(&'p Param, T)>> {
     let mut result = vec![];
 
     // Keep track of used params to ensure no parameter is given twice.
@@ -53,6 +54,8 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
 
     // Keep track of the first non-positional argument
     let mut done_positional = false;
+
+    // Iterate over the arguments and check that they are in the correct order
     for (i, arg) in args.positional().iter().enumerate() {
         match arg.get_name_opt() {
             // Named argument
@@ -66,7 +69,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                             return Err(TcError::ParamGivenTwice { param_kind: origin, index });
                         } else {
                             used_params.insert(index);
-                            result.push((param, arg));
+                            result.push((param, arg.clone()));
 
                             // If the parameter has a `default` value, we need to remove it from the
                             // `default_params` list because it is being overridden by the call site
@@ -102,7 +105,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
                     used_params.insert(i);
 
                     let param = params.positional().get(i).unwrap();
-                    result.push((param, arg));
+                    result.push((param, arg.clone()));
 
                     // If the parameter has a `default` value, we need to remove
                     // it from the `default_params` list
@@ -114,10 +117,19 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
         }
     }
 
+    // For any default parameters that are left, we need to insert the into the
+    // result by applying the inference function which converts a parameter into the
+    // given argument `T`
+    for default_param in &default_params {
+        let (_, param) = params.get_by_name(*default_param).unwrap();
+
+        result.push((param, infer_arg_from_param(param)));
+    }
+
     // Compare the parameter list subtracted from the `default_params` that weren't
     // specified by the arguments. The size of both results should now be the
     // same, or there are arguments missing...
-    if params.positional().len() != args.positional().len() + default_params.len() {
+    if params.positional().len() != result.len() {
         // @@Todo: for pattern params, use a more specialised error here
         return Err(TcError::MismatchingArgParamLength {
             args_id,
@@ -127,6 +139,7 @@ pub(crate) fn pair_args_with_params<'p, 'a, T: Clone + GetNameOpt>(
         });
     }
 
+    // println!("{result:?}");
     Ok(result)
 }
 

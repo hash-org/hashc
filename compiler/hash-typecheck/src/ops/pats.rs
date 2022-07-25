@@ -12,7 +12,7 @@ use crate::{
     storage::{
         primitives::{
             AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Mutability,
-            Pat, PatId, SpreadPat, TermId, Visibility,
+            Param, Pat, PatArg, PatId, SpreadPat, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -40,6 +40,14 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
     /// Create a new [PatMatcher].
     pub fn new(storage: StorageRefMut<'gs, 'ls, 'cd, 's>) -> Self {
         Self { storage }
+    }
+
+    /// Internal function to infer a pattern from a `Param`
+    fn param_to_pat(&mut self, param: &Param) -> PatArg {
+        let Param { name, default_value, .. } = param;
+        let pat = self.builder().create_constant_pat(default_value.unwrap());
+
+        PatArg { name: *name, pat }
     }
 
     /// Match the given pattern with the given term, returning
@@ -105,13 +113,13 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 let tuple_term = self.typer().get_term_of_pat(pat_id)?;
                 match self.unifier().unify_terms(tuple_term, simplified_term_id) {
                     Ok(_) => {
-                        let tuple_pat_params =
-                            self.reader().get_pat_params(tuple_pat_params_id).clone();
+                        let tuple_pat_args =
+                            self.reader().get_pat_args(tuple_pat_params_id).clone();
 
                         // First, we get the tuple pattern parameters in the form of args (for
                         // `pair_args_with_params` error reporting):
                         let tuple_pat_params_as_args_id =
-                            self.typer().infer_args_of_pat_params(tuple_pat_params_id)?;
+                            self.typer().infer_args_of_pat_args(tuple_pat_params_id)?;
 
                         // We get the subject tuple's parameters:
                         let subject_params_id = self
@@ -125,9 +133,10 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                         // For each param pair: accumulate the bound members
                         let bound_members = pair_args_with_params(
                             &subject_params,
-                            &tuple_pat_params,
+                            &tuple_pat_args,
                             subject_params_id,
                             tuple_pat_params_as_args_id,
+                            |param| self.param_to_pat(param),
                             term_id,
                             pat_id,
                         )?
@@ -159,8 +168,8 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 // Get the term of the constructor and try to unify it with the subject:
                 let constructor_term = self.typer().get_term_of_pat(pat_id)?;
 
-                let pat_args = self.typer().infer_args_of_pat_params(params)?;
-                let constructor_args = self.reader().get_pat_params(params).clone();
+                let pat_args = self.typer().infer_args_of_pat_args(params)?;
+                let constructor_args = self.reader().get_pat_args(params).clone();
 
                 let possible_params =
                     self.typer().infer_constructors_of_nominal_term(simplified_term_id)?;
@@ -181,6 +190,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                                 &constructor_args,
                                 params,
                                 pat_args,
+                                |param| self.param_to_pat(param),
                                 term_id,
                                 pat_id,
                             )?
@@ -209,7 +219,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             Pat::List(ListPat { term, inner }) => {
                 // We need to collect all of the binds from the inner patterns of
                 // the list
-                let params = self.reader().get_pat_params(inner).clone();
+                let params = self.reader().get_pat_args(inner).clone();
 
                 let mut bound_members = vec![];
 

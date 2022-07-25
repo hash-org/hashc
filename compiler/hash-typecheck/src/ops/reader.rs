@@ -62,7 +62,7 @@ impl<'gs> PrimitiveReader<'gs> {
     }
 
     /// Get the [PatParams] with the given [PatParamsId].
-    pub fn get_pat_params(&self, id: PatParamsId) -> &PatParams {
+    pub fn get_pat_args(&self, id: PatParamsId) -> &PatParams {
         self.gs.pat_params_store.get(id)
     }
 

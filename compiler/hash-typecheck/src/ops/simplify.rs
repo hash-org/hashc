@@ -689,6 +689,7 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
         &mut self,
         term_id: TermId,
         args: ArgsId,
+        args_subject: TermId,
     ) -> TcResult<ConstructedTerm> {
         let reader = self.reader();
         let term = reader.get_term(term_id);
@@ -701,7 +702,9 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                 let terms = terms.clone();
                 let results: Vec<_> = terms
                     .iter()
-                    .filter_map(|item| self.use_term_as_constructed_subject(*item, args).ok())
+                    .filter_map(|item| {
+                        self.use_term_as_constructed_subject(*item, args, args_subject).ok()
+                    })
                     .collect();
 
                 match results.as_slice() {
@@ -735,7 +738,8 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Term::AppSub(app_sub) => {
                 // Recurse to inner and then apply sub
                 let app_sub = app_sub.clone();
-                let inner_ty = self.use_term_as_constructed_subject(app_sub.term, args)?;
+                let inner_ty =
+                    self.use_term_as_constructed_subject(app_sub.term, args, args_subject)?;
 
                 Ok(self.substituter().apply_sub_to_constructed_ty(&app_sub.sub, inner_ty))
             }
@@ -753,16 +757,17 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
                             }
                         };
 
-                        let params_sub = self.unifier().unify_params_with_args(
-                            params_id,
+                        // Perform inference by using the resolved parameters and then
+                        // applying them to the supplied arguments. This will fill
+                        // in any missing default arguments, and then apply an appropriate
+                        // unification between the arguments and parameters.
+                        let members = self.typer().infer_args_from_params(
                             args,
+                            params_id,
                             term_id,
-                            term_id,
+                            args_subject,
                             UnifyParamsWithArgsMode::UnifyParamTypesWithArgTypes,
                         )?;
-
-                        // Apply substitution to arguments
-                        let members = self.substituter().apply_sub_to_args(&params_sub, args);
 
                         Ok(ConstructedTerm { subject: term_id, members })
                     }
@@ -961,8 +966,11 @@ impl<'gs, 'ls, 'cd, 's> Simplifier<'gs, 'ls, 'cd, 's> {
             Level0Term::EnumVariant(_) => Ok(None),
             Level0Term::FnCall(call) if self.is_term_constructable(call.subject) => {
                 let simplified_subject = self.potentially_simplify_term(call.subject)?;
-                let constructed_ty =
-                    self.use_term_as_constructed_subject(simplified_subject, call.args)?;
+                let constructed_ty = self.use_term_as_constructed_subject(
+                    simplified_subject,
+                    call.args,
+                    originating_term,
+                )?;
 
                 let term = self
                     .builder()

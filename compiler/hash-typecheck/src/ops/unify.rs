@@ -9,7 +9,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,
+            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, Sub,
+            Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -121,11 +122,12 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         Ok(result)
     }
 
-    /// Unify the given parameters with the given arguments.
+    /// Unify the given parameters with the given arguments. This function
+    /// will first perform a pairing operation between the arguments and the
+    /// provided parameters in order to ensure that they can be unified.
     ///
-    /// This is done by first getting the type of each argument, and unifying
-    /// with the type of each parameter. Then, a substitution is created
-    /// from each parameter to each argument value.
+    /// Unification is actually performed by
+    /// [this](Unifier::unify_param_arg_pairs) function.
     pub(crate) fn unify_params_with_args(
         &mut self,
         params_id: ParamsId,
@@ -142,9 +144,24 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             &args,
             params_id,
             args_id,
+            |param| self.typer().infer_arg_from_param(param),
             params_subject,
             args_subject,
         )?;
+
+        self.unify_param_arg_pairs(pairs, mode)
+    }
+
+    /// Unify paired arguments and parameters.
+    ///
+    /// This is done by first getting the type of each argument, and unifying
+    /// with the type of each parameter. Then, a substitution is created
+    /// from each parameter to each argument value.
+    pub(crate) fn unify_param_arg_pairs(
+        &mut self,
+        pairs: Vec<(&Param, Arg)>,
+        mode: UnifyParamsWithArgsMode,
+    ) -> TcResult<Sub> {
         let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {

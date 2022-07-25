@@ -10,7 +10,7 @@ use crate::{
         location::{IndexedLocationTarget, LocationTarget},
         primitives::{
             AccessOp, Arg, ArgsId, BindingPat, BoundVars, ConstPat, EnumVariant, Member,
-            MemberData, ModDefOrigin, Mutability, Param, Pat, PatId, PatParam, SpreadPat, Sub,
+            MemberData, ModDefOrigin, Mutability, Param, Pat, PatArg, PatId, SpreadPat, Sub,
             TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, LocalStorage, StorageRef, StorageRefMut,
@@ -2021,7 +2021,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(module_pat)
     }
 
-    type TuplePatEntryRet = PatParam;
+    type TuplePatEntryRet = PatArg;
 
     fn visit_tuple_pat_entry(
         &mut self,
@@ -2029,7 +2029,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePatEntry>,
     ) -> Result<Self::TuplePatEntryRet, Self::Error> {
         let walk::TuplePatEntry { name, pat } = walk::walk_tuple_pat_entry(self, ctx, node)?;
-        Ok(PatParam { name, pat })
+        Ok(PatArg { name, pat })
     }
 
     type TuplePatRet = PatId;
@@ -2071,7 +2071,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let list_term = self.unify_term_sequence(inner_terms)?;
 
         let members = self.builder().create_pat_params(
-            elements.into_iter().map(|pat| PatParam { name: None, pat }),
+            elements.into_iter().map(|pat| PatArg { name: None, pat }),
             ParamOrigin::ListPat,
         );
 
@@ -2255,7 +2255,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(pat)
     }
 
-    type ModulePatEntryRet = PatParam;
+    type ModulePatEntryRet = PatArg;
 
     fn visit_module_pat_entry(
         &mut self,

@@ -7,7 +7,7 @@ use crate::storage::{
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
         MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, ParamsId, Pat, PatId, PatParam, PatParamsId, Scope, ScopeId, ScopeKind,
+        Param, ParamList, ParamsId, Pat, PatArg, PatId, PatParamsId, Scope, ScopeId, ScopeKind,
         ScopeVar, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy,
         TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
@@ -691,7 +691,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     /// Create pattern parameters from the given pattern parameter iterator.
     pub fn create_pat_params(
         &self,
-        params: impl IntoIterator<Item = PatParam>,
+        params: impl IntoIterator<Item = PatArg>,
         origin: ParamOrigin,
     ) -> PatParamsId {
         self.gs
@@ -701,8 +701,8 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a pattern parameter
-    pub fn create_pat_param(&self, name: impl Into<Identifier>, pat: PatId) -> PatParam {
-        PatParam { name: Some(name.into()), pat }
+    pub fn create_pat_param(&self, name: impl Into<Identifier>, pat: PatId) -> PatArg {
+        PatArg { name: Some(name.into()), pat }
     }
 
     /// Create a constructor pattern.

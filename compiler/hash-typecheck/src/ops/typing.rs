@@ -17,7 +17,9 @@ use crate::{
     },
 };
 
-use super::{unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut};
+use super::{
+    params::pair_args_with_params, unify::UnifyParamsWithArgsMode, AccessToOps, AccessToOpsMut,
+};
 
 /// Can resolve the type of a given term, as another term.
 pub struct Typer<'gs, 'ls, 'cd, 's> {
@@ -301,10 +303,51 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         Ok(params_id)
     }
 
+    ///
+    pub(crate) fn infer_arg_from_param(&self, param: &Param) -> Arg {
+        Arg { name: param.name, value: param.default_value.unwrap() }
+    }
+
+    /// From the given [ParamsId], infer an [ArgsId] by populating any field
+    /// that is present within the parameters and has a default value, into
+    /// the args is by being careful not to overwrite the specified
+    /// arguments with default values of the parameters.
+    pub(crate) fn infer_args_from_params(
+        &mut self,
+        args_id: ArgsId,
+        params_id: ParamsId,
+        params_subject: TermId,
+        args_subject: TermId,
+        mode: UnifyParamsWithArgsMode,
+    ) -> TcResult<ArgsId> {
+        let params = self.params_store().get(params_id).clone();
+        let args = self.args_store().get(args_id).clone();
+
+        // Pair parameters and arguments, then extract the resultant arguments...
+        let pairs = pair_args_with_params(
+            &params,
+            &args,
+            params_id,
+            args_id,
+            |p| self.infer_arg_from_param(p),
+            params_subject,
+            args_subject,
+        )?;
+
+        let arg_pairs: Vec<_> = pairs.iter().map(|(_, arg)| *arg).collect();
+        let params_sub = self.unifier().unify_param_arg_pairs(pairs, mode)?;
+
+        // Copy over the origin from the initial args
+        let new_args = self.builder().create_args(arg_pairs, args.origin());
+
+        // Apply substitution to arguments
+        Ok(self.substituter().apply_sub_to_args(&params_sub, new_args))
+    }
+
     /// From the given [PatParamsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn infer_args_of_pat_params(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
-        let pat_args = self.reader().get_pat_params(id).clone();
+    pub(crate) fn infer_args_of_pat_args(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
+        let pat_args = self.reader().get_pat_args(id).clone();
         let origin = pat_args.origin();
 
         let arg_tys: Vec<_> = pat_args
@@ -352,12 +395,12 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             Pat::Tuple(tuple_pat) => {
                 // For each parameter, get its type, and then create a tuple
                 // type:
-                let params_id = self.infer_args_of_pat_params(tuple_pat)?;
+                let params_id = self.infer_args_of_pat_args(tuple_pat)?;
                 Ok(self.builder().create_tuple_lit_term(params_id))
             }
             Pat::Constructor(constructor_pat) => {
                 // We have params to apply, so we need to create an FnCall
-                let args_id = self.infer_args_of_pat_params(constructor_pat.params)?;
+                let args_id = self.infer_args_of_pat_args(constructor_pat.params)?;
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
             Pat::List(ListPat { term, .. }) => {

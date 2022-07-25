@@ -1022,19 +1022,19 @@ pub struct ConstPat {
 
 /// A pattern of a parameter, used for tuple patterns and constructor patterns.
 #[derive(Clone, Debug, Copy)]
-pub struct PatParam {
+pub struct PatArg {
     pub name: Option<Identifier>,
     pub pat: PatId,
 }
 
-impl GetNameOpt for PatParam {
+impl GetNameOpt for PatArg {
     fn get_name_opt(&self) -> Option<Identifier> {
         self.name
     }
 }
 
 /// A pattern of parameters.
-pub type PatParams = ParamList<PatParam>;
+pub type PatParams = ParamList<PatArg>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
