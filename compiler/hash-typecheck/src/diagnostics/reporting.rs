@@ -1075,6 +1075,16 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
             }
+            TcError::IdentifierBoundMultipleTimes { name, pat: term } => {
+                builder.with_error_code(HashErrorCode::IdentifierBoundMultipleTimes).with_message(
+                    format!("identifier `{}` is bound multiple times in the same pattern", name),
+                );
+
+                if let Some(location) = err.location_store().get_location(term) {
+                    builder
+                        .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
         };
 
         builder.build()

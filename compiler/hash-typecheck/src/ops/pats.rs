@@ -1,6 +1,9 @@
 //! Functionality related to pattern matching.
 
+use std::collections::HashSet;
+
 use hash_ast::ast::ParamOrigin;
+use hash_source::identifier::Identifier;
 use itertools::Itertools;
 
 use crate::{
@@ -50,15 +53,31 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         PatArg { name: *name, pat }
     }
 
+    /// Internal function to verify that the members that are produced from
+    /// traversing a pattern are only binded once.
+    pub fn verify_members_are_bound_once(&self, members: &[(Member, PatId)]) -> TcResult<()> {
+        let mut names: HashSet<Identifier> = HashSet::new();
+
+        for (member, pat) in members.iter() {
+            if names.contains(&member.name) {
+                return Err(TcError::IdentifierBoundMultipleTimes { name: member.name, pat: *pat });
+            } else {
+                names.insert(member.name);
+            }
+        }
+
+        Ok(())
+    }
+
     /// Match the given pattern with the given term, returning
     /// `Some(member_list)` if the pattern matches (with a list of bound
     /// members), or `None` if it doesn't match. If the types mismatch, it
     /// returns an error.
-    pub fn match_pat_with_term(
+    fn match_pat_with_term_and_extract_members(
         &mut self,
         pat_id: PatId,
         term_id: TermId,
-    ) -> TcResult<Option<Vec<Member>>> {
+    ) -> TcResult<Option<Vec<(Member, PatId)>>> {
         let TermValidation { simplified_term_id, term_ty_id } =
             self.validator().validate_term(term_id)?;
         let pat_ty = self.typer().infer_ty_of_pat(pat_id)?;
@@ -77,13 +96,16 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             let _ = self.unifier().unify_terms(pat_ty, term_ty_id)?;
         }
 
-        match pat {
+        let bound_members = match pat {
             // Binding: Add the binding as a member
-            Pat::Binding(binding) => Ok(Some(vec![Member::closed(
-                binding.name,
-                binding.visibility,
-                binding.mutability,
-                MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+            Pat::Binding(binding) => Ok(Some(vec![(
+                Member::closed(
+                    binding.name,
+                    binding.visibility,
+                    binding.mutability,
+                    MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+                ),
+                pat_id,
             )])),
             Pat::Access(AccessPat { subject, property }) => {
                 let subject_term = self.typer().get_term_of_pat(subject)?;
@@ -148,7 +170,10 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
 
                             // @@Todo: retain information about useless patterns
                             Ok(self
-                                .match_pat_with_term(pat_param.pat, param_value)?
+                                .match_pat_with_term_and_extract_members(
+                                    pat_param.pat,
+                                    param_value,
+                                )?
                                 .into_iter()
                                 .flatten()
                                 .collect::<Vec<_>>())
@@ -201,7 +226,10 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                                     .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
 
                                 Ok(self
-                                    .match_pat_with_term(pat_param.pat, param_value)?
+                                    .match_pat_with_term_and_extract_members(
+                                        pat_param.pat,
+                                        param_value,
+                                    )?
                                     .into_iter()
                                     .flatten()
                                     .collect::<Vec<_>>())
@@ -209,11 +237,20 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                             .flatten_ok()
                             .collect::<TcResult<Vec<_>>>()?;
 
+                            // @@Refactor: we need to verify that the members are declared once.
+                            // Since this happens at the bottom of the
+                            // function already, it would be nice to
+                            // factor out this step to be at the bottom or factor out constructor
+                            // pattern checking into a separate
+                            // function.
+                            self.verify_members_are_bound_once(&bound_members)?;
+
                             return Ok(Some(bound_members));
                         }
                         Err(_) => continue,
                     }
                 }
+
                 Err(TcError::NoConstructorOnType { subject: constructor_term })
             }
             Pat::List(ListPat { term, inner }) => {
@@ -226,7 +263,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 let shared_term = self.builder().create_rt_term(term);
 
                 for param in params.positional().iter() {
-                    match self.match_pat_with_term(param.pat, shared_term)? {
+                    match self.match_pat_with_term_and_extract_members(param.pat, shared_term)? {
                         Some(members) => {
                             bound_members.extend(members);
                         }
@@ -257,11 +294,17 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     let TermValidation { simplified_term_id, term_ty_id } =
                         self.validator().validate_term(rt_term)?;
 
-                    Ok(Some(vec![Member::closed(
-                        name,
-                        Visibility::Private,
-                        Mutability::Immutable,
-                        MemberData::from_ty_and_value(Some(term_ty_id), Some(simplified_term_id)),
+                    Ok(Some(vec![(
+                        Member::closed(
+                            name,
+                            Visibility::Private,
+                            Mutability::Immutable,
+                            MemberData::from_ty_and_value(
+                                Some(term_ty_id),
+                                Some(simplified_term_id),
+                            ),
+                        ),
+                        pat_id,
                     )]))
                 }
                 _ => Ok(Some(vec![])),
@@ -274,11 +317,33 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             }
             Pat::If(IfPat { pat, .. }) => {
                 // Recurse to inner, but never say it is redundant:
-                match self.match_pat_with_term(pat, term_id)? {
+                match self.match_pat_with_term_and_extract_members(pat, term_id)? {
                     Some(result) => Ok(Some(result)),
                     None => Ok(Some(vec![])),
                 }
             }
+        }?;
+
+        // Here, we verify that the produced members from the pattern are unique...
+        if let Some(members) = bound_members {
+            self.verify_members_are_bound_once(&members)?;
+
+            Ok(Some(members))
+        } else {
+            Ok(None)
         }
+    }
+
+    /// Match the given pattern with the given term, returning
+    /// [`Vec<Member>`] if the pattern matches (with a list of bound
+    /// members), or [`None`] if it doesn't match. If the types mismatch, it
+    /// returns an error.
+    pub fn match_pat_with_term(
+        &mut self,
+        pat_id: PatId,
+        term_id: TermId,
+    ) -> TcResult<Option<Vec<Member>>> {
+        self.match_pat_with_term_and_extract_members(pat_id, term_id)
+            .map(|members| members.map(|inner| inner.into_iter().map(|(m, _)| m).collect()))
     }
 }

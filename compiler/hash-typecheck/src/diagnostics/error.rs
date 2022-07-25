@@ -147,4 +147,7 @@ pub enum TcError {
 
     /// Cannot find a constructor for the given type
     NoConstructorOnType { subject: TermId },
+
+    /// When a bind within a pattern is declared more than one
+    IdentifierBoundMultipleTimes { name: Identifier, pat: PatId },
 }
