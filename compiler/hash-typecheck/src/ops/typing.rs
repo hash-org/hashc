@@ -303,7 +303,11 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         Ok(params_id)
     }
 
+    /// Create an argument from a parameter. This will copy the name
+    /// from the parameter and set the value of the argument to the
+    /// default value from the parameter.
     ///
+    /// *Note*: This expects that the parameter has a default value.
     pub(crate) fn infer_arg_from_param(&self, param: &Param) -> Arg {
         Arg { name: param.name, value: param.default_value.unwrap() }
     }
