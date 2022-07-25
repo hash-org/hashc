@@ -3,8 +3,8 @@
 
 use crate::storage::{
     primitives::{
-        Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Pat, PatId,
-        PatParams, PatParamsId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId,
+        Args, ArgsId, ModDef, ModDefId, NominalDef, NominalDefId, Params, ParamsId, Pat, PatArgs,
+        PatArgsId, PatId, Scope, ScopeId, Term, TermId, TrtDef, TrtDefId,
     },
     GlobalStorage,
 };
@@ -61,8 +61,8 @@ impl<'gs> PrimitiveReader<'gs> {
         self.gs.params_store.get(id)
     }
 
-    /// Get the [PatParams] with the given [PatParamsId].
-    pub fn get_pat_args(&self, id: PatParamsId) -> &PatParams {
+    /// Get the [PatArgs] with the given [PatArgsId].
+    pub fn get_pat_args(&self, id: PatArgsId) -> &PatArgs {
         self.gs.pat_params_store.get(id)
     }
 

@@ -19,7 +19,7 @@ use self::{
     mods::ModDefStore,
     nominals::NominalDefStore,
     params::ParamsStore,
-    pats::{PatParamsStore, PatStore},
+    pats::{PatArgsStore, PatStore},
     primitives::{Scope, ScopeId, ScopeKind},
     scope::{ScopeStack, ScopeStore},
     sources::CheckedSources,
@@ -53,7 +53,7 @@ pub struct GlobalStorage {
     pub mod_def_store: ModDefStore,
     pub nominal_def_store: NominalDefStore,
     pub pat_store: PatStore,
-    pub pat_params_store: PatParamsStore,
+    pub pat_params_store: PatArgsStore,
     pub checked_sources: CheckedSources,
 
     /// The typechecking cache, contains cached simplification, validation
@@ -81,7 +81,7 @@ impl GlobalStorage {
             mod_def_store: ModDefStore::new(),
             nominal_def_store: NominalDefStore::new(),
             pat_store: PatStore::new(),
-            pat_params_store: PatParamsStore::new(),
+            pat_params_store: PatArgsStore::new(),
             checked_sources: CheckedSources::new(),
             root_scope,
             params_store: ParamsStore::new(),
@@ -195,7 +195,7 @@ pub trait AccessToStorage {
         &self.global_storage().pat_store
     }
 
-    fn pat_params_store(&self) -> &PatParamsStore {
+    fn pat_params_store(&self) -> &PatArgsStore {
         &self.global_storage().pat_params_store
     }
 
@@ -279,7 +279,7 @@ pub trait AccessToStorageMut: AccessToStorage {
         &mut self.global_storage_mut().pat_store
     }
 
-    fn pat_params_store_mut(&mut self) -> &mut PatParamsStore {
+    fn pat_params_store_mut(&mut self) -> &mut PatArgsStore {
         &mut self.global_storage_mut().pat_params_store
     }
 

@@ -11,7 +11,7 @@ use crate::{
         primitives::{
             AccessOp, AccessPat, AppSub, Arg, ArgsId, ConstPat, ConstructedTerm, Level0Term,
             Level1Term, Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefOrigin,
-            NominalDef, Param, ParamsId, Pat, PatId, PatParamsId, StructFields, Term, TermId,
+            NominalDef, Param, ParamsId, Pat, PatArgsId, PatId, StructFields, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -344,9 +344,9 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
         Ok(self.substituter().apply_sub_to_args(&params_sub, new_args))
     }
 
-    /// From the given [PatParamsId], infer a [ArgsId] describing the the
+    /// From the given [PatArgsId], infer a [ArgsId] describing the the
     /// arguments.
-    pub(crate) fn infer_args_of_pat_args(&mut self, id: PatParamsId) -> TcResult<ArgsId> {
+    pub(crate) fn infer_args_of_pat_args(&mut self, id: PatArgsId) -> TcResult<ArgsId> {
         let pat_args = self.reader().get_pat_args(id).clone();
         let origin = pat_args.origin();
 

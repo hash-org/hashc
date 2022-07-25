@@ -5,8 +5,8 @@ use crate::storage::{
     primitives::{
         AccessOp, AccessPat, ArgsId, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
         Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat,
-        Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatId, PatParamsId, ScopeId,
-        SpreadPat, StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
+        Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId, SpreadPat,
+        StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -542,13 +542,9 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format the given [PatParams] with the given formatter.
-    pub fn fmt_pat_params(
-        &self,
-        f: &mut fmt::Formatter,
-        pat_params_id: PatParamsId,
-    ) -> fmt::Result {
-        let pat_params = self.global_storage.pat_params_store.get(pat_params_id);
+    /// Format the given [PatArgs] with the given formatter.
+    pub fn fmt_pat_params(&self, f: &mut fmt::Formatter, id: PatArgsId) -> fmt::Result {
+        let pat_params = self.global_storage.pat_params_store.get(id);
 
         for (i, param) in pat_params.positional().iter().enumerate() {
             match param.name {
@@ -730,7 +726,7 @@ impl PrepareForFormatting for NominalDefId {}
 impl PrepareForFormatting for ParamsId {}
 impl PrepareForFormatting for ArgsId {}
 impl PrepareForFormatting for ScopeId {}
-impl PrepareForFormatting for PatParamsId {}
+impl PrepareForFormatting for PatArgsId {}
 impl PrepareForFormatting for PatId {}
 impl PrepareForFormatting for &Sub {}
 
@@ -767,7 +763,7 @@ impl fmt::Display for ForFormatting<'_, ParamsId> {
     }
 }
 
-impl fmt::Display for ForFormatting<'_, PatParamsId> {
+impl fmt::Display for ForFormatting<'_, PatArgsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_pat_params(f, self.t)
     }

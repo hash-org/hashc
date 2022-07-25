@@ -1993,7 +1993,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
     ) -> Result<Self::ConstructorPatRet, Self::Error> {
         let walk::ConstructorPat { args, subject } = walk::walk_constructor_pat(self, ctx, node)?;
 
-        let constructor_params = self.builder().create_pat_params(args, ParamOrigin::Unknown);
+        let constructor_params = self.builder().create_pat_args(args, ParamOrigin::Unknown);
 
         let subject = self.typer().get_term_of_pat(subject)?;
         let constructor_pat = self.builder().create_constructor_pat(subject, constructor_params);
@@ -2012,7 +2012,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
     ) -> Result<Self::ModulePatRet, Self::Error> {
         let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
-        let members = self.builder().create_pat_params(fields, ParamOrigin::Unknown);
+        let members = self.builder().create_pat_args(fields, ParamOrigin::Unknown);
         let module_pat = self.builder().create_mod_pat(members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -2040,7 +2040,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::TuplePat>,
     ) -> Result<Self::TuplePatRet, Self::Error> {
         let walk::TuplePat { elements } = walk::walk_tuple_pat(self, ctx, node)?;
-        let members = self.builder().create_pat_params(elements, ParamOrigin::Tuple);
+        let members = self.builder().create_pat_args(elements, ParamOrigin::Tuple);
         let tuple_pat = self.builder().create_tuple_pat(members);
 
         self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
@@ -2070,7 +2070,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
         let list_term = self.unify_term_sequence(inner_terms)?;
 
-        let members = self.builder().create_pat_params(
+        let members = self.builder().create_pat_args(
             elements.into_iter().map(|pat| PatArg { name: None, pat }),
             ParamOrigin::ListPat,
         );

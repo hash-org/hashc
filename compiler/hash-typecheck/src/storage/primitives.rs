@@ -1034,7 +1034,7 @@ impl GetNameOpt for PatArg {
 }
 
 /// A pattern of parameters.
-pub type PatParams = ParamList<PatArg>;
+pub type PatArgs = ParamList<PatArg>;
 
 /// A constructor pattern, used for enum variants and structs.
 #[derive(Clone, Debug, Copy)]
@@ -1042,7 +1042,7 @@ pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: PatParamsId,
+    pub params: PatArgsId,
 }
 
 /// A list pattern
@@ -1051,7 +1051,7 @@ pub struct ListPat {
     /// The inner term of the list.
     pub term: TermId,
     /// Inner list of patterns
-    pub inner: PatParamsId,
+    pub inner: PatArgsId,
 }
 
 /// Spread pattern
@@ -1072,7 +1072,7 @@ pub struct IfPat {
 /// members.
 #[derive(Clone, Debug, Copy)]
 pub struct ModPat {
-    pub members: PatParamsId,
+    pub members: PatArgsId,
 }
 
 /// Represents a pattern in the language.
@@ -1089,7 +1089,7 @@ pub enum Pat {
     /// The inner term must be `Term::Level0(Level0Term::Lit)`.
     Lit(TermId),
     /// Tuple pattern.
-    Tuple(PatParamsId),
+    Tuple(PatArgsId),
     /// Module pattern.
     Mod(ModPat),
     /// Constructor pattern.
@@ -1152,7 +1152,7 @@ new_key_type! {
 
 new_key_type! {
     /// The ID of a [ParamsPat]
-    pub struct PatParamsId;
+    pub struct PatArgsId;
 }
 
 /// The ID of a [UnresolvedTerm], separate from its [TermId], stored in

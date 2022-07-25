@@ -7,7 +7,7 @@ use crate::storage::{
         ConstructedTerm, ConstructorPat, EnumDef, EnumVariant, EnumVariantValue, FnCall, FnLit,
         FnTy, IfPat, Level0Term, Level1Term, Level2Term, Level3Term, ListPat, LitTerm, Member,
         MemberData, ModDef, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId,
-        Param, ParamList, ParamsId, Pat, PatArg, PatId, PatParamsId, Scope, ScopeId, ScopeKind,
+        Param, ParamList, ParamsId, Pat, PatArg, PatArgsId, PatId, Scope, ScopeId, ScopeKind,
         ScopeVar, StructDef, StructFields, Sub, Term, TermId, TrtDef, TrtDefId, TupleLit, TupleTy,
         TyFn, TyFnCall, TyFnCase, TyFnTy, UnresolvedTerm, Var, Visibility,
     },
@@ -689,15 +689,15 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create pattern parameters from the given pattern parameter iterator.
-    pub fn create_pat_params(
+    pub fn create_pat_args(
         &self,
-        params: impl IntoIterator<Item = PatArg>,
+        args: impl IntoIterator<Item = PatArg>,
         origin: ParamOrigin,
-    ) -> PatParamsId {
+    ) -> PatArgsId {
         self.gs
             .borrow_mut()
             .pat_params_store
-            .create(ParamList::new(params.into_iter().collect(), origin))
+            .create(ParamList::new(args.into_iter().collect(), origin))
     }
 
     /// Create a pattern parameter
@@ -706,7 +706,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a constructor pattern.
-    pub fn create_constructor_pat(&self, subject: TermId, params: PatParamsId) -> PatId {
+    pub fn create_constructor_pat(&self, subject: TermId, params: PatArgsId) -> PatId {
         self.create_pat(Pat::Constructor(ConstructorPat { subject, params }))
     }
 
@@ -716,7 +716,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a list pattern with parameters.
-    pub fn create_list_pat(&self, term: TermId, inner: PatParamsId) -> PatId {
+    pub fn create_list_pat(&self, term: TermId, inner: PatArgsId) -> PatId {
         self.create_pat(Pat::List(ListPat { term, inner }))
     }
 
@@ -731,12 +731,12 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a module pattern.
-    pub fn create_mod_pat(&self, members: PatParamsId) -> PatId {
+    pub fn create_mod_pat(&self, members: PatArgsId) -> PatId {
         self.create_pat(Pat::Mod(ModPat { members }))
     }
 
     /// Create a tuple pattern.
-    pub fn create_tuple_pat(&self, members: PatParamsId) -> PatId {
+    pub fn create_tuple_pat(&self, members: PatArgsId) -> PatId {
         self.create_pat(Pat::Tuple(members))
     }
 
