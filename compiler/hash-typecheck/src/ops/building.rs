@@ -702,7 +702,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
     }
 
     /// Create a pattern parameter
-    pub fn create_pat_param(&self, name: impl Into<Identifier>, pat: PatId) -> PatArg {
+    pub fn create_pat_arg(&self, name: impl Into<Identifier>, pat: PatId) -> PatArg {
         PatArg { name: Some(name.into()), pat }
     }
 

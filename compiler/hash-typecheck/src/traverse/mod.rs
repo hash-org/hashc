@@ -2003,23 +2003,6 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         Ok(constructor_pat)
     }
 
-    type ModulePatRet = PatId;
-
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error> {
-        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
-        let members = self.builder().create_pat_args(fields, ParamOrigin::Unknown);
-        let module_pat = self.builder().create_mod_pat(members);
-
-        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
-        self.copy_location_from_node_to_target(node, module_pat);
-
-        Ok(module_pat)
-    }
-
     type TuplePatEntryRet = PatArg;
 
     fn visit_tuple_pat_entry(
@@ -2262,7 +2245,24 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
         let walk::ModulePatEntry { name, pat } = walk::walk_module_pat_entry(self, ctx, node)?;
-        Ok(self.builder().create_pat_param(name, pat))
+        Ok(self.builder().create_pat_arg(name, pat))
+    }
+
+    type ModulePatRet = PatId;
+
+    fn visit_module_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let walk::ModulePat { fields } = walk::walk_module_pat(self, ctx, node)?;
+        let members = self.builder().create_pat_args(fields, ParamOrigin::ModulePat);
+        let module_pat = self.builder().create_mod_pat(members);
+
+        self.copy_location_from_nodes_to_targets(node.fields.ast_ref_iter(), members);
+        self.copy_location_from_node_to_target(node, module_pat);
+
+        Ok(module_pat)
     }
 
     type ModuleRet = TermId;

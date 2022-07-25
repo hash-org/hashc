@@ -1017,17 +1017,6 @@ impl AstVisitor for SemanticAnalyser<'_> {
         Ok(())
     }
 
-    type ModulePatRet = ();
-
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error> {
-        let _ = walk::walk_module_pat(self, ctx, node);
-        Ok(())
-    }
-
     type TuplePatEntryRet = ();
 
     fn visit_tuple_pat_entry(
@@ -1241,6 +1230,17 @@ impl AstVisitor for SemanticAnalyser<'_> {
             let _ = walk::walk_module_pat_entry(self, ctx, node);
         }
 
+        Ok(())
+    }
+
+    type ModulePatRet = ();
+
+    fn visit_module_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: hash_ast::ast::AstNodeRef<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
+        let _ = walk::walk_module_pat(self, ctx, node);
         Ok(())
     }
 

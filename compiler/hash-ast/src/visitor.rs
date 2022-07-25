@@ -602,13 +602,6 @@ pub trait AstVisitor: Sized {
         node: ast::AstNodeRef<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error>;
 
-    type ModulePatRet;
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRef<ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error>;
-
     type TuplePatEntryRet;
     fn visit_tuple_pat_entry(
         &mut self,
@@ -713,6 +706,13 @@ pub trait AstVisitor: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRef<ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error>;
+
+    type ModulePatRet;
+    fn visit_module_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error>;
 
     type ModuleRet;
     fn visit_module(
@@ -1309,13 +1309,6 @@ pub trait AstVisitorMut: Sized {
         node: ast::AstNodeRefMut<ast::ConstructorPat>,
     ) -> Result<Self::ConstructorPatRet, Self::Error>;
 
-    type ModulePatRet;
-    fn visit_module_pat(
-        &mut self,
-        ctx: &Self::Ctx,
-        node: ast::AstNodeRefMut<ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error>;
-
     type TuplePatEntryRet;
     fn visit_tuple_pat_entry(
         &mut self,
@@ -1420,6 +1413,13 @@ pub trait AstVisitorMut: Sized {
         ctx: &Self::Ctx,
         node: ast::AstNodeRefMut<ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error>;
+
+    type ModulePatRet;
+    fn visit_module_pat(
+        &mut self,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRefMut<ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error>;
 
     type ModuleRet;
     fn visit_module(

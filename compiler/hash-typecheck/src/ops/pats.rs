@@ -137,11 +137,9 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         Ok(())
     }
 
-    /// Match the given pattern with the given term, returning
-    /// `Some(member_list)` if the pattern matches (with a list of bound
-    /// members), or `None` if it doesn't match. If the types mismatch, it
-    /// returns an error.
-    fn match_pat_with_term_and_extract_members(
+    /// Match the given pattern with the given term, returning a potential list
+    /// of extracted `binds` that the pattern describes.
+    fn match_pat_with_term_and_extract_binds(
         &mut self,
         pat_id: PatId,
         term_id: TermId,
@@ -238,10 +236,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
 
                             // @@Todo: retain information about useless patterns
                             Ok(self
-                                .match_pat_with_term_and_extract_members(
-                                    pat_param.pat,
-                                    param_value,
-                                )?
+                                .match_pat_with_term_and_extract_binds(pat_param.pat, param_value)?
                                 .into_iter()
                                 .flatten()
                                 .collect::<Vec<_>>())
@@ -294,7 +289,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                                     .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
 
                                 Ok(self
-                                    .match_pat_with_term_and_extract_members(arg.pat, param_value)?
+                                    .match_pat_with_term_and_extract_binds(arg.pat, param_value)?
                                     .into_iter()
                                     .flatten()
                                     .collect::<Vec<_>>())
@@ -327,7 +322,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 let shared_term = self.builder().create_rt_term(term);
 
                 for param in params.positional().iter() {
-                    match self.match_pat_with_term_and_extract_members(param.pat, shared_term)? {
+                    match self.match_pat_with_term_and_extract_binds(param.pat, shared_term)? {
                         Some(members) => {
                             bound_members.extend(members);
                         }
@@ -380,7 +375,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 let pat_members = pats
                     .iter()
                     .map(|pat| {
-                        self.match_pat_with_term_and_extract_members(*pat, term_id)
+                        self.match_pat_with_term_and_extract_binds(*pat, term_id)
                             .map(|m| m.map(|t| (t, *pat)))
                     })
                     .flatten_ok()
@@ -400,7 +395,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             }
             Pat::If(IfPat { pat, .. }) => {
                 // Recurse to inner, but never say it is redundant:
-                match self.match_pat_with_term_and_extract_members(pat, term_id)? {
+                match self.match_pat_with_term_and_extract_binds(pat, term_id)? {
                     Some(result) => Ok(Some(result)),
                     None => Ok(Some(vec![])),
                 }
@@ -426,7 +421,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         pat_id: PatId,
         term_id: TermId,
     ) -> TcResult<Option<Vec<Member>>> {
-        self.match_pat_with_term_and_extract_members(pat_id, term_id)
+        self.match_pat_with_term_and_extract_binds(pat_id, term_id)
             .map(|members| members.map(|inner| inner.into_iter().map(|(m, _)| m).collect()))
     }
 }
