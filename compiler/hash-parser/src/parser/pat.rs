@@ -117,16 +117,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.peek().ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
         let pat = match token {
-            Token { kind: TokenKind::Ident(ident), span }
+            Token { kind: TokenKind::Ident(ident), .. }
                 if *ident == CORE_IDENTIFIERS.underscore =>
             {
                 self.skip_token();
-
-                Pat::Binding(BindingPat {
-                    name: self.node_with_span(Name { ident: *ident }, *span),
-                    visibility: None,
-                    mutability: None,
-                })
+                Pat::Ignore(IgnorePat)
             }
             // A name bind that has visibility/mutability modifiers
             Token {
