@@ -1075,14 +1075,27 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
                 }
             }
-            TcError::IdentifierBoundMultipleTimes { name, pat: term } => {
+            TcError::IdentifierBoundMultipleTimes { name, pat } => {
                 builder.with_error_code(HashErrorCode::IdentifierBoundMultipleTimes).with_message(
                     format!("identifier `{}` is bound multiple times in the same pattern", name),
                 );
 
-                if let Some(location) = err.location_store().get_location(term) {
+                if let Some(location) = err.location_store().get_location(pat) {
                     builder
                         .add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")));
+                }
+            }
+            TcError::MissingPatternBounds { pat, bounds } => {
+                builder.with_error_code(HashErrorCode::MissingPatternBounds).with_message(format!(
+                    "variables {} are not declared in all patterns",
+                    SequenceDisplay::all(bounds.as_slice())
+                ));
+
+                if let Some(location) = err.location_store().get_location(pat) {
+                    builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
+                        location,
+                        format!("pattern doesn't bind {}", SequenceDisplay::all(bounds.as_slice())),
+                    )));
                 }
             }
         };

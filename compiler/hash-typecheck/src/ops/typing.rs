@@ -404,7 +404,7 @@ impl<'gs, 'ls, 'cd, 's> Typer<'gs, 'ls, 'cd, 's> {
             }
             Pat::Constructor(constructor_pat) => {
                 // We have params to apply, so we need to create an FnCall
-                let args_id = self.infer_args_of_pat_args(constructor_pat.params)?;
+                let args_id = self.infer_args_of_pat_args(constructor_pat.args)?;
                 Ok(self.builder().create_constructed_term(constructor_pat.subject, args_id))
             }
             Pat::List(ListPat { term, .. }) => {

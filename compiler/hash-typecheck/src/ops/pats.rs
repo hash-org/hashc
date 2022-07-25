@@ -1,6 +1,6 @@
 //! Functionality related to pattern matching.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use hash_ast::ast::ParamOrigin;
 use hash_source::identifier::Identifier;
@@ -45,7 +45,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
         Self { storage }
     }
 
-    /// Internal function to infer a pattern from a `Param`
+    /// Internal function to infer a pattern from a `Param`.
     fn param_to_pat(&mut self, param: &Param) -> PatArg {
         let Param { name, default_value, .. } = param;
         let pat = self.builder().create_constant_pat(default_value.unwrap());
@@ -64,6 +64,74 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
             } else {
                 names.insert(member.name);
             }
+        }
+
+        Ok(())
+    }
+
+    /// Convert a list of [Member]s with their corresponding [PatId] into map
+    /// between the [Member] binding name, the type of the member and the
+    /// [PatId].
+    ///
+    /// **Note**: This function assumes that the uniqueness of the members has
+    /// been checked before creating the map.
+    fn map_variables_to_terms(
+        &self,
+        members: &[(Member, PatId)],
+    ) -> HashMap<Identifier, (TermId, PatId)> {
+        members
+            .iter()
+            .map(|(member, pat)| (member.name, (member.data.ty().unwrap(), *pat)))
+            .collect()
+    }
+
+    /// Function to check that the inner patterns of a [Pat::Or] adhere to the
+    /// following rule:
+    ///
+    /// - For every inner pattern, the resultant members must be equivalent in
+    ///   terms of name and type.
+    fn pat_members_match(&mut self, members: &[(Vec<(Member, PatId)>, PatId)]) -> TcResult<()> {
+        let member_maps = members
+            .iter()
+            .map(|(members, pat)| (self.map_variables_to_terms(members), pat))
+            .collect_vec();
+
+        // Take the first member as we'll use it for our comparison
+        let mut members = member_maps.iter();
+        let (first_map, first_pat_id) = members.next().unwrap();
+        let first_binds = first_map.keys().copied().collect::<HashSet<Identifier>>();
+
+        // Compute the difference in `name` keys, if there exists a
+        // difference then we can immediately report the error and abort...
+        //
+        // @@ErrorReporting: It would be nice to produce multiple errors here
+        for (member, cur_pat_id) in members {
+            // We want to find the largest member and report that that member doesn't
+            // contain the binds...
+            let cur_binds = member.keys().copied().collect::<HashSet<Identifier>>();
+
+            let (mut diff, pat) = if first_binds.len() > cur_binds.len() {
+                (first_binds.difference(&cur_binds).peekable(), *cur_pat_id)
+            } else {
+                (cur_binds.difference(&first_binds).peekable(), *first_pat_id)
+            };
+
+            // If there is at-least one discrepancy, we want to generate the report already
+            if diff.peek().is_some() {
+                return Err(TcError::MissingPatternBounds {
+                    pat: *pat,
+                    bounds: diff.copied().collect_vec(),
+                });
+            }
+        }
+
+        // Now we need to verify that all of the member binds are of the
+        // same type...
+        for bind in first_binds {
+            let shared_terms =
+                member_maps.iter().map(|(map, _)| map.get(&bind).unwrap()).copied().collect_vec();
+
+            self.unifier().unify_pat_terms(shared_terms)?;
         }
 
         Ok(())
@@ -189,12 +257,12 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 //  Here we have to basically try to access the given members using ns access...
                 todo!()
             }
-            Pat::Constructor(ConstructorPat { params, .. }) => {
+            Pat::Constructor(ConstructorPat { args, .. }) => {
                 // Get the term of the constructor and try to unify it with the subject:
                 let constructor_term = self.typer().get_term_of_pat(pat_id)?;
 
-                let pat_args = self.typer().infer_args_of_pat_args(params)?;
-                let constructor_args = self.reader().get_pat_args(params).clone();
+                let pat_args = self.typer().infer_args_of_pat_args(args)?;
+                let constructor_args = self.reader().get_pat_args(args).clone();
 
                 let possible_params =
                     self.typer().infer_constructors_of_nominal_term(simplified_term_id)?;
@@ -220,16 +288,13 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                                 pat_id,
                             )?
                             .into_iter()
-                            .map(|(param, pat_param)| {
+                            .map(|(param, arg)| {
                                 let param_value = param
                                     .default_value
                                     .unwrap_or_else(|| self.builder().create_rt_term(param.ty));
 
                                 Ok(self
-                                    .match_pat_with_term_and_extract_members(
-                                        pat_param.pat,
-                                        param_value,
-                                    )?
+                                    .match_pat_with_term_and_extract_members(arg.pat, param_value)?
                                     .into_iter()
                                     .flatten()
                                     .collect::<Vec<_>>())
@@ -244,7 +309,6 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                             // pattern checking into a separate
                             // function.
                             self.verify_members_are_bound_once(&bound_members)?;
-
                             return Ok(Some(bound_members));
                         }
                         Err(_) => continue,
@@ -309,11 +373,30 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                 }
                 _ => Ok(Some(vec![])),
             },
-            Pat::Or(_) => {
-                // Here we have to get the union of all the pattern terms, and also need to
-                // ensure that the bound variables are the same for each
-                // branch and of the same type
-                todo!()
+            Pat::Or(pats) => {
+                // Traverse all of the inner patterns within the `or` pattern, create a
+                // map between the member names that are produced and the type of the
+                // pattern... Then we want to ensure all of them are equal
+                let pat_members = pats
+                    .iter()
+                    .map(|pat| {
+                        self.match_pat_with_term_and_extract_members(*pat, term_id)
+                            .map(|m| m.map(|t| (t, *pat)))
+                    })
+                    .flatten_ok()
+                    .collect::<TcResult<Vec<_>>>()?;
+
+                // One of the cases never matches with the subject if the length is not the same
+                if pat_members.len() != pats.len() {
+                    return Ok(None);
+                }
+
+                self.pat_members_match(&pat_members)?;
+
+                // Since all verification happens, we can now return the first member
+                // since we know that all of the types are the same, and all the binds
+                // will be in scope, regardless of which pattern is matched at runtime
+                Ok(Some(pat_members[0].0.clone()))
             }
             Pat::If(IfPat { pat, .. }) => {
                 // Recurse to inner, but never say it is redundant:

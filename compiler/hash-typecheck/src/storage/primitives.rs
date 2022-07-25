@@ -1042,7 +1042,7 @@ pub struct ConstructorPat {
     pub subject: TermId,
     /// If `params` is `None`, it means that the constructor has no parameters;
     /// it is a unit.
-    pub params: PatArgsId,
+    pub args: PatArgsId,
 }
 
 /// A list pattern

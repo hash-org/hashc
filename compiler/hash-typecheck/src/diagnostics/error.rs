@@ -150,4 +150,9 @@ pub enum TcError {
 
     /// When a bind within a pattern is declared more than one
     IdentifierBoundMultipleTimes { name: Identifier, pat: PatId },
+
+    /// Within an `or` pattern, where there is a discrepancy between the
+    /// declared bounds within two patterns. For example, if one pattern
+    /// binds `k`, but the other doesn't.
+    MissingPatternBounds { pat: PatId, bounds: Vec<Identifier> },
 }

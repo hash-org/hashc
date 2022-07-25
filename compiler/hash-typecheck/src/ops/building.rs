@@ -708,7 +708,7 @@ impl<'gs> PrimitiveBuilder<'gs> {
 
     /// Create a constructor pattern.
     pub fn create_constructor_pat(&self, subject: TermId, params: PatArgsId) -> PatId {
-        self.create_pat(Pat::Constructor(ConstructorPat { subject, params }))
+        self.create_pat(Pat::Constructor(ConstructorPat { subject, args: params }))
     }
 
     /// Create a constructor pattern without parameters.

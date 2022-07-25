@@ -9,8 +9,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, Sub,
-            Term, TermId,
+            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, PatId,
+            Sub, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -702,5 +702,71 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         self.cacher().add_unification_entry((src_id, target_id), &sub);
 
         Ok(sub)
+    }
+
+    /// Function used to verify a variadic sequence of terms. This ensures that
+    /// the terms can all be unified.
+    pub(crate) fn unify_rt_term_sequence(
+        &mut self,
+        sequence: impl IntoIterator<Item = TermId>,
+    ) -> TcResult<TermId> {
+        let mut elements = sequence.into_iter().peekable();
+
+        // Create a shared term that is used to verify all elements within the
+        // list can be unified with one another, and then iterate over all of the
+        // elements.
+        let mut shared_term = self.builder().create_unresolved_term();
+
+        while let Some(element) = elements.next() {
+            let element_ty = self.typer().infer_ty_of_term(element)?;
+            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
+
+            // apply the substitution on the `shared_term`
+            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
+
+            // Only add the position to the last term...
+            if elements.peek().is_none() {
+                self.location_store_mut().copy_location(element_ty, shared_term);
+            }
+        }
+
+        Ok(shared_term)
+    }
+
+    /// Function used to verify a sequence of pattern terms with associated
+    /// [PatId]s. The term is expected to be already the type and thus a
+    /// multi-term unification is applied.
+    ///
+    /// @@ErrorReporting: The function does not currently produce good location
+    /// messages because the terms are being clobbered, ideally the
+    /// associated `PatId` should be used here.
+    pub(crate) fn unify_pat_terms(
+        &mut self,
+        sequence: impl IntoIterator<Item = (TermId, PatId)>,
+    ) -> TcResult<TermId> {
+        let mut elements = sequence.into_iter().peekable();
+
+        // Create a shared term that is used to verify all elements within the
+        // list can be unified with one another, and then iterate over all of the
+        // elements.
+        let mut shared_term = self.builder().create_unresolved_term();
+
+        // @@TODO: rather than using `Term` as the location, we should use the `Pat` as
+        // the location, but this requires some additional infrastructure within
+        // diagnostics in order to support patterns as being arguments to
+        // `CannotUnify`
+        while let Some((element_ty, _)) = elements.next() {
+            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
+
+            // apply the substitution on the `shared_term`
+            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
+
+            // Only add the position to the last term...
+            if elements.peek().is_none() {
+                self.location_store_mut().copy_location(element_ty, shared_term);
+            }
+        }
+
+        Ok(shared_term)
     }
 }

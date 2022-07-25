@@ -48,4 +48,5 @@ error_codes! {
 
     // Pattern errors
     IdentifierBoundMultipleTimes = 80,
+    MissingPatternBounds = 81,
 }

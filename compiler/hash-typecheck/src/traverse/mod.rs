@@ -34,7 +34,6 @@ use self::scopes::VisitConstantScope;
 
 pub mod params;
 pub mod scopes;
-pub mod sequence;
 
 /// Internal state that the [TcVisitor] uses when traversing the
 /// given sources.
@@ -210,8 +209,8 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let map_inner_ty = self.core_defs().map_ty_fn;
 
         // Unify the key and value types...
-        let key_ty = self.unify_term_sequence(entries.iter().map(|(k, _)| *k))?;
-        let val_ty = self.unify_term_sequence(entries.iter().map(|(v, _)| *v))?;
+        let key_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(k, _)| *k))?;
+        let val_ty = self.unifier().unify_rt_term_sequence(entries.iter().map(|(v, _)| *v))?;
 
         let builder = self.builder();
         let map_ty = builder.create_app_ty_fn_term(
@@ -252,7 +251,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::ListLit { elements } = walk::walk_list_lit(self, ctx, node)?;
 
         let list_inner_ty = self.core_defs().list_ty_fn;
-        let element_ty = self.unify_term_sequence(elements)?;
+        let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
 
         let builder = self.builder();
         let list_ty = builder.create_app_ty_fn_term(
@@ -278,7 +277,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::SetLit { elements } = walk::walk_set_lit(self, ctx, node)?;
 
         let set_inner_ty = self.core_defs().set_ty_fn;
-        let element_ty = self.unify_term_sequence(elements)?;
+        let element_ty = self.unifier().unify_rt_term_sequence(elements)?;
 
         let builder = self.builder();
         let set_ty = builder.create_app_ty_fn_term(
@@ -2068,7 +2067,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             .map(|(element, _)| -> TcResult<TermId> { self.typer().get_term_of_pat(*element) })
             .collect::<TcResult<Vec<_>>>()?;
 
-        let list_term = self.unify_term_sequence(inner_terms)?;
+        let list_term = self.unifier().unify_rt_term_sequence(inner_terms)?;
 
         let members = self.builder().create_pat_args(
             elements.into_iter().map(|pat| PatArg { name: None, pat }),

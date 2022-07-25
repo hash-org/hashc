@@ -619,7 +619,7 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Constructor(constructor_pat) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, constructor_pat.subject, opts)?;
-                write!(f, "({})", constructor_pat.params.for_formatting(self.global_storage))?;
+                write!(f, "({})", constructor_pat.args.for_formatting(self.global_storage))?;
                 Ok(())
             }
             Pat::Or(pats) => {
