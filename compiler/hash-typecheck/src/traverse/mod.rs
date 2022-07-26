@@ -798,12 +798,9 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let walk::TupleTy { entries } = walk::walk_tuple_ty(self, ctx, node)?;
 
         let members = self.builder().create_params(entries, ParamOrigin::Tuple);
-
         self.copy_location_from_nodes_to_targets(node.entries.ast_ref_iter(), members);
 
-        let builder = self.builder();
-        let term = builder.create_tuple_ty_term(members);
-
+        let term = self.builder().create_tuple_ty_term(members);
         self.copy_location_from_node_to_target(node, term);
 
         Ok(term)
@@ -842,15 +839,12 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_ty = self.core_defs().set_ty_fn;
         let builder = self.builder();
 
-        let set_ty = builder.create_app_ty_fn_term(
+        let term = builder.create_app_ty_fn_term(
             inner_ty,
             builder.create_args([builder.create_arg("T", inner)], ParamOrigin::TyFn),
         );
 
-        let term = builder.create_rt_term(set_ty);
-
         self.copy_location_from_node_to_target(node, term);
-
         Ok(term)
     }
 
@@ -866,7 +860,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
         let inner_ty = self.core_defs().map_ty_fn;
         let builder = self.builder();
 
-        let map_ty = builder.create_app_ty_fn_term(
+        let term = builder.create_app_ty_fn_term(
             inner_ty,
             builder.create_args(
                 [builder.create_arg("K", key), builder.create_arg("V", value)],
@@ -874,10 +868,7 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
             ),
         );
 
-        let term = builder.create_rt_term(map_ty);
-
         self.copy_location_from_node_to_target(node, term);
-
         Ok(term)
     }
 
@@ -998,10 +989,15 @@ impl<'gs, 'ls, 'cd, 'src> visitor::AstVisitor for TcVisitor<'gs, 'ls, 'cd, 'src>
 
     fn visit_access_ty(
         &mut self,
-        _: &Self::Ctx,
-        _: ast::AstNodeRef<ast::AccessTy>,
+        ctx: &Self::Ctx,
+        node: ast::AstNodeRef<ast::AccessTy>,
     ) -> Result<Self::AccessTyRet, Self::Error> {
-        todo!()
+        let walk::AccessTy { subject, property } = walk::walk_access_ty(self, ctx, node)?;
+
+        let term = self.builder().create_access(subject, property, AccessOp::Namespace);
+        self.copy_location_from_node_to_target(node, term);
+
+        Ok(term)
     }
 
     type RefTyRet = TermId;

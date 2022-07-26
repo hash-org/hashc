@@ -14,8 +14,8 @@ use crate::{
     ops::{unify::UnifyParamsWithArgsMode, validate::TermValidation, AccessToOpsMut},
     storage::{
         primitives::{
-            AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData, Mutability,
-            Param, Pat, PatArg, PatId, SpreadPat, TermId, Visibility,
+            AccessOp, AccessPat, ConstPat, ConstructorPat, IfPat, ListPat, Member, MemberData,
+            ModPat, Mutability, Param, Pat, PatArg, PatId, SpreadPat, TermId, Visibility,
         },
         AccessToStorage, AccessToStorageMut, StorageRef, StorageRefMut,
     },
@@ -248,9 +248,29 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     Err(_) => Ok(None),
                 }
             }
-            Pat::Mod(_) => {
+            Pat::Mod(ModPat { members }) => {
+                let members = self.reader().get_pat_args(members).clone();
+
+                let mut bound_members = vec![];
+
                 //  Here we have to basically try to access the given members using ns access...
-                todo!()
+                for member in members.positional() {
+                    let PatArg { name, pat } = *member;
+
+                    // Before we recurse into the inner pattern, we need to
+                    // create an access term that accesses `name` from the
+                    // current term... and then we recurse into pattern
+                    let term =
+                        self.builder().create_access(term_id, name.unwrap(), AccessOp::Namespace);
+
+                    // If one of them fails, then we have to fail as a whole
+                    match self.match_pat_with_term_and_extract_binds(pat, term)? {
+                        Some(inner_members) => bound_members.extend(inner_members),
+                        None => return Ok(None),
+                    }
+                }
+
+                Ok(Some(bound_members))
             }
             Pat::Constructor(ConstructorPat { args, .. }) => {
                 // Get the term of the constructor and try to unify it with the subject:

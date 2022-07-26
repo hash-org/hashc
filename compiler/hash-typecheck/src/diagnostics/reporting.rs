@@ -8,7 +8,7 @@ use super::{
 use crate::{
     fmt::PrepareForFormatting,
     storage::{
-        primitives::{Arg, Param},
+        primitives::{AccessOp, Arg, Param},
         AccessToStorage, StorageRef,
     },
 };
@@ -557,9 +557,12 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                 }
             }
             TcError::UnresolvedNameInValue { name, op, value } => {
+                // @@ErrorReporting: Add the span of `name` to show where the access occurs
+                let op_member_kind = if *op == AccessOp::Namespace { "member" } else { "field" };
+
                 builder.with_error_code(HashErrorCode::UnresolvedNameInValue).with_message(
                     format!(
-                        "the field `{}` is not present within `{}`",
+                        "the {op_member_kind} `{}` is not present within `{}`",
                         name,
                         value.for_formatting(err.global_storage())
                     ),
@@ -569,7 +572,7 @@ impl<'gs, 'ls, 'cd, 's> From<TcErrorWithStorage<'gs, 'ls, 'cd, 's>> for Report {
                     builder.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(
                         location,
                         format!(
-                            "{} does not contain the {} `{}`",
+                            "`{}` does not contain the {} `{}`",
                             value.for_formatting(err.global_storage()),
                             op,
                             name
