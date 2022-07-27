@@ -17,6 +17,7 @@ use traverse::TcVisitor;
 use crate::fmt::PrepareForFormatting;
 
 pub mod diagnostics;
+pub mod exhaustiveness;
 pub mod fmt;
 pub mod ops;
 pub mod storage;

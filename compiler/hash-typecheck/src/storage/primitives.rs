@@ -1,7 +1,7 @@
 //! Contains type definitions that the rest of the storage and the general
 //! typechecker use.
 use hash_ast::ast::ParamOrigin;
-use hash_source::{identifier::Identifier, SourceId};
+use hash_source::{identifier::Identifier, string::Str, SourceId};
 use num_bigint::BigInt;
 use slotmap::new_key_type;
 use std::{
@@ -609,20 +609,20 @@ pub struct AccessTerm {
 /// A literal term, which is level 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LitTerm {
-    Str(String),
+    Str(Str),
     Int(BigInt),
     Char(char),
 }
 
 impl From<&str> for LitTerm {
     fn from(s: &str) -> Self {
-        LitTerm::Str(s.to_owned())
+        LitTerm::Str(s.into())
     }
 }
 
 impl From<String> for LitTerm {
     fn from(s: String) -> Self {
-        LitTerm::Str(s)
+        LitTerm::Str(s.into())
     }
 }
 
