@@ -71,7 +71,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
 
         match pat {
             // Binding: Add the binding as a member
-            Pat::Binding(binding) => Ok(Some(vec![Member::bound(
+            Pat::Binding(binding) => Ok(Some(vec![Member::closed_stack(
                 binding.name,
                 binding.visibility,
                 binding.mutability,
@@ -246,7 +246,7 @@ impl<'gs, 'ls, 'cd, 's> PatMatcher<'gs, 'ls, 'cd, 's> {
                     let TermValidation { simplified_term_id, term_ty_id } =
                         self.validator().validate_term(rt_term)?;
 
-                    Ok(Some(vec![Member::bound(
+                    Ok(Some(vec![Member::closed_stack(
                         name,
                         Visibility::Private,
                         Mutability::Immutable,
