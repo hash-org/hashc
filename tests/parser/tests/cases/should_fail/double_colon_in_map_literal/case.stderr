@@ -2,4 +2,4 @@ error: Failed to parse
  --> $DIR/case.hash:1:15
 1 |   k := map!{ 1::2 };
   |                 ^ here
-  = note: Expected an identifier.
+  = note: Expected a name here.

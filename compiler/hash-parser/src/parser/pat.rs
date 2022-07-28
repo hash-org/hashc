@@ -117,16 +117,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
             self.peek().ok_or_else(|| self.make_error(AstGenErrorKind::EOF, None, None, None))?;
 
         let pat = match token {
-            Token { kind: TokenKind::Ident(ident), span }
+            Token { kind: TokenKind::Ident(ident), .. }
                 if *ident == CORE_IDENTIFIERS.underscore =>
             {
                 self.skip_token();
-
-                Pat::Binding(BindingPat {
-                    name: self.node_with_span(Name { ident: *ident }, *span),
-                    visibility: None,
-                    mutability: None,
-                })
+                Pat::Ignore(IgnorePat)
             }
             // A name bind that has visibility/mutability modifiers
             Token {
@@ -286,7 +281,10 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
 
         // If there is no associated name with the entry and there is only one entry
         // then we can be sure that it is only a nested entry.
-        if elements.len() == 1 && elements[0].name.is_none() {
+        if elements.len() == 1
+            && elements[0].name.is_none()
+            && !matches!(gen.current_token().kind, TokenKind::Comma)
+        {
             let element = elements.nodes.pop().unwrap().into_body();
 
             Ok(element.pat)
@@ -402,6 +400,11 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     pub(crate) fn begins_pat(&self) -> bool {
         // Perform the initial pattern component lookahead
         let mut n_lookahead = match self.peek() {
+            // Literals are allowed, but they must be immediately followed
+            // by a colon
+            Some(token) if token.kind.is_lit() => {
+                return matches!(self.peek_second(), Some(token) if token.has_kind(TokenKind::Colon));
+            }
             // Namespace, List, Tuple, etc.
             Some(Token { kind: TokenKind::Tree(_, _), .. }) => 1,
             // Identifier or constructor pattern

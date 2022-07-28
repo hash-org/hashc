@@ -906,16 +906,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type ModulePatRet = ();
-
-    fn visit_module_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePat>,
-    ) -> Result<Self::ModulePatRet, Self::Error> {
-        Ok(())
-    }
-
     type TuplePatEntryRet = ();
 
     fn visit_tuple_pat_entry(
@@ -943,6 +933,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ListPat>,
     ) -> Result<Self::ListPatRet, Self::Error> {
+        Ok(())
+    }
+
+    type SpreadPatRet = ();
+
+    fn visit_spread_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPat>,
+    ) -> Result<Self::SpreadPatRet, Self::Error> {
         Ok(())
     }
 
@@ -1037,16 +1037,6 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         Ok(())
     }
 
-    type SpreadPatRet = ();
-
-    fn visit_spread_pat(
-        &mut self,
-        _: &Self::Ctx,
-        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::SpreadPat>,
-    ) -> Result<Self::SpreadPatRet, Self::Error> {
-        Ok(())
-    }
-
     type IgnorePatRet = ();
 
     fn visit_ignore_pat(
@@ -1064,6 +1054,16 @@ impl<'s> AstVisitorMut for AstDesugaring<'s> {
         _: &Self::Ctx,
         _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePatEntry>,
     ) -> Result<Self::ModulePatEntryRet, Self::Error> {
+        Ok(())
+    }
+
+    type ModulePatRet = ();
+
+    fn visit_module_pat(
+        &mut self,
+        _: &Self::Ctx,
+        _: hash_ast::ast::AstNodeRefMut<hash_ast::ast::ModulePat>,
+    ) -> Result<Self::ModulePatRet, Self::Error> {
         Ok(())
     }
 

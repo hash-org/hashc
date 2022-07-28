@@ -56,8 +56,8 @@ pub enum AstGenErrorKind {
     /// there are two variants is to add additional information in the error
     /// message.
     TypeDefinition(TyArgumentKind),
-    /// Expected an identifier here.
-    ExpectedIdentifier,
+    /// Expected a name here.
+    ExpectedName,
     /// Expected a binary operator that ties two expressions together to create
     /// a binary expression.
     ExpectedOperator,
@@ -136,7 +136,7 @@ impl From<AstGenError> for ParseError {
             }
             AstGenErrorKind::ExpectedOperator => "Expected an operator".to_string(),
             AstGenErrorKind::ExpectedExpr => "Expected an expression".to_string(),
-            AstGenErrorKind::ExpectedIdentifier => "Expected an identifier".to_string(),
+            AstGenErrorKind::ExpectedName => "Expected a name here".to_string(),
             AstGenErrorKind::ExpectedArrow => "Expected an arrow '=>' ".to_string(),
             AstGenErrorKind::ExpectedFnArrow => {
                 "Expected an arrow '->' after type arguments denoting a function type".to_string()

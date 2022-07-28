@@ -1,6 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
+use hash_source::identifier::CORE_IDENTIFIERS;
 use hash_token::{Token, TokenKind};
 
 use super::{error::AstGenErrorKind, AstGen, AstGenResult};
@@ -9,14 +10,17 @@ impl<'stream, 'resolver> AstGen<'stream, 'resolver> {
     /// Parse a singular [Name] from the current token stream.
     #[inline]
     pub fn parse_name(&self) -> AstGenResult<AstNode<Name>> {
-        self.parse_name_with_error(AstGenErrorKind::ExpectedIdentifier)
+        self.parse_name_with_error(AstGenErrorKind::ExpectedName)
     }
 
-    /// Parse a singular [Name] from the current token stream.
+    /// Parse a singular [Name] from the current token stream. The function
+    /// disallows a [Name] to be the special binding `_`.
     #[inline]
     pub fn parse_name_with_error(&self, err: AstGenErrorKind) -> AstGenResult<AstNode<Name>> {
         match self.next_token() {
-            Some(Token { kind: TokenKind::Ident(ident), span }) => {
+            Some(Token { kind: TokenKind::Ident(ident), span })
+                if *ident != CORE_IDENTIFIERS.underscore =>
+            {
                 Ok(self.node_with_span(Name { ident: *ident }, *span))
             }
             token => self.error_with_location(

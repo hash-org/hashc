@@ -1236,6 +1236,12 @@ pub enum ParamOrigin {
     Fn,
     TyFn,
     EnumVariant,
+    /// List pattern parameters, the parameters are all the same, but it's
+    /// used to represent the inner terms of the list pattern since spread
+    /// patterns may become named parameters.
+    ListPat,
+    /// Module pattern
+    ModulePat,
 }
 
 impl Display for ParamOrigin {
@@ -1247,6 +1253,8 @@ impl Display for ParamOrigin {
             ParamOrigin::Fn => write!(f, "function"),
             ParamOrigin::TyFn => write!(f, "type function"),
             ParamOrigin::EnumVariant => write!(f, "enum variant"),
+            ParamOrigin::ListPat => write!(f, "list pattern"),
+            ParamOrigin::ModulePat => write!(f, "module pattern"),
         }
     }
 }

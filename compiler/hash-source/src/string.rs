@@ -79,7 +79,7 @@ impl StrLitMap {
         }
     }
 
-    /// Get the [String] behind the [StrLit]
+    /// Get the [String] behind the [Str]
     pub fn lookup(&self, ident: Str) -> &'static str {
         self.string_table.get(&ident).unwrap().value()
     }

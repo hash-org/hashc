@@ -9,7 +9,8 @@ use crate::{
     storage::{
         location::LocationTarget,
         primitives::{
-            ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, ParamsId, Sub, Term, TermId,
+            Arg, ArgsId, Level0Term, Level1Term, Level2Term, Level3Term, Param, ParamsId, PatId,
+            Sub, Term, TermId,
         },
         AccessToStorage, AccessToStorageMut, StorageRefMut,
     },
@@ -121,11 +122,12 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         Ok(result)
     }
 
-    /// Unify the given parameters with the given arguments.
+    /// Unify the given parameters with the given arguments. This function
+    /// will first perform a pairing operation between the arguments and the
+    /// provided parameters in order to ensure that they can be unified.
     ///
-    /// This is done by first getting the type of each argument, and unifying
-    /// with the type of each parameter. Then, a substitution is created
-    /// from each parameter to each argument value.
+    /// Unification is actually performed by
+    /// [this](Unifier::unify_param_arg_pairs) function.
     pub(crate) fn unify_params_with_args(
         &mut self,
         params_id: ParamsId,
@@ -142,9 +144,24 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
             &args,
             params_id,
             args_id,
+            |param| self.typer().infer_arg_from_param(param),
             params_subject,
             args_subject,
         )?;
+
+        self.unify_param_arg_pairs(pairs, mode)
+    }
+
+    /// Unify paired arguments and parameters.
+    ///
+    /// This is done by first getting the type of each argument, and unifying
+    /// with the type of each parameter. Then, a substitution is created
+    /// from each parameter to each argument value.
+    pub(crate) fn unify_param_arg_pairs(
+        &mut self,
+        pairs: Vec<(&Param, Arg)>,
+        mode: UnifyParamsWithArgsMode,
+    ) -> TcResult<Sub> {
         let mut sub = Sub::empty();
 
         for (param, arg) in pairs.into_iter() {
@@ -627,6 +644,24 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             cannot_unify()
                         }
                     }
+                    (
+                        Level0Term::Constructed(src_constructed_term),
+                        Level0Term::Constructed(target_constructed_term),
+                    ) => {
+                        // Unify the subject of the constructed terms
+                        self.unify_terms(
+                            src_constructed_term.subject,
+                            target_constructed_term.subject,
+                        )?;
+
+                        // Unify the arguments of the constructed terms
+                        self.unify_args(
+                            src_constructed_term.members,
+                            target_constructed_term.members,
+                            src_id,
+                            target_id,
+                        )
+                    }
                     (Level0Term::Tuple(src_tuple_lit), Level0Term::Tuple(target_tuple_lit)) => {
                         // Unify each argument:
                         self.unifier().unify_args(
@@ -636,7 +671,13 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
                             target_id,
                         )
                     }
-                    (Level0Term::Lit(_) | Level0Term::Tuple(_) | Level0Term::EnumVariant(_), _) => {
+                    (
+                        Level0Term::Lit(_)
+                        | Level0Term::Tuple(_)
+                        | Level0Term::Constructed(_)
+                        | Level0Term::EnumVariant(_),
+                        _,
+                    ) => {
                         // Try to get the type of the src literal, and the type of the target, and
                         // unify:
                         let src_lit_ty =
@@ -661,5 +702,71 @@ impl<'gs, 'ls, 'cd, 's> Unifier<'gs, 'ls, 'cd, 's> {
         self.cacher().add_unification_entry((src_id, target_id), &sub);
 
         Ok(sub)
+    }
+
+    /// Function used to verify a variadic sequence of terms. This ensures that
+    /// the types of all the terms can be unified.
+    pub(crate) fn unify_rt_term_sequence(
+        &mut self,
+        sequence: impl IntoIterator<Item = TermId>,
+    ) -> TcResult<TermId> {
+        let mut elements = sequence.into_iter().peekable();
+
+        // Create a shared term that is used to verify all elements within the
+        // list can be unified with one another, and then iterate over all of the
+        // elements.
+        let mut shared_term = self.builder().create_unresolved_term();
+
+        while let Some(element) = elements.next() {
+            let element_ty = self.typer().infer_ty_of_term(element)?;
+            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
+
+            // apply the substitution on the `shared_term`
+            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
+
+            // Only add the position to the last term...
+            if elements.peek().is_none() {
+                self.location_store_mut().copy_location(element_ty, shared_term);
+            }
+        }
+
+        Ok(shared_term)
+    }
+
+    /// Function used to verify a sequence of pattern terms with associated
+    /// [PatId]s. The term is expected to be already the type and thus a
+    /// multi-term unification is applied.
+    ///
+    /// @@ErrorReporting: The function does not currently produce good location
+    /// messages because the terms are being clobbered, ideally the
+    /// associated `PatId` should be used here.
+    pub(crate) fn unify_pat_terms(
+        &mut self,
+        sequence: impl IntoIterator<Item = (TermId, PatId)>,
+    ) -> TcResult<TermId> {
+        let mut elements = sequence.into_iter().peekable();
+
+        // Create a shared term that is used to verify all elements within the
+        // list can be unified with one another, and then iterate over all of the
+        // elements.
+        let mut shared_term = self.builder().create_unresolved_term();
+
+        // @@TODO: rather than using `Term` as the location, we should use the `Pat` as
+        // the location, but this requires some additional infrastructure within
+        // diagnostics in order to support patterns as being arguments to
+        // `CannotUnify`
+        while let Some((element_ty, _)) = elements.next() {
+            let sub = self.unifier().unify_terms(element_ty, shared_term)?;
+
+            // apply the substitution on the `shared_term`
+            shared_term = self.substituter().apply_sub_to_term(&sub, shared_term);
+
+            // Only add the position to the last term...
+            if elements.peek().is_none() {
+                self.location_store_mut().copy_location(element_ty, shared_term);
+            }
+        }
+
+        Ok(shared_term)
     }
 }

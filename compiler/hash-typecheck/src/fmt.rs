@@ -3,10 +3,10 @@
 
 use crate::storage::{
     primitives::{
-        AccessOp, ArgsId, EnumDef, Level0Term, Level1Term, Level2Term, Level3Term, LitTerm,
-        MemberData, ModDefId, ModDefOrigin, ModPat, Mutability, NominalDef, NominalDefId, ParamsId,
-        Pat, PatId, PatParamsId, ScopeId, StructDef, Sub, SubSubject, Term, TermId, TrtDefId,
-        UnresolvedTerm, Visibility,
+        AccessOp, AccessPat, ArgsId, ConstPat, ConstructedTerm, EnumDef, Level0Term, Level1Term,
+        Level2Term, Level3Term, ListPat, LitTerm, MemberData, ModDefId, ModDefOrigin, ModPat,
+        Mutability, NominalDef, NominalDefId, ParamsId, Pat, PatArgsId, PatId, ScopeId, SpreadPat,
+        StructDef, Sub, SubSubject, Term, TermId, TrtDefId, UnresolvedTerm, Visibility,
     },
     GlobalStorage,
 };
@@ -126,7 +126,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the given [Params] with the given formatter.
+    /// Format the given [Params](crate::storage::primitives::Params) with the
+    /// given formatter.
     pub fn fmt_params(&self, f: &mut fmt::Formatter, params_id: ParamsId) -> fmt::Result {
         let params = self.global_storage.params_store.get(params_id);
 
@@ -147,7 +148,8 @@ impl<'gs> TcFormatter<'gs> {
         Ok(())
     }
 
-    /// Format the given [Args] with the given formatter.
+    /// Format the given [Args](crate::storage::primitives::Args) with the given
+    /// formatter.
     pub fn fmt_args(&self, f: &mut fmt::Formatter, args_id: ArgsId) -> fmt::Result {
         let args = self.global_storage.args_store.get(args_id);
 
@@ -239,6 +241,16 @@ impl<'gs> TcFormatter<'gs> {
             Level0Term::Tuple(tuple_lit) => {
                 opts.is_atomic.set(true);
                 write!(f, "({})", tuple_lit.members.for_formatting(self.global_storage))
+            }
+            Level0Term::Constructed(ConstructedTerm { subject, members }) => {
+                opts.is_atomic.set(true);
+
+                write!(
+                    f,
+                    "{}({})",
+                    subject.for_formatting(self.global_storage),
+                    members.for_formatting(self.global_storage)
+                )
             }
         }
     }
@@ -532,13 +544,10 @@ impl<'gs> TcFormatter<'gs> {
         }
     }
 
-    /// Format the given [PatParams] with the given formatter.
-    pub fn fmt_pat_params(
-        &self,
-        f: &mut fmt::Formatter,
-        pat_params_id: PatParamsId,
-    ) -> fmt::Result {
-        let pat_params = self.global_storage.pat_params_store.get(pat_params_id);
+    /// Format the given [PatArgs](crate::storage::primitives::PatArgs) with the
+    /// given formatter.
+    pub fn fmt_pat_params(&self, f: &mut fmt::Formatter, id: PatArgsId) -> fmt::Result {
+        let pat_params = self.global_storage.pat_params_store.get(id);
 
         for (i, param) in pat_params.positional().iter().enumerate() {
             match param.name {
@@ -598,6 +607,10 @@ impl<'gs> TcFormatter<'gs> {
                 opts.is_atomic.set(false);
                 write!(f, "{}{}{}", visibility, mutability, name)
             }
+            Pat::Access(AccessPat { subject, property }) => {
+                write!(f, "{}::{}", property, subject.for_formatting(self.global_storage))
+            }
+            Pat::Const(ConstPat { term }) => self.fmt_term(f, *term, opts),
             Pat::Lit(lit_term) => self.fmt_term(f, *lit_term, opts),
             Pat::Tuple(tuple_pat) => {
                 opts.is_atomic.set(true);
@@ -606,9 +619,7 @@ impl<'gs> TcFormatter<'gs> {
             Pat::Constructor(constructor_pat) => {
                 opts.is_atomic.set(true);
                 self.fmt_term_as_single(f, constructor_pat.subject, opts)?;
-                if let Some(params) = constructor_pat.params {
-                    write!(f, "({})", params.for_formatting(self.global_storage))?;
-                }
+                write!(f, "({})", constructor_pat.args.for_formatting(self.global_storage))?;
                 Ok(())
             }
             Pat::Or(pats) => {
@@ -664,6 +675,19 @@ impl<'gs> TcFormatter<'gs> {
 
                 Ok(())
             }
+            Pat::List(ListPat { inner, .. }) => {
+                write!(f, "[{}]", inner.for_formatting(self.global_storage))
+            }
+            Pat::Spread(SpreadPat { name }) => {
+                write!(f, "...")?;
+
+                // Write the name bind, if it exists
+                if let Some(name) = name {
+                    write!(f, "{}", name)?;
+                }
+
+                Ok(())
+            }
         }
     }
 }
@@ -705,7 +729,7 @@ impl PrepareForFormatting for NominalDefId {}
 impl PrepareForFormatting for ParamsId {}
 impl PrepareForFormatting for ArgsId {}
 impl PrepareForFormatting for ScopeId {}
-impl PrepareForFormatting for PatParamsId {}
+impl PrepareForFormatting for PatArgsId {}
 impl PrepareForFormatting for PatId {}
 impl PrepareForFormatting for &Sub {}
 
@@ -742,7 +766,7 @@ impl fmt::Display for ForFormatting<'_, ParamsId> {
     }
 }
 
-impl fmt::Display for ForFormatting<'_, PatParamsId> {
+impl fmt::Display for ForFormatting<'_, PatArgsId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         TcFormatter::new(self.global_storage).fmt_pat_params(f, self.t)
     }

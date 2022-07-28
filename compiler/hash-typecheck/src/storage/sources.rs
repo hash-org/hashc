@@ -4,7 +4,7 @@ use hash_source::SourceId;
 use std::collections::HashMap;
 
 /// Contains a record of all the sources which have been typechecked, and maps
-/// them to [ModDefId]s.
+/// them to (ModDefId)[crate::storage::primitives::ModDefId]s.
 #[derive(Debug, Default)]
 pub struct CheckedSources {
     data: HashMap<SourceId, TermId>,

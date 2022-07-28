@@ -46,7 +46,7 @@ impl ast::OwnsAstNode<ast::BodyBlock> for InteractiveBlock {
     }
 }
 
-/// Represents a module that was added to the [Sources]. [Module] holds
+/// Represents a module that was added to the [NodeMap]. [Module] holds
 /// meta data about the module, such as the path. It also holds the
 /// parsed [ast::AstNode<ast::Module>] within the data structure. This is
 /// set to being optional because it is likely that the generated AST
@@ -91,7 +91,7 @@ impl ast::OwnsAstNode<ast::Module> for Module {
     }
 }
 
-/// Union of a [Source] within [Sources]. It can either be a [Module]
+/// Union of a [Source] within [NodeMap]. It can either be a [Module]
 /// or [InteractiveBlock].
 #[derive(Debug)]
 pub enum Source {
@@ -170,17 +170,21 @@ impl NodeMap {
         self.modules.get(&module_id).unwrap()
     }
 
-    /// /// Create an [Iter] over the currently stores modules within [Sources]
+    /// /// Create an [Iter] over the currently stores modules within [NodeMap]
     pub fn iter_modules(&self) -> Iter<'_, ModuleId, Module> {
         self.modules.iter()
     }
 
-    /// Create an [IterMut] over the currently stores modules within [Sources].
+    /// Create an [IterMut] over the currently stores modules within [NodeMap].
     pub fn iter_mut_modules(&mut self) -> IterMut<'_, ModuleId, Module> {
         self.modules.iter_mut()
     }
 }
 
+/// Data structure representing the current pipeline workflow. The [Workspace]
+/// contains produced data and metadata from all the various stages within the
+/// compiler. The [Workspace] represents a shared work space for stages to
+/// access information about the current job.
 #[derive(Debug, Default)]
 pub struct Workspace {
     /// Dependency map between sources and modules.
@@ -193,7 +197,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    /// Create a new [Sources], initialising all members to be empty.
+    /// Create a new [Workspace], initialising all members to be empty.
     pub fn new() -> Self {
         Self {
             node_map: NodeMap::new(),
@@ -202,7 +206,7 @@ impl Workspace {
         }
     }
 
-    /// Add a interactive block to the [Sources] by providing the contents and
+    /// Add a interactive block to the [Workspace] by providing the contents and
     /// the [InteractiveBlock]. Returns the created [InteractiveId] from
     /// adding it to the source map.
     pub fn add_interactive_block(
@@ -216,7 +220,7 @@ impl Workspace {
         id
     }
 
-    /// Add a module to the [Sources] by providing the contents and the
+    /// Add a module to the [Workspace] by providing the contents and the
     /// [Module]. Returns the created [ModuleId] from adding it to the
     /// source map.
     pub fn add_module(&mut self, contents: String, module: Module, kind: ModuleKind) -> ModuleId {

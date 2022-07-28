@@ -118,8 +118,8 @@ pub enum TcError {
     UnsupportedTyFnApplication { subject_id: TermId },
     /// The given access operation results in more than one result.
     AmbiguousAccess { access: AccessTerm, results: Vec<TermId> },
-    /// Cannot use this as a function call subject.
-    InvalidFnCallSubject { term: TermId },
+    /// Cannot use this as a function call or struct subject.
+    InvalidCallSubject { term: TermId },
     /// The given access operation does not resolve to a method.
     InvalidPropertyAccessOfNonMethod { subject: TermId, property: Identifier },
     /// The given member requires an initialisation in the current scope.
@@ -144,4 +144,15 @@ pub enum TcError {
     CannotPatMatchWithoutAssignment { pat: PatId },
     /// Cannot use a non-name as an assign subject.
     InvalidAssignSubject { location: SourceLocation },
+
+    /// Cannot find a constructor for the given type
+    NoConstructorOnType { subject: TermId },
+
+    /// When a bind within a pattern is declared more than one
+    IdentifierBoundMultipleTimes { name: Identifier, pat: PatId },
+
+    /// Within an `or` pattern, where there is a discrepancy between the
+    /// declared bounds within two patterns. For example, if one pattern
+    /// binds `k`, but the other doesn't.
+    MissingPatternBounds { pat: PatId, bounds: Vec<Identifier> },
 }

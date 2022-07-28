@@ -1,7 +1,6 @@
 //! Self hosted hash parser, this function contains the implementations for
 //! `hash-ast` which provides a general interface to write a parser.
-#![feature(cell_update)]
-#![feature(is_some_with)]
+#![feature(cell_update, is_some_with)]
 
 mod import_resolver;
 pub mod parser;
@@ -93,7 +92,7 @@ impl<'pool> HashParser {
     /// `jobs` by sending [ParserAction::ParseImport] messages through the
     /// channel, and other workers set the parsed contents of the modules.
     /// When all message senders go out of scope, the parser finishes executing
-    fn begin(
+    pub fn begin(
         &mut self,
         entry_point_id: SourceId,
         current_dir: PathBuf,
