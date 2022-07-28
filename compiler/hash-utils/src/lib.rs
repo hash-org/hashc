@@ -2,6 +2,7 @@
 
 pub mod path;
 pub mod printing;
+pub mod stack;
 pub mod testing;
 pub mod tree_writing;
 
